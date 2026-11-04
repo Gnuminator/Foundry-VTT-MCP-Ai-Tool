@@ -117,7 +117,8 @@ while players are online.
      were. `rm -rf` only ever targets the stage's own work folder, written `${work:?}`.
    - **`UNDO=1`** does the same for the last run (it reads the state file, snapshot and quiet checks apply), starts
      Foundry and the browser again and reads back: the world answers, the browser joined, and every module shows its old
-     version (a module that had no old folder must be absent). It reaches only the last run.
+     version (a module that had no old folder must be absent). It reaches only the last run. Unlike `APPLY=1` it does not
+     need Foundry running first: after a killed run Foundry may be down, and `UNDO=1` starts it (and the browser).
    - It never downloads and never installs a version that is not pinned.
    - **Order in sitting 2:** stages 3, 14, 5 and 13 as in step 3, then this stage, then the Docker cutover; the cutover
      guard (`refuse_when_cut_over`, Backlog item on the stages that restart `foundry.service`) must list stage 25 too.

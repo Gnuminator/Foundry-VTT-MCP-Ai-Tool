@@ -214,9 +214,12 @@ if [ -n "$UNDO" ]; then
   [ -f "$STATE" ] || die "no $STATE: there is no run to undo. Nothing was changed"
   [ "$(state_get phase)" != undone ] || die "the last run ($(state_get stamp)) is already undone. Nothing was changed"
   say "UNDO: putting back the folders of the run from $(state_get stamp)"
-  require_world_running
+  # No "Foundry must be running" check here: a run killed after it stopped Foundry (the state UNDO exists for) leaves it
+  # stopped, and a module that keeps the world from launching leaves no world. Both start again below, as a run began.
   require_quiet "putting the old module folders back"
   stop_services
+  was_foundry=1
+  if have_systemd && systemctl is-enabled --quiet "$GM_UNIT" 2>/dev/null; then was_gm_browser=1; fi
   undo=1
   undo_state
   state_phase undone

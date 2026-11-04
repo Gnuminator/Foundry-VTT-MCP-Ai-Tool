@@ -310,8 +310,22 @@ if want foundry-stopped; then
   check foundry-stopped 'foundry.service is not running' "$out"
   check foundry-stopped 'exit 1' "$out"
   absent foundry-stopped 'stop foundry' "$(cat /tmp/calls)"
+fi
+
+if want undo-foundry-stopped; then
+  # a run killed after it stopped Foundry: phase=installing, Foundry down. UNDO must work and start Foundry again.
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-foundry-stopped-setup 'exit 0' "$out"
+  sed -i 's/^phase=.*/phase=installing/' "$IMPORT/modules-stage.state"
+  touch /tmp/stopped-foundry.service
+  : >/tmp/calls
   out="$(run_stage 'UNDO=1')"
-  check foundry-stopped-undo 'there is no run to undo|foundry.service is not running' "$out"
+  check undo-foundry-stopped 'alpha: 1.0.0 is back' "$out"
+  check undo-foundry-stopped 'Foundry is up' "$out"
+  check undo-foundry-stopped 'exit 0' "$out"
+  check undo-foundry-stopped 'old 1.0.0' "$(marker alpha)"
+  check undo-foundry-stopped 'restart foundry.service' "$(cat /tmp/calls)"
 fi
 
 if want bad-sha; then

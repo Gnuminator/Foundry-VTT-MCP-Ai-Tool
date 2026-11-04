@@ -150,7 +150,7 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 ## Context and handover
 
 - The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
-  lane, a session whose project dir (`CLAUDE_PROJECT_DIR`) is under `.claude/worktrees/` (the user, 2026-11-04); the planner and
+  lane, a session whose project dir (`CLAUDE_PROJECT_DIR`) is under `.claude/worktrees/`, or whose transcript sits in a worktree project folder (`...--claude-worktrees-<name>`; desktop-app worktree sessions have the main checkout as project dir). Both are fixed at session start, so a `cd` does not change it (the user, 2026-11-04); the planner and
   other sessions keep 200k and 250k. `get_usage "self"` gives the exact number. An advisor call's
   top-level usage reads about twice the real context; the hook reads the last pass.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands

@@ -35,7 +35,7 @@ export class DnD5eFeaturesFromCompendiumTools {
       {
         name: 'dnd5e-add-features-from-compendium',
         description:
-          '[D&D 5e only] Import class features and monster features from an official compendium ' +
+          'Direct write. [D&D 5e only] Import class features and monster features from an official compendium ' +
           'pack onto an actor (NPC or PC). Each feature is looked up by EXACT name ' +
           '(case-insensitive) and embedded onto the actor as-is from the compendium data.\n\n' +
           'USE THIS TOOL when you need to:\n' +

@@ -81,7 +81,7 @@ export class QuestCreationTools {
       {
         name: 'create-quest-journal',
         description:
-          'Create a new quest journal entry with AI-generated content based on natural language description',
+          'Direct write. Create a new quest journal entry with AI-generated content based on natural language description',
         inputSchema: {
           type: 'object',
           properties: {
@@ -159,7 +159,7 @@ export class QuestCreationTools {
       },
       {
         name: 'link-quest-to-npc',
-        description: 'Link an existing quest journal to an NPC in the world',
+        description: 'Direct write. Link an existing quest journal to an NPC in the world',
         inputSchema: {
           type: 'object',
           properties: {
@@ -185,7 +185,7 @@ export class QuestCreationTools {
       {
         name: 'update-quest-journal',
         description:
-          'Update an existing quest journal with new progress information. By default updates the FIRST text page. Use pageId to target a specific page, or newPageName to create a new page.\n\nFor Foundry VTT v13 ProseMirror editor compatibility:\n\n✅ USE QUEST-STYLE HTML: Match create-quest-journal formatting\n✅ OR USE PLAIN TEXT: Will be wrapped in <p> tags with line breaks as <br>\n❌ DO NOT USE MARKDOWN: **bold**, *italic*, # headers will be stripped to plain text\n\nQuest-style HTML examples:\n• Sections: "<h2 class=\\"spaced\\">New Discovery</h2>"\n• GM Notes: "<div class=\\"gmnote\\"><p>GM info here</p></div>"\n• Player Info: "<div class=\\"readaloud\\"><p>Player-facing content</p></div>"\n• Plain text: "The party discovered the secret chamber"\n• Avoid: "**The party** discovered the *secret chamber*" (Markdown will be stripped)',
+          'Direct write. Update an existing quest journal with new progress information. By default updates the FIRST text page. Use pageId to target a specific page, or newPageName to create a new page.\n\nFor Foundry VTT v13 ProseMirror editor compatibility:\n\n✅ USE QUEST-STYLE HTML: Match create-quest-journal formatting\n✅ OR USE PLAIN TEXT: Will be wrapped in <p> tags with line breaks as <br>\n❌ DO NOT USE MARKDOWN: **bold**, *italic*, # headers will be stripped to plain text\n\nQuest-style HTML examples:\n• Sections: "<h2 class=\\"spaced\\">New Discovery</h2>"\n• GM Notes: "<div class=\\"gmnote\\"><p>GM info here</p></div>"\n• Player Info: "<div class=\\"readaloud\\"><p>Player-facing content</p></div>"\n• Plain text: "The party discovered the secret chamber"\n• Avoid: "**The party** discovered the *secret chamber*" (Markdown will be stripped)',
         inputSchema: {
           type: 'object',
           properties: {

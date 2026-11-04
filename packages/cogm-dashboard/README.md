@@ -351,7 +351,7 @@ Claude Code) through the MCP tools, under that person's subscription.
 
 ## Guardrails
 
-- **Read-mostly.** Calls that change the game go through plan, confirm and undo.
+- **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo, except the combat turn button, which acts at once.
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
   and retries — it never crashes the dashboard.

@@ -40,7 +40,7 @@ export class CombatTools {
       {
         name: 'advance-combat-turn',
         description:
-          "Advance combat to the next combatant's turn. Optionally jump directly to a specific combatant with skipTo (their name or actor ID).",
+          "Direct write. Advance combat to the next combatant's turn. Optionally jump directly to a specific combatant with skipTo (their name or actor ID).",
         inputSchema: {
           type: 'object',
           properties: {
@@ -55,7 +55,7 @@ export class CombatTools {
       {
         name: 'set-initiative',
         description:
-          "Set or override a combatant's initiative value in the active combat. The order changes but the turn does not move: whoever is up stays up until the next turn.",
+          "Direct write. Set or override a combatant's initiative value in the active combat. The order changes but the turn does not move: whoever is up stays up until the next turn.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -72,7 +72,7 @@ export class CombatTools {
       {
         name: 'roll-initiative-for-npcs',
         description:
-          'Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope). Use this for "roll initiative for the monsters" (the enemies, the goblins; Danish "monstrene"): those words mean the NPC combatants, not a name.',
+          'Direct write. Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope). Use this for "roll initiative for the monsters" (the enemies, the goblins; Danish "monstrene"): those words mean the NPC combatants, not a name.',
         inputSchema: {
           type: 'object',
           properties: {

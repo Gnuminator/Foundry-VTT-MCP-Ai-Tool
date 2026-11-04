@@ -53,7 +53,7 @@ Requests that go wrong:
 
 - "Kill the wolf." Which wolf? Several tokens can share a name. Say "Wolf 2" or pick the token.
 - "Make the next fight cooler." Too vague. Say what you want: tougher, shorter, more terrain.
-- "Fix everything from last night." Claude cannot undo direct actions; see below.
+- "Fix everything from last night." Direct actions can be undone only for changes to actors, tokens, journals and combat; see below.
 
 ## Tool sets: which switches to turn on
 
@@ -141,7 +141,7 @@ as Claude's.
 | -------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                                                                                                  |
 | AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens; place templates, set darkness and light, add map notes, give loot. |
-| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources that Claude plans.                                                                                   |
+| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions, resources and starting a fight that Claude plans.                                                                 |
 | AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                                                                                            |
 | AI Tool: Party (writes)                      | Off     | Change the party's travel pace, place the party on the map, add it to combat, post a rest request.                                                                       |
 | AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                                                                                            |
@@ -164,7 +164,9 @@ reveal it: it waits in the reveal queue. "Turn on for tonight" does not turn thi
 
 **Direct actions** (rolls, new NPCs, journals, chat messages and others) happen as
 soon as Claude uses the tool. They are not listed
-in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundry. So:
+in Recent Changes, but their changes to actors, tokens, journals and combat show in the Changes list
+and can be undone there while "AI Tool: Undo for everything" is on. Chat messages and rolls cannot
+be undone; you fix those by hand in Foundry. So:
 
 - Ask Claude to tell you what it will do before it does it: "Tell me the plan, then wait for my
   OK."
@@ -193,7 +195,7 @@ The dashboard's **GM Actions** switch only guards the dashboard. It does not sto
   reaches the game only through it.
 - **See the screen.** It reads game data, not the picture of the map.
 - **Get past a feature switch.** With a feature switched off, no plan for it can be applied.
-- **Undo direct actions.** Only guarded changes have Undo.
+- **Undo chat messages and rolls.** Only changes to game documents can be undone.
 - **Read books you do not have in Foundry.** The tool contains no book or adventure text. Claude
   reads the rules and the adventure from the compendiums and journals in your world, at the moment
   you ask. If a book is not installed in Foundry, Claude cannot quote it.

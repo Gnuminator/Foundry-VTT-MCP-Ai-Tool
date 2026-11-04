@@ -162,7 +162,7 @@ export class LivePlayTools {
       {
         name: 'plan-actor-change',
         description:
-          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.',
+          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -229,7 +229,7 @@ export class LivePlayTools {
       {
         name: 'plan-token-change',
         description:
-          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene\'s scale (a medium creature covers 5 ft; a scene whose squares are more than 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens, and one with less, such as 2.5 ft, gets larger ones); every creature on the scene (tokens with no creature size are skipped), or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).',
+          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene\'s scale (a medium creature covers 5 ft; a scene whose squares are more than 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens, and one with less, such as 2.5 ft, gets larger ones); every creature on the scene (tokens with no creature size are skipped), or only the named ones; a 5 ft scene is no change.',
         inputSchema: {
           type: 'object',
           properties: {

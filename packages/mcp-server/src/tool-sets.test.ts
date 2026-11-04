@@ -132,6 +132,20 @@ describe('toolSetInstructions', () => {
     expect(text).not.toContain('switch on');
   });
 
+  it('tells the plan story and the direct-write marker, not a blanket "writes go through plan"', () => {
+    for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin']) {
+      const text = toolSetInstructions(resolveToolSets(raw));
+      expect(text).toContain('apply-planned-change');
+      expect(text).toContain('Direct write.');
+      expect(text).not.toContain('Writes go through plan, confirm and undo');
+    }
+  });
+
+  it("lists direct writes as the GM's own change", () => {
+    const text = toolSetInstructions(resolveToolSets('core'));
+    expect(text).toContain("listed as the GM's own change");
+  });
+
   it('has no em dashes', () => {
     for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin'])
       expect(toolSetInstructions(resolveToolSets(raw))).not.toMatch(/\u2014/);

@@ -72,7 +72,7 @@ export class ChatLogTools {
       {
         name: 'send-chat-message',
         description:
-          'Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.',
+          'Direct write. Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.',
         inputSchema: {
           type: 'object',
           properties: {

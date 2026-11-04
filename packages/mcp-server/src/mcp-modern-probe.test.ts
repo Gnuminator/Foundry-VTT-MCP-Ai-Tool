@@ -52,6 +52,8 @@ type Frame = {
 };
 
 /** Newline-delimited control channel the wrapper dials: answers list_tools and call_tool. */
+const bridgeState = { emptyTools: false };
+
 function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
   return new Promise(resolve => {
     const server = net.createServer(sock => {
@@ -71,9 +73,14 @@ function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
           } catch {
             continue;
           }
+          // An old backend does not know the wrapper's hello.
+          if (req.method === 'hello') {
+            sock.write(`${JSON.stringify({ id: req.id, error: { message: 'Unknown method' } })}\n`);
+            continue;
+          }
           const result =
             req.method === 'list_tools'
-              ? { tools: FAKE_TOOLS }
+              ? { tools: bridgeState.emptyTools ? [] : FAKE_TOOLS }
               : { content: [{ type: 'text', text: 'fake result' }] };
           sock.write(`${JSON.stringify({ id: req.id, result })}\n`);
         }
@@ -233,6 +240,20 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     const second = await w.toolNames();
     expect(first).toEqual(FAKE_TOOLS.map(t => t.name));
     expect(second).toEqual(first);
+  });
+
+  it('works against a bridge that does not know hello, and an empty tool list is an error', async () => {
+    const w = start();
+    await w.initialize();
+    expect(await w.toolNames()).toEqual(FAKE_TOOLS.map(t => t.name));
+    bridgeState.emptyTools = true;
+    try {
+      const res = await w.request('tools/list');
+      expect(res.error).toBeTruthy();
+      expect(res.result).toBeUndefined();
+    } finally {
+      bridgeState.emptyTools = false;
+    }
   });
 
   it('answers server/discover with modern _meta with an error and stays up', async () => {

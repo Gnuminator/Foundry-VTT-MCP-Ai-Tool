@@ -7,6 +7,8 @@ case "$*" in
   _SYSTEMD_INVOCATION_ID=*)
     # Stage 25 scenarios: the journal of the Assistant GM browser's current run (browser_joined in lib.sh); the line is
     # missing while /tmp/gm-nojoin exists.
+    # /tmp/gm-stale: only the first invocation (fake-invocation-1, the run before the restart) has the line.
+    if [ -f /tmp/gm-stale ] && [ "$*" != "_SYSTEMD_INVOCATION_ID=fake-invocation-1 --no-pager -o cat" ]; then exit 0; fi
     [ -f /tmp/gm-nojoin ] || echo "[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)"
     ;;
   *foundry-ai-tool-kit-gm-browser*)

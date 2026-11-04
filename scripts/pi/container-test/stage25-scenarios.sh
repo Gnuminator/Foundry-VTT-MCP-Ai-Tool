@@ -55,7 +55,7 @@ same() { # $1 name, $2 what, $3 the value before, $4 the value after
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" "${MIRROR:?}" "${SRC:?}"
-  rm -f /tmp/stopped-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/gm-counts /tmp/pins /tmp/mv_fail /tmp/restart-hook /tmp/gm-nojoin
+  rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/join_fail /tmp/gm-counts /tmp/pins /tmp/mv_fail /tmp/mv_fail_keep /tmp/restart-hook /tmp/gm-nojoin /tmp/gm-stale /tmp/hook-done
   mkdir -p "$MODS" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA" "$MIRROR/modules" "$SRC"
   chown -R "$FOUNDRY_USER" "$FOUNDRY_DATA"
   echo '{"version":"14.368.0"}' >"$FOUNDRY_APP/package.json"
@@ -142,7 +142,7 @@ if want dry-run; then
   same dry-run 'the module folders' "$before" "$(tree_hash)"
   absent dry-run 'stop foundry' "$(cat /tmp/calls)"
   [ ! -e "$IMPORT/modules-stage.state" ] && echo "PASS dry-run: no state file" || { echo "FAIL dry-run: state file written"; fail=1; }
-  [ -z "$(ls -d "$IMPORT"/work-* 2>/dev/null)" ] && echo "PASS dry-run: work folder removed" || { echo "FAIL dry-run: work folder left"; fail=1; }
+  [ -z "$(ls -d "$FOUNDRY_DATA"/Data/.stage25-work-* "$IMPORT"/work-* 2>/dev/null)" ] && echo "PASS dry-run: work folder removed" || { echo "FAIL dry-run: work folder left"; fail=1; }
 fi
 
 if want apply; then
@@ -318,14 +318,149 @@ if want undo-foundry-stopped; then
   out="$(run_stage 'APPLY=1')"
   check undo-foundry-stopped-setup 'exit 0' "$out"
   sed -i 's/^phase=.*/phase=installing/' "$IMPORT/modules-stage.state"
-  touch /tmp/stopped-foundry.service
+  touch /tmp/stopped-foundry.service /tmp/stopped-foundry-ai-tool-gm-browser.service # a killed run left both down
   : >/tmp/calls
   out="$(run_stage 'UNDO=1')"
   check undo-foundry-stopped 'alpha: 1.0.0 is back' "$out"
   check undo-foundry-stopped 'Foundry is up' "$out"
+  check undo-foundry-stopped 'the Assistant GM browser joined the world' "$out"
   check undo-foundry-stopped 'exit 0' "$out"
   check undo-foundry-stopped 'old 1.0.0' "$(marker alpha)"
   check undo-foundry-stopped 'restart foundry.service' "$(cat /tmp/calls)"
+  check undo-foundry-stopped 'start foundry-ai-tool-gm-browser.service' "$(cat /tmp/calls)"
+fi
+
+if want undo-gm-browser-disabled; then
+  # the Assistant GM browser is stopped and not enabled (switched off on purpose): UNDO leaves it alone
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-gm-disabled-setup 'exit 0' "$out"
+  touch /tmp/stopped-foundry.service /tmp/stopped-foundry-ai-tool-gm-browser.service /tmp/disabled-foundry-ai-tool-gm-browser.service
+  : >/tmp/calls
+  out="$(run_stage 'UNDO=1')"
+  check undo-gm-disabled 'alpha: 1.0.0 is back' "$out"
+  check undo-gm-disabled 'Foundry is started again \(the Assistant GM browser was not enabled\)' "$out"
+  check undo-gm-disabled 'exit 0' "$out"
+  absent undo-gm-disabled 'start foundry-ai-tool-gm-browser' "$(cat /tmp/calls)"
+fi
+
+if want apply-gm-browser-stopped; then
+  # the Assistant GM browser was stopped before the run: the run does not start it, and does not wait for its join
+  base_setup
+  touch /tmp/stopped-foundry-ai-tool-gm-browser.service
+  out="$(run_stage 'APPLY=1')"
+  check apply-gm-stopped 'done: 3 module\(s\) installed' "$out"
+  check apply-gm-stopped 'exit 0' "$out"
+  absent apply-gm-stopped 'the Assistant GM browser joined' "$out"
+  absent apply-gm-stopped 'start foundry-ai-tool-gm-browser' "$(cat /tmp/calls)"
+fi
+
+if want undo-no-world; then
+  # Foundry runs but no world is open (a module kept it from launching): UNDO does not wait 120 s for one
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-no-world-setup 'exit 0' "$out"
+  touch /tmp/join_fail
+  out="$(run_stage 'UNDO=1')"
+  check undo-no-world 'alpha: 1.0.0 is back' "$out"
+  check undo-no-world 'no world answered before the restart' "$out"
+  check undo-no-world 'exit 0' "$out"
+  check undo-no-world 'old 1.0.0' "$(marker alpha)"
+fi
+
+if want undo-restore-fails; then
+  # a move fails while UNDO puts the folders back: no "is back" for it, exit 1, the phase is not undone, a second UNDO finishes
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-restore-fails-setup 'exit 0' "$out"
+  # the failure stays for the whole run: UNDO's exit trap retries the restore, and a one-shot failure would let it succeed
+  echo alpha >/tmp/mv_fail
+  touch /tmp/mv_fail_keep
+  out="$(run_stage 'UNDO=1')"
+  rm -f /tmp/mv_fail /tmp/mv_fail_keep
+  check undo-restore-fails 'cannot move' "$out"
+  check undo-restore-fails 'putting the folders back did not finish' "$out"
+  absent undo-restore-fails 'alpha: 1.0.0 is back' "$out"
+  check undo-restore-fails 'exit 1' "$out"
+  absent undo-restore-fails 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+  check undo-restore-fails 'phase=installing' "$(cat "$IMPORT/modules-stage.state")"
+  out="$(run_stage 'APPLY=1')"
+  check undo-restore-fails-apply 'did not finish' "$out"
+  check undo-restore-fails-apply 'exit 1' "$out"
+  out="$(run_stage 'UNDO=1')"
+  check undo-restore-second 'alpha: 1.0.0 is back' "$out"
+  check undo-restore-second 'exit 0' "$out"
+  check undo-restore-second 'old 1.0.0' "$(marker alpha)"
+  check undo-restore-second 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+fi
+
+if want undo-restore-oneshot; then
+  # a move fails once while UNDO puts the folders back: the exit trap does not retry on its own, the messages stay true
+  # (phase=installing, a new APPLY refused) and the second UNDO does the whole job, read-back included
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-restore-oneshot-setup 'exit 0' "$out"
+  echo alpha >/tmp/mv_fail
+  out="$(run_stage 'UNDO=1')"
+  check undo-restore-oneshot 'cannot move' "$out"
+  check undo-restore-oneshot 'exit 1' "$out"
+  absent undo-restore-oneshot 'alpha: 1.0.0 is back' "$out"
+  check undo-restore-oneshot 'phase=installing' "$(cat "$IMPORT/modules-stage.state")"
+  out="$(run_stage 'UNDO=1')"
+  check undo-restore-oneshot-second 'alpha: 1.0.0 is back' "$out"
+  check undo-restore-oneshot-second 'exit 0' "$out"
+  check undo-restore-oneshot-second 'Foundry is up' "$out"
+  check undo-restore-oneshot-second 'old 1.0.0' "$(marker alpha)"
+  check undo-restore-oneshot-second 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+fi
+
+if want trap-restore-fails; then
+  # the run fails (no world after the restart) and a move fails in the exit trap: the phase stays installing, a new APPLY is
+  # refused, and UNDO=1 finishes the restore
+  base_setup
+  touch /tmp/joinfail
+  cat >/tmp/restart-hook <<'HOOK'
+#!/usr/bin/env bash
+[ -f /tmp/hook-done ] && exit 0
+touch /tmp/hook-done
+echo alpha >/tmp/mv_fail
+HOOK
+  chmod +x /tmp/restart-hook
+  out="$(run_stage 'APPLY=1')"
+  check trap-restore-fails "Foundry's world did not come back" "$out"
+  check trap-restore-fails 'NOT every old folder is back' "$out"
+  check trap-restore-fails 'exit 1' "$out"
+  check trap-restore-fails 'phase=installing' "$(cat "$IMPORT/modules-stage.state")"
+  rm -f /tmp/joinfail
+  out="$(run_stage 'APPLY=1')"
+  check trap-restore-fails-rerun 'Run UNDO=1 first' "$out"
+  check trap-restore-fails-rerun 'exit 1' "$out"
+  out="$(run_stage 'UNDO=1')"
+  check trap-restore-fails-undo 'alpha: 1.0.0 is back' "$out"
+  check trap-restore-fails-undo 'exit 0' "$out"
+  check trap-restore-fails-undo 'old 1.0.0' "$(marker alpha)"
+fi
+
+if want stale-join-line; then
+  # the Assistant GM browser's journal has the joined line only from the run before the restart: it must not count
+  base_setup
+  before="$(tree_hash)"
+  touch /tmp/gm-stale
+  out="$(run_stage 'APPLY=1')"
+  check stale-join-line 'the Assistant GM browser did not join the world again' "$out"
+  check stale-join-line 'alpha: 1.0.0 is back' "$out"
+  check stale-join-line 'exit 1' "$out"
+  same stale-join-line 'the module folders (old ones restored)' "$before" "$(tree_hash)"
+fi
+
+if want only-awk; then
+  base_setup
+  out="$(run_stage 'ONLY=alpha,nosuch')"
+  check only-awk 'ONLY names nosuch, which is not in pinned.json' "$out"
+  check only-awk 'exit 1' "$out"
+  out="$(run_stage 'ONLY=alpha')"
+  check only-awk-ok '1 module\(s\) to change' "$out"
+  check only-awk-ok 'exit 0' "$out"
 fi
 
 if want bad-sha; then
@@ -347,7 +482,8 @@ if want bad-entry; then
   out="$(run_stage 'APPLY=1')"
   check bad-entry 'delta: the zip has an entry outside its folder' "$out"
   check bad-entry 'exit 1' "$out"
-  [ ! -e "$IMPORT/escape.txt" ] && [ ! -e "$IMPORT/work-escape.txt" ] && echo "PASS bad-entry: nothing written outside" || { echo "FAIL bad-entry: escape.txt exists"; fail=1; }
+  # the entry is refused before anything is unpacked: no escape.txt anywhere under the Foundry data or the import folder
+  [ -z "$(find "$FOUNDRY_DATA" "$IMPORT" -name escape.txt 2>/dev/null)" ] && echo "PASS bad-entry: nothing written outside" || { echo "FAIL bad-entry: escape.txt exists"; fail=1; }
   absent bad-entry 'stop foundry' "$(cat /tmp/calls)"
 fi
 

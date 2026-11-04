@@ -138,7 +138,11 @@ check_room() { # $1 a path on the filesystem, $2 what to call it, $3 the bytes t
   fi
 }
 # /join answers 200 even when no world runs (an error page), so look for the join form's template.
-world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
+world_up() { # the page is captured first, so grep cannot stop early and SIGPIPE curl under pipefail
+  local page
+  page="$(curl -fs --max-time 5 http://127.0.0.1:30000/join 2>/dev/null || true)"
+  [[ "$page" == *'id="join-game"'* ]]
+}
 status_field() { curl -fs http://127.0.0.1:30000/api/status 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const v=JSON.parse(s)[process.argv[1]];process.stdout.write(v==null?"":String(v).replace(/[^\w.+-]/g,"?").slice(0,40))}catch{}})' "$1"; }
 
 stopped=0
@@ -193,7 +197,7 @@ start_on() {
   ok "$1 is running"
   enable_unit foundry-ai-tool-gm-browser.service
   for _ in $(seq 1 45); do
-    journalctl -u foundry-ai-tool-gm-browser --since '-3 min' --no-pager | grep -q 'joined world' && break
+    browser_joined foundry-ai-tool-gm-browser.service && break # this run's joined line, not one from the last 3 minutes
     sleep 2
   done
   journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true

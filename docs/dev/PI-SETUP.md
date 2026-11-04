@@ -1695,7 +1695,12 @@ the undo are in [MODULE-REHEARSAL.md](MODULE-REHEARSAL.md) ("Pi: install from th
 
 - **Run it:** copy the archive's `modules/` and `pinned.json` to `/home/dietpi/module-archive` (`node scripts/modules/rehearse.mjs pi-plan`
   prints the `scp`), then `cat lib.sh 25-modules.sh | ssh foundry-pi 'bash -s'` (a dry run). Snapshot first, the user's OK, then the
-  same with `APPLY=1`. `ONLY=id1,id2` limits it; `UNDO=1` puts the last run's old folders back.
+  same with `APPLY=1`. `ONLY=id1,id2` limits it; `UNDO=1` puts the last run's old folders back. **UNDO reaches only the last run**
+  (the state file keeps one run, the one before it is renamed `modules-stage.state.last`): after two runs, the first run's old
+  folders are put back by hand from `/var/lib/foundry-import/prev-<time>-modules`. A run that stops half way (power cut, killed)
+  leaves `phase=installing` and the next `APPLY=1` is refused until `UNDO=1` has put the folders back; a failed restore keeps
+  that phase, so the stage never counts a half undone state as done. The zips are unpacked as the foundry user in a dot folder
+  under `/var/lib/foundry/Data` (`.stage25-work-<time>`), removed at the end.
 - Old and replaced folders stay in `/var/lib/foundry-import/prev-<time>-modules` and `failed-<time>-modules` until the user removes them.
 - Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE25_CONTAINER=1` the scenarios in a Debian 13 ARM64
   container, run by the ARM job in CI).

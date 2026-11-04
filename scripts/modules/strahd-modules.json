@@ -1,5 +1,5 @@
 {
-  "_comment": "The modules the Curse of Strahd world runs (vault Design/Module walkthrough plan.md, 2026-10-04 verdicts; tarokka-reading left on 2026-10-29, our own card table replaces it, D-130). Module ids only, never content. licensed = the package is paid, Patreon or bought content: it goes in the archive but never in a repo or the vault. verdict = the word on the module's page in .claude/skills/foundry-modules/references (keep, optional or drop; the SKILL.md index copies it); foundry-mcp-bridge and aitool-content are ours and have no page. Edit when the GM list changes; the all-modules kit profile (scripts/test-kit/data/profiles/modules-all.json) must list the same ids (a test checks).",
+  "_comment": "The modules the Curse of Strahd world runs (vault Design/Module walkthrough plan.md, 2026-10-04 verdicts; tarokka-reading left on 2026-10-29, our own card table replaces it, D-130; final list 2026-11-04 = Danni's 35 picks of 2026-10-29 with our recommendations for the four open ones, see vault Board questions/Module picks.md). Module ids only, never content. licensed = the package is paid, Patreon or bought content: it goes in the archive but never in a repo or the vault. verdict = the word on the module's page in .claude/skills/foundry-modules/references (keep, optional or drop; the SKILL.md index copies it); foundry-mcp-bridge and aitool-content are ours and have no page. Edit when the GM list changes; the all-modules kit profile (scripts/test-kit/data/profiles/modules-all.json) must list the same ids (a test checks).",
   "modules": [
     { "id": "foundry-mcp-bridge", "role": "ours" },
     { "id": "lib-wrapper", "role": "library", "verdict": "keep" },
@@ -33,7 +33,28 @@
     { "id": "monks-combat-details", "verdict": "keep" },
     { "id": "monks-common-display", "verdict": "optional" },
     { "id": "monks-little-details", "verdict": "keep" },
-    { "id": "monks-player-settings", "verdict": "keep" },
+    {
+      "id": "monks-tokenbar",
+      "verdict": "keep",
+      "note": "kept for now (the user, 2026-11-04); its saves are missing from the play log, so the one-click roll buttons are meant to replace it; Danni decides after trying them"
+    },
+    { "id": "find-the-culprit", "verdict": "keep" },
+    {
+      "id": "fxmaster",
+      "verdict": "keep",
+      "note": "posts a public welcome card to chat on first GM load: delete it before players join"
+    },
+    { "id": "polyglot", "verdict": "optional" },
+    {
+      "id": "item-piles",
+      "verdict": "optional",
+      "note": "added 2026-11-04: loot now that Loot Sheet is gone; posts a public welcome card on first GM load, delete it before players join"
+    },
+    {
+      "id": "itempilesdnd5e",
+      "role": "library",
+      "note": "the dnd5e companion item-piles needs; no page of its own, see item-piles"
+    },
     { "id": "token-action-hud-core", "verdict": "keep" },
     { "id": "token-action-hud-dnd5e", "verdict": "keep" },
     { "id": "dd-import", "verdict": "keep" },
@@ -47,7 +68,6 @@
     },
     { "id": "aitool-content", "licensed": true, "note": "private content module, never public" },
     { "id": "gm-vision", "verdict": "keep" },
-    { "id": "healthEstimate", "verdict": "keep" },
     {
       "id": "JB2A_DnD5e",
       "verdict": "optional",
@@ -55,15 +75,19 @@
     },
     { "id": "nice-more-dice", "verdict": "keep" },
     { "id": "racoozes-free-battlemaps", "verdict": "optional" },
-    { "id": "racooze-map-library", "verdict": "optional" },
     { "id": "share-media", "verdict": "keep" },
     { "id": "travel-pace", "verdict": "keep" },
     { "id": "vtta-tokenizer", "verdict": "keep" }
   ],
-  "undecided": [
-    { "id": "monks-tokenbar", "verdict": "drop", "why": "Danni decides, drop recommended" },
-    { "id": "combat-spell-timer", "verdict": "drop", "why": "Danni decides, drop recommended" },
-    { "id": "lootsheet-simple", "why": "max dnd5e 5.9.9, not on the keep list" }
-  ],
-  "dropped": ["dice-stats", "scaleGrid", "tarokka-reading"]
+  "undecided": [{ "id": "lootsheet-simple", "why": "max dnd5e 5.9.9, not on the keep list" }],
+  "dropped": [
+    "dice-stats",
+    "scaleGrid",
+    "tarokka-reading",
+    "healthEstimate",
+    "racooze-map-library",
+    "combat-spell-timer",
+    "monks-player-settings",
+    "quick-insert"
+  ]
 }

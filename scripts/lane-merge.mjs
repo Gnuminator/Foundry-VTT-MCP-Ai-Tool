@@ -720,10 +720,11 @@ const VERSION_JSON = [
 const SEMVER_RE = '\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?';
 /** Text files with a version line: every changed line must be one of these, on both sides. */
 const VERSION_TEXT = {
-  'shared/src/version.ts': [new RegExp(`^export const TOOL_VERSION = '${SEMVER_RE}';$`)],
+  // Group 1 is the version; the rest of the line must be identical at the base and the head.
+  'shared/src/version.ts': [new RegExp(`^export const TOOL_VERSION = '(${SEMVER_RE})';$`, 'd')],
   'installer/nsis/foundry-mcp-server.nsi': [
-    new RegExp(`^\\s*!define VERSION "v${SEMVER_RE}"$`),
-    new RegExp(`^\\s*WriteRegStr HKCU "[^"]+" "DisplayVersion" "${SEMVER_RE}"$`),
+    new RegExp(`^\\s*!define VERSION "v(${SEMVER_RE})"$`, 'd'),
+    new RegExp(`^\\s*WriteRegStr HKCU "[^"]+" "DisplayVersion" "(${SEMVER_RE})"$`, 'd'),
   ],
 };
 const isVersion = (/** @type {unknown} */ v) =>
@@ -801,7 +802,9 @@ export function releasePr(files, read) {
       continue;
     }
     const isJson = VERSION_JSON.includes(f.path) || f.path === 'package-lock.json';
-    const patterns = VERSION_TEXT[/** @type {keyof typeof VERSION_TEXT} */ (f.path)];
+    const patterns = Object.hasOwn(VERSION_TEXT, f.path)
+      ? VERSION_TEXT[/** @type {keyof typeof VERSION_TEXT} */ (f.path)]
+      : undefined;
     if (!isJson && !patterns) return no(`${f.path} is not a changelog or version file`);
     const base = read('base', f.path);
     const head = read('head', f.path);
@@ -811,6 +814,15 @@ export function releasePr(files, read) {
       const b = withoutVersions(f.path, jsonOf(head));
       if (!a || !b) return no(`${f.path} is not a JSON object`);
       if (!sameJson(a.data, b.data)) return no(`${f.path} changes more than its version`);
+      // Every version field the base has must stay at the head (a dropped one is not a bump).
+      if (b.versions.length !== a.versions.length) {
+        return no(`${f.path} drops or adds a version field`);
+      }
+      for (let i = 0; i < a.versions.length; i++) {
+        if ((a.versions[i] === undefined) !== (b.versions[i] === undefined)) {
+          return no(`${f.path} drops or adds a version field`);
+        }
+      }
       if (!b.versions.every(v => v === undefined || isVersion(v))) {
         return no(`${f.path} has a version that is not x.y.z`);
       }
@@ -819,9 +831,19 @@ export function releasePr(files, read) {
     const la = lf(base).split('\n');
     const lb = lf(head).split('\n');
     if (la.length !== lb.length) return no(`${f.path} changes more than its version line`);
-    const versionLine = (/** @type {string} */ l) => patterns.some(p => p.test(l));
+    /** The line with its version blanked, or null when it is not a version line. */
+    const blanked = (/** @type {string} */ l) => {
+      for (const p of patterns) {
+        const m = p.exec(l);
+        const span = m?.indices?.[1];
+        if (span) return `${l.slice(0, span[0])}X${l.slice(span[1])}`;
+      }
+      return null;
+    };
     for (let i = 0; i < la.length; i++) {
-      if (la[i] !== lb[i] && !(versionLine(la[i]) && versionLine(lb[i]))) {
+      if (la[i] === lb[i]) continue;
+      const x = blanked(la[i]);
+      if (x === null || x !== blanked(lb[i])) {
         return no(`${f.path} changes more than its version line (line ${i + 1})`);
       }
     }
@@ -1338,8 +1360,8 @@ export function relaunchFromMain(o) {
 }
 
 /**
- * The last line of every refusal: every reason on one line, so a `tail` of the output shows why and
- * not only the notices. Several reasons are numbered (a reason can hold `;` itself).
+ * The last line of every refusal (under `--wait-ci` the one before the `wait-ci ended:` verdict
+ * line): every reason on one line, so a `tail` of the output shows why and not only the notices. Several reasons are numbered (a reason can hold `;` itself).
  * @param {string[]} reasons
  */
 export function refusedBecause(reasons) {
@@ -1386,6 +1408,7 @@ export function runEntry({ argv, relaunch, runMain, log }) {
       return 1;
     }
     if (gate.relaunched) {
+      if (gate.killed) log(refusedBecause([gate.killed]));
       if (wait && gate.killed) log(verdictLine(gate.code, gate.killed));
       return gate.code;
     }

@@ -1,8 +1,9 @@
 ### Tooling
 
 - **Merge gate refusals say why on the last line:** a refusal by `scripts/lane-merge.mjs` now ends
-  with one `lane:merge: refused because ...` line that holds every reason, so a `tail` of the output
-  never shows only the notices. The checks themselves and the exit codes are unchanged.
+  with one `lane:merge: refused because ...` line that holds every reason (the last line, or the one
+  before the `wait-ci ended:` verdict under `--wait-ci`), so a `tail` of the output never shows only
+  the notices. The checks themselves and the exit codes are unchanged.
 - **Risky notice says found or missing:** `risky (...): an Opus review is required` now ends with
   `Opus note for head <sha>: found (<note>)` or `missing`, so it no longer reads as a refusal on a
   PR that merges.

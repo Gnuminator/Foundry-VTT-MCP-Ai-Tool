@@ -153,10 +153,10 @@ as Claude's.
 | AI Tool: Obsidian import (writes)            | Off     | Create a GM-only quest journal from a quest note in your Obsidian `Prep` folder. Started in Obsidian, confirmed in the dashboard; Claude has no tool for it.                     |
 | AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).                                                                                |
 
-Other switches in the same category: the table viewer, "Undo for everything" and the GM windows start on; scene
-mood and music, room setup, scene restore, the NPC turn assistant and paper sync start
-off, and so do "AI Tool: Who would notice" (a passive-score row in the party drawer, read only) and
-"AI Tool: Rules check". [Features and when to turn them on](features.md) says what each one does.
+Other switches in the same category: the table viewer, "Undo for everything", the GM windows and
+"AI Tool: Rules check" (read only) start on; scene mood and music, room setup, scene restore, the
+NPC turn assistant and paper sync start off, and so does "AI Tool: Who would notice" (a
+passive-score row in the party drawer, read only). [Features and when to turn them on](features.md) says what each one does.
 
 **Session notes go in without asking.** With "AI Tool: Session notes (writes)" on, the bridge puts
 the notes of a recorded session (pages Recap, GM summary and Scenes, Danish first and English

@@ -36,7 +36,7 @@ Tool words:
   minutes.
 - **Feature switch:** a setting that allows one feature to make changes, such as "AI Tool: Tarokka
   (writes)". Most are off by default; a few start on (Live play for damage, healing and conditions,
-  Ownership, the table viewer, GM windows and Undo for everything). [Features](features.md) lists each one.
+  Ownership, the table viewer, GM windows, Undo for everything and the read-only Rules check). [Features](features.md) lists each one.
 - **GM Actions:** the dashboard's switch for changing the game from the dashboard. Off by default.
   **Start session** turns it on.
 - **GM token:** a password-like part of the dashboard's GM address (`?token=…`). The tool admin

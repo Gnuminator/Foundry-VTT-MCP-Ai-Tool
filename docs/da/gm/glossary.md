@@ -1,6 +1,6 @@
 ---
 source: gm/glossary.md
-sourceHash: 74447f315c1d
+sourceHash: e0675847da8c
 title: Ordliste
 description: Foundry-ordene og værktøjsordene i guiderne på almindeligt dansk, samlet ét sted.
 ---
@@ -38,7 +38,7 @@ Værktøjsord:
   minutter.
 - **Feature switch:** en indstilling, der lader én funktion lave ændringer, for eksempel "AI Tool: Tarokka
   (writes)". De fleste er slået fra som standard. Nogle få starter slået til (Live play til damage, healing og conditions,
-  Ownership, table viewer, GM windows og Undo til alt). [Funktioner og hvornår du slår dem til](features.md) lister hver enkelt.
+  Ownership, table viewer, GM windows, Undo til alt og Rules check, der kun læser). [Funktioner og hvornår du slår dem til](features.md) lister hver enkelt.
 - **GM Actions:** dashboardets kontakt til at ændre spillet fra dashboardet. Slået fra som standard.
   **Start session** slår den til.
 - **GM token:** en adgangskodelignende del af dashboardets GM-adresse (`?token=…`). Værktøjets admin

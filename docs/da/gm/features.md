@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 69b7bd9ebb0a
+sourceHash: 146ae88e8d28
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -220,4 +220,5 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
   karakter efter en aften spillet på papir. XP, level og klasse bliver aldrig ændret. Starter
   slået fra. Slå den til efter en papiraften.
 - **Rules check** ("AI Tool: Rules check"): lader Claude sige, om en attack, en spell eller et item
-  ser lovligt ud lige nu, og hvorfor. Den læser kun og ændrer intet. Starter slået fra.
+  ser lovligt ud lige nu, og hvorfor. Den læser kun og ændrer intet. Starter slået til. Slå
+  den fra, hvis du hellere vil have, at Claude ikke giver sit råd til attacks, spells og token-flytninger.

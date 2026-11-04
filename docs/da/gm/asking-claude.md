@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 98105f9fdbfc
+sourceHash: 1482b6f09370
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -153,10 +153,10 @@ lige så vel som Claudes.
 | AI Tool: Obsidian import (writes)            | Fra      | Lave en quest-journal kun til GM'en ud fra en quest-note i din Obsidian `Prep`-mappe. Startes i Obsidian, bekræftes i dashboardet; Claude har intet værktøj til det.                        |
 | AI Tool: Session notes (writes)              | Fra      | Lægge noterne fra en optaget session ind i en journal kun til GM'en af sig selv, uden at spørge (se nedenfor).                                                                              |
 
-Andre kontakter i samme kategori: table viewer, "Undo for everything" og GM-vinduerne starter tændt;
-scene mood og musik, room setup, scene restore, NPC turn assistant og paper sync starter slukket, og
-det samme gør "AI Tool: Who would notice" (en række med passive scores i party-skuffen, kun læsning)
-og "AI Tool: Rules check". [Funktioner og hvornår du slår dem til](features.md) siger, hvad hver af dem
+Andre kontakter i samme kategori: table viewer, "Undo for everything", GM-vinduerne og
+"AI Tool: Rules check" (kun læsning) starter tændt; scene mood og musik, room setup, scene restore,
+NPC turn assistant og paper sync starter slukket, og det samme gør "AI Tool: Who would notice" (en
+række med passive scores i party-skuffen, kun læsning). [Funktioner og hvornår du slår dem til](features.md) siger, hvad hver af dem
 gør.
 
 **Session notes går ind uden at spørge.** Med "AI Tool: Session notes (writes)" tændt lægger bridgen

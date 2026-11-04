@@ -618,6 +618,17 @@ Hooks.once('init', async () => {
   }
 });
 
+// The error buffer is kept in browser storage, which every world on this server shares: drop the
+// previous world's errors once the world id is known.
+Hooks.once('ready', () => {
+  try {
+    const worldId = (game as { world?: { id?: string } }).world?.id;
+    if (worldId) diagnostics.bindWorld(worldId);
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
+  }
+});
+
 // Selected tokens look different from the turn marker (test 3), on every client. Its own hook and
 // try block: a colour change must never stop the bridge from starting.
 Hooks.once('ready', () => {

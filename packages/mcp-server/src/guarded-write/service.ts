@@ -29,6 +29,7 @@ import { randomBytes } from 'crypto';
 
 import {
   type BridgeAnswer,
+  errorMessage,
   expectedAfterApply,
   featureOffMessage,
   GUARDED_OP_KINDS,
@@ -43,9 +44,14 @@ import {
   type OpSnapshot,
   type PathValue,
   type RulesVersion,
+  notFoundMessage,
+  PLAN_GONE_TAIL,
   unwrapBridgeReply,
   WRITES_OFF_MESSAGE,
 } from '@gnuminator/shared';
+
+/** The read tools that find a document by name, for the "not found" next step. */
+const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
@@ -287,7 +293,7 @@ export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string |
 
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /query timeout|connection closed/i.test(message);
 }
 
@@ -296,7 +302,7 @@ function isLostAnswer(error: unknown): boolean {
  * first), so the change certainly did not run: no outcome polling, fail at once.
  */
 function isNeverSent(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /^(Query \S+ failed: )?(Foundry VTT module not connected|Not connected to Foundry VTT module)/i.test(
     message
   );
@@ -463,7 +469,9 @@ function foundryDiff(
     const snap = snapshots[i];
     if (!snap) throw new Error(`No snapshot for op ${i}`);
     if (op.kind === 'update') {
-      if (!snap.exists) throw new Error(`Op ${i}: document not found: ${op.uuid}`);
+      if (!snap.exists) {
+        throw new Error(notFoundMessage(`Op ${i}: document ${op.uuid}`, DOCUMENT_LOOKUP_TOOLS));
+      }
       const label = describeTarget(snap, op.uuid);
       const paths: Array<[string, PathValue]> = [
         ...Object.entries(op.changes).map(([path, value]): [string, PathValue] => [
@@ -486,7 +494,11 @@ function foundryDiff(
         });
       }
     } else if (op.kind === 'create') {
-      if (!snap.exists) throw new Error(`Op ${i}: parent not found: ${String(op.parentUuid)}`);
+      if (!snap.exists) {
+        throw new Error(
+          notFoundMessage(`Op ${i}: parent ${String(op.parentUuid)}`, DOCUMENT_LOOKUP_TOOLS)
+        );
+      }
       if (snap.idTaken) throw new Error(`Op ${i}: a document with that id already exists`);
       // A map note carries its label in `text`, not `name`.
       const named = op.documentName === 'Note' ? (op.data.text ?? op.data.name) : op.data.name;
@@ -502,7 +514,9 @@ function foundryDiff(
         text: `Create ${label}${where}`,
       });
     } else {
-      if (!snap.exists) throw new Error(`Op ${i}: document not found: ${op.uuid}`);
+      if (!snap.exists) {
+        throw new Error(notFoundMessage(`Op ${i}: document ${op.uuid}`, DOCUMENT_LOOKUP_TOOLS));
+      }
       const label = describeTarget(snap, op.uuid);
       lines.push({
         op: i,
@@ -1003,7 +1017,7 @@ export class GuardedWriteService {
       }
       return { ok: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       this.logger.warn('Handout chat notice failed after the change was applied', {
         uuid: notice.uuid,
         error: message,
@@ -1028,7 +1042,7 @@ export class GuardedWriteService {
       );
       return { ok: true, users: show.users };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       this.logger.warn('Show it now failed after the change was applied', {
         uuid: show.uuid,
         error: message,
@@ -1126,7 +1140,7 @@ export class GuardedWriteService {
     const listeners = [...(this.onRecorded ? [this.onRecorded] : []), ...this.recordedListeners];
     const warn = (error: unknown): void =>
       this.logger.warn('onRecorded listener failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     const pending: Array<Promise<void>> = [];
     for (const listener of listeners) {
@@ -1166,7 +1180,7 @@ export class GuardedWriteService {
     try {
       await this.commitVaultWrite(worldId, vault);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       if (!foundry) throw error;
       // A delete that found nothing to delete has nothing to roll back.
       const done = [...foundry.results].reverse().filter(r => !isNoOpResult(r));
@@ -1183,9 +1197,9 @@ export class GuardedWriteService {
         }
       } catch (rollbackError) {
         throw new Error(
-          `The vault write failed (${message}) and the Foundry part could not be rolled back: ${
-            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
-          }`,
+          `The vault write failed (${message}) and the Foundry part could not be rolled back: ${errorMessage(
+            rollbackError
+          )}`,
           { cause: rollbackError }
         );
       }
@@ -1212,7 +1226,7 @@ export class GuardedWriteService {
       // The apply may still have run in Foundry: ask the module how it went (PB-04).
       this.logger.warn('Apply answer lost, asking Foundry for the outcome', {
         changeId: request.changeId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
       return this.awaitApplyOutcome(request);
     }
@@ -1260,7 +1274,7 @@ export class GuardedWriteService {
         // The link is down or the module cannot answer: try again on the next tick.
         this.logger.debug('Outcome check failed', {
           changeId: request.changeId,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage(error),
         });
       }
       if (outcome?.status === 'applied') {
@@ -1313,9 +1327,7 @@ export class GuardedWriteService {
           writeDataPath(simulated.get(record.file), targetOf(record), { pruneEmpty: true })
         );
       } catch (error) {
-        conflicts.push(
-          `${record.file} ${record.path}: ${error instanceof Error ? error.message : String(error)}`
-        );
+        conflicts.push(`${record.file} ${record.path}: ${errorMessage(error)}`);
         blocked.add(record.file);
       }
     }
@@ -1390,9 +1402,9 @@ export class GuardedWriteService {
       );
     } catch (error) {
       throw new Error(
-        `Cannot check the "${feature}" switch in Foundry, so the change was refused: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Cannot check the "${feature}" switch in Foundry, so the change was refused: ${errorMessage(
+          error
+        )}`,
         { cause: error }
       );
     }
@@ -1421,7 +1433,7 @@ export class GuardedWriteService {
     } catch (error) {
       this.logger.warn('Could not log the change to the GM feed', {
         changeId: entry.changeId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }
@@ -1435,7 +1447,7 @@ export class GuardedWriteService {
     try {
       await write();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       this.logger.error('Change applied but not recorded in the audit log', {
         worldId,
         changeId: entry.changeId,
@@ -1470,7 +1482,11 @@ export class GuardedWriteService {
   private requirePlan(planId: string): StoredPlan {
     this.prune();
     const plan = typeof planId === 'string' ? this.plans.get(planId) : undefined;
-    if (!plan) throw new Error(`No pending plan ${String(planId)} (plans expire after 15 minutes)`);
+    if (!plan) {
+      throw new Error(
+        `No pending plan ${String(planId)} (plans expire after 15 minutes). ${PLAN_GONE_TAIL}`
+      );
+    }
     return plan;
   }
 

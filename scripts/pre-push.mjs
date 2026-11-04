@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import {
   greenPassedOnThisTree,
   isEntryModule,
-  portableNode22Dir,
+  portableNodeDir,
   stepEnvironment,
 } from './green.mjs';
 
@@ -85,7 +85,7 @@ function defaultRunCheck(check, cwd) {
     cwd,
     shell: true,
     stdio: 'inherit',
-    env: stepEnvironment(process.env, portableNode22Dir()),
+    env: stepEnvironment(process.env, portableNodeDir()),
   });
   return r.status ?? 1;
 }

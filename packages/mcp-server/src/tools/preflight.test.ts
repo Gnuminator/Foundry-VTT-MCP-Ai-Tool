@@ -8,6 +8,7 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
+import { WrapperRegistry } from '../wrapper-registry.js';
 import { PreflightTools, type PreflightToolsOptions } from './preflight.js';
 
 function logger(): any {
@@ -38,6 +39,7 @@ interface Setup {
   vaultDirSet?: boolean;
   paperNights?: Array<{ date: string; startedAt: string }>;
   paperNightsError?: string;
+  wrappers?: Array<{ version: string | null; sets: string }>;
 }
 
 function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
@@ -87,6 +89,14 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
     logger: logger(),
     bridgeVersion: '1.2.3',
+    wrapperStatus: () => {
+      const registry = new WrapperRegistry('1.2.3');
+      (setup.wrappers ?? []).forEach((w, i) => {
+        if (w.version === null) registry.toolCallWithoutRequester(i);
+        else registry.hello(i, w);
+      });
+      return registry.status();
+    },
   };
   return { tools: new PreflightTools(options), query };
 }
@@ -108,6 +118,7 @@ describe('get-preflight', () => {
     expect(result.checks.map(c => c.id)).toEqual([
       'foundry-link',
       'versions',
+      'wrapper',
       'write-switches',
       'world-settings',
       'visible-names',
@@ -160,6 +171,22 @@ describe('get-preflight', () => {
       {}
     )) as PreflightChecksResult;
     expect(byId(result)['play-session']?.status).toBe('info');
+  });
+
+  it('warns when a Claude Desktop connector is older or sends no version', async () => {
+    const ok = (await tools({
+      wrappers: [{ version: '1.2.3', sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(ok).wrapper?.status).toBe('ok');
+    const old = (await tools({
+      wrappers: [
+        { version: '1.2.3', sets: 'core' },
+        { version: null, sets: 'unknown' },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(old).wrapper).toMatchObject({ status: 'warn' });
+    expect(byId(old).wrapper?.detail).toContain('installer');
+    expect(old.ready).toBe(true);
   });
 
   it('fails on a version mismatch and names both versions', async () => {

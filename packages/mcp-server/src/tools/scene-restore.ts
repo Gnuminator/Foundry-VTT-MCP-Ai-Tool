@@ -7,6 +7,7 @@ import {
   toolRef,
   unwrapBridgeReply,
   type SceneRestorePart,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { MAX_OPS, type GuardedWriteService, type PlanView } from '../guarded-write/service.js';
@@ -152,9 +153,7 @@ export class SceneRestoreTools {
     );
     const feature = features.find(f => f.id === SCENE_RESTORE_FEATURE_ID);
     if (!feature?.enabled) {
-      throw new Error(
-        'Scene restore is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Scene restore (writes)".'
-      );
+      throw new Error(featureSwitchOff('Scene restore', 'AI Tool: Scene restore (writes)'));
     }
 
     const live = unwrapBridgeReply(

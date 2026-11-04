@@ -11,6 +11,7 @@ import {
   type RoomRegionSummary,
   type RoomSetupPlan,
   type RoomSetupRequest,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
@@ -225,9 +226,7 @@ export class RoomSetupTools {
     );
     const feature = features.find(f => f.id === ROOM_SETUP_FEATURE_ID);
     if (!feature?.enabled) {
-      throw new Error(
-        'Room setup is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Room setup (writes)".'
-      );
+      throw new Error(featureSwitchOff('Room setup', 'AI Tool: Room setup (writes)'));
     }
 
     const built: RoomSetupPlan = unwrapBridgeReply(

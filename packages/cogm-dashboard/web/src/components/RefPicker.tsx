@@ -1,4 +1,4 @@
-// The Pick… button next to a Tool runner field that names something (x-foundry-ref): a list of
+// The Pick from list button next to a Tool runner field that names something (x-foundry-ref): a list of
 // what exists now from list-ref-choices, with a filter box. Port of the old page's buildRefPicker
 // (public/app.js) on its markup and styles (.ref-picker, .ref-menu, .ref-item, ...). The field
 // still takes typed text; the hint under it names what the value points at, also for a prefilled
@@ -67,7 +67,7 @@ async function loadChoices(
 }
 
 export interface RefPickerProps {
-  /** The control's id; the Pick… button is `${fieldId}-pick`. */
+  /** The control's id; the Pick from list button is `${fieldId}-pick`. */
   fieldId: string;
   refSpec: ToolRef;
   /** A list parameter: several rows can be ticked, one value per line. */
@@ -271,7 +271,7 @@ export function RefPicker({
           aria-controls={open ? `${fieldId}-menu` : undefined}
           onClick={toggle}
         >
-          Pick…
+          Pick from list
         </Button>
         {takesTokens && (
           <Button

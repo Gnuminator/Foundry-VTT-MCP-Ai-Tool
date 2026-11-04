@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 23: move the Pi's Discord bot to the game server "D&D GUTTERNE" (backlog discord-pi-game-server). Until now the Pi's
+# Stage 26: move the Pi's Discord bot to the game server "D&D GUTTERNE" (backlog discord-pi-game-server). Until now the Pi's
 # bot (/etc/foundry-ai-tool/discord-bot.env) points at Silvera's old test server; /record and the "session is over" post
 # must work on the game server for the recorded character session (Sunday 2026-11-08 10:00).
 #
@@ -31,9 +31,9 @@
 #   UNDO=1     put the saved file back (the Silvera settings) and restart the bot; the saved copy stays
 # A real run and UNDO need a dietpi-backup snapshot from today and the user's OK. These lines are bash (Git Bash, or
 # Claude's Bash tool), not PowerShell:
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-discord-game-server.sh | ssh foundry-pi 'bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-discord-game-server.sh | ssh foundry-pi 'CHECK=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'CHECK=1 bash -s'
 # Tests only: DISCORD_ENV_FILE points at a stand-in file, WAIT_SECONDS shortens the wait.
 
 dry="${DRY_RUN:-0}"

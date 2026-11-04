@@ -209,8 +209,8 @@ jobs:
         # systemctl, timedatectl and dietpi-set_software.
         run: node --test scripts/pi/time-sync.test.mjs
 
-      - name: Pi stage 23 Discord game server
-        # 23-discord-game-server.sh (backlog discord-pi-game-server) as text: the ids, snapshot and quiet checks before the write,
+      - name: Pi stage 26 Discord game server
+        # 26-discord-game-server.sh (backlog discord-pi-game-server) as text: the ids, snapshot and quiet checks before the write,
         # the token never echoed. The scenarios run in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/discord-game-server.test.mjs
 
@@ -655,11 +655,11 @@ jobs:
           PI_STAGE21_CONTAINER: 1
         run: node --test scripts/pi/player-vault.test.mjs
 
-      - name: Pi stage 23 in an ARM64 container
-        # scripts/pi/container-test/stage23-scenarios.sh: stage 23 on Debian 13 ARM64 with the real lib.sh (dry run, the four lines
+      - name: Pi stage 26 in an ARM64 container
+        # scripts/pi/container-test/stage26-scenarios.sh: stage 26 on Debian 13 ARM64 with the real lib.sh (dry run, the four lines
         # set and the token kept, the saved copy, rerun, check, duplicates, the snapshot rule, undo).
         env:
-          PI_STAGE23_CONTAINER: 1
+          PI_STAGE26_CONTAINER: 1
         run: node --test scripts/pi/discord-game-server.test.mjs
 
       - name: Pi stage 16 in an ARM64 container

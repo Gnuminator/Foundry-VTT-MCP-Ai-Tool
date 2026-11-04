@@ -1,7 +1,7 @@
-// Pi stage 23, the Discord bot moves to the game server (scripts/pi/remote/23-discord-game-server.sh, discord-pi-game-server):
+// Pi stage 26, the Discord bot moves to the game server (scripts/pi/remote/26-discord-game-server.sh, discord-pi-game-server):
 //   node --test scripts/pi/discord-game-server.test.mjs
 // Text checks always run; the scenarios (real lib.sh, awk and sed in a Debian 13 ARM64 container) run with
-// PI_STAGE23_CONTAINER=1 (needs Docker).
+// PI_STAGE26_CONTAINER=1 (needs Docker).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -10,9 +10,9 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const stage = readFileSync(path.join(repo, 'scripts/pi/remote/23-discord-game-server.sh'), 'utf8');
+const stage = readFileSync(path.join(repo, 'scripts/pi/remote/26-discord-game-server.sh'), 'utf8');
 
-describe('stage 23 as text', () => {
+describe('stage 26 as text', () => {
   test('the defaults are the game server and its three channels', () => {
     assert.match(stage, /1432040202687348856/);
     assert.match(stage, /1566876400147759394/); // #session-notes
@@ -37,7 +37,7 @@ describe('stage 23 as text', () => {
   });
 });
 
-describe('stage 23 in the ARM64 container', { skip: process.env.PI_STAGE23_CONTAINER !== '1' }, () => {
+describe('stage 26 in the ARM64 container', { skip: process.env.PI_STAGE26_CONTAINER !== '1' }, () => {
   test('scenarios', () => {
     const r = spawnSync(
       'docker',
@@ -50,7 +50,7 @@ describe('stage 23 in the ARM64 container', { skip: process.env.PI_STAGE23_CONTA
         `${repo}:/repo:ro`,
         'debian:13-slim',
         'bash',
-        '/repo/scripts/pi/container-test/stage23-scenarios.sh',
+        '/repo/scripts/pi/container-test/stage26-scenarios.sh',
       ],
       { encoding: 'utf8', timeout: 600000 }
     );

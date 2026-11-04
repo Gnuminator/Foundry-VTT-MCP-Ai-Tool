@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pi stage 23 (scripts/pi/remote/23-discord-game-server.sh, discord-pi-game-server) in a Debian 13 ARM64 container with the
+# Pi stage 26 (scripts/pi/remote/26-discord-game-server.sh, discord-pi-game-server) in a Debian 13 ARM64 container with the
 # real lib.sh and the real awk/sed/stat (no systemd here: nothing restarts, the bot check is skipped). Scenarios:
 #   1 refusals before anything is touched: a bad id, two modes at once, a missing env file, UNDO without a saved copy
 #   2 DRY_RUN changes nothing and makes no saved copy
@@ -11,8 +11,8 @@
 #   7 the snapshot rule: a stale snapshot refuses before the file is written; a snapshot from today allows it
 #   8 UNDO puts the saved file back byte for byte
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage23-scenarios.sh
-# (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE23_CONTAINER=1.) STAGE=<file> runs the scenarios against
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage26-scenarios.sh
+# (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE26_CONTAINER=1.) STAGE=<file> runs the scenarios against
 # another copy of the script.
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool. It refuses to run anywhere but a container.
@@ -23,7 +23,7 @@ set -uo pipefail
   exit 98
 }
 
-STAGE="${STAGE:-/repo/scripts/pi/remote/23-discord-game-server.sh}"
+STAGE="${STAGE:-/repo/scripts/pi/remote/26-discord-game-server.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
 fails=0
 pass() { echo "ok: $*"; }

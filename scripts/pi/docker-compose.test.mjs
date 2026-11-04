@@ -149,8 +149,8 @@ describe('24-compose.sh as text', () => {
 });
 
 for (const [n, script] of [
-  ['22', 'stage23-scenarios.sh'],
-  ['23', 'stage24-scenarios.sh'],
+  ['23', 'stage23-scenarios.sh'],
+  ['24', 'stage24-scenarios.sh'],
 ]) {
   describe(
     `stage ${n} in the ARM64 container`,

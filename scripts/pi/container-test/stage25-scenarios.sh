@@ -383,11 +383,35 @@ if want undo-restore-fails; then
   absent undo-restore-fails 'alpha: 1.0.0 is back' "$out"
   check undo-restore-fails 'exit 1' "$out"
   absent undo-restore-fails 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+  check undo-restore-fails 'phase=installing' "$(cat "$IMPORT/modules-stage.state")"
+  out="$(run_stage 'APPLY=1')"
+  check undo-restore-fails-apply 'did not finish' "$out"
+  check undo-restore-fails-apply 'exit 1' "$out"
   out="$(run_stage 'UNDO=1')"
   check undo-restore-second 'alpha: 1.0.0 is back' "$out"
   check undo-restore-second 'exit 0' "$out"
   check undo-restore-second 'old 1.0.0' "$(marker alpha)"
   check undo-restore-second 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+fi
+
+if want undo-restore-oneshot; then
+  # a move fails once while UNDO puts the folders back: the exit trap does not retry on its own, the messages stay true
+  # (phase=installing, a new APPLY refused) and the second UNDO does the whole job, read-back included
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-restore-oneshot-setup 'exit 0' "$out"
+  echo alpha >/tmp/mv_fail
+  out="$(run_stage 'UNDO=1')"
+  check undo-restore-oneshot 'cannot move' "$out"
+  check undo-restore-oneshot 'exit 1' "$out"
+  absent undo-restore-oneshot 'alpha: 1.0.0 is back' "$out"
+  check undo-restore-oneshot 'phase=installing' "$(cat "$IMPORT/modules-stage.state")"
+  out="$(run_stage 'UNDO=1')"
+  check undo-restore-oneshot-second 'alpha: 1.0.0 is back' "$out"
+  check undo-restore-oneshot-second 'exit 0' "$out"
+  check undo-restore-oneshot-second 'Foundry is up' "$out"
+  check undo-restore-oneshot-second 'old 1.0.0' "$(marker alpha)"
+  check undo-restore-oneshot-second 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
 fi
 
 if want trap-restore-fails; then

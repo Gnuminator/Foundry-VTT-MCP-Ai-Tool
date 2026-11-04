@@ -223,7 +223,8 @@ on_exit() {
       if undo_state; then
         state_phase undone 2>/dev/null
       else
-        restored=0 # the phase stays installing, so the next run is refused until UNDO=1 has finished the job
+        restored=0 # the phase is installing (written here, as an UNDO of a finished run starts at installed), so the next run is refused until UNDO=1 has finished the job
+        state_phase installing 2>/dev/null
         warn "putting the folders back did not finish (see above); the state in $STATE stays at phase=installing: run UNDO=1"
       fi
     fi
@@ -249,13 +250,20 @@ if [ -n "$UNDO" ]; then
   require_quiet "putting the old module folders back"
   # Whether a world answers now, read before anything stops: a Foundry with no world open (the run died, or a module kept
   # the world from launching) has none to wait for after the restart, and waiting 120 s for it would end in a failure.
-  expect_world=0
-  if have_systemd && world_up; then expect_world=1; fi
+  # A Foundry that is down (a killed run stopped it) had a world: it is awaited. Only a running Foundry with no world is not.
+  expect_world=1
+  if have_systemd && systemctl is-active --quiet foundry.service && ! world_up; then expect_world=0; fi
   stop_services
   was_foundry=1
   if have_systemd && systemctl is-enabled --quiet "$GM_UNIT" 2>/dev/null; then was_gm_browser=1; fi
   undo=1
-  undo_state || die "putting the folders back did not finish (see the lines above); the state in $STATE is unchanged, so UNDO=1 can run again once the cause is fixed"
+  # A failed restore marks the run unfinished (a new APPLY=1 is refused) and clears undo, so the exit trap does not retry it
+  # on its own: the next UNDO=1 then does the whole job, with its read-back.
+  undo_state || {
+    state_phase installing
+    undo=""
+    die "putting the folders back did not finish (see the lines above); the state in $STATE is at phase=installing, so APPLY=1 is refused and UNDO=1 can run again once the cause is fixed"
+  }
   state_phase undone
   undo=""
   start_services || die "the old folders are back, but Foundry did not start: journalctl -u foundry -n 50"
@@ -329,11 +337,12 @@ if [ -n "$foundry_version" ] && node -e 'const a=process.argv[1].split(".").map(
   fi
 fi
 
-# The work folder sits in Foundry's Data folder (a dot folder Foundry does not read), owned by the foundry user: the zips are
-# unpacked as that user, not as root, so nothing an entry does can write outside what the foundry user may write. $IMPORT is
+# The work folder sits in Foundry's Data folder (a dot folder Foundry does not read), owned by root, so root never writes into
+# a folder the foundry user controls. Only $work/<id> belongs to the foundry user: the zips are unpacked there as that user,
+# not as root, so nothing an entry does can write outside what the foundry user may write. $IMPORT is
 # root-only and holds the kept folders (prev-*, failed-*) and the state. Same filesystem as $moddir, so the moves never copy.
 work="$data/.stage25-work-$stamp"
-install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$work"
+install -d -m 755 "$work" # root-owned: root copies the zips in here, and only $work/<id> (below) belongs to the foundry user
 [ "$(stat -c %d "$work")" = "$(stat -c %d "$moddir")" ] || die "$work and $moddir are on different filesystems: the folder moves would copy. Nothing was changed"
 [ "$(stat -c %d "$work")" = "$(stat -c %d "$IMPORT")" ] || die "$work and $IMPORT are on different filesystems: the old folders would be copied, not moved. Nothing was changed"
 

@@ -1,4 +1,4 @@
-import { freeText, toolRef } from '@gnuminator/shared';
+import { freeText, notFoundMessage, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -352,7 +352,7 @@ export class QuestCreationTools {
       });
 
       if (!journalResult || journalResult.error) {
-        throw new Error('Journal not found');
+        throw new Error(notFoundMessage('Journal', 'list-journals'));
       }
 
       // Add NPC relationship information to the page getJournalContent read (the first text page)
@@ -449,7 +449,7 @@ export class QuestCreationTools {
           pageId: request.pageId,
         });
         if (!pageResult || pageResult.error) {
-          throw new Error(`Page not found: ${request.pageId}`);
+          throw new Error(notFoundMessage(`Page ${request.pageId}`, 'list-journals'));
         }
         currentContent = pageResult.content as string;
       } else {

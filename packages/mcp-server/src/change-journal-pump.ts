@@ -56,6 +56,7 @@ import {
   isBridgeRefusal,
   CHANGE_JOURNAL_MAX_LIMIT,
   CHANGE_JOURNAL_VERSION,
+  errorMessage,
   type ChangeJournalResponse,
   type ChangeRecord,
 } from '@gnuminator/shared';
@@ -244,7 +245,7 @@ export class ChangeJournalPump {
         return written;
       })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         if (message !== this.lastError) {
           this.logger.warn('Change journal poll failed', { error: message });
         }
@@ -404,7 +405,7 @@ export class ChangeJournalPump {
     } catch (error) {
       this.logger.warn('Change journal retention failed', {
         worldId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }
@@ -446,7 +447,7 @@ export class ChangeJournalPump {
       try {
         await this.store.remove(worldId, 'gm', file);
       } catch (error) {
-        failed.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+        failed.push(`${file}: ${errorMessage(error)}`);
         continue;
       }
       this.writtenKeys.delete(`${worldId}::${date}`);
@@ -605,7 +606,7 @@ export class ChangeJournalPump {
         this.logger.warn('Change journal day could not be capped', {
           worldId,
           file,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage(error),
         });
       }
     }
@@ -632,7 +633,7 @@ export class ChangeJournalPump {
       this.onAppended(worldId, records);
     } catch (error) {
       this.logger.warn('onAppended listener failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }

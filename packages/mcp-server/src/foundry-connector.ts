@@ -4,6 +4,7 @@ import {
   BRIDGE_CAPABILITY_MODULE_REQUEST,
   BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX,
   BRIDGE_HELLO_TYPE,
+  errorMessage,
   MODULE_NOT_ACTIVE_LINK_ERROR,
   MODULE_REPLY_TYPE,
   MODULE_REQUEST_MAX_ARGS_BYTES,
@@ -16,6 +17,7 @@ import {
   type ModuleHelloData,
   type ModuleReplyData,
   type ModuleRequestData,
+  NOT_CONNECTED_TAIL,
 } from '@gnuminator/shared';
 import { Logger } from './logger.js';
 import { Config } from './config.js';
@@ -241,7 +243,7 @@ export class FoundryConnector {
       ws.send(JSON.stringify({ type: BRIDGE_HELLO_TYPE, data }));
     } catch (error) {
       this.logger.debug('Could not send bridge-hello', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }
@@ -317,7 +319,7 @@ export class FoundryConnector {
       ws.send(JSON.stringify({ type: MODULE_REPLY_TYPE, id, data }));
     } catch (error) {
       this.logger.warn('Could not send module-reply', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }
@@ -532,7 +534,7 @@ export class FoundryConnector {
     const isConnected = this.foundrySocket?.readyState === WebSocket.OPEN;
 
     if (!isConnected) {
-      throw new Error('Not connected to Foundry VTT module');
+      throw new Error(`Not connected to Foundry VTT module. ${NOT_CONNECTED_TAIL}`);
     }
 
     const queryId = `query-${++this.queryIdCounter}`;
@@ -590,7 +592,7 @@ export class FoundryConnector {
     ) {
       this.foundrySocket.send(JSON.stringify(message));
     } else {
-      throw new Error('Not connected to Foundry VTT module');
+      throw new Error(`Not connected to Foundry VTT module. ${NOT_CONNECTED_TAIL}`);
     }
   }
 
@@ -636,7 +638,7 @@ export class FoundryConnector {
    */
   sendMessage(message: BridgeMessage): void {
     if (!this.isConnected()) {
-      throw new Error('Not connected to Foundry VTT module');
+      throw new Error(`Not connected to Foundry VTT module. ${NOT_CONNECTED_TAIL}`);
     }
 
     try {

@@ -10,6 +10,7 @@
  */
 import { promises as fsp } from 'fs';
 import * as path from 'path';
+import { NOT_CONNECTED_TAIL } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 
@@ -38,7 +39,9 @@ export class WorldIdResolver {
   async current(): Promise<string> {
     if (!this.foundryClient.isConnected()) {
       this.cached = null;
-      throw new Error('Foundry is not connected, so the world (and its vault) is unknown');
+      throw new Error(
+        `Foundry is not connected, so the world (and its vault) is unknown. ${NOT_CONNECTED_TAIL}`
+      );
     }
     const serial = this.foundryClient.getConnectionSerial();
     if (this.cached?.serial === serial) return this.cached.worldId;

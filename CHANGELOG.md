@@ -4,7 +4,7 @@
 
 ## v0.25.0 (released 2026-11-04): the Attack button, initiative from Start combat, an automatic Party, handout notices in chat, Foundry setup tools, the AI commentary backend removed, clearer error messages, Pi stage scripts
 
-**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the Admin tool `plan-foundry-setup`; options or fields on `use-item`, `search-character-items` and `get-available-conditions` (`rollAttack`, a token id as attacker, the rules page uuid); the bridge methods `foundry-mcp-bridge.postHandoutNotice` (write) and `foundry-mcp-bridge.getSetupInfo` (read); the control calls `hello` (the wrapper sends its version), `wrapper_status` and `link_status` (an older wrapper sends no hello and still works); and the module settings "AI Tool: Add player characters to the party" and "AI Tool: Foundry setup (writes)". **Removed:** the dashboard's AI commentary backend: `POST /api/ask`, `POST /api/post-chat`, the `/api/control` AI actions and the AI fields in `/api/health`. No tool or bridge method was removed. Update the module and the bridge together: a v0.25.0 bridge with an older module posts no handout notice in chat and `plan-foundry-setup` fails. The Orange Pi builds the newest release tag, not `main` (D-126).
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the Admin tool `plan-foundry-setup`; options or fields on `use-item`, `search-character-items` and `get-available-conditions` (`rollAttack`, a token id as attacker, the rules page uuid); the bridge methods `foundry-mcp-bridge.postHandoutNotice` (write), `foundry-mcp-bridge.uploadPlayerPortrait` (write) and `foundry-mcp-bridge.getSetupInfo` (read); the control calls `hello` (the wrapper sends its version), `wrapper_status`, `link_status` and `player_portrait` (an older wrapper sends no hello and still works); and the module settings "AI Tool: Add player characters to the party", "AI Tool: Foundry setup (writes)" and "AI Tool: Player portraits (writes)". **Removed:** the dashboard's AI commentary backend: `POST /api/ask`, `POST /api/post-chat`, the `/api/control` AI actions and the AI fields in `/api/health`. No tool or bridge method was removed. Update the module and the bridge together: a v0.25.0 bridge with an older module posts no handout notice in chat, `plan-foundry-setup` fails and the portrait upload is refused. The Orange Pi builds the newest release tag, not `main` (D-126).
 
 ### Fixes
 
@@ -46,6 +46,8 @@
   connector that serves Core, so a wrapper behind the bridge can no longer drop new tools.
 - **A failed tool list is an error:** when the bridge returns no tools, Claude gets an error instead
   of an empty list.
+
+- **Lanes get their own context lines in desktop-app worktrees:** the context hooks now count a session as a lane when its project dir is under `.claude/worktrees/` or its transcript sits in a worktree project folder (both fixed at session start), so a lane no longer gets the planner's 200k and 250k lines by mistake. A planner that `cd`s into a worktree stays a planner.
 
 ### Module
 
@@ -151,6 +153,13 @@
 - **Set initiative says the turn stays:** the tool and its answer now say that changing an
   initiative reorders the fight but does not move the turn.
 
+- **Upload my portrait:** on the player page a player with their private link can put their own
+  PNG, JPG or WebP picture (at most 5 MB) on a character they own, as the portrait and, if they
+  tick it, the token. The type is read from the file's bytes; the picture is stored only in the
+  player's own folder under `assets/players/`, with a name the module makes, and Foundry's file
+  browser stays closed. The change shows in Changes with an Undo (the old picture comes back).
+  New switch "AI Tool: Player portraits (writes)", on by default. Player guide step 12 (en, da).
+
 ### Discord
 
 - **#changelog and #pr-log:** two read-only channels on the game server. Every merge through the
@@ -212,6 +221,8 @@
 - **Context hook lines are fixed at 200k and 250k:** `context-thresholds.json` and the low-mode switch are removed.
 - **Weekly usage report shows lane handovers:** `npm run usage:week` adds a Lanes line with the lane sessions, how many handed over (at 200k, at 250k from 2026-11-04), handovers per merged PR and the context they stopped at.
 
+- **Planner wake watcher:** `node scripts/planner-wake.mjs` exits when a `- progress:` line in the vault Backlog changes, so the planner wakes on a lane's "ready to merge" instead of a fixed timer; after an hour of idleness it prints a brief for a fresh planner.
+
 ### Pi
 
 - **Deployed-state check:** `deploy/pi/deployed-state.ps1` runs a read-only check on the Pi and prints what is
@@ -238,6 +249,8 @@
 - **The seven-book trim is a reviewed stage (stage 22):** `seven-books-trim.js` moves every entry from a book other than PHB 2024, DMG 2024, CoS, CoSCO, TCoE, XGtE and MotM into the GM-only pack `world.legacy-other-books` (same ids, entries that kept ones link to stay), copies the SRD items and creatures that kept entries link to into two player-visible world packs and re-points the links, and hides the dnd5e Item and Actor packs from Player and Trusted. A second run changes nothing. `seven-books-delete-legacy.js` deletes the legacy pack only with `MODE=delete`, `APPLY=1` and the user's OK. Stage 13 now sets Actor Studio's sources the way the trim leaves them (Player's Handbook plus `aitool-content` per kind, no dnd5e pack). `ddb-source-filter.js` limits DDB-Importer on the PC to the kept books plus the Monster Manual.
 - **Actor Studio fork `2.10.5-aitool.5` pinned in stage 13:** `13-player-creation.sh` now installs the fork release `2.10.5-aitool.5` (checked against its `module.zip` sha256), which adds a spell picker for feats that grant spells such as Magic Initiate. Nothing changes on the Pi until the stage is run with the user's OK after a `dietpi-backup` snapshot.
 - **Actor Studio offers the standard array and point buy:** stage 13 now also sets Actor Studio's ability score methods, `allowStandardArray` and `allowPointBuy` on, `allowManualInput` and `allowRolling` off, and reads them back after a reload like the other values. A player who opened the builder saw only manual entry; this is the fix, once stage 13 (or the GM, in Configure Settings) has set it in the world. `docs/player/make-a-character.md` names the two methods. The Pi run is not done yet.
+
+- **Stage 26, the Pi's Discord bot moves to the game server:** one stage script sets the server and the #session-notes, #gm-bot and #changelog channels in the bot's settings, so `/record` and the session-over post work on "D&D GUTTERNE". It has a dry run, a check and an undo, needs a snapshot from today and refuses while players are online or a recording runs.
 
 ### Polish
 

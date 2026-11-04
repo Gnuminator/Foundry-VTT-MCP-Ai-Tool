@@ -908,6 +908,28 @@ describe('FoundryDataAccess — roll button↔message id mapping', () => {
     expect(da.getRollButtonMessageId('btn-1')).toBe('msg-1');
   });
 
+  it('keeps every mapping when saves overlap with a slow settings write', async () => {
+    const settings = (globalThis as any).game.settings;
+    const original = settings.set;
+    // A slow write: the stored value changes only after a tick, as a server round trip does.
+    settings.set = async (...args: any[]): Promise<unknown> => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return original.apply(settings, args);
+    };
+    try {
+      await Promise.all([
+        da.saveRollButtonMessageId('slow-a', 'msg-a'),
+        da.saveRollButtonMessageId('slow-b', 'msg-b'),
+        da.saveRollButtonMessageId('slow-c', 'msg-c'),
+      ]);
+    } finally {
+      settings.set = original;
+    }
+    expect(da.getRollButtonMessageId('slow-a')).toBe('msg-a');
+    expect(da.getRollButtonMessageId('slow-b')).toBe('msg-b');
+    expect(da.getRollButtonMessageId('slow-c')).toBe('msg-c');
+  });
+
   it('returns null for an unknown button id', () => {
     expect(da.getRollButtonMessageId('missing')).toBeNull();
   });

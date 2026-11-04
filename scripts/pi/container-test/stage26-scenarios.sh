@@ -95,7 +95,7 @@ if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'stage 8'; then pass "a missing bot 
 before="$(sha256sum <"$env_file")"
 run DRY_RUN=1
 rc=$?
-if [ "$rc" -eq 0 ] && [ "$(sha256sum <"$env_file")" = "$before" ] && [ ! -e "$saved" ] && echo "$OUT" | grep -q 'would set DISCORD_GUILD_ID'; then
+if [ "$rc" -eq 0 ] && [ "$(sha256sum <"$env_file")" = "$before" ] && [ ! -e "$saved" ] && echo "$OUT" | grep -q 'would set (names and ids only)'; then
   pass "DRY_RUN says what it would do and changes nothing"; else fail "dry run: rc=$rc $OUT"; fi
 if ! echo "$OUT" | grep -q "$token"; then pass "the dry run does not print the token"; else fail "token in dry run output"; fi
 
@@ -120,7 +120,7 @@ before="$(sha256sum <"$env_file")"
 saved_before="$(sha256sum <"$saved")"
 run
 rc=$?
-if [ "$rc" -eq 0 ] && [ "$(sha256sum <"$env_file")" = "$before" ] && [ "$(sha256sum <"$saved")" = "$saved_before" ] && echo "$OUT" | grep -q 'nothing to do'; then
+if [ "$rc" -eq 0 ] && [ "$(sha256sum <"$env_file")" = "$before" ] && [ "$(sha256sum <"$saved")" = "$saved_before" ] && echo "$OUT" | grep -q 'needs no change'; then
   pass "a rerun changes nothing and keeps the saved copy"; else fail "rerun: rc=$rc $OUT"; fi
 
 # 5.
@@ -163,5 +163,61 @@ rc=$?
 if [ "$rc" -eq 0 ] && grep -q "^DISCORD_GUILD_ID=$silvera$" "$env_file" && ! grep -q 'DISCORD_SESSION_POST_CHANNEL_ID' "$env_file" && [ -e "$saved" ]; then
   pass "UNDO restores the saved file and keeps the copy"; else fail "undo: rc=$rc $OUT"; fi
 if [ "$(stat -c '%a %U:%G' "$env_file")" = "640 root:$FOUNDRY_USER" ]; then pass "the restored file is 0640 root:$FOUNDRY_USER"; else fail "restored mode"; fi
+
+# 9. The session-over post settings.
+fresh_env
+run PLAYER_PAGE_URL='https://x.example.com/player?token=abc'
+rc=$?
+if [ "$rc" -ne 0 ] && [ "$(get DISCORD_GUILD_ID)" = "$silvera" ]; then pass "a page link with a query is refused, nothing written"; else fail "query url: rc=$rc $OUT"; fi
+run
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'will NOT post the session-over link'; then pass "no page link: the stage warns the post is off"; else fail "no-link warning: rc=$rc $OUT"; fi
+run PLAYER_PAGE_URL=https://cogm.example.com/player
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(get FOUNDRY_AI_PLAYER_PAGE_URL)" = "https://cogm.example.com/player" ] && [ "$(get FOUNDRY_AI_DASHBOARD_URL)" = "http://127.0.0.1:3000" ] &&
+  ! echo "$OUT" | grep -q 'cogm.example.com' && ! echo "$OUT" | grep -q 'will NOT post'; then
+  pass "the page link and the dashboard address are set, the link is not printed"; else fail "page url: rc=$rc $OUT"; fi
+run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(get FOUNDRY_AI_PLAYER_PAGE_URL)" = "https://cogm.example.com/player" ] && ! echo "$OUT" | grep -q 'will NOT post'; then
+  pass "a rerun without the link keeps it"; else fail "keep link: rc=$rc $OUT"; fi
+
+# 10. A run cut off before the restart: a rerun restarts a bot older than the file (stand-in systemd).
+fresh_env
+mkdir -p /run/systemd/system /tmp/sd/bin
+cat >/tmp/sd/bin/systemctl <<'SH'
+#!/usr/bin/env bash
+echo "$*" >>/tmp/sd/calls
+case "$1" in
+  is-active) [ "${@: -1}" = foundry-ai-tool-discord-bot.service ] && [ -f /tmp/sd/active ] ;;
+  show) cat /tmp/sd/ts 2>/dev/null ;;
+  restart | start) : >/tmp/sd/active ;;
+esac
+SH
+cat >/tmp/sd/bin/journalctl <<SH
+#!/usr/bin/env bash
+echo "Logged in as bot#0001"
+echo "Registered /record in server $guild"
+SH
+chmod +x /tmp/sd/bin/systemctl /tmp/sd/bin/journalctl
+: >/tmp/sd/active
+echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
+: >/tmp/sd/calls
+sdrun() { run PATH="/tmp/sd/bin:$PATH" "$@"; }
+sdrun
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q '^restart' /tmp/sd/calls && echo "$OUT" | grep -q "Registered /record in server $guild"; then
+  pass "a real run restarts the bot and sees /record registered"; else fail "restart: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+: >/tmp/sd/calls
+date -d '+1 hour' '+%F %T' >/tmp/sd/ts
+sdrun
+rc=$?
+if [ "$rc" -eq 0 ] && ! grep -q '^restart' /tmp/sd/calls; then pass "a clean rerun leaves a newer bot alone"; else fail "clean rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
+: >/tmp/sd/calls
+sdrun
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q '^restart' /tmp/sd/calls; then pass "a rerun after a cut-off run restarts the bot"; else fail "cut-off rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+rm -rf /run/systemd/system /tmp/sd
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

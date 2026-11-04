@@ -1525,7 +1525,10 @@ recording, so it refuses while players are online or a recording runs. `/record`
 there until the bot leaves it.
 
 - **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
-- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `'bash -s'`.
+- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `'bash -s'`. The session-over post
+  also needs the player page link, which the Pi's file does not have: add `PLAYER_PAGE_URL=https://<player page>` (no
+  `?token=`; it also sets `FOUNDRY_AI_DASHBOARD_URL=http://127.0.0.1:3000`, the Pi's dashboard port). Without it the
+  stage warns that the post stays off. A rerun after a cut-off run restarts a bot that is older than the file.
 - **Check:** `CHECK=1` (the four lines, and "Registered /record in server ..." in the bot's journal since it started), then
   `/record` in a voice channel on the game server and a session-over post in #session-notes.
 - **Undo:** the same pipe with `UNDO=1` (the saved file back, the bot restarted).

@@ -15,7 +15,12 @@
 # What it does, in this order, and stops before the next step when one fails:
 #   1. refuses unless the env file and the bot's service exist (stage 8 ran);
 #   2. reads the state (key names and ids only, the token line shown as <hidden>) and prints what would change;
-#   3. when the four lines are already right it changes nothing; otherwise:
+#   The session-over post also needs FOUNDRY_AI_PLAYER_PAGE_URL (the link players open; the bot keeps the post off without
+#   it) and FOUNDRY_AI_DASHBOARD_URL (the Pi's dashboard is on port 3000, the bot's default is 3100). Give
+#   PLAYER_PAGE_URL=https://... (no query or token) to set the first and, with it, DASHBOARD_URL (default
+#   http://127.0.0.1:3000). Without it an existing link is kept and the stage warns when there is none.
+#   3. when the lines are already right the file is not changed, but a bot that started before the file was written (a
+#      run cut off before its restart) is restarted, so a rerun finishes the job; otherwise:
 #      a snapshot from today is required, and a bot restart is refused while players are online in Foundry or a
 #      recording runs (restarting the bot ends a recording; FORCE=1 overrides, with a warning);
 #   4. copies the env file once to discord-bot.env.before-game-server (same owner and mode; it holds the token, so it
@@ -52,6 +57,19 @@ changelog_id="${CHANGELOG_CHANNEL_ID:-1566884650494722220}"
 for v in "$guild_id" "$session_post_id" "$watch_id" "$changelog_id"; do
   printf '%s' "$v" | grep -Eq '^[0-9]{15,22}$' || die "an id must be 15 to 22 digits (got a value of ${#v} characters)"
 done
+wanted="DISCORD_GUILD_ID=$guild_id
+DISCORD_SESSION_POST_CHANNEL_ID=$session_post_id
+GAMENIGHT_WATCH_CHANNEL_ID=$watch_id
+DISCORD_CHANGELOG_CHANNEL_ID=$changelog_id"
+if [ -n "${PLAYER_PAGE_URL:-}" ]; then
+  printf '%s' "$PLAYER_PAGE_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$' ||
+    die "PLAYER_PAGE_URL must be an https address without a query or token (for example https://cogm.example.com/player)"
+  dash_url="${DASHBOARD_URL:-http://127.0.0.1:3000}"
+  printf '%s' "$dash_url" | grep -Eq '^http://(127\.0\.0\.1|localhost):[0-9]+$' || die "DASHBOARD_URL must be http://127.0.0.1:<port>"
+  wanted="$wanted
+FOUNDRY_AI_PLAYER_PAGE_URL=$PLAYER_PAGE_URL
+FOUNDRY_AI_DASHBOARD_URL=$dash_url"
+fi
 [ "$((dry + check_only + undo))" -le 1 ] || die "DRY_RUN, CHECK and UNDO are separate modes: set one"
 
 require_root
@@ -69,14 +87,27 @@ show_state() { # show_state FILE
   for k in DISCORD_GUILD_ID DISCORD_SESSION_POST_CHANNEL_ID GAMENIGHT_WATCH_CHANNEL_ID DISCORD_CHANGELOG_CHANNEL_ID; do
     out "    $k=$(get "$1" "$k")"
   done
+  # Names only: the page link may carry a token.
+  for k in FOUNDRY_AI_PLAYER_PAGE_URL FOUNDRY_AI_DASHBOARD_URL; do
+    if [ -n "$(get "$1" "$k")" ]; then out "    $k is set"; else out "    $k is not set"; fi
+  done
   if grep -Eq '^DISCORD_TOKEN=[^[:space:]]+' "$1"; then out "    DISCORD_TOKEN=<hidden>"; else out "    DISCORD_TOKEN is missing"; fi
 }
 
-lines_right() {
-  [ "$(get "$env_file" DISCORD_GUILD_ID)" = "$guild_id" ] &&
-    [ "$(get "$env_file" DISCORD_SESSION_POST_CHANNEL_ID)" = "$session_post_id" ] &&
-    [ "$(get "$env_file" GAMENIGHT_WATCH_CHANNEL_ID)" = "$watch_id" ] &&
-    [ "$(get "$env_file" DISCORD_CHANGELOG_CHANNEL_ID)" = "$changelog_id" ]
+lines_right() { # every wanted KEY=VALUE is the last such line in the file
+  local pair
+  while IFS= read -r pair; do
+    [ "$(get "$env_file" "${pair%%=*}")" = "${pair#*=}" ] || return 1
+  done <<<"$wanted"
+}
+
+# The session-over post (bot.ts) stays off unless FOUNDRY_AI_PLAYER_PAGE_URL is set, and the bot reads the session flag
+# from FOUNDRY_AI_DASHBOARD_URL (default port 3100, the Pi's dashboard is on 3000). Without a PLAYER_PAGE_URL here, an
+# existing page link is kept; with neither, the post is off and the stage says so.
+post_note() {
+  if [ -z "$(get "$env_file" FOUNDRY_AI_PLAYER_PAGE_URL)" ]; then
+    warn "FOUNDRY_AI_PLAYER_PAGE_URL is not set: the bot will NOT post the session-over link in #session-notes. Rerun with PLAYER_PAGE_URL=https://... (no ?token=)"
+  fi
 }
 
 # The check: the bot's own login and /record lines since SINCE (a journal timestamp); the token is never in these lines.
@@ -103,7 +134,8 @@ show_state "$env_file"
 if [ "$check_only" = 1 ]; then
   say "check"
   lines_right || die "the four lines are not the game server's (see above); run the stage"
-  ok "the four lines point at the game server"
+  ok "the lines point at the game server"
+  post_note
   if have_systemd; then
     systemctl is-active --quiet "$unit" || die "$unit is not running"
     ok "$unit running"
@@ -127,17 +159,28 @@ if [ "$dry" = 1 ]; then
   if [ "$undo" = 1 ]; then
     say "dry run: would put $saved back as $env_file and restart $unit; nothing changed"
   elif lines_right; then
-    say "dry run: the four lines are already right; a real run changes nothing"
+    say "dry run: the lines are already right; a real run changes no setting (it still restarts a bot older than the file)"
   else
-    say "dry run: would set DISCORD_GUILD_ID=$guild_id DISCORD_SESSION_POST_CHANNEL_ID=$session_post_id GAMENIGHT_WATCH_CHANNEL_ID=$watch_id DISCORD_CHANGELOG_CHANNEL_ID=$changelog_id,"
+    say "dry run: would set (names and ids only):"
+    while IFS= read -r pair; do
+      case "${pair%%=*}" in FOUNDRY_AI_PLAYER_PAGE_URL) out "    FOUNDRY_AI_PLAYER_PAGE_URL (the given address)" ;; *) out "    $pair" ;; esac
+    done <<<"$wanted"
     out "    save $saved (if there is none yet), restart $unit; nothing changed"
   fi
+  [ "$undo" = 1 ] || post_note
   exit 0
 fi
 
 if [ "$undo" != 1 ] && lines_right; then
-  say "nothing to do"
-  ok "the four lines already point at the game server; the bot is not touched (CHECK=1 checks it)"
+  say "the lines are already right"
+  ok "the settings file needs no change"
+  # A run that wrote the file but was cut off before the restart (a refusal, a dropped connection) must still restart the
+  # bot: enable_unit restarts a running unit only when the file is newer than the service, so a clean rerun is a no-op.
+  if have_systemd; then
+    require_quiet_if_active "$unit" "restarting the Discord bot for the settings already in the file"
+    enable_unit "$unit" "$env_file"
+  fi
+  post_note
   exit 0
 fi
 
@@ -165,18 +208,20 @@ else
     ok "$saved already exists: kept (it is the Silvera-era file undo returns to)"
   fi
   # The values go to awk through its environment; the token line passes through untouched.
-  G="$guild_id" S="$session_post_id" W="$watch_id" C="$changelog_id" awk '
-    function want(k) { return k == "DISCORD_GUILD_ID" ? ENVIRON["G"] : k == "DISCORD_SESSION_POST_CHANNEL_ID" ? ENVIRON["S"] : k == "GAMENIGHT_WATCH_CHANNEL_ID" ? ENVIRON["W"] : ENVIRON["C"] }
-    /^(DISCORD_GUILD_ID|DISCORD_SESSION_POST_CHANNEL_ID|GAMENIGHT_WATCH_CHANNEL_ID|DISCORD_CHANGELOG_CHANNEL_ID)=/ {
+  WANTED="$wanted" awk '
+    BEGIN {
+      n = split(ENVIRON["WANTED"], pairs, "\n")
+      for (i = 1; i <= n; i++) { k = pairs[i]; sub(/=.*/, "", k); order[i] = k; val[k] = substr(pairs[i], length(k) + 2) }
+    }
+    {
       k = $0; sub(/=.*/, "", k)
-      if (!(k in seen)) { print k "=" want(k); seen[k] = 1 }
-      next
+      if ($0 ~ /^[A-Z_]+=/ && (k in val)) {
+        if (!(k in seen)) { print k "=" val[k]; seen[k] = 1 }
+        next
+      }
+      print
     }
-    { print }
-    END {
-      n = split("DISCORD_GUILD_ID DISCORD_SESSION_POST_CHANNEL_ID GAMENIGHT_WATCH_CHANNEL_ID DISCORD_CHANGELOG_CHANNEL_ID", keys, " ")
-      for (i = 1; i <= n; i++) if (!(keys[i] in seen)) print keys[i] "=" want(keys[i])
-    }
+    END { for (i = 1; i <= n; i++) if (!(order[i] in seen)) print order[i] "=" val[order[i]] }
   ' "$env_file" >"$tmp"
 fi
 chown "$owner_group" "$tmp"
@@ -195,4 +240,9 @@ if [ -n "$want_guild" ]; then
 else
   warn "the file has no DISCORD_GUILD_ID: /record registers globally (can take up to an hour)"
 fi
-if [ "$undo" = 1 ]; then say "done: the bot is back on the earlier server"; else say "done: the bot answers /record on the game server"; fi
+if [ "$undo" = 1 ]; then
+  say "done: the bot is back on the earlier server"
+else
+  post_note
+  say "done: the bot answers /record on the game server"
+fi

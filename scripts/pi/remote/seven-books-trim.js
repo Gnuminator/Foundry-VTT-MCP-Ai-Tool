@@ -47,7 +47,10 @@ const log = t => {
   done.push(t);
   args.log(t);
 };
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Foundry hands the ownership back with its keys in another order than they were set in: compare sorted keys.
+const sorted = o =>
+  JSON.stringify(Object.fromEntries(Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))));
+const same = (a, b) => sorted(a) === sorted(b);
 const ownershipOf = p => JSON.parse(JSON.stringify(p.ownership ?? p.config?.ownership ?? {}));
 const sourcePackOf = e => e.flags?.['foundry-ai-tool']?.sourcePack;
 const verdict = e => {

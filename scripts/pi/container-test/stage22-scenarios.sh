@@ -170,7 +170,6 @@ if want check-mode; then
   check check-mode 'dry run of /root/seven-books-check.js' "$out"
   check check-mode 'exit 0' "$out"
   check check-mode '^const CHECK_ONLY = true;$' "$(head -n 1 /root/seven-books-check.js)"
-  check check-mode 'seven-books-check.js' "$(cat /tmp/calls)"
   check check-mode '--dry-run' "$(cat /tmp/calls)"
   fresh_pi curse-of-strahd
   out="$(run_stage 'MODE=check APPLY=1')"

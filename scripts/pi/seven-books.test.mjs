@@ -257,6 +257,18 @@ describe('seven-books-trim.js', () => {
     );
   });
 
+  test('ownership that comes back with its keys in another order counts as the same', async () => {
+    const world = standardWorld();
+    wire(world);
+    await run(trimSource, world, false);
+    for (const p of world.packs.values()) {
+      if (p.ownership.PLAYER === 'NONE')
+        p.ownership = { GAMEMASTER: 'OWNER', ASSISTANT: 'OWNER', TRUSTED: 'NONE', PLAYER: 'NONE' };
+    }
+    const { result } = await run(trimSource, world, true);
+    assert.equal(result.hide, 0);
+  });
+
   test('a second run changes nothing', async () => {
     const world = standardWorld();
     wire(world);

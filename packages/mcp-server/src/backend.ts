@@ -717,17 +717,11 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // The stdio wrapper says which version it is (a wrapper from before this sends none).
+          // The stdio wrapper says which version and build it is (a wrapper from before this sends
+          // none). get-preflight reads the registry in-process; there is no control call for it.
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
-
-            continue;
-          }
-
-          // The wrapper versions seen, for the dashboard; not a tool, never listed to Claude.
-          if (msg.method === 'wrapper_status') {
-            socket.write(`${JSON.stringify({ id: msg.id, result: wrapperRegistry.status() })}\n`);
 
             continue;
           }

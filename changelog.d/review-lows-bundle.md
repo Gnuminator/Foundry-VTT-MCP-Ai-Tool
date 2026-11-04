@@ -1,6 +1,7 @@
-### Tooling
+### Fixes
 
-- **Release check tightened in the merge gate:** the release-PR exception now looks version files up
-  by own key only, compares the NSIS version lines with the version blanked (a changed registry path
-  no longer passes), refuses a dropped `version` field, and a killed main copy of the gate also ends
-  with a `refused because` line. The lane skill describes the risky notice as it now reads.
+- **A finished roll card keeps its heading:** once a player rolls, the chat card reads "Roll for Mara: Perception, DC 12" like the request did, instead of "Roll Request: Perception Skill Check (Public)". Cards posted before this update rebuild the heading from the roll they stored.
+- **Same-version connectors from another build:** the Claude Desktop connector now says a build id (a hash of its tool-set lists) in its hello, and `get-preflight` warns when a connector has the bridge's version from a different build. A connector from before this sends no build id and is compared by version only, as before.
+- **The unused `wrapper_status` control call is gone:** nothing called it; `get-preflight` reads the connector list directly. `CONTROL_METHODS` now lists `hello`.
+- **Docs say what can be undone:** the GM guide (English and Danish) says changes to actors, items, tokens, scenes, combat and journals can be undone, and music, folders, chat and rolls cannot. It also says which plans "apply without confirming" covers (damage, healing, temporary hit points, conditions, resources, scene dressing, starting a fight; not token changes or deletes). The dashboard README names Ask for a roll and the strip's Damage / Heal form as buttons that act at once.
+- **Tests:** an ambiguous actor name in `plan-ownership-change` keeps its candidate list end to end, and every tool marked as a write starts its description "Direct write." (apart from apply-planned-change and undo-change).

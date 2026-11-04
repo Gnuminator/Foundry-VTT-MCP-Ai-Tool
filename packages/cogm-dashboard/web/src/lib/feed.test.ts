@@ -8,6 +8,7 @@ import {
   MAX_SEEN_IDS,
   addFeedEvents,
   announcement,
+  d20sLabel,
   dayKey,
   eventDate,
   eventIso,
@@ -139,6 +140,25 @@ describe('readFeedEvent', () => {
     // A time Date cannot hold would throw in <time dateTime>.
     expect(readFeedEvent({ ...raw, timestampMs: 9e15 })).toBeNull();
     expect(readFeedEvent({ ...raw, eventType: undefined })).toBeNull();
+  });
+});
+
+describe('d20sLabel', () => {
+  const base = { who: 'Mara', label: 'Perception', total: 18, attack: false };
+
+  it('names the d20 that counts and the dropped one', () => {
+    expect(d20sLabel({ ...base, natural: 17, dropped: [4], advantage: 'advantage' })).toBe(
+      'advantage: 17 counts, 4 dropped'
+    );
+    expect(d20sLabel({ ...base, natural: 3, dropped: [12] })).toBe(
+      'two d20s: 3 counts, 12 dropped'
+    );
+  });
+
+  it('draws no marker for an empty or missing dropped list, or no natural d20', () => {
+    expect(d20sLabel({ ...base, natural: 17, dropped: [] })).toBeUndefined();
+    expect(d20sLabel({ ...base, natural: 17 })).toBeUndefined();
+    expect(d20sLabel({ ...base, dropped: [4] })).toBeUndefined();
   });
 });
 

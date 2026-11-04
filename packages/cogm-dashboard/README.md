@@ -351,7 +351,7 @@ Claude Code) through the MCP tools, under that person's subscription.
 
 ## Guardrails
 
-- **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo, except the combat turn button, which acts at once.
+- **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo. Three act at once: the combat turn button, **Ask for a roll** (it posts the roll request in chat, which has no undo) and the strip's **Damage / Heal** form (it plans and applies in one click; the toast and Recent Changes have Undo).
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
   and retries — it never crashes the dashboard.

@@ -11,6 +11,8 @@ import {
   makeToken,
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
+import { AMBIGUOUS_ACTOR_PREFIX as SHARED_AMBIGUOUS_ACTOR_PREFIX } from '../../../shared/src/ownership.js';
+import { AMBIGUOUS_ACTOR_PREFIX } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { findActorByIdentifier, resolveTargetActor } from './data-access/shared.js';
 
@@ -92,6 +94,24 @@ describe('resolveTargetActor with an ambiguous world name', () => {
 
   it('still refuses when no token settles it', () => {
     expect(() => resolveTargetActor('Aria')).toThrow(/Multiple characters match/);
+  });
+});
+
+describe('findActor (the plan-ownership-change lookup) with an ambiguous name', () => {
+  it('starts the error with the text the bridge looks for', () => {
+    expect(AMBIGUOUS_ACTOR_PREFIX).toBe(SHARED_AMBIGUOUS_ACTOR_PREFIX);
+  });
+
+  it('rejects with the candidates instead of returning null', async () => {
+    const da = new FoundryDataAccess();
+    await expect(da.findActor({ identifier: 'Aria' })).rejects.toThrow(
+      /Multiple characters match "Aria"/
+    );
+  });
+
+  it('still returns null when nothing matches', async () => {
+    const da = new FoundryDataAccess();
+    await expect(da.findActor({ identifier: 'Nobody' })).resolves.toBeNull();
   });
 });
 

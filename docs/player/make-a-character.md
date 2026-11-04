@@ -286,10 +286,22 @@ Foundry needs to know which character is yours, so it uses it for your rolls and
 
 The Players list now shows your name with the character's name in brackets.
 
-## 12. A portrait (optional)
+## 12. Your picture (optional)
 
-Players can't upload pictures to Foundry. Send your picture to the GM on Discord, and the GM adds it
-as your portrait and token.
+You can put your own art on your character from the player page. Foundry's own file browser stays
+closed to players, so this is the way in.
+
+1. Open the player page on the device where you opened your private link (the one pinned in
+   Discord). In the **You** card, press **Upload my portrait**.
+2. Pick one PNG, JPG or WebP file, at most 5 MB.
+3. The list next to the button says **Portrait and token**, so the same picture is also your token
+   on the map. Choose **Portrait only** to change just the portrait.
+4. Wait for "Done". Your character now has the new picture in Foundry. If you have more than one
+   character, pick which one first.
+
+The picture is saved in your own folder, so nobody else's files are touched. The GM sees the change
+under Changes and can undo it if something went wrong. A file that is not a real PNG, JPG or WebP,
+or is too big, is refused with a short message; send it to the GM on Discord instead.
 
 ## If something goes wrong
 

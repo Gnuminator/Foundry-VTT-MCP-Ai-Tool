@@ -22,6 +22,7 @@ import type {
   PlayerRollRequestBody,
 } from './character-sheet.js';
 import type { ExportIndexRequest, ExportIndexResponse } from './export-index.js';
+import type { UploadPlayerPortraitReply, UploadPlayerPortraitRequest } from './player-portrait.js';
 import type {
   GuardedApplyOutcome,
   GuardedApplyRequest,
@@ -204,6 +205,10 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.playerRoll': {
     request: PlayerRollRequestBody;
     reply: PlayerRollReply;
+  };
+  'foundry-mcp-bridge.uploadPlayerPortrait': {
+    request: UploadPlayerPortraitRequest;
+    reply: UploadPlayerPortraitReply;
   };
   'foundry-mcp-bridge.getCharacterEntity': {
     request: { characterIdentifier: string; entityIdentifier: string };

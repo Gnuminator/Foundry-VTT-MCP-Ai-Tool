@@ -9,6 +9,8 @@
  * - `POST /api/me/roll`                -> the player rolls one of their open roll requests (the body
  *                                          carries the button id; the module rolls for their character
  *                                          from the GM client and checks the request is theirs)
+ * - `POST /api/me/portrait`            -> the player puts their own picture on a character they own
+ *                                          (raw image body; the module stores it in their own folder)
  * - `GET  /api/player-links`            -> GM: each player, with their link if they have one
  * - `GET  /api/party-sheets`            -> GM: the sheets of every player's characters, for the paper
  *                                          night print (`party-print.html`)
@@ -18,7 +20,8 @@
  * The key maps to a Foundry user id on this side only; the bridge's control method
  * `character_sheet` then returns only the character actors that user OWNS.
  */
-import type { Express, Request, Response } from 'express';
+import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
 import type { SessionEvent } from './feed/types.js';
 import type { PlayerLinkStore } from './player-links.js';
@@ -28,6 +31,12 @@ import type { PlayerDirectory } from './usage-route.js';
 export interface MeClient {
   characterSheet?(userId: string): Promise<unknown>;
   playerRoll?(userId: string, buttonId: string): Promise<unknown>;
+  playerPortrait?(
+    userId: string,
+    actorId: string,
+    target: 'portrait' | 'both',
+    data: string
+  ): Promise<unknown>;
 }
 
 export interface MeRouteOptions {
@@ -158,6 +167,93 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       })
       .finally(() => rolling.delete(userId));
   });
+
+  // "Upload my portrait": the body is the picture itself (raw bytes), `actor` the character's id,
+  // `target` `portrait` or `both` (also the prototype token). The identity is the player's private
+  // key, so a player can only ever change a character they own (the module checks the ownership
+  // again). The type is read from the bytes, never from the name or the sent type; the folder and
+  // the file name are made on the other side, nothing here names a path.
+  const uploading = new Set<string>();
+  const portraitBody = express.raw({ type: () => true, limit: PORTRAIT_MAX_BYTES });
+  app.post('/api/me/portrait', (req: Request, res: Response, next: NextFunction) => {
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return;
+    }
+    portraitBody(req, res, (err?: unknown) => {
+      if (err) {
+        const tooBig = (err as { type?: string }).type === 'entity.too.large';
+        res.status(tooBig ? 413 : 400).json({
+          error: tooBig ? 'That picture is too big. The limit is 5 MB.' : 'Not a picture.',
+        });
+        return;
+      }
+      void handlePortrait(req, res, userId).catch(next);
+    });
+  });
+
+  async function handlePortrait(req: Request, res: Response, userId: string): Promise<void> {
+    const actorId = typeof req.query.actor === 'string' ? req.query.actor : '';
+    const target = req.query.target === 'both' ? 'both' : 'portrait';
+    if (!USER_ID.test(actorId)) {
+      res.status(400).json({ error: 'Pick a character.' });
+      return;
+    }
+    const bytes = Buffer.isBuffer(req.body) ? req.body : null;
+    if (!bytes || bytes.length === 0) {
+      res.status(400).json({ error: 'Pick a picture first.' });
+      return;
+    }
+    if (bytes.length > PORTRAIT_MAX_BYTES) {
+      res.status(413).json({ error: 'That picture is too big. The limit is 5 MB.' });
+      return;
+    }
+    if (!sniffPortraitType(bytes)) {
+      res.status(415).json({ error: 'Only PNG, JPG or WebP pictures work.' });
+      return;
+    }
+    if (typeof client.playerPortrait !== 'function') {
+      res
+        .status(501)
+        .json({ error: 'Changing your picture from this page is not available here.' });
+      return;
+    }
+    if (uploading.has(userId)) {
+      res.status(429).json({ error: 'Your last picture is still being saved.' });
+      return;
+    }
+    uploading.add(userId);
+    try {
+      const result = (await client.playerPortrait(
+        userId,
+        actorId,
+        target,
+        bytes.toString('base64')
+      )) as { path?: unknown; actorName?: unknown };
+      res.json({
+        ok: true,
+        path: typeof result?.path === 'string' ? result.path : '',
+        actorName: typeof result?.actorName === 'string' ? result.actorName : '',
+      });
+      options.onRolled?.();
+    } catch (error) {
+      // Only a refusal the player can act on (not yours, too big, switched off) is shown as it is.
+      const code = (error as { code?: unknown }).code;
+      if (code === 'portrait' && error instanceof Error) {
+        res.status(409).json({ error: error.message });
+      } else {
+        res.status(502).json({ error: 'Could not save your picture. Ask your GM.' });
+      }
+    } finally {
+      uploading.delete(userId);
+    }
+  }
 
   app.get('/api/player-links', requireGm, (_req: Request, res: Response) => {
     const world = worldId();

@@ -8,6 +8,8 @@
 import {
   concentrationReminders,
   myRollRequests,
+  portraitFailure,
+  portraitProblem,
   rollBannerLines,
   mySheets,
   turnLine,
@@ -225,6 +227,70 @@ elMineRolls.addEventListener('click', async e => {
   renderMine();
 });
 
+// --- "Upload my portrait": the player's own art on a character they own ----------------
+// The picture goes to /api/me/portrait with the private key; the server stores it only in the
+// player's own folder and sets the picture of a character they own. Nothing here names a path.
+const elPortraitActor = $('portrait-actor');
+const elPortraitPick = $('portrait-pick');
+const elPortraitToken = $('portrait-token');
+const elPortraitFile = $('portrait-file');
+const elPortraitNote = $('portrait-note');
+let portraitIds = '';
+let portraitBusy = false;
+
+function renderPortraitControl() {
+  const ids = mySheetList.map(s => s.id).join(',');
+  if (ids === portraitIds) return;
+  portraitIds = ids;
+  const previous = elPortraitActor.value;
+  elPortraitActor.innerHTML = mySheetList
+    .map(s => `<option value="${escape(s.id)}">${escape(s.name)}</option>`)
+    .join('');
+  if (mySheetList.some(s => s.id === previous)) elPortraitActor.value = previous;
+  elPortraitActor.hidden = mySheetList.length < 2;
+}
+
+elPortraitPick.addEventListener('click', () => {
+  if (portraitBusy || !meKey) return;
+  elPortraitFile.value = '';
+  elPortraitFile.click();
+});
+
+elPortraitFile.addEventListener('change', async () => {
+  const file = elPortraitFile.files && elPortraitFile.files[0];
+  if (!file || portraitBusy || !meKey) return;
+  const problem = portraitProblem(file);
+  if (problem) {
+    elPortraitNote.textContent = problem;
+    return;
+  }
+  const actor = elPortraitActor.value || (mySheetList[0] && mySheetList[0].id) || '';
+  const target = elPortraitToken.value === 'portrait' ? 'portrait' : 'both';
+  portraitBusy = true;
+  elPortraitPick.disabled = true;
+  elPortraitNote.textContent = 'Saving...';
+  try {
+    const res = await fetch(
+      `/api/me/portrait?actor=${encodeURIComponent(actor)}&target=${target}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', 'X-CoGM-Me': meKey },
+        body: file,
+      }
+    );
+    const body = await res.json().catch(() => ({}));
+    elPortraitNote.textContent = res.ok
+      ? `Done${body.actorName ? `: ${body.actorName} has your new picture` : ''}.`
+      : portraitFailure(res.status, body);
+  } catch {
+    elPortraitNote.textContent = 'Could not save your picture. Ask your GM.';
+  } finally {
+    portraitBusy = false;
+    elPortraitPick.disabled = false;
+    elPortraitFile.value = '';
+  }
+});
+
 // --- Roll requests, pushed live (item roll-status-player-push) -------------------
 // The stream carries every open request with the Foundry user it is for; the page shows the ones
 // for the name picked under "Who are you?". With the personal link key the Roll button is fetched
@@ -258,6 +324,7 @@ function renderMine() {
   }
   elMine.hidden = false;
   renderMineRolls();
+  renderPortraitControl();
   const status = turnStatus(
     lastCombat,
     mySheetList.map(s => s.id)

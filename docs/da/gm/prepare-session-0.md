@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 6f574feaef1c
+sourceHash: 828bd6b398bc
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -170,8 +170,10 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   Party-skuespilleren og tjek, at alle står på listen. Er indstillingen slået fra, eller mangler en,
   så træk karakteren ind på Party-arket. Følgende NPC'er kommer med på samme måde: træk NPC'en ind
   på Party-arket, og sæt dens token til **Friendly**, så "all friendly NPCs"-kast tager den med.
-- Tilføj portrætter: spillerne kan ikke uploade billeder, så de sender dem til dig. Åbn arket, klik
-  på portrættet og vælg billedet.
+- Portrætter: spillerne sætter selv deres tegning på karakteren med **Upload my portrait** på
+  spillersiden (trin 12 i deres guide). Hvert billede lander i deres egen mappe under
+  `assets/players/` og vises i Changes med en Undo. Får du et billede på Discord, åbner du arket,
+  klikker på portrættet og vælger billedet.
 
 ## Bagefter
 

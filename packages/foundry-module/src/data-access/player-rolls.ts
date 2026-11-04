@@ -209,7 +209,7 @@ export class PlayerRollsDataAccess {
       if (!chatMessage) {
         throw new Error('Foundry did not create the roll-request chat message');
       }
-      this.saveRollButtonMessageId(buttonId, chatMessage.id);
+      await this.saveRollButtonMessageId(buttonId, chatMessage.id);
 
       // The Live Feed (GM) and the target player's own page (/me) list the request. No visibility
       // stamp: the public /player feed never shows it (events without one are dropped there).
@@ -1040,15 +1040,30 @@ export class PlayerRollsDataAccess {
   }
 
   /** Persist a buttonId → messageId mapping (so the message can be rewritten later). */
-  saveRollButtonMessageId(buttonId: string, messageId: string): void {
-    try {
-      const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
-      buttonMessageMap[buttonId] = messageId;
-      void game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error saving button-message mapping:`, error);
-    }
+  saveRollButtonMessageId(buttonId: string, messageId: string): Promise<void> {
+    // One write at a time: asks that overlap (Ask the party sends them together) would otherwise
+    // read the map before the earlier write came back and drop its entry.
+    const task = async (): Promise<void> => {
+      try {
+        const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
+        buttonMessageMap[buttonId] = messageId;
+        await game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
+      } catch (error) {
+        console.error(`[${MODULE_ID}] Error saving button-message mapping:`, error);
+      }
+    };
+    // An idle queue starts at once; a busy one waits for the write in front of it.
+    const run = this.buttonMapQueued > 0 ? this.buttonMapWrite.then(task) : task();
+    this.buttonMapQueued += 1;
+    this.buttonMapWrite = run.finally(() => {
+      this.buttonMapQueued -= 1;
+    });
+    return run;
   }
+
+  /** The last queued write of the button-message map, and how many are queued or running. */
+  private buttonMapWrite: Promise<void> = Promise.resolve();
+  private buttonMapQueued = 0;
 
   /** Look up the message id mapped to a roll button, or null. */
   getRollButtonMessageId(buttonId: string): string | null {

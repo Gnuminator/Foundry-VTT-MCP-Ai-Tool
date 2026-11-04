@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 async function start(
-  options: { shared?: boolean; failFor?: string } = {}
+  options: { shared?: boolean; failFor?: string; bare?: boolean } = {}
 ): Promise<{ base: string; asked: string[]; rolled: string[][]; portraits: string[][] }> {
   const asked: string[] = [];
   const rolled: string[][] = [];
@@ -93,6 +93,11 @@ async function start(
       });
     },
   };
+  if (options.bare) {
+    delete (client as Partial<typeof client>).characterSheet;
+    delete (client as Partial<typeof client>).playerRoll;
+    delete (client as Partial<typeof client>).playerPortrait;
+  }
   const testConfig: Config = {
     ...config,
     stateDir: undefined,
@@ -197,6 +202,15 @@ describe('/api/me and the player links', () => {
         },
         body,
       });
+
+    it('says so when the bridge cannot change pictures (501)', async () => {
+      const { base } = await start({ bare: true });
+      const res = await upload(base, keyOf(await makeLink(base, PLAYER)), PNG);
+      expect(res.status).toBe(501);
+      expect(((await res.json()) as { error: string }).error).toBe(
+        'Changing your picture from this page is not available here.'
+      );
+    });
 
     it('sends the picture for the key owner, as that player only', async () => {
       const { base, portraits } = await start();
@@ -324,6 +338,31 @@ describe('/api/me and the player links', () => {
     const html = await res.text();
     expect(html).not.toMatch(/<script(?![^>]*\ssrc=)/i);
     expect(html).not.toMatch(/\son\w+\s*=/i);
+  });
+
+  it('says what a bridge without the helpers cannot do (501) and hides a read failure (502)', async () => {
+    const bare = await start({ bare: true });
+    const bareKey = keyOf(await makeLink(bare.base, PLAYER));
+    const sheet = await me(bare.base, bareKey);
+    expect(sheet.status).toBe(501);
+    expect(((await sheet.json()) as { error: string }).error).toBe(
+      'Your sheet is not available here. Ask your GM.'
+    );
+    const roll = await fetch(`${bare.base}/api/me/roll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CoGM-Me': bareKey },
+      body: JSON.stringify({ buttonId: 'abcdefghij012345' }),
+    });
+    expect(roll.status).toBe(501);
+    expect(((await roll.json()) as { error: string }).error).toBe(
+      'Rolling from this page is not available. Roll in Foundry.'
+    );
+    const failing = await start({ failFor: PLAYER });
+    const failed = await me(failing.base, keyOf(await makeLink(failing.base, PLAYER)));
+    expect(failed.status).toBe(502);
+    expect(((await failed.json()) as { error: string }).error).toBe(
+      'Could not read your character. Wait a moment and try again.'
+    );
   });
 
   it('a player whose sheet cannot be read is named, the others still print', async () => {

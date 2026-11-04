@@ -120,7 +120,7 @@ export class DnD5eAddFeatureTool {
       {
         name: 'dnd5e-add-feature',
         description:
-          '[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. ' +
+          'Direct write. [D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. ' +
           'Set featureType to select the mode; each mode uses only its own parameters:\n\n' +
           '• passive: descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n' +
           '  Required: actorIdentifier, featureName\n' +

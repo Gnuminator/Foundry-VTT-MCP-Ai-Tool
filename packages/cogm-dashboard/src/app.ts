@@ -95,6 +95,13 @@ export interface DashboardClient {
   characterSheet?(userId: string): Promise<unknown>;
   /** The player's roll button: the module rolls for their character; absent on fakes. */
   playerRoll?(userId: string, buttonId: string): Promise<unknown>;
+  /** "Upload my portrait": a player's picture for their own character; absent on fakes. */
+  playerPortrait?(
+    userId: string,
+    actorId: string,
+    target: 'portrait' | 'both',
+    data: string
+  ): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;
@@ -122,7 +129,7 @@ export interface Dashboard {
   app: Express;
   handlers: GameFeedHandlers;
   /** The feed's way to read events at once; server.ts sets it once the feed exists. */
-  onFeed(feed: { pollNow: () => void }): void;
+  onFeed(feed: { pollNow: () => void; resync?: () => void }): void;
   /** Start background work (player view polling). */
   start(): void;
   /** Stop background work and end every stream. */
@@ -237,6 +244,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     foundryDownSince: null,
   };
   let world: WorldInfo | null = null;
+  /** The last world id seen, kept when `world` is nulled on a drop, to spot a switch. */
+  let lastWorldId: string | null = null;
   let lastCombatJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
@@ -247,6 +256,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let lastHandoutsJson = '';
   let lastRollsJson = '';
   let pollEventsNow: () => void = () => undefined;
+  let resyncFeed: () => void = () => undefined;
 
   const playerView = new PlayerViewSource(client, logger.child('player-view'), () =>
     schedulePlayerBroadcast()
@@ -412,13 +422,29 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     return tools;
   }
 
+  /** A different world opened: the old world's events, errors and combat must not show. */
+  function resetForNewWorld(): void {
+    state.reset();
+    readCache.clear();
+    lastCombatJson = '';
+    sse.broadcast('reset', {}, gmOnly);
+    // The new world's first reads may have come before this; read them again.
+    resyncFeed();
+    logger.info('World changed: cleared the events and errors of the previous world');
+  }
+
   async function refreshWorld(attempt = 0): Promise<void> {
     // Collapse concurrent triggers (transition + immediate poll) into one call.
     if (worldRefreshInflight) return;
     worldRefreshInflight = true;
     try {
       const raw = await client.callTool('get-world-info');
-      world = mapWorld(raw);
+      const next = mapWorld(raw);
+      if (next.id !== '') {
+        if (lastWorldId !== null && next.id !== lastWorldId) resetForNewWorld();
+        lastWorldId = next.id;
+      }
+      world = next;
       playerDirectory.harvest(raw);
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();
@@ -892,6 +918,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     client,
     requireGm,
     gmActionsEnabled: () => settings.gmActionsEnabled,
+    logger,
   });
 
   // The feature cards (I-064): every feature switch and its state, read-only. The bridge's
@@ -912,10 +939,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         });
       })
       .catch((error: unknown) => {
+        logger.warn('Could not read the features', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.json({
           features: null,
           writesAllowed: null,
-          error: error instanceof Error ? error.message : 'Could not read the features.',
+          error: 'Could not read the switches from Foundry.',
         });
       });
   });
@@ -926,10 +956,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         res.json({ switches, gmActionsEnabled: settings.gmActionsEnabled, error: null })
       )
       .catch((error: unknown) => {
+        logger.warn('Could not read the switches', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.json({
           switches: null,
           gmActionsEnabled: settings.gmActionsEnabled,
-          error: error instanceof Error ? error.message : 'Could not read the switches.',
+          error: 'Could not read the switches from Foundry.',
         });
       });
   });
@@ -963,9 +996,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         });
       })
       .catch((error: unknown) => {
+        logger.warn('Could not change the switches', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.status(502).json({
           ok: false,
-          error: error instanceof Error ? error.message : 'Could not change the switches.',
+          error: 'Could not change the switches in Foundry. Check that the world is open.',
           gmActionsEnabled: settings.gmActionsEnabled,
           gmActionsChanged: settings.gmActionsEnabled !== gmActionsBefore,
         });
@@ -988,9 +1024,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       )
       .then(result => res.json(result))
       .catch((error: unknown) => {
-        res.status(500).json({
-          error: error instanceof Error ? error.message : 'Pre-flight failed.',
+        logger.warn('Pre-flight failed', {
+          error: error instanceof Error ? error.message : String(error),
         });
+        res.status(500).json({ error: 'The check could not run. Try again in a moment.' });
       });
   });
 
@@ -999,8 +1036,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     getToolCatalog(req.query.refresh === '1')
       .then(tools => res.json({ tools, gmActionsEnabled: settings.gmActionsEnabled }))
       .catch((error: unknown) => {
+        logger.warn('Could not list the bridge tools', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.status(502).json({
-          error: error instanceof Error ? error.message : 'Failed to list bridge tools.',
+          error: 'The list of actions could not be loaded. Try again in a moment.',
         });
       });
   });
@@ -1075,11 +1115,27 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
             : error instanceof TimeoutError
               ? 'timeout'
               : 'channel';
+        // A tool's own refusal is written for the GM and passes through; a timeout or a lost
+        // link can carry socket and port text, so those send a fixed sentence and log the detail.
+        if (kind !== 'tool') {
+          logger.warn('Tool call failed', {
+            name,
+            kind,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
         res.status(kind === 'tool' ? 422 : 502).json({
           ok: false,
           name,
           kind,
-          error: error instanceof Error ? error.message : 'Tool call failed.',
+          error:
+            kind === 'timeout'
+              ? 'Foundry took too long to answer.'
+              : kind === 'channel'
+                ? 'The dashboard lost its link to Foundry. Check that the world is open with a GM joined.'
+                : error instanceof Error
+                  ? error.message
+                  : 'The action did not work.',
         });
       });
   });
@@ -1111,10 +1167,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       .liveSweep(request)
       .then(result => res.json({ ok: true, result }))
       .catch((error: unknown) => {
-        res.status(502).json({
-          ok: false,
-          error: error instanceof Error ? error.message : 'Live sweep helper failed.',
+        logger.warn('Live sweep helper failed', {
+          error: error instanceof Error ? error.message : String(error),
         });
+        res.status(502).json({ ok: false, error: 'The test helper failed.' });
       });
   });
 
@@ -1125,8 +1181,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     app,
     handlers,
     /** The feed's way to read events at once; set by server.ts after the feed exists. */
-    onFeed(feed: { pollNow: () => void }): void {
+    onFeed(feed: { pollNow: () => void; resync?: () => void }): void {
       pollEventsNow = feed.pollNow;
+      resyncFeed = feed.resync ?? ((): void => undefined);
     },
     start(): void {
       playerView.start(PLAYER_SOURCE_INTERVAL_MS);

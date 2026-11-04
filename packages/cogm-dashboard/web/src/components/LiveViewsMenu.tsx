@@ -21,7 +21,7 @@ export const LIVE_VIEWS = {
 } as const;
 
 export const NO_FOUNDRY_ADDRESS_NOTE =
-  'The dashboard does not know Foundry’s address yet (DASHBOARD_FOUNDRY_URL), so the GM page cannot show Foundry, and the Live window inside Foundry stays empty.';
+  'The dashboard does not know Foundry’s address yet, so the GM page cannot show Foundry and the Live window inside Foundry stays empty. Ask whoever set up the dashboard to add it.';
 
 /**
  * The header's one Live views entry (live-views-find, gm-page-entry): Live screen, GM page and the

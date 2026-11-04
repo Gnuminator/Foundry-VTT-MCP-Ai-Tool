@@ -39,7 +39,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES, MODULE_ID } from './constants.js';
-import { createTestWorld, makeItem, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeItem,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import { eventTracker } from './session-events.js';
 
@@ -147,6 +152,8 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     // button HTML + flavor surfaced in content
     expect(msg.content).toContain('mcp-roll-button');
     expect(msg.content).toContain('DEX Ability Check (Public)');
+    expect(msg.content).toContain('Roll for Silvera: DEX check');
+    expect(msg.content).not.toContain('style=');
     expect(msg.content).toContain('Perception sweep');
 
     // the module flags carry a single rollButtons entry, unrolled, with formula 1d20+3
@@ -311,6 +318,61 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 
     expect(result.success).toBe(true);
     expect(result.message).toContain('Roll request sent to Tom');
+  });
+
+  it('refuses several partial player names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Alice Smith', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Alice Jones', active: true, isGM: false });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Multiple players or characters match "Alice"/);
+    expect(result.error).toContain('Alice Smith (u1)');
+    expect(result.error).toContain('Alice Jones (u2)');
+  });
+
+  it('refuses several partial character names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Aria Stormwind', ownerUserId: 'u1' });
+    addPlayerCharacter({ id: 'a2', name: 'Aria Brightwood', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Aria',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Aria Stormwind (a1)');
+    expect(result.error).toContain('Aria Brightwood (a2)');
+  });
+
+  it('refuses several partial matches among characters nobody owns', async () => {
+    world.addActor({ id: 'n1', name: 'Goblin Archer', type: 'npc' });
+    world.addActor({ id: 'n2', name: 'Goblin Boss', type: 'npc' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Goblin',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Goblin Archer (n1)');
   });
 
   it('appends a custom rollModifier to the formula', async () => {
@@ -556,9 +618,26 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
     expect(result.success).toBe(true);
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
-    expect(msg.content).toContain('Spot the trap — DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content).not.toContain('Spot the trap — DC 15');
     // The click handler reads the DC from the button and rolls against it.
     expect(msg.content).toContain('data-dc="15"');
+  });
+
+  it('shows the DC once on the card: the heading has it, the folded flavor does not repeat it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'wis',
+      dc: 15,
+      isPublic: true,
+      reason: 'Spot the trap',
+    });
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    expect(msg.content).toContain('Roll for Silvera: WIS check, DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content.match(/DC 15/g)).toHaveLength(1);
   });
 
   it('puts no data-dc on a request without a DC', async () => {
@@ -829,18 +908,40 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
 // ===========================================================================
 
 describe('FoundryDataAccess — roll button↔message id mapping', () => {
-  it('round-trips a buttonId→messageId mapping through settings', () => {
-    da.saveRollButtonMessageId('btn-1', 'msg-1');
+  it('round-trips a buttonId→messageId mapping through settings', async () => {
+    await da.saveRollButtonMessageId('btn-1', 'msg-1');
     expect(da.getRollButtonMessageId('btn-1')).toBe('msg-1');
+  });
+
+  it('keeps every mapping when saves overlap with a slow settings write', async () => {
+    const settings = (globalThis as any).game.settings;
+    const original = settings.set;
+    // A slow write: the stored value changes only after a tick, as a server round trip does.
+    settings.set = async (...args: any[]): Promise<unknown> => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return original.apply(settings, args);
+    };
+    try {
+      await Promise.all([
+        da.saveRollButtonMessageId('slow-a', 'msg-a'),
+        da.saveRollButtonMessageId('slow-b', 'msg-b'),
+        da.saveRollButtonMessageId('slow-c', 'msg-c'),
+      ]);
+    } finally {
+      settings.set = original;
+    }
+    expect(da.getRollButtonMessageId('slow-a')).toBe('msg-a');
+    expect(da.getRollButtonMessageId('slow-b')).toBe('msg-b');
+    expect(da.getRollButtonMessageId('slow-c')).toBe('msg-c');
   });
 
   it('returns null for an unknown button id', () => {
     expect(da.getRollButtonMessageId('missing')).toBeNull();
   });
 
-  it('accumulates multiple mappings in the same settings object', () => {
-    da.saveRollButtonMessageId('btn-a', 'msg-a');
-    da.saveRollButtonMessageId('btn-b', 'msg-b');
+  it('accumulates multiple mappings in the same settings object', async () => {
+    await da.saveRollButtonMessageId('btn-a', 'msg-a');
+    await da.saveRollButtonMessageId('btn-b', 'msg-b');
     expect(da.getRollButtonMessageId('btn-a')).toBe('msg-a');
     expect(da.getRollButtonMessageId('btn-b')).toBe('msg-b');
   });
@@ -910,7 +1011,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
   });
 
   it('throws when the mapped message no longer exists', async () => {
-    da.saveRollButtonMessageId('btn-1', 'gone');
+    void da.saveRollButtonMessageId('btn-1', 'gone');
     await expect(da.updateRollButtonMessage('btn-1', 'gm', 'Roll')).rejects.toThrow(
       'ChatMessage gone not found'
     );
@@ -923,19 +1024,68 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: { 'btn-1': { rolled: false } } } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-1', 'm1');
+    void da.saveRollButtonMessageId('btn-1', 'm1');
 
     await da.updateRollButtonMessage('btn-1', 'gm', 'DEX Check');
 
     // game.user is the GM 'Gamemaster'; rolledByName comes from game.users.get(userId)
     // ('gm' is not in world.users here) → falls back to 'Unknown'
-    expect(msg.content).toContain('Roll Request:</strong> DEX Check');
+    // No stored heading or character: the label stands in for the heading.
+    expect(msg.content).toContain('<strong>DEX Check</strong>');
+    expect(msg.content).not.toContain('Roll Request:');
     expect(msg.content).toContain('Completed by Unknown');
     const updated = msg.flags[MODULE_ID].rollButtons['btn-1'];
     expect(updated.rolled).toBe(true);
     expect(updated.rolledBy).toBe('gm');
     expect(updated.rolledByName).toBe('Unknown');
     expect(typeof updated.timestamp).toBe('number');
+  });
+
+  it('heads the completed card like the request card (stored heading)', async () => {
+    const msg = world.addMessage({
+      id: 'm-h',
+      content: 'x',
+      flags: {
+        [MODULE_ID]: {
+          rollButtons: { 'btn-h': { rolled: false, heading: 'Roll for Mara: Perception, DC 12' } },
+        },
+      },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    await da.saveRollButtonMessageId('btn-h', 'm-h');
+
+    await da.updateRollButtonMessage('btn-h', 'gm', 'Perception Skill Check (Public)');
+
+    expect(msg.content).toContain('mcp-roll-heading');
+    expect(msg.content).toContain('Roll for Mara: Perception, DC 12');
+    expect(msg.content).not.toContain('Roll Request:');
+  });
+
+  it('rebuilds the heading for an older card from its stored roll and character', async () => {
+    world.actors.add(makeActor({ id: 'mara1', name: 'Mara', type: 'character' }));
+    const msg = world.addMessage({
+      id: 'm-old',
+      content: 'x',
+      flags: {
+        [MODULE_ID]: {
+          rollButtons: {
+            'btn-old': {
+              rolled: false,
+              rollType: 'save',
+              rollTarget: 'dex',
+              characterId: 'mara1',
+              dc: 14,
+            },
+          },
+        },
+      },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    await da.saveRollButtonMessageId('btn-old', 'm-old');
+
+    await da.updateRollButtonMessage('btn-old', 'gm', 'DEX Saving Throw (Public)');
+
+    expect(msg.content).toContain('Roll for Mara: DEX saving throw, DC 14');
   });
 
   it('uses the resolved user name for rolledByName when the user is registered', async () => {
@@ -946,7 +1096,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-2', 'm2');
+    void da.saveRollButtonMessageId('btn-2', 'm2');
 
     await da.updateRollButtonMessage('btn-2', 'u1', 'STR Save');
 
@@ -964,7 +1114,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => false;
-    da.saveRollButtonMessageId('btn-3', 'm3');
+    void da.saveRollButtonMessageId('btn-3', 'm3');
 
     const emitSpy = vi.spyOn((globalThis as any).game.socket, 'emit');
 
@@ -992,7 +1142,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => false;
-    da.saveRollButtonMessageId('btn-4', 'm4');
+    void da.saveRollButtonMessageId('btn-4', 'm4');
 
     await expect(da.updateRollButtonMessage('btn-4', 'u1', 'Roll')).rejects.toThrow(
       'No Game Master is online to update the chat message'
@@ -1012,12 +1162,12 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-5', 'm5');
+    void da.saveRollButtonMessageId('btn-5', 'm5');
 
     await da.saveRollState('btn-5', 'gm');
 
     // legacy label is the generic 'Legacy Roll'
-    expect(msg.content).toContain('Roll Request:</strong> Legacy Roll');
+    expect(msg.content).toContain('<strong>Legacy Roll</strong>');
     expect(msg.flags[MODULE_ID].rollButtons['btn-5'].rolled).toBe(true);
   });
 
@@ -1032,7 +1182,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-6', 'm6');
+    void da.saveRollButtonMessageId('btn-6', 'm6');
 
     expect(da.requestRollStateSave('btn-6', 'gm')).toBeUndefined();
   });
@@ -1110,7 +1260,7 @@ describe('FoundryDataAccess: player page roll buttons', () => {
       flags: { [MODULE_ID]: { rollButtons: { [buttonId]: state } } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId(buttonId, messageId);
+    void da.saveRollButtonMessageId(buttonId, messageId);
     return msg;
   }
 

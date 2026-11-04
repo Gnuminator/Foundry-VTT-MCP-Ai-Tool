@@ -70,8 +70,12 @@ function TokenList({
             callTool('request-player-rolls', initiativeRequestArgs(name), { confirm: true }),
           ]);
           answers.push(answer);
+          // A timeout or a lost channel would repeat for every player: stop asking, the rest count
+          // as not asked.
+          if (answer.status === 'rejected' && mayHaveApplied(answer.reason)) break;
         }
-        const failed = askNames.filter((_, i) => answers[i]?.status === 'rejected');
+        // A name past the break has no answer: it was not asked.
+        const failed = askNames.filter((_, i) => answers[i]?.status !== 'fulfilled');
         const unsure = askNames.filter((_, i) => {
           const a = answers[i];
           return a?.status === 'rejected' && mayHaveApplied(a.reason);

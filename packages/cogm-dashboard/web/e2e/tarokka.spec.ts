@@ -319,7 +319,7 @@ test('Show cards shows names, ids and notes, and hides them again on untick and 
 
   // A failed Open says why.
   await pos(drawer, 'tome').getByRole('button', { name: 'Open Journal' }).click();
-  await expect(toast(page, '✗ open-in-foundry: Bridge not connected')).toBeVisible();
+  await expect(toast(page, '✗ Open in Foundry: Bridge not connected')).toBeVisible();
 });
 
 test('shows the empty state, and a failed load says why and keeps the last reading', async ({
@@ -407,7 +407,7 @@ test('Choose the cards stores the five picked cards, none twice', async ({ page 
   const drawer = await openTarokka(page);
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
-  const chooseToggle = drawer.getByRole('button', { name: 'Choose the cards…' });
+  const chooseToggle = drawer.getByRole('button', { name: 'Choose the cards' });
   await expect(chooseToggle).toBeDisabled();
   await drawer.getByRole('checkbox', { name: 'Show cards' }).check();
   await chooseToggle.click();
@@ -475,7 +475,7 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
   );
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  const linkButton = tome.getByRole('button', { name: 'Link…' });
+  const linkButton = tome.getByRole('button', { name: 'Add a link' });
 
   await linkButton.click();
   await expect(linkButton).toHaveAttribute('aria-expanded', 'true');
@@ -530,7 +530,7 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
 
   // A scene and an actor go under their own fields, from one search at another position.
   const ally = pos(drawer, 'ally');
-  await ally.getByRole('button', { name: 'Link…' }).click();
+  await ally.getByRole('button', { name: 'Add a link' }).click();
   await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Val');
   await ally.getByRole('button', { name: 'Search' }).click();
   await ally.locator('.tarokka-candidate').nth(2).getByRole('button', { name: 'Link' }).click();
@@ -544,15 +544,15 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
 
   // A failed search says why in the list; no matches says so.
   const sun = pos(drawer, 'sunsword');
-  await sun.getByRole('button', { name: 'Link…' }).click();
+  await sun.getByRole('button', { name: 'Add a link' }).click();
   await sun.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Krezk');
   searchFails = true;
   await sun.getByRole('button', { name: 'Search' }).click();
   await expect(sun.locator('.tarokka-candidates')).toHaveText(
     "Couldn't search: Bridge not connected"
   );
-  // Link… again closes the form.
-  await sun.getByRole('button', { name: 'Link…' }).click();
+  // Add a link again closes the form.
+  await sun.getByRole('button', { name: 'Add a link' }).click();
   await expect(sun.locator('.tarokka-form')).toHaveCount(0);
 });
 
@@ -568,7 +568,7 @@ test('a link search with no matches says so; a failed pick keeps the form', asyn
   });
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Link…' }).click();
+  await tome.getByRole('button', { name: 'Add a link' }).click();
   const input = tome.getByPlaceholder('Search journals, pages, scenes, actors…');
   await input.fill('Nothing');
   await input.press('Enter');
@@ -590,14 +590,14 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  const revealButton = tome.getByRole('button', { name: 'Reveal…', exact: true });
+  const revealButton = tome.getByRole('button', { name: 'Reveal to players', exact: true });
 
   await revealButton.click();
   const text = tome.getByPlaceholder('Exactly what the players may read');
   await expect(text).toBeFocused();
   const title = tome.getByPlaceholder('Page title (optional)');
   const showNow = tome.getByRole('checkbox', { name: 'Show it now' });
-  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+  const planButton = tome.getByRole('button', { name: 'Plan reveal' });
 
   // No text: said at once, the bridge is not asked.
   await title.fill('An old book');
@@ -607,7 +607,7 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
   expect(plans(calls)).toEqual([]);
 
   // Switching forms keeps the draft.
-  await tome.getByRole('button', { name: 'Link…' }).click();
+  await tome.getByRole('button', { name: 'Add a link' }).click();
   await expect(text).toHaveCount(0);
   await revealButton.click();
   await expect(title).toHaveValue('An old book');
@@ -682,7 +682,7 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
   });
   await expect.poll(() => loads(calls)).toBe(loaded + 3);
 
-  // Reveal… opens an empty form.
+  // Reveal to players opens an empty form.
   await revealButton.click();
   await expect(text).toHaveValue('');
   await expect(title).toHaveValue('');
@@ -691,17 +691,17 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
 
 // Focus after a Cancel is the confirm window's own (#251: useGuardedChange records the clicked
 // button and hands focus back once it is enabled again). After a reveal that went in, Plan reveal
-// goes with its form, so the drawer moves focus to Reveal….
-test('focus goes back to Plan reveal after a Cancel, and to Reveal… after a reveal', async ({
+// goes with its form, so the drawer moves focus to Reveal to players.
+test('focus goes back to Plan reveal after a Cancel, and to Reveal to players after a reveal', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));
   await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
-  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+  const planButton = tome.getByRole('button', { name: 'Plan reveal' });
   await planButton.click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await confirm.getByRole('button', { name: 'Cancel' }).click();
@@ -711,7 +711,7 @@ test('focus goes back to Plan reveal after a Cancel, and to Reveal… after a re
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   await expect(toast(page, '✓ Applied: Revealed Tome and shown to players')).toBeVisible();
-  await expect(tome.getByRole('button', { name: 'Reveal…', exact: true })).toBeFocused();
+  await expect(tome.getByRole('button', { name: 'Reveal to players', exact: true })).toBeFocused();
 });
 
 test('a popup that fails says so; the reveal still went in', async ({ page }) => {
@@ -727,10 +727,10 @@ test('a popup that fails says so; the reveal still went in', async ({ page }) =>
   );
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
   await tome.getByRole('checkbox', { name: 'Show it now' }).check();
-  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  await tome.getByRole('button', { name: 'Plan reveal' }).click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
@@ -745,9 +745,9 @@ test('an open form stays across a reload, but closes when its card changes', asy
     call.name === 'get-tarokka-reading' ? ok(view) : bridge(call)
   );
   const drawer = await openTarokka(page);
-  await pos(drawer, 'tome').getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await pos(drawer, 'tome').getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await pos(drawer, 'tome').getByPlaceholder('Exactly what the players may read').fill('Draft');
-  await pos(drawer, 'ally').getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await pos(drawer, 'ally').getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await pos(drawer, 'ally').getByPlaceholder('Exactly what the players may read').fill('Other');
 
   // A new reading deals another card at Tome only.
@@ -802,7 +802,7 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
 
   // Searching is a read and still works; the pick is gated.
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Link…' }).click();
+  await tome.getByRole('button', { name: 'Add a link' }).click();
   await tome.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Val');
   await tome.getByRole('button', { name: 'Search' }).click();
   await tome.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' }).click();
@@ -811,9 +811,9 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
 
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
-  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  await tome.getByRole('button', { name: 'Plan reveal' }).click();
   await expect(toast(page, gate)).toHaveCount(4);
   await expect(page.getByRole('dialog', { name: 'Destructive action' })).toHaveCount(0);
 
@@ -937,9 +937,9 @@ test('Escape closes the confirm window first, then the drawer', async ({ page })
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
-  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  await tome.getByRole('button', { name: 'Plan reveal' }).click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await expect(confirm).toBeVisible();
 
@@ -984,14 +984,14 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
   const rollButton = page.locator('#tarokka-roll');
   const tome = pos(drawer, 'tome');
   const ally = pos(drawer, 'ally');
-  await ally.getByRole('button', { name: 'Link…' }).click();
+  await ally.getByRole('button', { name: 'Add a link' }).click();
   await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Val');
   await ally.getByRole('button', { name: 'Search' }).click();
   const allyLink = ally.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' });
   await expect(allyLink).toBeEnabled();
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
-  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+  const planButton = tome.getByRole('button', { name: 'Plan reveal' });
 
   await planButton.click();
   await expect.poll(() => plans(calls).length).toBe(1);
@@ -1038,10 +1038,10 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   );
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   const text = tome.getByPlaceholder('Exactly what the players may read');
   await text.fill('Text');
-  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+  const planButton = tome.getByRole('button', { name: 'Plan reveal' });
   const loaded = loads(calls);
 
   await planButton.click();
@@ -1076,11 +1076,11 @@ test('an apply that times out says it may have applied, reloads and keeps the dr
   );
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   const text = tome.getByPlaceholder('Exactly what the players may read');
   await text.fill('Text');
   const loaded = loads(calls);
-  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  await tome.getByRole('button', { name: 'Plan reveal' }).click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
@@ -1090,7 +1090,7 @@ test('an apply that times out says it may have applied, reloads and keeps the dr
   // The reload shows whether it went in; the form stays, as nothing says it did.
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);
   await expect(text).toHaveValue('Text');
-  await expect(tome.getByRole('button', { name: 'Plan reveal…' })).toBeEnabled();
+  await expect(tome.getByRole('button', { name: 'Plan reveal' })).toBeEnabled();
 });
 
 test('Enter right after the confirm window opens applies nothing', async ({ page }) => {
@@ -1098,9 +1098,9 @@ test('Enter right after the confirm window opens applies nothing', async ({ page
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
   const tome = pos(drawer, 'tome');
-  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByRole('button', { name: 'Reveal to players', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
-  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  await tome.getByRole('button', { name: 'Plan reveal' }).click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await expect(confirm).toBeVisible();
 

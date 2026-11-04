@@ -20,7 +20,7 @@ import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-r
 
 import { config } from './config.js';
 
-import { MAX_REQUESTER_LENGTH } from '@gnuminator/shared';
+import { MAX_REQUESTER_LENGTH, unknownToolMessage } from '@gnuminator/shared';
 import type { ToolResultPayload } from '@gnuminator/shared';
 
 import { createControlReader } from './control-reader.js';
@@ -79,6 +79,7 @@ import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
 import { PreflightTools } from './tools/preflight.js';
+import { WrapperRegistry, type WrapperStatus } from './wrapper-registry.js';
 import { LivePlayTools } from './tools/live-play.js';
 import { PartyTools } from './tools/party.js';
 import { PrepDigestTools } from './tools/prep-digest.js';
@@ -94,6 +95,7 @@ import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { ChangeJournalPump, changeJournalSettings } from './change-journal-pump.js';
 import { ChangeHistory, journalLinks } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
+import { handlePlayerPortrait, PortraitError } from './player-portrait.js';
 import {
   handleCharacterSheet,
   handlePlayerRoll,
@@ -426,8 +428,10 @@ async function startBackend(): Promise<void> {
     worldIds,
     logger,
   });
+  const wrapperRegistry = new WrapperRegistry();
   const preflightTools = new PreflightTools({
     foundryClient,
+    wrapperStatus: (): WrapperStatus => wrapperRegistry.status(),
     secretTerms,
     worldIds,
     playSession: playSessionTools,
@@ -677,8 +681,11 @@ async function startBackend(): Promise<void> {
 
   // Control channel (TCP JSON-lines)
 
+  let nextConnectionId = 0;
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
+    const connectionId = (nextConnectionId += 1);
+    socket.on('close', () => wrapperRegistry.close(connectionId));
 
     // Aborts the long waits (wait-for-game-event) of a connection that closed.
     const socketAbort = new AbortController();
@@ -698,6 +705,27 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // Whether the Foundry module's socket is connected (the Assistant GM's link check on the Pi).
+          if (msg.method === 'link_status') {
+            socket.write(
+              `${JSON.stringify({
+                id: msg.id,
+                result: { ok: true, module: foundryClient.getConnectionState() },
+              })}\n`
+            );
+
+            continue;
+          }
+
+          // The stdio wrapper says which version and build it is (a wrapper from before this sends
+          // none). get-preflight reads the registry in-process; there is no control call for it.
+          if (msg.method === 'hello') {
+            wrapperRegistry.hello(connectionId, msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
+
+            continue;
+          }
+
           if (msg.method === 'list_tools') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
 
@@ -711,6 +739,9 @@ async function startBackend(): Promise<void> {
               requestedBy?: unknown;
             };
 
+            if (typeof requestedBy !== 'string')
+              wrapperRegistry.toolCallWithoutRequester(connectionId);
+
             const runCall = async (): Promise<void> => {
               try {
                 // Own keys only: a name such as "constructor" must not reach Object.prototype.
@@ -719,7 +750,7 @@ async function startBackend(): Promise<void> {
                     ? toolRouter[name]
                     : undefined;
                 if (typeof route !== 'function') {
-                  throw new Error(`Unknown tool: ${name}`);
+                  throw new Error(unknownToolMessage(String(name)));
                 }
                 // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
                 const requester =
@@ -838,6 +869,22 @@ async function startBackend(): Promise<void> {
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          // "Upload my portrait" (player-portrait.ts): the dashboard's player page sends a
+          // player's picture for a character they own. Not a tool, never listed to Claude.
+          if (msg.method === 'player_portrait') {
+            try {
+              const result = await handlePlayerPortrait(foundryClient, guardedWrites, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'The picture was not saved.';
+              const error =
+                e instanceof PortraitError ? { message, code: 'portrait' } : controlError(e);
+              socket.write(`${JSON.stringify({ id: msg.id, error })}\n`);
             }
 
             continue;

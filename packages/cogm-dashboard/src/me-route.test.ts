@@ -27,10 +27,11 @@ afterEach(async () => {
 });
 
 async function start(
-  options: { shared?: boolean; failFor?: string } = {}
-): Promise<{ base: string; asked: string[]; rolled: string[][] }> {
+  options: { shared?: boolean; failFor?: string; bare?: boolean } = {}
+): Promise<{ base: string; asked: string[]; rolled: string[][]; portraits: string[][] }> {
   const asked: string[] = [];
   const rolled: string[][] = [];
+  const portraits: string[][] = [];
   const client = {
     isConnected: true,
     listTools: (): Promise<unknown[]> => Promise.resolve([]),
@@ -62,6 +63,21 @@ async function start(
           : r
       );
     },
+    playerPortrait: (
+      userId: string,
+      actorId: string,
+      target: string,
+      data: string
+    ): Promise<unknown> => {
+      portraits.push([userId, actorId, target, data]);
+      if (actorId === 'notyours00000000') {
+        return Promise.reject(
+          Object.assign(new Error('That is not your character.'), { code: 'portrait' })
+        );
+      }
+      if (actorId === 'boom000000000000') return Promise.reject(new Error('raw internal detail'));
+      return Promise.resolve({ ok: true, path: 'assets/players/x/p.png', actorName: 'Brenna' });
+    },
     characterSheet: (userId: string): Promise<unknown> => {
       asked.push(userId);
       if (userId === options.failFor) return Promise.reject(new Error('gone'));
@@ -77,6 +93,11 @@ async function start(
       });
     },
   };
+  if (options.bare) {
+    delete (client as Partial<typeof client>).characterSheet;
+    delete (client as Partial<typeof client>).playerRoll;
+    delete (client as Partial<typeof client>).playerPortrait;
+  }
   const testConfig: Config = {
     ...config,
     stateDir: undefined,
@@ -97,7 +118,12 @@ async function start(
     foundryDownSince: null,
   });
   await new Promise(resolve => setTimeout(resolve, 200));
-  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, asked, rolled };
+  return {
+    base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    asked,
+    rolled,
+    portraits,
+  };
 }
 
 const gm = { 'X-CoGM-Token': GM_TOKEN };
@@ -153,10 +179,81 @@ describe('/api/me and the player links', () => {
     expect(refused.status).toBe(409);
     expect(((await refused.json()) as { error: string }).error).toMatch(/no such roll request/);
     const off = await post(key, 'writesoff0000000');
-    expect(off.status).toBe(502);
+    expect(off.status).toBe(409);
     const offText = ((await off.json()) as { error: string }).error;
     expect(offText).toMatch(/switched off/);
     expect(offText).not.toMatch(/module settings/);
+  });
+
+  describe('uploading a portrait', () => {
+    const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const ACTOR = 'actor00000000001';
+    const upload = (
+      base: string,
+      key: string | undefined,
+      body: Buffer,
+      query = `actor=${ACTOR}&target=both`
+    ): Promise<Response> =>
+      fetch(`${base}/api/me/portrait?${query}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          ...(key ? { 'X-CoGM-Me': key } : {}),
+        },
+        body,
+      });
+
+    it('says so when the bridge cannot change pictures (501)', async () => {
+      const { base } = await start({ bare: true });
+      const res = await upload(base, keyOf(await makeLink(base, PLAYER)), PNG);
+      expect(res.status).toBe(501);
+      expect(((await res.json()) as { error: string }).error).toBe(
+        'Changing your picture from this page is not available here.'
+      );
+    });
+
+    it('sends the picture for the key owner, as that player only', async () => {
+      const { base, portraits } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      expect((await upload(base, undefined, PNG)).status).toBe(401);
+      expect((await upload(base, 'x'.repeat(24), PNG)).status).toBe(401);
+      expect(portraits).toEqual([]);
+      const res = await upload(base, key, PNG);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, actorName: 'Brenna' });
+      expect(portraits).toEqual([[PLAYER, ACTOR, 'both', PNG.toString('base64')]]);
+    });
+
+    it('refuses what is not a PNG, JPG or WebP by its bytes, an empty body and a bad actor', async () => {
+      const { base, portraits } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      const html = Buffer.from('<html><script>alert(1)</script></html>');
+      expect((await upload(base, key, html)).status).toBe(415);
+      expect((await upload(base, key, Buffer.alloc(0))).status).toBe(400);
+      expect((await upload(base, key, PNG, 'actor=../../etc&target=portrait')).status).toBe(400);
+      expect(portraits).toEqual([]);
+    });
+
+    it('refuses a picture over 5 MB', async () => {
+      const { base, portraits } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      const big = Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024)]);
+      expect((await upload(base, key, big)).status).toBe(413);
+      expect(portraits).toEqual([]);
+    });
+
+    it('shows a refusal the player can act on, and hides a raw failure', async () => {
+      const { base } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      const refused = await upload(base, key, PNG, 'actor=notyours00000000&target=portrait');
+      expect(refused.status).toBe(409);
+      expect(((await refused.json()) as { error: string }).error).toBe(
+        'That is not your character.'
+      );
+      const failed = await upload(base, key, PNG, 'actor=boom000000000000&target=portrait');
+      expect(failed.status).toBe(502);
+      expect(((await failed.json()) as { error: string }).error).not.toMatch(/raw internal/);
+    });
   });
 
   it('no key, a wrong key or an old key gets nothing', async () => {
@@ -241,6 +338,31 @@ describe('/api/me and the player links', () => {
     const html = await res.text();
     expect(html).not.toMatch(/<script(?![^>]*\ssrc=)/i);
     expect(html).not.toMatch(/\son\w+\s*=/i);
+  });
+
+  it('says what a bridge without the helpers cannot do (501) and hides a read failure (502)', async () => {
+    const bare = await start({ bare: true });
+    const bareKey = keyOf(await makeLink(bare.base, PLAYER));
+    const sheet = await me(bare.base, bareKey);
+    expect(sheet.status).toBe(501);
+    expect(((await sheet.json()) as { error: string }).error).toBe(
+      'Your sheet is not available here. Ask your GM.'
+    );
+    const roll = await fetch(`${bare.base}/api/me/roll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CoGM-Me': bareKey },
+      body: JSON.stringify({ buttonId: 'abcdefghij012345' }),
+    });
+    expect(roll.status).toBe(501);
+    expect(((await roll.json()) as { error: string }).error).toBe(
+      'Rolling from this page is not available. Roll in Foundry.'
+    );
+    const failing = await start({ failFor: PLAYER });
+    const failed = await me(failing.base, keyOf(await makeLink(failing.base, PLAYER)));
+    expect(failed.status).toBe(502);
+    expect(((await failed.json()) as { error: string }).error).toBe(
+      'Could not read your character. Wait a moment and try again.'
+    );
   });
 
   it('a player whose sheet cannot be read is named, the others still print', async () => {

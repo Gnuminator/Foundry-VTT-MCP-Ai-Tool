@@ -17,6 +17,8 @@
  * On by default; `FOUNDRY_AI_EVENT_LOG=off` disables it and
  * `FOUNDRY_AI_EVENT_POLL_MS` sets the interval (default 5000, minimum 1000).
  */
+import { errorMessage } from '@gnuminator/shared';
+
 import type { FoundryClient } from './foundry-client.js';
 import type { Logger } from './logger.js';
 import type { VaultStore } from './vault/store.js';
@@ -158,7 +160,7 @@ export class EventPump {
         return written;
       })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         if (message !== this.lastError) {
           this.logger.warn('Event log poll failed', { error: message });
         }
@@ -219,7 +221,7 @@ export class EventPump {
       this.onEvents(worldId, events);
     } catch (error) {
       this.logger.warn('onEvents listener failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }
@@ -230,7 +232,7 @@ export class EventPump {
       this.onAppended(worldId, count);
     } catch (error) {
       this.logger.warn('onAppended listener failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }

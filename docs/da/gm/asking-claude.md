@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 1e3f04e9961f
+sourceHash: 7f41e95fc797
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -23,7 +23,7 @@ Claude holder ikke selv øje med spillet. Den læser det, den skal bruge, i det 
 
 - Karakterer og NPC'er: sheets, HP, spell slots, items, effects, conditions.
 - Combat tracker, den aktuelle scene, tokens og deres placering.
-- Journals i din world (Claude kan søge i deres tekst) og compendium-opslag som monstre, spells og
+- Journals i din world (Claude kan søge i deres tekst) og compendium-opslag som monsters, spells og
   items (Claude finder dem på navn).
 - Chat, session log og play stats (pr. PC en spiller ejer: damage, healing, downs, rolls, spells,
   resources, loot, XP).
@@ -43,7 +43,7 @@ foreslå eller også handle.
 - "Find tre undead med CR 1 til 3 i mine compendiums til fire karakterer på level 3."
 - "Hvordan virker grappling i 2024-reglerne? Fortæl mig, hvor i mine Foundry-bøger du fandt det."
 - "Slå initiative for NPC'erne i den aktuelle combat."
-- "Træk en ny Tarokka-læsning med det indbyggede slag. Vis mig planen først."
+- "Træk en ny Tarokka-læsning med det indbyggede roll. Vis mig planen først."
 - "Lav en plan for at vise siden 'Old letter' i journalen 'Handouts' for spillerne."
 
 Flere færdige forespørgsler, sorteret efter før, under og efter en session:
@@ -52,8 +52,8 @@ Flere færdige forespørgsler, sorteret efter før, under og efter en session:
 Forespørgsler der går galt:
 
 - "Dræb ulven." Hvilken ulv? Flere tokens kan have samme navn. Sig "Wolf 2" eller vælg tokenet.
-- "Gør det næste slagsmål federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
-- "Ret alt fra i går aftes." Claude kan ikke fortryde direkte handlinger; se nedenfor.
+- "Gør den næste combat federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
+- "Ret alt fra i går aftes." Direkte handlinger kan kun fortrydes for ændringer af actors, items, tokens, scenes, combat og journals; se nedenfor.
 
 ## Tool sets: hvilke kontakter du skal tænde
 
@@ -67,7 +67,7 @@ chats.
 | ------------------- | ----- | ---------------------------------------------------------------------------------- |
 | `foundry-mcp`       | core  | Altid. Slå ting op, og se, apply eller undo Claudes planlagte ændringer.           |
 | `foundry-mcp-prep`  | prep  | Forberede en session, skrive et recap, arbejde med quests, Tarokka eller handouts. |
-| `foundry-mcp-build` | build | Lave eller ændre NPC'er, monstre og items.                                         |
+| `foundry-mcp-build` | build | Lave eller ændre NPC'er, monsters og items.                                        |
 | `foundry-mcp-play`  | play  | Lade Claude køre tingene ved bordet: tokens, combat, rolls, damage, chat.          |
 | `foundry-mcp-admin` | admin | Tjekke modules og fejl, ændre hvem der ejer en actor, Obsidian mirror.             |
 
@@ -124,9 +124,12 @@ planen er mere end 15 minutter gammel, eller hvis det samme er ændret i Foundry
 lavet. Deletes samt Tarokka-reveals og -hides tæller som destruktive og kræver også dit udtrykkelige
 ja. At vise en handout-side for spillerne er en almindelig ændring med en Undo, så ét ja er nok.
 
-I et langt slagsmål bliver confirm-trinnet trættende. Indstillingen **AI Tool: Live play, apply
+I en lang combat bliver confirm-trinnet trættende. Indstillingen **AI Tool: Live play, apply
 without confirming** (Game Settings, kategorien **Foundry AI Tool**; slukket som standard) springer
-det over for damage, healing, conditions og resources, som Claude planlægger. Hver ændring havner
+det over for de live-play-planer fra Claude, der ikke sletter noget: damage, healing, temporary hit
+points, conditions og resources; scene dressing (placere templates, mørke og lys, tilføje map notes,
+give loot); og start af en kamp. Planer, der sletter noget (fjerne en template, fjerne en map note,
+afslutte en kamp), og flytning og ændring af tokens venter stadig på dit ja. Hver ændring havner
 stadig i Recent Changes med **Undo**. Dashboardets party- og Tarokka-knapper har aldrig brug for den:
 de apply'er med det samme med en **Undo**-besked. Dens Damage / Heal-formular apply'er også med det
 samme på samme måde; dens Condition-chips spørger i én linje før de apply'er (se
@@ -137,18 +140,18 @@ samme på samme måde; dens Condition-chips spørger i én linje før de apply'e
 Alle ligger i **Game Settings**, kategorien **Foundry AI Tool**. De stopper dashboardets ændringer
 lige så vel som Claudes.
 
-| Indstilling                                  | Standard | Lader Claude og dashboardet                                                                                                                                                  |
-| -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allow Write Operations                       | Til      | Ændre overhovedet noget. Slukket gør hele værktøjet skrivebeskyttet (se nedenfor).                                                                                           |
-| AI Tool: Live play (writes)                  | Til      | Give damage, healing, temporary hit points, conditions og resources; flytte, ændre eller slette tokens; placere templates, sætte mørke og lys, tilføje map notes, give loot. |
-| AI Tool: Live play, apply without confirming | Fra      | Springe confirm-trinnet over for damage, healing, conditions og resources, som Claude planlægger.                                                                            |
-| AI Tool: Ownership (writes)                  | Til      | Ændre hvilke spillere der ejer eller kan se en actor.                                                                                                                        |
-| AI Tool: Party (writes)                      | Fra      | Ændre partyets rejsetempo, placere partyet på kortet, tilføje det til combat, sende en rest-anmodning.                                                                       |
-| AI Tool: Handouts (writes)                   | Fra      | Vise eller skjule journalsider for spillerne.                                                                                                                                |
-| AI Tool: Tarokka (writes)                    | Fra      | Gemme Tarokka-læsningen, linke kort til journals, udgive reveal-sider.                                                                                                       |
-| AI Tool: Obsidian mirror (writes)            | Fra      | Ændre hvilke Foundry-dokumenter der spejles ind i dit Obsidian vault.                                                                                                        |
-| AI Tool: Obsidian import (writes)            | Fra      | Lave en quest-journal kun til GM'en ud fra en quest-note i din Obsidian `Prep`-mappe. Startes i Obsidian, bekræftes i dashboardet; Claude har intet værktøj til det.         |
-| AI Tool: Session notes (writes)              | Fra      | Lægge noterne fra en optaget session ind i en journal kun til GM'en af sig selv, uden at spørge (se nedenfor).                                                               |
+| Indstilling                                  | Standard | Lader Claude og dashboardet                                                                                                                                                                 |
+| -------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Allow Write Operations                       | Til      | Ændre overhovedet noget. Slukket gør hele værktøjet skrivebeskyttet (se nedenfor).                                                                                                          |
+| AI Tool: Live play (writes)                  | Til      | Give damage, healing, temporary hit points, conditions og resources; flytte, ændre eller slette tokens; placere templates, sætte mørke og lys, tilføje map notes, give loot.                |
+| AI Tool: Live play, apply without confirming | Fra      | Springe confirm-trinnet over for damage, healing, temporary hit points, conditions, resources, scene dressing og start af en kamp, som Claude planlægger. Ikke for tokens eller sletninger. |
+| AI Tool: Ownership (writes)                  | Til      | Ændre hvilke spillere der ejer eller kan se en actor.                                                                                                                                       |
+| AI Tool: Party (writes)                      | Fra      | Ændre partyets rejsetempo, placere partyet på kortet, tilføje det til combat, sende en rest-anmodning.                                                                                      |
+| AI Tool: Handouts (writes)                   | Fra      | Vise eller skjule journalsider for spillerne.                                                                                                                                               |
+| AI Tool: Tarokka (writes)                    | Fra      | Gemme Tarokka-læsningen, linke kort til journals, udgive reveal-sider.                                                                                                                      |
+| AI Tool: Obsidian mirror (writes)            | Fra      | Ændre hvilke Foundry-dokumenter der spejles ind i dit Obsidian vault.                                                                                                                       |
+| AI Tool: Obsidian import (writes)            | Fra      | Lave en quest-journal kun til GM'en ud fra en quest-note i din Obsidian `Prep`-mappe. Startes i Obsidian, bekræftes i dashboardet; Claude har intet værktøj til det.                        |
+| AI Tool: Session notes (writes)              | Fra      | Lægge noterne fra en optaget session ind i en journal kun til GM'en af sig selv, uden at spørge (se nedenfor).                                                                              |
 
 Andre kontakter i samme kategori: table viewer, "Undo for everything" og GM-vinduerne starter tændt;
 scene mood og musik, room setup, scene restore, NPC turn assistant og paper sync starter slukket, og
@@ -164,8 +167,10 @@ afsløret, eller du har redigeret en side. Spillerne ser kun Recap, og kun når 
 venter i reveal-køen. "Turn on for tonight" tænder ikke denne kontakt.
 
 **Direkte handlinger** (rolls, nye NPC'er, journals, chatbeskeder og andet) sker, så snart Claude
-bruger værktøjet. De står ikke i Recent Changes, og værktøjet kan ikke undo'e dem; du retter dem i
-hånden i Foundry. Så:
+bruger værktøjet. De står ikke i Recent Changes, men deres ændringer af actors, items, tokens, scenes,
+combat og journals vises i Changes-listen og kan undo'es dér, så længe "AI Tool: Undo for everything"
+er tændt. Kun de kan undo'es: musik (playlists), folders, chatbeskeder og rolls kan ikke, og dem
+retter du i hånden i Foundry. Så:
 
 - Bed Claude fortælle dig, hvad den vil gøre, før den gør det: "Fortæl mig planen, og vent så på
   mit OK."
@@ -195,7 +200,8 @@ Dashboardets **GM Actions**-kontakt beskytter kun dashboardet. Den stopper ikke 
   spillet gennem den.
 - **Se skærmen.** Den læser spildata, ikke billedet af kortet.
 - **Komme udenom en funktionskontakt.** Er en funktion slukket, kan ingen plan for den apply'es.
-- **Undo'e direkte handlinger.** Kun guarded changes har Undo.
+- **Undo'e musik, folders, chatbeskeder og rolls.** Kun ændringer af actors, items, tokens, scenes,
+  combat og journals kan undo'es.
 - **Læse bøger, du ikke har i Foundry.** Værktøjet indeholder ingen bog- eller eventyrtekst. Claude
   læser reglerne og eventyret fra compendiums og journals i din world, i det øjeblik du spørger. Er en
   bog ikke installeret i Foundry, kan Claude ikke citere den.

@@ -1,9 +1,9 @@
-// Tests for the context alert hook (context-alert.mjs): tail parsing, the fixed 200k and 250k
-// lines, once per threshold, and silence on every failure.
+// Tests for the context alert hook (context-alert.mjs): tail parsing, the 200k and 250k
+// lines (250k and 300k for a lane), once per threshold, and silence on every failure.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,10 @@ import {
   contextFromTranscript,
   contextOf,
   lastContextIn,
+  limitsFor,
   messageFor,
+  LANE_OUT_AT,
+  LANE_PLAN_AT,
   run,
   OUT_AT,
   PLAN_AT,
@@ -103,9 +106,97 @@ test('contextFromTranscript: only the tail is read from a large file', () => {
   }
 });
 
-test('the lines are fixed at 200k and 250k, whatever the environment says', () => {
+test('the default lines are 200k and 250k, whatever the environment says', () => {
   assert.equal(PLAN_AT, 200_000);
   assert.equal(OUT_AT, 250_000);
+});
+
+test('limitsFor: a lane (cwd under .claude/worktrees/) gets 250k and 300k, everything else 200k and 250k', () => {
+  const main = { plan: 200_000, out: 250_000 };
+  const lane = { plan: 250_000, out: 300_000 };
+  assert.equal(LANE_PLAN_AT, 250_000);
+  assert.equal(LANE_OUT_AT, 300_000);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry VTT AI Tool\\.claude\\worktrees\\lane-a-1'), lane);
+  assert.deepEqual(limitsFor('C:/P/Foundry VTT AI Tool/.claude/worktrees/lane-a-1/packages'), lane);
+  assert.deepEqual(limitsFor('/c/P/.CLAUDE/Worktrees/lane-a'), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry VTT AI Tool'), main);
+  assert.deepEqual(limitsFor('C:\\P\\.claude\\worktreesfoo\\a'), main);
+  assert.deepEqual(limitsFor(undefined), main);
+  assert.deepEqual(limitsFor(''), main);
+});
+
+test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main checkout keeps 200k and 250k', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const laneCwd = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const mainCwd = 'C:\\P\\Foundry';
+    const at = (ctx, name) => transcript(root, [turn(ctx)], name);
+    const laneEnv = { ...env, CLAUDE_PROJECT_DIR: laneCwd };
+    assert.equal(run(input(at(220_000, 'l1.jsonl'), { cwd: laneCwd }), laneEnv), '');
+    const plan = JSON.parse(run(input(at(252_000, 'l2.jsonl'), { cwd: laneCwd }), laneEnv));
+    assert.equal(plan.systemMessage, 'Context 252k: plan the handover (lane skill).');
+    assert.match(plan.hookSpecificOutput.additionalContext, /252k tokens .*250k.*Out by 300k/);
+    assert.equal(run(input(at(280_000, 'l3.jsonl'), { cwd: laneCwd }), laneEnv), '');
+    const out = JSON.parse(run(input(at(301_000, 'l4.jsonl'), { cwd: laneCwd }), laneEnv));
+    assert.equal(out.systemMessage, 'Context 301k: hand over now.');
+    assert.match(out.hookSpecificOutput.additionalContext, /hard line 300k/);
+    // the planner in the main checkout
+    const p = JSON.parse(
+      run(input(at(202_000, 'm1.jsonl'), { cwd: mainCwd, session_id: 'p' }), env)
+    );
+    assert.match(p.hookSpecificOutput.additionalContext, /200k.*Out by 250k/);
+    const po = JSON.parse(
+      run(input(at(251_000, 'm2.jsonl'), { cwd: mainCwd, session_id: 'p' }), env)
+    );
+    assert.equal(po.systemMessage, 'Context 251k: hand over now.');
+  } finally {
+    cleanup();
+  }
+});
+
+test('limitsFor: a worktree project dir or a worktree transcript folder makes a lane', () => {
+  const lane = { plan: 250_000, out: 300_000 };
+  const main = { plan: 200_000, out: 250_000 };
+  const wt = 'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool--claude-worktrees-lane-a\\s.jsonl';
+  const mainT = 'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool\\s.jsonl';
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', wt), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', wt.toUpperCase()), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry\\.claude\\worktrees\\a', undefined), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', mainT), main);
+  assert.deepEqual(limitsFor(undefined, undefined), main);
+});
+
+test('run: the desktop-app lane shape and the planner that cd-ed into a worktree', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const main = 'C:\\P\\Foundry';
+    const file = transcript(root, [turn(260_000)]);
+    const laneDir = path.join(root, 'C--P-Foundry--claude-worktrees-lane-a-1');
+    mkdirSync(laneDir);
+    const laneFile = transcript(laneDir, [turn(260_000)]);
+    // desktop-app lane: project dir is the main checkout, the transcript sits in the worktree
+    // folder, the cwd is the worktree -> lane, plan line only
+    const a = run(input(laneFile, { cwd: lane, session_id: 'a' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: main,
+    });
+    assert.match(a, /plan the handover/);
+    // project dir is the worktree, cwd moved to main -> still a lane
+    const l = run(input(file, { cwd: main, session_id: 'l' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: lane,
+    });
+    assert.match(l, /plan the handover/);
+    // planner in the main checkout that cd-ed into a lane: the cwd does not count, still out at 250k
+    const p = run(input(file, { cwd: lane, session_id: 'p' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: main,
+    });
+    assert.match(p, /hand over now/);
+  } finally {
+    cleanup();
+  }
 });
 
 test('run: silent under the plan line, plan line at 200k, out line at 250k', () => {
@@ -349,7 +440,7 @@ test('the hook process: prints the plan line as JSON, and nothing on garbage std
       spawnSync(process.execPath, [HOOK], {
         input: stdin,
         encoding: 'utf8',
-        env: { ...process.env, ...env },
+        env: { ...process.env, CLAUDE_PROJECT_DIR: '', ...env },
       });
     const ok = spawn(JSON.stringify(input(file)));
     assert.equal(ok.status, 0);

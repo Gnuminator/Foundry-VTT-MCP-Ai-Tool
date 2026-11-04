@@ -33,19 +33,16 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 22: the release build. 24: what the Orange Pi runs (Foundry 14 requires Node 24,
-        # and the bridge, dashboard and bot share that Node on the Pi).
-        node: ['22', '24']
-    name: build-test (Node ${{ matrix.node }})${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    # Node 24 is the floor (decision 45): the release build, the installer, the Orange Pi and
+    # Foundry 14 all run it. This is the one full x64 job, so the bundle budget, the zip upload
+    # and the browser tests live here.
+    name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -89,7 +86,7 @@ jobs:
         run: node --test scripts/test-env/foundry-frame-proxy.test.mjs
 
       - name: Context alert hook
-        # .claude/hooks/context-alert.mjs (D-122): one line at the 200k and 250k handover marks, and
+        # .claude/hooks/context-alert.mjs (D-122): one line at the 200k and 250k handover marks (250k and 300k for a lane), and
         # context-stop.mjs: the hard stop above the out line. Both ignore doubled phantom readings.
         run: node --test .claude/hooks/context-alert.test.mjs .claude/hooks/context-stop.test.mjs
 
@@ -102,11 +99,11 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs
 
       - name: Weekly usage report
-        # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
-        run: node --test scripts/dev/usage-week.test.mjs
+        # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
+        run: npm run dev:test
 
       - name: Game-night watch
         # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
@@ -212,6 +209,11 @@ jobs:
         # systemctl, timedatectl and dietpi-set_software.
         run: node --test scripts/pi/time-sync.test.mjs
 
+      - name: Pi stage 26 Discord game server
+        # 26-discord-game-server.sh (backlog discord-pi-game-server) as text: the ids, snapshot and quiet checks before the write,
+        # the token never echoed. The scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/discord-game-server.test.mjs
+
       - name: Pi stage 19 join page look
         # 19-join-page-look.sh (backlog join-page-look): background picture and description into world.json with Foundry
         # stopped, hash and webp checks, dry run, snapshot and quiet check required, UNDO, with stand-in systemctl and curl.
@@ -240,6 +242,11 @@ jobs:
         # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
         run: node --test scripts/pi/pi-stage-safety.test.mjs
 
+      - name: Pi deployed-state check
+        # deploy/pi/deployed-state.sh (backlog pi-deployed-state-check): the read-only check of units, containers, env names,
+        # packages and the deployed ref, with stand-in systemctl, docker and ldconfig.
+        run: node --test deploy/pi/deployed-state.test.mjs
+
       - name: Tunnel client script
         # installer/nsis/tunnel-client.ps1 (D-095): the order of the Install steps and the quoted -NoTask start.
         run: node --test installer/nsis/tunnel-client.test.mjs
@@ -254,6 +261,25 @@ jobs:
         # scripts/tv/start-table-viewer.ps1 (tv-login, G1): the kiosk command and its refusals (needs pwsh 7; the command tests also need Edge or Chrome and are skipped where missing).
         run: node --test scripts/tv/start-table-viewer.test.mjs
 
+      - name: Wiki staging scripts
+        # scripts/wiki (stage.mjs and the Danish page check), every *.test.mjs in the folder (wiki.yml does not run them).
+        run: npm run wiki:test
+
+      - name: Dnd helper skill build
+        # tools/dnd-helper/build.mjs, the skill zip builder (the zip itself is not kept).
+        run: node --test tools/dnd-helper/build.test.mjs
+
+      - name: Livekit recorder
+        # tools/livekit/recorder is not a workspace: it has its own package.json and lockfile, so it installs on its own.
+        run: npm ci --prefix tools/livekit/recorder
+
+      - name: Livekit recorder tests
+        run: npm test --prefix tools/livekit/recorder
+
+      - name: Every test file runs
+        # Fails when a *.test.*, *.spec.* or test_*.py file is reached by no workflow command or known runner (scripts/test-coverage-check.mjs).
+        run: node scripts/test-coverage-check.mjs
+
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check
@@ -265,7 +291,6 @@ jobs:
           node tools/gm-coach/build.mjs
 
       - name: Keep the GM coach zip
-        if: matrix.node == '22'
         uses: actions/upload-artifact@v4
         with:
           name: foundry-gm-coach
@@ -278,8 +303,7 @@ jobs:
       - name: Dashboard bundle budget
         # UI-05: the React dashboard's first-load JS and each lazy chunk against their gzip limits
         # (packages/cogm-dashboard/scripts/bundle-budget.mjs, limits recorded in the script). Fails
-        # when one grows past its limit; the table also goes to the job summary. Once per run.
-        if: matrix.node == '22'
+        # when one grows past its limit; the table also goes to the job summary.
         run: npm run bundle:budget -w @gnuminator/cogm-dashboard
 
       - name: Test kit engine tests
@@ -330,17 +354,15 @@ jobs:
         run: node scripts/cogm-split-smoke-test.mjs
 
       - name: Install Chromium for the dashboard browser tests
-        if: matrix.node == '22'
         run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
 
       - name: Dashboard browser tests (React dashboard)
         # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
-        # the real server with no bridge, the /api routes faked in the browser. Once per run.
-        if: matrix.node == '22'
+        # the real server with no bridge, the /api routes faked in the browser.
         run: npm run test:e2e -w @gnuminator/cogm-dashboard
 
       - name: Keep the browser test report
-        if: failure() && matrix.node == '22'
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: dashboard-playwright-report
@@ -419,7 +441,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -540,23 +562,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + lint ratchet)
-        # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. Every lint rule is an
-        # error now (D-109), so the lint ratchet fails on any finding; the baseline
-        # scripts/lint-baseline.json stays at 0.
-        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
-
+      # The ARM job does only ARM work: typecheck, the lint and em-dash ratchets, the version
+      # check and the docs lint are architecture independent and run once, in the x64 job.
       - name: Usage catalogue is current
         # shared/src/usage-catalog.generated.ts lists every control that reports usage
         # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
         run: npm run usage:catalog:check
-
-      - name: Docs lint and internal links
-        # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
-        # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
-        # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
-        run: npm run docs:lint && npm run docs:links
 
       - name: Build (all workspaces)
         run: npm run build
@@ -587,6 +598,20 @@ jobs:
         env:
           PI_STAGE13_CONTAINER: 1
         run: node --test scripts/pi/player-creation.test.mjs
+
+      - name: Pi stage 22 in an ARM64 container
+        # scripts/pi/container-test/stage22-scenarios.sh: the seven-book trim stage's checks in front of gm-script.sh
+        # (dry run first, the wrong world, players online, the delete needing the user's OK).
+        env:
+          PI_STAGE22_CONTAINER: 1
+        run: node --test scripts/pi/seven-books.test.mjs
+
+      - name: Pi stage 25 (modules) in an ARM64 container
+        # scripts/pi/container-test/stage25-scenarios.sh: the pinned module install on Debian 13 ARM64 with stand-ins for
+        # systemd (a dry run, the real run and a rerun, UNDO=1, a failed start or move putting the old folders back, the refusals).
+        env:
+          PI_STAGE25_CONTAINER: 1
+        run: node --test scripts/pi/modules-stage.test.mjs
 
       - name: Pi kit session in an ARM64 container
         # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins
@@ -629,6 +654,13 @@ jobs:
         env:
           PI_STAGE21_CONTAINER: 1
         run: node --test scripts/pi/player-vault.test.mjs
+
+      - name: Pi stage 26 in an ARM64 container
+        # scripts/pi/container-test/stage26-scenarios.sh: stage 26 on Debian 13 ARM64 with the real lib.sh (dry run, the four lines
+        # set and the token kept, the saved copy, rerun, check, duplicates, the snapshot rule, undo).
+        env:
+          PI_STAGE26_CONTAINER: 1
+        run: node --test scripts/pi/discord-game-server.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

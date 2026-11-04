@@ -117,7 +117,7 @@ export class DnD5eNpcTools {
       {
         name: 'dnd5e-create-npc',
         description:
-          '[D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: ' +
+          'Direct write. [D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: ' +
           'identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, ' +
           'HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, ' +
           'damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. ' +

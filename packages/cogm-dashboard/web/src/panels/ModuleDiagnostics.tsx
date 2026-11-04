@@ -23,11 +23,7 @@ function moduleName(error: ModuleError): string {
 function ErrorEntry({ error }: { error: ModuleError }): JSX.Element {
   const level = error.level === 'warn' ? 'warn' : 'error';
   return (
-    <div
-      className={`diag-entry lvl-${level}`}
-      title={`${error.message}\n\n${error.stack ?? ''}`}
-      role="listitem"
-    >
+    <div className={`diag-entry lvl-${level}`} title={error.message} role="listitem">
       <span className="diag-level">{level}</span>
       <span className="diag-module">{moduleName(error)}</span>
       <span className="diag-msg">{error.message}</span>

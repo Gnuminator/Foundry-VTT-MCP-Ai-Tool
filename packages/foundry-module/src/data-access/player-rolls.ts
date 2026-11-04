@@ -138,13 +138,24 @@ export class PlayerRollsDataAccess {
         this.buildRollButtonLabel(data.rollType, data.rollTarget, data.isPublic) +
         (advantage ? ` (${advantage})` : '');
 
-      const rollButtonHtml = `
-        <div class="mcp-roll-request" style="margin: 12px 0; padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
-          <p><strong>Roll Request:</strong> ${buttonLabel}</p>
-          <p><strong>Target:</strong> ${playerInfo.targetName} ${playerInfo.character ? `(${playerInfo.character.name})` : ''}</p>
-          ${data.flavor ? `<p><strong>Context:</strong> ${data.flavor}</p>` : ''}
+      // The heading carries the DC; the tool and the dashboard fold "DC n" into the flavor too, so
+      // a trailing one is dropped here and the card shows it once.
+      const dashes = String.fromCharCode(0x2013, 0x2014);
+      const trailingDc = new RegExp(`[\\s,;.${dashes}-]*\\bDC\\s*\\d+\\s*$`, 'i');
+      const cardFlavor = data.dc != null ? data.flavor.replace(trailingDc, '').trim() : data.flavor;
 
-          <div style="text-align: center; margin-top: 8px;">
+      const heading = this.buildRollHeading(
+        playerInfo.character?.name || playerInfo.targetName,
+        data.rollType,
+        data.rollTarget,
+        data.dc
+      );
+      const rollButtonHtml = `
+        <div class="mcp-roll-request">
+          <p class="mcp-roll-heading"><strong>${escapeAttr(heading)}</strong></p>
+          ${cardFlavor ? `<p class="mcp-roll-context">${cardFlavor}</p>` : ''}
+
+          <div class="mcp-roll-actions">
             <!-- Single Roll Button (clickable by both character owner and GM) -->
             <button class="mcp-roll-button mcp-button-active"
                     data-button-id="${buttonId}"
@@ -179,6 +190,8 @@ export class PlayerRollsDataAccess {
                 rolled: false,
                 rollFormula,
                 rollLabel: buttonLabel,
+                // The completed card shows the same heading.
+                heading,
                 rollType: data.rollType,
                 rollTarget: data.rollTarget,
                 isPublic: data.isPublic,
@@ -196,7 +209,7 @@ export class PlayerRollsDataAccess {
       if (!chatMessage) {
         throw new Error('Foundry did not create the roll-request chat message');
       }
-      this.saveRollButtonMessageId(buttonId, chatMessage.id);
+      await this.saveRollButtonMessageId(buttonId, chatMessage.id);
 
       // The Live Feed (GM) and the target player's own page (/me) list the request. No visibility
       // stamp: the public /player feed never shows it (events without one are dropped there).
@@ -1027,15 +1040,30 @@ export class PlayerRollsDataAccess {
   }
 
   /** Persist a buttonId → messageId mapping (so the message can be rewritten later). */
-  saveRollButtonMessageId(buttonId: string, messageId: string): void {
-    try {
-      const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
-      buttonMessageMap[buttonId] = messageId;
-      void game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error saving button-message mapping:`, error);
-    }
+  saveRollButtonMessageId(buttonId: string, messageId: string): Promise<void> {
+    // One write at a time: asks that overlap (Ask the party sends them together) would otherwise
+    // read the map before the earlier write came back and drop its entry.
+    const task = async (): Promise<void> => {
+      try {
+        const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
+        buttonMessageMap[buttonId] = messageId;
+        await game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
+      } catch (error) {
+        console.error(`[${MODULE_ID}] Error saving button-message mapping:`, error);
+      }
+    };
+    // An idle queue starts at once; a busy one waits for the write in front of it.
+    const run = this.buttonMapQueued > 0 ? this.buttonMapWrite.then(task) : task();
+    this.buttonMapQueued += 1;
+    this.buttonMapWrite = run.finally(() => {
+      this.buttonMapQueued -= 1;
+    });
+    return run;
   }
+
+  /** The last queued write of the button-message map, and how many are queued or running. */
+  private buttonMapWrite: Promise<void> = Promise.resolve();
+  private buttonMapQueued = 0;
 
   /** Look up the message id mapped to a roll button, or null. */
   getRollButtonMessageId(buttonId: string): string | null {
@@ -1112,6 +1140,7 @@ export class PlayerRollsDataAccess {
         string,
         Record<string, unknown> | undefined
       >;
+      const heading = this.completedRollHeading(rollButtons[buttonId], rollLabel);
       rollButtons[buttonId] = {
         ...rollButtons[buttonId],
         rolled: true,
@@ -1121,8 +1150,8 @@ export class PlayerRollsDataAccess {
       };
 
       const rolledHtml = `
-        <div class="mcp-roll-request" style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background: #f9f9f9;">
-          <p><strong>Roll Request:</strong> ${rollLabel}</p>
+        <div class="mcp-roll-request">
+          <p class="mcp-roll-heading"><strong>${escapeAttr(heading)}</strong></p>
           <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
         </div>
       `;
@@ -1225,19 +1254,33 @@ export class PlayerRollsDataAccess {
     const exactCharacter = game.actors?.find(
       (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
     );
-    const partialUser = exactCharacter
-      ? undefined
-      : allUsers.find((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
-    if (partialUser) {
-      return this.resultForUser(partialUser);
+    const partialUsers = exactCharacter
+      ? []
+      : allUsers.filter((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
+    if (partialUsers.length > 1) {
+      return this.ambiguousTarget(
+        targetPlayer,
+        partialUsers.map(u => `${u.name} (${u.id})`)
+      );
+    }
+    if (partialUsers[0]) {
+      return this.resultForUser(partialUsers[0]);
     }
 
-    // 2) Player-owned character by partial name.
-    const character =
-      exactCharacter ??
-      game.actors?.find((actor: Actor) =>
-        Boolean(actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner)
+    // 2) Player-owned character by partial name: several partials are refused, never a first pick.
+    let character = exactCharacter;
+    if (!character) {
+      const partialCharacters = Array.from(game.actors || []).filter(
+        (actor: Actor) => actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner
       );
+      if (partialCharacters.length > 1) {
+        return this.ambiguousTarget(
+          targetPlayer,
+          partialCharacters.map(a => `${a.name} (${a.id})`)
+        );
+      }
+      character = partialCharacters[0];
+    }
     if (character) {
       const ownerUser = allUsers.find(
         (u: User) => character.testUserPermission(u, 'OWNER') && !u.isGM
@@ -1269,12 +1312,18 @@ export class PlayerRollsDataAccess {
     }
 
     // 3) Any character that exists but has no player owner at all.
-    const anyCharacter = game.actors?.find((actor: Actor) => {
-      if (!actor.name) return false;
-      return (
-        actor.name.toLowerCase() === searchTerm || actor.name.toLowerCase().includes(searchTerm)
+    const unowned = Array.from(game.actors || []).filter((actor: Actor) =>
+      Boolean(actor.name?.toLowerCase().includes(searchTerm))
+    );
+    const anyCharacter =
+      unowned.find((actor: Actor) => actor.name?.toLowerCase() === searchTerm) ??
+      (unowned.length === 1 ? unowned[0] : undefined);
+    if (!anyCharacter && unowned.length > 1) {
+      return this.ambiguousTarget(
+        targetPlayer,
+        unowned.map(a => `${a.name} (${a.id})`)
       );
-    });
+    }
     if (anyCharacter && !anyCharacter.hasPlayerOwner) {
       return {
         found: true,
@@ -1294,6 +1343,18 @@ export class PlayerRollsDataAccess {
           .map(u => u.name)
           .join(', ') || 'none'
       }`,
+    };
+  }
+
+  /** Several partial matches: not found, with the candidates and ids so the caller can pick. */
+  private ambiguousTarget(targetPlayer: string, candidates: string[]): ResolveResult {
+    const shown = candidates.slice(0, 10).join(', ');
+    const more = candidates.length > 10 ? `, ...(+${candidates.length - 10} more)` : '';
+    return {
+      found: false,
+      targetName: targetPlayer,
+      errorType: 'PLAYER_NOT_FOUND',
+      errorMessage: `Multiple players or characters match "${targetPlayer}": ${shown}${more}. Use the exact name.`,
     };
   }
 
@@ -1468,17 +1529,83 @@ export class PlayerRollsDataAccess {
     return skillMap[normalizedName] || skillMap[skillName.toLowerCase()] || skillName.toLowerCase();
   }
 
+  /** An ability's or skill's name in words ("Dexterity", "Perception") from dnd5e's config, else a readable fallback. */
+  private rollTargetName(rollType: string, rollTarget: string): string {
+    const config = rec(rec((globalThis as { CONFIG?: unknown }).CONFIG)?.DND5E);
+    const label = (v: unknown): string | undefined => {
+      const l = rec(v)?.label;
+      return typeof l === 'string' && l ? l : undefined;
+    };
+    if (rollType === 'skill') {
+      const named = label(rec(config?.skills)?.[this.getSkillCode(rollTarget)]);
+      return named ?? rollTarget.charAt(0).toUpperCase() + rollTarget.slice(1);
+    }
+    const named = label(rec(config?.abilities)?.[rollTarget.toLowerCase()]);
+    return named ?? rollTarget.toUpperCase();
+  }
+
+  /** The card's heading: "Roll for Mara: Perception, DC 12". */
+  private buildRollHeading(who: string, rollType: string, rollTarget: string, dc?: number): string {
+    let what: string;
+    switch (rollType) {
+      case 'ability':
+        what = `${this.rollTargetName(rollType, rollTarget)} check`;
+        break;
+      case 'skill':
+        what = this.rollTargetName(rollType, rollTarget);
+        break;
+      case 'save':
+        what = `${this.rollTargetName(rollType, rollTarget)} saving throw`;
+        break;
+      case 'attack':
+        what = `${rollTarget} attack`;
+        break;
+      case 'initiative':
+        what = 'Initiative';
+        break;
+      default:
+        what = 'Roll';
+    }
+    return `Roll for ${who}: ${what}${dc != null ? `, DC ${dc}` : ''}`;
+  }
+
+  /**
+   * The completed card's heading: the one the request card showed (stored in its flags), else
+   * rebuilt from the stored roll and character (cards posted before the heading was stored),
+   * else the button label.
+   */
+  private completedRollHeading(
+    state: Record<string, unknown> | undefined,
+    rollLabel: string
+  ): string {
+    if (typeof state?.heading === 'string' && state.heading) return state.heading;
+    const { rollType, rollTarget, characterId, dc } = state ?? {};
+    const who =
+      typeof characterId === 'string' && characterId
+        ? game.actors?.get(characterId)?.name
+        : undefined;
+    if (who && typeof rollType === 'string' && typeof rollTarget === 'string') {
+      return this.buildRollHeading(
+        who,
+        rollType,
+        rollTarget,
+        typeof dc === 'number' ? dc : undefined
+      );
+    }
+    return rollLabel;
+  }
+
   /** Human-readable button label for a roll request. */
   private buildRollButtonLabel(rollType: string, rollTarget: string, isPublic: boolean): string {
     const visibility = isPublic ? 'Public' : 'Private';
 
     switch (rollType) {
       case 'ability':
-        return `${rollTarget.toUpperCase()} Ability Check (${visibility})`;
+        return `${this.rollTargetName(rollType, rollTarget)} Ability Check (${visibility})`;
       case 'skill':
-        return `${rollTarget.charAt(0).toUpperCase() + rollTarget.slice(1)} Skill Check (${visibility})`;
+        return `${this.rollTargetName(rollType, rollTarget)} Skill Check (${visibility})`;
       case 'save':
-        return `${rollTarget.toUpperCase()} Saving Throw (${visibility})`;
+        return `${this.rollTargetName(rollType, rollTarget)} Saving Throw (${visibility})`;
       case 'attack':
         return `${rollTarget} Attack (${visibility})`;
       case 'initiative':

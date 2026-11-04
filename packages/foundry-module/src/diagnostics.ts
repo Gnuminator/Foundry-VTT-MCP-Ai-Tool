@@ -53,10 +53,13 @@ interface WindowErrorLike {
 
 const MAX_ENTRIES = 500;
 const STORAGE_KEY = `${MODULE_ID}.diagnostics`;
+/** The world whose errors the persisted buffer holds (localStorage is shared by every world on this server). */
+const WORLD_KEY = `${MODULE_ID}.diagnostics.world`;
 
 export class Diagnostics {
   private buffer: DiagnosticEntry[] = [];
   private installed = false;
+  private installedAtMs = Date.now();
   private seq = 0;
 
   private nextId(): string {
@@ -71,6 +74,7 @@ export class Diagnostics {
   install(): void {
     if (this.installed) return;
     this.installed = true;
+    this.installedAtMs = Date.now();
 
     try {
       this.restore();
@@ -253,6 +257,28 @@ export class Diagnostics {
       byLevel[e.level] = (byLevel[e.level] || 0) + 1;
     }
     return { total: this.buffer.length, byModule, byLevel };
+  }
+
+  /**
+   * Tie the persisted buffer to the open world. The browser storage outlives a world switch, so
+   * errors restored from the previous world are dropped; those captured since this page loaded
+   * belong to the new world and stay. Call once the world id is known (the `ready` hook).
+   */
+  bindWorld(worldId: string): number {
+    let dropped = 0;
+    try {
+      const stored = window.localStorage?.getItem(WORLD_KEY);
+      if (stored !== worldId) {
+        const before = this.buffer.length;
+        this.buffer = this.buffer.filter(e => e.timestampMs >= this.installedAtMs);
+        dropped = before - this.buffer.length;
+        window.localStorage?.setItem(WORLD_KEY, worldId);
+        this.persist();
+      }
+    } catch {
+      // storage unavailable; the in-memory buffer still works
+    }
+    return dropped;
   }
 
   clear(): number {

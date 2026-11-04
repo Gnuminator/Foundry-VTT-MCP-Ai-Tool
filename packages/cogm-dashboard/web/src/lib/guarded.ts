@@ -17,6 +17,7 @@ import {
   type SwitchesWrite,
 } from './sessionSwitches';
 import { markUndoRefused } from './liveStrip';
+import { toolWords } from './toolWords';
 import { isSwitchOffRefusal, refusedSwitchName } from './switchOff';
 import { CHANGES_KEY, SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
@@ -74,19 +75,7 @@ interface Applied {
   note?: unknown;
 }
 
-/**
- * A tool id in words for an error toast, never the id itself: "plan-combat-change" reads "Combat
- * change", "apply-planned-change" "The change", "undo-change" "Undo".
- */
-export function toolWords(name: string): string {
-  if (name === 'apply-planned-change') return 'The change';
-  if (name === 'undo-change') return 'Undo';
-  const words = name
-    .replace(/^(plan|get|list|set)-/, '')
-    .replace(/-/g, ' ')
-    .trim();
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'The change';
-}
+export { toolWords };
 
 /** The toast text of a change, as the old page's doneText words it. */
 function doneText(name: string, result: Applied | null): string {
@@ -350,6 +339,11 @@ export function useGuardedTools(): GuardedTools {
         if (timedOut) {
           error = `Timed out. ${checkHint}`;
         } else if (mayHaveApplied(err)) {
+          // A proxy's 5xx has no message of its own: never "Try again" next to "It may have
+          // applied", or a second click writes twice.
+          if (err instanceof ApiError && err.kind === undefined && err.status >= 500) {
+            error = 'The answer did not come back.';
+          }
           const text = error.trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
           error = `${text}${stop} ${checkHint}`;

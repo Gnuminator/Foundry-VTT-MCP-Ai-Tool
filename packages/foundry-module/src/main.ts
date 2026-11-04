@@ -3,6 +3,7 @@ import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
 import { registerAiToolControls } from './ai-tool-controls.js';
 import { registerLatestRecapButton } from './latest-recap.js';
 import { setBridgeLink } from './bridge-link.js';
+import { GM_GUIDE_URL } from './help-menu.js';
 import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
@@ -166,17 +167,17 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: LIVE_PLAY_FEATURE_ID,
         name: 'AI Tool: Live play (writes)',
-        hint: 'Lets the dashboard and the AI apply damage, healing, temporary hit points, conditions and resources (spell slots, class resources, item uses), move, change or delete tokens, and dress the scene (area templates, darkness and light, map notes, loot).',
+        hint: 'Lets the dashboard and the AI change hit points, conditions, resources, tokens and the scene during play.',
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',
-          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step. Each one still shows an Undo and is listed in Recent Changes.',
+          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step, each with an Undo in Changes.',
         },
       });
       registerGuardedFeature({
         id: 'session-notes',
         name: 'AI Tool: Session notes (writes)',
-        hint: 'Puts the notes of a recorded session (Recap, GM summary, Scenes) into a GM-only journal in Foundry automatically, without asking, as soon as Foundry is open with writes on. Each one shows in Recent Changes with an Undo. Players see the Recap only when you reveal it.',
+        hint: 'Puts the notes of a recorded session into a GM-only journal automatically, without asking; each one shows in Changes with an Undo.',
       });
       registerGuardedFeature({
         id: OWNERSHIP_FEATURE_ID,
@@ -187,55 +188,61 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: SETUP_FEATURE_ID,
         name: 'AI Tool: Foundry setup (writes)',
-        hint: 'Lets the AI change Foundry settings and set who can open a compendium pack, after you confirm the plan, and puts the old value back on undo. Never touches passwords or the AI Tool’s own switches.',
+        hint: 'Lets the AI change Foundry settings and who can open a compendium pack, after you confirm; never passwords or these switches.',
+      });
+      registerGuardedFeature({
+        id: 'player-portrait',
+        name: 'AI Tool: Player portraits (writes)',
+        hint: "Lets a player change the picture of their own character from the dashboard's player page (the file goes into their own folder under assets/players).",
+        defaultEnabled: true,
       });
       registerGuardedFeature({
         id: 'table-viewer',
         name: 'AI Tool: Table viewer (writes)',
-        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Recent Changes with an Undo.',
+        hint: 'Lets the AI create the Table user that the TV at the table signs in as, after you confirm.',
         defaultEnabled: true,
       });
       registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
-        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Recent Changes with an Undo.",
+        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a world backup, after you confirm.",
       });
       registerGuardedFeature({
         id: ROOM_SETUP_FEATURE_ID,
         name: 'AI Tool: Room setup (writes)',
-        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Recent Changes with an Undo.',
+        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm.',
       });
       registerGuardedFeature({
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
-        hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Recent Changes with an Undo.",
+        hint: "Lets the AI set a scene's darkness, light, weather and playlists, after you confirm.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
-        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm the plan. Each turn shows in Recent Changes with an Undo. The attacks and saves are rolled first, separately.',
+        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm.',
       });
       registerGuardedFeature({
         id: PAPER_SYNC_FEATURE_ID,
         name: 'AI Tool: Paper sync (writes)',
-        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Recent Changes with an Undo. XP, level and class are never changed.',
+        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper, one plan per character after you confirm.',
       });
       registerGuardedFeature({
         id: WHO_NOTICES_FEATURE_ID,
         name: 'AI Tool: Who would notice',
-        hint: "Adds a row to the dashboard's Party drawer: type a DC and see which characters would notice it from their passive Perception, Investigation and Insight. GM only; players never see it.",
+        hint: "Adds a row to the dashboard's Party drawer that shows which characters would notice a DC (GM only).",
         readOnly: true,
       });
       registerGuardedFeature({
         id: RULES_CHECK_FEATURE_ID,
         name: 'AI Tool: Rules check',
-        hint: 'Lets the AI check whether an attack, spell or item looks legal right now (turn, cost, range, spell slots, uses left) and say why.',
+        hint: 'Lets the AI check whether an attack, spell or item looks legal right now and say why.',
         readOnly: true,
       });
       registerGuardedFeature({
         id: 'change-undo',
         name: 'AI Tool: Undo for everything',
-        hint: "Lets the AI Tool undo and redo anyone's changes (players', yours and the AI's) from the Changes list: one change, or everything since on the same thing. Each undo is confirmed first and logged, and can be undone again.",
+        hint: "Lets the AI Tool undo and redo anyone's changes from the Changes list, each one confirmed first.",
         defaultEnabled: true,
       });
 
@@ -304,9 +311,7 @@ class FoundryMCPBridge {
       const validation = this.settings.validateSettings();
       if (!validation.valid) {
         console.warn(`[${MODULE_ID}] Invalid settings:`, validation.errors);
-        ui.notifications.warn(
-          `MCP Bridge settings validation failed: ${validation.errors.join(', ')}`
-        );
+        ui.notifications.warn(`AI Tool settings need a look: ${validation.errors.join(', ')}`);
       }
 
       // Auto-connect when enabled (always automatic)
@@ -421,7 +426,7 @@ class FoundryMCPBridge {
 
       // Show connection notification based on user preference
       if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('🔗 MCP Bridge connected successfully');
+        ui.notifications.info('AI Tool connected');
       }
       logInfo(
         `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
@@ -438,7 +443,7 @@ class FoundryMCPBridge {
         if (now - this.lastServerNoticeAt >= SERVER_NOTICE_THROTTLE_MS) {
           this.lastServerNoticeAt = now;
           ui.notifications?.warn(
-            'MCP Server not found. Install it from https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool'
+            `Cannot reach the AI Tool server. Is it started? Troubleshooting: ${GM_GUIDE_URL}troubleshooting/`
           );
         }
       }
@@ -483,7 +488,7 @@ class FoundryMCPBridge {
 
       // Show disconnection notification based on user preference
       if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('MCP Bridge disconnected');
+        ui.notifications.info('AI Tool disconnected');
       }
     } catch (error) {
       console.error(`[${MODULE_ID}] Error stopping bridge:`, error);
@@ -615,6 +620,17 @@ Hooks.once('init', async () => {
     await foundryMCPBridge.initialize();
   } catch (error) {
     console.error(`[${MODULE_ID}] Initialization failed:`, error);
+  }
+});
+
+// The error buffer is kept in browser storage, which every world on this server shares: drop the
+// previous world's errors once the world id is known.
+Hooks.once('ready', () => {
+  try {
+    const worldId = (game as { world?: { id?: string } }).world?.id;
+    if (worldId) diagnostics.bindWorld(worldId);
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
   }
 });
 

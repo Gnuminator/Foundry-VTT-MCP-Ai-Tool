@@ -1,7 +1,7 @@
 {
   "name": "foundry-ai-tool",
-  "version": "0.24.0",
-  "description": "Foundry AI Tool — MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
+  "version": "0.25.0",
+  "description": "Foundry AI Tool: MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -45,7 +45,8 @@
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
-    "wiki:test": "node --test scripts/wiki/stage.test.mjs",
+    "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
+    "dev:test": "node --test \"scripts/dev/*.test.mjs\"",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",
@@ -75,7 +76,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "@vitest/eslint-plugin": "^1.6.27",
     "esbuild-analyzer": "^0.2.0",
     "eslint": "^10.12.0",
@@ -94,7 +95,7 @@
     "vitest": "^3.2.6"
   },
   "engines": {
-    "node": ">=22",
+    "node": ">=24",
     "npm": ">=9.0.0"
   },
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",

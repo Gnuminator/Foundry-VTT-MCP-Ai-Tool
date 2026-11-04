@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 867065d6bcac
+sourceHash: e6e9be007953
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -67,8 +67,8 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
 
 ![Kategorien Actor Studio i Game Settings med sine Configure-knapper](../../images/guides/studio-settings.png)
 
-1. **Compendium Sources**, **Select sources**. Vinduet åbner med **Show Selected Only**
-   afkrydset, så det kun viser de packs, der allerede bruges: fjern fluebenet for at se dem alle. Sæt kun flueben ved
+1. **Compendium Sources**, **Select sources**. Vinduet viser alle packs i hver række;
+   sætter du flueben ved **Show Selected Only** øverst, vises kun dem, der allerede bruges. Sæt kun flueben ved
    packsene fra Player's Handbook-modulet (deres navne ender på `[dnd-players-handbook]`):
 
    | Række                                         | Sæt flueben ved   | Gjort på vores server?  |
@@ -99,11 +99,12 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
    spørger builderen efter dem og viser, hvor mange der er tilladt.
 
    Rækken Spell Compendia (punkt 1) bestemmer, hvilke spells Spells-fanen tilbyder, så sæt kun flueben ved
-   Player's Handbook der. Feats som Magic Initiate er anderledes: de åbner Foundrys egen
-   spell-browser, som viser alle udgaver, uanset hvad du har sat flueben ved. Spillerguiden beder spillerne
-   vælge kopien "PHB 2024".
+   Player's Handbook der. Feats som Magic Initiate er anderledes: de åbner et eget
+   spell-vindue (fra Actor Studio 2.10.5-aitool.5), som tilbyder Player's Handbook-spells fra
+   alle classes, hver kun én gang. Det begrænser dem ikke til featens class, så spilleren vælger
+   selv fra featens class-liste (guiden fortæller hvordan).
 
-5. **Configure progression**, under **Leveling Options**: sæt flueben ved **Enable Level Up** og **Milestone
+5. **Configure progression**, under **Level Up Options**: sæt flueben ved **Enable Level Up** og **Milestone
    Levelling**. **Uden Milestone Levelling ser en spiller ingen gylden Level Up-knap på sit
    ark, før karakteren har 300 XP (til level 2) og derefter 900 XP (til level 3).** Når den er slået til,
    er knappen der altid, og spillerne kan stige i level uden XP, og det vil vi ved
@@ -164,14 +165,16 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   arket.
 - Tjek, at hver spiller har valgt sin karakter i **User Configuration** (spillerlisten viser
   `Name [Character]`).
-- **Tjek, at hver færdig karakter er i Party.** "Ask the party"-kast uden for kamp (fx "alle slår
+- **Tjek, at hver færdig karakter er i Party.** "Ask the party"-kast uden for combat (fx "alle slår
   Perception") går til Party. Karakterer kommer med af sig selv, når en spiller ejer dem
   (indstillingen "AI Tool: Add player characters to the party", slået til som standard), så åbn
   Party-skuespilleren og tjek, at alle står på listen. Er indstillingen slået fra, eller mangler en,
   så træk karakteren ind på Party-arket. Følgende NPC'er kommer med på samme måde: træk NPC'en ind
   på Party-arket, og sæt dens token til **Friendly**, så "all friendly NPCs"-kast tager den med.
-- Tilføj portrætter: spillerne kan ikke uploade billeder, så de sender dem til dig. Åbn arket, klik
-  på portrættet og vælg billedet.
+- Portrætter: spillerne sætter selv deres tegning på karakteren med **Upload my portrait** på
+  spillersiden (trin 12 i deres guide). Hvert billede lander i deres egen mappe under
+  `assets/players/` og vises i Changes med en Undo. Får du et billede på Discord, åbner du arket,
+  klikker på portrættet og vælger billedet.
 
 ## Bagefter
 

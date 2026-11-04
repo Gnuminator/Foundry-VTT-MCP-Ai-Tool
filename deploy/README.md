@@ -33,6 +33,10 @@ deploy/
 │                                          and email allow-list, and how it maps to
 │                                          GM_EMAILS / CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD.
 │
+├── pi/                                  ← NOT a scaffold: tested, used on the Orange Pi.
+│                                          deployed-state.sh / .ps1 is the read-only check of what runs
+│                                          on the Pi (services, containers, env names, deployed ref).
+│
 └── windows/
     ├── install-service.md               ← Run the standalone bridge as a Windows service
     │                                     (NSSM or Task Scheduler). Already exists.

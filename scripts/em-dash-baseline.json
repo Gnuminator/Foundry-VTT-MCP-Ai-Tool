@@ -1,5 +1,5 @@
 {
-  "total": 1398,
+  "total": 1391,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -7,7 +7,7 @@
     ".claude/skills/foundry-core-ui/reference/setup-and-packages.md": 86,
     ".gitignore": 1,
     "CHANGELOG.md": 25,
-    "deploy/cloudflare/access-policy.md": 11,
+    "deploy/cloudflare/access-policy.md": 10,
     "deploy/cloudflare/config.yml.template": 3,
     "deploy/docker-compose.yml.template": 8,
     "deploy/Dockerfile": 10,
@@ -20,10 +20,7 @@
     "docs/dev/DEV-SETUP.md": 3,
     "docs/dev/REMOTE-ACCESS.md": 7,
     "docs/dev/RUNTIME-TEST-PLAN.md": 19,
-    "package.json": 1,
     "packages/cogm-dashboard/.env.example": 4,
-    "packages/cogm-dashboard/public/player.html": 1,
-    "packages/cogm-dashboard/public/player.js": 3,
     "packages/cogm-dashboard/public/styles.css": 4,
     "packages/cogm-dashboard/README.md": 9,
     "packages/cogm-dashboard/src/auth.test.ts": 4,
@@ -146,7 +143,7 @@
     "shared/src/constants.ts": 4,
     "shared/src/index.ts": 1,
     "shared/src/protocol.test.ts": 1,
-    "shared/src/protocol.ts": 8,
+    "shared/src/protocol.ts": 7,
     "shared/src/schemas.ts": 1,
     "shared/src/shared.test.ts": 6,
     "shared/src/types.ts": 8

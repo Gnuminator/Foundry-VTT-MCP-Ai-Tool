@@ -34,7 +34,7 @@ export class ActorCreationTools {
       {
         name: 'create-actor-from-compendium',
         description:
-          'Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.',
+          'Direct write. Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -64,7 +64,7 @@ export class ActorCreationTools {
             quantity: {
               type: 'number',
               description:
-                "Number of actors to create (default: based on names array length); capped by the GM's Max Actors Per Request setting (1 to 50)",
+                'Number of actors to create (default: based on names array length); limited to 1 to 50 actors per request',
               minimum: 1,
               maximum: 50,
             },

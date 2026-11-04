@@ -18,6 +18,7 @@ import { TOOL_REF_KEY, checkToolRefs, stripToolRefs } from '@gnuminator/shared';
 import { describe, expect, it } from 'vitest';
 
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
+import { TOOL_HINTS } from './tool-hints.js';
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
 import { TOOL_SETS, TOOL_SET_NAMES, filterToolsBySets, resolveToolSets } from './tool-sets.js';
 
@@ -216,5 +217,23 @@ describe('tool catalog', () => {
         TOOL_SETS[set].tools.length
       );
     }
+  });
+
+  it('marks every direct write "Direct write." and no plan-* tool', () => {
+    // The connector instructions promise: a tool whose description starts "Direct write." acts
+    // at once; plan-* tools only stage. apply-planned-change and undo-change are the plan story's
+    // own writes, not direct ones.
+    const planStory = new Set(['apply-planned-change', 'undo-change']);
+    const missing = tools
+      .filter(t => TOOL_HINTS[t.name]?.kind !== 'read' && !planStory.has(t.name))
+      .filter(t => !(t.description ?? '').startsWith('Direct write.'))
+      .map(t => t.name);
+    expect(missing, 'writes whose description does not start "Direct write."').toEqual([]);
+    const plans = tools
+      .filter(t => t.name.startsWith('plan-') && (t.description ?? '').startsWith('Direct write.'))
+      .map(t => t.name);
+    expect(plans, 'plan-* tools marked "Direct write."').toEqual([]);
+    for (const name of planStory)
+      expect(tools.find(t => t.name === name)?.description ?? '').not.toMatch(/^Direct write\./);
   });
 });

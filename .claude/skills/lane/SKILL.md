@@ -38,34 +38,31 @@ npm run lane:beat -- "<session title>" "<step>"
 ```
 
 It replaces a `- last seen: <date time> <step>` line under every claimed item of the lane and
-pushes only `Backlog.md`; a vault problem is a warning (with uncommitted edits in the vault's
-`Backlog.md` it is skipped: run it again a minute later). Steps: `claimed`, `PR open`, `review`,
+pushes only `Backlog.md`; a vault problem is a warning (skipped with uncommitted vault edits: rerun
+a minute later). Steps: `claimed`, `PR open`, `review`,
 `fixes`, `ready to merge`, `handed over`; also one when a long step runs past two hours.
 
 ## Work
 
-- **Advisor:** call `advisor` once, after the work is committed and before you open the PR; act on
-  it or say in the PR why not.
+- **Advisor:** call `advisor` once, after committing and before the PR; act on it or say in the PR why not.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; Opus only for design and
   the one risky-PR review; Haiku suits long notes, logs and read-only sweeps. Partition workers by
-  file, lock shared contracts first, tell them to write big files in parts of about 250 lines.
+  file, lock shared contracts first, big files in parts of about 250 lines.
   Workers never build, sync or commit; you integrate.
-- **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (an unset model
-  inherits the caller's). The hook `guard-model.mjs` denies one without it (forks, cloud starts and
-  the title-only offer are exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` takes a
-  model id (`claude-sonnet-5-5`, `claude-haiku-5-5`), and the hook denies an alias there.
+- **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
+  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts and the title-only offer
+  are exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Servers A, B, C (same `ai-tool-test` world): check `lock.ps1
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
   status. Queue on A only when all three are taken; kit runs default to B. Verify a feature live
   before calling it done. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534). Stopping a background task may leave its node child
-  running on Windows: check the PID.
-- **Commands over 2 minutes** run in the background; never poll in a loop. On Windows never call
+31514 --control-only` (B 31524, C 31534). Stopping a background task may leave its node child running: check the PID.
+- **Commands over 2 minutes** run in the background, never polled. On Windows never call
   `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
   or regex through Write/Edit.
-- Review checklist: `review-checklist.md` next to this file. For dashboard or player-page UI the
-  reviewer also checks `docs/dev/UX-REVIEW-LIST.md`; name it in the review brief.
+- Review checklist: `review-checklist.md` here. For dashboard or player-page UI the reviewer also
+  checks `docs/dev/UX-REVIEW-LIST.md`; name it in the brief.
 
 ## Before the PR
 
@@ -78,8 +75,7 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
     changed scripts and hooks (`foo.mjs` runs `foo.test.mjs`), dashboard e2e specs, and for
     dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`. Screenshots
     (`dashboard-visual`) run on CI only. It never writes `.git/green-ok`.
-  - **Push early, never red:** once the quick checks pass, push the branch and open a draft PR,
-    before baselines and review; `gh pr ready` before the gate. A failure that is already on main
+  - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure that is already on main
     is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not fixed by guessing.
   - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; lower
     the lint and em-dash baselines when the CI ratchet reports a drop (`npm run lint:ratchet --
@@ -127,7 +123,9 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   the Backlog. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
   that sha instead of a round 3; a third round for anything else needs the planner.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
-  push from a branch made off `aitool/main`).
+  push from a branch made off `aitool/main`). When merging `aitool/main` into the branch, a conflict
+  in a generated tools file (`docs/reference/tools*`) is never hand-merged: take either side and rerun
+  `npm run docs:tools`.
 - **Ready to merge (the planner merges):** once every review for the head says Merge, stop and keep
   the worktree clean and pushed until the planner has merged. Pull the vault, then write a
   `- progress:` line on your Backlog item (commit and push), replacing your earlier line:
@@ -149,10 +147,11 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 
 ## Context and handover
 
-- The context hook prints one line at 200k (plan the handover) and 250k (hand over now);
-  `get_usage "self"` gives the exact number. An advisor call's top-level usage reads about twice
-  the real context; the hook reads the last pass.
-- **Hard stop:** at or above 250k `context-stop.mjs` denies Edit, Write, Agent and shell commands
+- The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
+  lane, a session whose project dir (`CLAUDE_PROJECT_DIR`) is under `.claude/worktrees/`, or whose transcript sits in a worktree project folder (`...--claude-worktrees-<name>`; desktop-app worktree sessions have the main checkout as project dir). Both are fixed at session start, so a `cd` does not change it (the user, 2026-11-04); the planner and
+  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number. An advisor call's
+  top-level usage reads about twice the real context; the hook reads the last pass.
+- **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts when
   the context is under the line again.
@@ -160,10 +159,8 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   each later one, so the handover is one step. Half a page to vault `Handoff/<lane> prompt
   <date>.md` and in full in the chat in
   a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
-  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving a
-  session deletes those). Push the note and a `- progress:` line (`handed over at <context>, no PR
-yet` or the PR state, plus the note path); the planner reads it and starts the successor. Do not
-  start a successor yourself and do not message the planner.
-- Before saying a session can be closed: no background run it owns is still going.
+  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before saying a session can be closed, no background run it owns is still going. Push the note and a `- progress:` line (`handed over at <context>, no PR
+yet` or the PR state, plus the note path); the planner reads it and starts the successor. Start no
+  successor and message nobody.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

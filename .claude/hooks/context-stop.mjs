@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Context hard stop (PreToolUse hook, insights report 2026-10-31): once the main thread is at or
-// above the "out" line (250k, OUT_AT in context-alert.mjs), no new work starts. The alert hook prints its line once and
+// above the "out" line (250k, 300k for a lane; limitsFor in context-alert.mjs), no new work starts. The alert hook prints its line once and
 // nothing enforced it; two lanes ran on to 574k and 607k.
 //
 // Denied above the line:
@@ -21,7 +21,7 @@
 // (its top level sums two passes), and a reading counts only when the response before it was also
 // big, so a doubled phantom reading never stops a session.
 //
-// A false deny at 250k costs a handover that was due anyway, but every doubt allows: a payload we
+// A false deny at the out line costs a handover that was due anyway, but every doubt allows: a payload we
 // do not understand, no transcript, a shell command that only reads. This is a nudge with a clear
 // message, not a security boundary (a script run from a file can still write).
 // Reads the hook payload (JSON) on stdin; prints a deny decision or nothing.
@@ -29,7 +29,7 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OUT_AT, contextFromTranscript } from './context-alert.mjs';
+import { contextFromTranscript, limitsFor } from './context-alert.mjs';
 import { maskQuotes, splitBodies } from './guard-shell-edits.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -240,8 +240,9 @@ export function decide(input, env = process.env, repoRoot = REPO_ROOT) {
     if (!what) return null;
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return null;
-    if (context < OUT_AT) return null;
-    return denyMessage(context, OUT_AT, what);
+    const { out } = limitsFor(env.CLAUDE_PROJECT_DIR, input.transcript_path);
+    if (context < out) return null;
+    return denyMessage(context, out, what);
   } catch {
     return null;
   }

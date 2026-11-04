@@ -54,13 +54,13 @@ som før.
 
 ## Det er der i den
 
-| Mappe eller note | Hvad                                                                                                                                               |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Handouts`       | De journal-sider, GM'en har vist dig, for eksempel et brev eller en kortnote. En side GM'en kun viser til nogle spillere, kommer kun til dem.      |
-| `Recaps`         | Recap af hver session, når GM'en har vist den.                                                                                                     |
-| `My character`   | Din karakter: abilities, hit points, spells, items og features, som under My character.                                                            |
-| `My stats`       | Dine egne tal for kampagnen: skade du har taget, healing, brugte spell slots, åbne rolls og dit bedste roll. Kun rolls, alle kunne se, tæller med. |
-| `Session log`    | En note pr. spilaften: hvad bordet kunne se ske, i korte linjer. Hemmelige rolls og skjulte ting kommer aldrig med.                                |
+| Mappe eller note | Hvad                                                                                                                                                |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Handouts`       | De journal-sider, GM'en har vist dig, for eksempel et brev eller en kortnote. En side GM'en kun viser til nogle spillere, kommer kun til dem.       |
+| `Recaps`         | Recap af hver session, når GM'en har vist den.                                                                                                      |
+| `My character`   | Din karakter: abilities, hit points, spells, items og features, som under My character.                                                             |
+| `My stats`       | Dine egne tal for kampagnen: damage du har taget, healing, brugte spell slots, åbne rolls og dit bedste roll. Kun rolls, alle kunne se, tæller med. |
+| `Session log`    | En note pr. spilaften: hvad bordet kunne se ske, i korte linjer. Hemmelige rolls og skjulte ting kommer aldrig med.                                 |
 
 Serveren opdaterer noterne cirka en gang i minuttet, mens spillet kører, og så snart din computer er
 tændt og Syncthing kører, indhenter den det, den har misset. Handouts og recaps dukker op, efter

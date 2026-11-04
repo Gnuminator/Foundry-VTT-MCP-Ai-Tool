@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: 0681227943dd
+sourceHash: 8885ca2877f1
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---
@@ -32,7 +32,7 @@ andet set, siger det.
 ### Gør klar til næste session
 
 - **Klik:** **📋 Prep** (under **Advanced ▾**, Panels, eller dokket i Before-visningen) for fakta uden
-  AI: sidste session (scener, kampe, hvem der gik ned, hvad der skete), åbne quests og dele af
+  AI: sidste session (scener, combats, hvem der gik ned, hvad der skete), åbne quests og dele af
   kampagnen, dine noter, de handouts du satte i kø, bosserne på dine scener og pre-flight-resultatet.
 - **Eller sig:** brug den færdige prompt `prep-next-session` (i beskedfeltets **+**-menu). Tilføj et
   focus, hvis du har et, for eksempel "Vallaki-festivalen".
@@ -65,18 +65,18 @@ andet set, siger det.
 
 ### Tjek en encounter
 
-- **Sig:** brug prompten `encounter-check`, eller "Er slagsmålet på scenen 'Old Bonegrinder' fair for
+- **Sig:** brug prompten `encounter-check`, eller "Er combaten på scenen 'Old Bonegrinder' fair for
   partyet? Foreslå én ændring, hvis det er for hårdt."
 - **Hvad der sker:** Claude sammenligner creatures med partyet (`suggest-balanced-encounter`).
-- **Tip:** sig, hvilken slags slagsmål du vil have: "kort og skræmmende", "en rigtig trussel", "en
+- **Tip:** sig, hvilken slags combat du vil have: "kort og skræmmende", "en rigtig trussel", "en
   opvarmning".
 
-### Find monstre til en scene
+### Find monsters til en scene
 
 - **Sig:** "Find tre undead med CR 1 til 3 i mine compendiums til fire karakterer på level 3. En tabel
   med navn, CR og hvorfor den passer."
-- **Hvad der sker:** Claude søger i dine compendiums (`search-compendium`, `list-creatures-by-criteria`
-  i **build**-settet).
+- **Hvad der sker:** Claude søger i dine compendiums (`search-compendium` er altid slået til, `list-creatures-by-criteria`
+  er i **build**-settet).
 - **Tip:** for at lægge ét i worlden skal du tænde **build** og spørge: "Tilføj en Ghoul fra
   compendiet til worlden. Vis mig det først."
 
@@ -117,7 +117,7 @@ andet set, siger det.
 
 ### Træk Tarokka-læsningen
 
-- **Sig:** "Træk en ny Tarokka-læsning med det indbyggede slag. Vis mig planen først."
+- **Sig:** "Træk en ny Tarokka-læsning med det indbyggede roll. Vis mig planen først."
 - **Hvad der sker:** en plan (`plan-tarokka-import`); apply'es efter dit ja, og ligger så i **🃏 Tarokka**
   (under **Advanced ▾**).
 - **Tip:** lad **Show cards** stå uden hak i dashboardet, mens spillerne kan se din skærm.
@@ -125,12 +125,12 @@ andet set, siger det.
 ### Brug en Tarokka-læsning, du selv har valgt
 
 - **Sig:** "Gem denne Tarokka-læsning: tome er `swords-7` (Seven of Swords), holy symbol `glyphs-master` (Master of Glyphs), sunsword `coins-1` (One of Coins), ally `raven` og Strahds placering `donjon`."
-  Eller åbn **🃏 Tarokka**, sæt hak i **Show cards** (valgene er på skærmen), tryk **Choose the cards…**, vælg de fem kort og tryk **Store this reading**.
+  Eller åbn **🃏 Tarokka**, sæt hak i **Show cards** (valgene er på skærmen), tryk **Choose the cards**, vælg de fem kort og tryk **Store this reading**.
 - **Kort-id'er:** værktøjet tager id'er, ikke navne: en suit og en værdi (`swords-7`, `glyphs-master`, `coins-1`) for det almindelige dæk,
   eller ét ord for det høje dæk (`raven`, `donjon`, `broken-one`). Et navn giver en fejl, der viser formatet.
 - **Hvad der sker:** der trækkes intet. Hvert kort skal komme fra det rigtige dæk
   (det almindelige til de første tre, det høje til de sidste to), og ingen må gentages. Den forrige læsning arkiveres, og Undo bringer den tilbage.
-- **Afslør så ét kort ad gangen:** i **🃏 Tarokka** trykker du på **Reveal…** ved én position og skriver, hvad spillerne må læse.
+- **Afslør så ét kort ad gangen:** i **🃏 Tarokka** trykker du på **Reveal to players** ved én position og skriver, hvad spillerne må læse.
   Intet når spillerne, før du gør det, og de andre fire forbliver skjulte.
 
 ## Under sessionen
@@ -148,16 +148,16 @@ andet set, siger det.
 - **Hvad der sker:** Claude læser karaktererne og combat (`get-combat-state`, `list-characters`).
 - **Tip:** dashboardets combat tracker viser HP-bjælker, uden at du spørger.
 
-### Start og slut et slagsmål
+### Start og slut en combat
 
 - **I Foundry:** vælg de tokens, der kæmper (vælg dem på kortet, eller træk en boks rundt om dem),
   højreklik på ét og klik på de krydsede sværd (**Enter Combat**) i dets token-menu. Det tilføjer alle
   de valgte tokens til en ny combat. Åbn fanen **Combat Encounters** og klik **Roll All** (eller
-  **Roll NPCs**) for initiative, så **Start Combat**. Når slagsmålet er slut, klik **End Combat**
+  **Roll NPCs**) for initiative, så **Start Combat**. Når combaten er slut, klik **End Combat**
   nederst i fanen og bekræft.
 - **I dashboardet:** med **GM Actions** tændt (**Turn on for tonight** gør det) klik **Start combat**
   i Combat Tracker. Den lister tokens på scenen, sætter hak ved spillerkaraktererne og de fjendtlige,
-  og starter slagsmålet i round 1 med en Undo. **End combat** vises, når et slagsmål kører. Se
+  og starter combaten i round 1 med en Undo. **End combat** vises, når en combat kører. Se
   [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** knapperne Damage / Heal og Condition på en combatant samt Start og End combat kræver alle,
   at live play er tændt. Hvis en knap er grået ud, siger den hvorfor og har en **Turn on** ved siden af;
@@ -166,7 +166,7 @@ andet set, siger det.
 ### Kør et bossfight
 
 - **Klik:** **👑 Boss prompts** i combat trackerens øverste linje for at tænde den (den vises, når en
-  creature med legendary actions eller en lair er med i slagsmålet, og starter slukket).
+  creature med legendary actions eller en lair er med i combaten, og starter slukket).
 - **Hvad der sker:** pips for legendary actions og resistances, en påmindelse, når lairen handler, og
   et **R**-mærke pr. creature for dens reaction i denne round.
 - **Tip:** sæt hak ved "in lair" på creaturens sheet i Foundry, så lair-påmindelsen og den ekstra

@@ -1,7 +1,7 @@
 // The Tool runner on the React dashboard: the catalog by category (GET /api/tools, faked here),
 // the search, a read, form checks, a plan typed by hand through the GM Actions gate and the
 // confirm window (Cancel, Confirm, Undo), a destructive plan, a write that is not a plan, a failed
-// plan, an apply the bridge refuses, Pick… lists naming a prefilled value, the Escape order, where
+// plan, an apply the bridge refuses, picker lists naming a prefilled value, the Escape order, where
 // focus goes (a gate request expires), Enter never applying a change, and "+ Queue a page" in the
 // Handouts drawer.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
@@ -407,7 +407,7 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   const calls = await fakeTools(page, bridge);
   const drawer = await openTools(page);
   await openTool(drawer, 'plan-actor-change');
-  await expect(drawer.locator('#tool-run')).toHaveText('Run…');
+  await expect(drawer.locator('#tool-run')).toHaveText('Plan and confirm');
   await field(drawer, 'action').selectOption('damage');
   await field(drawer, 'amount').fill('5');
 
@@ -619,7 +619,7 @@ test('Enter in a field never applies a change without the confirm window', async
   // Focus goes back to the field Enter was pressed in.
   await expect(field(drawer, 'amount')).toBeFocused();
 
-  // Enter in a Pick… filter box picks nothing and sends nothing.
+  // Enter in a Pick from list filter box picks nothing and sends nothing.
   await drawer.locator('#tool-field-targets-pick').click();
   await drawer.locator('#tool-field-targets-menu .ref-search').press('Enter');
   await expect(confirm).toBeHidden();
@@ -800,7 +800,7 @@ test('an apply that timed out says it may have applied', async ({ page }) => {
   );
 });
 
-test('Escape closes an open Pick… list, then the confirm window, then the drawer', async ({
+test('Escape closes an open picker list, then the confirm window, then the drawer', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));

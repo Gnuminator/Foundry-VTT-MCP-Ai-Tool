@@ -19,6 +19,7 @@ import {
   FEED_EMPTY_TEXT,
   FEED_LOADING_TEXT,
   announcement,
+  d20sLabel,
   dayKey,
   eventDate,
   eventIso,
@@ -31,12 +32,52 @@ import {
   type FeedEvent,
   type FeedFace,
   type FeedLog,
+  type RollBox,
 } from '../lib/feed';
 import { useScrolls } from '../lib/scrolls';
 import { useBridgeAway, useFeed } from '../lib/stream';
 import { Panel } from '../ui';
 
 import { FoldButton, type DuringFolds } from './Folds';
+
+/**
+ * The total in a box, the verdict when there is a DC, and both d20s on advantage or disadvantage
+ * (the one that counts in bold, the other struck through).
+ */
+function RollTotal({ roll }: { roll: RollBox }): JSX.Element {
+  const verdict =
+    roll.passed === undefined
+      ? null
+      : roll.attack
+        ? roll.passed
+          ? 'Hit'
+          : 'Miss'
+        : roll.passed
+          ? 'Pass'
+          : 'Fail';
+  const d20s = d20sLabel(roll);
+  return (
+    <span className="event-roll-result">
+      {d20s && (
+        <span className="event-roll-d20s" role="img" aria-label={d20s}>
+          <b className="is-kept">{roll.natural}</b>
+          {roll.dropped?.map((d, i) => (
+            <s key={i}>{d}</s>
+          ))}
+          <abbr title={roll.advantage}>{roll.advantage === 'disadvantage' ? 'dis' : 'adv'}</abbr>
+        </span>
+      )}
+      <span className="event-roll-total" data-passed={roll.passed}>
+        {roll.total}
+      </span>
+      {verdict && (
+        <span className={`event-roll-verdict ${roll.passed ? 'is-pass' : 'is-fail'}`}>
+          {verdict}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /**
  * One event: its line, the kind as a chip and the time, with a short date before it when the event
@@ -50,9 +91,23 @@ const EventRow = memo(function EventRow({
   today: string;
 }): JSX.Element {
   const date = eventDate(event.timestampMs, today);
+  const { roll } = event;
   return (
     <div role="listitem" className={`event ${severityClass(event.eventType)}`}>
-      <div className="event-desc">{event.text}</div>
+      {roll ? (
+        <>
+          <div className="event-roll">
+            <span className="event-roll-who">
+              <strong>{roll.who}</strong> {roll.label}
+              {roll.dc !== undefined ? `, ${roll.attack ? 'AC' : 'DC'} ${roll.dc}` : ''}
+            </span>
+            <RollTotal roll={roll} />
+          </div>
+          <div className="event-desc event-roll-detail">{event.text}</div>
+        </>
+      ) : (
+        <div className="event-desc">{event.text}</div>
+      )}
       <div className="event-meta">
         <span className="event-type">{eventLabel(event.eventType, event.feature)}</span>
         <span>

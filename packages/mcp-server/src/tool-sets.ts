@@ -221,7 +221,9 @@ export function resolveToolSets(raw: string | undefined): ToolSetSelection {
 
 /**
  * The tools a selection serves. With `all`, every tool, including any a set
- * does not list yet; otherwise only the listed tools of the chosen sets.
+ * does not list yet; otherwise only the listed tools of the chosen sets. A tool no
+ * set lists (the backend is newer than this wrapper) passes through in the entry
+ * that serves core, so a wrapper behind the backend never hides a tool.
  */
 export function filterToolsBySets<T extends { name: string }>(
   tools: readonly T[],
@@ -230,7 +232,7 @@ export function filterToolsBySets<T extends { name: string }>(
   if (selection.all) return [...tools];
   return tools.filter(t => {
     const set = toolSetOf(t.name);
-    return set !== undefined && selection.sets.includes(set);
+    return selection.sets.includes(set ?? 'core');
   });
 }
 
@@ -249,7 +251,7 @@ const LANGUAGE_LINE =
  */
 export function toolSetInstructions(selection: Pick<ToolSetSelection, 'sets' | 'all'>): string {
   const intro =
-    'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Writes go through plan, confirm and undo.';
+    'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Tools named plan-* only prepare a change; it happens when apply-planned-change runs, and undo-change takes it back. A tool whose description starts "Direct write." acts at once, with no plan. A change it makes to Foundry documents is recorded in the change journal (listed as the GM\'s own change) and can be taken back with list-changes and plan-undo-changes while the journal is on. The journal covers actors, items, effects, tokens, scenes, combat and journals; it does not record music (playlists), folders, chat messages or rolls, so plan-undo-changes cannot take those back (an AI music change still undoes with undo-change). plan-undo-changes needs the "AI Tool: Undo for everything" switch and "AI Tool: Allow Write Operations" turned on in Foundry; undo-change needs only the latter. Records are kept for 7 days.';
   // Serving every set: no other connector to name, so no switch-first text.
   if (selection.all) return `${intro} This connector serves every tool set.\n${LANGUAGE_LINE}`;
   const lines = [intro, 'This connector serves:'];

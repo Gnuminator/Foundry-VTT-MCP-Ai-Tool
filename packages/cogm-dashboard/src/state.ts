@@ -36,6 +36,15 @@ export class GameState {
     return added;
   }
 
+  /** Forget the events, module errors and combat of a world that is no longer the open one. */
+  reset(): void {
+    this.events = [];
+    this.seen.clear();
+    this.errors = [];
+    this.seenErrors.clear();
+    this.combatState = null;
+  }
+
   get recentEvents(): SessionEvent[] {
     return this.events.slice();
   }

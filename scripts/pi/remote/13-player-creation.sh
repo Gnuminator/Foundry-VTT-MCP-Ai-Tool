@@ -25,7 +25,9 @@
 #   B. For each world, the kit copy first so a failure stops the run before the real world (Foundry runs it, headless Chromium joins as the world's GM with the login in
 #      /etc/foundry-ai-tool/world-<id>.env, never printed): Foundry's ACTOR_CREATE permission includes the Player
 #      and Trusted Player roles (the roles already there stay), Actor Studio's enableEquipmentSelection is on and
-#      its equipment source is dnd-players-handbook.equipment, and the ability score methods are standard array and
+#      its compendiumSources are the seven-book trim's (stage 22): the Player's Handbook pack plus the matching
+#      aitool-content pack per kind, items and equipment = PHB equipment + aitool-content.items, no dnd5e.* pack
+#      (run stage 22 first, then this stage), and the ability score methods are standard array and
 #      point buy on, manual entry and rolling off. The values before and after are printed and read
 #      back after a reload (player-creation-settings.mjs). Safe to run again: nothing changes the second time.
 #      Before each world starts, its settings database is copied to /var/lib/foundry-import/prev-<stamp>/worlds/.
@@ -39,11 +41,11 @@ require_root
 require_recent_snapshot
 require_arm64
 
-# The pinned build: the fork's 2.10.5-aitool.4 release (tag on aitool/fixes 852f7c55), sha256sum of its
+# The pinned build: the fork's 2.10.5-aitool.5 release (tag on aitool/fixes d761248a), sha256sum of its
 # module.zip. For a newer build, set PINNED_SHA256=PENDING-RELEASE until its release exists: the stage then
 # refuses to run unless the environment gives it a zip and a checksum (STUDIO_ZIP and STUDIO_SHA256).
-PINNED_VERSION=2.10.5-aitool.4
-PINNED_SHA256=199369173897aa8e0c0973900bd43b298ba1a054e3638dd122ea371c7ae442ea
+PINNED_VERSION=2.10.5-aitool.5
+PINNED_SHA256=36236bfbc3aef58d48cde241d5c37bf4442e840fd26036e0a12a01025b00614a
 MODULE_ID=foundryvtt-actor-studio
 RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/download
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)

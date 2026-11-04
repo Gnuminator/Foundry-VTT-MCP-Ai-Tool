@@ -176,6 +176,38 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.noCore, false);
   });
 
+  test('unpacking Foundry tolerates the node_modules/.bin links tar.exe cannot make, nothing else', () => {
+    const r = ps(`
+      $bin = @(
+        "tar.exe: node_modules/.bin/semver: Can't create 'node_modules/.bin/semver': Invalid argument",
+        "tar.exe: resources\\\\app\\\\node_modules\\\\.bin\\\\mime: Can't create 'x': Invalid argument",
+        ''
+      )
+      @{
+        clean = (Test-FoundryUnpack 0 @()).Ok
+        bin = Test-FoundryUnpack 1 $bin
+        mixed = Test-FoundryUnpack 1 ($bin + "tar.exe: main.mjs: Can't create 'main.mjs': No space left on device")
+        summary = (Test-FoundryUnpack 1 ($bin + 'tar.exe: Error exit delayed from previous errors.')).Ok
+        summaryAlone = (Test-FoundryUnpack 1 @('tar.exe: Error exit delayed from previous errors.')).Ok
+        fake = Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: node_modules/.bin/x: Cannot create symlink: Invalid argument"); exit 1')
+        fakeOther = (Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: a.txt: Disk full"); exit 1')).Ok
+        noText = (Test-FoundryUnpack 1 @()).Ok
+        lookalike = (Test-FoundryUnpack 1 @("tar.exe: node_modules/.binary/x: Can't create")).Ok
+      }`);
+    assert.equal(r.clean, true);
+    assert.equal(r.bin.Ok, true);
+    assert.equal(r.bin.Skipped, 2);
+    assert.equal(r.mixed.Ok, false);
+    assert.match(r.mixed.Message, /No space left/);
+    assert.equal(r.summary, true);
+    assert.equal(r.summaryAlone, false);
+    assert.equal(r.fake.Ok, true);
+    assert.equal(r.fake.Skipped, 1);
+    assert.equal(r.fakeOther, false);
+    assert.equal(r.noText, false);
+    assert.equal(r.lookalike, false);
+  });
+
   test('module port flag: set for a rehearsal, removed for game night, other flags kept', () => {
     const r = ps(`
       $plain = '{"id":"foundry-mcp-bridge","version":"0.21.0"}'

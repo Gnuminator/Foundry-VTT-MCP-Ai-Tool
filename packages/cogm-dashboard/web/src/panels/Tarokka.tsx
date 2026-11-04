@@ -173,7 +173,7 @@ export function TarokkaDrawer({
   const openDocument = (uuid: string): void => {
     callTool('open-in-foundry', { uuid }).then(
       () => toast('Opened in Foundry', 'ok'),
-      (err: unknown) => toast(`✗ open-in-foundry: ${errorText(err)}`, 'err')
+      (err: unknown) => toast(`✗ Open in Foundry: ${errorText(err)}`, 'err')
     );
   };
 
@@ -223,7 +223,7 @@ export function TarokkaDrawer({
             title={showCards ? undefined : 'Tick “Show cards” first: the picks are on screen'}
             onClick={() => setChoosing(c => !c)}
           >
-            Choose the cards…
+            Choose the cards
           </Button>
           {obsidianUrl && (
             <a
@@ -387,7 +387,7 @@ function PositionCard({
 }): JSX.Element {
   const toast = useToast();
   // One form at a time per position, as on the old page. Both drafts live here, so switching
-  // forms, a reload or a failed or cancelled change keeps what was typed; Link… or Reveal… again
+  // forms, a reload or a failed or cancelled change keeps what was typed; Add a link or Reveal to players again
   // closes the form. A reveal that went in closes it and clears the draft.
   const [form, setForm] = useState<'link' | 'reveal' | null>(null);
   const [query, setQuery] = useState('');
@@ -465,7 +465,7 @@ function PositionCard({
       setForm(null);
       setTitle('');
       setText('');
-      // Plan reveal goes with the form, so focus moves to Reveal… when it was in the form or
+      // Plan reveal goes with the form, so focus moves to Reveal to players when it was in the form or
       // parked on the drawer or the page (the confirm window does that while the button is
       // disabled), and stays where the GM moved it otherwise.
       const toggle = revealToggleRef.current;
@@ -538,7 +538,7 @@ function PositionCard({
           aria-expanded={form === 'link'}
           onClick={() => toggleForm('link')}
         >
-          Link…
+          Add a link
         </Button>
         <Button
           type="button"
@@ -548,7 +548,7 @@ function PositionCard({
           aria-expanded={form === 'reveal'}
           onClick={() => toggleForm('reveal')}
         >
-          Reveal…
+          Reveal to players
         </Button>
       </div>
       {form === 'link' && (
@@ -632,7 +632,7 @@ function PositionCard({
             disabled={busy}
             onClick={planReveal}
           >
-            Plan reveal…
+            Plan reveal
           </Button>
         </div>
       )}

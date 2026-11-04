@@ -1,6 +1,6 @@
 import * as net from 'net';
 import { EventEmitter } from 'events';
-import { DASHBOARD_REQUESTER } from '@gnuminator/shared';
+import { DASHBOARD_REQUESTER, TOOL_VERSION } from '@gnuminator/shared';
 import type {
   ControlResponse,
   RecordUsageResult,
@@ -233,6 +233,20 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * "Upload my portrait": a player's picture (base64) for a character they own; the module checks
+   * the ownership and stores it, the backend records the actor change. A control method. Slow
+   * (a few megabytes through two links), so it gets a longer timeout than a read.
+   */
+  async playerPortrait(
+    userId: string,
+    actorId: string,
+    target: 'portrait' | 'both',
+    data: string
+  ): Promise<unknown> {
+    return this.send('player_portrait', { userId, actorId, target, data }, 90_000);
+  }
+
+  /**
    * The feature cards (I-064): every feature switch with its state and "Allow Write
    * Operations". Read-only; a control method, never an MCP tool.
    */
@@ -390,6 +404,16 @@ export class McpControlClient extends EventEmitter {
       this.lastActivityAt = Date.now();
       this.heartbeatFailures = 0;
       this.startHeartbeat(socket);
+      // Say who this is, so the bridge does not count the dashboard as an old Claude Desktop
+      // wrapper. No pending entry: an old backend's "Unknown method" reply is ignored.
+      socket.write(
+        `${JSON.stringify({
+          id: 'cogm-hello',
+          method: 'hello',
+          params: { client: 'dashboard', version: TOOL_VERSION },
+        })}\n`,
+        'utf8'
+      );
       this.logger.info('Connected to MCP control channel', { host, port });
       this.emit('connected');
     });

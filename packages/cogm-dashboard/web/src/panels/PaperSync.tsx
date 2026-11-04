@@ -345,7 +345,7 @@ function CharacterCard({ sheet }: { sheet: SheetLike }): JSX.Element {
                   className="field-control"
                   type="text"
                   autoComplete="off"
-                  placeholder="New item (Pick… or paste a uuid)"
+                  placeholder="New item (use Pick from list or paste a uuid)"
                   aria-label="New item"
                   value={a.uuid}
                   onChange={e => setAdded(a.key, { uuid: e.target.value })}
@@ -458,7 +458,7 @@ function NightBar({ date, onDate }: { date: string; onDate: (date: string) => vo
       await callTool('mark-play-session', { action: 'end', mode: 'paper', date });
       toast(`✓ Paper night ${date} is in the play log`, 'ok');
     } catch (err) {
-      toast(`✗ mark-play-session: ${errorText(err)}`, 'err');
+      toast(`✗ Play session: ${errorText(err)}`, 'err');
     } finally {
       setBusy(false);
     }

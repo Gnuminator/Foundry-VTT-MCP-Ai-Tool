@@ -20,6 +20,23 @@ export interface FeedEvent {
   changeId?: string;
   /** The feature behind a gm-change (`actor-change`, `page-reveal`, ...), when the module says. */
   feature?: string;
+  /** A roll's parts for the roll box: who, what, the total, the DC verdict and the d20s. */
+  roll?: RollBox;
+}
+
+/** What the feed's roll box shows; every field but who, what and the total is optional. */
+export interface RollBox {
+  who: string;
+  label: string;
+  total: number;
+  /** An attack is judged against AC (hit or miss); a check or save against a DC (pass or fail). */
+  attack: boolean;
+  dc?: number;
+  passed?: boolean;
+  /** The d20 that counts, and the ones that did not on advantage or disadvantage. */
+  natural?: number;
+  dropped?: number[];
+  advantage?: 'advantage' | 'disadvantage';
 }
 
 /** The events this page has seen. */
@@ -49,6 +66,39 @@ function lineOf(description: string, details: unknown): string {
   return typeof breakdown === 'string' && breakdown ? breakdown : description;
 }
 
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** The roll box of a roll event, or undefined when the module did not send the parts. */
+function rollBoxOf(type: string, actorName: unknown, details: unknown): RollBox | undefined {
+  if (type !== 'roll' && type !== 'gm-roll') return undefined;
+  if (!isRecord(details)) return undefined;
+  const { total, label, natural, droppedD20: dropped, advantage, dc, outcome, rollType } = details;
+  if (!isNum(total) || typeof label !== 'string' || label === '') return undefined;
+  const box: RollBox = {
+    who: typeof actorName === 'string' && actorName ? actorName : 'Someone',
+    label,
+    total,
+    attack: rollType === 'attack',
+  };
+  if (isNum(dc) && (outcome === 'success' || outcome === 'failure')) {
+    box.dc = dc;
+    box.passed = outcome === 'success';
+  }
+  if (isNum(natural)) box.natural = natural;
+  if (Array.isArray(dropped) && dropped.every(isNum) && dropped.length > 0) box.dropped = dropped;
+  if (advantage === 'advantage' || advantage === 'disadvantage') box.advantage = advantage;
+  return box;
+}
+
+/**
+ * The screen-reader label of the two-d20 marker: "advantage: 17 counts, 4 dropped". Undefined when
+ * there is nothing to show (no natural d20, or no dropped die), so no marker is drawn.
+ */
+export function d20sLabel(roll: RollBox): string | undefined {
+  if (roll.natural === undefined || !roll.dropped || roll.dropped.length === 0) return undefined;
+  return `${roll.advantage ?? 'two d20s'}: ${roll.natural} counts, ${roll.dropped.join(', ')} dropped`;
+}
+
 /** One event off the wire (feed/types.ts SessionEvent), or null when it cannot be shown. */
 export function readFeedEvent(v: unknown): FeedEvent | null {
   if (!isRecord(v)) return null;
@@ -64,11 +114,13 @@ export function readFeedEvent(v: unknown): FeedEvent | null {
   const details = v['details'];
   const changeId = isRecord(details) ? details['changeId'] : undefined;
   const feature = isRecord(details) ? details['feature'] : undefined;
+  const roll = rollBoxOf(type, v['actorName'], details);
   return {
     id,
     timestampMs: ms,
     eventType: type,
     text: lineOf(description, details) || type,
+    ...(roll ? { roll } : {}),
     ...(typeof changeId === 'string' && changeId ? { changeId } : {}),
     ...(typeof feature === 'string' && feature ? { feature } : {}),
   };

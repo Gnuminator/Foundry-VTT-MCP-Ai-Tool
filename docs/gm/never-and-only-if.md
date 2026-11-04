@@ -18,7 +18,7 @@ Short rules. Each has its reason on the next line.
   A whisper's text reaches every player's browser; only its display is hidden.
 - **Never apply a plan you have not read.**
   The list of changes in the confirm window is your only preview.
-- **Never turn on "Allow Non-GM Users to Run the Bridge".**
+- **Never turn on "AI Tool: Let players connect it".**
   The module's connection to the bridge is built for a GM's browser only; this lets a player's
   browser make it.
 - **Never rename or move the module's folder `foundry-mcp-bridge`.**
@@ -34,8 +34,9 @@ Short rules. Each has its reason on the next line.
 ## Only do this if
 
 - **Click Start session only when play begins, and End session when it ends.**
-  Start session is the only switch for live play: it turns on GM Actions and every feature switch
-  ("AI Tool: … (writes)"), Tarokka and Party included. With live play off, a misclick cannot change
+  Start session is the only switch for live play: it turns on GM Actions and the five switches a
+  night needs (Allow Write Operations, Handouts, Live play, Party and Tarokka). The rest, such as the
+  Obsidian mirror and import, session notes, scene mood and room setup, stay off until you turn them on. With live play off, a misclick cannot change
   anything. End session (or Pre-flight's "Turn them off again") turns it all off again.
 - **Tick "Show cards" in the Tarokka drawer only if nobody else can see your screen.** (The
   drawer is under Advanced ▾.)

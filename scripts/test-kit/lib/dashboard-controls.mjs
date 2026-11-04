@@ -453,6 +453,39 @@ export const DASHBOARD_CONTROLS = [
     why: 'changes the HP of the picked tokens in Foundry (with Undo)',
   },
   {
+    name: 'dash.combat.attack',
+    how: 'open',
+    reach: [MOMENT_DURING],
+    expect: '[data-track="dash.attack.go"]',
+    optional: true,
+    why: 'needs a running fight (opens the Attack form, rolls nothing until its button)',
+  },
+  {
+    name: 'dash.attack.attacker',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.weapon',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.target',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.cancel',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.go',
+    how: 'write',
+    why: 'rolls an attack from the picked token against the target in Foundry (the roll shows in chat)',
+  },
+  {
     name: 'dash.quickroll.what',
     how: 'skip',
     why: 'choice in the roll bar: the strip needs a fight, Party needs members',
@@ -1085,6 +1118,12 @@ export const PLAYER_CONTROLS = [
     how: 'toggle',
     optional: true,
     why: 'only shown to a player with an open roll request',
+  },
+  {
+    name: 'player.mine.portrait',
+    how: 'external',
+    optional: true,
+    why: 'opens the browser file picker and writes a picture into the Foundry world; checked by hand on the test server and in the unit tests',
   },
   {
     name: 'player.footer.mist',

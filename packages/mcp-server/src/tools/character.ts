@@ -118,7 +118,7 @@ export class CharacterTools {
       {
         name: 'use-item',
         description:
-          'Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.',
+          'Direct write. Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -149,6 +149,11 @@ export class CharacterTools {
               type: 'number',
               description: 'For spells: cast at a higher level than base (D&D 5e upcasting)',
             },
+            rollAttack: {
+              type: 'boolean',
+              description:
+                "D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.",
+            },
           },
           required: ['actorIdentifier', 'itemIdentifier'],
         },
@@ -156,7 +161,7 @@ export class CharacterTools {
       {
         name: 'manage-world-items',
         description:
-          'Manage Item documents in Foundry VTT. Specify the operation with "action":\n' +
+          'Direct write. Manage Item documents in Foundry VTT. Specify the operation with "action":\n' +
           '- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.\n' +
           '- "list": List world-level Items with optional type/folder/name filters.\n' +
           '- "update": Update existing world-level Items by ID. GM-only.\n' +
@@ -388,10 +393,18 @@ export class CharacterTools {
       consume: z.boolean().optional(),
       spellLevel: z.number().optional(),
       skipDialog: z.boolean().optional(),
+      rollAttack: z.boolean().optional(),
     });
 
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } =
-      schema.parse(args);
+    const {
+      actorIdentifier,
+      itemIdentifier,
+      targets,
+      consume,
+      spellLevel,
+      skipDialog,
+      rollAttack,
+    } = schema.parse(args);
 
     this.logger.info('Using item', {
       actorIdentifier,
@@ -423,6 +436,7 @@ export class CharacterTools {
           consume: consume ?? true,
           spellLevel,
           skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
+          ...(rollAttack ? { rollAttack } : {}),
         },
       })) as Rec;
 

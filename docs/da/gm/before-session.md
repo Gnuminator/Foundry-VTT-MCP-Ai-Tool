@@ -1,6 +1,6 @@
 ---
 source: gm/before-session.md
-sourceHash: 5411ab47c0b8
+sourceHash: a5f437161466
 title: Før hver session
 description: En kort tjekliste til GM'en, før en spilsession starter.
 ---
@@ -46,9 +46,10 @@ som fire trin med tider.
       vises så i AI Tool-gruppen i scene controls. En world, der blev gemt tidligere, kan have den
       slået fra.
 
-- [ ] Én gang, før session 1 (kun med modulet Dice So Nice): vælg bordets terninger, **AI
-      Tool: The Veil** eller **AI Tool: Neutral**, i Dice So Nices **Configure Dice Roles**,
-      rækken **Basic**, kolonnen **Theme**. Se [Themed dice](features.md#themed-dice).
+- [ ] Én gang, før session 1 (kun med modulet Dice So Nice): vælg dine egne terninger, **AI
+      Tool: The Veil** eller **AI Tool: Neutral**: **Game Settings**, **3D Dice Settings**, fanen
+      **Appearance**, **Theme**, **Save**. Hver spiller vælger sine egne på samme måde; der er
+      ingen standard for hele bordet. Se [Themed dice](features.md#themed-dice).
 
 ## Tjek, hvad spillerne kommer til at se
 

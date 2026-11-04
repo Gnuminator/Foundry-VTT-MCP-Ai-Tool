@@ -7,7 +7,9 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   type CallToolResult,
   CallToolRequestSchema,
+  ErrorCode,
   ListToolsRequestSchema,
+  McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from './config.js';
@@ -25,6 +27,8 @@ import { ToolCallLog, runLoggedCall } from './tool-call-log.js';
 
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
+import { BUILD_ID } from './build-id.js';
+
 import {
   TOOL_SETS_ENV,
   filterToolsBySets,
@@ -41,7 +45,7 @@ import {
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
-import { stripToolRefs } from '@gnuminator/shared';
+import { TOOL_VERSION, stripToolRefs } from '@gnuminator/shared';
 
 import { spawn, ChildProcess } from 'child_process';
 
@@ -116,6 +120,20 @@ class BackendClient {
         sock.on('close', () => this.rejectAll(new Error('Backend disconnected')));
 
         this.log('connect(): connected to backend');
+
+        // Say which version and build this wrapper is, so the bridge can warn when it is behind.
+        // A backend from before this answers "Unknown method", which has no pending request and
+        // is ignored; one from before build ids ignores `build`.
+        const hello: ControlRequest = {
+          id: 'hello',
+          method: 'hello',
+          params: {
+            version: TOOL_VERSION,
+            build: BUILD_ID,
+            sets: TOOL_SET_SELECTION.all ? 'all' : TOOL_SET_SELECTION.sets.join(','),
+          },
+        };
+        sock.write(`${JSON.stringify(hello)}\n`, 'utf8');
 
         resolve();
       });
@@ -421,6 +439,10 @@ async function startWrapper(): Promise<void> {
   mcp.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       const res = (await backend.send('list_tools', {})) as ListToolsReply;
+      // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
+      if (!res.tools || res.tools.length === 0) {
+        throw new Error('The Foundry AI Tool backend returned no tools');
+      }
 
       try {
         backend.log('ListTools handler: received from backend', {
@@ -439,13 +461,14 @@ async function startWrapper(): Promise<void> {
       for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
       return { tools: served };
     } catch (e) {
-      // Log but return empty to remain MCP-compliant
-
       try {
-        backend.log('ListTools failed; returning empty', { error: messageOf(e) });
+        backend.log('ListTools failed', { error: messageOf(e) });
       } catch {}
 
-      return { tools: [] };
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Foundry AI Tool tools could not be listed: ${String(messageOf(e))}. Restart Claude Desktop; if it keeps failing, check that the bridge is running.`
+      );
     }
   });
 

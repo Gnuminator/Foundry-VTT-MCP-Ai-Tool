@@ -106,7 +106,7 @@ picker.
   `http://127.0.0.1:3100`).
 - `npm run test:e2e` runs the Playwright browser tests in `web/e2e` against the built server
   (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
-  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
+  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 24.
 - `npm run test:visual` runs the screenshot tests in Docker; see "Screenshot tests" below.
 - Usage names go in `data-track="..."` as string literals;
   `npm run usage:catalog` scans `web/src` too.
@@ -351,7 +351,7 @@ Claude Code) through the MCP tools, under that person's subscription.
 
 ## Guardrails
 
-- **Read-mostly.** Calls that change the game go through plan, confirm and undo.
+- **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo. Three act at once: the combat turn button, **Ask for a roll** (it posts the roll request in chat, which has no undo) and the strip's **Damage / Heal** form (it plans and applies in one click; the toast and Recent Changes have Undo).
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
   and retries — it never crashes the dashboard.

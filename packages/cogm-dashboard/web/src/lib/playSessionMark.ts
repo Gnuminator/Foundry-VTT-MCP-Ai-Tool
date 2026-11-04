@@ -107,14 +107,14 @@ export function usePlaySessionMark(): {
       toast(action === 'start' ? '✓ Play session started' : '✓ Play session ended', 'ok');
       queryClient.setQueryData<PlaySession>(PLAY_SESSION_KEY, markedSession(action));
     },
-    onError: err => toast(`✗ mark-play-session: ${errorText(err)}`, 'err'),
+    onError: err => toast(`✗ Play session: ${errorText(err)}`, 'err'),
     onSettled: async (_data, err, action) => {
       // Ending also turns off what Ready turned on, whether or not the mark itself went through.
       if (action === 'end') await endTonightsSwitches(queryClient, toast);
       // Starting is the one switch for live play: GM Actions and every Turn on for tonight switch.
       else if (!err) await startTonightsSwitches(queryClient, toast);
       const outcome = (await refetch()) as { error?: unknown };
-      if (outcome.error) toast(`✗ get-play-session: ${errorText(outcome.error)}`, 'err');
+      if (outcome.error) toast(`✗ Play session: ${errorText(outcome.error)}`, 'err');
     },
   });
   const pending = useIsMutating({ mutationKey: MARK_KEY }) > 0;

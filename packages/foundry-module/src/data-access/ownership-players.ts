@@ -1,4 +1,4 @@
-import { MODULE_ID } from '../constants.js';
+import { AMBIGUOUS_ACTOR_PREFIX, MODULE_ID } from '../constants.js';
 import { isTablePlayer } from '../table-viewer-user.js';
 import * as shared from './shared.js';
 
@@ -254,6 +254,10 @@ export class OwnershipPlayersDataAccess {
       const actor = shared.findActorByIdentifier(data.identifier);
       return actor ? { id: actor.id, name: actor.name } : null;
     } catch (error) {
+      // Several partial matches: the caller needs the candidates, not "no actor".
+      if (error instanceof Error && error.message.startsWith(AMBIGUOUS_ACTOR_PREFIX)) {
+        throw error;
+      }
       console.error(`[${MODULE_ID}] Error finding actor:`, error);
       return null;
     }

@@ -72,8 +72,8 @@ set says so.
 
 - **Say:** "Find three undead of CR 1 to 3 in my compendiums for four level 3 characters. A table
   with name, CR and why it fits."
-- **What happens:** Claude searches your compendiums (`search-compendium`, `list-creatures-by-criteria`
-  in the **build** set).
+- **What happens:** Claude searches your compendiums (`search-compendium` is always on, `list-creatures-by-criteria`
+  is in the **build** set).
 - **Tip:** to put one in the world, switch **build** on and ask: "Add a Ghoul from the compendium
   to the world. Show me first."
 
@@ -121,12 +121,12 @@ set says so.
 ### Use a Tarokka reading you chose yourself
 
 - **Say:** "Store this Tarokka reading: the tome is `swords-7` (Seven of Swords), the holy symbol `glyphs-master` (Master of Glyphs), the sunsword `coins-1` (One of Coins), the ally `raven` and Strahd's location `donjon`."
-  Or open **🃏 Tarokka**, tick **Show cards** (the picks are on screen), press **Choose the cards…**, pick the five cards and press **Store this reading**.
+  Or open **🃏 Tarokka**, tick **Show cards** (the picks are on screen), press **Choose the cards**, pick the five cards and press **Store this reading**.
 - **Card ids:** the tool takes ids, not names: a suit and a value (`swords-7`, `glyphs-master`, `coins-1`) for the common deck,
   or one word for the high deck (`raven`, `donjon`, `broken-one`). A name gets an error that shows the format.
 - **What happens:** nothing is dealt. Each card must come from the right deck
   (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
-- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal…** on one position and write what the players may read.
+- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal to players** on one position and write what the players may read.
   Nothing reaches the players until you do that, and the other four stay hidden.
 
 ## During the session

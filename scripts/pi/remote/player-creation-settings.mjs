@@ -3,8 +3,11 @@
 // by hand with the same environment. A headless Chromium joins the world as its GM (the same way
 // assistant-gm.mjs does) and sets, through Foundry's own settings API:
 //   - core.permissions: ACTOR_CREATE includes the Player and Trusted Player roles (the roles already there stay);
-//   - Actor Studio, world settings: enableEquipmentSelection = true, and compendiumSources with
-//     equipment = ["dnd-players-handbook.equipment"] (every other source keeps its value);
+//   - Actor Studio, world settings: enableEquipmentSelection = true, and compendiumSources as the seven-book trim
+//     leaves them (the user, 2026-11-03; stage 22): species, backgrounds, classes, subclasses, feats and spells list
+//     the Player's Handbook pack plus the matching aitool-content pack, items and equipment list the Player's Handbook
+//     equipment plus aitool-content.items, and no list holds a dnd5e.* pack (a pack that is not in the world is left
+//     out of the list; every key not named here keeps its value);
 //   - Actor Studio, world settings: the ability score methods our table uses (the user, 2026-11-02): allowStandardArray
 //     and allowPointBuy on, allowManualInput and allowRolling off (David saw only manual entry offered);
 //   - Actor Studio's per-user usage-tracking: every saved value that is not false becomes false.
@@ -50,6 +53,20 @@ async function typeJoinUser(page, user) {
 const FOUNDRY_URL = env('FOUNDRY_URL', 'http://127.0.0.1:30000').replace(/\/$/, '');
 const MODULE_ID = 'foundryvtt-actor-studio';
 const EQUIPMENT_PACK = 'dnd-players-handbook.equipment';
+const PHB = 'dnd-players-handbook';
+const CONTENT = 'aitool-content';
+// Actor Studio's compendiumSources, by kind, for the seven-book trim. A pack that the world lacks is left out of its list.
+export const SOURCE_TARGETS = {
+  races: [`${PHB}.origins`, `${CONTENT}.species`],
+  racialFeatures: [`${PHB}.origins`, `${CONTENT}.species`],
+  backgrounds: [`${PHB}.origins`, `${CONTENT}.backgrounds`],
+  classes: [`${PHB}.classes`, `${CONTENT}.classes`],
+  subclasses: [`${PHB}.classes`, `${CONTENT}.classes`],
+  feats: [`${PHB}.feats`, `${CONTENT}.feats`],
+  spells: [`${PHB}.spells`, `${CONTENT}.spells`],
+  items: [EQUIPMENT_PACK, `${CONTENT}.items`],
+  equipment: [EQUIPMENT_PACK, `${CONTENT}.items`],
+};
 // CONST.USER_ROLES.PLAYER and TRUSTED: the roles that may create actors (and so open Actor Studio).
 const PLAYER_ROLES = [1, 2];
 // Actor Studio's ability score methods: standard array and point buy only.
@@ -65,7 +82,7 @@ const log = msg => console.log(`[player-creation] ${msg}`);
 // Runs in the browser: the values this script cares about, plus what must exist for them to work.
 // trackingOn: how many users have Actor Studio's usage-tracking saved as anything but false (a saved
 // per-user value overrides the off default); null when the module does not register the setting.
-export function readState({ moduleId, pack, methods }) {
+export function readState({ moduleId, pack, methods, targets }) {
   const settings = game.settings;
   const registered = key => settings.settings.has(`${moduleId}.${key}`);
   const permissions = settings.get('core', 'permissions');
@@ -82,6 +99,9 @@ export function readState({ moduleId, pack, methods }) {
     isGM: game.user.isGM,
     moduleActive: game.modules.get(moduleId)?.active === true,
     packExists: game.packs.has(pack),
+    sourcePacks: Object.fromEntries(
+      [...new Set(Object.values(targets).flat())].map(id => [id, game.packs.has(id)])
+    ),
     studioSettingsRegistered:
       registered('enableEquipmentSelection') &&
       registered('compendiumSources') &&
@@ -100,7 +120,7 @@ export function readState({ moduleId, pack, methods }) {
 }
 
 // Runs in the browser: changes only what differs; returns what it changed.
-export async function applyState({ moduleId, pack, roles, methods }) {
+export async function applyState({ moduleId, pack, roles, methods, targets }) {
   const changed = [];
   if (roles.join() !== [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED].join()) {
     throw new Error(`the player roles are ${JSON.stringify(CONST.USER_ROLES)} in this Foundry`);
@@ -124,9 +144,23 @@ export async function applyState({ moduleId, pack, roles, methods }) {
   if (!sources || typeof sources !== 'object' || Array.isArray(sources)) {
     throw new Error('compendiumSources is not an object');
   }
-  if (JSON.stringify(sources.equipment) !== JSON.stringify([pack])) {
-    await game.settings.set(moduleId, 'compendiumSources', { ...sources, equipment: [pack] });
-    changed.push('compendiumSources.equipment');
+  // No dnd5e.* pack in any list; the kinds in targets list the packs this world has, in the targets' order.
+  const wantedSources = {};
+  for (const [kind, list] of Object.entries(sources)) {
+    wantedSources[kind] = Array.isArray(list)
+      ? list.filter(id => !String(id).startsWith('dnd5e.'))
+      : list;
+  }
+  for (const [kind, packs] of Object.entries(targets)) {
+    const present = packs.filter(id => game.packs.has(id));
+    if (present.length) wantedSources[kind] = present;
+  }
+  const differing = Object.keys(wantedSources).filter(
+    kind => JSON.stringify(wantedSources[kind]) !== JSON.stringify(sources[kind])
+  );
+  if (differing.length) {
+    await game.settings.set(moduleId, 'compendiumSources', wantedSources);
+    changed.push(`compendiumSources (${differing.join(', ')})`);
   }
 
   for (const [key, wanted] of Object.entries(methods)) {
@@ -153,7 +187,7 @@ const show = state =>
   JSON.stringify({
     ACTOR_CREATE: state.actorCreate,
     enableEquipmentSelection: state.enableEquipmentSelection,
-    'compendiumSources.equipment': state.compendiumSources?.equipment ?? null,
+    compendiumSources: state.compendiumSources,
     abilityMethods: state.abilityMethods,
     'usage-tracking on (users)': state.trackingOn,
   });
@@ -195,13 +229,28 @@ export function mismatches(before, after) {
     }
   }
   const sources = after.compendiumSources ?? {};
-  if (JSON.stringify(sources.equipment) !== JSON.stringify([EQUIPMENT_PACK])) {
-    problems.push(`compendiumSources.equipment is ${JSON.stringify(sources.equipment)}`);
+  for (const [kind, packs] of Object.entries(SOURCE_TARGETS)) {
+    const wanted = packs.filter(id => after.sourcePacks?.[id]);
+    if (wanted.length && JSON.stringify(sources[kind]) !== JSON.stringify(wanted)) {
+      problems.push(
+        `compendiumSources.${kind} is ${JSON.stringify(sources[kind])}, expected ${JSON.stringify(wanted)}`
+      );
+    }
   }
+  for (const [kind, list] of Object.entries(sources)) {
+    if (Array.isArray(list) && list.some(id => String(id).startsWith('dnd5e.'))) {
+      problems.push(`compendiumSources.${kind} still lists a dnd5e pack: ${JSON.stringify(list)}`);
+    }
+  }
+  // Kinds that are not ours keep their value, apart from the dnd5e packs the trim takes out.
   const rest = o =>
     JSON.stringify(
       Object.entries(o ?? {})
-        .filter(([k]) => k !== 'equipment')
+        .filter(([k]) => !(k in SOURCE_TARGETS))
+        .map(([k, v]) => [
+          k,
+          Array.isArray(v) ? v.filter(id => !String(id).startsWith('dnd5e.')) : v,
+        ])
         .sort()
     );
   if (rest(before.compendiumSources) !== rest(sources)) {
@@ -253,6 +302,7 @@ async function main() {
       pack: EQUIPMENT_PACK,
       roles: PLAYER_ROLES,
       methods: ABILITY_METHODS,
+      targets: SOURCE_TARGETS,
     };
     const before = await page.evaluate(readState, args);
     log(`world ${before.world}, joined as ${before.user} (GM: ${before.isGM})`);

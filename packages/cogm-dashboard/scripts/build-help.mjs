@@ -180,11 +180,17 @@ for (const page of pages.filter(p => p.startsWith('da-'))) {
   if (!english) continue;
   const enIds = headingIds(english.html);
   const daIds = headingIds(out.pages[page].html);
-  if (enIds.length !== daIds.length) continue;
+  if (enIds.length !== daIds.length) {
+    console.warn(
+      `build-help: warning: ${page} has ${daIds.length} headings, its English page has ${enIds.length}; links with an English anchor will not find their heading`
+    );
+    continue;
+  }
   let i = 0;
+  // The ids come from rendered HTML, so they are already escaped; escaping again would double it.
   out.pages[page].html = out.pages[page].html.replace(
     /<(h[1-6]) id="([^"]*)"/g,
-    (_all, tag, id) => `<${tag} id="${id}" data-en-id="${escapeAttr(enIds[i++])}"`
+    (_all, tag, id) => `<${tag} id="${id}" data-en-id="${enIds[i++]}"`
   );
 }
 

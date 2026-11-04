@@ -62,7 +62,10 @@ async function fakeApp(page: Page): Promise<void> {
   );
 }
 
-/** A Foundry stand-in that posts a pick to its parent now and whenever the parent says ready. */
+/**
+ * A Foundry stand-in like the module: it says hello to its parent after a short delay and posts
+ * its pick only after it hears ready (and again whenever the parent says ready).
+ */
 async function fakeFoundry(page: Page, tokenIds: string[]): Promise<void> {
   await page.route(`${FOUNDRY}/**`, route =>
     route.fulfill({
@@ -70,7 +73,8 @@ async function fakeFoundry(page: Page, tokenIds: string[]): Promise<void> {
       body:
         '<!doctype html><title>Foundry</title><body style="background:#222;color:#eee">Foundry' +
         `<script>const send=()=>parent.postMessage({type:'fmb-live-pick',tokenIds:${JSON.stringify(tokenIds)}},'*');` +
-        "addEventListener('message',e=>{if(e.data&&e.data.type==='fmb-live-ready')send()});send();</script></body>",
+        "addEventListener('message',e=>{if(e.data&&e.data.type==='fmb-live-ready')send()});" +
+        "setTimeout(()=>parent.postMessage({type:'fmb-live-hello'},'*'),50);</script></body>",
     })
   );
 }
@@ -243,5 +247,5 @@ test('is for the GM: a player is sent to the player view, and a missing address 
 
   await setup(page, { json: { foundryUrl: null, foundryOrigin: null } });
   await load(page);
-  await expect(page.getByRole('alert')).toContainText('Set the Foundry address first');
+  await expect(page.getByRole('alert')).toContainText('does not know Foundry’s address');
 });

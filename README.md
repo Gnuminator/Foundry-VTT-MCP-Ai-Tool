@@ -110,15 +110,15 @@ opens a small form that applies at once (with Undo) and **Condition** opens cond
 one, confirm one plain question, and it applies (with Undo). The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
-![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](docs/images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](docs/images/cogm/tool-runner.png)
 
 **Tool runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
-something (an actor, a token, a journal page, a plan) has **Pick…**, a list of what exists now.
+something (an actor, a token, a journal page, a plan) has **Pick from list**, a list of what exists now.
 
 ![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](docs/images/cogm/confirm.png)
 
-**Safe by default:** watching is always read-only; game-changing actions stay off until you flip the
-**GM Actions** switch; every write asks for confirmation, a planned change shows its diff, and
+**Safe by default:** watching is always read-only; game-changing actions stay off until you press
+**Start session**; every write asks for confirmation, a planned change shows its diff, and
 destructive actions need a second confirmation.
 
 > Full tour for GMs: **[docs/gm/dashboard.md](docs/gm/dashboard.md)**.
@@ -186,7 +186,7 @@ Enable it in your world (requires Foundry **v14** with the dnd5e 6 system).
 
 ### 2. Set up the bridge (MCP server)
 
-Requires Node.js 22+.
+Requires Node.js 24+.
 
 ```bash
 git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git

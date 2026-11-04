@@ -248,7 +248,7 @@ run); it tests that checkout's code.
 **Overnight:** `pwsh scripts/test-kit/register-nightly.ps1` registers the Windows scheduled task
 "Foundry AI Tool kit run" (every night at 03:30, `-At 04:00` for another time, `-Remove` to take
 it away, `-WhatIf` to see what it would register). It runs `kit-run.mjs --nightly` in the main
-checkout with the portable Node 22 while you are logged on, in a hidden console, and appends its
+checkout with the portable Node 24 while you are logged on, in a hidden console, and appends its
 output to `<kit home>\nightly.log`. A PC that is asleep, off or logged off at that time skips the
 night; a missed run is not started later, so it never stops a test server you use during the day.
 The task stops a run after 6 hours without warning, which leaves its lock behind: the next nightly
@@ -463,9 +463,9 @@ dashboard API request that answers 400 or more is recorded as `HTTP <status> <me
 for that run to end (`idle`) before it clicks, because the run's redraw would undo the click. The
 tool runner's Pick button and the player page's name picker are required rows: every kit world has tools with
 a picker and the kit player user. The sweep turns GM Actions on for the run (put back afterwards) so the
-Everyone tab's Undo opens its window, and walks that window read-only: Just this, Everything since and the
+Everything tab's Undo opens its window, and walks that window read-only: Just this, Everything since and the
 rewind under Advanced only plan, Apply is never clicked. The sweep puts the page back after
-each control: the theme, the During layout, any open drawer, the undo window and the AI tab of Recent Changes. `player-rendered` places a hidden token with a
+each control: the theme, the During layout, any open drawer, the undo window and the Tool tab of Recent Changes. `player-rendered` places a hidden token with a
 canary name in a combat, opens `/player`, waits for the page to draw the combat and checks that neither the
 HTML nor the text of the page names the canary or the monsters' true names.
 

@@ -362,7 +362,7 @@ function renderFilter(view: ChangesView): string {
   const option = (value: string, label: string): string =>
     `<option value="${escapeHtml(value)}"${view.filter === value ? ' selected' : ''}>${escapeHtml(label)}</option>`;
   const people = view.users.map(u => option(userFilter(u.id), u.name)).join('');
-  return `<label class="fmb-ai-filter">Show: <select data-fmb-filter>${option(FILTER_ALL, 'All')}${option(FILTER_AI, 'AI')}${people}</select></label>`;
+  return `<label class="fmb-ai-filter">Show: <select data-fmb-filter>${option(FILTER_ALL, 'Everyone')}${option(FILTER_AI, 'Tool')}${people}</select></label>`;
 }
 
 /** The window's whole content as an HTML string. */

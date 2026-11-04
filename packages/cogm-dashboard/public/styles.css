@@ -771,6 +771,68 @@ body {
   line-height: 1.45;
   color: var(--text);
 }
+/* Roll box: who rolled and the total on one line; the full breakdown stays below, smaller. */
+.event-roll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: var(--fs-sm);
+}
+.event-roll-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+}
+.event-roll-total {
+  min-width: 2rem;
+  padding: 0.1rem 0.45rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.event-roll-total[data-passed='true'] {
+  border-color: var(--good);
+}
+.event-roll-total[data-passed='false'] {
+  border-color: var(--bad);
+}
+.event-roll-verdict {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.event-roll-verdict.is-pass {
+  color: var(--good);
+}
+.event-roll-verdict.is-fail {
+  color: var(--bad-text);
+}
+.event-roll-d20s {
+  display: inline-flex;
+  gap: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+}
+.event-roll-d20s b {
+  color: var(--text);
+}
+.event-roll-d20s abbr {
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.event-roll-detail {
+  margin-top: 0.2rem;
+  font-size: var(--fs-2xs);
+  color: var(--text-mid);
+}
 .event-meta {
   font-size: var(--fs-2xs);
   color: var(--text-dim);

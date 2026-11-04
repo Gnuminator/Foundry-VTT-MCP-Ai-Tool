@@ -30,9 +30,14 @@ import {
   matchesAny,
   parseArgs,
   parseNameStatus,
+  opusNotesForHead,
   parseReviewNote,
   publishTrainNote,
   refusalBody,
+  refusedBecause,
+  releasePr,
+  reviewNamingRule,
+  unreadPrNotes,
   refusalCauses,
   readTrain,
   renderTrainNote,
@@ -152,7 +157,8 @@ function gate(o = {}) {
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
     if (key === 'git diff -z') {
       const nul = String.fromCharCode(0);
-      const entry = p => `${p.startsWith('changelog.d/') ? 'A' : 'M'}${nul}${p}${nul}`;
+      const entry = p =>
+        `${o.changeTypes?.[p] ?? (p.startsWith('changelog.d/') ? 'A' : 'M')}${nul}${p}${nul}`;
       return ok(localPaths.map(entry).join(''));
     }
     if (key === 'git rev-parse HEAD') return ok(`${o.localHead ?? HEAD}\n`);
@@ -171,6 +177,12 @@ function gate(o = {}) {
       return o.lockSource === null
         ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
         : ok(o.lockSource ?? FAKE_LOCK_SOURCE);
+    }
+    // a file at the merge base (basesha) or the head, for the release PR check
+    if (cmd === 'git' && args[0] === 'show' && o.show && /^(basesha|[0-9a-f]{40}):/.test(args[1])) {
+      const [rev, ...rest] = args[1].split(':');
+      const text = o.show(rev === 'basesha' ? 'base' : 'head', rest.join(':'));
+      return text === null ? { status: 128, stdout: '', stderr: 'fatal: no such path' } : ok(text);
     }
     if (isDriftCall(cmd, args)) {
       o.onDrift?.(state);
@@ -1321,6 +1333,7 @@ test('gh pr view failing ends the run with one line', () => {
   assert.deepEqual(lines, [
     'lane:merge: NOT merged #312',
     'pr: gh pr view 312 failed: could not resolve to a PullRequest',
+    'lane:merge: refused because pr: gh pr view 312 failed: could not resolve to a PullRequest',
   ]);
 });
 
@@ -2252,21 +2265,21 @@ test('merge train note: --dry-run writes nothing; a refusal writes a refusal eve
 test('refusal reasons: one cause tag per failure kind, once each, and a short body', () => {
   assert.deepEqual(
     refusalCauses(
-    [
-      'ci: failing: build-test (FAILURE); pending: dashboard-visual (IN_PROGRESS)',
-      'ci: required but not reported: build-test (Node 22)',
-      'ci: no checks reported for this PR yet',
-      'ci: cannot read the required checks from the branch ruleset (gh api failed: x); refusing',
-      'wait-ci: head moved from a to b',
-      'wait-ci: CI failed on abc1234: build-test (FAILURE)',
-      'wait-ci: timed out after 30 minutes; still waiting for x',
-      'wait-ci: gh pr view 5 failed 3 times in a row',
-      'review: no review note for this head',
-      'train: merge train full (4/4): run live:roundtrip',
-      'drift: drift-check failed (guards: mcp-server tests (tool counts, tool sets), lint ratchet) (log x.log); last lines below',
-      'weird line',
-    ],
-    ['mcp-server tests (tool counts, tool sets)', 'lint ratchet']
+      [
+        'ci: failing: build-test (FAILURE); pending: dashboard-visual (IN_PROGRESS)',
+        'ci: required but not reported: build-test (Node 22)',
+        'ci: no checks reported for this PR yet',
+        'ci: cannot read the required checks from the branch ruleset (gh api failed: x); refusing',
+        'wait-ci: head moved from a to b',
+        'wait-ci: CI failed on abc1234: build-test (FAILURE)',
+        'wait-ci: timed out after 30 minutes; still waiting for x',
+        'wait-ci: gh pr view 5 failed 3 times in a row',
+        'review: no review note for this head',
+        'train: merge train full (4/4): run live:roundtrip',
+        'drift: drift-check failed (guards: mcp-server tests (tool counts, tool sets), lint ratchet) (log x.log); last lines below',
+        'weird line',
+      ],
+      ['mcp-server tests (tool counts, tool sets)', 'lint ratchet']
     ),
     [
       'ci-failing',
@@ -2284,7 +2297,9 @@ test('refusal reasons: one cause tag per failure kind, once each, and a short bo
       'other',
     ]
   );
-  assert.deepEqual(refusalCauses(['drift: drift-check failed (log y.log); last lines below']), ['drift']);
+  assert.deepEqual(refusalCauses(['drift: drift-check failed (log y.log); last lines below']), [
+    'drift',
+  ]);
   assert.deepEqual(refusalCauses([]), []);
   const long = 'ci: failing: ' + 'x'.repeat(400);
   const body = refusalBody([
@@ -2428,5 +2443,270 @@ test('wait-ci: every other exit of runEntry ends with one verdict line', () => {
   const noWaitThrow = entry(['312'], () => {
     throw new Error('x');
   });
-  assert.deepEqual([noWaitThrow.code, noWaitThrow.lines.length], [1, 1]);
+  assert.deepEqual([noWaitThrow.code, noWaitThrow.lines.length], [1, 2]);
+  assert.equal(noWaitThrow.lines[1], 'lane:merge: refused because unexpected error: x');
+});
+
+test('refusedBecause: one line, every reason, numbered when there are several', () => {
+  assert.equal(refusedBecause(['review: no note']), 'lane:merge: refused because review: no note');
+  assert.equal(
+    refusedBecause(['review: no note; more', 'changelog: none', 'drift: failed\nsecond line']),
+    'lane:merge: refused because (1) review: no note; more (2) changelog: none (3) drift: failed second line'
+  );
+  assert.match(refusedBecause([]), /^lane:merge: refused because /);
+});
+
+test('a refusal ends with one "refused because" line holding every reason, after the notices', () => {
+  // The #741 shape: risky files, no review note for the head, so drift-check is not run.
+  const r = gate({
+    vault: vaultWith([{ name: '312-opus-review-round2.md', text: note({ head: OTHER }) }]),
+    files: [
+      'scripts/pi/container-test/stage26-scenarios.sh',
+      '.github/workflows/ci.yml',
+      'docs/a.md',
+    ],
+  });
+  assert.equal(r.code, 1);
+  assert.equal(r.lines[0], 'lane:merge: NOT merged #312');
+  const last = r.lines.at(-1);
+  assert.ok(
+    last.startsWith('lane:merge: refused because (1) review: no review note for head 3d24f70'),
+    last
+  );
+  assert.match(last, /\(2\) changelog: no added or changed changelog\.d/);
+  assert.equal(r.lines.filter(l => l.startsWith('lane:merge: refused because')).length, 1);
+  const notices = r.lines.findIndex(l => l.includes('drift-check not run'));
+  assert.ok(notices > 0 && notices < r.lines.length - 1, 'the notices come before the summary');
+  // A single reason is not numbered, and a --wait-ci failure gets the line too.
+  const one = gate({ merge: 1 });
+  assert.equal(
+    one.lines.at(-1),
+    'lane:merge: refused because merge: gh pr merge exited 1: not allowed'
+  );
+  const failed = gate({
+    argv: ['--wait-ci'],
+    prFor: () => ({ statusCheckRollup: [cr('build-test', 'COMPLETED', 'FAILURE')] }),
+  });
+  assert.equal(failed.code, 3);
+  assert.equal(
+    failed.lines.at(-1),
+    'lane:merge: refused because wait-ci: CI failed on 3d24f70: build-test (FAILURE)'
+  );
+  // A merge prints no such line.
+  assert.ok(!gate({}).lines.some(l => l.includes('refused because')));
+});
+
+test('risky notice: says found or missing for the head Opus note, so a merge never reads as a refusal', () => {
+  const files = ['.github/workflows/ci.yml', 'changelog.d/x.md'];
+  const merged = gate({ files, vault: vaultWith([{ name: '312-opus-review.md', text: note() }]) });
+  assert.equal(merged.code, 0, merged.text);
+  assert.ok(
+    merged.lines.includes(
+      'lane:merge: risky (the merge gate): .github/workflows/ci.yml; an Opus review is required; Opus note for head 3d24f70: found (312-opus-review.md)'
+    ),
+    merged.text
+  );
+  assert.ok(!merged.text.includes('missing'));
+  const sonnet = gate({ files });
+  assert.equal(sonnet.code, 1);
+  assert.match(sonnet.text, /an Opus review is required; Opus note for head 3d24f70: missing/);
+  // An Opus note for another head is missing for this one.
+  const stale = gate({
+    files,
+    vault: vaultWith([{ name: '312-opus-review.md', text: note({ head: OTHER }) }]),
+  });
+  assert.match(stale.text, /Opus note for head 3d24f70: missing/);
+  assert.deepEqual(
+    opusNotesForHead(
+      [
+        parseReviewNote('312-opus-review.md', note(), 312),
+        parseReviewNote('312-review.md', note(), 312),
+        parseReviewNote('312-opus-review-2.md', note({ head: OTHER }), 312),
+      ],
+      HEAD.toUpperCase()
+    ),
+    ['312-opus-review.md']
+  );
+});
+
+test('review refusal: names the naming rule, and lists notes of the PR that were not read', () => {
+  const vault = vaultWith([
+    { name: '312-merge-delta-3d24f70a.md', text: note() },
+    { name: '313-merge-delta.md', text: note() },
+    { folder: 'Reviews 2026-10-11', name: '312-review.md', text: note({ head: OTHER }) },
+  ]);
+  const r = gate({ vault });
+  assert.equal(r.code, 1);
+  const line = r.lines.find(l => l.startsWith('review: '));
+  assert.ok(line.includes(reviewNamingRule(312)), line);
+  assert.match(line, /312-\*review\*\.md in a "Handoff\/Reviews <date>\/" folder/);
+  assert.match(line, /named 312-opus-review\.\.\. or headed "# PR #312 Opus review"/);
+  assert.match(line, /full 40-character sha above "## Verdict"/);
+  assert.match(
+    line,
+    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md$/
+  );
+  assert.deepEqual(unreadPrNotes(vault, 312), ['Reviews 2026-10-10/312-merge-delta-3d24f70a.md']);
+  assert.deepEqual(unreadPrNotes(path.join(os.tmpdir(), 'no-such-vault-xyz'), 312), []);
+  // Only a Sonnet note for a risky PR gets the rule too; a Do not merge does not (the note was read).
+  const sonnet = gate({ files: ['.github/workflows/ci.yml', 'changelog.d/x.md'] });
+  assert.ok(sonnet.text.includes(`this PR needs an Opus review; ${reviewNamingRule(312)}`));
+  const veto = gate({
+    vault: vaultWith([{ name: '312-review.md', text: note({ verdict: '**Do not merge.**' }) }]),
+  });
+  assert.ok(!veto.text.includes('the gate reads files named'));
+});
+
+/** A release PR as RELEASING.md steps 1 and 2 make it: the fold and sync-version's stamps. */
+function releaseFixture() {
+  const pkg = v => `{\n  "name": "foundry-ai-tool",\n  "version": "${v}",\n  "private": true\n}\n`;
+  const lock = v =>
+    JSON.stringify(
+      {
+        name: 'foundry-ai-tool',
+        version: v,
+        lockfileVersion: 3,
+        packages: {
+          '': { name: 'foundry-ai-tool', version: v },
+          shared: { name: '@x/shared', version: v },
+          'packages/foundry-module': { version: v },
+          'node_modules/foo': { version: '1.0.0', resolved: 'https://r/foo.tgz' },
+        },
+      },
+      null,
+      2
+    );
+  const manifest = v =>
+    `{\n  "id": "foundry-mcp-bridge",\n  "version": "${v}",\n  "compatibility": {}\n}\n`;
+  const ts = v => `/** generated */\nexport const TOOL_VERSION = '${v}';\n`;
+  const nsis = v =>
+    `Name "x"\n  !define VERSION "v${v}"\nSection\n  WriteRegStr HKCU "Software\\Uninstall\\FoundryMCPServer" "DisplayVersion" "${v}"\nSectionEnd\n`;
+  const at = v => ({
+    'CHANGELOG.md': `# Changelog\n\n## Unreleased\n\n## v${v}\n`,
+    'changelog.d/thing.md': v === '0.25.0' ? '### Fixes\n\n- a fix\n' : null,
+    'package.json': pkg(v),
+    'shared/package.json': pkg(v),
+    'package-lock.json': lock(v),
+    'packages/foundry-module/module.json': manifest(v),
+    'packages/obsidian-plugin/manifest.json': manifest(v),
+    'shared/src/version.ts': ts(v),
+    'installer/nsis/foundry-mcp-server.nsi': nsis(v),
+  });
+  const base = at('0.25.0');
+  const head = at('0.26.0');
+  const files = Object.keys(base).map(p => ({
+    path: p,
+    changeType: head[p] === null ? 'DELETED' : 'MODIFIED',
+  }));
+  return { base, head, files, read: (rev, p) => (rev === 'base' ? base : head)[p] ?? null };
+}
+
+test('releasePr: the fold plus version bumps only; anything else is not a release', () => {
+  const f = releaseFixture();
+  assert.deepEqual(releasePr(f.files, f.read), { release: true, why: '' });
+  const why = change => {
+    const x = releaseFixture();
+    change(x);
+    const r = releasePr(x.files, x.read);
+    assert.equal(r.release, false);
+    return r.why;
+  };
+  const edit = (file, from, to) => x => {
+    x.head[file] = x.head[file].replace(from, to);
+  };
+  assert.match(
+    why(x => x.files.push({ path: 'docs/a.md', changeType: 'MODIFIED' })),
+    /docs\/a\.md is not a changelog or version file/
+  );
+  assert.match(
+    why(x => x.files.push({ path: 'shared/src/other.ts', changeType: 'MODIFIED' })),
+    /shared\/src\/other\.ts is not a changelog or version file/
+  );
+  assert.match(
+    why(x => x.files.push({ path: 'changelog.d/new.md', changeType: 'ADDED' })),
+    /changelog\.d\/new\.md is not deleted/
+  );
+  assert.match(
+    why(x => {
+      x.files = x.files.filter(y => y.path !== 'CHANGELOG.md');
+    }),
+    /CHANGELOG\.md is not changed/
+  );
+  assert.match(
+    why(x => {
+      x.files = x.files.filter(y => y.path !== 'package.json');
+    }),
+    /root package\.json is not changed/
+  );
+  assert.match(
+    why(edit('package.json', '"private": true', '"private": false')),
+    /package\.json changes more than its version/
+  );
+  assert.match(
+    why(edit('package-lock.json', '"version": "1.0.0"', '"version": "1.0.1"')),
+    /package-lock\.json changes more than its version/
+  );
+  assert.match(
+    why(edit('shared/src/version.ts', 'generated', 'edited')),
+    /shared\/src\/version\.ts changes more than its version line \(line 1\)/
+  );
+  assert.match(
+    why(x => {
+      x.head['installer/nsis/foundry-mcp-server.nsi'] += 'Exec "evil"\n';
+    }),
+    /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  assert.match(
+    why(edit('packages/foundry-module/module.json', '0.26.0', 'latest')),
+    /module\.json has a version that is not x\.y\.z/
+  );
+  assert.match(
+    why(x => {
+      x.head['package.json'] = x.base['package.json'];
+    }),
+    /root package\.json version does not change/
+  );
+  assert.match(
+    why(x => {
+      x.base['shared/package.json'] = null;
+    }),
+    /shared\/package\.json is added or deleted/
+  );
+});
+
+test('changelog: a release PR passes without --no-changelog; anything more is refused and says why', () => {
+  const f = releaseFixture();
+  const paths = f.files.map(x => x.path);
+  const changeTypes = Object.fromEntries(
+    f.files.map(x => [x.path, x.changeType === 'DELETED' ? 'D' : 'M'])
+  );
+  // module.json and shared/src are risky (wire contracts), so the release needs an Opus note.
+  const vault = vaultWith([{ name: '312-opus-review.md', text: note() }]);
+  const r = gate({ vault, files: paths, changeTypes, show: f.read });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(r.merged);
+  assert.ok(
+    r.lines.includes(
+      'lane:merge: changelog: a release PR (only the fold and version bumps), so no fragment is needed'
+    ),
+    r.text
+  );
+  const more = gate({ vault, files: [...paths, 'docs/guide.md'], changeTypes, show: f.read });
+  assert.equal(more.code, 1);
+  assert.match(
+    more.lines.at(-1),
+    /refused because changelog: no added or changed changelog\.d\/\*\.md fragment \(or pass --no-changelog "reason"\); not a release PR: docs\/guide\.md is not a changelog or version file$/
+  );
+  // A PR that never touches CHANGELOG.md keeps the old line, with nothing about releases.
+  const plain = gate({ files: ['docs/guide.md'] });
+  assert.match(
+    plain.text,
+    /^changelog: no added or changed changelog\.d\/\*\.md fragment \(or pass --no-changelog "reason"\)$/m
+  );
+  assert.ok(!plain.text.includes('release'));
+  assert.ok(!plain.calls.some(c => c[0] === 'git' && c[1] === 'show' && /^basesha:/.test(c[2])));
+  // Not at the head: the local check refuses, and no file contents are read for a release pass.
+  const away = gate({ vault, files: paths, changeTypes, show: f.read, localHead: OTHER });
+  assert.equal(away.code, 1);
+  assert.ok(!away.calls.some(c => c[0] === 'git' && c[1] === 'show' && /^basesha:/.test(c[2])));
 });

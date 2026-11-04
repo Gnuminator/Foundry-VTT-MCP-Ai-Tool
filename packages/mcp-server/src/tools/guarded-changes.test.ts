@@ -42,6 +42,14 @@ describe('GuardedChangeTools definitions', () => {
     expect(byName['undo-change'].required).toEqual(['changeId', 'confirm']);
     expect(byName['open-in-foundry'].required).toEqual(['uuid']);
   });
+
+  it('lets the same-turn go-ahead cover write plans only; a destructive plan waits for the GM', () => {
+    const apply = makeTools()
+      .tools.getToolDefinitions()
+      .find(d => d.name === 'apply-planned-change');
+    expect(apply?.description).toContain('apply a "write" plan in the same turn');
+    expect(apply?.description).toContain('a "destructive" plan waits for the GM to say yes');
+  });
 });
 
 describe('GuardedChangeTools handlers', () => {

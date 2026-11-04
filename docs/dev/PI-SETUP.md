@@ -162,7 +162,7 @@ listed).
 | 10. Space check     | An hourly storage check (`10-space-check.sh`: `foundry-space-check.timer`, the checker in `/opt/foundry-ai-tool/space`) of every disk the backups, snapshots, the vault sync and the recordings use, written to `/var/lib/foundry-ai-tool/space/status.json` (below 20 % free is low, below 5 % is critical) and as a warning line in the journal. The nightly restic backup (stage 6) runs the check first: below 20 % it still runs, at critical it is skipped. `UNDO=1` removes it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | **yes:** your OK (a new service and timer); then run stage 6 again so the backup gets its pre-check                                                                                                                                |
 | 11. World           | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. A Plan B push-back keeps the Pi's GM password and needs `REPLACE_WORLD=1 KIT_WORLD=` ([Plan B](PLAN-B.md#after-the-night)). See "Licensed content"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 12. Tunnel          | Part C (D-075): Cloudflare Tunnel, so players reach Foundry and the GM the dashboard through Cloudflare Access with no router port open (`12-tunnel.sh`). `cloudflared` from Cloudflare's signed apt repository (key pinned), service `foundry-ai-tool-cloudflared` in token mode: a root-only token file read through systemd `LoadCredential`, never an argument or environment variable; no token, no start. `FOUNDRY_PUBLIC_HOST=play.<domain>` sets Foundry's `hostname`, `proxySSL`, `proxyPort` 443. No firewall, SSH, network or Tailscale change. Stops first, before it installs anything, while Foundry has no administrator password, or any world has a Gamemaster or Assistant GM with no password or no Gamemaster at all (a never-launched world counts); `gm-passwords.sh` runs that read-only check on its own, again after adding worlds or GM users. It also checks that the bridge's control port 31414 answers on loopback and nothing listens beyond it (the `mcp` TCP route of D-095 reaches it through the tunnel, behind its own Access application, see [Remote access](REMOTE-ACCESS.md))                                                                                                                                                                             | **yes:** your OK and a snapshot; then run `set-tunnel-token.sh` yourself over SSH                                                                                                                                                  |
-| 13. Player creation | D-112, D-113: players make characters (level 1, levelled to 3) in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.4`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
+| 13. Player creation | D-112, D-113: players make characters (level 1, levelled to 3) in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.5`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 14. System trial    | D-098: a new dnd5e version runs on the kit world `strahd-kit` first (`14-system-trial.sh`, `MODE=trial`, then `switch` or `rollback`). The release zip is pinned by sha256; the old version and a copy of every world are kept until the trial ends. While a trial is open, stages 5-check-world, 11 and 13 refuse to run. See "System trial (stage 14)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | **yes:** your OK for each mode (Foundry stops for a minute or two), after a `dietpi-backup 1` snapshot; never on a game-night day                                                                                                  |
 | 15. SSH keys only   | D-123, before Part C goes live (`15-ssh-keys-only.sh`): a drop-in `/etc/ssh/sshd_config.d/00-foundry-keys-only.conf` with `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and `PermitRootLogin prohibit-password`, so SSH takes a key and never a password, root included. Refuses unless root has a valid key, sshd takes keys from it, the main config includes the drop-in folder and no `Match` block sets a login value; `sshd -t` after the write and `sshd -T` (root from three addresses) before the reload, and either one failing rolls the drop-in back; a 5-minute safety timer, armed first, removes the drop-in (and starts ssh if it is down) unless a new key-only connection confirms; then a reload, not a restart (open sessions stay up), and a `live:` check of what the running sshd offers. **The console login with the root password still works** (a screen and keyboard on the Pi): the way back in if a key is ever lost. `UNDO=1` removes the drop-in. See "SSH keys only (stage 15)"                                                                                                                                                                                                                                                                 | **yes:** your OK (an SSH change), after a `dietpi-backup 1` snapshot, in default permission mode, never on a game-night day                                                                                                        |
 
@@ -994,7 +994,7 @@ nothing and does not fail the stage. Without the extra file the stage warns that
   `ALLOW_DOWNGRADE=1`. Otherwise the services
   stop, the old module folder moves to `/var/lib/foundry-import/prev-<time>/modules/` (never deleted;
   put back by itself if the swap fails) and the new one takes its place, owned by `foundry`.
-  The pinned build is the fork's `2.10.5-aitool.4` release (its `module.zip` checksum is in the
+  The pinned build is the fork's `2.10.5-aitool.5` release (its `module.zip` checksum is in the
   script). A pinned checksum of `PENDING-RELEASE` (for a newer build whose release does not exist
   yet) makes the stage refuse to run unless it is given `STUDIO_ZIP` (a `.zip` under `/var/lib/foundry-import/`) and
   `STUDIO_SHA256` (and `STUDIO_VERSION` when the zip is not the pinned version). `STUDIO_VERSION` and
@@ -1213,7 +1213,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   - `ACTION=setup` also enables the `foundry-mcp-bridge` module in `strahd-kit` when it is off
     (the module stays enabled there afterwards, like the Actor Studio settings; `strahd-kit` is a
     throwaway copy), creates `Kit GM` as a Gamemaster with that password (an existing `Kit GM` is
-    ours: its role and password are reset), makes it the module's **Bridge User**, reloads and reads
+    ours: its role and password are reset), sets it as the module's **AI Tool: Which GM connects**, reloads and reads
     it all back, and checks that a throwaway browser can really join as `Kit GM` with the password.
   - Then a transient unit `foundry-ai-tool-kit-gm-browser` (`systemd-run`, with the hardening and
     priority properties of the Assistant GM unit: low priority, no new privileges, its own profile
@@ -1223,7 +1223,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
     unit and nothing starts it again. If the browser does not join, the run is rolled back like any
     other failure.
   - The state file gets a line `KIT_GM_BROWSER=1` and a line `ORIG_BRIDGE_USER=<id or empty>`, the
-    Bridge User the world had before (stage 11 sets the Assistant GM there). `MODE=down` puts that
+    "AI Tool: Which GM connects" setting the world had before (stage 11 sets the Assistant GM there). `MODE=down` puts that
     user back when it still exists and is a GM, else "Any GM". A state file from before this change
     (no such lines) is still accepted by `MODE=down` and resets to "Any GM".
   - The PC reads the password with `pwsh scripts/pi/fetch-kit-login.ps1` (one read-only ssh command,
@@ -1245,7 +1245,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   actors that `Kit Player` owns and that were made after `up` (the state file's `STAMP_EPOCH`, passed on as
   `SINCE_EPOCH`, so a DST change or a timezone change cannot move the cutoff; an older state file without it
   falls back to `STAMP` as `SINCE_STAMP`) are listed by name and id and deleted, then the user; then the
-  Bridge User goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. An owned actor from
+  "AI Tool: Which GM connects" goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. An owned actor from
   before `up` (or one with no creation time) is kept and listed as kept. At most 5
   actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have
   looked at them), and nothing else is deleted and no setting is touched. Any actor created for
@@ -1269,8 +1269,8 @@ browser that does not join, a dropped ssh session at each new step, the stop ord
 failed teardown and the old state file format; each of those scenarios is proven to fail on the
 stage without the change. The first live kit session on the Pi (2026-10-13) worked: real systemd
 ran the transient unit (`EnvironmentFile` of the root-only file, `ProtectSystem=full` with the
-Chromium profile), Foundry took the Bridge User setting for the user made seconds before, the Kit GM
-browser joined and held the bridge link, and `MODE=down` put `curse-of-strahd`, the Bridge User and
+Chromium profile), Foundry took the "AI Tool: Which GM connects" setting for the user made seconds before, the Kit GM
+browser joined and held the bridge link, and `MODE=down` put `curse-of-strahd`, the GM setting and
 the Assistant GM browser back (about 6 minutes up, 2 down; stopping the Assistant GM browser alone
 takes about 40 seconds).
 
@@ -1513,6 +1513,27 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
 
+## Discord bot on the game server (stage 26)
+
+The Pi's bot (`/etc/foundry-ai-tool/discord-bot.env`) was set up against a test server. Stage 26
+(`scripts/pi/remote/26-discord-game-server.sh`) points it at the game server "D&D GUTTERNE": `DISCORD_GUILD_ID`
+(so `/record` registers there at once), `DISCORD_SESSION_POST_CHANNEL_ID` (#session-notes, the session-over post),
+`GAMENIGHT_WATCH_CHANNEL_ID` (#gm-bot) and `DISCORD_CHANGELOG_CHANNEL_ID` (#changelog, Pi deploy lines). The token
+and every other line stay as they are and are never printed. The first real run saves the old file as
+`discord-bot.env.before-game-server` (same owner and mode, it holds the token) and restarts the bot, which ends a
+recording, so it refuses while players are online or a recording runs. `/record` registered in the old server stays
+there until the bot leaves it.
+
+- **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `'bash -s'`. The session-over post
+  also needs the player page link, which the Pi's file does not have: add `PLAYER_PAGE_URL=https://<player page>` (no
+  `?token=`; it also sets `FOUNDRY_AI_DASHBOARD_URL=http://127.0.0.1:3000`, the Pi's dashboard port). Without it the
+  stage warns that the post stays off. A rerun after a cut-off run restarts a bot that is older than the file.
+- **Check:** `CHECK=1` (the four lines, and "Registered /record in server ..." in the bot's journal since it started), then
+  `/record` in a voice channel on the game server and a session-over post in #session-notes.
+- **Undo:** the same pipe with `UNDO=1` (the saved file back, the bot restarted).
+- Tests: `scripts/pi/discord-game-server.test.mjs` and `scripts/pi/container-test/stage26-scenarios.sh`.
+
 ## Join page look (stage 19)
 
 The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next
@@ -1604,6 +1625,71 @@ is `docs/player/obsidian.md`.
 - Tests: `scripts/pi/player-vault.test.mjs` (the stage as text, and with `PI_STAGE21_CONTAINER=1` three real Syncthings in a
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
+
+## The stack in containers (stages 23 and 24)
+
+Backlog `pi-docker-compose`. `deploy/pi/compose.yml` runs Foundry, the bridge, the dashboard and the Assistant GM browser
+as containers on the same loopback ports; the systemd units stay installed until the cutover is trusted. Everything about
+the images, settings, rehearsal and the checks is in [`deploy/pi/README.md`](../../deploy/pi/README.md). Two stages do the Pi
+side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here is retired yet.
+
+- **Stage 23** (`scripts/pi/remote/23-docker.sh`): Debian 13's own `docker.io`, the compose plugin (`docker-compose`, or
+  `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
+  `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
+  vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
+  build. Run it again after every stage 5 build (the checkout, and its `.env`, is replaced).
+- **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
+  for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
+  ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container
+  of the live project stopped, found by label, then the units enabled and started in order). `status` is read-only. Containers
+  are always found by label, and a Docker daemon that does not answer makes the stage refuse. **`MODE=cutover` is refused for now:**
+  it needs a compose-aware nightly backup (`6-backup.sh` stops `foundry.service` and copies the worlds) and guards in every stage
+  that starts `foundry.service` (Backlog: `pi-compose-cutover`). The go/no-go on 2026-11-11 is therefore a rehearsal beside the
+  units (snapshot, stage 23, stage 24 `MODE=up` on the `test.env` ports), not a switch.
+- Do not run stages 3 or 5 while the live project has containers: they would enable the units next to them
+  (`deploy/pi/deployed-state.sh` shows it as FAIL). Without a cutover there are none; `MODE=rollback` first if there are.
+- Tests: `scripts/pi/docker-compose.test.mjs` (both stages as text; with `PI_STAGE23_CONTAINER=1` the scenario scripts
+  `scripts/pi/container-test/stage23-scenarios.sh` and `stage24-scenarios.sh` in an ARM64 container). The scenarios use stand-ins
+  for apt, docker, systemctl and ss, so they also run in Git Bash.
+
+## Seven-book trim (stage 22)
+
+The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, CoS, CoSCO, TCoE, XGtE, MotM). Stage 22
+(`scripts/pi/remote/22-seven-books.sh`) is the checks in front of `gm-script.sh`; the work is two GM scripts in the same folder.
+
+- **What it does:** `seven-books-trim.js` moves every `aitool-content` entry from another book into the GM-only pack
+  `world.legacy-other-books` (same ids, tagged with the pack they came from), keeps entries that kept ones link to, copies the SRD
+  items and creatures that kept entries link to into `world.linked-srd-items` and `world.linked-srd-creatures` (player-visible)
+  and re-points the links, hides the dnd5e Item and Actor packs from Player and Trusted (a pack that kept entries link to stays
+  visible and is named in the log), and locks the module packs again at the end. A second run changes nothing.
+  `seven-books-delete-legacy.js` deletes the legacy pack for good (`MODE=delete`).
+- **Where it runs:** the module packs are shared by every world on this Foundry, so the trim runs in the one world that holds the
+  legacy pack, `curse-of-strahd`, which must be the running world. In the other worlds (strahd-kit, the
+  training world) the moved entries are gone from the shared packs (they are kept only in this world's legacy pack), the
+  re-pointed PHB 2024 links are dead, and the dnd5e packs stay visible because hiding is per world, so the strahd-kit test
+  kit does not show the trimmed view. A real run asks for `OTHER_WORLDS_OK=1` while other worlds exist.
+- **Run it:** `scp` the two scripts to `/root/`, then
+  `cat lib.sh 22-seven-books.sh gm-script.sh | ssh foundry-pi 'bash -s'` (a dry run: counts and a list of what stays visible).
+  Snapshot first (`/boot/dietpi/dietpi-backup 1`), the user's OK, then the same with `APPLY=1` (and `OTHER_WORLDS_OK=1`). Any
+  other `APPLY` value is refused; a `GM_SCRIPT` in the environment is ignored (the script follows `MODE`).
+- **Run it again** after anything that puts the dropped books back: a stage 11 push of `aitool-content`, a content module update.
+  Stage 13 sets Actor Studio's sources afterwards (run it after this stage).
+- **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
+  about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).
+- Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
+  Debian 13 ARM64 container, run by the ARM job in CI).
+
+## Pinned modules (stage 25)
+
+Stage 25 (`scripts/pi/remote/25-modules.sh`) installs the module versions pinned in the PC archive. The plan, the checks and
+the undo are in [MODULE-REHEARSAL.md](MODULE-REHEARSAL.md) ("Pi: install from the archive").
+
+- **Run it:** copy the archive's `modules/` and `pinned.json` to `/home/dietpi/module-archive` (`node scripts/modules/rehearse.mjs pi-plan`
+  prints the `scp`), then `cat lib.sh 25-modules.sh | ssh foundry-pi 'bash -s'` (a dry run). Snapshot first, the user's OK, then the
+  same with `APPLY=1`. `ONLY=id1,id2` limits it; `UNDO=1` puts the last run's old folders back.
+- Old and replaced folders stay in `/var/lib/foundry-import/prev-<time>-modules` and `failed-<time>-modules` until the user removes them.
+- Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE25_CONTAINER=1` the scenarios in a Debian 13 ARM64
+  container, run by the ARM job in CI).
 
 ## Where things live on the Pi
 

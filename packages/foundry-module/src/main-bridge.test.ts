@@ -207,7 +207,7 @@ describe('main: "MCP server not found" notice (PB-03)', () => {
 
     await expect(bridge.start()).rejects.toThrow();
     expect(warnings()).toHaveLength(1);
-    expect(warnings()[0]).toContain('MCP Server not found');
+    expect(warnings()[0]).toContain('Cannot reach the AI Tool server. Is it started?');
 
     vi.setSystemTime(Date.now() + 9 * 60 * 1000);
     await expect(bridge.start()).rejects.toThrow();

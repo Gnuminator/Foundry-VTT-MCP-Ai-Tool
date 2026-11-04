@@ -27,6 +27,8 @@ import { ToolCallLog, runLoggedCall } from './tool-call-log.js';
 
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
+import { BUILD_ID } from './build-id.js';
+
 import {
   TOOL_SETS_ENV,
   filterToolsBySets,
@@ -119,13 +121,15 @@ class BackendClient {
 
         this.log('connect(): connected to backend');
 
-        // Say which version this wrapper is, so the bridge can warn when it is behind. A backend
-        // from before this answers "Unknown method", which has no pending request and is ignored.
+        // Say which version and build this wrapper is, so the bridge can warn when it is behind.
+        // A backend from before this answers "Unknown method", which has no pending request and
+        // is ignored; one from before build ids ignores `build`.
         const hello: ControlRequest = {
           id: 'hello',
           method: 'hello',
           params: {
             version: TOOL_VERSION,
+            build: BUILD_ID,
             sets: TOOL_SET_SELECTION.all ? 'all' : TOOL_SET_SELECTION.sets.join(','),
           },
         };

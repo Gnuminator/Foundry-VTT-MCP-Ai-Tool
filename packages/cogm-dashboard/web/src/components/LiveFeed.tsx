@@ -19,6 +19,7 @@ import {
   FEED_EMPTY_TEXT,
   FEED_LOADING_TEXT,
   announcement,
+  d20sLabel,
   dayKey,
   eventDate,
   eventIso,
@@ -54,16 +55,13 @@ function RollTotal({ roll }: { roll: RollBox }): JSX.Element {
         : roll.passed
           ? 'Pass'
           : 'Fail';
+  const d20s = d20sLabel(roll);
   return (
     <span className="event-roll-result">
-      {roll.dropped && roll.natural !== undefined && (
-        <span
-          className="event-roll-d20s"
-          role="img"
-          aria-label={`${roll.advantage ?? 'two d20s'}: ${roll.natural} counts, ${roll.dropped.join(', ')} dropped`}
-        >
+      {d20s && (
+        <span className="event-roll-d20s" role="img" aria-label={d20s}>
           <b className="is-kept">{roll.natural}</b>
-          {roll.dropped.map((d, i) => (
+          {roll.dropped?.map((d, i) => (
             <s key={i}>{d}</s>
           ))}
           <abbr title={roll.advantage}>{roll.advantage === 'disadvantage' ? 'dis' : 'adv'}</abbr>

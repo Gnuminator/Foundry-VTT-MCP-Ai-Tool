@@ -803,7 +803,7 @@ body {
   border-color: var(--bad);
 }
 .event-roll-verdict {
-  font-size: 0.65rem;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;

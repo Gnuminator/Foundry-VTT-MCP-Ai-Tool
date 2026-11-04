@@ -144,9 +144,15 @@ export class PlayerRollsDataAccess {
       const trailingDc = new RegExp(`[\\s,;.${dashes}-]*\\bDC\\s*\\d+\\s*$`, 'i');
       const cardFlavor = data.dc != null ? data.flavor.replace(trailingDc, '').trim() : data.flavor;
 
+      const heading = this.buildRollHeading(
+        playerInfo.character?.name || playerInfo.targetName,
+        data.rollType,
+        data.rollTarget,
+        data.dc
+      );
       const rollButtonHtml = `
         <div class="mcp-roll-request">
-          <p class="mcp-roll-heading"><strong>${escapeAttr(this.buildRollHeading(playerInfo.character?.name || playerInfo.targetName, data.rollType, data.rollTarget, data.dc))}</strong></p>
+          <p class="mcp-roll-heading"><strong>${escapeAttr(heading)}</strong></p>
           ${cardFlavor ? `<p class="mcp-roll-context">${cardFlavor}</p>` : ''}
 
           <div class="mcp-roll-actions">
@@ -184,6 +190,8 @@ export class PlayerRollsDataAccess {
                 rolled: false,
                 rollFormula,
                 rollLabel: buttonLabel,
+                // The completed card shows the same heading.
+                heading,
                 rollType: data.rollType,
                 rollTarget: data.rollTarget,
                 isPublic: data.isPublic,
@@ -1132,6 +1140,7 @@ export class PlayerRollsDataAccess {
         string,
         Record<string, unknown> | undefined
       >;
+      const heading = this.completedRollHeading(rollButtons[buttonId], rollLabel);
       rollButtons[buttonId] = {
         ...rollButtons[buttonId],
         rolled: true,
@@ -1142,7 +1151,7 @@ export class PlayerRollsDataAccess {
 
       const rolledHtml = `
         <div class="mcp-roll-request">
-          <p><strong>Roll Request:</strong> ${rollLabel}</p>
+          <p class="mcp-roll-heading"><strong>${escapeAttr(heading)}</strong></p>
           <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
         </div>
       `;
@@ -1520,7 +1529,6 @@ export class PlayerRollsDataAccess {
     return skillMap[normalizedName] || skillMap[skillName.toLowerCase()] || skillName.toLowerCase();
   }
 
-  /** Human-readable button label for a roll request. */
   /** An ability's or skill's name in words ("Dexterity", "Perception") from dnd5e's config, else a readable fallback. */
   private rollTargetName(rollType: string, rollTarget: string): string {
     const config = rec(rec((globalThis as { CONFIG?: unknown }).CONFIG)?.DND5E);
@@ -1561,6 +1569,33 @@ export class PlayerRollsDataAccess {
     return `Roll for ${who}: ${what}${dc != null ? `, DC ${dc}` : ''}`;
   }
 
+  /**
+   * The completed card's heading: the one the request card showed (stored in its flags), else
+   * rebuilt from the stored roll and character (cards posted before the heading was stored),
+   * else the button label.
+   */
+  private completedRollHeading(
+    state: Record<string, unknown> | undefined,
+    rollLabel: string
+  ): string {
+    if (typeof state?.heading === 'string' && state.heading) return state.heading;
+    const { rollType, rollTarget, characterId, dc } = state ?? {};
+    const who =
+      typeof characterId === 'string' && characterId
+        ? game.actors?.get(characterId)?.name
+        : undefined;
+    if (who && typeof rollType === 'string' && typeof rollTarget === 'string') {
+      return this.buildRollHeading(
+        who,
+        rollType,
+        rollTarget,
+        typeof dc === 'number' ? dc : undefined
+      );
+    }
+    return rollLabel;
+  }
+
+  /** Human-readable button label for a roll request. */
   private buildRollButtonLabel(rollType: string, rollTarget: string, isPublic: boolean): string {
     const visibility = isPublic ? 'Public' : 'Private';
 

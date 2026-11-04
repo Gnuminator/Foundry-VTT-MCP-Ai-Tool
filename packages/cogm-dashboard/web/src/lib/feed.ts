@@ -90,6 +90,15 @@ function rollBoxOf(type: string, actorName: unknown, details: unknown): RollBox 
   return box;
 }
 
+/**
+ * The screen-reader label of the two-d20 marker: "advantage: 17 counts, 4 dropped". Undefined when
+ * there is nothing to show (no natural d20, or no dropped die), so no marker is drawn.
+ */
+export function d20sLabel(roll: RollBox): string | undefined {
+  if (roll.natural === undefined || !roll.dropped || roll.dropped.length === 0) return undefined;
+  return `${roll.advantage ?? 'two d20s'}: ${roll.natural} counts, ${roll.dropped.join(', ')} dropped`;
+}
+
 /** One event off the wire (feed/types.ts SessionEvent), or null when it cannot be shown. */
 export function readFeedEvent(v: unknown): FeedEvent | null {
   if (!isRecord(v)) return null;

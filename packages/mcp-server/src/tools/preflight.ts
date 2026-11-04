@@ -287,7 +287,7 @@ export class PreflightTools {
         id: 'wrapper',
         label,
         status: 'warn',
-        detail: `${who} the bridge's version (${this.bridgeVersion}) from a different build, so its tool lists may not match the bridge's. Run the installer again, then restart Claude Desktop.`,
+        detail: `${who} the bridge's version (${status.current}) from a different build, so its tool lists may not match the bridge's. Run the installer again, then restart Claude Desktop.`,
       };
     }
     const who = old === 1 ? 'A connector runs' : `${old} connectors run`;
@@ -295,7 +295,7 @@ export class PreflightTools {
       id: 'wrapper',
       label,
       status: 'warn',
-      detail: `${who} an older version than the bridge (${this.bridgeVersion}), so Claude may be missing newer tools. Run the installer again, then restart Claude Desktop.`,
+      detail: `${who} an older version than the bridge (${status.current}), so Claude may be missing newer tools. Run the installer again, then restart Claude Desktop.`,
     };
   }
 

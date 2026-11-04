@@ -2,6 +2,267 @@
 
 ## Unreleased
 
+## v0.25.0 (released 2026-11-04): the Attack button, initiative from Start combat, an automatic Party, handout notices in chat, Foundry setup tools, the AI commentary backend removed, clearer error messages, Pi stage scripts
+
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the Admin tool `plan-foundry-setup`; options or fields on `use-item`, `search-character-items` and `get-available-conditions` (`rollAttack`, a token id as attacker, the rules page uuid); the bridge methods `foundry-mcp-bridge.postHandoutNotice` (write) and `foundry-mcp-bridge.getSetupInfo` (read); the control calls `hello` (the wrapper sends its version), `wrapper_status` and `link_status` (an older wrapper sends no hello and still works); and the module settings "AI Tool: Add player characters to the party" and "AI Tool: Foundry setup (writes)". **Removed:** the dashboard's AI commentary backend: `POST /api/ask`, `POST /api/post-chat`, the `/api/control` AI actions and the AI fields in `/api/health`. No tool or bridge method was removed. Update the module and the bridge together: a v0.25.0 bridge with an older module posts no handout notice in chat and `plan-foundry-setup` fails. The Orange Pi builds the newest release tag, not `main` (D-126).
+
+### Fixes
+
+- **Ambiguous actor names are refused:** a tool given a short name that fits several characters
+  ("Aria" for Aria Stormwind and Aria Brightwood) now answers with the candidates and their ids
+  instead of acting on the first one. This covers use-item, add-feature, level-up, the roll tools
+  and the other tools that take an actor name. An exact name or an id still works, and a name that
+  fits only one character still resolves. Roll requests refuse several partial player or
+  character names the same way.
+- **Session marker screenshots stop flickering:** the "Starts the session" and "Ends the session"
+  stories repaint the toast stack once and pause the toast timers before the shot. The first
+  toast's bottom edge sits on a fraction of a pixel and Chromium put it on either of two rows from
+  run to run, however long the story waited.
+- **Clearer error messages for Claude:** one shared helper now words the errors the tools send back. A feature that is switched off says so, names the setting and tells Claude to stop and ask the GM instead of working around it. "Not found" errors name the tool that lists what exists, the connector's "not connected" error says to tell the GM and not retry, an expired plan says to check Recent Changes and then list plans, and an unknown tool says to check the name or restart the bridge. The "Received args" dump is gone from compendium validation errors.
+- **The Docker template builds on Node 24:** `deploy/Dockerfile` uses `node:24.22.2-slim` (pinned by
+  digest) in both stages. Node 24.15.0 on Windows crashes the dashboard tests natively ("Channel
+  closed", 17 of 30 runs); 24.22.2 passed 30 of 30.
+- **Plan B restore installs Foundry on a fresh root:** Windows `tar.exe` cannot create the
+  `node_modules/.bin` links in the Foundry zip and exited 1, so `restore.ps1` threw before it wrote
+  its state. It now tolerates complaints that name a `.bin` path (the app never uses them on
+  Windows), warns how many it skipped, and still fails on any other unpack error.
+- **Recent Changes folds a dragged token's moves again (test 3):** a Foundry 14 drag turns the token to face where it goes, so each move also carried a rotation and was worded as a change of rotation, not "moved". Those four drags now fold into one row, "Wolf 1 moved 4 times".
+- **Timed conditions after a reload:** the rounds left and "ended" on a condition chip are worked out
+  from the effect's stored start round against the running combat, so a GM reload no longer turns
+  "ended" into a plain chip, and an overdue effect reads "ended", never "1 round". The During combat
+  strip now shows the same chip text as the Live strip. The player view still shows only the
+  condition names Foundry reports, with no timers.
+- **Undo of a timed condition after a turn:** the undo conflict check for a condition added by the AI
+  (and a planned removal of any condition) ignores what Foundry rewrites by itself as turns pass; a real edit to the effect still refuses
+  the undo. A refused undo shows one plain line and the strip stops offering it. A condition ends at the turn of whoever was acting when it was put on (not its holder), and one put on in a fight that has since ended is no longer counted against the new fight, the way Foundry counts them.
+- **A world switch no longer shows the old world:** when the open world changes, the dashboard
+  forgets the old world's events, module errors and fight (the `/player` page and the GM screen
+  both start clean), and the Foundry module drops the previous world's errors from its browser
+  storage when the new world loads.
+- **Old Claude Desktop connectors are noticed:** the connector (wrapper) now tells the bridge which
+  version it is. `get-preflight` and the dashboard Pre-flight list show a warning when a connector is
+  older than the bridge or too old to say, with the fix (run the installer again).
+- **A tool the connector does not know is no longer hidden:** a tool in no tool set is listed by the
+  connector that serves Core, so a wrapper behind the bridge can no longer drop new tools.
+- **A failed tool list is an error:** when the bridge returns no tools, Claude gets an error instead
+  of an empty list.
+
+### Module
+
+- **Automatic party:** Foundry now keeps a dnd5e primary party by itself. The active GM's client makes a Group actor "Party" when there is none and adds every character a player owns, both at world load and as new characters are made or get a player owner. NPCs and actors no player owns stay out, nobody is added twice, and each batch of additions shows in Recent Changes with Undo (Undo takes back the newest batch; to take out an older character, remove it on the party sheet and it stays out). A deleted party is made again the next time a character is added or the world loads, and a character you took out stays out of that party, also after you switch the primary party and back. The setting "AI Tool: Add player characters to the party" (default on) turns it off. "Ask the party" no longer needs a party made by hand. The GM guide's party step is replaced by one line.
+- **`use-item` can roll the attack:** a new `rollAttack` option makes the item's card with no dialog and rolls its first attack against the targets. An item with no attack stops with "has no attack to roll" before anything is used.
+- **A token id works as the attacker:** `use-item` and `search-character-items` accept the id of a token on the scene, so an unlinked NPC token is found by its own actor even when several tokens share a name.
+- **GM page map picks no longer need the Live window address:** the module finds the GM page from
+  the page that frames Foundry, so picks and "connected" work with the setting empty.
+- **Roll request card in words:** the card reads "Roll for Mara: Perception, DC 12", ability and skill names come from dnd5e ("Dexterity", not "DEX" or "PRC"), and the card takes Foundry's own colours instead of fixed ones, so it follows the theme.
+- **Condition rule pages:** `get-available-conditions` also returns the uuid of dnd5e's own rules
+  page for each condition that has one (no rules text is copied).
+- **A revealed handout now shows in Foundry chat (test 3):** revealing a handout (the dashboard Handouts panel, the module's Handouts window or Claude's `plan-page-reveal`) also whispers a short message to the players it was revealed to. It names the handout and opens the page when clicked; it holds no handout text. The player page's New mark is unchanged. Foundry alone is now enough to notice a reveal. Undo takes back the reveal, not the message.
+- **Asked initiative fills the tracker:** a public roll request for initiative (without an added
+  modifier) rolls the character's combatant in the running fight, with Foundry's own initiative
+  card, instead of a loose d20. It never overwrites an initiative that is already there, and a
+  card made before the fight began (an earlier fight, or asked for before Start combat) keeps the
+  plain d20.
+- **A selected token looks different from the turn marker (test 3):** Foundry draws the combat turn marker and the selection border in nearly the same orange, and Monk's Combat Details selects the turn holder on its turn, so a selected token and the token whose turn it is looked alike. The selection border is now white (with Foundry's black outline); the turn marker keeps its look. The same colour also marks selected lights, tiles, drawings, notes and regions, and a player's own token on hover. Nothing about which token is selected changed.
+
+### Tooling
+
+- **Dashboard browser tests use 4 workers in CI:** the runner has 4 vCPUs and Playwright used 2.
+  The x64 job should finish closer to the ARM job.
+- **The wiki build gets a Node that Astro accepts:** the wiki workflow asks for Node 22.23.4
+  exactly. A bare "22" gave some runners 22.23.3, which Astro refuses, so the wiki check went red on
+  some days and green on others. A test keeps the pin at or above the wiki's own Node floor.
+- **`green --quick` lints what you changed:** ESLint on the changed TypeScript files, markdownlint
+  on the changed Markdown, and the link and Danish twin check when any Markdown changed. A change to
+  the ESLint, Prettier or markdownlint config, the ESLint tsconfig or the lockfile lints everything.
+  Lint errors in the files you changed now show up before the push, not first on CI.
+- **Every test file runs:** seven test files that no workflow ran (`scripts/dev` usage reports,
+  `scripts/wiki/da`, the dnd-helper build and the livekit recorder) now run in CI and in
+  `npm run green`, and a new step (`scripts/test-coverage-check.mjs`) fails when a test file is
+  reached by no workflow command or known runner.
+- **Node 24 is the floor:** the installer ships Node 24, the release workflow, the `engines`
+  fields, `@types/node` and the bundle target move to 24, and the Node 22 CI job is gone. The one
+  full x64 job is now `build-test (Node 24)` and also runs the bundle budget, the browser tests and
+  the zip upload. The ARM job skips the typecheck, lint, em-dash and docs checks that the x64 job
+  already runs, which saves about a minute and a half.
+- **Stage 11 container test covers a push-back with a `pi-modules:` line:** the push-back scenarios
+  now add their lines to the bundle's manifest instead of overwriting it, and a new scenario
+  checks that a Plan B push-back still reports "modules already on the Pi" and leaves the Pi's
+  own module copy untouched.
+
+### Dashboard
+
+- **Attack from the combat strip:** a new Attack button opens a small form: who attacks (the combatant whose turn it is to start with), which weapon, and who is hit (another combatant, or the tokens you have targeted in Foundry, read when you press the button). One click rolls the attack against the target and the roll shows in the feed. If nothing is targeted in Foundry, the form says so and sends nothing. Spell attacks (cantrips) are not listed yet.
+- **During cards open together:** opening Handouts, Party, Live Feed or Recent Changes no longer
+  folds the other side cards. Each card keeps its own height and scrolls inside itself.
+- **Recent Changes has three tabs:** **Tool** (everything done through the AI Tool, with Undo; the
+  old AI tab), **Game** (what players and the GM changed directly in Foundry) and **Everything**
+  (both; the old Everyone tab). Each tab has a tooltip saying what it lists, the person filter says
+  **Tool** instead of AI, and the small Obsidian links in the rows and next to Start session now
+  say "Obsidian" and have a tooltip.
+- **The dashboard remembers your last choice (this browser):** the Recent Changes tab and person
+  filter (and the Live screen's AI only box), which During cards are folded or open, the
+  Before/During/After tab you picked (until the session starts or ends), the Party group and the
+  Who-would-notice DC. A blocked or stale store falls back to the defaults. The During layout is
+  still a world setting saved on the server, so it cannot be changed while no Foundry client is
+  connected.
+- **Turn-order cards are the same size in every During layout:** Auto's wider cards and type size
+  now apply in Cards and Simple/Full too, and the row wraps in all of them.
+- **The AI commentary backend is deleted:** `src/ai/` (the Anthropic client, the commentary and error-commentary engines, the prompts), `POST /api/ask`, `POST /api/post-chat`, the `/api/control` actions for pause, tone, model and comment-on-errors, the `@anthropic-ai/sdk` dependency and the `ANTHROPIC_*`, `COGM_TONE` and `*COMMENT*` settings are gone. Nothing in the dashboard can call the paid API now, even with a key on the host. `/api/health` and the settings stream no longer carry `aiEnabled`, `paused`, `tone`, `model` or `commentOnErrors`. Old-page-only rules for comment cards, the ask bar and the Features cards are removed from the stylesheets. The Pi load check no longer loads the deleted AI client module.
+- **Buttons say what they do:** no dashboard button ends in "…" any more. Tarokka "Link…" and "Reveal…" are now "Add a link" and "Reveal to players", "Plan reveal…" is "Plan reveal", "Choose the cards…" is "Choose the cards", the tool runner's "Pick…" is "Pick from list", and a write tool's "Run…" is "Plan and confirm" (read tools keep "Run"). The GM guides (English and Danish) use the new names.
+- **Help panel in Danish:** when the browser language is Danish, the help panel shows the Danish guide (docs/da/gm) and its "Open this page on the wiki" link goes to the Danish wiki page; a Foundry basics page stays English. Links inside the Danish guides stay in Danish, and a help button still scrolls to the right heading. `localStorage['cogm.help.lang']` set to `da` or `en` overrides the browser.
+- **Busy buttons say which one is busy:** the session button names the action that is running even when another button started it, "Ask roll" says "Asking..." only on the button you pressed, Next turn, End combat and Undo in the live strip say what they are doing (End combat and Undo only once you have confirmed), and the Undo button on a change toast stays up and says "Working..." until the undo is done. A test checks that a busy button drops a click and the Enter key.
+- **Fewer surprises:** "Create quest journal done" now names the journal, and a control that needs a live play switch is disabled with "Can't read the live play switches" when the switches cannot be read, instead of looking on.
+- **Live screen B hardening:** the strip page now drops a pick message whose origin is not the page that frames it (when the browser names that origin), the plain dashboard page says only the dashboard itself may frame it, and a refused click on the strip page sends the focus to the strip's own Turn on button. A test covers how the Foundry Live window remembers whether it was open.
+- **Live strip, whose turn it is:** the header names the creature ("Round 3 · Wolf 2's turn"), the
+  current card has a solid ring and a Turn badge, a picked card shows a check mark, and a
+  single-row strip scrolls the current card into view when the turn changes.
+- **Live strip, take a condition off:** a condition chip on a creature card is a button that removes
+  that condition through the guarded path (plan, apply, Undo). An ended timed chip shows an x and
+  says it takes the condition off.
+- **Live strip, no waiting for the poll:** after a strip button's write the strip reads the fight at once, and
+  the cards a condition write is on show that it is working until Foundry answers.
+- **Live strip, narrow places:** under about 500 px (the Live window, the GM page strip pane,
+  `/?strip=1`) each creature is one line, dead creatures fold to a slim line and the pick, damage,
+  condition and roll bar stays pinned at the bottom.
+- **GM page, a squeezed Foundry:** when the window is narrowed so Foundry gets under 1024 px, the
+  page says so and offers Foundry alone plus the strip window.
+- **One Live views menu:** the dashboard header has a **Live views** button that lists Live screen, GM page (`/gm`) and the Live window in Foundry, each with a short note on when to use it, and a note when the dashboard does not know Foundry's address. It replaces the lone "Live screen" link. The GM page and Live window rows show for the GM only. New guide "The live views" (English and Danish), including: join once, so close the normal Foundry tab first.
+- **Live window and GM page say why they are empty:** when the strip does not answer inside
+  Foundry, the Live window now lists the address it tried and the usual fixes, with a Try again
+  button, instead of a blank frame. Pre-flight warns when `DASHBOARD_FOUNDRY_URL` is not set. The
+  GM page banner sits in its own row above the panes, not over Foundry.
+- **Plain wording:** the header switch to the live view now reads "Live screen" (was "Try the new live screen"), and the browser tab is titled "Foundry AI Tool". The developer docs no longer describe the dashboard against the retired page.
+- **Roll box in the Live Feed:** a roll in the feed now shows who rolled and what, with the total in a box on the same line, Hit or Miss against an AC and Pass or Fail against a DC, and on advantage or disadvantage both d20s (the one that counts in bold, the other struck through). The full breakdown stays below in small type.
+- **Conditions in the During view:** a **Conditions** button on the During bar (live play on) opens a
+  small panel: tick tokens on the scene, pick a condition, **Add** or **Remove**. It works in a
+  fight and out of one, goes through the same plan-and-apply path as Damage / Heal (it applies at once, with Undo),
+  and no longer needs Advanced, Tools. Each condition shows a **rules** link on hover or focus that
+  opens dnd5e's own rules page for it in Foundry.
+- **The tool version in the header:** the co-GM dashboard header now shows the running tool version
+  (for example `v0.24.0`) next to the subtitle, without opening Advanced, Versions. It is written
+  into the page when it is built, so it needs no request.
+- **Start combat asks the players to roll initiative:** the Start combat picker has a ticked
+  "Ask the player characters to roll initiative" box. Each ticked player character gets a public
+  roll request, and when they roll it, the result fills their place in Foundry's tracker (the GM no
+  longer goes to Foundry for it). NPCs are still rolled by the dashboard where that is on.
+- **The turn is named in the strip:** the combatant whose turn it is shows an "Up now" label, not
+  only a glow.
+- **Set initiative says the turn stays:** the tool and its answer now say that changing an
+  initiative reorders the fight but does not move the turn.
+
+### Discord
+
+- **#changelog and #pr-log:** two read-only channels on the game server. Every merge through the
+  gate posts one line ("#number title" with a link) to #pr-log, silently (Discord's no-notification
+  flag); a release gets short Danish lines in #changelog from the release steps, and a Pi stage 5 build
+  of a new release tag posts "Serveren kører nu vX.Y.Z." (normal posts, rare). No post mentions anyone,
+  and a post that fails only prints a warning (it never fails a merge or a deploy). Settings: `DISCORD_CHANGELOG_CHANNEL_ID` and
+  `DISCORD_PRLOG_CHANNEL_ID` in `discord-bot.env`; the sender is
+  `packages/discord-bot/announce/announce.mjs`.
+
+### Docs
+
+- **GM guides checked against the live Foundry client:** the Actor Studio settings, User Permissions
+  and Game Settings labels in `docs/gm` were clicked through on a test server. Fixes, in English and
+  Danish: the progression window's heading is **Level Up Options**; the compendium sources window
+  starts with **Show Selected Only** off; the themed dice are picked per person under **3D Dice
+  Settings**, **Appearance**, **Theme** (Dice So Nice has no table-wide default and no Basic row in
+  **Configure Dice Roles**).
+- **Make-a-character guide, English and Danish:** the Level Up button is described as it looks on Foundry 14 (a small button with the blue Actor Studio logo in a thin gold frame, beside the level badge), and the Languages and Weapon Mastery choice steps now say what to pick and when Next is safe. Found on test 3.
+- **Wiki: player side and GM side:** the wiki home asks "player or GM?". The player side shows only
+  the player guides plus the Foundry basics a player needs (screen tour, joining, chat and dice,
+  tokens, combat, measuring, glossary); the GM side has every GM guide and all Foundry basics, and
+  every GM page starts with a "For the GM" label. All existing page URLs keep working.
+- **Danish GM and player guides:** every page in `docs/gm` and `docs/player` has a Danish twin in
+  `docs/da`, and the wiki has a Danish language switch (`/da/`). Game terms and Foundry labels stay
+  English. The Foundry basics are English only; a Danish page that links to one opens it under
+  `/da/` with a note that it is not translated.
+- **Danish twins stay current:** each twin records a hash of its English page; `npm run docs:links`
+  (CI) fails when a guide has no twin, when a twin is older than its source or when it holds an em
+  dash. `node scripts/wiki/da.mjs stamp <page>` records the hash after the change is translated.
+  Format and word list: `docs/da/README.md`.
+- **Session 0 guide: check the Party:** the GM page now says to check that each finished character
+  is in the Party (they join by themselves; drag one in if the setting is off), so roll requests work
+  outside combat, and how following NPCs join (dragged in, token set to friendly). Danish page too.
+
+### Admin tools (D-135)
+
+- **Foundry setup, part 1: settings and compendium packs:** the new `plan-foundry-setup` tool (Admin set) reads and plans changes to any world or client setting by `namespace.key` and to a compendium pack's configuration (who may open it per role, locked, folder). It goes through plan, confirm and undo like every AI write; undo puts the old value back, and a setting someone else changed in between is a conflict. Settings that look like secrets (by name or by what they hold: keys, tokens, passwords, webhooks) are shown as hidden and never planned, hidden bookkeeping settings are not planned either, and the AI Tool's own switches, the role permission table and the module list cannot be changed this way. A pack's Assistant GM role always stays Owner (the bridge reads every pack through it). A new value is checked against the setting's own rules before anything is confirmed. A new switch, "AI Tool: Foundry setup (writes)", is off by default. The Admin set budget grows from 8,000 to 10,500 characters for the three setup parts.
+
+### Docs (gm-docs)
+
+- **GM guides fixed:** the Cloudflare Access page names the real token header, query and cookie
+  (`x-cogm-token`, `?token=`, `cogm_token`); Start session is described as turning on GM Actions and
+  five switches; the "GM Actions switch" in the README is now Start session; GM windows are said to be
+  on by default; the GM windows buttons list now has Tarokka table and Live; the Session notes journal
+  is described as a folder plus a dated journal; `search-compendium` is in core; the unreadable-journal
+  fix lists the copy and move options.
+- **One way in and a glossary:** the GM README gives one reading order, and the glossary is its own
+  page (English and Danish), with a line on The Veil.
+- **Recording consent:** the player guide splits yes, training and no into their own paragraphs.
+- **Danish word list:** roll, damage, healing, combat, turn, round and monster stay English in the
+  Danish guides; the missing wiki index paragraph is back.
+- **dnd-helper pages** use `search-rules` and `get-level-up-options` instead of calling them planned.
+
+### Process
+
+- **Lanes get a later context line:** the context hooks plan the handover at 250k and stop new work at 300k for a session whose folder is under `.claude/worktrees/`; the planner and other sessions keep 200k and 250k.
+- **Lane and planner skills trimmed:** the rules the user retired on 2026-11-03 are gone (pace-based low mode, the Planner message and CLOSED rename, Haiku routing and advisor counting as measured rules, review-runner text, double Opus passes, fix rounds for review lows, the old session and token targets); the lane skill is under 2,000 words and the planner skill under 1,500.
+- **Context hook lines are fixed at 200k and 250k:** `context-thresholds.json` and the low-mode switch are removed.
+- **Weekly usage report shows lane handovers:** `npm run usage:week` adds a Lanes line with the lane sessions, how many handed over (at 200k, at 250k from 2026-11-04), handovers per merged PR and the context they stopped at.
+
+### Pi
+
+- **Deployed-state check:** `deploy/pi/deployed-state.ps1` runs a read-only check on the Pi and prints what is
+  wrong: a stopped or crash-looping service, a missing `DASHBOARD_FOUNDRY_URL` (and other env names, never their
+  values), a missing libicu, and whether the deployed build is the newest release (and how many commits main is past
+  it). It also reads container health and restart counts for the coming Docker stack.
+- **The Pi stack in containers (ready to rehearse, not switched on):** `deploy/pi/` has a Docker Compose file for Foundry,
+  the bridge, the co-GM dashboard and the Assistant GM, each with a health check and `restart: unless-stopped`, so
+  Foundry comes back after a clean exit. Stage 23 installs Docker and builds the images, stage 24 starts and stops
+  the stack for a rehearsal on other ports (its own compose project) and rolls back to the units in one command. The
+  switch itself (`MODE=cutover`) is refused until the nightly backup and the other stages know the stack. Nothing
+  changes on the Pi until a stage is run with the user's OK.
+- **Assistant GM link check:** the bridge answers a new `link_status` control call with whether the Foundry module's
+  socket is connected. In the container the Assistant GM, when it is the module's bridge user, restarts its browser
+  when the bridge listens but has had no module socket for 2 minutes (at most 3 times in 6 hours), and the container
+  health check shows the same state.
+- **Stage 25 installs the pinned Foundry modules on the Pi:** `scripts/pi/remote/25-modules.sh` reads the module
+  archive's `pinned.json` on the Pi, checks every zip (sha256, entry names, the id and version inside) before it changes
+  anything, and shows a dry run by default. A real run (`APPLY=1`, snapshot and nobody online first) moves each old
+  folder aside, puts the pinned version in, restarts Foundry and reads the result back; a failure puts the old folders
+  back, and `UNDO=1` does the same later. It installs modules only and does not switch them on in the world. The plan in
+  `docs/dev/MODULE-REHEARSAL.md` is updated to match, and a container test runs the scenarios on ARM64 in CI.
+- **One command switches the world the Pi runs:** `scripts/pi/switch-world.ps1 -World curse-of-strahd|frostmaiden-training|strahd-kit` (stage script `scripts/pi/remote/switch-world.sh`) sets the launch world in `options.json`, restarts Foundry and the Assistant GM browser, waits for "joined world", and prints the world before and after. It refuses while people are online or a recording runs (`-Force` overrides), during a system trial (except strahd-kit in the trial phase) and during a kit session, needs a snapshot from today like every stage, puts the old world back if the new one does not start, and never edits world data. `-DryRun` shows the plan. The Pi run is not done yet: it needs the user's OK first.
+- **The seven-book trim is a reviewed stage (stage 22):** `seven-books-trim.js` moves every entry from a book other than PHB 2024, DMG 2024, CoS, CoSCO, TCoE, XGtE and MotM into the GM-only pack `world.legacy-other-books` (same ids, entries that kept ones link to stay), copies the SRD items and creatures that kept entries link to into two player-visible world packs and re-points the links, and hides the dnd5e Item and Actor packs from Player and Trusted. A second run changes nothing. `seven-books-delete-legacy.js` deletes the legacy pack only with `MODE=delete`, `APPLY=1` and the user's OK. Stage 13 now sets Actor Studio's sources the way the trim leaves them (Player's Handbook plus `aitool-content` per kind, no dnd5e pack). `ddb-source-filter.js` limits DDB-Importer on the PC to the kept books plus the Monster Manual.
+- **Actor Studio fork `2.10.5-aitool.5` pinned in stage 13:** `13-player-creation.sh` now installs the fork release `2.10.5-aitool.5` (checked against its `module.zip` sha256), which adds a spell picker for feats that grant spells such as Magic Initiate. Nothing changes on the Pi until the stage is run with the user's OK after a `dietpi-backup` snapshot.
+- **Actor Studio offers the standard array and point buy:** stage 13 now also sets Actor Studio's ability score methods, `allowStandardArray` and `allowPointBuy` on, `allowManualInput` and `allowRolling` off, and reads them back after a reload like the other values. A player who opened the builder saw only manual entry; this is the fix, once stage 13 (or the GM, in Configure Settings) has set it in the world. `docs/player/make-a-character.md` names the two methods. The Pi run is not done yet.
+
+### Polish
+
+- **Player pages:** `/player` and `/me` use plain sentences for connection states ("Foundry is offline. Wait a moment."), no "bridge" or system names, a real "Not you? Change" button, dismissible alerts as buttons, and one fixed "Could not roll. Ask your GM." for server-side roll failures. The page always shows which name it thinks you are, and the footer says that handouts meant for one player show only under that name.
+- **Module:** the connection notices read "AI Tool connected" and "Cannot reach the AI Tool server. Is it started?" with the guide link. Every visible setting starts with "AI Tool:", hints are one sentence, developer settings (actor limit, chat buffer, rules packs, check interval) leave the settings list, and hints say "Changes" instead of "Recent Changes".
+- **Discord bot:** the public `/record stop` reply gives tracks and minutes only; paths, packet counts and raw errors go to the log, and failures say what to do next.
+
+### Obsidian (player vault sync, D-134)
+
+- **The player vault reaches the players who want it:** a new Pi stage, `21-player-vault.sh`, switches on the dashboard's player
+  vaults on the Pi and shares each player's folder with that player's own devices over Syncthing, Send Only on the Pi, so nothing
+  a player changes reaches the Pi. A player who does not ask installs nothing. One device belongs to one player and never to the GM
+  vault. It reports, adds, removes and switches everything off; changes need a snapshot and the user's OK. Tested with three real
+  Syncthings in the ARM64 container.
+- **Player guide:** `docs/player/obsidian.md` (English and Danish) covers installing Obsidian and Syncthing, accepting the share,
+  what is in the vault and how to stop.
+
+### Changed
+
+- **The old dashboard page is gone:** the dashboard at `/` is the only one. The "Old dashboard" button, the note under the header, the "Not on this page yet" Features card and the link in the live screen's More menu are removed. `/legacy/` now sends you to `/` (a saved link with `?token=` keeps it); none of the old page's files are served any more. The page's code (`index.html`, `app.js`, the Features cards and panel help-link data) is deleted from `packages/cogm-dashboard/public/`; the stylesheets, `/player`, `/me` and `/open` stay. AI commentary (the comment stream, Ask, Pause, Tone, Model) left with the old page: the server no longer builds the commentary engines, so an `ANTHROPIC_API_KEY` on the host causes no paid calls from the dashboard. Without a React build, `/` now answers 503 "the dashboard is not built" instead of showing the old page.
+
+### MCP tools
+
+- **Honest write story for Claude:** the server instructions no longer say every write goes through plan, confirm and undo. They say that plan tools only prepare a change, that apply-planned-change makes it and undo-change takes it back, and that a tool marked "Direct write." acts at once with no plan (its document changes are in the change journal and can be taken back with plan-undo-changes; chat and rolls cannot). About 25 direct-writing tools (rolls, chat, combat turns, scene switch, quests, NPC building and more) now start their description with "Direct write.". The "go ahead" and autoApply rule now lives only on apply-planned-change instead of being repeated on the plan tools.
+
 ## v0.24.0 (released 2026-11-02): the live strip, the live screen and the Foundry live window, conditions for a number of rounds, no old dashboard in the guides
 
 **Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings

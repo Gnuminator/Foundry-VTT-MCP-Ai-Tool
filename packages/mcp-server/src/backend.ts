@@ -704,6 +704,18 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // Whether the Foundry module's socket is connected (the Assistant GM's link check on the Pi).
+          if (msg.method === 'link_status') {
+            socket.write(
+              `${JSON.stringify({
+                id: msg.id,
+                result: { ok: true, module: foundryClient.getConnectionState() },
+              })}\n`
+            );
+
+            continue;
+          }
+
           // The stdio wrapper says which version it is (a wrapper from before this sends none).
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);

@@ -1,5 +1,5 @@
 // The Tool runner (🛠 Tools): every bridge tool the dashboard can see (GET /api/tools), grouped by
-// category, and one tool as a form built from its input schema, with Pick… lists for parameters
+// category, and one tool as a form built from its input schema, with Pick from list lists for parameters
 // that name something. Reads run at once. A plan-* tool is planned and then applied after the
 // confirm window, always (a plan typed by hand is never a one-click change, and Enter in a field
 // submits the form); any other write goes through the same window. Port of the old page's tool
@@ -369,7 +369,7 @@ function ToolRunner({
       });
   };
 
-  // Escape closes an open Pick… list first (focus back on its button), then the drawer.
+  // Escape closes an open Pick from list list first (focus back on its button), then the drawer.
   const escapeKey = (): boolean => {
     if (!openPicker) return false;
     usage().track('shortcut', 'dash.shortcut.escape-picker');
@@ -696,7 +696,7 @@ function ToolForm({
       {keys.length === 0 && <p className="field-hint">This tool takes no parameters.</p>}
       <div className="form-actions">
         <Button type="submit" variant="primary" id="tool-run" disabled={running !== null}>
-          {reads ? 'Run' : 'Run…'}
+          {reads ? 'Run' : 'Plan and confirm'}
         </Button>
         <span className="form-error" id="tool-form-error" role="alert">
           {error}

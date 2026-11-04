@@ -1,234 +1,173 @@
 #!/usr/bin/env bash
-# Pi stage 22 (scripts/pi/remote/22-docker.sh, Docker and the images for deploy/pi/compose.yml) in a Debian 13 ARM64
-# container with the real lib.sh and stand-ins for apt, dpkg, docker, systemctl, tailscale and id. Everything the stage writes
-# goes into a sandbox folder (lib.sh's paths are pointed there after it is sourced), so the scenarios change nothing outside
-# /tmp and also run in Git Bash. Each scenario starts from a fresh fake Pi; the last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage22-scenarios.sh
-# (scripts/pi/docker-compose.test.mjs runs it with PI_STAGE22_CONTAINER=1.) STAGE=<file> runs it against another copy of the script.
-# Scenarios: dry run; refusals (no compose.yml in the checkout, no snapshot, no foundry user); a first run on trixie names
-# (docker.io, docker-compose, docker-buildx) with the .env, the build and no start; a second run; extra .env lines kept; the
-# compose-v2 name preferred; apt-get update only without candidates; Compose too old; a failing build; SKIP_BUILD; the node
-# and unit-file sources of the tailnet name; no group change for any user.
+# Stage 22 (scripts/pi/remote/22-seven-books.sh, piped together with gm-script.sh) in a Debian 13 ARM64 container
+# with no systemd: stand-ins for systemctl, curl (/api/status), journalctl and systemd-run make it take its systemd
+# path, and the GM script itself is not run (the fake systemd-run only logs the call; the script's logic is tested in
+# scripts/pi/seven-books.test.mjs). Each scenario checks the words it needs and prints PASS or FAIL lines:
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage22-scenarios.sh [name ...]
+# DESTRUCTIVE: it wipes the Foundry data folder and the tool's folders and installs the fakes into /usr/local/sbin.
+# It refuses to run anywhere but a container.
 set -uo pipefail
 
-REPO="${REPO:-/repo}"
-STAGE="${STAGE:-$REPO/scripts/pi/remote/22-docker.sh}"
-LIB="$REPO/scripts/pi/remote/lib.sh"
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
-
-root="$(mktemp -d)"
-trap 'rm -rf "${root:?}"' EXIT
-
-# A fresh fake Pi in $SB: stand-in commands in $BIN, state in $FAKE, the tool checkout, DietPi's snapshot stats.
-new_pi() { # opts: nocompose, nosnapshot, nouser, v2
-  SB="$root/pi.$((++n))"
-  BIN="$SB/bin"
-  FAKE="$SB/fake"
-  mkdir -p "$BIN" "$FAKE/pkgs" "$SB/tool/app/deploy/pi" "$SB/dietpi" "$SB/etc"
-  : >"$FAKE/calls"
-  if [[ " $* " != *" nocompose "* ]]; then
-    : >"$SB/tool/app/deploy/pi/compose.yml"
-    : >"$SB/tool/app/deploy/pi/Dockerfile"
-  fi
-  if [[ " $* " == *" nosnapshot "* ]]; then
-    echo "2020-01-01_01:25:00  Backup completed" >"$SB/stats"
-  else
-    echo "$(date +%F)_01:25:00  Backup completed" >"$SB/stats"
-  fi
-  if [[ " $* " == *" v2 "* ]]; then
-    printf '%s\n' docker.io docker-compose-v2 docker-compose docker-buildx >"$FAKE/candidates"
-  else
-    printf '%s\n' docker.io docker-compose docker-buildx >"$FAKE/candidates"
-  fi
-  [[ " $* " != *" nouser "* ]] && echo 996 >"$FAKE/uid"
-  echo 2.26.1 >"$FAKE/compose_version"
-  write_stubs
+[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
+  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
+  exit 98
 }
 
-write_stubs() {
-  # Every stand-in logs its call line to $FAKE/calls.
-  stub() { printf '#!/usr/bin/env bash\nF="%s"\necho "%s $*" >>"$F/calls"\n%s\n' "$FAKE" "$1" "$2" >"$BIN/$1"; chmod +x "$BIN/$1"; }
-  stub id '
-case "$*" in
-  "-u") echo 0 ;;
-  "-u foundry") [ -f "$F/uid" ] && cat "$F/uid" || exit 1 ;;
-  "-g foundry") [ -f "$F/uid" ] && cat "$F/uid" || exit 1 ;;
-  *) /usr/bin/id "$@" ;;
-esac'
-  stub dpkg '[ "$1" = -s ] && [ -f "$F/pkgs/$2" ]'
-  stub apt-cache '
-if [ "$1" = policy ]; then
-  if grep -qx "$2" "$F/candidates" 2>/dev/null; then echo "$2:"; echo "  Installed: (none)"; echo "  Candidate: 1.2.3-1"; else echo "N: Unable to locate package $2" >&2; fi
-fi'
-  stub apt-get '
-case "$1" in
-  update) [ ! -f "$F/candidates_after_update" ] || cp "$F/candidates_after_update" "$F/candidates" ;;
-  install)
-    for a in "$@"; do
-      case "$a" in -*|install) continue ;; esac
-      touch "$F/pkgs/$a"
-    done
-    cp "$F/docker-stub" "$(dirname "$0")/docker"
-    touch "$F/active-docker.service"
-    ;;
-esac'
-  stub systemctl '
-u=""; for a in "$@"; do case "$a" in *.service) u="$a" ;; esac; done
-case "$1" in
-  is-active) [ -f "$F/active-$u" ] && { [ "$2" = --quiet ] || echo active; exit 0; } || { [ "$2" = --quiet ] || echo inactive; exit 3; } ;;
-  start|restart) touch "$F/active-$u" ;;
-  show) ;;
-esac
-exit 0'
-  stub tailscale '
-[ -f "$F/no-tailscale" ] && exit 1
-if [ "$1" = status ] && [ "$2" = --json ]; then
-  printf "{\n  \"Self\": {\n    \"DNSName\": \"pi.tail1234.ts.net.\",\n    \"HostName\": \"pi\"\n  },\n  \"Peer\": {\n    \"x\": {\n      \"DNSName\": \"pc.tail1234.ts.net.\"\n    }\n  }\n}\n"
-fi
-exit 0'
-  # The docker stand-in is kept apart: apt-get "installs" it by copying it to bin/ (so "docker not installed" is real).
-  printf '#!/usr/bin/env bash\nF="%s"\nSBX="%s"\n' "$FAKE" "$SB" >"$FAKE/docker-stub"
-  cat >>"$FAKE/docker-stub" <<'EOF'
-echo "docker $*" >>"$F/calls"
-case "$1" in
-  --version) echo "Docker version 26.1.5, build 1234" ;;
-  info) [ ! -f "$F/daemon-down" ] ;;
-  image) [ "$2" = inspect ] && [ -f "$F/images/$3" ] ;;
-  compose)
-    shift
-    [ "$1" = version ] && { cat "$F/compose_version"; exit 0; }
-    shift 2 # -f FILE
-    case "$1" in
-      build)
-        [ ! -f "$F/build-fail" ] || { echo "build error: something broke"; exit 1; }
-        mkdir -p "$F/images"
-        for i in foundry-ai-tool-pi/foundry:local foundry-ai-tool-pi/app:local foundry-ai-tool-pi/gm-browser:local; do mkdir -p "$F/images/$(dirname "$i")"; touch "$F/images/$i"; done
-        ;;
-      config) printf 'foundry-ai-tool-pi/foundry:local\nfoundry-ai-tool-pi/app:local\nfoundry-ai-tool-pi/gm-browser:local\n' ;;
-      up) echo "STARTED" >>"$F/calls" ;;
-    esac
-    ;;
-esac
-EOF
-  chmod +x "$FAKE/docker-stub"
+H=/repo/scripts/pi/container-test
+R=/repo/scripts/pi/remote
+only=" $* "
+export DEBIAN_FRONTEND=noninteractive
+apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs curl ca-certificates; }
+{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
+  echo "SETUP FAILED: apt-get"
+  exit 99
+}
+mkdir -p /opt/node24/bin /run/systemd/system
+ln -sf "$(command -v node)" /opt/node24/bin/node
+for f in systemctl curl journalctl sleep systemd-run logger; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
+eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$R/lib.sh")"
+id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
+
+fail=0
+check() { # $1 name, $2 what is expected in the output (grep -E), $3 the output
+  if grep -Eq -- "$2" <<<"$3"; then echo "PASS $1: $2"; else
+    echo "FAIL $1: wanted /$2/"
+    echo "$3" | sed 's/^/    /'
+    fail=1
+  fi
+}
+absent() { # $1 name, $2 what must not be in the output, $3 the output
+  if grep -Eq -- "$2" <<<"$3"; then
+    echo "FAIL $1: did not want /$2/"
+    echo "$3" | sed 's/^/    /'
+    fail=1
+  else echo "PASS $1: no /$2/"; fi
 }
 
-# Runs the stage in a sandbox; env assignments as arguments. Output and "rc=N" go to $OUT and $RC.
+fresh_pi() { # $1 the world /api/status reports
+  rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" /root/seven-books-*.js
+  rm -f /tmp/stopped-* /tmp/calls /tmp/logger /tmp/status /tmp/status_rc /tmp/started-kit
+  mkdir -p "$FOUNDRY_DATA/Data/worlds" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA"
+  echo '// stand-in' >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
+  echo 'GM_USER=Gamemaster' >"$TOOL_ETC/assistant-gm.env"
+  printf '{"active":true,"world":"%s","users":0}' "$1" >/tmp/status
+  echo 0 >/tmp/status_rc
+  cp "$R/seven-books-trim.js" "$R/seven-books-delete-legacy.js" /root/
+  : >/tmp/calls
+}
+
+# $1 the environment words (a single string), prints the output and "exit N"
 run_stage() {
-  local f="$SB/run.sh" kv
-  {
-    cat "$LIB"
-    printf '%s\n' "have_systemd() { return 0; }" "sleep() { :; }" \
-      "TOOL_DIR=$SB/tool" "TOOL_ETC=$SB/etc" "TOOL_DATA=$SB/data" "NODE_DIR=$SB/node24"
-    cat "$STAGE"
-  } >"$f"
-  OUT="$(
-    for kv in "$@"; do export "${kv?}"; done
-    export PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" DASHBOARD_UNIT="$SB/etc/dashboard.service"
-    bash "$f" 2>&1
-  )"
-  RC=$?
-  CALLS="$(cat "$FAKE/calls")"
+  local out rc
+  out="$(cd /root && cat "$R/lib.sh" "$R/22-seven-books.sh" "$R/gm-script.sh" | env NO_SNAPSHOT=1 $1 bash -s 2>&1)"
+  rc=$?
+  printf '%s\nexit %s\n' "$out" "$rc"
 }
-envf() { echo "$SB/tool/app/deploy/pi/.env"; }
-n=0
+want() { [ -z "${only// /}" ] || [[ "$only" == *" $1 "* ]]; }
 
-# 1. dry run
-new_pi
-run_stage DRY_RUN=1
-if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run' && echo "$OUT" | grep -q 'docker.io' && [ ! -e "$(envf)" ] &&
-  ! echo "$CALLS" | grep -qE 'apt-get (install|update)|compose.* build'; then pass "dry run prints the plan and changes nothing"; else fail "dry run (rc $RC): $OUT"; fi
-
-# 2. refusals
-new_pi nocompose
-run_stage
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'compose.yml is missing' && ! echo "$CALLS" | grep -q apt-get; then pass "no compose.yml in the checkout is refused"; else fail "nocompose (rc $RC): $OUT"; fi
-new_pi nosnapshot
-run_stage
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'no dietpi-backup snapshot' && ! echo "$CALLS" | grep -q apt-get && [ ! -e "$(envf)" ]; then pass "no snapshot from today: nothing installed or written"; else fail "nosnapshot (rc $RC): $OUT"; fi
-new_pi nouser
-run_stage
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'foundry user does not exist' && ! echo "$CALLS" | grep -q apt-get; then pass "no foundry user is refused"; else fail "nouser (rc $RC): $OUT"; fi
-
-# 3. first run on trixie names
-new_pi
-run_stage
-if [ "$RC" -eq 0 ]; then pass "first run exits 0"; else fail "first run (rc $RC): $OUT"; fi
-if [ -f "$FAKE/pkgs/docker.io" ] && [ -f "$FAKE/pkgs/docker-compose" ] && [ -f "$FAKE/pkgs/docker-buildx" ] && [ ! -f "$FAKE/pkgs/docker-compose-v2" ]; then
-  pass "installs docker.io, docker-compose and docker-buildx (trixie names)"
-else
-  fail "packages: $(ls "$FAKE/pkgs")"
-fi
-if ! echo "$CALLS" | grep -q 'apt-get update'; then pass "no apt-get update when the candidates are known"; else fail "apt-get update ran: $CALLS"; fi
-if grep -qx 'FOUNDRY_UID=996' "$(envf)" && grep -qx 'FOUNDRY_GID=996' "$(envf)" && grep -qx 'DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net' "$(envf)"; then
-  pass ".env has the foundry ids and the tailnet name (Self, not the peer)"
-else
-  fail ".env: $(cat "$(envf)")"
-fi
-if echo "$CALLS" | grep -q 'docker compose -f deploy/pi/compose.yml build' && ! echo "$CALLS" | grep -qE 'STARTED|compose.* (up|down|start)'; then pass "builds the images and starts nothing"; else fail "calls: $CALLS"; fi
-if echo "$CALLS" | grep -q 'systemctl enable docker.service' && ! echo "$CALLS" | grep -qE 'usermod|adduser|gpasswd|groupadd'; then pass "enables docker.service, changes no user"; else fail "calls: $CALLS"; fi
-if echo "$OUT" | grep -q 'image foundry-ai-tool-pi/app:local'; then pass "reports each built image"; else fail "images: $OUT"; fi
-
-# 4. second run: nothing to install, .env unchanged
-before="$(cat "$(envf)")"
-: >"$FAKE/calls"
-run_stage
-if [ "$RC" -eq 0 ] && ! echo "$CALLS" | grep -qE 'apt-get (install|update)' && echo "$OUT" | grep -q 'unchanged' && [ "$(cat "$(envf)")" = "$before" ]; then
-  pass "a second run installs nothing and leaves the .env alone"
-else
-  fail "rerun (rc $RC): $OUT"
+if want dry-run; then
+  fresh_pi curse-of-strahd
+  out="$(run_stage '')"
+  check dry-run 'dry run of /root/seven-books-trim.js' "$out"
+  check dry-run 'dry run passed' "$out"
+  check dry-run 'exit 0' "$out"
+  check dry-run '--dry-run' "$(cat /tmp/calls)"
 fi
 
-# 5. extra .env lines are kept, the three names are rewritten
-printf 'FOUNDRY_UID=1\nFOUNDRY_HTTP_PORT=30100\n# an old comment\nDASHBOARD_ALLOWED_HOSTS=old.example\n' >"$(envf)"
-run_stage
-if [ "$RC" -eq 0 ] && grep -qx 'FOUNDRY_HTTP_PORT=30100' "$(envf)" && grep -qx 'FOUNDRY_UID=996' "$(envf)" && ! grep -q 'old.example' "$(envf)" &&
-  [ "$(grep -c '^FOUNDRY_UID=' "$(envf)")" = 1 ]; then pass "other .env lines are kept, the managed names rewritten once"; else fail "keep (rc $RC): $(cat "$(envf)")"; fi
+if want real-needs-dry-run; then
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'APPLY=1')"
+  check real-needs-dry-run 'no passed dry run of this script' "$out"
+  absent real-needs-dry-run 'systemd-run' "$(cat /tmp/calls)"
+fi
 
-# 6. compose-v2 name preferred; apt-get update only without candidates
-new_pi v2
-run_stage
-if [ "$RC" -eq 0 ] && [ -f "$FAKE/pkgs/docker-compose-v2" ] && [ ! -f "$FAKE/pkgs/docker-compose" ]; then pass "docker-compose-v2 is preferred when the archive has it"; else fail "v2 (rc $RC): $OUT"; fi
-new_pi
-: >"$FAKE/candidates"
-printf '%s\n' docker.io docker-compose >"$FAKE/candidates_after_update"
-run_stage
-if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'apt-get update' && [ -f "$FAKE/pkgs/docker-compose" ]; then pass "apt-get update runs when no candidate is known"; else fail "update (rc $RC): $OUT"; fi
-new_pi
-: >"$FAKE/candidates"
-run_stage
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'has an install candidate'; then pass "no candidate even after update is an error"; else fail "nocand (rc $RC): $OUT"; fi
+if want real-after-dry-run; then
+  fresh_pi curse-of-strahd
+  run_stage '' >/dev/null
+  : >/tmp/calls
+  out="$(run_stage 'APPLY=1')"
+  check real-after-dry-run 'REAL run of /root/seven-books-trim.js' "$out"
+  check real-after-dry-run 'a dry run of this script .* passed before' "$out"
+  check real-after-dry-run 'exit 0' "$out"
+  absent real-after-dry-run '--dry-run' "$(cat /tmp/calls)"
+fi
 
-# 7. Compose too old, failing build, SKIP_BUILD
-new_pi
-echo 2.20.1 >"$FAKE/compose_version"
-run_stage
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q '2.24.0 or newer'; then pass "Compose older than 2.24 is refused"; else fail "old (rc $RC): $OUT"; fi
-new_pi
-touch "$FAKE/build-fail"
-run_stage
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'image build failed' && echo "$OUT" | grep -q 'build error' && echo "$OUT" | grep -q 'Nothing was started'; then pass "a failing build stops with the log tail"; else fail "buildfail (rc $RC): $OUT"; fi
-new_pi
-run_stage SKIP_BUILD=1
-if [ "$RC" -eq 0 ] && ! echo "$CALLS" | grep -q ' build' && [ -f "$(envf)" ]; then pass "SKIP_BUILD=1 builds nothing"; else fail "skip (rc $RC): $OUT"; fi
+if want wrong-world; then
+  fresh_pi strahd-kit
+  out="$(run_stage '')"
+  check wrong-world 'world strahd-kit is running, not curse-of-strahd' "$out"
+  check wrong-world 'exit 1' "$out"
+  absent wrong-world 'systemd-run' "$(cat /tmp/calls)"
+fi
 
-# 8. tailnet name sources: node snippet (a stand-in node), the dashboard unit, none
-new_pi
-mkdir -p "$SB/node24/bin"
-printf '#!/usr/bin/env bash\ncat >/dev/null\nprintf node-name.ts.net\n' >"$SB/node24/bin/node"
-chmod +x "$SB/node24/bin/node"
-run_stage
-if grep -qx 'DASHBOARD_ALLOWED_HOSTS=node-name.ts.net' "$(envf)"; then pass "uses node on the tailscale JSON when node exists (as stage 5 does)"; else fail "node: $(cat "$(envf)")"; fi
-new_pi
-touch "$FAKE/no-tailscale"
-printf '[Service]\nEnvironment=DASHBOARD_ALLOWED_HOSTS=unit-name.ts.net\n' >"$SB/etc/dashboard.service"
-run_stage
-if grep -qx 'DASHBOARD_ALLOWED_HOSTS=unit-name.ts.net' "$(envf)"; then pass "without Tailscale the dashboard unit's value is used"; else fail "unit: $(cat "$(envf)")"; fi
-new_pi
-touch "$FAKE/no-tailscale"
-run_stage
-if [ "$RC" -eq 0 ] && grep -qx 'DASHBOARD_ALLOWED_HOSTS=' "$(envf)" && echo "$OUT" | grep -q 'WARNING: no tailnet name'; then pass "no name anywhere: empty value and a warning"; else fail "none (rc $RC): $OUT"; fi
+if want players-online; then
+  fresh_pi curse-of-strahd
+  printf '{"active":true,"world":"curse-of-strahd","users":2}' >/tmp/status
+  out="$(run_stage '')"
+  check players-online '2 player\(s\) are online' "$out"
+  check players-online 'exit 1' "$out"
+fi
 
-if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi
+if want delete-needs-ok; then
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=delete APPLY=1')"
+  check delete-needs-ok 'DELETE_LEGACY=with-the-users-ok' "$out"
+  check delete-needs-ok 'exit 1' "$out"
+  absent delete-needs-ok 'systemd-run' "$(cat /tmp/calls)"
+  # the dry run needs no OK
+  out="$(run_stage 'MODE=delete')"
+  check delete-needs-ok 'dry run of /root/seven-books-delete-legacy.js' "$out"
+fi
+
+if want no-upload; then
+  fresh_pi curse-of-strahd
+  rm -f /root/seven-books-trim.js
+  out="$(run_stage '')"
+  check no-upload 'scp the GM scripts' "$out"
+  check no-upload 'exit 1' "$out"
+fi
+
+if want gm-script-env-ignored; then
+  # GM_SCRIPT in the environment must not turn MODE=trim into the delete script (or skip the DELETE_LEGACY check)
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'GM_SCRIPT=/root/seven-books-delete-legacy.js')"
+  check gm-script-env-ignored 'dry run of /root/seven-books-trim.js' "$out"
+  check gm-script-env-ignored 'GM script /root/seven-books-trim.js' "$out"
+  absent gm-script-env-ignored 'seven-books-delete-legacy' "$(cat /tmp/calls) $out"
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'GM_SCRIPT=/root/seven-books-delete-legacy.js MODE=delete APPLY=1')"
+  check gm-script-env-ignored 'DELETE_LEGACY=with-the-users-ok' "$out"
+  absent gm-script-env-ignored 'systemd-run' "$(cat /tmp/calls)"
+fi
+
+if want apply-must-be-1; then
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'APPLY=0')"
+  check apply-must-be-1 'APPLY must be 1 or left out' "$out"
+  check apply-must-be-1 'exit 1' "$out"
+  absent apply-must-be-1 'systemd-run' "$(cat /tmp/calls)"
+fi
+
+if want other-worlds; then
+  fresh_pi curse-of-strahd
+  mkdir -p "$FOUNDRY_DATA/Data/worlds/curse-of-strahd" "$FOUNDRY_DATA/Data/worlds/strahd-kit"
+  out="$(run_stage '')"
+  check other-worlds 'other worlds \(strahd-kit\) share the edited module packs' "$out"
+  check other-worlds 'exit 0' "$out"
+  # a real run needs the OK for the other worlds, and then the dry run that has just passed
+  out="$(run_stage 'APPLY=1')"
+  check other-worlds 'OTHER_WORLDS_OK=1' "$out"
+  check other-worlds 'exit 1' "$out"
+  out="$(run_stage 'APPLY=1 OTHER_WORLDS_OK=1')"
+  check other-worlds 'REAL run of /root/seven-books-trim.js' "$out"
+  check other-worlds 'exit 0' "$out"
+fi
+
+if want bad-mode; then
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=wipe')"
+  check bad-mode 'MODE must be trim or delete' "$out"
+fi
+
+[ "$fail" = 0 ] && echo "ALL PASSED" || echo "FAIL: see above"
+exit "$fail"

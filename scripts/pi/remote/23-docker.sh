@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Stage 22: Docker on the Pi, and the images for deploy/pi/compose.yml (backlog pi-docker-compose). It installs the
+# Stage 23: Docker on the Pi, and the images for deploy/pi/compose.yml (backlog pi-docker-compose). It installs the
 # engine, builds the images and writes the compose settings file. It does NOT start the stack and does not touch a
-# running service: stage 23 (MODE=up or MODE=cutover) does that, after its own snapshot and OK.
+# running service: stage 24 (MODE=up or MODE=cutover) does that, after its own snapshot and OK.
 #
 # Run it only after a dietpi-backup snapshot from today (/boot/dietpi/dietpi-backup 1) and the user's OK (pi-work skill):
 # it installs packages and builds for some minutes, which is heavy on a Pi that may be hosting a session.
@@ -35,8 +35,8 @@
 #   DRY_RUN=1     print what a real run would do (packages, .env content, build); changes nothing, needs no snapshot
 #   SKIP_BUILD=1  install and write the .env, build nothing
 # These lines are bash (Git Bash, or Claude's Bash tool), not PowerShell:
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-docker.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-docker.sh | ssh foundry-pi 'bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-docker.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-docker.sh | ssh foundry-pi 'bash -s'
 # Tests only: TOOL_CHECKOUT points at a stand-in checkout, DASHBOARD_UNIT at a stand-in dashboard unit file,
 # PLAYER_VAULT_DROPIN at a stand-in stage 21 drop-in.
 
@@ -104,7 +104,7 @@ build_env_content() {
   if [ -f "$env_file" ]; then
     kept="$(grep -vE '^(#|[[:space:]]*$|FOUNDRY_UID=|FOUNDRY_GID=|DASHBOARD_ALLOWED_HOSTS=|FOUNDRY_AI_PLAYER_VAULTS_DIR=)' "$env_file" || true)"
   fi
-  printf '%s\n' "# Written by scripts/pi/remote/22-docker.sh (rewritten on every run; other lines are kept). No secrets here."
+  printf '%s\n' "# Written by scripts/pi/remote/23-docker.sh (rewritten on every run; other lines are kept). No secrets here."
   printf '%s\n' "FOUNDRY_UID=$uid" "FOUNDRY_GID=$gid" "DASHBOARD_ALLOWED_HOSTS=$hosts" "FOUNDRY_AI_PLAYER_VAULTS_DIR=$vaults"
   if [ -n "$kept" ]; then printf '%s\n' "$kept"; fi
 }
@@ -200,4 +200,4 @@ for img in $images; do
   docker image inspect "$img" >/dev/null 2>&1 || die "image $img is missing after the build (log: $build_log)"
   ok "image $img"
 done
-ok "stage 22 done; nothing was started. Next: stage 23 (MODE=up on rehearsal ports, or MODE=cutover)"
+ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports, or MODE=cutover)"

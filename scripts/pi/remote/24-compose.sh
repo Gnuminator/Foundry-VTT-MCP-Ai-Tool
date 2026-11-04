@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Stage 23: run the Pi stack as containers instead of (or beside) the systemd units (backlog pi-docker-compose).
-# Needs stage 22 first (Docker, the images, deploy/pi/.env). Design and settings: deploy/pi/README.md.
+# Stage 24: run the Pi stack as containers instead of (or beside) the systemd units (backlog pi-docker-compose).
+# Needs stage 23 first (Docker, the images, deploy/pi/.env). Design and settings: deploy/pi/README.md.
 #
 # Every mode that changes something needs a dietpi-backup snapshot from today (/boot/dietpi/dietpi-backup 1) and the
 # user's OK first (pi-work skill). Never on a game-night day. MODE=status and DRY_RUN=1 change nothing and need neither.
@@ -188,14 +188,14 @@ require_quiet_stack() { # $1 what
 # What must be true before a compose start.
 preflight_stack() {
   local img missing=""
-  command -v docker >/dev/null 2>&1 || die "docker is not installed: run stage 22 first. Nothing was changed"
+  command -v docker >/dev/null 2>&1 || die "docker is not installed: run stage 23 first. Nothing was changed"
   docker info >/dev/null 2>&1 || die "the Docker daemon does not answer (systemctl status docker). Nothing was changed"
-  [ -f "$compose_file" ] || die "$compose_file is missing: run stage 22 (it needs a tool build that has deploy/pi). Nothing was changed"
-  grep -q '^FOUNDRY_UID=[0-9]' "$env_file" 2>/dev/null || die "$env_file has no FOUNDRY_UID: run stage 22 again (a new stage 5 build replaces the checkout and its .env). Nothing was changed"
+  [ -f "$compose_file" ] || die "$compose_file is missing: run stage 23 (it needs a tool build that has deploy/pi). Nothing was changed"
+  grep -q '^FOUNDRY_UID=[0-9]' "$env_file" 2>/dev/null || die "$env_file has no FOUNDRY_UID: run stage 23 again (a new stage 5 build replaces the checkout and its .env). Nothing was changed"
   for img in $(dc config --images 2>/dev/null); do
     docker image inspect "$img" >/dev/null 2>&1 || missing="$missing $img"
   done
-  [ -z "$missing" ] || die "image(s)$missing not built: run stage 22. Nothing was changed"
+  [ -z "$missing" ] || die "image(s)$missing not built: run stage 23. Nothing was changed"
   [ -d "$foundry_app" ] && [ -d "$foundry_data" ] && [ -d "$tool_data" ] ||
     die "a folder the containers mount is missing ($foundry_app, $foundry_data, $tool_data): docker would create it as root. Nothing was changed"
   [ -f "$TOOL_ETC/bridge.env" ] || warn "$TOOL_ETC/bridge.env is missing: the bridge starts without its settings"
@@ -353,7 +353,7 @@ mode_status() {
     if [ -f "$compose_file" ] && grep -q '^FOUNDRY_UID=[0-9]' "$env_file" 2>/dev/null; then
       stack_report || true
     else
-      echo "    no compose file or no FOUNDRY_UID in $env_file (stage 22 not run, or stage 5 replaced the checkout): the per-service report is skipped"
+      echo "    no compose file or no FOUNDRY_UID in $env_file (stage 23 not run, or stage 5 replaced the checkout): the per-service report is skipped"
       containers_of "$project" "" -a | sed 's/^/    container /'
     fi
     # Containers are found by label, so this holds without the compose file and .env.
@@ -366,7 +366,7 @@ mode_status() {
       return 1
     fi
   else
-    echo "    no docker (stage 22 not run)"
+    echo "    no docker (stage 23 not run)"
   fi
   return 0
 }

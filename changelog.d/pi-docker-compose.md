@@ -2,7 +2,7 @@
 
 - **The Pi stack in containers (ready to rehearse, not switched on):** `deploy/pi/` has a Docker Compose file for Foundry,
   the bridge, the co-GM dashboard and the Assistant GM, each with a health check and `restart: unless-stopped`, so
-  Foundry comes back after a clean exit. Stage 22 installs Docker and builds the images, stage 23 starts and stops
+  Foundry comes back after a clean exit. Stage 23 installs Docker and builds the images, stage 24 starts and stops
   the stack for a rehearsal on other ports (its own compose project) and rolls back to the units in one command. The
   switch itself (`MODE=cutover`) is refused until the nightly backup and the other stages know the stack. Nothing
   changes on the Pi until a stage is run with the user's OK.

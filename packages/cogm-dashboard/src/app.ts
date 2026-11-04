@@ -122,7 +122,7 @@ export interface Dashboard {
   app: Express;
   handlers: GameFeedHandlers;
   /** The feed's way to read events at once; server.ts sets it once the feed exists. */
-  onFeed(feed: { pollNow: () => void }): void;
+  onFeed(feed: { pollNow: () => void; resync?: () => void }): void;
   /** Start background work (player view polling). */
   start(): void;
   /** Stop background work and end every stream. */
@@ -237,6 +237,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     foundryDownSince: null,
   };
   let world: WorldInfo | null = null;
+  /** The last world id seen, kept when `world` is nulled on a drop, to spot a switch. */
+  let lastWorldId: string | null = null;
   let lastCombatJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
@@ -247,6 +249,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let lastHandoutsJson = '';
   let lastRollsJson = '';
   let pollEventsNow: () => void = () => undefined;
+  let resyncFeed: () => void = () => undefined;
 
   const playerView = new PlayerViewSource(client, logger.child('player-view'), () =>
     schedulePlayerBroadcast()
@@ -412,13 +415,29 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     return tools;
   }
 
+  /** A different world opened: the old world's events, errors and combat must not show. */
+  function resetForNewWorld(): void {
+    state.reset();
+    readCache.clear();
+    lastCombatJson = '';
+    sse.broadcast('reset', {}, gmOnly);
+    // The new world's first reads may have come before this; read them again.
+    resyncFeed();
+    logger.info('World changed: cleared the events and errors of the previous world');
+  }
+
   async function refreshWorld(attempt = 0): Promise<void> {
     // Collapse concurrent triggers (transition + immediate poll) into one call.
     if (worldRefreshInflight) return;
     worldRefreshInflight = true;
     try {
       const raw = await client.callTool('get-world-info');
-      world = mapWorld(raw);
+      const next = mapWorld(raw);
+      if (next.id !== '') {
+        if (lastWorldId !== null && next.id !== lastWorldId) resetForNewWorld();
+        lastWorldId = next.id;
+      }
+      world = next;
       playerDirectory.harvest(raw);
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();
@@ -1125,8 +1144,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     app,
     handlers,
     /** The feed's way to read events at once; set by server.ts after the feed exists. */
-    onFeed(feed: { pollNow: () => void }): void {
+    onFeed(feed: { pollNow: () => void; resync?: () => void }): void {
       pollEventsNow = feed.pollNow;
+      resyncFeed = feed.resync ?? ((): void => undefined);
     },
     start(): void {
       playerView.start(PLAYER_SOURCE_INTERVAL_MS);

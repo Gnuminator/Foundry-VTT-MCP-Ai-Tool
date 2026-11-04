@@ -12,8 +12,8 @@ on:
     paths:
       - 'deploy/pi/**'
       - 'scripts/pi/remote/assistant-gm.mjs'
-      - 'scripts/pi/remote/22-docker.sh'
-      - 'scripts/pi/remote/23-compose.sh'
+      - 'scripts/pi/remote/23-docker.sh'
+      - 'scripts/pi/remote/24-compose.sh'
       - 'scripts/pi/container-test/stage2[23]-scenarios.sh'
       - 'scripts/pi/docker-compose.test.mjs'
       - 'scripts/pi/remote/lib.sh'
@@ -27,8 +27,8 @@ on:
     paths:
       - 'deploy/pi/**'
       - 'scripts/pi/remote/assistant-gm.mjs'
-      - 'scripts/pi/remote/22-docker.sh'
-      - 'scripts/pi/remote/23-compose.sh'
+      - 'scripts/pi/remote/23-docker.sh'
+      - 'scripts/pi/remote/24-compose.sh'
       - 'scripts/pi/container-test/stage2[23]-scenarios.sh'
       - 'scripts/pi/docker-compose.test.mjs'
       - 'scripts/pi/remote/lib.sh'
@@ -133,11 +133,11 @@ jobs:
           fi
           echo "$out" | grep -q 'FAIL: container bridge is in a crash loop' || { echo "$out"; echo "::error::no crash-loop FAIL for the bridge"; exit 1; }
 
-      # Stages 22 and 23 in an ARM64 container (apt, docker, systemctl stand-ins). Here and not in ci.yml: the
+      # Stages 23 and 24 in an ARM64 container (apt, docker, systemctl stand-ins). Here and not in ci.yml: the
       # path filter keeps it to changes that matter, and ci.yml's job-time split (decision 26) does not apply.
-      - name: Pi stages 22 and 23 in an ARM64 container
+      - name: Pi stages 23 and 24 in an ARM64 container
         env:
-          PI_STAGE22_CONTAINER: 1
+          PI_STAGE23_CONTAINER: 1
         run: node --test scripts/pi/docker-compose.test.mjs deploy/pi/healthcheck.test.mjs
 
       - name: Logs and teardown

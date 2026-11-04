@@ -79,6 +79,7 @@ import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
 import { PreflightTools } from './tools/preflight.js';
+import { WrapperRegistry, type WrapperStatus } from './wrapper-registry.js';
 import { LivePlayTools } from './tools/live-play.js';
 import { PartyTools } from './tools/party.js';
 import { PrepDigestTools } from './tools/prep-digest.js';
@@ -426,8 +427,10 @@ async function startBackend(): Promise<void> {
     worldIds,
     logger,
   });
+  const wrapperRegistry = new WrapperRegistry();
   const preflightTools = new PreflightTools({
     foundryClient,
+    wrapperStatus: (): WrapperStatus => wrapperRegistry.status(),
     secretTerms,
     worldIds,
     playSession: playSessionTools,
@@ -677,8 +680,11 @@ async function startBackend(): Promise<void> {
 
   // Control channel (TCP JSON-lines)
 
+  let nextConnectionId = 0;
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
+    const connectionId = (nextConnectionId += 1);
+    socket.on('close', () => wrapperRegistry.close(connectionId));
 
     // Aborts the long waits (wait-for-game-event) of a connection that closed.
     const socketAbort = new AbortController();
@@ -710,6 +716,21 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // The stdio wrapper says which version it is (a wrapper from before this sends none).
+          if (msg.method === 'hello') {
+            wrapperRegistry.hello(connectionId, msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
+
+            continue;
+          }
+
+          // The wrapper versions seen, for the dashboard; not a tool, never listed to Claude.
+          if (msg.method === 'wrapper_status') {
+            socket.write(`${JSON.stringify({ id: msg.id, result: wrapperRegistry.status() })}\n`);
+
+            continue;
+          }
+
           if (msg.method === 'list_tools') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
 
@@ -722,6 +743,9 @@ async function startBackend(): Promise<void> {
               args?: unknown;
               requestedBy?: unknown;
             };
+
+            if (typeof requestedBy !== 'string')
+              wrapperRegistry.toolCallWithoutRequester(connectionId);
 
             const runCall = async (): Promise<void> => {
               try {

@@ -175,6 +175,22 @@ export class PollingGameFeed implements GameFeed {
     else void this.pollEvents();
   }
 
+  /**
+   * Read the events and module errors again from the start, forgetting the ids already passed on:
+   * a world switch cleared the dashboard's copy, and the new world's first reads may have landed
+   * before it did.
+   */
+  resync(): void {
+    this.delivered.clear();
+    this.cursor = null;
+    this.firstEventPoll = true;
+    this.pollsSinceResync = 0;
+    this.errorCursor = null;
+    this.firstErrorPoll = true;
+    this.pollNow();
+    void this.pollErrors();
+  }
+
   private async pollEvents(): Promise<void> {
     if (!this.client.isConnected || this.eventPollInFlight) return;
     this.eventPollInFlight = true;

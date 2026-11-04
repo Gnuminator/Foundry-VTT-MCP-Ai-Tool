@@ -14,8 +14,12 @@ import {
   dayKey,
   familyOf,
   findTranscripts,
+  confirmedPeak,
+  formatLanes,
   formatModels,
   formatReport,
+  isLaneFile,
+  laneStats,
   formatTargets,
   isProjectDir,
   main,
@@ -190,6 +194,71 @@ test('helpers: project folders, price ratios, median, args', () => {
   assert.deepEqual(parseArgs(['--json', '--days', '3']), { days: 3, json: true });
   assert.deepEqual(parseArgs(['--days=14']), { days: 14, json: false });
   assert.equal(parseArgs(['--days', 'abc']).days, 7);
+});
+
+test('lanes: handovers per merged PR and the context they stopped at', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'usage-week-lanes-'));
+  try {
+    const wt = `${PROJECT_DIR}--claude-worktrees-lane-`;
+    const put = (dir, name, ctxs) => {
+      const file = path.join(root, dir, name);
+      mkdirSync(path.dirname(file), { recursive: true });
+      const lines = ctxs.map((c, i) => resp(`${name}-${i}`, at(9, 8 + i), 'claude-sonnet-5-5', c));
+      writeFileSync(file, `${lines.join('\n')}\n`);
+    };
+    put(`${wt}a`, 'a.jsonl', [110_000, 150_000, 205_000, 215_000]); // handed over at 205k
+    put(`${wt}b`, 'b.jsonl', [110_000, 120_000, 130_000]); // finished early
+    put(`${wt}c`, 'c.jsonl', [110_000, 200_000, 262_000, 270_000]); // handed over at 262k
+    put(`${wt}d`, 'd.jsonl', [110_000, 140_000, 400_000, 150_000]); // one doubled reading
+    put(PROJECT_DIR, 'p.jsonl', [110_000, 230_000, 240_000]); // the planner: not a lane
+    const prs = [
+      { number: 1, mergedAt: at(9, 15).toISOString() },
+      { number: 2, mergedAt: at(9, 16).toISOString() },
+    ];
+    const r = await buildReport({ root, now: NOW, days: 7, prs });
+    assert.equal(r.lanes.lanes, 4);
+    assert.equal(r.lanes.handovers, 2);
+    assert.equal(r.lanes.handoversPerPr, 1);
+    assert.equal(r.lanes.handoverMedian, 233_500);
+    assert.equal(r.lanes.handoverMax, 262_000);
+    assert.equal(r.lanes.over200k, 2);
+    assert.equal(r.lanes.over250k, 1);
+    assert.equal(r.lanes.over300k, 0);
+    assert.match(formatReport(r), /Lanes: 4 sessions, 2 handed over \(1\.00 per merged PR\)/);
+    assert.match(formatReport(r), /at handover median 234k max 262k/);
+    const noPrs = await buildReport({ root, now: NOW, days: 7 });
+    assert.equal(noPrs.lanes.handoversPerPr, null);
+    assert.doesNotMatch(formatReport(noPrs), /per merged PR\), context/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('lanes: the line is 200k before 2026-11-04 and 250k from it; no lanes prints a line', () => {
+  const turn = (ctx, t) => ({ real: ctx, t: t.getTime() });
+  const file = path.join('projects', `${PROJECT_DIR}--claude-worktrees-lane-z`, 'z.jsonl');
+  const old = {
+    file,
+    turns: [
+      turn(100_000, new Date(2026, 10, 3, 9)),
+      turn(220_000, new Date(2026, 10, 3, 10)),
+      turn(225_000, new Date(2026, 10, 3, 11)),
+    ],
+  };
+  const fresh = {
+    file,
+    turns: [
+      turn(100_000, new Date(2026, 10, 4, 9)),
+      turn(220_000, new Date(2026, 10, 4, 10)),
+      turn(225_000, new Date(2026, 10, 4, 11)),
+    ],
+  };
+  assert.equal(laneStats([old], 1).handovers, 1);
+  assert.equal(laneStats([fresh], 1).handovers, 0);
+  assert.ok(isLaneFile(file));
+  assert.ok(!isLaneFile(path.join('projects', PROJECT_DIR, 'p.jsonl')));
+  assert.equal(confirmedPeak([{ real: 100 }, { real: 900 }, { real: 120 }]), 120);
+  assert.equal(formatLanes(laneStats([], 1)), 'Lanes: none in the window');
 });
 
 test('parseResponse: price weighting uses input, 0.1 cache read, 2 cache creation and 5 output', () => {

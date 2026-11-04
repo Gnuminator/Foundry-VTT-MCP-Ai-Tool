@@ -1,8 +1,8 @@
-// Pi stages 22 and 23 (scripts/pi/remote/22-docker.sh and 23-compose.sh, backlog pi-docker-compose):
+// Pi stages 23 and 24 (scripts/pi/remote/23-docker.sh and 24-compose.sh, backlog pi-docker-compose):
 //   node --test scripts/pi/docker-compose.test.mjs
-// The text checks always run. PI_STAGE22_CONTAINER=1 (needs Docker) runs the scenario scripts in a Debian 13 ARM64
+// The text checks always run. PI_STAGE23_CONTAINER=1 (needs Docker) runs the scenario scripts in a Debian 13 ARM64
 // container; they use stand-ins for apt, docker, systemctl and ss, so they also run without a container in Git Bash:
-//   REPO=$PWD bash scripts/pi/container-test/stage22-scenarios.sh   (and stage23-scenarios.sh)
+//   REPO=$PWD bash scripts/pi/container-test/stage23-scenarios.sh   (and stage24-scenarios.sh)
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -12,12 +12,12 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
-const s22 = read('scripts/pi/remote/22-docker.sh');
-const s23 = read('scripts/pi/remote/23-compose.sh');
+const s22 = read('scripts/pi/remote/23-docker.sh');
+const s23 = read('scripts/pi/remote/24-compose.sh');
 
-describe('22-docker.sh as text', () => {
+describe('23-docker.sh as text', () => {
   test('is valid bash', t => {
-    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/22-docker.sh')], {
+    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/23-docker.sh')], {
       encoding: 'utf8',
     });
     if (r.error) return t.skip('no bash here');
@@ -68,9 +68,9 @@ describe('22-docker.sh as text', () => {
   });
 });
 
-describe('23-compose.sh as text', () => {
+describe('24-compose.sh as text', () => {
   test('is valid bash', t => {
-    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/23-compose.sh')], {
+    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/24-compose.sh')], {
       encoding: 'utf8',
     });
     if (r.error) return t.skip('no bash here');
@@ -125,7 +125,7 @@ describe('23-compose.sh as text', () => {
     assert.match(s23, /systemctl enable --now/);
   });
 
-  test('up never builds (stage 22 does) and refuses the live ports and data folders next to a running unit', () => {
+  test('up never builds (stage 23 does) and refuses the live ports and data folders next to a running unit', () => {
     assert.match(s23, /up -d --wait --wait-timeout "\$wait_timeout" --no-build/);
     assert.match(s23, /share their data folder/);
     assert.match(s23, /live port\(s\)/);
@@ -149,12 +149,12 @@ describe('23-compose.sh as text', () => {
 });
 
 for (const [n, script] of [
-  ['22', 'stage22-scenarios.sh'],
-  ['23', 'stage23-scenarios.sh'],
+  ['22', 'stage23-scenarios.sh'],
+  ['23', 'stage24-scenarios.sh'],
 ]) {
   describe(
     `stage ${n} in the ARM64 container`,
-    { skip: process.env.PI_STAGE22_CONTAINER !== '1' },
+    { skip: process.env.PI_STAGE23_CONTAINER !== '1' },
     () => {
       test('scenarios', () => {
         const r = spawnSync(

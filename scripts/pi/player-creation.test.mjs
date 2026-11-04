@@ -20,12 +20,19 @@ import {
   blockers,
   mismatches,
   readState,
+  SOURCE_TARGETS,
 } from './remote/player-creation-settings.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MODULE_ID = 'foundryvtt-actor-studio';
 const PACK = 'dnd-players-handbook.equipment';
-const ARGS = { moduleId: MODULE_ID, pack: PACK, roles: [1, 2], methods: ABILITY_METHODS };
+const ARGS = {
+  moduleId: MODULE_ID,
+  pack: PACK,
+  roles: [1, 2],
+  methods: ABILITY_METHODS,
+  targets: SOURCE_TARGETS,
+};
 // Actor Studio's defaults before the stage runs: manual entry on, the rest off.
 const DEFAULT_METHODS = {
   allowStandardArray: false,
@@ -61,6 +68,13 @@ function fakeGame({
   moduleActive = true,
   methods = DEFAULT_METHODS,
   methodsRegistered = true,
+  contentPacks = SOURCE_TARGETS.spells.concat(
+    SOURCE_TARGETS.races,
+    SOURCE_TARGETS.classes,
+    SOURCE_TARGETS.feats,
+    SOURCE_TARGETS.backgrounds,
+    SOURCE_TARGETS.items
+  ),
 } = {}) {
   const values = new Map([
     ['core.permissions', { ACTOR_CREATE: actorCreate, FILES_BROWSE: [2, 3, 4] }],
@@ -82,7 +96,7 @@ function fakeGame({
     world: { id: 'curse-of-strahd' },
     user: { name: 'Gamemaster', isGM },
     modules: new Map([[MODULE_ID, { active: moduleActive }]]),
-    packs: new Map([[PACK, {}]]),
+    packs: new Map([PACK, ...contentPacks].map(id => [id, {}])),
     settings: {
       settings: registered,
       storage: new Map([['user', { contents: docs }]]),
@@ -114,7 +128,7 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     assert.deepEqual(changed, [
       'core.permissions ACTOR_CREATE',
       'enableEquipmentSelection',
-      'compendiumSources.equipment',
+      'compendiumSources (equipment, races, racialFeatures, backgrounds, classes, subclasses, feats, spells, items)',
       'allowStandardArray',
       'allowPointBuy',
       'allowManualInput',
@@ -123,10 +137,15 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     assert.deepEqual(end.abilityMethods, ABILITY_METHODS);
     assert.deepEqual(end.actorCreate, [1, 2, 3, 4]);
     assert.equal(end.enableEquipmentSelection, true);
-    assert.deepEqual(end.compendiumSources, {
-      equipment: [PACK],
-      races: ['dnd-players-handbook.origins'],
-    });
+    assert.deepEqual(end.compendiumSources.equipment, [PACK, 'aitool-content.items']);
+    assert.deepEqual(end.compendiumSources.races, [
+      'dnd-players-handbook.origins',
+      'aitool-content.species',
+    ]);
+    assert.deepEqual(end.compendiumSources.spells, [
+      'dnd-players-handbook.spells',
+      'aitool-content.spells',
+    ]);
     assert.deepEqual(mismatches(start, end), []);
   });
 
@@ -261,11 +280,33 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
       ...start,
       actorCreate: [1, 2, 4],
       enableEquipmentSelection: true,
-      compendiumSources: { equipment: [PACK], races: [] },
+      compendiumSources: { equipment: [PACK, 'aitool-content.items'], races: [], odd: ['x'] },
     };
     const problems = mismatches(start, end).join('; ');
     assert.match(problems, /ACTOR_CREATE lost role 3/);
+    assert.match(problems, /compendiumSources\.races is \[\]/);
     assert.match(problems, /another compendium source changed/);
+  });
+
+  test('sources: dnd5e packs come out of every list, kinds that are not ours keep their value, a missing aitool pack is skipped', async () => {
+    globalThis.game = fakeGame({
+      sources: {
+        items: ['dnd5e.items'],
+        equipment: ['dnd-players-handbook.equipment'],
+        foo: ['dnd5e.monsters', 'x.y'],
+      },
+      contentPacks: ['dnd-players-handbook.origins'],
+    });
+    const start = readState(ARGS);
+    assert.match(mismatches(start, start).join('; '), /still lists a dnd5e pack/);
+    await applyState(ARGS);
+    const end = readState(ARGS);
+    assert.deepEqual(end.compendiumSources.items, [PACK]);
+    assert.deepEqual(end.compendiumSources.races, ['dnd-players-handbook.origins']);
+    assert.deepEqual(end.compendiumSources.foo, ['x.y']);
+    assert.equal(end.compendiumSources.spells, undefined);
+    assert.deepEqual(mismatches(start, end), []);
+    assert.deepEqual(await applyState(ARGS), []);
   });
 });
 
@@ -536,7 +577,10 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
   test('options-readonly: the foundry user cannot write the Config folder: refused up front, nothing stopped', () => {
     const r = run('options-readonly');
     assert.equal(r.exit, 1, r.output);
-    assert.match(r.output, /the foundry user cannot write in .*\/Config, where options\.json is changed/);
+    assert.match(
+      r.output,
+      /the foundry user cannot write in .*\/Config, where options\.json is changed/
+    );
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(r.calls, [], r.calls.join('\n')); // no stop, no restart, no is-active
     assert.equal(r.world, 'curse-of-strahd');

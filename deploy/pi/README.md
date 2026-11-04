@@ -2,7 +2,7 @@
 
 `compose.yml` runs Foundry, the bridge, the co-GM dashboard and the Assistant GM browser as containers on the
 Orange Pi, next to the systemd units that run them today. Nothing here changes the Pi by itself: the stage scripts
-`scripts/pi/remote/22-docker.sh` (install Docker, build the images) and `scripts/pi/remote/23-compose.sh` do that,
+`scripts/pi/remote/23-docker.sh` (install Docker, build the images) and `scripts/pi/remote/24-compose.sh` do that,
 each only with a `dietpi-backup` snapshot and an OK first (see the `pi-work` skill).
 
 ## What runs where
@@ -19,7 +19,7 @@ serve, the tunnel and Plan B need no change. The env files in `/etc/foundry-ai-t
 
 ## Settings
 
-Defaults are the live values. Put overrides in `deploy/pi/.env` (stage 22 writes it) or the shell.
+Defaults are the live values. Put overrides in `deploy/pi/.env` (stage 23 writes it) or the shell.
 
 | Variable                       | Default                    | Meaning                                                                  |
 | ------------------------------ | -------------------------- | ------------------------------------------------------------------------ |
@@ -29,7 +29,7 @@ Defaults are the live values. Put overrides in `deploy/pi/.env` (stage 22 writes
 | `BRIDGE_LINK_PORT`             | 31415                      | the Foundry link (the bridge reads it as `FOUNDRY_PORT`)                 |
 | `DASHBOARD_PORT`               | 3000                       | the dashboard                                                            |
 | `DASHBOARD_ALLOWED_HOSTS`      | empty                      | the Pi's tailnet name                                                    |
-| `FOUNDRY_AI_PLAYER_VAULTS_DIR` | empty                      | the player vaults folder (stage 21's drop-in, copied by stage 22)        |
+| `FOUNDRY_AI_PLAYER_VAULTS_DIR` | empty                      | the player vaults folder (stage 21's drop-in, copied by stage 23)        |
 | `FOUNDRY_APP_DIR`              | `/opt/foundry`             | Foundry's program files                                                  |
 | `FOUNDRY_DATA_DIR`             | `/var/lib/foundry`         | Foundry's data                                                           |
 | `TOOL_DATA_DIR`                | `/var/lib/foundry-ai-tool` | vault, dashboard state, browser profile; mounted at the same path inside |
@@ -42,15 +42,15 @@ An env file must not set the ports or the folder variables above: `environment:`
 Use other ports and your own data folders, never the live `FOUNDRY_DATA_DIR` (two Foundrys on one data folder
 corrupt it). `test.env` holds the rehearsal ports 30100, 31614, 31615 and 3300 (D-119).
 
-On the Pi use stage 23, never a raw `docker compose up`: it asks for the snapshot, refuses a clash with the units, runs the
+On the Pi use stage 24, never a raw `docker compose up`: it asks for the snapshot, refuses a clash with the units, runs the
 rehearsal as its own project (`foundry-ai-tool-pi-rehearsal`) and checks the result. Same variables as in `test.env`:
 
 ```bash
 ssh foundry-pi 'MODE=up FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614 BRIDGE_LINK_PORT=31615 DASHBOARD_PORT=3300 \
-  FOUNDRY_DATA_DIR=/var/lib/foundry-rehearsal TOOL_DATA_DIR=/var/lib/foundry-ai-tool-rehearsal bash -s' < stage23-with-lib.sh
+  FOUNDRY_DATA_DIR=/var/lib/foundry-rehearsal TOOL_DATA_DIR=/var/lib/foundry-ai-tool-rehearsal bash -s' < stage24-with-lib.sh
 ```
 
-(`stage23-with-lib.sh` is `lib.sh` and `23-compose.sh` joined, as in the stage header.) On a PC or laptop without the Pi's
+(`stage24-with-lib.sh` is `lib.sh` and `24-compose.sh` joined, as in the stage header.) On a PC or laptop without the Pi's
 folders, plain `docker compose --env-file deploy/pi/test.env -f deploy/pi/compose.yml up -d --build --wait` with the two
 data folders exported works.
 
@@ -60,7 +60,7 @@ runner.
 
 ## Cutover and rollback
 
-`23-compose.sh` takes `MODE=up|down|cutover|rollback`. Run it like the other stages, after the snapshot and the OK.
+`24-compose.sh` takes `MODE=up|down|cutover|rollback`. Run it like the other stages, after the snapshot and the OK.
 
 - `MODE=up` starts the containers (use rehearsal ports while the units run).
 - `MODE=cutover` is **refused for now**: the nightly backup and the stages that start `foundry.service` do not know the

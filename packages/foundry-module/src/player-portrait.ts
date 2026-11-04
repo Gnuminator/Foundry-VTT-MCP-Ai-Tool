@@ -204,7 +204,12 @@ export async function uploadPlayerPortrait(
   }
   // Foundry answers with the path it stored; trust it only when it is the folder and name we made.
   const path = `${folder}/${name}`;
-  if (typeof stored.path === 'string' && !decodeURIComponent(stored.path).endsWith(path)) {
+  // Foundry's own failure replies (`{}` after a dropped request, `undefined`, `false`) carry no
+  // path: that is a failed upload, never a success.
+  if (typeof stored.path !== 'string') {
+    return refuse('Foundry did not accept the picture. Ask your GM.');
+  }
+  if (!decodeURIComponent(stored.path).endsWith(path)) {
     return refuse('Foundry stored the picture somewhere unexpected. Ask your GM.');
   }
   return {

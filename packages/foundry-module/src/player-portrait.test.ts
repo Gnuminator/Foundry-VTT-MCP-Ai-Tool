@@ -161,4 +161,16 @@ describe('uploadPlayerPortrait', () => {
     const r = await uploadPlayerPortrait({ userId: USER, actorId: MINE, data: b64(PNG) }, e);
     expect(r.success).toBe(false);
   });
+
+  it('treats Foundry failure replies without a path as a failed upload', async () => {
+    for (const reply of [{}, undefined, { status: 'success' }]) {
+      const { e } = env();
+      e.picker = (): PortraitPicker => ({
+        createDirectory: (): Promise<void> => Promise.resolve(),
+        upload: (): Promise<unknown> => Promise.resolve(reply),
+      });
+      const r = await uploadPlayerPortrait({ userId: USER, actorId: MINE, data: b64(PNG) }, e);
+      expect(r.success).toBe(false);
+    }
+  });
 });

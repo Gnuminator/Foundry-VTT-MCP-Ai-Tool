@@ -254,6 +254,10 @@ export class OwnershipPlayersDataAccess {
       const actor = shared.findActorByIdentifier(data.identifier);
       return actor ? { id: actor.id, name: actor.name } : null;
     } catch (error) {
+      // Several partial matches: the caller needs the candidates, not "no actor".
+      if (error instanceof Error && error.message.startsWith('Multiple characters match')) {
+        throw error;
+      }
       console.error(`[${MODULE_ID}] Error finding actor:`, error);
       return null;
     }

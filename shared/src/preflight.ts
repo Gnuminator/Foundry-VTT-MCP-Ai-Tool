@@ -89,6 +89,7 @@ export type PreflightCheckStatus = 'ok' | 'warn' | 'fail' | 'info' | 'unknown';
 export const PREFLIGHT_CHECK_IDS = [
   'foundry-link',
   'versions',
+  'wrapper',
   'write-switches',
   'world-settings',
   'visible-names',

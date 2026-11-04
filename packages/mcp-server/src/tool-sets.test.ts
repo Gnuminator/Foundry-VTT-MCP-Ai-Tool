@@ -48,12 +48,17 @@ describe('filterToolsBySets', () => {
     { name: 'not-in-a-set' },
   ];
 
-  it('keeps only the chosen sets, and drops a tool no set lists', () => {
+  it('keeps only the chosen sets, and passes a tool no set lists through with core', () => {
     expect(filterToolsBySets(tools, resolveToolSets('core')).map(t => t.name)).toEqual([
       'get-world-info',
+      'not-in-a-set',
     ]);
     expect(filterToolsBySets(tools, resolveToolSets('core,play')).map(t => t.name)).toEqual([
       'get-world-info',
+      'plan-token-change',
+      'not-in-a-set',
+    ]);
+    expect(filterToolsBySets(tools, resolveToolSets('play')).map(t => t.name)).toEqual([
       'plan-token-change',
     ]);
   });

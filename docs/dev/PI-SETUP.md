@@ -1653,6 +1653,12 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   other `APPLY` value is refused; a `GM_SCRIPT` in the environment is ignored (the script follows `MODE`).
 - **Run it again** after anything that puts the dropped books back: a stage 11 push of `aitool-content`, a content module update.
   Stage 13 sets Actor Studio's sources afterwards (run it after this stage).
+- **Check for drift (read-only):** `MODE=check` (same `scp` and pipe as the dry run, no `APPLY`, no snapshot needed) runs the trim
+  as a dry run and fails with `DRIFT: ...` when the world no longer matches what the trim leaves: an entry of a dropped book is
+  back in `aitool-content` (`move`), a kept entry links to something only the legacy pack has (`comeBack`) or to the SRD packs
+  (`repoint`), a dnd5e pack is visible again (`hide`, `srdVisible`), or a kept entry links into a pack players cannot open
+  (`deadLinks`; the known GM-only `summons` and `tables` packs are only listed). It stops the Assistant GM for the length of
+  the run like any GM script. Run it after a stage 11 push, a module update and stage 25; `no drift` is the pass line.
 - **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
   about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a

@@ -275,7 +275,7 @@ export class PreflightTools {
       };
     }
     const old = status.wrappers.filter(
-      w => w.version === null || isOlderVersion(w.version, this.bridgeVersion)
+      w => w.version === null || isOlderVersion(w.version, status.current)
     ).length;
     if (old === 0) {
       // Same version, another build: its tool sets may not list the tools this bridge has.

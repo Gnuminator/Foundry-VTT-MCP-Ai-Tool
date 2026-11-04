@@ -13,6 +13,7 @@ import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
+import { isOlderVersion, type WrapperStatus } from '../wrapper-registry.js';
 import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
 
 interface ToolDefinition {
@@ -33,6 +34,8 @@ export interface PreflightToolsOptions {
   /** FOUNDRY_AI_OBSIDIAN_DIR is set (Obsidian notes render). */
   obsidianVaultDirSet: boolean;
   logger: Logger;
+  /** The stdio wrappers connected to this backend and their versions. */
+  wrapperStatus?: () => WrapperStatus;
   /** Tests only: the bridge's version (default: the shared TOOL_VERSION). */
   bridgeVersion?: string;
 }
@@ -75,7 +78,7 @@ export class PreflightTools {
       {
         name: 'get-preflight',
         description:
-          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
+          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, Claude Desktop connector versions, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -156,6 +159,7 @@ export class PreflightTools {
           }
     );
     checks.push(this.versionCheck(connected, moduleVersion));
+    checks.push(this.wrapperCheck());
 
     let scan: PreflightScanResult | null = null;
     if (connected) {
@@ -248,6 +252,37 @@ export class PreflightTools {
       label,
       status: 'fail',
       detail: `The Foundry module is ${moduleVersion} but the bridge is ${this.bridgeVersion}. Update the older one (Foundry's Add-on Modules tab, or the installer) so both match.`,
+    };
+  }
+
+  private wrapperCheck(): PreflightCheck {
+    const label = 'Claude Desktop connectors are up to date';
+    const status = this.options.wrapperStatus?.();
+    if (!status || status.wrappers.length === 0) {
+      return {
+        id: 'wrapper',
+        label,
+        status: 'info',
+        detail: 'No Claude Desktop connector is connected right now.',
+      };
+    }
+    if (!status.behind) {
+      return {
+        id: 'wrapper',
+        label,
+        status: 'ok',
+        detail: `No connector is older than the bridge (${this.bridgeVersion}).`,
+      };
+    }
+    const old = status.wrappers.filter(
+      w => w.version === null || isOlderVersion(w.version, this.bridgeVersion)
+    ).length;
+    const who = old === 1 ? 'A connector runs' : `${old} connectors run`;
+    return {
+      id: 'wrapper',
+      label,
+      status: 'warn',
+      detail: `${who} an older version than the bridge (${this.bridgeVersion}), so Claude may be missing newer tools. Run the installer again, then restart Claude Desktop.`,
     };
   }
 

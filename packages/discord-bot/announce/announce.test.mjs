@@ -15,6 +15,8 @@ const env = {
   DISCORD_TOKEN: 'tok',
   DISCORD_CHANGELOG_CHANNEL_ID: '111',
   DISCORD_PRLOG_CHANNEL_ID: '222',
+  DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID: '333',
+  DISCORD_GM_ROLE_ID: '444',
   ANNOUNCE_ENV_FILE: 'Z:/does/not/exist.env',
 };
 
@@ -33,6 +35,8 @@ describe('announce', () => {
       token: '',
       changelogChannel: '',
       prLogChannel: '',
+      dashboardChannel: '',
+      gmRoleId: '',
     });
   });
 
@@ -108,6 +112,39 @@ describe('announce', () => {
     expect(JSON.parse(f.mock.calls[2][1].body).content).toBe('Nyt i spillet');
     // only #pr-log is silent
     expect(f.mock.calls.map(c => JSON.parse(c[1].body).flags)).toEqual([4096, undefined, undefined]);
+  });
+
+  it('posts dashboard text to the GM channel and may mention only the GM role', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    const text = '<@&444> Nyt i dashboardet (v0.26.0):\n• Ny knap';
+    expect(await runCli(['dashboard', text], { env, fetchImpl: f, log })).toBe(0);
+    expect(f.mock.calls[0][0]).toContain('/channels/333/messages');
+    const body = JSON.parse(f.mock.calls[0][1].body);
+    expect(body.content).toBe(text);
+    expect(body.allowed_mentions).toEqual({ parse: [], roles: ['444'] });
+    expect(body.flags).toBeUndefined();
+  });
+
+  it('keeps the dashboard post mention-free without a GM role id, and #changelog never mentions', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    const { DISCORD_GM_ROLE_ID: _unused, ...noRole } = env;
+    await runCli(['dashboard', 'x'], { env: noRole, fetchImpl: f, log });
+    expect(JSON.parse(f.mock.calls[0][1].body).allowed_mentions).toEqual({ parse: [] });
+    await runCli(['changelog', '<@&444> x'], { env, fetchImpl: f, log });
+    expect(JSON.parse(f.mock.calls[1][1].body).allowed_mentions).toEqual({ parse: [] });
+    await postMessage({ token: 't', channelId: '1', content: 'x', mentionRoleId: '4 44', fetchImpl: f });
+    expect(JSON.parse(f.mock.calls[2][1].body).allowed_mentions).toEqual({ parse: [] });
+  });
+
+  it('does nothing for dashboard without its channel, and rejects an empty dashboard call', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    const only = { DISCORD_TOKEN: 'tok', DISCORD_CHANGELOG_CHANNEL_ID: '111', ANNOUNCE_ENV_FILE: 'Z:/x.env' };
+    expect(await runCli(['dashboard', 'x'], { env: only, fetchImpl: f, log })).toBe(0);
+    expect(f).not.toHaveBeenCalled();
+    expect(await runCli(['dashboard'], { env, fetchImpl: f, log })).toBe(2);
   });
 
   it('does nothing without settings, fails soft on errors, and rejects bad usage', async () => {

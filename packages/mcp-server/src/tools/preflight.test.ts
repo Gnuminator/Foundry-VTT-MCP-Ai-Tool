@@ -8,6 +8,7 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
+import { BUILD_ID } from '../build-id.js';
 import { WrapperRegistry } from '../wrapper-registry.js';
 import { PreflightTools, type PreflightToolsOptions } from './preflight.js';
 
@@ -39,7 +40,7 @@ interface Setup {
   vaultDirSet?: boolean;
   paperNights?: Array<{ date: string; startedAt: string }>;
   paperNightsError?: string;
-  wrappers?: Array<{ version: string | null; sets: string }>;
+  wrappers?: Array<{ version: string | null; build?: string; sets: string }>;
 }
 
 function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
@@ -187,6 +188,18 @@ describe('get-preflight', () => {
     expect(byId(old).wrapper).toMatchObject({ status: 'warn' });
     expect(byId(old).wrapper?.detail).toContain('installer');
     expect(old.ready).toBe(true);
+  });
+
+  it('warns when a connector runs the same version from another build, not without a build id', async () => {
+    const other = (await tools({
+      wrappers: [{ version: '1.2.3', build: 'not-this-one', sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(other).wrapper).toMatchObject({ status: 'warn' });
+    expect(byId(other).wrapper?.detail).toContain('different build');
+    const same = (await tools({
+      wrappers: [{ version: '1.2.3', build: BUILD_ID, sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(same).wrapper?.status).toBe('ok');
   });
 
   it('fails on a version mismatch and names both versions', async () => {

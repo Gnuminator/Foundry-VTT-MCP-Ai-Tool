@@ -13,7 +13,7 @@ import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
-import { isOlderVersion, type WrapperStatus } from '../wrapper-registry.js';
+import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-registry.js';
 import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
 
 interface ToolDefinition {
@@ -277,6 +277,19 @@ export class PreflightTools {
     const old = status.wrappers.filter(
       w => w.version === null || isOlderVersion(w.version, this.bridgeVersion)
     ).length;
+    if (old === 0) {
+      // Same version, another build: its tool sets may not list the tools this bridge has.
+      const other = status.wrappers.filter(w =>
+        isOtherBuild(w, status.current, status.build)
+      ).length;
+      const who = other === 1 ? 'A connector runs' : `${other} connectors run`;
+      return {
+        id: 'wrapper',
+        label,
+        status: 'warn',
+        detail: `${who} the bridge's version (${this.bridgeVersion}) from a different build, so its tool lists may not match the bridge's. Run the installer again, then restart Claude Desktop.`,
+      };
+    }
     const who = old === 1 ? 'A connector runs' : `${old} connectors run`;
     return {
       id: 'wrapper',

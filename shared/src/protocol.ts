@@ -33,11 +33,21 @@ import type { MCPQuery, MCPResponse } from './types.js';
 // ===========================================================================
 
 /**
- * The only three methods the control channel accepts. NOTE: these are the
- * control-channel verbs — distinct from `MCP_METHODS` in constants.ts, which
- * are the Foundry-side query handler names invoked *inside* a `call_tool`.
+ * The control-channel verbs the wrapper and the dashboard speak. `hello` comes first on a new
+ * connection: the stdio wrapper sends `{version, build, sets}`, the dashboard
+ * `{client: 'dashboard', version}`; an old backend answers "Unknown method", which both ignore.
+ * The backend also answers dashboard-only calls (switches, session notes, link_status and
+ * more, see backend.ts and docs/dev/ARCHITECTURE.md section 3a). NOTE: these are the
+ * control-channel verbs, distinct from `MCP_METHODS` in constants.ts, which are the
+ * Foundry-side query handler names invoked *inside* a `call_tool`.
  */
-export const CONTROL_METHODS = ['ping', 'list_tools', 'call_tool', 'record_usage'] as const;
+export const CONTROL_METHODS = [
+  'ping',
+  'hello',
+  'list_tools',
+  'call_tool',
+  'record_usage',
+] as const;
 export type ControlMethod = (typeof CONTROL_METHODS)[number];
 
 /**

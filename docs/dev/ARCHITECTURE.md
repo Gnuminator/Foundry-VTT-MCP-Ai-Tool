@@ -178,7 +178,7 @@ run as a `call_tool`.
 **Request:**
 
 ```json
-{"id":"<caller-generated>","method":"<ping|list_tools|call_tool>","params":{...}}
+{"id":"<caller-generated>","method":"<ping|hello|list_tools|call_tool|record_usage>","params":{...}}
 ```
 
 **Response:**
@@ -189,13 +189,24 @@ run as a `call_tool`.
 {"id":"<same id>","error":{"message":"..."}}
 ```
 
-Three methods, and only three:
+The verbs both clients speak (`CONTROL_METHODS` in `shared/src/protocol.ts`):
 
-| Method       | `params`                          | `result`                                                                     |
-| ------------ | --------------------------------- | ---------------------------------------------------------------------------- |
-| `ping`       | _(none)_                          | `{ "ok": true }`                                                             |
-| `list_tools` | _(none)_                          | `{ "tools": [ <MCP tool definitions> ] }`                                    |
-| `call_tool`  | `{ "name": "...", "args": {...}}` | MCP tool result: `{ "content": [{"type":"text","text":"..."}], "isError"? }` |
+| Method         | `params`                                                                                     | `result`                                                                     |
+| -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ping`         | _(none)_                                                                                     | `{ "ok": true }`                                                             |
+| `hello`        | wrapper: `{ "version", "build", "sets" }`; dashboard: `{ "client": "dashboard", "version" }` | `{ "ok": true }`                                                             |
+| `list_tools`   | _(none)_                                                                                     | `{ "tools": [ <MCP tool definitions> ] }`                                    |
+| `call_tool`    | `{ "name": "...", "args": {...}}`                                                            | MCP tool result: `{ "content": [{"type":"text","text":"..."}], "isError"? }` |
+| `record_usage` | `{ "events": [...] }` (dashboard only)                                                       | `{ "accepted": n, "dropped": n }`                                            |
+
+`hello` is the first line a client sends on a new connection. A backend from before it answers
+"Unknown method", and both clients send it with no pending request, so that reply is dropped. The
+wrapper's `build` is a hash of its tool-set lists (`build-id.ts`); `get-preflight` warns when a
+connected wrapper is older than the bridge, sends no version, or has the bridge's version from a
+different build. A wrapper that sends no `build` is compared by version only. There is no control
+call that returns the wrapper list: `get-preflight` reads it in-process. The backend also answers
+dashboard-only calls that are not listed here (`link_status`, the switch views, `session_notes`,
+`record_handout_seen`, `live_sweep`); see `backend.ts`.
 
 A `call_tool` result always wraps the tool's output as MCP content: a single text block whose
 `text` is either a plain string or a JSON-serialized object. Errors are returned **in-band** as
@@ -311,11 +322,11 @@ stdio** and does almost nothing itself:
   `instructions` naming the sets it serves and the ones that are off. Several wrappers start at
   once and may each spawn a backend; a spawned backend that loses the lock exits (code 3) and its
   wrapper connects to the one that won.
-- **Version hello.** On connect the wrapper sends `hello` `{version, sets}`; the dashboard sends
-  `hello` `{client: 'dashboard', version}`. The backend (`wrapper-registry.ts`) lists the wrappers
-  connected, and `get-preflight` warns when one is older than the bridge or too old to say hello. A
-  tool no set lists passes through in the entry that serves core, and an empty `list_tools` reply is
-  an MCP error. `wrapper_status` returns the registry.
+- **Version hello.** On connect the wrapper sends `hello` `{version, build, sets}`; the dashboard
+  sends `hello` `{client: 'dashboard', version}`. The backend (`wrapper-registry.ts`) lists the
+  wrappers connected, and `get-preflight` warns when one is older than the bridge, too old to say
+  hello, or has the bridge's version from a different build (§3a). A tool no set lists passes
+  through in the entry that serves core, and an empty `list_tools` reply is an MCP error.
 - It owns the backend's lifecycle: when stdin closes (the client exits) or it receives
   SIGTERM/SIGINT, it kills the child backend and exits.
 

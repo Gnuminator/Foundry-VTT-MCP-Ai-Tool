@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES } from '../constants.js';
+import { AMBIGUOUS_ACTOR_PREFIX, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import type {
   CharacterEffect,
@@ -312,7 +312,7 @@ export class CharacterDataAccess {
         .join(', ');
       const more = partial.length > 10 ? `, …(+${partial.length - 10} more)` : '';
       throw new Error(
-        `Multiple characters match "${identifier}": ${shown}${more}. ` +
+        `${AMBIGUOUS_ACTOR_PREFIX} "${identifier}": ${shown}${more}. ` +
           `Use the exact name or the 16-character id.`
       );
     }

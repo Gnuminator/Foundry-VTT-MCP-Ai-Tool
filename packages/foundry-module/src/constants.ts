@@ -18,6 +18,13 @@ export const DEFAULT_CONFIG = {
 } as const;
 
 /**
+ * How the "several actors match this partial name" error starts. Local mirror of
+ * `AMBIGUOUS_ACTOR_PREFIX` in `shared/src/ownership.ts`, which the bridge looks for
+ * (pinned in data-access.actor-name-ambiguity.test.ts).
+ */
+export const AMBIGUOUS_ACTOR_PREFIX = 'Multiple characters match';
+
+/**
  * Frame the module sends right after the link opens (lane 1, PB-02). Local
  * mirror of `MODULE_HELLO_TYPE` / `ModuleHelloData` in `shared/src/protocol.ts`
  * (the module does not import the shared package).

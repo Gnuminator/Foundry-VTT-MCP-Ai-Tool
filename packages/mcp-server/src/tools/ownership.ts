@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  AMBIGUOUS_ACTOR_PREFIX,
   OWNERSHIP_ACTIONS,
   OWNERSHIP_FEATURE_ID,
   OWNERSHIP_LEVELS,
@@ -289,7 +290,7 @@ export class OwnershipTools {
         return actor ? [actor] : [];
       }
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Multiple characters match')) {
+      if (error instanceof Error && error.message.includes(AMBIGUOUS_ACTOR_PREFIX)) {
         throw error;
       }
       this.logger.error(`Failed to resolve actors for "${identifier}":`, error);

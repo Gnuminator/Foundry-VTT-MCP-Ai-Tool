@@ -1,4 +1,4 @@
-import { MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
+import { AMBIGUOUS_ACTOR_PREFIX, MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
 import { rec } from '../character-sheet-fields.js';
 import { effectDuration } from '../systems/core.js';
 import { viewedScene } from '../viewed-scene.js';
@@ -254,7 +254,7 @@ export function ambiguousActorMessage(identifier: string, actors: Actor[]): stri
     .map(a => `${a.name} (${a.id})`)
     .join(', ');
   const more = actors.length > 10 ? `, ...(+${actors.length - 10} more)` : '';
-  return `Multiple characters match "${identifier}": ${shown}${more}. Use the exact name or the 16-character id.`;
+  return `${AMBIGUOUS_ACTOR_PREFIX} "${identifier}": ${shown}${more}. Use the exact name or the 16-character id.`;
 }
 
 /**

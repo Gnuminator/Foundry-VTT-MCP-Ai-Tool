@@ -77,6 +77,54 @@ describe('McpControlClient per-call timeout (lane 1, PB-04)', () => {
   });
 });
 
+describe('McpControlClient hello', () => {
+  /** Keeps every frame; answers hello like an old backend ("Unknown method") and pings. */
+  async function helloServer(): Promise<{
+    server: net.Server;
+    port: number;
+    frames: Array<{ id: string; method: string; params?: Record<string, unknown> }>;
+  }> {
+    const frames: Array<{ id: string; method: string; params?: Record<string, unknown> }> = [];
+    const server = net.createServer(socket => {
+      let buffer = '';
+      socket.setEncoding('utf8');
+      socket.on('data', (chunk: string) => {
+        buffer += chunk;
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const req = JSON.parse(buffer.slice(0, idx)) as (typeof frames)[number];
+          buffer = buffer.slice(idx + 1);
+          frames.push(req);
+          const reply =
+            req.method === 'ping'
+              ? { id: req.id, result: { ok: true } }
+              : { id: req.id, error: { message: 'Unknown method' } };
+          socket.write(`${JSON.stringify(reply)}\n`);
+        }
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    return { server, port: (server.address() as net.AddressInfo).port, frames };
+  }
+
+  it('says hello as the dashboard first, and an old backend\'s "Unknown method" is harmless', async () => {
+    const { server, port, frames } = await helloServer();
+    cleanup.push(() => server.close());
+    const client = await connectedClient(port, 1_000);
+    let disconnected = false;
+    client.on('disconnected', () => {
+      disconnected = true;
+    });
+
+    // The ping goes out after the hello, so its answer means the hello's reply came first.
+    expect(await client.ping()).toBe(true);
+    expect(frames[0]).toMatchObject({ method: 'hello', params: { client: 'dashboard' } });
+    expect(frames[1]?.method).toBe('ping');
+    expect(await client.ping()).toBe(true);
+    expect(disconnected).toBe(false);
+  });
+});
+
 describe('McpControlClient.recordUsage (I-084)', () => {
   const events = [
     {

@@ -39,7 +39,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES, MODULE_ID } from './constants.js';
-import { createTestWorld, makeItem, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeItem,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import { eventTracker } from './session-events.js';
 
@@ -1003,13 +1008,62 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
 
     // game.user is the GM 'Gamemaster'; rolledByName comes from game.users.get(userId)
     // ('gm' is not in world.users here) → falls back to 'Unknown'
-    expect(msg.content).toContain('Roll Request:</strong> DEX Check');
+    // No stored heading or character: the label stands in for the heading.
+    expect(msg.content).toContain('<strong>DEX Check</strong>');
+    expect(msg.content).not.toContain('Roll Request:');
     expect(msg.content).toContain('Completed by Unknown');
     const updated = msg.flags[MODULE_ID].rollButtons['btn-1'];
     expect(updated.rolled).toBe(true);
     expect(updated.rolledBy).toBe('gm');
     expect(updated.rolledByName).toBe('Unknown');
     expect(typeof updated.timestamp).toBe('number');
+  });
+
+  it('heads the completed card like the request card (stored heading)', async () => {
+    const msg = world.addMessage({
+      id: 'm-h',
+      content: 'x',
+      flags: {
+        [MODULE_ID]: {
+          rollButtons: { 'btn-h': { rolled: false, heading: 'Roll for Mara: Perception, DC 12' } },
+        },
+      },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    da.saveRollButtonMessageId('btn-h', 'm-h');
+
+    await da.updateRollButtonMessage('btn-h', 'gm', 'Perception Skill Check (Public)');
+
+    expect(msg.content).toContain('mcp-roll-heading');
+    expect(msg.content).toContain('Roll for Mara: Perception, DC 12');
+    expect(msg.content).not.toContain('Roll Request:');
+  });
+
+  it('rebuilds the heading for an older card from its stored roll and character', async () => {
+    world.actors.add(makeActor({ id: 'mara1', name: 'Mara', type: 'character' }));
+    const msg = world.addMessage({
+      id: 'm-old',
+      content: 'x',
+      flags: {
+        [MODULE_ID]: {
+          rollButtons: {
+            'btn-old': {
+              rolled: false,
+              rollType: 'save',
+              rollTarget: 'dex',
+              characterId: 'mara1',
+              dc: 14,
+            },
+          },
+        },
+      },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    da.saveRollButtonMessageId('btn-old', 'm-old');
+
+    await da.updateRollButtonMessage('btn-old', 'gm', 'DEX Saving Throw (Public)');
+
+    expect(msg.content).toContain('Roll for Mara: DEX saving throw, DC 14');
   });
 
   it('uses the resolved user name for rolledByName when the user is registered', async () => {
@@ -1091,7 +1145,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
     await da.saveRollState('btn-5', 'gm');
 
     // legacy label is the generic 'Legacy Roll'
-    expect(msg.content).toContain('Roll Request:</strong> Legacy Roll');
+    expect(msg.content).toContain('<strong>Legacy Roll</strong>');
     expect(msg.flags[MODULE_ID].rollButtons['btn-5'].rolled).toBe(true);
   });
 

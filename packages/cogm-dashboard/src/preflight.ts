@@ -53,7 +53,7 @@ export function foundryAddressCheck(foundryUrl: string | undefined): DashboardPr
     label,
     status: 'warn',
     detail:
-      'DASHBOARD_FOUNDRY_URL is not set, so the GM page cannot open Foundry and the Live window inside Foundry stays blank. Set it to the address your browser uses for Foundry and restart the dashboard.',
+      'The dashboard does not know Foundry’s address, so the GM page cannot open Foundry and the Live window inside Foundry stays blank. Ask whoever set up the dashboard to add the address your browser uses for Foundry.',
   };
 }
 

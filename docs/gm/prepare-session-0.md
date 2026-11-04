@@ -100,7 +100,8 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    The Spell Compendia row (item 1) decides which spells that Spells tab offers, so tick only the
    Player's Handbook there. Feats such as Magic Initiate are different: they open Foundry's own
    spell window (from Actor Studio 2.10.5-aitool.5), which offers the Player's Handbook spells of
-   the list the feat names, each once.
+   every class, each once. It does not limit them to the feat's class, so the player picks from
+   the feat's class list themselves (the guide tells them how).
 
 5. **Configure progression**, under **Level Up Options**: tick **Enable Level Up** and **Milestone
    Levelling**. **Without Milestone Levelling a player sees no gold Level Up button on their
@@ -171,8 +172,10 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
   open the Party actor and check each one is listed. If the setting is off, or one is missing, drag
   the character onto the Party sheet. Following NPCs join the same way: drag the NPC onto the Party
   sheet, and set its token to **Friendly** so "all friendly NPCs" roll requests include it.
-- Add portraits: players can't upload pictures, so they send them to you. Open the sheet, click
-  the portrait and pick the image.
+- Portraits: players put their own art on their character with **Upload my portrait** on the
+  player page (step 12 of their guide). Each picture lands in their own folder under
+  `assets/players/` and shows in Changes with an Undo. For a picture sent to you on Discord, open
+  the sheet, click the portrait and pick the image.
 
 ## Afterwards
 

@@ -504,6 +504,83 @@ test.describe('start combat', () => {
     expect(calls.map(c => c.name)).not.toContain('roll-initiative-for-npcs');
   });
 
+  test('a lost answer to the first ask stops the asking: the rest count as not asked', async ({
+    page,
+  }) => {
+    const pc = (tokenId: string, name: string): Record<string, unknown> => ({
+      tokenId,
+      name,
+      actorId: `a-${tokenId}`,
+      category: 'pc',
+      hidden: false,
+    });
+    const { calls } = await setup(page, {
+      ...FULL_CALM,
+      answer: call => {
+        if (call.name === 'get-token-positions')
+          return ok({
+            success: true,
+            sceneName: 'Field',
+            tokens: [pc('tk-a', 'Aria'), pc('tk-b', 'Brannoc')],
+          });
+        if (call.name === 'request-player-rolls')
+          return {
+            status: 502,
+            json: { ok: false, error: 'The bridge did not answer', kind: 'timeout' },
+          };
+        return undefined;
+      },
+    });
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Start combat with 2' }).click();
+    const toasts = page.locator('.toast-stack');
+    await expect(toasts.getByText('Not confirmed for Aria', { exact: false })).toBeVisible();
+    await expect(toasts.getByText('Initiative was not asked of Brannoc')).toBeVisible();
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toHaveLength(1);
+  });
+
+  test('the second initiative ask waits for the first to be answered', async ({ page }) => {
+    const pc = (tokenId: string, name: string): Record<string, unknown> => ({
+      tokenId,
+      name,
+      actorId: `a-${tokenId}`,
+      category: 'pc',
+      hidden: false,
+    });
+    const { calls } = await setup(page, {
+      ...FULL_CALM,
+      answer: call =>
+        call.name === 'get-token-positions'
+          ? ok({
+              success: true,
+              sceneName: 'Field',
+              tokens: [pc('tk-a', 'Aria'), pc('tk-b', 'Brannoc')],
+            })
+          : undefined,
+    });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    let sent = 0;
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'request-player-rolls') {
+        sent += 1;
+        await held;
+      }
+      await route.fallback();
+    });
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Start combat with 2' }).click();
+    await expect.poll(() => sent).toBe(1);
+    await page.waitForTimeout(400);
+    // The first ask is still unanswered: the second has not been sent.
+    expect(sent).toBe(1);
+    release();
+    await expect.poll(() => calls.filter(c => c.name === 'request-player-rolls').length).toBe(2);
+  });
+
   test('Cancel closes the picker and writes nothing', async ({ page }) => {
     const { calls } = await setup(page, FULL_CALM);
     await load(page);
@@ -1465,6 +1542,73 @@ test.describe('when a write or a roll request fails', () => {
         confirm: true,
         confirmDestructive: true,
       });
+  });
+
+  test('switches that could not be read leave the Ask buttons aria-disabled with the reason', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(BOSS_FIGHT)] });
+    // What the real route answers when the bridge is away: 200 with no switches and the reason.
+    await page.route('**/api/session/switches', route =>
+      route.fulfill({
+        json: { switches: null, gmActionsEnabled: true, error: 'The bridge is away' },
+      })
+    );
+    await load(page);
+    const ask = page.locator('#strip-roll-party');
+    await expect(ask).toHaveAttribute('aria-disabled', 'true');
+    await expect(ask).toHaveAttribute('title', /Can't read the live play switches/);
+    await ask.click({ force: true });
+    await page.waitForTimeout(200);
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toEqual([]);
+  });
+
+  test('the Ask buttons say Asking... while the roll requests run', async ({ page }) => {
+    await setup(page, { initial: [fight(BOSS_FIGHT)] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'request-player-rolls') await held;
+      await route.fallback();
+    });
+    await load(page);
+    await page.locator('#strip-roll-party').click();
+    await expect(page.locator('#strip-roll-party')).toHaveText('Asking...');
+    release();
+    await expect(page.locator('#strip-roll-party')).toHaveText('Ask the party');
+  });
+
+  test('the toast Undo says Working... while the undo runs', async ({ page }) => {
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'undo-change') await held;
+      await route.fallback();
+    });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    const action = page.locator('.toast-stack .toast-undo .toast-action');
+    await action.click();
+    await expect(action).toHaveText('Working...');
+    release();
+    await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
+  });
+
+  test('a double click on the toast Undo sends one undo', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await page.locator('.toast-stack .toast-undo .toast-action').dblclick();
+    await expect.poll(() => calls.filter(c => c.name === 'undo-change').length).toBe(1);
+    await page.waitForTimeout(300);
+    expect(calls.filter(c => c.name === 'undo-change')).toHaveLength(1);
   });
 
   test('an apply with no answer may have landed: the amount is cleared, not kept for a second hit', async ({

@@ -335,7 +335,9 @@ test('the default dashboard has one Live views menu with the three views', async
   await expect(page.locator('#live-views-live')).toHaveAttribute('href', './?live=1');
   await expect(page.locator('#live-views-gm')).toHaveAttribute('href', '/gm');
   await expect(page.locator('#live-views-window')).toContainText('AI Tool: Live window');
-  await expect(page.locator('#live-views [role="note"]')).toContainText('DASHBOARD_FOUNDRY_URL');
+  await expect(page.locator('#live-views [role="note"]')).toContainText(
+    'does not know Foundry’s address'
+  );
   await page.keyboard.press('Escape');
   await expect(page.locator('#live-views-live')).toHaveCount(0);
   await expect(page.locator('#btn-live-views')).toBeFocused();

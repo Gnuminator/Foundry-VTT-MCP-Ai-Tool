@@ -130,7 +130,10 @@ describe('/api/session/switches', () => {
     );
     const res = await post(base, { action: 'ready' });
     expect(res.status).toBe(502);
-    expect(await res.json()).toMatchObject({ ok: false, error: 'Unknown method' });
+    expect(await res.json()).toMatchObject({
+      ok: false,
+      error: 'Could not change the switches in Foundry. Check that the world is open.',
+    });
     expect(await gmActions(base)).toBe(false);
   });
 

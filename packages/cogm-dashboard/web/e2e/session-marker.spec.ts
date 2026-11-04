@@ -161,7 +161,7 @@ test('a mark that worked shows at once when the next read fails, and says so', a
   await page.locator('#btn-session').click();
 
   await expect(toast(page, '✓ Play session started')).toBeVisible();
-  await expect(toast(page, '✗ get-play-session: bridge went away')).toBeVisible();
+  await expect(toast(page, '✗ Play session: bridge went away')).toBeVisible();
   await expect(page.locator('#session-status')).toHaveText(/^Session since/);
   await expect(page.locator('#btn-session')).toHaveText('End session');
 });
@@ -173,7 +173,7 @@ test('a failed mark says why and leaves the status alone', async ({ page }) => {
   await expect(page.locator('#session-status')).toHaveText('No session');
   await page.locator('#btn-session').click();
 
-  await expect(toast(page, '✗ mark-play-session: bridge is away')).toBeVisible();
+  await expect(toast(page, '✗ Play session: bridge is away')).toBeVisible();
   await expect(page.locator('#session-status')).toHaveText('No session');
   await expect(page.locator('#btn-session')).toBeEnabled();
 });

@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type JSX, type MouseEvent, type ReactNode } from 'react';
 
-import { api, errorText } from '../lib/api';
+import { api, ApiError, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
 import { helpLang, wikiUrl, type HelpLang } from '../lib/wiki';
 import { HelpContext, type OpenHelp } from './HelpButton';
@@ -71,8 +71,9 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
       if (wantsDanish) {
         try {
           return await api<HelpPage>(`/api/help/${encodeURIComponent(`da-${page}`)}`);
-        } catch {
-          // Fall through to the English page; a real failure shows there.
+        } catch (error) {
+          // Only a missing twin falls back to English; any other failure shows as itself.
+          if (!(error instanceof ApiError && error.status === 404)) throw error;
         }
       }
       return api<HelpPage>(`/api/help/${encodeURIComponent(page)}`);

@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 2cbfae3c122a
+sourceHash: e6e9be007953
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -100,8 +100,9 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
 
    Rækken Spell Compendia (punkt 1) bestemmer, hvilke spells Spells-fanen tilbyder, så sæt kun flueben ved
    Player's Handbook der. Feats som Magic Initiate er anderledes: de åbner et eget
-   spell-vindue (fra Actor Studio 2.10.5-aitool.5), som tilbyder Player's Handbook-spells fra den liste,
-   featen nævner, hver kun én gang.
+   spell-vindue (fra Actor Studio 2.10.5-aitool.5), som tilbyder Player's Handbook-spells fra
+   alle classes, hver kun én gang. Det begrænser dem ikke til featens class, så spilleren vælger
+   selv fra featens class-liste (guiden fortæller hvordan).
 
 5. **Configure progression**, under **Level Up Options**: sæt flueben ved **Enable Level Up** og **Milestone
    Levelling**. **Uden Milestone Levelling ser en spiller ingen gylden Level Up-knap på sit
@@ -170,8 +171,10 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   Party-skuespilleren og tjek, at alle står på listen. Er indstillingen slået fra, eller mangler en,
   så træk karakteren ind på Party-arket. Følgende NPC'er kommer med på samme måde: træk NPC'en ind
   på Party-arket, og sæt dens token til **Friendly**, så "all friendly NPCs"-kast tager den med.
-- Tilføj portrætter: spillerne kan ikke uploade billeder, så de sender dem til dig. Åbn arket, klik
-  på portrættet og vælg billedet.
+- Portrætter: spillerne sætter selv deres tegning på karakteren med **Upload my portrait** på
+  spillersiden (trin 12 i deres guide). Hvert billede lander i deres egen mappe under
+  `assets/players/` og vises i Changes med en Undo. Får du et billede på Discord, åbner du arket,
+  klikker på portrættet og vælger billedet.
 
 ## Bagefter
 

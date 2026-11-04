@@ -458,7 +458,7 @@ function NightBar({ date, onDate }: { date: string; onDate: (date: string) => vo
       await callTool('mark-play-session', { action: 'end', mode: 'paper', date });
       toast(`✓ Paper night ${date} is in the play log`, 'ok');
     } catch (err) {
-      toast(`✗ mark-play-session: ${errorText(err)}`, 'err');
+      toast(`✗ Play session: ${errorText(err)}`, 'err');
     } finally {
       setBusy(false);
     }

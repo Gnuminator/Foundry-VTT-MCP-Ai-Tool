@@ -83,7 +83,7 @@ describe('runDashboardPreflight', () => {
     const unset = await runDashboardPreflight(base);
     const warn = unset.checks.find(c => c.id === 'foundry-address');
     expect(warn?.status).toBe('warn');
-    expect(warn?.detail).toContain('DASHBOARD_FOUNDRY_URL');
+    expect(warn?.detail).toContain('does not know Foundry’s address');
     expect(unset.ready).toBe(true);
     for (const foundryUrl of ['', '   ', 'not a url']) {
       const r = await runDashboardPreflight({ ...base, foundryUrl });

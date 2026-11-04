@@ -146,10 +146,14 @@ The steps you will see, roughly in this order:
   campaign) until that text is gone, then click **Next**.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
   two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. A **Select
-  Spells** window opens with the spells you may take, each listed once, from the Player's Handbook
-  and from the spell list the feat names. Type in **Search spells...** to find one, click the
-  spells you want (the window stops you when you have enough) and click **Add Selected**. A spell
-  you already picked is not offered again. One thing to know:
+  Spells** window opens with Player's Handbook spells, each listed once. **The window lists the
+  spells of every class, not only of the one the feat is for, so it does not stop you from picking
+  a wrong one.** The feat's name tells you which class list to use: a Sage's feat reads Magic
+  Initiate (Wizard), so take wizard spells. If you are unsure which spells are on that class's list,
+  look the spell up on the class's page in the Player's Handbook or ask your GM or D&D helper. Type
+  in **Search spells...** to find one, click the spells you want (the window stops you when you
+  have enough) and click **Add Selected**. A spell you already picked is not offered again. One
+  thing to know:
   - **A feat that asks for a spellcasting ability, and then asks again** (a second Magic Initiate
     step): the second step puts the ability back to **Intelligence**, although it should match the
     first. Set it again to the same ability as your cantrips, for example Wisdom for a cleric's
@@ -280,10 +284,22 @@ Foundry needs to know which character is yours, so it uses it for your rolls and
 
 The Players list now shows your name with the character's name in brackets.
 
-## 12. A portrait (optional)
+## 12. Your picture (optional)
 
-Players can't upload pictures to Foundry. Send your picture to the GM on Discord, and the GM adds it
-as your portrait and token.
+You can put your own art on your character from the player page. Foundry's own file browser stays
+closed to players, so this is the way in.
+
+1. Open the player page on the device where you opened your private link (the one pinned in
+   Discord). In the **You** card, press **Upload my portrait**.
+2. Pick one PNG, JPG or WebP file, at most 5 MB.
+3. The list next to the button says **Portrait and token**, so the same picture is also your token
+   on the map. Choose **Portrait only** to change just the portrait.
+4. Wait for "Done". Your character now has the new picture in Foundry. If you have more than one
+   character, pick which one first.
+
+The picture is saved in your own folder, so nobody else's files are touched. The GM sees the change
+under Changes and can undo it if something went wrong. A file that is not a real PNG, JPG or WebP,
+or is too big, is refused with a short message; send it to the GM on Discord instead.
 
 ## If something goes wrong
 

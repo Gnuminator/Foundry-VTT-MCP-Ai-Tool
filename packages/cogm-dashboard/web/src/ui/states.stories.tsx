@@ -48,7 +48,10 @@ export const SkeletonLines: Story = {
 
 export const Failed: Story = {
   render: () => (
-    <ErrorState error={new ApiError('HTTP 500', 500)} onRetry={fn()}>
+    <ErrorState
+      error={new ApiError('The dashboard could not finish that. Try again in a moment.', 500)}
+      onRetry={fn()}
+    >
       Couldn’t load the party
     </ErrorState>
   ),
@@ -88,7 +91,10 @@ export const VeilTheme: Story = {
     <div style={{ display: 'grid', gap: 12 }}>
       <EmptyState>No handouts queued.</EmptyState>
       <LoadingState />
-      <ErrorState error={new Error('HTTP 500')} onRetry={fn()}>
+      <ErrorState
+        error={new Error('The dashboard could not finish that. Try again in a moment.')}
+        onRetry={fn()}
+      >
         Couldn’t load the party
       </ErrorState>
       <ErrorState kind="bridge-down">The Foundry bridge is not connected.</ErrorState>

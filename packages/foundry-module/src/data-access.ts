@@ -432,7 +432,7 @@ export class FoundryDataAccess {
     return this.playerRolls.getRollState(buttonId);
   }
 
-  saveRollButtonMessageId(buttonId: string, messageId: string): void {
+  saveRollButtonMessageId(buttonId: string, messageId: string): Promise<void> {
     return this.playerRolls.saveRollButtonMessageId(buttonId, messageId);
   }
 

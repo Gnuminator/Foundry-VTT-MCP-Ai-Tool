@@ -100,7 +100,7 @@ export async function openToolForm(page, tool, fields = {}, { human = false } = 
   }
 }
 
-/** Submit the open tool form (Run / Run…). */
+/** Submit the open tool form (Run / Plan and confirm). */
 export async function submitToolForm(page, { human = false } = {}) {
   const run = page.locator('#tool-form button[type="submit"]');
   if (human) await humanClick(run);

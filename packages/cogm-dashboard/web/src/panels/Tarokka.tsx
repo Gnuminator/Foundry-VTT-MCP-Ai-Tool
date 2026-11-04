@@ -173,7 +173,7 @@ export function TarokkaDrawer({
   const openDocument = (uuid: string): void => {
     callTool('open-in-foundry', { uuid }).then(
       () => toast('Opened in Foundry', 'ok'),
-      (err: unknown) => toast(`✗ open-in-foundry: ${errorText(err)}`, 'err')
+      (err: unknown) => toast(`✗ Open in Foundry: ${errorText(err)}`, 'err')
     );
   };
 

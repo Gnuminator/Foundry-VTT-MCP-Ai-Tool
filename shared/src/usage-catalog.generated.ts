@@ -1389,6 +1389,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/player.js',
   },
   {
+    name: 'player.mine.portrait',
+    kind: 'action',
+    surface: 'player',
+    file: 'packages/cogm-dashboard/public/player.html',
+  },
+  {
     name: 'player.mine.roll',
     kind: 'action',
     surface: 'player',

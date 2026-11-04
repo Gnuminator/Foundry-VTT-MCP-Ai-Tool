@@ -297,6 +297,30 @@
       .mine-roll .roll-note {
         color: var(--muted);
       }
+      .mine-portrait {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 6px 0 2px;
+      }
+      .mine-portrait button {
+        background: var(--pc);
+        color: #000;
+        border: 0;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .mine-portrait button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+      .mine-portrait .portrait-token {
+        color: var(--muted);
+        font-size: 0.9em;
+      }
       .mine-char a {
         margin-left: auto;
         color: var(--pc);
@@ -406,6 +430,18 @@
           <div id="mine-alerts"></div>
           <div id="mine-rolls"></div>
           <div id="mine-chars"></div>
+          <div id="mine-portrait" class="mine-portrait">
+            <select id="portrait-actor" aria-label="Character" hidden></select>
+            <button type="button" id="portrait-pick" data-track="player.mine.portrait">
+              Upload my portrait
+            </button>
+            <select id="portrait-token" class="portrait-token" aria-label="Use the picture for">
+              <option value="both">Portrait and token</option>
+              <option value="portrait">Portrait only</option>
+            </select>
+            <input type="file" id="portrait-file" accept="image/png,image/jpeg,image/webp" hidden />
+            <span id="portrait-note" class="roll-note" role="status"></span>
+          </div>
         </div>
       </section>
       <section class="card" id="card-sheet" style="grid-column: 1 / -1">

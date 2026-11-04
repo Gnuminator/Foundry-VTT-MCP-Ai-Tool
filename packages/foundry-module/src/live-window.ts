@@ -406,14 +406,17 @@ function armWhy(): void {
     const frame = frameOf();
     if (!panel || !frame) return;
     const lines = liveWindowWhy(frame.src, configuredSetting() !== '');
-    // Show the live region first, then fill it, so a screen reader announces the text.
+    // Show the live region first, then fill it in the next frame, so a screen reader announces
+    // the text instead of a region that appeared with its text already in it.
     panel.hidden = false;
     const paragraphs = lines.map(line => `<p>${escapeHtml(line)}</p>`).join('');
-    panel.innerHTML = `${paragraphs}<button type="button" class="fmb-live-retry">Try again</button>`;
-    panel.querySelector('.fmb-live-retry')?.addEventListener('click', () => {
-      const url = configuredUrl();
-      if (url) frame.src = url;
-      armWhy();
+    window.requestAnimationFrame(() => {
+      panel.innerHTML = `${paragraphs}<button type="button" class="fmb-live-retry">Try again</button>`;
+      panel.querySelector('.fmb-live-retry')?.addEventListener('click', () => {
+        const url = configuredUrl();
+        if (url) frame.src = url;
+        armWhy();
+      });
     });
   }, FRAME_WAIT_MS);
 }

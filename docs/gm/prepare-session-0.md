@@ -65,8 +65,8 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
 
 ![The Actor Studio category in Game Settings with its Configure buttons](../images/guides/studio-settings.png)
 
-1. **Compendium Sources**, **Select sources**. The window opens with **Show Selected Only**
-   ticked, so it lists only the packs already in use: untick it to see them all. Tick only the
+1. **Compendium Sources**, **Select sources**. The window lists every pack in each row;
+   ticking **Show Selected Only** at the top narrows it to the packs already in use. Tick only the
    packs of the Player's Handbook module (their names end in `[dnd-players-handbook]`):
 
    | Row                                           | Tick              | Done on our server?   |
@@ -102,7 +102,7 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    spell browser, which lists every edition whatever you ticked. The player guide tells players to
    pick the "PHB 2024" copy.
 
-5. **Configure progression**, under **Leveling Options**: tick **Enable Level Up** and **Milestone
+5. **Configure progression**, under **Level Up Options**: tick **Enable Level Up** and **Milestone
    Levelling**. **Without Milestone Levelling a player sees no gold Level Up button on their
    sheet until the character has 300 XP (for level 2) and then 900 XP (for level 3).** With it on,
    the button is always there and players can level up without any XP, which is what we want at

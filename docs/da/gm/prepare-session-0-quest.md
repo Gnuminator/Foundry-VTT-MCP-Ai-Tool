@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0-quest.md
-sourceHash: 4b8eea8772db
+sourceHash: a56de8fa8217
 title: 'Quest: forbered session 0'
 description: Opsætningen til session 0 som en liste med opgaver at sætte flueben ved, i fem trin fra indsamling af e-mails til en prøvekørsel som spiller.
 ---
@@ -50,13 +50,13 @@ I **Game Settings**, kategorien **Core**, knappen **User Permissions**:
 
 I **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI Tool fork)**:
 
-- [ ] **Compendium Sources**, **Select sources**: fjern flueben ved **Show Selected Only**, sæt flueben ved
+- [ ] **Compendium Sources**, **Select sources**: sæt flueben ved
       Player's Handbook-packs i hver række og fjern flueben ved D&D 5e-systemets egne packs. Tabellen står i
       [Forbered session 0](prepare-session-0.md). Klik på **Save**, derefter **Yes** for at genindlæse.
 - [ ] **Configure ability scores**: sæt flueben ved den ene metode, du og spillerne er blevet enige om.
 - [ ] **Configure equipment & gold**: **Enable Equipment Selection** er afkrydset.
 - [ ] **Configure spells**: sæt flueben ved **Enable Spell Selection**.
-- [ ] **Configure progression**, under **Leveling Options**: sæt flueben ved **Enable Level Up** og
+- [ ] **Configure progression**, under **Level Up Options**: sæt flueben ved **Enable Level Up** og
       **Milestone Levelling**. Uden den indstilling ser ingen en **Level Up**-knap, før de har
       nok experience points.
 

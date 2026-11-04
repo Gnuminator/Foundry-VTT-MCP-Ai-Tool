@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 867065d6bcac
+sourceHash: 6f574feaef1c
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -67,8 +67,8 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
 
 ![Kategorien Actor Studio i Game Settings med sine Configure-knapper](../../images/guides/studio-settings.png)
 
-1. **Compendium Sources**, **Select sources**. Vinduet åbner med **Show Selected Only**
-   afkrydset, så det kun viser de packs, der allerede bruges: fjern fluebenet for at se dem alle. Sæt kun flueben ved
+1. **Compendium Sources**, **Select sources**. Vinduet viser alle packs i hver række;
+   sætter du flueben ved **Show Selected Only** øverst, vises kun dem, der allerede bruges. Sæt kun flueben ved
    packsene fra Player's Handbook-modulet (deres navne ender på `[dnd-players-handbook]`):
 
    | Række                                         | Sæt flueben ved   | Gjort på vores server?  |
@@ -103,7 +103,7 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
    spell-browser, som viser alle udgaver, uanset hvad du har sat flueben ved. Spillerguiden beder spillerne
    vælge kopien "PHB 2024".
 
-5. **Configure progression**, under **Leveling Options**: sæt flueben ved **Enable Level Up** og **Milestone
+5. **Configure progression**, under **Level Up Options**: sæt flueben ved **Enable Level Up** og **Milestone
    Levelling**. **Uden Milestone Levelling ser en spiller ingen gylden Level Up-knap på sit
    ark, før karakteren har 300 XP (til level 2) og derefter 900 XP (til level 3).** Når den er slået til,
    er knappen der altid, og spillerne kan stige i level uden XP, og det vil vi ved

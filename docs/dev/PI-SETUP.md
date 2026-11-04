@@ -1605,6 +1605,32 @@ is `docs/player/obsidian.md`.
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
 
+## The stack in containers (stages 23 and 24)
+
+Backlog `pi-docker-compose`. `deploy/pi/compose.yml` runs Foundry, the bridge, the dashboard and the Assistant GM browser
+as containers on the same loopback ports; the systemd units stay installed until the cutover is trusted. Everything about
+the images, settings, rehearsal and the checks is in [`deploy/pi/README.md`](../../deploy/pi/README.md). Two stages do the Pi
+side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here is retired yet.
+
+- **Stage 23** (`scripts/pi/remote/23-docker.sh`): Debian 13's own `docker.io`, the compose plugin (`docker-compose`, or
+  `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
+  `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
+  vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
+  build. Run it again after every stage 5 build (the checkout, and its `.env`, is replaced).
+- **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
+  for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
+  ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container
+  of the live project stopped, found by label, then the units enabled and started in order). `status` is read-only. Containers
+  are always found by label, and a Docker daemon that does not answer makes the stage refuse. **`MODE=cutover` is refused for now:**
+  it needs a compose-aware nightly backup (`6-backup.sh` stops `foundry.service` and copies the worlds) and guards in every stage
+  that starts `foundry.service` (Backlog: `pi-compose-cutover`). The go/no-go on 2026-11-11 is therefore a rehearsal beside the
+  units (snapshot, stage 23, stage 24 `MODE=up` on the `test.env` ports), not a switch.
+- Do not run stages 3 or 5 while the live project has containers: they would enable the units next to them
+  (`deploy/pi/deployed-state.sh` shows it as FAIL). Without a cutover there are none; `MODE=rollback` first if there are.
+- Tests: `scripts/pi/docker-compose.test.mjs` (both stages as text; with `PI_STAGE23_CONTAINER=1` the scenario scripts
+  `scripts/pi/container-test/stage23-scenarios.sh` and `stage24-scenarios.sh` in an ARM64 container). The scenarios use stand-ins
+  for apt, docker, systemctl and ss, so they also run in Git Bash.
+
 ## Seven-book trim (stage 22)
 
 The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, CoS, CoSCO, TCoE, XGtE, MotM). Stage 22

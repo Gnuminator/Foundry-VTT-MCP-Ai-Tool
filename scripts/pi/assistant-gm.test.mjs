@@ -18,6 +18,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -28,7 +29,10 @@ import {
   extraGm,
   installDryRunGuard,
   isReadEvent,
+  linkRestartBudget,
+  linkVerdict,
   parseScriptArgs,
+  probeLink,
   readScript,
   runScriptSource,
   summarize,
@@ -513,5 +517,70 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
       /WITHOUT a dry run: the castle import broke the session/
     );
     assert.equal(runs().split('\n').length, 2);
+  });
+});
+
+describe('link check', () => {
+  const grace = 120_000;
+
+  test('restarts only after the module socket has been missing for the whole grace time', () => {
+    let v = linkVerdict('disconnected', null, 1000, grace);
+    assert.deepEqual(v, { restart: false, since: 1000 });
+    v = linkVerdict('disconnected', v.since, 1000 + grace - 1, grace);
+    assert.equal(v.restart, false);
+    v = linkVerdict('disconnected', v.since, 1000 + grace, grace);
+    assert.equal(v.restart, true);
+  });
+
+  test('a connected module or an unreachable bridge resets the clock and never restarts', () => {
+    assert.deepEqual(linkVerdict('connected', 1000, 9e9, grace), { restart: false, since: null });
+    assert.deepEqual(linkVerdict('unreachable', 1000, 9e9, grace), { restart: false, since: null });
+  });
+
+  test('link restarts are capped per window; old ones age out; a broken history counts as empty', () => {
+    const hour = 3_600_000;
+    let h = [];
+    for (let i = 0; i < 3; i++) {
+      const b = linkRestartBudget(h, i * hour, 3, 6 * hour);
+      assert.equal(b.allowed, true);
+      h = b.history;
+    }
+    assert.equal(linkRestartBudget(h, 3 * hour, 3, 6 * hour).allowed, false);
+    const later = linkRestartBudget(h, 6 * hour, 3, 6 * hour);
+    assert.equal(later.allowed, true);
+    assert.equal(later.history.length, 3);
+    assert.equal(linkRestartBudget('junk', 5, 3, 6 * hour).allowed, true);
+    assert.equal(linkRestartBudget([null, 'x'], 5, 3, 6 * hour).history.length, 1);
+  });
+
+  test('the watcher runs only for the bridge user and is off in the systemd unit', () => {
+    const src = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), 'remote', 'assistant-gm.mjs'),
+      'utf8'
+    );
+    assert.match(src, /info\.module && info\.bridgeUser/);
+    assert.doesNotMatch(src, /the systemd unit has no start limit/);
+  });
+
+  test('probeLink reads link_status from the control port', async () => {
+    const answer = module =>
+      net.createServer(s =>
+        s.on('data', () => s.write(`${JSON.stringify({ id: 'link', result: { ok: true, module } })}\n`))
+      );
+    const listen = server =>
+      new Promise(r => server.listen(0, '127.0.0.1', () => r(server.address().port)));
+    const up = answer('connected');
+    const down = answer('disconnected');
+    const upPort = await listen(up);
+    const downPort = await listen(down);
+    assert.equal(await probeLink(upPort), 'connected');
+    assert.equal(await probeLink(downPort), 'disconnected');
+    // An older bridge answers an unknown method with an error: never a reason to restart.
+    const old = net.createServer(s => s.on('data', () => s.write('{"id":"link","error":"unknown method"}\n')));
+    assert.equal(await probeLink(await listen(old)), 'unreachable');
+    old.close();
+    up.close();
+    down.close();
+    assert.equal(await probeLink(upPort), 'unreachable');
   });
 });

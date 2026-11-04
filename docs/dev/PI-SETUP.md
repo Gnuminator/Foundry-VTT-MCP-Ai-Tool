@@ -1213,7 +1213,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   - `ACTION=setup` also enables the `foundry-mcp-bridge` module in `strahd-kit` when it is off
     (the module stays enabled there afterwards, like the Actor Studio settings; `strahd-kit` is a
     throwaway copy), creates `Kit GM` as a Gamemaster with that password (an existing `Kit GM` is
-    ours: its role and password are reset), makes it the module's **Bridge User**, reloads and reads
+    ours: its role and password are reset), sets it as the module's **AI Tool: Which GM connects**, reloads and reads
     it all back, and checks that a throwaway browser can really join as `Kit GM` with the password.
   - Then a transient unit `foundry-ai-tool-kit-gm-browser` (`systemd-run`, with the hardening and
     priority properties of the Assistant GM unit: low priority, no new privileges, its own profile
@@ -1223,7 +1223,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
     unit and nothing starts it again. If the browser does not join, the run is rolled back like any
     other failure.
   - The state file gets a line `KIT_GM_BROWSER=1` and a line `ORIG_BRIDGE_USER=<id or empty>`, the
-    Bridge User the world had before (stage 11 sets the Assistant GM there). `MODE=down` puts that
+    "AI Tool: Which GM connects" setting the world had before (stage 11 sets the Assistant GM there). `MODE=down` puts that
     user back when it still exists and is a GM, else "Any GM". A state file from before this change
     (no such lines) is still accepted by `MODE=down` and resets to "Any GM".
   - The PC reads the password with `pwsh scripts/pi/fetch-kit-login.ps1` (one read-only ssh command,
@@ -1245,7 +1245,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   actors that `Kit Player` owns and that were made after `up` (the state file's `STAMP_EPOCH`, passed on as
   `SINCE_EPOCH`, so a DST change or a timezone change cannot move the cutoff; an older state file without it
   falls back to `STAMP` as `SINCE_STAMP`) are listed by name and id and deleted, then the user; then the
-  Bridge User goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. An owned actor from
+  "AI Tool: Which GM connects" goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. An owned actor from
   before `up` (or one with no creation time) is kept and listed as kept. At most 5
   actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have
   looked at them), and nothing else is deleted and no setting is touched. Any actor created for
@@ -1269,8 +1269,8 @@ browser that does not join, a dropped ssh session at each new step, the stop ord
 failed teardown and the old state file format; each of those scenarios is proven to fail on the
 stage without the change. The first live kit session on the Pi (2026-10-13) worked: real systemd
 ran the transient unit (`EnvironmentFile` of the root-only file, `ProtectSystem=full` with the
-Chromium profile), Foundry took the Bridge User setting for the user made seconds before, the Kit GM
-browser joined and held the bridge link, and `MODE=down` put `curse-of-strahd`, the Bridge User and
+Chromium profile), Foundry took the "AI Tool: Which GM connects" setting for the user made seconds before, the Kit GM
+browser joined and held the bridge link, and `MODE=down` put `curse-of-strahd`, the GM setting and
 the Assistant GM browser back (about 6 minutes up, 2 down; stopping the Assistant GM browser alone
 takes about 40 seconds).
 

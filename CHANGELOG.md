@@ -49,6 +49,12 @@
 
 - **Lanes get their own context lines in desktop-app worktrees:** the context hooks now count a session as a lane when its project dir is under `.claude/worktrees/` or its transcript sits in a worktree project folder (both fixed at session start), so a lane no longer gets the planner's 200k and 250k lines by mistake. A planner that `cd`s into a worktree stays a planner.
 
+- **Undo wording for the AI:** the server instructions now say which kinds the change journal covers (actors, items, effects, tokens, scenes, combat, journals), that music and folders are not recorded (so the journal cannot undo them), which switches the journal undo needs, and that records are kept 7 days.
+- **Roll asks:** the module saves each roll card's button one write at a time, so asks that arrive together (Ask the party) no longer drop each other's buttons. Start combat stops asking after the first timeout or lost channel and says who was not asked.
+- **Help panel:** the Danish page falls back to English only when it is missing (404); the build warns when a Danish page's headings differ from the English page.
+- **Live window:** the "why is this empty" panel is filled in the next frame so screen readers announce it. The new `fmb-live-hello` message (the module says hello to the GM page, which answers with its address) is covered by the e2e stand-in.
+- **Dashboard wording:** "Pick from list list" in comments and test titles reads "picker list"; the demo helper comment names the real button "Plan and confirm".
+
 ### Module
 
 - **Automatic party:** Foundry now keeps a dnd5e primary party by itself. The active GM's client makes a Group actor "Party" when there is none and adds every character a player owns, both at world load and as new characters are made or get a player owner. NPCs and actors no player owns stay out, nobody is added twice, and each batch of additions shows in Recent Changes with Undo (Undo takes back the newest batch; to take out an older character, remove it on the party sheet and it stays out). A deleted party is made again the next time a character is added or the world loads, and a character you took out stays out of that party, also after you switch the primary party and back. The setting "AI Tool: Add player characters to the party" (default on) turns it off. "Ask the party" no longer needs a party made by hand. The GM guide's party step is replaced by one line.
@@ -159,6 +165,14 @@
   player's own folder under `assets/players/`, with a name the module makes, and Foundry's file
   browser stays closed. The change shows in Changes with an Undo (the old picture comes back).
   New switch "AI Tool: Player portraits (writes)", on by default. Player guide step 12 (en, da).
+
+- **Errors in plain words:** a toast, empty state or tooltip no longer shows a tool name, an HTTP
+  code, a stack trace or a setting name. Notes written for Claude (such as "Tell the GM and stop
+  here") are left out, and a failed call with no message of its own gets a short sentence.
+- **Real error messages, and a lost login:** a refusal from the session notes now shows its own
+  message instead of "HTTP 409". The strip page, the GM page and Live window B show the
+  "this GM link is not accepted" notice when the dashboard treats the browser as a player, and a
+  sign-in page standing in for the dashboard reads as "open your GM link again".
 
 ### Discord
 

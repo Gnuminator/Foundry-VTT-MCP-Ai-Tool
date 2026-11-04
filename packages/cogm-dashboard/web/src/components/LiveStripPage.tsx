@@ -10,6 +10,7 @@ import { GateTextContext, GmActionsGateContext } from '../lib/guarded';
 import { listenForMapPick } from '../lib/mapPick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
+import { RoleNotice } from './RoleNotice';
 
 const STRIP_GATE_TEXT = 'GM Actions are off. Press Turn on in the strip.';
 
@@ -56,6 +57,7 @@ export function LiveStripPage(): JSX.Element {
     <GmActionsGateContext.Provider value={openGate}>
       <GateTextContext.Provider value={STRIP_GATE_TEXT}>
         <main className="live-strip-page">
+          <RoleNotice />
           {openedByGmPage() ? (
             <p className="live-strip-page-note">
               Map picks come from the GM page.{' '}

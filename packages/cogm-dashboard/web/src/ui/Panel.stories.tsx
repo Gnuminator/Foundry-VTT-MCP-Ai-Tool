@@ -72,7 +72,8 @@ export const Empty: Story = {
 export const Failed: Story = {
   args: {
     state: 'error',
-    stateMessage: 'Couldn’t load the party: HTTP 500',
+    stateMessage:
+      'Couldn’t load the party: The dashboard could not finish that. Try again in a moment.',
     onRetry: fn(),
   },
 };

@@ -4,7 +4,7 @@
 // combatant from the list or the tokens targeted in Foundry, read when you press the button.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 
-import { callTool } from '../lib/api';
+import { callTool, errorText } from '../lib/api';
 import {
   FOUNDRY_TARGETS,
   LANDED_NOTE,
@@ -123,7 +123,7 @@ export function AttackForm({
           setNote(LANDED_NOTE);
         }
       } catch (e) {
-        setNote(e instanceof Error ? e.message : 'Could not read the targets from Foundry.');
+        setNote(e instanceof Error ? errorText(e) : 'Could not read the targets from Foundry.');
       } finally {
         ownLock.current = false;
         setBusy(false);

@@ -20,6 +20,22 @@ async function settled(page: import('@playwright/test').Page, path: string): Pro
   return body;
 }
 
+// The strip page, Live window B and the GM page have no header of their own, but a GM link that
+// fell back to player still gets the one-line notice there (item dashboard-truth).
+for (const [name, path] of [
+  ['the strip alone', '/?strip=1'],
+  ['the Live view', '/?live=1'],
+  ['the GM page', '/gm'],
+] as const) {
+  test(`a stale GM token on ${name} shows the notice`, async ({ page }) => {
+    await fakeCommonRoutes(page);
+    const joiner = path.includes('?') ? '&' : '?';
+    await settled(page, `${path}${joiner}token=stale-gm-token`);
+
+    await expect(page.getByText("This browser's GM link is not accepted any more.")).toBeVisible();
+  });
+}
+
 for (const [name, path] of PAGES) {
   test(`a player without a token on ${name} lands on the player view`, async ({ page }) => {
     await fakeCommonRoutes(page);

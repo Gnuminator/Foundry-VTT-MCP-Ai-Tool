@@ -182,7 +182,7 @@ test('Open shows the journal in Foundry and says when it fails', async ({ page }
   openFails = true;
   await drawer.locator('.pf-detail', { hasText: 'Next session' }).getByRole('button').click();
   await expect(page.locator('.toast-stack .toast.err')).toHaveText(
-    '✗ open-in-foundry: No such journal'
+    '✗ Open in Foundry: No such journal'
   );
   expect(calls.at(-1)?.args).toEqual({ uuid: 'JournalEntry.n1' });
 });

@@ -319,7 +319,7 @@ test('Show cards shows names, ids and notes, and hides them again on untick and 
 
   // A failed Open says why.
   await pos(drawer, 'tome').getByRole('button', { name: 'Open Journal' }).click();
-  await expect(toast(page, '✗ open-in-foundry: Bridge not connected')).toBeVisible();
+  await expect(toast(page, '✗ Open in Foundry: Bridge not connected')).toBeVisible();
 });
 
 test('shows the empty state, and a failed load says why and keeps the last reading', async ({

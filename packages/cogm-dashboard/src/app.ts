@@ -918,6 +918,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     client,
     requireGm,
     gmActionsEnabled: () => settings.gmActionsEnabled,
+    logger,
   });
 
   // The feature cards (I-064): every feature switch and its state, read-only. The bridge's
@@ -938,10 +939,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         });
       })
       .catch((error: unknown) => {
+        logger.warn('Could not read the features', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.json({
           features: null,
           writesAllowed: null,
-          error: error instanceof Error ? error.message : 'Could not read the features.',
+          error: 'Could not read the switches from Foundry.',
         });
       });
   });
@@ -952,10 +956,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         res.json({ switches, gmActionsEnabled: settings.gmActionsEnabled, error: null })
       )
       .catch((error: unknown) => {
+        logger.warn('Could not read the switches', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.json({
           switches: null,
           gmActionsEnabled: settings.gmActionsEnabled,
-          error: error instanceof Error ? error.message : 'Could not read the switches.',
+          error: 'Could not read the switches from Foundry.',
         });
       });
   });
@@ -989,9 +996,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         });
       })
       .catch((error: unknown) => {
+        logger.warn('Could not change the switches', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.status(502).json({
           ok: false,
-          error: error instanceof Error ? error.message : 'Could not change the switches.',
+          error: 'Could not change the switches in Foundry. Check that the world is open.',
           gmActionsEnabled: settings.gmActionsEnabled,
           gmActionsChanged: settings.gmActionsEnabled !== gmActionsBefore,
         });
@@ -1014,9 +1024,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       )
       .then(result => res.json(result))
       .catch((error: unknown) => {
-        res.status(500).json({
-          error: error instanceof Error ? error.message : 'Pre-flight failed.',
+        logger.warn('Pre-flight failed', {
+          error: error instanceof Error ? error.message : String(error),
         });
+        res.status(500).json({ error: 'The check could not run. Try again in a moment.' });
       });
   });
 
@@ -1025,8 +1036,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     getToolCatalog(req.query.refresh === '1')
       .then(tools => res.json({ tools, gmActionsEnabled: settings.gmActionsEnabled }))
       .catch((error: unknown) => {
+        logger.warn('Could not list the bridge tools', {
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.status(502).json({
-          error: error instanceof Error ? error.message : 'Failed to list bridge tools.',
+          error: 'The list of actions could not be loaded. Try again in a moment.',
         });
       });
   });
@@ -1101,11 +1115,27 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
             : error instanceof TimeoutError
               ? 'timeout'
               : 'channel';
+        // A tool's own refusal is written for the GM and passes through; a timeout or a lost
+        // link can carry socket and port text, so those send a fixed sentence and log the detail.
+        if (kind !== 'tool') {
+          logger.warn('Tool call failed', {
+            name,
+            kind,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
         res.status(kind === 'tool' ? 422 : 502).json({
           ok: false,
           name,
           kind,
-          error: error instanceof Error ? error.message : 'Tool call failed.',
+          error:
+            kind === 'timeout'
+              ? 'Foundry took too long to answer.'
+              : kind === 'channel'
+                ? 'The dashboard lost its link to Foundry. Check that the world is open with a GM joined.'
+                : error instanceof Error
+                  ? error.message
+                  : 'The action did not work.',
         });
       });
   });
@@ -1137,10 +1167,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       .liveSweep(request)
       .then(result => res.json({ ok: true, result }))
       .catch((error: unknown) => {
-        res.status(502).json({
-          ok: false,
-          error: error instanceof Error ? error.message : 'Live sweep helper failed.',
+        logger.warn('Live sweep helper failed', {
+          error: error instanceof Error ? error.message : String(error),
         });
+        res.status(502).json({ ok: false, error: 'The test helper failed.' });
       });
   });
 

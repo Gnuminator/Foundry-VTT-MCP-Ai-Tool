@@ -70,10 +70,9 @@ test('shows the streamed errors newest first, with the counter', async ({ page }
   await expect(entries.locator('.diag-module')).toHaveText(['unknown', 'dnd5e', 'dice-so-nice']);
   await expect(entries.locator('.diag-level')).toHaveText(['error', 'warn', 'error']);
   await expect(entries.nth(1)).toHaveClass(/lvl-warn/);
-  await expect(entries.nth(2)).toHaveAttribute(
-    'title',
-    'Cannot read properties of undefined\n\nTypeError at module:dice-so-nice/main.js'
-  );
+  // The tooltip is the message only: the module is already its own column, and a stack is a
+  // developer detail that the plain-words rule keeps out of every tooltip.
+  await expect(entries.nth(2)).toHaveAttribute('title', 'Cannot read properties of undefined');
 });
 
 test('says so when no module has failed', async ({ page }) => {

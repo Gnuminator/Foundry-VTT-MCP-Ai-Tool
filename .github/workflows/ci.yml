@@ -209,6 +209,11 @@ jobs:
         # systemctl, timedatectl and dietpi-set_software.
         run: node --test scripts/pi/time-sync.test.mjs
 
+      - name: Pi stage 23 Discord game server
+        # 23-discord-game-server.sh (backlog discord-pi-game-server) as text: the ids, snapshot and quiet checks before the write,
+        # the token never echoed. The scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/discord-game-server.test.mjs
+
       - name: Pi stage 19 join page look
         # 19-join-page-look.sh (backlog join-page-look): background picture and description into world.json with Foundry
         # stopped, hash and webp checks, dry run, snapshot and quiet check required, UNDO, with stand-in systemctl and curl.
@@ -623,6 +628,13 @@ jobs:
         env:
           PI_STAGE21_CONTAINER: 1
         run: node --test scripts/pi/player-vault.test.mjs
+
+      - name: Pi stage 23 in an ARM64 container
+        # scripts/pi/container-test/stage23-scenarios.sh: stage 23 on Debian 13 ARM64 with the real lib.sh (dry run, the four lines
+        # set and the token kept, the saved copy, rerun, check, duplicates, the snapshot rule, undo).
+        env:
+          PI_STAGE23_CONTAINER: 1
+        run: node --test scripts/pi/discord-game-server.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

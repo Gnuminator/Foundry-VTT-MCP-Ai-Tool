@@ -80,7 +80,12 @@ function makePack(
         async update(change) {
           Object.assign(d, structuredClone(change));
         },
-        async updateEmbeddedDocuments() {},
+        async updateEmbeddedDocuments(name, updates) {
+          for (const u of updates) {
+            const e = (d.effects ?? []).find(x => x._id === u._id);
+            if (e) Object.assign(e, structuredClone(u));
+          }
+        },
       };
     },
     async configure(change) {
@@ -369,6 +374,65 @@ describe('seven-books-trim.js', () => {
     await run(trimSource, world, false);
     assert.notDeepEqual(world.packs.get('dnd5e.classes').ownership, HIDDEN);
     assert.deepEqual(world.packs.get('dnd5e.items').ownership, HIDDEN);
+  });
+
+  test('an entry that came back into aitool-content replaces its stale legacy copy', async () => {
+    const world = standardWorld();
+    wire(world);
+    await run(trimSource, world, false);
+    // a stage 11 push brings Bane back with new text; the legacy pack still holds the old one
+    const spells = world.packs.get('aitool-content.spells');
+    spells.docs.set(id(3), spell(3, 'Bane', 'PHB', 'new text'));
+    await run(trimSource, world, false);
+    const legacy = world.packs.get('world.legacy-other-books');
+    assert.equal(legacy.docs.get(id(3)).system.description.value, 'new text');
+    assert.ok(!spells.docs.has(id(3)));
+  });
+
+  test('effect descriptions of re-pointed entries are re-pointed too', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('aitool-content.spells').docs.get(id(1)).effects = [
+      { _id: 'e1', changes: [], flags: {}, description: link('dnd5e.items', id(900)) },
+    ];
+    await run(trimSource, world, false);
+    const eff = world.packs.get('aitool-content.spells').docs.get(id(1)).effects[0];
+    assert.match(eff.description, /Compendium\.world\.linked-srd-items\.Item\./);
+    assert.doesNotMatch(eff.description, /dnd5e\.items/);
+  });
+
+  test('check mode: a trimmed world has no drift; a book put back, a visible SRD pack or a dead link is drift', async () => {
+    const check = `const CHECK_ONLY = true;\n${trimSource}`;
+    const world = standardWorld();
+    wire(world);
+    await assert.rejects(run(check, world, true), /DRIFT/); // not trimmed yet
+    await run(trimSource, world, false);
+    const ok = await run(check, world, true);
+    assert.match(ok.lines.join('\n'), /no drift/);
+    // a content module update puts a dropped book back
+    world.packs.get('aitool-content.spells').docs.set(id(60), spell(60, 'Old Spell', 'Other'));
+    await assert.rejects(run(check, world, true), /DRIFT.*"move":1/);
+    world.packs.get('aitool-content.spells').docs.delete(id(60));
+    // the dnd5e SRD pack is visible again
+    world.packs.get('dnd5e.items').ownership = { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' };
+    await assert.rejects(run(check, world, true), /DRIFT.*"srdVisible":1/);
+    world.packs.get('dnd5e.items').ownership = { ...HIDDEN };
+    // a kept entry links into a pack players cannot open (summons and tables are the known ones)
+    const hidden = makePack('aitool-content.summons', 'Actor', [], { ...HIDDEN });
+    world.packs.set(hidden.collection, hidden);
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'aitool-content.summons',
+      id(70),
+      'Actor'
+    );
+    assert.match((await run(check, world, true)).lines.join('\n'), /unexpected: 0/);
+    const odd = makePack('dnd-players-handbook.hidden', 'Item', [], { ...HIDDEN });
+    world.packs.set(odd.collection, odd);
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd-players-handbook.hidden',
+      id(71)
+    );
+    await assert.rejects(run(check, world, true), /DRIFT.*"deadLinks":1/);
   });
 
   test('skips a world without the aitool-content packs', async () => {

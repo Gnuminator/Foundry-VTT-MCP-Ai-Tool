@@ -163,10 +163,30 @@ if want other-worlds; then
   check other-worlds 'exit 0' "$out"
 fi
 
+if want check-mode; then
+  # MODE=check is always a dry run of the trim script with CHECK_ONLY in front; it takes no APPLY and needs no snapshot
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=check')"
+  check check-mode 'dry run of /root/seven-books-check.js' "$out"
+  check check-mode 'exit 0' "$out"
+  check check-mode '^const CHECK_ONLY = true;$' "$(head -n 1 /root/seven-books-check.js)"
+  check check-mode 'seven-books-check.js' "$(cat /tmp/calls)"
+  check check-mode '--dry-run' "$(cat /tmp/calls)"
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=check APPLY=1')"
+  check check-mode 'MODE=check only reads' "$out"
+  check check-mode 'exit 1' "$out"
+  absent check-mode 'systemd-run' "$(cat /tmp/calls)"
+  fresh_pi curse-of-strahd
+  rm -f /root/seven-books-trim.js
+  out="$(run_stage 'MODE=check')"
+  check check-mode 'scp the GM scripts' "$out"
+fi
+
 if want bad-mode; then
   fresh_pi curse-of-strahd
   out="$(run_stage 'MODE=wipe')"
-  check bad-mode 'MODE must be trim or delete' "$out"
+  check bad-mode 'MODE must be trim, check or delete' "$out"
 fi
 
 [ "$fail" = 0 ] && echo "ALL PASSED" || echo "FAIL: see above"

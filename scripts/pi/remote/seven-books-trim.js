@@ -229,8 +229,39 @@ for (const id of leftVisible) {
     log(`WARNING ${id} is hidden from players although kept entries link to it: make it visible`);
 }
 log(`MOVE ${moved.size} entries to ${LEGACY}`);
+// Kept entries that link into a pack players cannot open (a dead link for them). The summons and tables packs were
+// GM-only before the trim and are a known open point; anything else is drift.
+const KNOWN_GM_ONLY = ['aitool-content.summons', 'aitool-content.tables'];
+const deadForPlayers = [...linkedPacks.keys()].filter(pid => {
+  const p = game.packs.get(pid);
+  return p && ownershipOf(p).PLAYER === 'NONE';
+});
+const unexpectedDead = deadForPlayers.filter(pid => !KNOWN_GM_ONLY.includes(pid));
+log(
+  `LINKS INTO PACKS PLAYERS CANNOT OPEN: ${deadForPlayers.length}${deadForPlayers.length ? ` (${deadForPlayers.map(id => `${id} ${linkedPacks.get(id)}`).join(', ')})` : ''}, unexpected: ${unexpectedDead.length}`
+);
 if (args.dryRun) {
-  return { move: moved.size, comeBack: comeBack.size, repoint: todo.length, hide: toHide.length };
+  const result = {
+    move: moved.size,
+    comeBack: comeBack.size,
+    repoint: todo.length,
+    hide: toHide.length,
+  };
+  // The check mode of stage 22 (MODE=check) puts `const CHECK_ONLY = true;` in front of this file: a read-only run that
+  // fails when the world no longer matches what the trim leaves, so a stage 11 push or a module update cannot undo the
+  // trim unseen. The ordinary dry run only reports.
+  if (typeof CHECK_ONLY !== 'undefined' && CHECK_ONLY) {
+    const srdVisible = ['dnd5e.items', 'dnd5e.monsters'].filter(
+      pid => game.packs.get(pid) && !same(ownershipOf(game.packs.get(pid)), HIDDEN)
+    );
+    const drift = { ...result, deadLinks: unexpectedDead.length, srdVisible: srdVisible.length };
+    if (Object.values(drift).some(n => n > 0))
+      throw new Error(
+        `DRIFT: the world no longer matches the seven-book trim ${JSON.stringify(drift)}; run stage 22 again (dry run first)\n${done.join('\n')}`
+      );
+    log('no drift: the world matches the seven-book trim');
+  }
+  return result;
 }
 
 // ---- real run ----
@@ -253,7 +284,12 @@ const real = async () => {
     await unlocked(pack, async () => {
       for (let i = 0; i < ids.length; i += 40) {
         const chunk = ids.slice(i, i + 40);
-        const fresh = chunk.filter(x => !legacy.index.has(x));
+        // An entry that is in the legacy pack already (a killed earlier run, or a stage 11 push that brought it back
+        // into aitool-content) is replaced by the copy from the content pack, never kept as the stale one. The old
+        // copy goes first; if the create then fails, the entry is still in its content pack and the run stops.
+        const stale = chunk.filter(x => legacy.index.has(x));
+        if (stale.length) await Item.deleteDocuments(stale, { pack: LEGACY });
+        const fresh = chunk;
         if (fresh.length) {
           const data = (await pick(pack, fresh)).map(d => {
             const o = d.toObject();
@@ -334,7 +370,12 @@ const real = async () => {
           const eff = JSON.parse(swap(JSON.stringify(o.effects)));
           await d.updateEmbeddedDocuments(
             'ActiveEffect',
-            eff.map(e => ({ _id: e._id, changes: e.changes, flags: e.flags }))
+            eff.map(e => ({
+              _id: e._id,
+              changes: e.changes,
+              flags: e.flags,
+              description: e.description,
+            }))
           );
         }
         re.lastIndex = 0;

@@ -1,7 +1,7 @@
 {
   "name": "foundry-ai-tool",
   "version": "0.24.0",
-  "description": "Foundry AI Tool — MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
+  "description": "Foundry AI Tool: MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -45,7 +45,8 @@
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
-    "wiki:test": "node --test scripts/wiki/stage.test.mjs",
+    "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
+    "dev:test": "node --test \"scripts/dev/*.test.mjs\"",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",

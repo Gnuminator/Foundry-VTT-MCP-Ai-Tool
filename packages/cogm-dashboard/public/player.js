@@ -13,7 +13,13 @@ import {
   turnLine,
   turnStatus,
 } from './player-me.js';
-import { handoutTitle, sessionPhase, splitHandouts } from './player-session.js';
+import {
+  handoutTitle,
+  sessionPhase,
+  splitHandouts,
+  visibleHandouts,
+  whoLine,
+} from './player-session.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -68,10 +74,10 @@ const escape = s =>
   );
 
 const STATUS_LABELS = {
-  live: 'live',
-  'foundry-offline': 'foundry offline',
-  disconnected: 'disconnected',
-  connecting: 'connecting…',
+  live: 'Live',
+  'foundry-offline': 'Foundry is offline. Wait a moment.',
+  disconnected: 'Not connected. Wait a moment.',
+  connecting: 'Connecting…',
 };
 
 function hpCell(c) {
@@ -81,7 +87,7 @@ function hpCell(c) {
   }
   // Enemy/NPC: never numbers. A coarse band if the server provided one.
   if (c.hpBand) return `<span class="hp-muted">${escape(c.hpBand)}</span>`;
-  return `<span class="hp-muted">—</span>`;
+  return `<span class="hp-muted">hidden</span>`;
 }
 
 function renderCombat(combat) {
@@ -99,7 +105,7 @@ function renderCombat(combat) {
           ? `<span class="cond">${c.conditions.map(escape).join(', ')}</span>`
           : '';
       return `<div class="${cls.join(' ')}">
-        <span class="init">${escape(c.initiative ?? '—')}</span>
+        <span class="init">${escape(c.initiative ?? 'none')}</span>
         <span class="dot ${escape(c.side)}"></span>
         <span class="name">${escape(c.name)}</span>
         ${conds}
@@ -187,6 +193,12 @@ function renderMineRolls() {
     .join('');
 }
 
+// A server-side failure (5xx) can carry a raw error message: players always get the same line.
+function rollFailureNote(status, body) {
+  if (status >= 500) return 'Could not roll. Ask your GM.';
+  return (body && body.error) || 'The roll did not work. Ask your GM.';
+}
+
 elMineRolls.addEventListener('click', async e => {
   const btn = e.target instanceof Element ? e.target.closest('button[data-roll]') : null;
   if (!btn || btn.disabled || !meKey) return;
@@ -204,10 +216,10 @@ elMineRolls.addEventListener('click', async e => {
     if (res.ok) {
       myRolls = myRolls.filter(r => r.buttonId !== id);
     } else {
-      rollNotes.set(id, body.error || 'The roll did not work.');
+      rollNotes.set(id, rollFailureNote(res.status, body));
     }
   } catch {
-    rollNotes.set(id, 'Could not reach the table. Try again.');
+    rollNotes.set(id, 'Could not roll. Ask your GM.');
   }
   await loadMe();
   renderMine();
@@ -285,9 +297,11 @@ async function onMineState(s) {
   if (fresh || Date.now() - meAt > ME_REFRESH_MS || mySheetList.length === 0) await loadMe();
   if (fresh && !meMissed) {
     for (const r of concentrationReminders(events, mySheetList, seenDamage)) {
-      const div = document.createElement('div');
+      const div = document.createElement('button');
+      div.type = 'button';
       div.className = 'mine-alert';
       div.textContent = r.text;
+      div.title = 'Dismiss';
       div.addEventListener('click', () => div.remove());
       elMineAlerts.prepend(div);
     }
@@ -304,10 +318,8 @@ function sceneLook(env) {
 
 function renderState(s) {
   void onMineState(s);
-  elStatus.textContent = STATUS_LABELS[s.status] || 'connecting…';
-  elWorld.textContent = s.world
-    ? `${s.world.title}${s.world.systemId ? ' · ' + s.world.systemId : ''}`
-    : '—';
+  elStatus.textContent = STATUS_LABELS[s.status] || STATUS_LABELS.connecting;
+  elWorld.textContent = s.world ? s.world.title : 'No world yet';
   elScene.textContent = s.scene ? `· ${s.scene}${sceneLook(s.sceneEnvironment)}` : '';
   elWrap.dataset.phase = sessionPhase(s);
   renderCombat(s.combat);
@@ -319,11 +331,6 @@ function renderState(s) {
 let lastHandouts = [];
 let currentWho = null;
 const reportedSeen = new Set();
-
-function visibleHandouts(handouts) {
-  const me = currentWho && currentWho.userId;
-  return (handouts || []).filter(h => !Array.isArray(h.players) || (me && h.players.includes(me)));
-}
 
 function handoutHtml(h) {
   // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
@@ -339,9 +346,17 @@ function fill(el, list, emptyText) {
 
 function renderHandouts(handouts) {
   lastHandouts = Array.isArray(handouts) ? handouts : [];
-  const { recap, quests, rest } = splitHandouts(visibleHandouts(lastHandouts));
+  const { recap, quests, rest } = splitHandouts(
+    visibleHandouts(lastHandouts, currentWho && currentWho.userId)
+  );
   fill(elRecap, recap ? [recap] : [], 'No recap yet.');
-  fill(elHandouts, rest, 'Nothing revealed yet.');
+  fill(
+    elHandouts,
+    rest,
+    currentWho && currentWho.userId
+      ? 'Nothing revealed yet.'
+      : 'Nothing revealed yet. Pick your name to see handouts meant just for you.'
+  );
   fill(elQuests, quests, 'No quests yet.');
 }
 
@@ -375,7 +390,7 @@ function connect() {
   on('rolls', p => onRolls(p.open));
   on('theme', p => renderTheme(p.theme));
   es.onerror = () => {
-    elStatus.textContent = 'reconnecting…';
+    elStatus.textContent = 'Reconnecting. Wait a moment.';
     // The browser retries a dropped connection by itself, but gives up for good on a non-200 answer
     // (a 502 while the dashboard restarts): make a new one after a wait. The server sends the
     // state again on connect, which sets the label.
@@ -418,10 +433,9 @@ function showWho(who) {
   renderHandouts(lastHandouts);
   elWhoPicker.hidden = true;
   elWho.hidden = false;
-  elWhoName.textContent = who && who.name ? `Playing as ${who.name}` : '';
-  elWhoChange.textContent = who && who.name ? 'not you?' : 'pick your name';
+  elWhoName.textContent = whoLine(who);
+  elWhoChange.textContent = who && who.name ? 'Not you? Change' : 'Pick your name';
 }
-
 async function loadNames() {
   try {
     const res = await fetch('/api/player/names', {
@@ -440,7 +454,10 @@ async function loadNames() {
 async function askWho() {
   const names = await loadNames();
   // Nobody known yet (the bridge has not seen the players): ask again next visit.
-  if (names.length === 0) return;
+  if (names.length === 0) {
+    showWho(null);
+    return;
+  }
   elWhoList.innerHTML = '';
   for (const n of names) {
     const b = document.createElement('button');

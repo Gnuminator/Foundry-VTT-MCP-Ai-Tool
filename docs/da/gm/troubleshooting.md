@@ -1,6 +1,6 @@
 ---
 source: gm/troubleshooting.md
-sourceHash: 2de6651bbcca
+sourceHash: 2d3136eca013
 title: Fejlfinding
 description: Symptom, sandsynlig årsag og løsning på de problemer, en GM oftest møder med Foundry AI Tool.
 ---
@@ -13,7 +13,7 @@ forbindelsen til den, ikke på din PC. Når en række siger, at du skal fortæll
 
 ## Bridgen får ikke forbindelse
 
-**Du ser:** Claude siger, at den ikke kan nå bridgen eller Foundry, advarslen "MCP Server not found"
+**Du ser:** Claude siger, at den ikke kan nå bridgen eller Foundry, advarslen "Cannot reach the AI Tool server. Is it started?"
 vises i Foundry, eller dashboardets **✈ Pre-flight** siger, at Foundry ikke er forbundet, eller viser
 "Connection lost, reconnecting…".
 
@@ -26,26 +26,27 @@ aldrig behøver at forbinde til den.
 | Claude Desktop siger, at bridgen ikke kan nås.                              | Tunnelklienten på din PC er stoppet. Genstart din PC (den starter ved hver login), eller kør statuslinjen, du fik udleveret. Se [Forbind Claude Desktop til serveren](connect-claude-desktop.md). |
 | Pre-flight siger, at Foundry ikke er forbundet, men selve spillet indlæses. | Serverens egen Foundry-browser (Assistant GM) er nede eller logget ud. Fortæl det til værktøjets admin.                                                                                           |
 | Modulet er slået fra i denne world.                                         | Settings tab (tandhjulet), **Module Management**, sæt kryds ved **Foundry AI Tool**, **Save Module Settings**.                                                                                    |
-| Bridgen er slået fra i modulets indstillinger.                              | **Game Settings**, kategorien **Foundry AI Tool**, sæt kryds ved **Enable MCP Bridge**, **Save Changes**.                                                                                         |
+| Bridgen er slået fra i modulets indstillinger.                              | **Game Settings**, kategorien **Foundry AI Tool**, sæt kryds ved **AI Tool: Connect to the AI Tool server**, **Save Changes**.                                                                    |
 
-Når det virker, slutter hjælpeteksten under **Enable MCP Bridge** i Game Settings med "Status: ✅
-Connected". Hjælper intet, skriver tunnelklienten på din PC en log til
+Når det virker, slutter hjælpeteksten under **AI Tool: Connect to the AI Tool server** i Game Settings med
+"Status: Connected". Slutter den med "Status: Not connected. Is the AI Tool server started?", kører
+serveren ikke, eller den kan ikke nås. Hjælper intet, skriver tunnelklienten på din PC en log til
 `%TEMP%\foundry-mcp-server\wrapper.log`. Send den til værktøjets admin.
 
 ## Et værktøj nægter at ændre noget
 
 Afvisningen siger hvorfor. Der blev ikke skrevet noget.
 
-| Besked (eller en del af den)                                                                                                                  | Løsning                                                                                                                                                                                                                                                                                              |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GM Actions are off                                                                                                                            | Klik på **Start session** (eller **Turn on** i dashboardets header). En genstart af dashboardet slår den fra igen.                                                                                                                                                                                   |
-| `"AI Tool: Tarokka (writes)" is switched off. In Foundry, open the Settings tab, Game Settings…` (eller Handouts, Obsidian mirror, Live play) | **Game Settings**, kategorien **Foundry AI Tool**, sæt kryds ved "AI Tool: Tarokka (writes)" (eller Handouts, Obsidian mirror, Live play), **Save Changes**, og anvend så igen.                                                                                                                      |
-| `Write operations are disabled in the module settings` eller `… is disabled in module settings`                                               | Samme sted: sæt kryds ved **Allow Write Operations**.                                                                                                                                                                                                                                                |
-| `No pending plan … (plans expire after 15 minutes)`                                                                                           | Planen er udløbet, eller bridgen er genstartet. Lav planen igen (bed Claude om det, eller kør `plan-`-værktøjet igen).                                                                                                                                                                               |
-| `Conflict, nothing was written: …`                                                                                                            | Noget ændrede det samme, efter planen blev lavet. Tjek det i Foundry, og lav så en ny plan.                                                                                                                                                                                                          |
-| `That page is already revealed to players`                                                                                                    | Der er intet at gøre.                                                                                                                                                                                                                                                                                |
-| `Players cannot open the journal that holds …`                                                                                                | Sæt journalens andre sider til None først, og hæv så journalen til Observer. Se [Afslør et handout](dashboard.md#afslør-et-handout). Lav planen igen. Eller afslør med `copy: true`, som kopierer siden ind i spillerjournalen "Handouts", eller flyt siden til en journal, spillerne kan observere. |
-| `was already undone` eller `An undo cannot be undone`                                                                                         | Der er intet at fortryde. Vil du ændre det igen, så lav en ny plan.                                                                                                                                                                                                                                  |
+| Besked (eller en del af den)                                                                                                                  | Løsning                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GM Actions are off                                                                                                                            | Klik på **Start session** (eller **Turn on** i dashboardets header). En genstart af dashboardet slår den fra igen.                                                              |
+| `"AI Tool: Tarokka (writes)" is switched off. In Foundry, open the Settings tab, Game Settings…` (eller Handouts, Obsidian mirror, Live play) | **Game Settings**, kategorien **Foundry AI Tool**, sæt kryds ved "AI Tool: Tarokka (writes)" (eller Handouts, Obsidian mirror, Live play), **Save Changes**, og anvend så igen. |
+| `Write operations are disabled in the module settings` eller `… is disabled in module settings`                                               | Samme sted: sæt kryds ved **AI Tool: Allow Write Operations**.                                                                                                                  |
+| `No pending plan … (plans expire after 15 minutes)`                                                                                           | Planen er udløbet, eller bridgen er genstartet. Lav planen igen (bed Claude om det, eller kør `plan-`-værktøjet igen).                                                          |
+| `Conflict, nothing was written: …`                                                                                                            | Noget ændrede det samme, efter planen blev lavet. Tjek det i Foundry, og lav så en ny plan.                                                                                     |
+| `That page is already revealed to players`                                                                                                    | Der er intet at gøre.                                                                                                                                                           |
+| `Players cannot open the journal that holds …`                                                                                                | Sæt journalens andre sider til None først, og hæv så journalen til Observer. Se [Afslør et handout](dashboard.md#afslør-et-handout). Lav planen igen.                           |
+| `was already undone` eller `An undo cannot be undone`                                                                                         | Der er intet at fortryde. Vil du ændre det igen, så lav en ny plan.                                                                                                             |
 
 En **Undo**, der melder en konflikt, betyder, at tingen er ændret igen efter den ændring, du vil
 fortryde. Ret det i hånden i Foundry.

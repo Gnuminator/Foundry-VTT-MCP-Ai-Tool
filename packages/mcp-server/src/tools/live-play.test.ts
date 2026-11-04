@@ -89,9 +89,9 @@ describe('definitions', () => {
     expect(query.mock.calls[0][1]).not.toHaveProperty('active');
   });
 
-  it('tells the caller about autoApply and apply-planned-change', () => {
+  it('tells the caller about apply-planned-change (the autoApply rule lives there)', () => {
     const def = tools.getToolDefinitions()[0];
-    expect(def.description).toContain('autoApply: true');
+    expect(def.description).not.toContain('autoApply');
     expect(def.description).toContain('apply-planned-change');
     expect(def.description).toContain('undo-change');
   });

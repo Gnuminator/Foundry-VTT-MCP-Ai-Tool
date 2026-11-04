@@ -49,7 +49,7 @@ function gameRec(): Rec | null {
 export function registerPartyAutoSettings(): void {
   game.settings.register(MODULE_ID, PARTY_AUTO_SETTING, {
     name: 'AI Tool: Add player characters to the party',
-    hint: 'Keeps a dnd5e party and adds every character a player owns to it by itself, so "Ask the party" and the party tools work without setting a party up. Makes a group "Party" when there is none. NPCs and actors no player owns stay out. Each addition shows in Recent Changes with Undo. Switch off to manage the party yourself.',
+    hint: 'Adds every character a player owns to the party by itself, making a group "Party" when there is none; each addition shows in Changes with an Undo.',
     scope: 'world',
     config: true,
     type: Boolean,

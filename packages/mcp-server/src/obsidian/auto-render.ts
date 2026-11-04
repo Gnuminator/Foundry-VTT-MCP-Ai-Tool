@@ -13,6 +13,8 @@
  */
 import * as path from 'path';
 
+import { errorMessage } from '@gnuminator/shared';
+
 import type { Logger } from '../logger.js';
 import type { AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
@@ -167,7 +169,7 @@ export class ObsidianAutoRender {
     } catch (error) {
       logger.warn('Obsidian render failed', {
         worldId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }

@@ -654,7 +654,11 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-hint')).toHaveText(
       'Click combatants to deal damage or set a condition on them.'
     );
-    await expect(bar.locator('.ca-btn')).toHaveText(['Use Foundry targets', 'End combat']);
+    await expect(bar.locator('.ca-btn')).toHaveText([
+      'Attack',
+      'Use Foundry targets',
+      'End combat',
+    ]);
     await expect(row(page, 'Ogre Brute')).toHaveClass(/selectable/);
     await expect(row(page, 'Ogre Brute')).toHaveAttribute(
       'data-track',
@@ -669,6 +673,7 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-count')).toHaveText('2 selected');
     await expect(bar.locator('.ca-btn')).toHaveText([
       'Damage / Heal',
+      'Attack',
       'Condition',
       'Clear',
       'Use Foundry targets',
@@ -905,6 +910,125 @@ test.describe('picking combatants', () => {
       targets: ['tok-wolf-1', 'tok-wolf-2', 'Tamsin'],
       amount: 4,
     });
+  });
+
+  const ATTACKERS = [
+    who('c1', 'Wolf', { tokenId: 'tok-wolf-1' }),
+    who('c2', 'Brannoc', {
+      isPC: true,
+      category: 'pc',
+      tokenId: 'tok-brannoc',
+      isCurrentTurn: true,
+    }),
+    who('c3', 'Wolf', { tokenId: 'tok-wolf-2' }),
+  ];
+  const attackAnswers =
+    (targets: unknown[]) =>
+    (call: { name: string }): { json: unknown } | undefined => {
+      if (call.name === 'search-character-items') {
+        return ok({ matches: [{ id: 'w-axe', name: 'Handaxe' }], totalMatches: 1 });
+      }
+      if (call.name === 'get-targets') return ok({ targets, selected: [] });
+      if (call.name === 'use-item') return ok({ success: true, message: 'rolled' });
+      return undefined;
+    };
+
+  test('Attack: the turn is the attacker, a picked token the target, and one click rolls it', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    const form = page.locator('#attack-form');
+    await expect(form).toBeVisible();
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+    await expect(page.locator('#attack-target')).toHaveValue('c3');
+    await expect(page.locator('#attack-go')).toHaveText('Brannoc attacks Wolf with Handaxe');
+    expect(calls.find(c => c.name === 'search-character-items')?.args).toEqual({
+      characterIdentifier: 'tok-brannoc',
+      type: 'weapon',
+      limit: 50,
+    });
+    await page.locator('#attack-go').click();
+    await expect(form).toHaveCount(0);
+    const used = calls.find(c => c.name === 'use-item');
+    expect(used).toEqual({
+      name: 'use-item',
+      args: {
+        actorIdentifier: 'tok-brannoc',
+        itemIdentifier: 'w-axe',
+        targets: ['tok-wolf-2'],
+        rollAttack: true,
+      },
+      confirm: true,
+      confirmDestructive: true,
+    });
+  });
+
+  test('Attack: Foundry targets are read when the button is pressed', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-target')).toHaveValue('foundry');
+    expect(calls.some(c => c.name === 'get-targets')).toBe(false);
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.find(c => c.name === 'use-item')?.args['targets']).toEqual(['tok-wolf-1']);
+  });
+
+  test('Attack: nothing targeted in Foundry says so and sends nothing', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'Nothing is targeted in Foundry. Target a token there or pick one in the list.'
+    );
+    await expect(page.locator('#attack-form')).toBeVisible();
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
+  test('Attack: a token that is only selected in Foundry is not a target', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'get-targets'
+          ? ok({
+              targets: [],
+              selected: [{ tokenId: 'tok-brannoc', name: 'Brannoc', actorId: 'a1' }],
+            })
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'Nothing is targeted in Foundry. Target a token there or pick one in the list.'
+    );
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
+  test('Escape closes the Attack form without writing', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-attacker')).toBeFocused();
+    await page.locator('#attack-attacker').press('Escape');
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
   });
 
   test('Condition opens it with the action set to condition', async ({ page }) => {

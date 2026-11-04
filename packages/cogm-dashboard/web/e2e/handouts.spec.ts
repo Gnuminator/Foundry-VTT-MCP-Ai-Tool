@@ -292,8 +292,13 @@ test('a first load that fails says why; scenes and names that fail are left out'
 
   // Without scenes every queued scene is "another scene" and the oldest entry is next; without
   // names the ticks show user ids.
+  // Refresh is disabled while a load runs. The failure text can show while a second load (the
+  // stream's reload) is still in flight; a click then is lost and that load still fails. So wait
+  // until Refresh is enabled, which means every load has settled, before the view starts working.
+  const refresh = drawer.getByRole('button', { name: '↻ Refresh' });
+  await expect(refresh).toBeEnabled();
   failView = false;
-  await drawer.getByRole('button', { name: '↻ Refresh' }).click();
+  await refresh.click();
   await expect(queueRows(drawer).locator('.pf-text > .pf-detail')).toHaveText([
     'another scene · for u1',
     'another scene · for every player',

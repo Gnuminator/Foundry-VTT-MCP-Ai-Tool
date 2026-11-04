@@ -27,6 +27,36 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/panels/After.tsx',
   },
   {
+    name: 'dash.attack.attacker',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/AttackForm.tsx',
+  },
+  {
+    name: 'dash.attack.cancel',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/AttackForm.tsx',
+  },
+  {
+    name: 'dash.attack.go',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/AttackForm.tsx',
+  },
+  {
+    name: 'dash.attack.target',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/AttackForm.tsx',
+  },
+  {
+    name: 'dash.attack.weapon',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/AttackForm.tsx',
+  },
+  {
     name: 'dash.changes.ai-only',
     kind: 'action',
     surface: 'dashboard',
@@ -97,6 +127,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/panels/RecentChanges.tsx',
+  },
+  {
+    name: 'dash.combat.attack',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/CombatStrip.tsx',
   },
   {
     name: 'dash.combat.boss-prompts',

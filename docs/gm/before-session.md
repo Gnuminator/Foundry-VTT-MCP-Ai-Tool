@@ -43,9 +43,10 @@ four stages with times.
       ticked, then **Save Changes**. The Combat, Party, Session, Scene and Loot buttons then show in the AI Tool group
       of the scene controls. A world that was saved earlier may have it off.
 
-- [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
-      Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's **Configure Dice Roles**,
-      **Basic** row, **Theme** column. See [Themed dice](features.md#themed-dice).
+- [ ] Once, before session 1 (only with the module Dice So Nice): pick your own dice, **AI
+      Tool: The Veil** or **AI Tool: Neutral**: **Game Settings**, **3D Dice Settings**, tab
+      **Appearance**, **Theme**, **Save**. Every player picks their own the same way; there is no
+      table-wide default. See [Themed dice](features.md#themed-dice).
 
 ## Check what players will see
 

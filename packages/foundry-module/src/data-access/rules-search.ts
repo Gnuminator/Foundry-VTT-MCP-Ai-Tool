@@ -326,7 +326,7 @@ export class RulesSearchDataAccess {
       includeOtherBooks,
       ...(searchedPacks.length === 0 && skippedPacks.length === 0 && !includeWorld
         ? {
-            note: `No pack matches the "Rules search packs" setting (${allowlist.join(', ')}). Use package names or pack ids such as dnd5e.rules, separated by commas.`,
+            note: `No rules pack matched the configured list (${allowlist.join(', ')}). The list takes package names or pack ids such as dnd5e.rules, separated by commas.`,
           }
         : hits.length === 0 && !includeWorld && !includeOtherBooks
           ? {

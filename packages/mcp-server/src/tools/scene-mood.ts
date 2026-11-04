@@ -8,6 +8,7 @@ import {
   type SceneMoodPlanRequest,
   type SceneMoodPlanResult,
   type SceneMoodsReply,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
@@ -30,8 +31,10 @@ const planParams = z.object({
   mode: z.enum(SCENE_MUSIC_MODES).optional(),
 });
 
-const SWITCH_OFF =
-  'Scene mood and music is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Scene mood and music (writes)".';
+const SWITCH_OFF = featureSwitchOff(
+  'Scene mood and music',
+  'AI Tool: Scene mood and music (writes)'
+);
 
 /**
  * Scene mood presets and scene music (I-034, I-129). `plan-scene-mood` plans a mood (darkness,

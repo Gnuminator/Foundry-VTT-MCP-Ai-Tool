@@ -8,6 +8,7 @@ import {
   type NpcTurnContext,
   type NpcTurnPlan,
   type NpcTurnRequest,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
@@ -194,7 +195,7 @@ export class NpcTurnTools {
     const feature = features.find(f => f.id === NPC_TURN_FEATURE_ID);
     if (!feature?.enabled) {
       throw new Error(
-        'The NPC turn assistant is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: NPC turn assistant (writes)".'
+        featureSwitchOff('The NPC turn assistant', 'AI Tool: NPC turn assistant (writes)')
       );
     }
 

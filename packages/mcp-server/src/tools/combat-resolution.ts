@@ -32,7 +32,7 @@ export class CombatResolutionTools {
       {
         name: 'roll-saving-throws',
         description:
-          'Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.',
+          'Direct write. Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -67,7 +67,7 @@ export class CombatResolutionTools {
       {
         name: 'use-npc-activity',
         description:
-          "Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.",
+          "Direct write. Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -104,7 +104,7 @@ export class CombatResolutionTools {
       {
         name: 'manage-rest',
         description:
-          'Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.',
+          'Direct write. Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.',
         inputSchema: {
           type: 'object',
           properties: {

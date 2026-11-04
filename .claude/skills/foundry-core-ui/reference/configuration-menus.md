@@ -50,18 +50,18 @@ Conventions:
 
 ## Settings tab buttons (what each opens)
 
-| Label | `data-app` | Opens | Who sees the button |
-|-------|-----------|-------|---------------------|
-| **Game Settings** | `configure` | window **Game Settings** (`#settings-config`) | everyone |
-| **Controls Configuration** | `controls` | window **Controls Configuration** (`#controls-config`) | everyone |
-| **Module Management** / **Active Modules** | `modules` | window **Module Management** (`#module-management`) | everyone; label is **Active Modules** for users who cannot modify settings |
-| **World Configuration** | `world` | window **Edit World: AI Tool Test** (`#world-config`) | full GM only |
-| **User Management** | `players` | full page `/players` (leaves the game view) | GM |
-| **Tour Management** | `tours` | window **Tour Management** (`#tours-management`) | everyone |
-| **Support & Issues** | `support` | window **Support & Issues** (`#support-details`) | everyone |
-| **Documentation** | (link) | https://foundryvtt.com/kb/ in a new tab | everyone |
-| **Community Wiki** | (link) | https://foundryvtt.wiki/ in a new tab | everyone |
-| **Welcome Screen** | (none, dnd5e) | window **Welcome to D&D 5e** (`#dnd5e-welcome-screen`) | everyone (fields disabled for non-GMs) |
+| Label                                      | `data-app`    | Opens                                                  | Who sees the button                                                        |
+| ------------------------------------------ | ------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **Game Settings**                          | `configure`   | window **Game Settings** (`#settings-config`)          | everyone                                                                   |
+| **Controls Configuration**                 | `controls`    | window **Controls Configuration** (`#controls-config`) | everyone                                                                   |
+| **Module Management** / **Active Modules** | `modules`     | window **Module Management** (`#module-management`)    | everyone; label is **Active Modules** for users who cannot modify settings |
+| **World Configuration**                    | `world`       | window **Edit World: AI Tool Test** (`#world-config`)  | full GM only                                                               |
+| **User Management**                        | `players`     | full page `/players` (leaves the game view)            | GM                                                                         |
+| **Tour Management**                        | `tours`       | window **Tour Management** (`#tours-management`)       | everyone                                                                   |
+| **Support & Issues**                       | `support`     | window **Support & Issues** (`#support-details`)       | everyone                                                                   |
+| **Documentation**                          | (link)        | https://foundryvtt.com/kb/ in a new tab                | everyone                                                                   |
+| **Community Wiki**                         | (link)        | https://foundryvtt.wiki/ in a new tab                  | everyone                                                                   |
+| **Welcome Screen**                         | (none, dnd5e) | window **Welcome to D&D 5e** (`#dnd5e-welcome-screen`) | everyone (fields disabled for non-GMs)                                     |
 
 - All rows above: [unverified]
 - In demo mode the GM-only buttons are hidden and Module Management shows as **Active Modules**.
@@ -206,30 +206,30 @@ Listed in expected on-screen order (after the 9 sub-menu rows). "reload" = `requ
 Expected Core count for a full GM: **Core [31]**; for a Player: **Core [18]** (4 menus + 14 client
 settings). Counts change if a module adds core-namespace settings. [unverified]
 
-| # | Label | Key | Scope | Reload |
-|---|-------|-----|-------|--------|
-| 1 | **Universal Keybindings (experimental)** | `universalKeybindings` | client | yes |
-| 2 | **Disable Game Canvas** | `noCanvas` | client | yes |
-| 3 | **Language Preference** | `language` | client | yes |
-| 4 | **Dynamic Token Rings** | `dynamicTokenRing` | world | yes |
-| 5 | **Dynamic Token Rings Fit Modes** | `dynamicTokenRingFitMode` | world | yes |
-| 6 | **Enable Chat Bubbles** | `chatBubbles` | client | no |
-| 7 | **Pan to Token Speaker** | `chatBubblesPan` | client | no |
-| 8 | **Scrolling Status Text** | `scrollingStatusText` | world | no |
-| 9 | **Pixel Ratio Resolution Scaling** | `pixelRatioResolutionScaling` | client | yes |
-| 10 | **Left-Click to Release Objects** | `leftClickRelease` | client | no |
-| 11 | **Performance Mode** (Low / Medium / High / Maximum) | `performanceMode` | client | yes |
-| 12 | **Maximum Framerate** (10-60, step 10) | `maxFPS` | client | no |
-| 13 | **Photosensitivity Mode** | `photosensitiveMode` | client | yes |
-| 14 | **Automatic Token Rotation** | `tokenAutoRotate` | world | no |
-| 15 | **Token Drag Vision** | `tokenDragPreview` | world | no |
-| 16 | **Token Vision Animation** | `visionAnimation` | client | no |
-| 17 | **Light Source Animation** | `lightAnimation` | client | no |
-| 18 | **Zoomed Texture Antialiasing** | `mipmap` | client | no |
-| 19 | **Editor Autosave Frequency** (30-300 s) | `editorAutosaveSecs` | world | no |
-| 20 | **Show Toolclips on Hover** | `showToolclips` | client | yes |
-| 21 | **Animate Roll Tables** | `animateRollTable` | world | no |
-| 22 | **Grid Diagonals** | `gridDiagonals` | world | yes |
+| #   | Label                                                | Key                           | Scope  | Reload |
+| --- | ---------------------------------------------------- | ----------------------------- | ------ | ------ |
+| 1   | **Universal Keybindings (experimental)**             | `universalKeybindings`        | client | yes    |
+| 2   | **Disable Game Canvas**                              | `noCanvas`                    | client | yes    |
+| 3   | **Language Preference**                              | `language`                    | client | yes    |
+| 4   | **Dynamic Token Rings**                              | `dynamicTokenRing`            | world  | yes    |
+| 5   | **Dynamic Token Rings Fit Modes**                    | `dynamicTokenRingFitMode`     | world  | yes    |
+| 6   | **Enable Chat Bubbles**                              | `chatBubbles`                 | client | no     |
+| 7   | **Pan to Token Speaker**                             | `chatBubblesPan`              | client | no     |
+| 8   | **Scrolling Status Text**                            | `scrollingStatusText`         | world  | no     |
+| 9   | **Pixel Ratio Resolution Scaling**                   | `pixelRatioResolutionScaling` | client | yes    |
+| 10  | **Left-Click to Release Objects**                    | `leftClickRelease`            | client | no     |
+| 11  | **Performance Mode** (Low / Medium / High / Maximum) | `performanceMode`             | client | yes    |
+| 12  | **Maximum Framerate** (10-60, step 10)               | `maxFPS`                      | client | no     |
+| 13  | **Photosensitivity Mode**                            | `photosensitiveMode`          | client | yes    |
+| 14  | **Automatic Token Rotation**                         | `tokenAutoRotate`             | world  | no     |
+| 15  | **Token Drag Vision**                                | `tokenDragPreview`            | world  | no     |
+| 16  | **Token Vision Animation**                           | `visionAnimation`             | client | no     |
+| 17  | **Light Source Animation**                           | `lightAnimation`              | client | no     |
+| 18  | **Zoomed Texture Antialiasing**                      | `mipmap`                      | client | no     |
+| 19  | **Editor Autosave Frequency** (30-300 s)             | `editorAutosaveSecs`          | world  | no     |
+| 20  | **Show Toolclips on Hover**                          | `showToolclips`               | client | yes    |
+| 21  | **Animate Roll Tables**                              | `animateRollTable`            | world  | no     |
+| 22  | **Grid Diagonals**                                   | `gridDiagonals`               | world  | yes    |
 
 - All rows: [unverified]
 - Not in the window in v14 (config off or not registered): **Combat Theme** (moved into **Combat
@@ -454,110 +454,151 @@ Read-only console snippets for the browser pane's `javascript_tool`. None change
 Sidebar and Settings tab (v14 has no `ui.sidebar.activeTab`; use `tabGroups.primary`):
 
 ```js
-({expanded: ui.sidebar.expanded, tab: ui.sidebar.tabGroups.primary, settingsTab: ui.settings.rendered})
+({
+  expanded: ui.sidebar.expanded,
+  tab: ui.sidebar.tabGroups.primary,
+  settingsTab: ui.settings.rendered,
+});
 ```
 
 Which application windows are open (ids from this page):
 
 ```js
-[...foundry.applications.instances.values()].filter(a => a.rendered).map(a => a.id)
+[...foundry.applications.instances.values()].filter(a => a.rendered).map(a => a.id);
 ```
 
 Game Settings window state and active category:
 
 ```js
-({open: game.settings.sheet.rendered, category: game.settings.sheet.tabGroups.categories})
+({ open: game.settings.sheet.rendered, category: game.settings.sheet.tabGroups.categories });
 ```
 
 Expected Core sub-menus and settings (compare with the window):
 
 ```js
-[...game.settings.menus.values()].filter(m => m.namespace === "core")
-  .map(m => ({key: m.key, button: game.i18n.localize(m.label), restricted: !!m.restricted}))
+[...game.settings.menus.values()]
+  .filter(m => m.namespace === 'core')
+  .map(m => ({ key: m.key, button: game.i18n.localize(m.label), restricted: !!m.restricted }));
 ```
 
 ```js
-[...game.settings.settings.values()].filter(s => s.config && s.namespace === "core")
-  .map(s => ({key: s.key, name: game.i18n.localize(s.name ?? ""), scope: s.scope, reload: !!s.requiresReload}))
+[...game.settings.settings.values()]
+  .filter(s => s.config && s.namespace === 'core')
+  .map(s => ({
+    key: s.key,
+    name: game.i18n.localize(s.name ?? ''),
+    scope: s.scope,
+    reload: !!s.requiresReload,
+  }));
 ```
 
 Current user's rights (explains which buttons show):
 
 ```js
-({user: game.user.name, role: game.user.role, isGM: game.user.isGM,
-  fullGM: game.user.hasRole("GAMEMASTER"), canModifySettings: game.user.can("SETTINGS_MODIFY")})
+({
+  user: game.user.name,
+  role: game.user.role,
+  isGM: game.user.isGM,
+  fullGM: game.user.hasRole('GAMEMASTER'),
+  canModifySettings: game.user.can('SETTINGS_MODIFY'),
+});
 ```
 
 Read a value before and after a test (examples):
 
 ```js
-({chatBubbles: game.settings.get("core", "chatBubbles"), toolclips: game.settings.get("core", "showToolclips"),
-  ui: game.settings.get("core", "uiConfig"), rules: game.settings.get("dnd5e", "rulesVersion")})
+({
+  chatBubbles: game.settings.get('core', 'chatBubbles'),
+  toolclips: game.settings.get('core', 'showToolclips'),
+  ui: game.settings.get('core', 'uiConfig'),
+  rules: game.settings.get('dnd5e', 'rulesVersion'),
+});
 ```
 
 Modules:
 
 ```js
-({active: game.modules.filter(m => m.active).map(m => m.id), saved: game.settings.get("core", "moduleConfiguration")})
+({
+  active: game.modules.filter(m => m.active).map(m => m.id),
+  saved: game.settings.get('core', 'moduleConfiguration'),
+});
 ```
 
 World fields shown by Edit World:
 
 ```js
-({title: game.world.title, background: game.world.background, joinTheme: game.world.joinTheme,
-  nextSession: game.world.nextSession})
+({
+  title: game.world.title,
+  background: game.world.background,
+  joinTheme: game.world.joinTheme,
+  nextSession: game.world.nextSession,
+});
 ```
 
 Tours:
 
 ```js
-({inProgress: foundry.nue.Tour.tourInProgress, active: foundry.nue.Tour.activeTour?.id,
-  tours: game.tours.contents.map(t => ({id: `${t.namespace}.${t.id}`, title: t.title, status: t.status, canStart: t.canStart}))})
+({
+  inProgress: foundry.nue.Tour.tourInProgress,
+  active: foundry.nue.Tour.activeTour?.id,
+  tours: game.tours.contents.map(t => ({
+    id: `${t.namespace}.${t.id}`,
+    title: t.title,
+    status: t.status,
+    canStart: t.canStart,
+  })),
+});
 ```
 
 Keybindings (client storage):
 
 ```js
-({actions: game.keybindings.actions.size, pause: game.keybindings.bindings.get("core.pause"),
-  custom: game.settings.get("core", "keybindings")})
+({
+  actions: game.keybindings.actions.size,
+  pause: game.keybindings.bindings.get('core.pause'),
+  custom: game.settings.get('core', 'keybindings'),
+});
 ```
 
 The `(N)` on **Support & Issues** (same sum the tab computes):
 
 ```js
-Object.values(game.issues.validationFailures).reduce((n, f) => n + Object.keys(f).length, 0)
-  + Object.values(game.issues.packageCompatibilityIssues).reduce((n, {error}) => n + error.length, 0)
-  + Object.keys(game.issues.usabilityIssues).length
+Object.values(game.issues.validationFailures).reduce((n, f) => n + Object.keys(f).length, 0) +
+  Object.values(game.issues.packageCompatibilityIssues).reduce(
+    (n, { error }) => n + error.length,
+    0
+  ) +
+  Object.keys(game.issues.usabilityIssues).length;
 ```
 
 Scene-control context (handy when a window changed the canvas):
 
 ```js
-({control: ui.controls.control?.name, tool: ui.controls.tool?.name})
+({ control: ui.controls.control?.name, tool: ui.controls.tool?.name });
 ```
 
 Stable selectors and accessibility-tree names (use `find` with the name; fall back to the
 selector through `read_page` refs):
 
-| Target | Accessible name to search | Selector |
-|--------|---------------------------|----------|
-| Settings tab icon | "Settings" | `#sidebar-tabs button[data-tab="settings"]` |
-| Tab buttons | label text | `button[data-action="openApp"][data-app="configure\|controls\|modules\|world\|players\|tours\|support"]` |
-| Welcome Screen | "Welcome Screen" | button right after `section.dnd5e2.sidebar-info` |
-| Game Settings window | "Game Settings" | `#settings-config` |
-| Settings search | "Filter" | `#settings-config-search-filter` |
-| Settings category | "Core" / "Dungeons & Dragons Fifth Edition" | `#settings-config button[data-tab="core"\|"system"]` |
-| Sub-menu button | e.g. "User Interface" | `button[data-action="openSubmenu"][data-key="core.uiConfigMenu"]` |
-| A setting input | its label | `#settings-config [name="core.chatBubbles"]` |
-| Reset Defaults (any category browser) | "Reset Defaults" | `button.reset-defaults` |
-| Save Changes | "Save Changes" | `#settings-config button[type="submit"]` |
-| Keybinding row | action name | `#controls-config [data-action-id="core.pause"]` |
-| Binding buttons | "Edit Binding" etc. | `[data-action="editBinding\|addBinding\|deleteBinding\|saveBinding\|cancelEdit"]` |
-| Module filter | "Filter Modules" | `#module-management input[type=search]` |
-| Module checkbox | module title | `#module-management input[name="foundry-mcp-bridge"]` |
-| Module filters | "Active Modules (N)" (text) | `#module-management a.filter[data-filter="active"]` |
-| Tour row | tour title | `#tours-management [data-tour="core.uiOverview"]` |
-| Reload dialog | "Reload Application?" | `#reload-world-confirm` |
+| Target                                | Accessible name to search                   | Selector                                                                                                 |
+| ------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Settings tab icon                     | "Settings"                                  | `#sidebar-tabs button[data-tab="settings"]`                                                              |
+| Tab buttons                           | label text                                  | `button[data-action="openApp"][data-app="configure\|controls\|modules\|world\|players\|tours\|support"]` |
+| Welcome Screen                        | "Welcome Screen"                            | button right after `section.dnd5e2.sidebar-info`                                                         |
+| Game Settings window                  | "Game Settings"                             | `#settings-config`                                                                                       |
+| Settings search                       | "Filter"                                    | `#settings-config-search-filter`                                                                         |
+| Settings category                     | "Core" / "Dungeons & Dragons Fifth Edition" | `#settings-config button[data-tab="core"\|"system"]`                                                     |
+| Sub-menu button                       | e.g. "User Interface"                       | `button[data-action="openSubmenu"][data-key="core.uiConfigMenu"]`                                        |
+| A setting input                       | its label                                   | `#settings-config [name="core.chatBubbles"]`                                                             |
+| Reset Defaults (any category browser) | "Reset Defaults"                            | `button.reset-defaults`                                                                                  |
+| Save Changes                          | "Save Changes"                              | `#settings-config button[type="submit"]`                                                                 |
+| Keybinding row                        | action name                                 | `#controls-config [data-action-id="core.pause"]`                                                         |
+| Binding buttons                       | "Edit Binding" etc.                         | `[data-action="editBinding\|addBinding\|deleteBinding\|saveBinding\|cancelEdit"]`                        |
+| Module filter                         | "Filter Modules"                            | `#module-management input[type=search]`                                                                  |
+| Module checkbox                       | module title                                | `#module-management input[name="foundry-mcp-bridge"]`                                                    |
+| Module filters                        | "Active Modules (N)" (text)                 | `#module-management a.filter[data-filter="active"]`                                                      |
+| Tour row                              | tour title                                  | `#tours-management [data-tour="core.uiOverview"]`                                                        |
+| Reload dialog                         | "Reload Application?"                       | `#reload-world-confirm`                                                                                  |
 
 - Window close buttons are icon buttons in the window header (aria-label **Close**). [unverified]
 - Escape (**Toggle Menu / Dismiss All Windows**) closes every open framed window at once; with
@@ -677,7 +718,7 @@ snippets above to confirm results. Items 1-38 as GM; 39-40 are optional player-v
 29. Type `AI` in **Filter Modules** (no Enter). Expect the **Foundry AI Tool** row. Clear it.
 30. Click the expand toggle (**Expand**). Expect descriptions and author/URL metadata. Close the
     window with its close button without saving; `game.settings.get("core",
-    "moduleConfiguration")` unchanged.
+"moduleConfiguration")` unchanged.
 31. Click **World Configuration**. Expect **Edit World: AI Tool Test** with **World Title**,
     **Background Image**, **Join Page Theme**, **Next Session**, **World Description** and **Update
     World**; no Data Path, Game System, Reset User Passwords or Safe Configuration fields. Close
@@ -702,7 +743,7 @@ snippets above to confirm results. Items 1-38 as GM; 39-40 are optional player-v
     Management**, rows `Claude`, `Player`, `Gamemaster`, columns **User Name** / **Password** /
     **User Role**, and **Create Additional User**, **Configure User Permissions**, **Save and
     Return**. Touch nothing; navigate to `http://localhost:30001/game`. Expect the game to load and,
-    if the test bridge is running, "MCP Bridge connected successfully".
+    if the test bridge is running, "AI Tool connected".
 39. (Optional, Player session) As `Player`, open the Settings tab. Expect **Active Modules**
     instead of **Module Management**, and no **World Configuration**, **User Management**,
     **Invitation Links** or **Return to Setup**.

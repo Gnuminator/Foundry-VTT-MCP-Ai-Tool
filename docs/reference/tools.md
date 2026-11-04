@@ -215,7 +215,7 @@ Parameters:
 
 ### apply-planned-change
 
-Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back. A handout reveal also posts a chat notice (result noticed: { ok }); undo keeps it.
+Apply a pending planned change after the GM has seen its diff and agreed. Needs confirm: true, plus confirmDestructive: true for a "destructive" plan (it deletes). If the plan says autoApply: true, or the GM said "go ahead", apply a "write" plan in the same turn; a "destructive" plan waits for the GM to say yes to that plan. Writes nothing if the documents changed since the plan, or "Allow Write Operations" or the feature is switched off. A showNow popup shows shown: { ok } or { ok: false, error }, and undo does not recall it. A handout reveal also posts a chat notice (noticed: { ok }); undo keeps it.
 
 Kind: changes something and can delete or overwrite. Title: Apply planned change.
 
@@ -300,7 +300,7 @@ Run the table live: tokens, combat turns, rolls, damage, conditions, resources, 
 
 ### switch-scene
 
-Switch to a different Foundry VTT scene by name or ID
+Direct write. Switch to a different Foundry VTT scene by name or ID
 
 Kind: changes something. Title: Switch scene.
 
@@ -311,7 +311,7 @@ Parameters:
 
 ### use-item
 
-Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.
+Direct write. Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.
 
 Kind: changes something and can delete or overwrite. Title: Use item.
 
@@ -322,10 +322,11 @@ Parameters:
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
 - `spellLevel` (number): For spells: cast at a higher level than base (D&D 5e upcasting)
+- `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.
 
 ### request-player-rolls
 
-Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.
+Direct write. Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.
 
 Kind: changes something. Title: Request player rolls.
 
@@ -343,7 +344,7 @@ Parameters:
 
 ### request-ability-check
 
-Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".
+Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".
 
 Kind: changes something. Title: Request ability check.
 
@@ -358,7 +359,7 @@ Parameters:
 
 ### request-attack-roll
 
-Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.
+Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.
 
 Kind: changes something. Title: Request attack roll.
 
@@ -371,7 +372,7 @@ Parameters:
 
 ### roll-npc-check
 
-Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.
+Direct write. Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.
 
 Kind: changes something. Title: Roll NPC check.
 
@@ -424,7 +425,7 @@ No parameters.
 
 ### send-chat-message
 
-Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.
+Direct write. Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.
 
 Kind: changes something. Title: Send chat message.
 
@@ -458,7 +459,7 @@ Parameters:
 
 ### advance-combat-turn
 
-Advance combat to the next combatant's turn. Optionally jump directly to a specific combatant with skipTo (their name or actor ID).
+Direct write. Advance combat to the next combatant's turn. Optionally jump directly to a specific combatant with skipTo (their name or actor ID).
 
 Kind: changes something. Title: Advance combat turn.
 
@@ -468,7 +469,7 @@ Parameters:
 
 ### set-initiative
 
-Set or override a combatant's initiative value in the active combat. The order changes but the turn does not move: whoever is up stays up until the next turn.
+Direct write. Set or override a combatant's initiative value in the active combat. The order changes but the turn does not move: whoever is up stays up until the next turn.
 
 Kind: changes something and can delete or overwrite. Title: Set initiative.
 
@@ -479,7 +480,7 @@ Parameters:
 
 ### roll-initiative-for-npcs
 
-Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope). Use this for "roll initiative for the monsters" (the enemies, the goblins; Danish "monstrene"): those words mean the NPC combatants, not a name.
+Direct write. Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope). Use this for "roll initiative for the monsters" (the enemies, the goblins; Danish "monstrene"): those words mean the NPC combatants, not a name.
 
 Kind: changes something. Title: Roll initiative.
 
@@ -534,7 +535,7 @@ Parameters:
 
 ### plan-actor-change
 
-Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.
+Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.
 
 Kind: read-only. Title: Plan damage, healing or conditions.
 
@@ -556,7 +557,7 @@ Parameters:
 
 ### plan-token-change
 
-Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene's scale (a medium creature covers 5 ft; a scene whose squares are more than 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens, and one with less, such as 2.5 ft, gets larger ones); every creature on the scene (tokens with no creature size are skipped), or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).
+Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene's scale (a medium creature covers 5 ft; a scene whose squares are more than 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens, and one with less, such as 2.5 ft, gets larger ones); every creature on the scene (tokens with no creature size are skipped), or only the named ones; a 5 ft scene is no change.
 
 Kind: read-only. Title: Plan token change.
 
@@ -588,7 +589,7 @@ Parameters:
 
 ### roll-saving-throws
 
-Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.
+Direct write. Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.
 
 Kind: changes something. Title: Roll NPC saving throws.
 
@@ -603,7 +604,7 @@ Parameters:
 
 ### use-npc-activity
 
-Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.
+Direct write. Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.
 
 Kind: changes something. Title: Use NPC attack or activity.
 
@@ -617,7 +618,7 @@ Parameters:
 
 ### manage-rest
 
-Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.
+Direct write. Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.
 
 Kind: changes something and can delete or overwrite. Title: Run a rest.
 
@@ -668,7 +669,7 @@ Parameters:
 
 ### plan-scene-change
 
-Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn (removing something still needs the destructive confirm). A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
+Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
 
 Kind: read-only. Title: Plan scene dressing.
 
@@ -814,7 +815,7 @@ No parameters.
 
 ### play-playlist
 
-Play (default) or stop a playlist by name. Direct, with nothing to undo. Use to change the music as the story moves.
+Direct write. Play (default) or stop a playlist by name. Nothing to undo. Use to change the music as the story moves.
 
 Kind: changes something. Title: Play or stop playlist.
 
@@ -825,7 +826,7 @@ Parameters:
 
 ### mark-play-session
 
-GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault's own session log (sessions/&lt;date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
+Direct write. GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault's own session log (sessions/&lt;date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
 
 Kind: changes something. Title: Mark play session start or end.
 
@@ -858,7 +859,7 @@ Prepare sessions and write recaps: quests and journals, encounter budgets, the T
 
 ### create-quest-journal
 
-Create a new quest journal entry with AI-generated content based on natural language description
+Direct write. Create a new quest journal entry with AI-generated content based on natural language description
 
 Kind: changes something. Title: Create quest journal.
 
@@ -879,7 +880,7 @@ Parameters:
 
 ### update-quest-journal
 
-Update an existing quest journal with new progress information. By default updates the FIRST text page. Use pageId to target a specific page, or newPageName to create a new page.
+Direct write. Update an existing quest journal with new progress information. By default updates the FIRST text page. Use pageId to target a specific page, or newPageName to create a new page.
 
 For Foundry VTT v13 ProseMirror editor compatibility:
 
@@ -905,7 +906,7 @@ Parameters:
 
 ### link-quest-to-npc
 
-Link an existing quest journal to an NPC in the world
+Direct write. Link an existing quest journal to an NPC in the world
 
 Kind: changes something. Title: Link quest to NPC.
 
@@ -917,7 +918,7 @@ Parameters:
 
 ### create-campaign-dashboard
 
-Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management
+Direct write. Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management
 
 Kind: changes something. Title: Create campaign dashboard.
 
@@ -1152,7 +1153,7 @@ Parameters:
 
 ### create-actor-from-compendium
 
-Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.
+Direct write. Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.
 
 Kind: changes something. Title: Create actor from compendium.
 
@@ -1161,7 +1162,7 @@ Parameters:
 - `packId` (string, required): ID of the compendium pack containing the creature (e.g., "dnd5e.monsters")
 - `itemId` (string, required): ID of the specific creature entry within the pack (get this from search-compendium results)
 - `names` (array of string, required): Custom names for the created actors (e.g., ["Flameheart", "Sneak", "Peek"]). Items: at least 1.
-- `quantity` (number): Number of actors to create (default: based on names array length); capped by the GM's Max Actors Per Request setting (1 to 50). Range: 1 to 50.
+- `quantity` (number): Number of actors to create (default: based on names array length); limited to 1 to 50 actors per request. Range: 1 to 50.
 - `addToScene` (boolean): Whether to add created actors to the current scene as tokens. Default: `false`.
 - `placement` (object): Token placement options (only used when addToScene is true)
   - `type` (string, required): Placement strategy. One of: `random`, `grid`, `center`, `coordinates`. Default: `grid`.
@@ -1171,7 +1172,7 @@ Parameters:
 
 ### dnd5e-create-npc
 
-[D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. Items, actions, features, and spells are NOT added by this tool; use dnd5e-add-feature (featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.
+Direct write. [D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. Items, actions, features, and spells are NOT added by this tool; use dnd5e-add-feature (featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.
 
 Kind: changes something. Title: Create NPC.
 
@@ -1222,7 +1223,7 @@ Parameters:
 
 ### dnd5e-add-feature
 
-[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. Set featureType to select the mode; each mode uses only its own parameters:
+Direct write. [D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. Set featureType to select the mode; each mode uses only its own parameters:
 
 - passive: descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).
   - Required: actorIdentifier, featureName
@@ -1296,7 +1297,7 @@ Parameters:
 
 ### dnd5e-add-features-from-compendium
 
-[D&D 5e only] Import class features and monster features from an official compendium pack onto an actor (NPC or PC). Each feature is looked up by EXACT name (case-insensitive) and embedded onto the actor as-is from the compendium data.
+Direct write. [D&D 5e only] Import class features and monster features from an official compendium pack onto an actor (NPC or PC). Each feature is looked up by EXACT name (case-insensitive) and embedded onto the actor as-is from the compendium data.
 
 USE THIS TOOL when you need to:
 
@@ -1333,7 +1334,7 @@ Parameters:
 
 ### manage-world-items
 
-Manage Item documents in Foundry VTT. Specify the operation with "action":
+Direct write. Manage Item documents in Foundry VTT. Specify the operation with "action":
 
 - "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.
 - "list": List world-level Items with optional type/folder/name filters.
@@ -1439,7 +1440,7 @@ Parameters:
 
 ### clear-module-errors
 
-Clear the captured diagnostics buffer (e.g. before reproducing an issue so only fresh errors remain).
+Direct write. Clear the captured diagnostics buffer (e.g. before reproducing an issue so only fresh errors remain).
 
 Kind: changes something and can delete or overwrite. Title: Clear module errors.
 

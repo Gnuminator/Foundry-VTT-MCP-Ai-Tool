@@ -1,6 +1,6 @@
 ---
 source: gm/glossary.md
-sourceHash: 188113f7da7a
+sourceHash: 74447f315c1d
 title: Ordliste
 description: Foundry-ordene og værktøjsordene i guiderne på almindeligt dansk, samlet ét sted.
 ---
@@ -22,7 +22,7 @@ Foundry-ord:
   "kan læse".
 - **Game Settings:** Foundrys indstillingsvindue (Settings tab, tandhjulet, så **Game Settings**).
   Værktøjets indstillinger ligger i kategorien **Foundry AI Tool**. Indstillinger og beskeder dér, der siger
-  "MCP Bridge" (for eksempel **Enable MCP Bridge**), hører til modulet.
+  "AI Tool" (for eksempel **AI Tool: Connect to the AI Tool server**), hører til modulet.
 - **World id:** din worlds korte id, navnet på dens mappe på Foundry-serveren. Værktøjet bruger
   det som mappenavn i Obsidian (`Campaigns/<world id>/`).
 

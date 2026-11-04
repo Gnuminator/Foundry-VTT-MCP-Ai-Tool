@@ -72,7 +72,7 @@ export class DiagnosticsTools {
       {
         name: 'clear-module-errors',
         description:
-          'Clear the captured diagnostics buffer (e.g. before reproducing an issue so only fresh errors remain).',
+          'Direct write. Clear the captured diagnostics buffer (e.g. before reproducing an issue so only fresh errors remain).',
         inputSchema: { type: 'object', properties: {} },
       },
       {

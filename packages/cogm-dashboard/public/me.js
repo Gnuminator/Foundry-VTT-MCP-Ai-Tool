@@ -201,15 +201,18 @@ async function load() {
   try {
     const res = await fetch('/api/me', { headers: { 'X-CoGM-Me': key } });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(body.error || 'Could not load your sheet. Ask your GM.');
     data = body;
     applyTheme(body.theme);
     render();
     $('me-updated').textContent =
       `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   } catch (err) {
-    if (!data)
-      $('me-main').innerHTML = `<p class="me-empty">${esc(String(err.message || err))}</p>`;
+    if (!data) {
+      const text =
+        err instanceof TypeError ? 'Could not load your sheet. Ask your GM.' : err.message;
+      $('me-main').innerHTML = `<p class="me-empty">${esc(String(text))}</p>`;
+    }
     $('me-updated').textContent = 'Not updated: the table may be offline.';
   }
 }

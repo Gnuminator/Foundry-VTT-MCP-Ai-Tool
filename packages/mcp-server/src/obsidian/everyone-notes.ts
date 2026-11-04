@@ -20,6 +20,8 @@
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
+import { errorMessage } from '@gnuminator/shared';
+
 import type { ChangeDay, ChangeListItem } from '../change-history.js';
 import type { Logger } from '../logger.js';
 
@@ -425,7 +427,7 @@ export class EveryoneNotes {
     } catch (error) {
       logger.warn('Everyone notes render failed', {
         worldId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }

@@ -1,0 +1,172 @@
+# The Orange Pi stack in containers (backlog: pi-docker-compose). It runs NEXT TO the systemd units until the
+# cutover (scripts/pi/remote/24-compose.sh MODE=cutover) and replaces them after it. Read deploy/pi/README.md.
+#
+#   docker compose -f deploy/pi/compose.yml up -d --wait
+#
+# Stays on the host, NOT in this file: Syncthing, cloudflared (the tunnel), Tailscale (serve), the Discord recorder,
+# the GitHub runner and the stage scripts. Every service uses network_mode: host, so the loopback ports are the
+# ones the host already uses and Tailscale serve, the tunnel and Plan B need no change.
+#
+# Ports and folders come from the environment (deploy/pi/.env, written by stage 23, or the shell). The defaults are
+# the live ones. A rehearsal beside the live stack sets FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614
+# BRIDGE_LINK_PORT=31615 DASHBOARD_PORT=3300 and its OWN FOUNDRY_DATA_DIR / TOOL_DATA_DIR (never the live ones:
+# two Foundrys on one data folder corrupt it). See deploy/pi/test.env.
+#
+# Names: the bridge reads its Foundry link port from FOUNDRY_PORT, so that name is set per service from
+# BRIDGE_LINK_PORT and Foundry's own port is FOUNDRY_HTTP_PORT here.
+#
+# The env files (/etc/foundry-ai-tool/*.env) are the same files the systemd units read, with the same KEY=value
+# lines. Compose expands $VAR in unquoted and double-quoted values and drops " #..." comments, systemd does
+# neither: stage 24 refuses a value with $, #, a backslash or a quote (it names the key, never the value). Do NOT
+# run `docker compose config`: it prints every resolved value, passwords included. `environment:` below wins over
+# an env file, so an env file must not set the ports or the host/folder variables listed here.
+
+name: foundry-ai-tool-pi
+
+x-defaults: &defaults
+  network_mode: host
+  restart: unless-stopped # restarts after a clean exit too, which on-failure would not
+  user: "${FOUNDRY_UID:?set FOUNDRY_UID (the foundry user's id) in deploy/pi/.env}:${FOUNDRY_GID:?set FOUNDRY_GID in deploy/pi/.env}"
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+x-healthcheck: &health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+
+services:
+  foundry:
+    <<: *defaults
+    build:
+      context: ../..
+      dockerfile: deploy/pi/Dockerfile
+      target: foundry
+    image: foundry-ai-tool-pi/foundry:local
+    # Foundry is licensed: the host's copy is mounted, read-only, never baked into an image.
+    working_dir: /opt/foundry
+    init: true # node is not PID 1: signals reach it and zombies are reaped
+    stop_grace_period: 90s # the unit gets 90 s from systemd; a SIGKILL mid LevelDB flush costs data
+    command: ["node", "/opt/foundry/main.js", "--dataPath=/var/lib/foundry", "--port=${FOUNDRY_HTTP_PORT:-30000}", "--noupnp"]
+    environment:
+      HOME: /var/lib/foundry
+    volumes:
+      - ${FOUNDRY_APP_DIR:-/opt/foundry}:/opt/foundry:ro
+      - ${FOUNDRY_DATA_DIR:-/var/lib/foundry}:/var/lib/foundry
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "/app/healthcheck.mjs", "http", "http://127.0.0.1:${FOUNDRY_HTTP_PORT:-30000}/api/status"]
+      start_period: 90s
+
+  bridge:
+    <<: *defaults
+    build:
+      context: ../..
+      dockerfile: deploy/pi/Dockerfile
+      target: app
+    image: foundry-ai-tool-pi/app:local
+    working_dir: /app
+    command: ["node", "/app/packages/mcp-server/dist/standalone.js"]
+    stop_grace_period: 90s
+    depends_on:
+      foundry:
+        condition: service_healthy # After=foundry.service
+    env_file:
+      - path: ${TOOL_ETC_DIR:-/etc/foundry-ai-tool}/bridge.env
+        required: false
+    environment:
+      HOME: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+      NODE_ENV: production
+      MCP_CONTROL_HOST: 127.0.0.1
+      MCP_CONTROL_PORT: "${BRIDGE_CONTROL_PORT:-31414}"
+      FOUNDRY_LINK_HOST: 127.0.0.1
+      FOUNDRY_PORT: "${BRIDGE_LINK_PORT:-31415}" # the Foundry link; this name is the bridge's, not Foundry's
+      FOUNDRY_AI_DATA_DIR: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/vault
+    volumes:
+      # Same path inside as outside: the env files hold host paths (FOUNDRY_AI_OBSIDIAN_DIR and similar).
+      - ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}:${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "/app/healthcheck.mjs", "control", "${BRIDGE_CONTROL_PORT:-31414}"]
+      start_period: 30s
+
+  dashboard:
+    <<: *defaults
+    image: foundry-ai-tool-pi/app:local # built by the bridge service
+    working_dir: /app/packages/cogm-dashboard
+    command: ["node", "/app/packages/cogm-dashboard/dist/server.js"]
+    depends_on:
+      bridge:
+        condition: service_healthy # After=foundry-ai-tool-bridge.service
+    env_file:
+      - path: ${TOOL_ETC_DIR:-/etc/foundry-ai-tool}/dashboard.env
+        required: false
+      # Cloudflare Access settings: their own file, read after dashboard.env, which stage 7 rewrites whole
+      - path: ${TOOL_ETC_DIR:-/etc/foundry-ai-tool}/dashboard-access.env
+        required: false
+    environment:
+      HOME: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+      NODE_ENV: production
+      PORT: "${DASHBOARD_PORT:-3000}"
+      DASHBOARD_HOST: 127.0.0.1
+      # The Pi's tailnet name for the DNS rebinding guard (stage 5 reads it from `tailscale status`; stage 23
+      # writes it into deploy/pi/.env). Empty = loopback names only.
+      DASHBOARD_ALLOWED_HOSTS: ${DASHBOARD_ALLOWED_HOSTS:-}
+      COGM_STATE_DIR: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/dashboard
+      MCP_CONTROL_HOST: 127.0.0.1
+      MCP_CONTROL_PORT: "${BRIDGE_CONTROL_PORT:-31414}"
+      FOUNDRY_AI_DATA_DIR: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/vault
+      # Stage 21 sets this in a systemd drop-in; stage 23 copies it into deploy/pi/.env. Empty = player vaults off.
+      FOUNDRY_AI_PLAYER_VAULTS_DIR: ${FOUNDRY_AI_PLAYER_VAULTS_DIR:-}
+    volumes:
+      - ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}:${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+    healthcheck:
+      <<: *health
+      # /api/health is unauthenticated and answers on loopback host names (packages/cogm-dashboard/src/app.ts)
+      test: ["CMD", "node", "/app/healthcheck.mjs", "http", "http://127.0.0.1:${DASHBOARD_PORT:-3000}/api/health"]
+      start_period: 30s
+
+  gm-browser:
+    <<: *defaults
+    build:
+      context: ../..
+      dockerfile: deploy/pi/Dockerfile
+      target: gm-browser
+    image: foundry-ai-tool-pi/gm-browser:local
+    init: true # reaps Chromium's child processes
+    shm_size: 512m
+    # Low priority: the Assistant GM's Chromium must never compete with Foundry's main thread on game night
+    # (I-098). The unit has Nice=10 and CPUWeight=20; cpu_shares is the container equivalent of the weight
+    # (default 1024, so 20 is about the same ratio). Nice has no compose setting.
+    cpu_shares: 20
+    depends_on:
+      foundry:
+        condition: service_healthy # After=foundry.service
+      bridge:
+        condition: service_healthy # After=foundry-ai-tool-bridge.service
+    env_file:
+      - path: ${TOOL_ETC_DIR:-/etc/foundry-ai-tool}/assistant-gm.env
+        required: false # the unit needs it; without it the driver stops with "not set" and restarts
+    environment:
+      HOME: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+      NODE_ENV: production
+      TOOL_APP: /opt/gm
+      FOUNDRY_URL: http://127.0.0.1:${FOUNDRY_HTTP_PORT:-30000}
+      CHROMIUM: /usr/local/bin/chromium-nosandbox
+      MCP_CONTROL_PORT: "${BRIDGE_CONTROL_PORT:-31414}"
+      GM_LINK_WATCH: "1"
+      GM_BROWSER_PROFILE: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/gm-browser
+    volumes:
+      - ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}:${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+    healthcheck:
+      <<: *health
+      # The bridge reports the module's socket connected (control method link_status). Docker does not restart an
+      # unhealthy container: the driver exits itself (restart: unless-stopped brings it back) when the bridge
+      # listens but has had no module socket for 2 min (GM_LINK_WATCH below turns that watcher on).
+      test: ["CMD", "node", "/opt/gm/healthcheck.mjs", "link", "${BRIDGE_CONTROL_PORT:-31414}"]
+      start_period: 60s

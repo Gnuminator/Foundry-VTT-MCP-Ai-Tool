@@ -396,8 +396,8 @@ describe('renderChangesHtml', () => {
     ];
     const html = renderChangesHtml(view({ users, filter: 'user:u1' }));
     expect(html).toContain('Show:');
-    expect(html).toContain('<option value="all">All</option>');
-    expect(html).toContain('<option value="ai">AI</option>');
+    expect(html).toContain('<option value="all">Everyone</option>');
+    expect(html).toContain('<option value="ai">Tool</option>');
     expect(html).toContain('<option value="user:u1" selected>Danni</option>');
     expect(html).toContain('&lt;b&gt;Evil&lt;/b&gt;');
     expect(html).not.toContain('<b>');

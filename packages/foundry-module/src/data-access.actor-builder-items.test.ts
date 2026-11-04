@@ -79,6 +79,36 @@ describe('FoundryDataAccess — useItem', () => {
     ).rejects.toThrow('Actor not found: ghost');
   });
 
+  it("finds an unlinked token by its token id and uses that token's own actor", async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'bite1', name: 'Bite', type: 'weapon' });
+    (item as any).use = use;
+    const synthetic = makeActor({ id: 'wolf', name: 'Wolf 2', items: [item] });
+    world.addActor({ id: 'wolf', name: 'Wolf', items: [] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [
+        makeToken({ id: 'tok-w1', name: 'Wolf 1', actorId: 'wolf', actorLink: false }),
+        makeToken({
+          id: 'tok-w2',
+          name: 'Wolf 2',
+          actorId: 'wolf',
+          actorLink: false,
+          actor: synthetic,
+        }),
+      ],
+    });
+    world.setActiveScene(scene.id);
+
+    const result = await da.useItem({ actorIdentifier: 'tok-w2', itemIdentifier: 'Bite' });
+    await flush();
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(result.actorName).toBe('Wolf 2');
+  });
+
   it('throws when the item is not on the actor', async () => {
     world.addActor({ id: 'a1', name: 'Mage', items: [] });
 
@@ -110,6 +140,126 @@ describe('FoundryDataAccess — useItem', () => {
       actorName: 'Mage',
       requiresGMInteraction: true,
     });
+  });
+
+  it('rollAttack: uses the item without a dialog, then rolls its attack activity without one', async () => {
+    const itemUse = vi.fn(() => Promise.resolve());
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = itemUse;
+    (item as any).system = {
+      activities: [{ type: 'save' }, { type: 'attack', use, rollAttack }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+
+    const result = await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    // The attack activity makes the card (not the item's first usable activity, the save).
+    expect(itemUse).not.toHaveBeenCalled();
+    expect(use.mock.calls[0]).toEqual([
+      { event: { shiftKey: true }, subsequentActions: false },
+      { configure: false },
+      { create: true },
+    ]);
+    expect(rollAttack).toHaveBeenCalledWith({}, { configure: false }, { create: true });
+    expect(result.requiresGMInteraction).toBe(false);
+    expect(result.message).toContain('rolled without a dialog');
+  });
+
+  it('rollAttack: rolls nothing when the use made no card', async () => {
+    const use = vi.fn(() => Promise.resolve(undefined));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = { activities: [{ type: 'attack', use, rollAttack }] };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+
+    await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(rollAttack).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses when a named target is not on the active scene', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas(scene.id);
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses when the GM views another scene than the active one', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas('other-scene');
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('viewing a different scene');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses an item with no attack before using it', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'f1', name: 'Second Wind', type: 'feat' });
+    (item as any).use = use;
+    (item as any).system = { activities: [{ type: 'heal' }] };
+    world.addActor({ id: 'a1', name: 'Fighter', items: [item] });
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Fighter',
+        itemIdentifier: 'Second Wind',
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('"Second Wind" has no attack to roll');
+    expect(use).not.toHaveBeenCalled();
   });
 
   it('resolves the item by id as well as by name', async () => {

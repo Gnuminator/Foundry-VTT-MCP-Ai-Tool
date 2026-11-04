@@ -158,10 +158,11 @@ GM Actions. **End session** turns off again what it turned on. See
   numbers in lamp gold) and **AI Tool: Neutral** (deep navy with blue-white numbers). Only the
   look of the 3D dice changes; rolls and the play log stay the same.
 - **Starts:** the sets are there as soon as Dice So Nice is; nobody uses them until they pick them.
-- **Turn it on when:** before session 1. To make one the table's default, open **Game Settings**,
-  **Dice So Nice**, click **Configure Dice Roles**, and in the **Basic** row
-  pick **AI Tool: The Veil** (or **AI Tool: Neutral**) in the **Theme** column. Each player can
-  still choose their own dice under **3D Dice Settings**.
+- **Turn it on when:** before session 1. Open **Game Settings**, category **Dice So Nice!**, click
+  **3D Dice Settings**, stay on the **Appearance** tab, pick **AI Tool: The Veil** (or **AI Tool:
+  Neutral**) in the **Theme** list and click **Save**. Dice So Nice has no table-wide default (its
+  **Configure Dice Roles** window only sets the look of damage types such as Fire), so every player
+  picks their own dice the same way.
 - **More:** the [before-session checklist](before-session.md#turn-on-what-tonight-needs).
 
 ## GM windows

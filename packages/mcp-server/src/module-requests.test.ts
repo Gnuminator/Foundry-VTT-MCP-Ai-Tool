@@ -96,6 +96,16 @@ describe('createModuleRequestHandler', () => {
       );
     }
     await expect(handler('toString', {}, danni)).rejects.toThrow(/not allowed/);
+    // A tool the window may call but the router lacks: the next step is in the message.
+    const empty = createModuleRequestHandler({
+      toolRouter: {},
+      guardedChangeTools: {} as never,
+      guardedWrites: {} as never,
+      tarokkaPositionRevealed: vi.fn(async () => false),
+    });
+    await expect(empty('list-recent-changes', {}, danni)).rejects.toThrow(
+      /Unknown tool: list-recent-changes.*restart the bridge/
+    );
   });
 
   describe('the Session window', () => {

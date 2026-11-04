@@ -264,7 +264,7 @@ describe('createPlan (Foundry ops)', () => {
       ],
       [
         { feature: 'test-feature', summary: 's', ops: [{ kind: 'delete', uuid: 'Actor.gone' }] },
-        /document not found: Actor.gone/,
+        /document Actor.gone not found\. Use list-characters/,
       ],
       [
         {
@@ -272,7 +272,7 @@ describe('createPlan (Foundry ops)', () => {
           summary: 's',
           ops: [{ kind: 'create', documentName: 'Item', parentUuid: 'Actor.gone', data: {} }],
         },
-        /parent not found/,
+        /parent Actor.gone not found/,
       ],
     ];
     for (const [input, message] of cases) {
@@ -290,7 +290,7 @@ describe('createPlan (Foundry ops)', () => {
   it('expires plans after 15 minutes and caps how many are kept', async () => {
     const p = await plan([HP_UPDATE]);
     now += PLAN_TTL_MS;
-    expect(() => service.getPlan(p.planId)).toThrow(/No pending plan/);
+    expect(() => service.getPlan(p.planId)).toThrow(/No pending plan.*get-planned-change/);
 
     service = makeService({ maxPlans: 2 });
     const a = await plan([HP_UPDATE]);

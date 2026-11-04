@@ -1,4 +1,4 @@
-import { toolRef } from '@gnuminator/shared';
+import { notFoundMessage, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -415,7 +415,7 @@ export class CompendiumTools {
       );
 
       if (!raw) {
-        throw new Error(`Item ${itemId} not found in pack ${packId}`);
+        throw new Error(notFoundMessage(`Item ${itemId} in pack ${packId}`, 'search-compendium'));
       }
 
       const item = rec(raw);
@@ -560,10 +560,7 @@ export class CompendiumTools {
         const errorDetails = parseError.errors
           .map(err => `${err.path.join('.')}: ${err.message}`)
           .join('; ');
-        throw new Error(
-          `Parameter validation failed: ${errorDetails}. Received args: ${JSON.stringify(args)}`,
-          { cause: parseError }
-        );
+        throw new Error(`Parameter validation failed: ${errorDetails}`, { cause: parseError });
       }
       throw parseError;
     }

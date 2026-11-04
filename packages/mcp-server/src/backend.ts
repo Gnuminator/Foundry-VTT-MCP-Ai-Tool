@@ -20,7 +20,7 @@ import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-r
 
 import { config } from './config.js';
 
-import { MAX_REQUESTER_LENGTH } from '@gnuminator/shared';
+import { MAX_REQUESTER_LENGTH, unknownToolMessage } from '@gnuminator/shared';
 import type { ToolResultPayload } from '@gnuminator/shared';
 
 import { createControlReader } from './control-reader.js';
@@ -743,7 +743,7 @@ async function startBackend(): Promise<void> {
                     ? toolRouter[name]
                     : undefined;
                 if (typeof route !== 'function') {
-                  throw new Error(`Unknown tool: ${name}`);
+                  throw new Error(unknownToolMessage(String(name)));
                 }
                 // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
                 const requester =

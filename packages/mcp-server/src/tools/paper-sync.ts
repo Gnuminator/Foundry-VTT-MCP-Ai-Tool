@@ -9,6 +9,7 @@ import {
   type PaperSyncPlan,
   type PaperSyncPlanResult,
   type PaperSyncRequest,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
@@ -223,9 +224,7 @@ export class PaperSyncTools {
     );
     const feature = features.find(f => f.id === PAPER_SYNC_FEATURE_ID);
     if (!feature?.enabled) {
-      throw new Error(
-        'Paper sync is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Paper sync (writes)".'
-      );
+      throw new Error(featureSwitchOff('Paper sync', 'AI Tool: Paper sync (writes)'));
     }
 
     const built = unwrapBridgeReply(

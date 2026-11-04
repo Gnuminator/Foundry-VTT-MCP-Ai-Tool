@@ -345,7 +345,7 @@ function CharacterCard({ sheet }: { sheet: SheetLike }): JSX.Element {
                   className="field-control"
                   type="text"
                   autoComplete="off"
-                  placeholder="New item (Pick… or paste a uuid)"
+                  placeholder="New item (use Pick from list or paste a uuid)"
                   aria-label="New item"
                   value={a.uuid}
                   onChange={e => setAdded(a.key, { uuid: e.target.value })}

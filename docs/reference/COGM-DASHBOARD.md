@@ -95,7 +95,7 @@ with secret sections and unidentified items' true names left out.
 
 ### Do (almost) anything the bridge can do
 
-![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](../images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](../images/cogm/tool-runner.png)
 
 - A built-in **Tool Runner** exposes _every_ Foundry MCP tool behind a simple form: spawn NPCs and
   monsters from compendiums, set the scene's mood/lighting, create quest journals, drop loot, manage

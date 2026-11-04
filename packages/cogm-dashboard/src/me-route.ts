@@ -205,7 +205,9 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       res.status(400).json({ error: 'Pick a character.' });
       return;
     }
-    const bytes = Buffer.isBuffer(req.body) ? req.body : null;
+    // express.raw gives a Buffer; copy it into our own so no request value reaches the checks.
+    const sent: unknown = req.body;
+    const bytes = sent instanceof Uint8Array ? Buffer.from(sent) : null;
     if (!bytes || bytes.length === 0) {
       res.status(400).json({ error: 'Pick a picture first.' });
       return;

@@ -311,6 +311,11 @@ stdio** and does almost nothing itself:
   `instructions` naming the sets it serves and the ones that are off. Several wrappers start at
   once and may each spawn a backend; a spawned backend that loses the lock exits (code 3) and its
   wrapper connects to the one that won.
+- **Version hello.** On connect the wrapper sends `hello` `{version, sets}`; the dashboard sends
+  `hello` `{client: 'dashboard', version}`. The backend (`wrapper-registry.ts`) lists the wrappers
+  connected, and `get-preflight` warns when one is older than the bridge or too old to say hello. A
+  tool no set lists passes through in the entry that serves core, and an empty `list_tools` reply is
+  an MCP error. `wrapper_status` returns the registry.
 - It owns the backend's lifecycle: when stdin closes (the client exits) or it receives
   SIGTERM/SIGINT, it kills the child backend and exits.
 

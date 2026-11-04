@@ -221,7 +221,9 @@ export function resolveToolSets(raw: string | undefined): ToolSetSelection {
 
 /**
  * The tools a selection serves. With `all`, every tool, including any a set
- * does not list yet; otherwise only the listed tools of the chosen sets.
+ * does not list yet; otherwise only the listed tools of the chosen sets. A tool no
+ * set lists (the backend is newer than this wrapper) passes through in the entry
+ * that serves core, so a wrapper behind the backend never hides a tool.
  */
 export function filterToolsBySets<T extends { name: string }>(
   tools: readonly T[],
@@ -230,7 +232,7 @@ export function filterToolsBySets<T extends { name: string }>(
   if (selection.all) return [...tools];
   return tools.filter(t => {
     const set = toolSetOf(t.name);
-    return set !== undefined && selection.sets.includes(set);
+    return selection.sets.includes(set ?? 'core');
   });
 }
 

@@ -4,7 +4,7 @@
 // of the transcript (transcripts reach tens of MB), no network, no full-file read.
 //
 // Rule (the user 2026-11-03, lanes eased 2026-11-04): plan the handover at 200k tokens, be out by
-// 250k; a lane (session cwd under .claude/worktrees/) plans at 250k and is out by 300k.
+// 250k; a lane (session project dir under .claude/worktrees/) plans at 250k and is out by 300k.
 //
 // Context = input + cache read + cache creation tokens of the last main-thread assistant response
 // (of its last sampling pass when the response has several, see contextOf), counted only when the
@@ -37,9 +37,10 @@ export const LANE_OUT_AT = 300_000;
 export const TAIL_BYTES = 512 * 1024;
 
 // A lane works in a worktree under .claude/worktrees/; the planner and other sessions in the main
-// checkout keep the lower lines. A cwd we cannot read as a lane gets the lower lines.
-export function limitsFor(cwd) {
-  const lane = typeof cwd === 'string' && /[\\/]\.claude[\\/]worktrees[\\/]/i.test(cwd);
+// checkout keep the lower lines. A path we cannot read as a lane gets the lower lines. Callers pass
+// CLAUDE_PROJECT_DIR (fixed for the session), falling back to the payload cwd.
+export function limitsFor(dir) {
+  const lane = typeof dir === 'string' && /[\\/]\.claude[\\/]worktrees[\\/]/i.test(dir);
   return lane ? { plan: LANE_PLAN_AT, out: LANE_OUT_AT } : { plan: PLAN_AT, out: OUT_AT };
 }
 

@@ -230,15 +230,31 @@ export function validateFoundryState(): void {
   }
 }
 
-/** Resolve an actor by id, exact name, or partial name match. */
+/**
+ * Resolve an actor by id, exact name (case-insensitive, the first wins when names repeat) or a
+ * unique partial name. Several partial matches throw, listing name and id, so a write never
+ * lands on the wrong actor; `undefined` when nothing matches.
+ */
 export function findActorByIdentifier(identifier: string): Actor | undefined {
-  return (
-    game.actors?.get(identifier) ??
-    game.actors?.getName(identifier) ??
-    Array.from(game.actors || []).find(a =>
-      a.name?.toLowerCase().includes(identifier.toLowerCase())
-    )
-  );
+  const byId = game.actors?.get(identifier);
+  if (byId) return byId;
+  const needle = identifier.toLowerCase();
+  const actors = Array.from(game.actors || []);
+  const exact = actors.find(a => a.name?.toLowerCase() === needle);
+  if (exact) return exact;
+  const partial = actors.filter(a => a.name?.toLowerCase().includes(needle));
+  if (partial.length <= 1) return partial[0];
+  throw new Error(ambiguousActorMessage(identifier, partial));
+}
+
+/** "Multiple characters match ...": up to ten candidates with their ids. */
+export function ambiguousActorMessage(identifier: string, actors: Actor[]): string {
+  const shown = actors
+    .slice(0, 10)
+    .map(a => `${a.name} (${a.id})`)
+    .join(', ');
+  const more = actors.length > 10 ? `, ...(+${actors.length - 10} more)` : '';
+  return `Multiple characters match "${identifier}": ${shown}${more}. Use the exact name or the 16-character id.`;
 }
 
 /**
@@ -248,7 +264,15 @@ export function findActorByIdentifier(identifier: string): Actor | undefined {
  * actor picker sends ids), then falls back to that world actor.
  */
 export function resolveTargetActor(identifier: string): Actor | undefined {
-  const worldActor = findActorByIdentifier(identifier);
+  let worldActor: Actor | undefined;
+  try {
+    worldActor = findActorByIdentifier(identifier);
+  } catch (err) {
+    // Several world actors fit, but a token on the scene named exactly so is unambiguous.
+    const token = findSceneTokenActor(identifier);
+    if (token) return token;
+    throw err;
+  }
   return findSceneTokenActor(identifier, worldActor?.id) ?? worldActor;
 }
 

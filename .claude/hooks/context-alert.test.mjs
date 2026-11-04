@@ -153,21 +153,38 @@ test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main c
   }
 });
 
-test('run: CLAUDE_PROJECT_DIR decides lane or planner, not a cwd that moved with a cd', () => {
+test('limitsFor: any of several dirs under .claude/worktrees/ makes a lane', () => {
+  const lane = { plan: 250_000, out: 300_000 };
+  const main = { plan: 200_000, out: 250_000 };
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', 'C:\\P\\Foundry\\.claude\\worktrees\\a'), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry\\.claude\\worktrees\\a', undefined), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', 'C:\\P\\Foundry\\packages'), main);
+});
+
+test('run: a lane counts when either CLAUDE_PROJECT_DIR or the payload cwd is under worktrees', () => {
   const { root, env, cleanup } = fixture();
   try {
     const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
     const main = 'C:\\P\\Foundry';
     const file = transcript(root, [turn(260_000)]);
-    // planner in the main checkout that cd'd into a lane: still out at 250k
-    const p = run(input(file, { cwd: lane }), { ...env, CLAUDE_PROJECT_DIR: main });
-    assert.match(p, /hand over now/);
-    // lane that cd'd to main: only the plan line at 260k
+    // desktop-app shape: project dir is the main checkout, cwd is the worktree -> lane, plan line only
+    const a = run(input(file, { cwd: lane, session_id: 'a' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: main,
+    });
+    assert.match(a, /plan the handover/);
+    // project dir is the worktree, cwd moved to main -> still a lane
     const l = run(input(file, { cwd: main, session_id: 'l' }), {
       ...env,
       CLAUDE_PROJECT_DIR: lane,
     });
     assert.match(l, /plan the handover/);
+    // neither under worktrees -> planner, out at 250k
+    const p = run(input(file, { cwd: main, session_id: 'p' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: main,
+    });
+    assert.match(p, /hand over now/);
   } finally {
     cleanup();
   }

@@ -38,9 +38,11 @@ export const TAIL_BYTES = 512 * 1024;
 
 // A lane works in a worktree under .claude/worktrees/; the planner and other sessions in the main
 // checkout keep the lower lines. A path we cannot read as a lane gets the lower lines. Callers pass
-// CLAUDE_PROJECT_DIR (fixed for the session), falling back to the payload cwd.
-export function limitsFor(dir) {
-  const lane = typeof dir === 'string' && /[\\/]\.claude[\\/]worktrees[\\/]/i.test(dir);
+// every directory we know of: in a session the desktop app starts in a worktree, CLAUDE_PROJECT_DIR
+// is the main checkout (the hook command itself runs main's copy) and only the payload cwd is the
+// worktree, so a session is a lane when any of them is under .claude/worktrees/.
+export function limitsFor(...dirs) {
+  const lane = dirs.some(d => typeof d === 'string' && /[\\/]\.claude[\\/]worktrees[\\/]/i.test(d));
   return lane ? { plan: LANE_PLAN_AT, out: LANE_OUT_AT } : { plan: PLAN_AT, out: OUT_AT };
 }
 
@@ -205,8 +207,8 @@ export function run(input, env = process.env) {
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';
-    // CLAUDE_PROJECT_DIR is fixed for the session; the payload cwd moves with a `cd`
-    const limits = limitsFor(env.CLAUDE_PROJECT_DIR || input.cwd);
+    // either one under .claude/worktrees/ makes a lane (see limitsFor)
+    const limits = limitsFor(env.CLAUDE_PROJECT_DIR, input.cwd);
     const level = context >= limits.out ? 2 : context >= limits.plan ? 1 : 0;
     const announced = readLevel(sessionId, env);
     if (level === 0) {

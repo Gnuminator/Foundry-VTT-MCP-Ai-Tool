@@ -176,15 +176,20 @@ test('the out line is 300k for a lane cwd and 250k elsewhere', () => {
   }
 });
 
-test('CLAUDE_PROJECT_DIR decides lane or planner, not a cwd that moved with a cd', () => {
+test('a lane counts when either CLAUDE_PROJECT_DIR or the payload cwd is under worktrees', () => {
   const { root, cleanup } = fixture();
   try {
     const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
     const main = 'C:\\P\\Foundry';
     const agent = { model: 'sonnet', prompt: 'x' };
     const file = transcript(root, [270_000, 272_000]);
-    // a planner that cd'd into a lane worktree is still stopped at 250k
-    assert.ok(decide(payload(file, 'Agent', agent, { cwd: lane }), { CLAUDE_PROJECT_DIR: main }));
+    // desktop-app shape: project dir is the main checkout, cwd the worktree -> a lane, allowed to 300k
+    assert.equal(
+      decide(payload(file, 'Agent', agent, { cwd: lane }), { CLAUDE_PROJECT_DIR: main }),
+      null
+    );
+    // neither under worktrees -> stopped at 250k
+    assert.ok(decide(payload(file, 'Agent', agent, { cwd: main }), { CLAUDE_PROJECT_DIR: main }));
     // a lane that cd'd to the main checkout is still allowed up to 300k
     assert.equal(
       decide(payload(file, 'Agent', agent, { cwd: main }), { CLAUDE_PROJECT_DIR: lane }),

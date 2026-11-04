@@ -31,6 +31,22 @@ afterEach(async () => {
 });
 
 describe('readPreviously', () => {
+  it('counts a restarted recording (-discord-2) in the same minute as the newest session', async () => {
+    await put('2026-10-08_2000-discord', 'summary.en.md', '# Summary: Older\n\nOlder text.\n');
+    await put('2026-10-15_2000-discord', 'notes-placeholder.txt', 'x');
+    await put(
+      '2026-10-15_2000-discord-2',
+      'summary.en.md',
+      '# Summary: Restarted\n\nThe real session text.\n'
+    );
+    const r = await readPreviously(dir);
+    expect(r).toMatchObject({
+      status: 'found',
+      session: '2026-10-15_2000-discord-2',
+      title: 'Restarted',
+    });
+  });
+
   it('reads the English GM summary of the newest session', async () => {
     await put('2026-10-01-discord', 'summary.en.md', '# Summary: Older\n\nOlder text.\n');
     await put(

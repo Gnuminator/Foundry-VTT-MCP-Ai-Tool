@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { PREP_PREVIOUSLY_MAX_CHARS, type PrepPreviously } from '@gnuminator/shared';
 
 /** Session folders the recorder makes end in this. */
-const SESSION_SUFFIX = '-discord';
+const SESSION_FOLDER = /-discord(?:-\d+)?$/;
 /** The digest is English: English first, then Danish when only that one was written. */
 const LANGS = ['en', 'da'] as const;
 /** Newest session folders looked at for a written summary. */
@@ -79,7 +79,7 @@ export async function readPreviously(sessionsDir: string): Promise<PrepPreviousl
   let names: string[];
   try {
     names = (await readdir(sessionsDir, { withFileTypes: true }))
-      .filter(e => e.isDirectory() && e.name.endsWith(SESSION_SUFFIX))
+      .filter(e => e.isDirectory() && SESSION_FOLDER.test(e.name))
       .map(e => e.name)
       .sort()
       .reverse();

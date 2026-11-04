@@ -561,6 +561,21 @@ export const DASHBOARD_CONTROLS = [
     why: 'plans and applies removing a condition from the picked tokens (with Undo); the helper unit tests and the live check cover it',
   },
   {
+    name: 'dash.during.scene-mood',
+    how: 'skip',
+    why: 'not driven by the sweep (the During bar button that opens the Scene mood panel); the e2e spec scene-mood.spec.ts and the live check cover it',
+  },
+  {
+    name: 'dash.mood.apply',
+    how: 'write',
+    why: 'plans, confirms and applies a saved mood preset on the viewed scene (with Undo); the helper unit tests, the e2e spec and the live check cover it',
+  },
+  {
+    name: 'dash.mood.close',
+    how: 'skip',
+    why: 'not driven by the sweep (closes the Scene mood panel)',
+  },
+  {
     name: 'dash.combat.end',
     how: 'open',
     // Only the After page (web/src) has it; the old page's files do not, so the data-track

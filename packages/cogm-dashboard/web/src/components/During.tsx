@@ -47,6 +47,10 @@ const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.S
 const ConditionsPanel = lazy(() =>
   import('./ConditionsPanel').then(m => ({ default: m.ConditionsPanel }))
 );
+// And the Scene mood panel: it loads when the bar's Scene mood button is clicked.
+const SceneMoodPanel = lazy(() =>
+  import('./SceneMoodPanel').then(m => ({ default: m.SceneMoodPanel }))
+);
 
 /** What the layout buttons say while the world (and so the saved choice) is not known yet. */
 export const NOT_READY_TIP =
@@ -243,6 +247,13 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
   useEffect(() => {
     if (!conditionsHere) setConditionsOpen(false);
   }, [conditionsHere]);
+  // Scene mood is on the bar whenever the trial is not running: with a switch off its buttons
+  // stay, disabled, and say which switch.
+  const moodHere = trial === null;
+  const [moodOpen, setMoodOpen] = useState(false);
+  useEffect(() => {
+    if (!moodHere) setMoodOpen(false);
+  }, [moodHere]);
   // The picker belongs to the button: when the button goes away (a fight began, Full, GM Actions
   // off), the next calm screen starts closed.
   useEffect(() => {
@@ -401,6 +412,30 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
             />
           </Suspense>
         </div>
+      )}
+      {moodHere && (
+        <Button
+          id="btn-during-scene-mood"
+          data-track="dash.during.scene-mood"
+          aria-expanded={moodOpen}
+          aria-controls="scene-mood-panel"
+          title="Set the scene's look and music from a saved mood preset"
+          onClick={() => setMoodOpen(open => !open)}
+        >
+          Scene mood
+        </Button>
+      )}
+      {moodHere && moodOpen && (
+        <Suspense fallback={<DelayedLoading as="div" />}>
+          <SceneMoodPanel
+            onClose={() => {
+              setMoodOpen(false);
+              requestAnimationFrame(() =>
+                document.getElementById('btn-during-scene-mood')?.focus()
+              );
+            }}
+          />
+        </Suspense>
       )}
       <p className="layout-hint" id="layout-hint" hidden={!hintVisible}>
         <span>

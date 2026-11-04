@@ -339,6 +339,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/During.tsx',
   },
   {
+    name: 'dash.during.scene-mood',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/During.tsx',
+  },
+  {
     name: 'dash.during.start-combat',
     kind: 'action',
     surface: 'dashboard',
@@ -673,6 +679,18 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/Moments.tsx',
+  },
+  {
+    name: 'dash.mood.apply',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/SceneMoodPanel.tsx',
+  },
+  {
+    name: 'dash.mood.close',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/SceneMoodPanel.tsx',
   },
   {
     name: 'dash.notes.about-switch',

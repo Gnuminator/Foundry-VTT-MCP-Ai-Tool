@@ -1,0 +1,208 @@
+// The Scene mood action of the During view (item dashboard-mood-presets): one button per mood
+// preset saved on the viewed scene (list-scene-moods). One click plans the preset with
+// plan-scene-mood, asks once in the confirm window with the plan's own summary, then applies it
+// with apply-planned-change; the toast has Undo and Recent Changes lists it. The same inline flow
+// as the live strip's End combat. While GM Actions, Allow Write Operations or the module's
+// "Scene mood and music" switch is off, the buttons stay, disabled, and say which one.
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type JSX } from 'react';
+
+import { api, callTool, errorText } from '../lib/api';
+import { GAME_STATE_KEY, failCode, useGuardedTools } from '../lib/guarded';
+import { useLivePlay } from '../lib/livePlay';
+import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import {
+  currentText,
+  moodOff,
+  moodPlanArgs,
+  moodQuestion,
+  presetDetails,
+  readMoods,
+} from '../lib/sceneMood';
+import { isSwitchOffRefusal, type FeatureList } from '../lib/switchOff';
+import { usage } from '../lib/usage';
+import { Button, QueryState } from '../ui';
+
+import { focusedElement, useConfirm } from './ConfirmDialog';
+import styles from './SceneMoodPanel.module.css';
+import { useToast } from './Toasts';
+import { TurnOnNote } from './TurnOnNote';
+
+/** Under the game state key: an applied mood or its Undo reads the scene's look again. */
+export const SCENE_MOODS_KEY = [...GAME_STATE_KEY, 'scene-moods'] as const;
+/** The module's feature switches (GET /api/features), read again after a switch-off refusal. */
+export const MOOD_FEATURES_KEY = ['scene-mood-features'] as const;
+
+/** What plan-scene-mood answers; the fields used here. */
+interface Planned {
+  planId?: unknown;
+  summary?: unknown;
+  risk?: unknown;
+}
+
+/** The panel; mounted only while open (the During bar owns the button). */
+export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Element {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const askConfirm = useConfirm();
+  const { gated, applyApproved } = useGuardedTools();
+  const live = useLivePlay();
+  // plan-scene-mood is a guarded write with no live-play part: GM Actions and writes, plus its
+  // own module switch.
+  const liveOff = live.off(ROLL_NEEDS);
+
+  const moods = useQuery({
+    queryKey: SCENE_MOODS_KEY,
+    queryFn: async () => {
+      const list = readMoods(await callTool('list-scene-moods', {}));
+      if (!list) throw new Error('The bridge sent no moods.');
+      return list;
+    },
+    staleTime: 0,
+    retry: false,
+  });
+  const features = useQuery({
+    queryKey: MOOD_FEATURES_KEY,
+    queryFn: () => api<FeatureList>('/api/features'),
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  const off = moodOff(liveOff, features.data ?? null);
+  const offTitle = off.names.length > 0 ? offReason(off.names) : undefined;
+  // The preset whose plan or apply runs: every button waits, the one clicked says so once applying.
+  const [running, setRunning] = useState<{ preset: string; applying: boolean } | null>(null);
+  const lock = useRef(false);
+
+  const applyMood = async (preset: string): Promise<void> => {
+    if (lock.current || off.names.length > 0) return;
+    lock.current = true;
+    const from = focusedElement();
+    setRunning({ preset, applying: false });
+    try {
+      if (gated('plan-scene-mood')) return;
+      let planned: Planned | null;
+      try {
+        planned = await callTool<Planned | null>('plan-scene-mood', moodPlanArgs(preset));
+        usage().trackTool('plan-scene-mood', 'ok');
+      } catch (err) {
+        usage().trackTool('plan-scene-mood', 'error', failCode(err));
+        const text = errorText(err);
+        if (isSwitchOffRefusal(text)) {
+          // Nothing was planned and nothing is wrong: a switch to turn on, said as a hint. The
+          // switches are read again, so the buttons say it too.
+          toast(text.replace(/^Error:\s*/, ''), 'warn');
+          void queryClient.invalidateQueries({ queryKey: MOOD_FEATURES_KEY });
+        } else {
+          toast(`✗ Mood "${preset}": ${text}`, 'err');
+        }
+        return;
+      }
+      const planId = typeof planned?.planId === 'string' ? planned.planId : '';
+      if (!planId) {
+        toast(`✗ Mood "${preset}": the bridge made no plan`, 'err');
+        return;
+      }
+      const destructive = planned?.risk === 'destructive';
+      const ok = await askConfirm({
+        title: 'Scene mood',
+        summary: moodQuestion(
+          typeof planned?.summary === 'string' ? planned.summary : null,
+          preset
+        ),
+        diff: [],
+        compact: true,
+        confirmLabel: 'Apply mood',
+        destructive,
+        returnTo: from,
+      });
+      if (!ok) {
+        // The plan stays on the bridge until it expires, as everywhere else.
+        usage().trackTool('apply-planned-change', 'cancelled');
+        return;
+      }
+      // Busy on the button only once the write runs, not while the GM answers the question.
+      setRunning({ preset, applying: true });
+      await applyApproved(planId, destructive, { label: `Mood "${preset}"` });
+    } finally {
+      lock.current = false;
+      setRunning(null);
+    }
+  };
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    rootRef.current
+      ?.querySelector<HTMLElement>('[data-preset]:not([aria-disabled="true"])')
+      ?.focus();
+  }, [moods.isSuccess]);
+
+  return (
+    <div
+      className={styles['panel']}
+      id="scene-mood-panel"
+      role="group"
+      aria-label="Scene mood"
+      ref={rootRef}
+      onKeyDown={e => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
+      <p className="cs-hint">
+        {moods.data
+          ? `The moods saved on ${moods.data.sceneName}. A click asks once, then sets the look and the music; Undo is in Recent Changes.`
+          : 'The moods saved on the viewed scene.'}
+      </p>
+      {liveOff.length > 0 && <TurnOnNote live={live} off={liveOff} id="scene-mood-turn-on" />}
+      {off.note && (
+        <p className={styles['off']} id="scene-mood-off" role="status">
+          {off.note}
+        </p>
+      )}
+      <QueryState
+        query={moods}
+        errorLabel="Couldn't load the moods"
+        onRetry={() => void moods.refetch()}
+        isEmpty={d => d.presets.length === 0}
+        empty="No mood presets on this scene yet. Ask Claude to save the scene's look as a preset."
+      >
+        {d => (
+          <ul className={styles['presets']} aria-label="Mood presets">
+            {d.presets.map(p => {
+              const disabled = offTitle !== undefined || running !== null;
+              return (
+                <li key={p.name}>
+                  <Button
+                    size="sm"
+                    data-track="dash.mood.apply"
+                    data-preset={p.name}
+                    aria-disabled={disabled ? 'true' : undefined}
+                    title={offTitle ?? presetDetails(p)}
+                    busy={running?.applying === true && running.preset === p.name}
+                    busyLabel="Applying..."
+                    onClick={() => {
+                      if (!disabled) void applyMood(p.name);
+                    }}
+                  >
+                    {p.name}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </QueryState>
+      <div className="ca-row">
+        {moods.data?.current && (
+          <span className={styles['now']}>{currentText(moods.data.current)}</span>
+        )}
+        <Button size="sm" data-track="dash.mood.close" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  );
+}

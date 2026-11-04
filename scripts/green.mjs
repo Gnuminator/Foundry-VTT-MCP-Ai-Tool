@@ -130,6 +130,7 @@ export const STEPS = [
   nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-player-vault', 'scripts/pi/player-vault.test.mjs'),
+  nodeTest('pi-discord-game-server', 'scripts/pi/discord-game-server.test.mjs'),
   nodeTest('pi-world-switch', 'scripts/pi/switch-world.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),

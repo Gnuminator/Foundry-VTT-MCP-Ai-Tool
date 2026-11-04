@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 36.1.1, 2026-10-28 (test server C; the estimate itself was computed on 35.2.2 before the module was updated, not rerun on 36.1.1). The estimate was computed live; the on-screen label was not captured (marked in place).
 
-**Verdict: keep.** It gives words like "Badly Injured" instead of hit point numbers, which is how most tables want monster health to look. It reads HP and never writes anything, so it is safe next to our tools. It does not hide the HP bar by itself.
+**Verdict: drop.** Left out of Danni's picks, since enemy health is hidden from players completely. It gives words like "Badly Injured" instead of hit point numbers, which is how most tables want monster health to look. It reads HP and never writes anything, so it is safe next to our tools. It does not hide the HP bar by itself.
 
 **For Danni's guides:** Instead of telling players a goblin has 4 of 7 hit points, they see "Injured" or "Near Death" when they hover over it. You still see the real numbers.
 

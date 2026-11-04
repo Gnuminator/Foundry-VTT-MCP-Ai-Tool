@@ -400,9 +400,19 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.combat.selection-condition',
     how: 'open',
     reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
-    expect: '#tool-detail',
+    expect: '#condition-form',
     optional: true,
-    why: 'needs a selected combatant (opens the tool form, runs nothing)',
+    why: 'needs a selected combatant (opens the Condition picker, applies nothing until a chip and the confirm)',
+  },
+  {
+    name: 'dash.combat.condition',
+    how: 'write',
+    why: 'plans a condition for the picked tokens, asks once, then applies it in Foundry (with Undo)',
+  },
+  {
+    name: 'dash.combat.condition-cancel',
+    how: 'skip',
+    why: 'inside the Condition picker: needs a fight and a picked combatant',
   },
   {
     name: 'dash.combat.selection-damage',
@@ -529,14 +539,11 @@ export const DASHBOARD_CONTROLS = [
   },
   {
     name: 'dash.combat.end',
-    how: 'open',
+    how: 'write',
     // Only the After page (web/src) has it; the old page's files do not, so the data-track
     // test cannot look it up there.
     selector: '[data-track="dash.combat.end"]',
-    reach: [MOMENT_DURING],
-    expect: '#tool-detail',
-    optional: true,
-    why: 'needs a combat and GM Actions on (opens the tool form, runs nothing)',
+    why: 'plans ending the fight, asks once, then ends it in Foundry (with Undo); the e2e spec and the live check cover it',
   },
 
   {

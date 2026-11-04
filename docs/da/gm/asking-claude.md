@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: b21633be1692
+sourceHash: 1e3f04e9961f
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -129,7 +129,7 @@ without confirming** (Game Settings, kategorien **Foundry AI Tool**; slukket som
 det over for damage, healing, conditions og resources, som Claude planlægger. Hver ændring havner
 stadig i Recent Changes med **Undo**. Dashboardets party- og Tarokka-knapper har aldrig brug for den:
 de apply'er med det samme med en **Undo**-besked. Dens Damage / Heal-formular apply'er også med det
-samme på samme måde; dens Condition-knap går gennem tool runneren og viser altid confirm-vinduet (se
+samme på samme måde; dens Condition-chips spørger i én linje før de apply'er (se
 [dashboard-guiden](dashboard.md#confirm-vinduet)).
 
 ### Funktionskontakter

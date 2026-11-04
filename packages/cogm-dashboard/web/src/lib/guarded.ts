@@ -339,6 +339,11 @@ export function useGuardedTools(): GuardedTools {
         if (timedOut) {
           error = `Timed out. ${checkHint}`;
         } else if (mayHaveApplied(err)) {
+          // A proxy's 5xx has no message of its own: never "Try again" next to "It may have
+          // applied", or a second click writes twice.
+          if (err instanceof ApiError && err.kind === undefined && err.status >= 500) {
+            error = 'The answer did not come back.';
+          }
           const text = error.trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
           error = `${text}${stop} ${checkHint}`;

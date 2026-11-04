@@ -517,9 +517,7 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   await expect(toast(page, `✗ The change: The bridge link closed. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(
-    toast(page, `✗ The change: The dashboard could not finish that. Try again in a moment. ${hint}`)
-  ).toBeVisible();
+  await expect(toast(page, `✗ The change: The answer did not come back. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(toast(page, `✗ The change: Failed to fetch. ${hint}`)).toBeVisible();

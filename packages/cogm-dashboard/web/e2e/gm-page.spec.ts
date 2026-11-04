@@ -243,5 +243,5 @@ test('is for the GM: a player is sent to the player view, and a missing address 
 
   await setup(page, { json: { foundryUrl: null, foundryOrigin: null } });
   await load(page);
-  await expect(page.getByRole('alert')).toContainText('Set the Foundry address first');
+  await expect(page.getByRole('alert')).toContainText('does not know Foundry’s address');
 });

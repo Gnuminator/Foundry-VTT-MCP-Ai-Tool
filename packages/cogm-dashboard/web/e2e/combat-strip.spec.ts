@@ -1652,6 +1652,110 @@ test.describe('when a write or a roll request fails', () => {
     expect(calls.filter(c => c.name === 'apply-planned-change')).toEqual([]);
   });
 
+  const openCondition = async (page: Page): Promise<Locator> => {
+    await row(page, 'Brannoc').click();
+    await page.locator('#combat-actions [data-sel="condition"]').click();
+    return page.locator('#condition-form');
+  };
+
+  test('Condition: a plan that fails says so, nothing is applied and the chips stay usable', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call => (call.name === 'plan-actor-change' ? failed('No such token') : undefined),
+    });
+    await load(page);
+    const picker = await openCondition(page);
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await expect(toastLike(page, /Actor change:.*No such token/)).toBeVisible();
+    await expect(picker).toBeVisible();
+    await expect(picker.getByRole('button', { name: 'prone' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toEqual([]);
+  });
+
+  test('Condition: an apply that fails keeps the picker; one with no answer says it may have landed', async ({
+    page,
+  }) => {
+    let kind = 'tool';
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call =>
+        call.name === 'apply-planned-change' ? failed('Stale plan', kind) : undefined,
+    });
+    await load(page);
+    const picker = await openCondition(page);
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Set prone' }).click();
+    await expect(toastLike(page, /Stale plan/)).toBeVisible();
+    await expect(picker).toBeVisible();
+    await expect(picker).not.toContainText('may have landed');
+    // Again, now the bridge does not answer: the picker says to check Recent Changes first.
+    kind = 'timeout';
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Set prone' }).click();
+    await expect(picker).toContainText('It may have landed. Check Recent Changes');
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(2);
+  });
+
+  test('while a change runs the action bar buttons wait; End combat says why', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'apply-planned-change') await held;
+      await route.fallback();
+    });
+    await load(page);
+    const picker = await openCondition(page);
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Set prone' }).click();
+    const end = page.locator('#combat-actions [data-sel="end"]');
+    const damage = page.locator('#combat-actions [data-sel="damage"]');
+    await expect(end).toHaveAttribute('aria-disabled', 'true');
+    await expect(end).toHaveAttribute('title', 'Another change is running');
+    await expect(damage).toHaveAttribute('aria-disabled', 'true');
+    // A click on the waiting button asks for nothing.
+    await end.click({ force: true });
+    await damage.click({ force: true });
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    expect(calls.filter(c => c.name === 'plan-combat-change')).toEqual([]);
+    release();
+    await expect(end).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test('two picked creatures with one name read as numbered in the questions', async ({ page }) => {
+    const wolves = [
+      who('c1', 'Wolf', { tokenId: 'tok-wolf-1' }),
+      who('c2', 'Brannoc', { isPC: true, category: 'pc', tokenId: 'tok-brannoc' }),
+      who('c3', 'Wolf', { tokenId: 'tok-wolf-2' }),
+    ];
+    await setup(page, { initial: [fight(wolves)] });
+    await load(page);
+    await page.locator('.combatant[data-id="c1"]').click();
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="condition"]').click();
+    await page.locator('#condition-form').getByRole('button', { name: 'poisoned' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Set poisoned on Wolf 1 and Wolf 2?');
+  });
+
+  test('End combat: once the fight is over the focus is on the combat pane', async ({ page }) => {
+    const { push } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: endAnswer,
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'End combat' }).click();
+    await expect(undoToast(page, '✓ Applied: End combat on "Field"')).toBeVisible();
+    push([noFight]);
+    await expect(page.locator('#pane-combat')).toBeFocused();
+  });
+
   test('a double click sends one plan', async ({ page }) => {
     const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);

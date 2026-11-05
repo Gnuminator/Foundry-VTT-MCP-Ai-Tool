@@ -50,7 +50,7 @@ import {
 } from '../lib/combat';
 import { useEndCombat } from '../lib/endCombat';
 import { useLivePlay, type LivePlay } from '../lib/livePlay';
-import { chipText } from '../lib/liveStrip';
+import { chipText, displayNames } from '../lib/liveStrip';
 import { offReason } from '../lib/liveSwitches';
 import { refreshCombat, useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { DelayedLoading, Panel, Pill } from '../ui';
@@ -278,11 +278,14 @@ function ActionBar({
   onClear,
   onEnd,
   ending,
+  busy,
   combatants,
   onPick,
 }: {
   count: number;
   stale: boolean;
+  /** Another write from the strip runs: the buttons that start one wait. */
+  busy: boolean;
   /** End combat's write runs (after the GM said yes): the button says so. */
   ending: boolean;
   onAct: (action: SelectionAction) => void;
@@ -295,6 +298,9 @@ function ActionBar({
 }): JSX.Element {
   const off = stale ? ('true' as const) : undefined;
   const away = stale ? 'The bridge is away' : undefined;
+  // A write that starts a change waits for the one that runs (the strip lock drops a second click).
+  const writeOff = stale || busy ? ('true' as const) : undefined;
+  const writeTitle = stale ? away : busy ? 'Another change is running' : undefined;
   // Held here, not in the button: the button remounts when the pick goes from none to some.
   const [targetsNote, setTargetsNote] = useState('');
   const foundryButton = (
@@ -329,11 +335,11 @@ function ActionBar({
       className="ca-btn ghost"
       data-track="dash.combat.end"
       data-sel="end"
-      aria-disabled={off}
+      aria-disabled={writeOff}
       aria-busy={ending ? 'true' : undefined}
-      title={away ?? 'Plan ending this fight; you confirm it, and Undo brings it back'}
+      title={writeTitle ?? 'Plan ending this fight; you confirm it, and Undo brings it back'}
       onClick={() => {
-        if (!stale) onEnd();
+        if (!stale && !busy) onEnd();
       }}
     >
       {ending ? 'Ending...' : 'End combat'}
@@ -359,10 +365,10 @@ function ActionBar({
         className="ca-btn"
         data-track="dash.combat.selection-damage"
         data-sel="damage"
-        aria-disabled={off}
-        title={away}
+        aria-disabled={writeOff}
+        title={writeTitle}
         onClick={() => {
-          if (!stale) onAct('damage');
+          if (!stale && !busy) onAct('damage');
         }}
       >
         Damage / Heal
@@ -373,10 +379,10 @@ function ActionBar({
         className="ca-btn"
         data-track="dash.combat.selection-condition"
         data-sel="condition"
-        aria-disabled={off}
-        title={away}
+        aria-disabled={writeOff}
+        title={writeTitle}
         onClick={() => {
-          if (!stale) onAct('condition');
+          if (!stale && !busy) onAct('condition');
         }}
       >
         Condition
@@ -495,6 +501,9 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
   const showAttack = attackOpen && selectable;
   if (attackOpen && !showAttack) setAttackOpen(false);
   const pickedRows = (combat?.combatants ?? []).filter(c => kept.has(c.id));
+  // Two Wolves read "Wolf 1" and "Wolf 2" in the questions, numbered across the whole fight.
+  const shownNames = displayNames(combat?.combatants ?? []);
+  const pickedNames = pickedRows.map(c => shownNames.get(c.id) ?? c.name);
   const partyRows = (combat?.combatants ?? []).filter(c => c.isPC && !c.defeated);
   const used = combat ? reactionsFor(reactions, combat.round) : NO_REACTIONS.used;
   const prompts = bossPrompts(combat);
@@ -589,16 +598,30 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
               <ActionBar
                 count={kept.size}
                 stale={stale}
+                busy={busy}
                 onAct={action => {
                   const targets = selectedTargets(combat, kept);
-                  if (targets.length === 0) return;
+                  if (busy || targets.length === 0) return;
                   // One form at a time under the bar.
                   setDamageOpen(action === 'damage');
                   setConditionOpen(action === 'condition');
                 }}
                 onAttack={() => setAttackOpen(true)}
                 onClear={() => setPicked(new Set())}
-                onEnd={() => void once(() => planEnd(() => setEnding(true)))}
+                onEnd={() => {
+                  let applied = false;
+                  void once(() =>
+                    planEnd(() => {
+                      applied = true;
+                      setEnding(true);
+                    })
+                  ).then(() => {
+                    // The fight is over and the bar unmounts with it: focus would drop to the page.
+                    if (applied) {
+                      requestAnimationFrame(() => document.getElementById('pane-combat')?.focus());
+                    }
+                  });
+                }}
                 ending={ending}
                 combatants={combat?.combatants ?? []}
                 onPick={ids => setPicked(new Set(ids))}
@@ -609,7 +632,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
             <Suspense fallback={<DelayedLoading as="div" />}>
               <ConditionForm
                 targets={selectedTargets(combat, kept)}
-                names={pickedRows.map(c => c.name)}
+                names={pickedNames}
                 stale={stale}
                 locked={busy}
                 once={once}
@@ -627,7 +650,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
             <Suspense fallback={<DelayedLoading as="div" />}>
               <DamageForm
                 targets={selectedTargets(combat, kept)}
-                names={pickedRows.map(c => c.name)}
+                names={pickedNames}
                 stale={stale}
                 locked={busy}
                 once={once}

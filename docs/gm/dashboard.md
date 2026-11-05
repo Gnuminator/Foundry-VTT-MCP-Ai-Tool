@@ -238,6 +238,14 @@ After a Damage / Heal or Condition change, a message lists each target's result 
 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
 Changes.
 
+**Scene mood** (a button on the During bar, with GM Actions, Allow Write Operations and Foundry's
+"AI Tool: Scene mood and music (writes)" switch on): one button for each mood preset saved on the
+scene you are viewing. A click asks once, with the plan's own summary ("Apply mood ... on ..."),
+then sets the darkness, light, weather and music. **Undo** is on the message and in Recent
+Changes. A switch that is off keeps the buttons grey and says which one (**Turn on** is next to
+it for the first two). Presets are saved by asking Claude to save the scene's look as a preset; if
+you switch scene while the panel is open, the next click reloads the list instead of applying.
+
 **Conditions** (a button on the During bar, with live play and GM Actions on; it works in a fight and
 out of one): tick tokens on the scene you are viewing, pick a condition, then **Add** or **Remove**.
 It applies at once, with **Undo**, and there is no confirm window. For Exhaustion, Add raises one
@@ -482,7 +490,8 @@ The confirm window opens first for:
 
 - **Destructive changes**: deletes, Tarokka reveals and hides, and handout hides (players see a
   reveal at once, so Undo cannot take it back from their eyes). A handout reveal has a working
-  Undo and asks in one line, with no tick.
+  Undo and asks in one line, with no tick. **End combat** is a delete too, but it asks in one
+  line with no tick, on both strips: Undo brings the fight back.
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
 - **Any plan made in the tool runner**, so you see which targets it hits before it applies. (The

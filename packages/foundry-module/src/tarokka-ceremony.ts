@@ -83,7 +83,28 @@ function playChime(): void {
   }
 }
 
+/**
+ * A client whose page has had no click or key press yet keeps browser audio locked (Foundry shows
+ * `game.audio.locked`). Playing then only queues the sound until the first click, which would play
+ * it long after the card has turned: stay silent instead.
+ */
+function audioLocked(): boolean {
+  try {
+    return (game as unknown as { audio?: { locked?: boolean } }).audio?.locked === true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when Foundry's returned Sound could not load its file (it resolves, it does not reject). */
+export function soundFailed(sound: unknown): boolean {
+  if (typeof sound !== 'object' || sound === null) return false;
+  const s = sound as { failed?: unknown; loaded?: unknown };
+  return s.failed === true || s.loaded === false;
+}
+
 async function playSound(): Promise<void> {
+  if (audioLocked()) return;
   const src = soundPath();
   if (src) {
     try {
@@ -93,8 +114,10 @@ async function playSound(): Promise<void> {
         }
       ).audio?.AudioHelper;
       if (audio) {
-        await audio.play({ src, volume: 0.8, autoplay: true, loop: false }, false);
-        return;
+        // On v14 `play(data, false)` plays on this client only (false is the socket option).
+        const sound = await audio.play({ src, volume: 0.8, autoplay: true, loop: false }, false);
+        // A missing file resolves with a Sound that failed to load, so check it.
+        if (!soundFailed(sound)) return;
       }
     } catch {
       // Fall through to the built-in chime.

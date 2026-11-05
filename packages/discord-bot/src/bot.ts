@@ -26,6 +26,7 @@ import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
 import { RecorderHealth } from './rec/health.js';
+import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
 import {
   claimRunMarker,
   clearRunMarker,
@@ -124,13 +125,14 @@ export class RecorderBot {
       this.alertFailureLog.reset();
     };
     try {
-      if (id) {
+      const target = alertTarget(id, Boolean(fallback));
+      if (target === 'gm' && id) {
         const ch = await this.client.channels.fetch(id);
         if (!ch?.isSendable()) throw new Error('not a channel the bot can post in');
         await tryChannel(ch);
         return;
       }
-      if (fallback) {
+      if (target === 'fallback' && fallback) {
         await tryChannel(fallback);
         return;
       }
@@ -186,14 +188,15 @@ export class RecorderBot {
       if (!a) return;
       const id = after.id;
       const human = !after.member?.user.bot;
-      const muted = Boolean(after.selfMute || after.serverMute);
-      if (before.channelId !== a.channel.id && after.channelId === a.channel.id) {
+      const muted = isMuted(after);
+      const action = voiceAction(before, after, a.channel.id);
+      if (action === 'join') {
         a.session.log({ type: 'join', userId: id, username: after.member?.user.username });
         if (human) a.health.join(id, after.member?.displayName ?? id, muted, Date.now());
-      } else if (before.channelId === a.channel.id && after.channelId !== a.channel.id) {
+      } else if (action === 'leave') {
         a.session.log({ type: 'leave', userId: id });
         a.health.leave(id);
-      } else if (after.channelId === a.channel.id && human) {
+      } else if (action === 'mute-change' && human) {
         a.health.setMuted(id, muted, Date.now());
       }
     });
@@ -346,7 +349,7 @@ export class RecorderBot {
     told.value = true;
     const text =
       'Recording problem: part of the recording could not be saved. Tell the owner, who should check the disk space on the recorder host.';
-    void channel.send(text).catch(() => undefined);
+    void this.alertGm(text, channel);
     if (this.notifyOwner) void this.notifyOwner(detail);
   }
 
@@ -367,11 +370,13 @@ export class RecorderBot {
     if (sub === 'status') {
       const a = this.active;
       const text = a
-        ? [
-            `Recording in ${a.channel.name}: ${a.session.summaries().length} track(s), RTP tap ${a.recorder.rtpTapActive ? 'on' : 'off'}.`,
-            `Voice connection: ${a.recorder.connectionStatus}.`,
-            ...a.health.speakerLines(Date.now()),
-          ].join('\n')
+        ? statusText(
+            a.channel.name,
+            a.session.summaries().length,
+            a.recorder.rtpTapActive,
+            a.recorder.connectionStatus,
+            a.health.speakerLines(Date.now())
+          )
         : 'Not recording.';
       await i.reply({ content: text, flags: MessageFlags.Ephemeral });
       return;

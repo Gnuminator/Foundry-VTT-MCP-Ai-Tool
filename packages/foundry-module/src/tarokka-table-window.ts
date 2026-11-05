@@ -75,6 +75,9 @@ function errorMessage(error: unknown): string {
 /** How long a typed line is kept after the flip when the stored table never shows it. */
 const LINE_KEEP_MS = 10000;
 
+/** A kept line whose card the stored table still does not show revealed is dropped after this. */
+const UNREVEALED_DROP_MS = 2000;
+
 interface PendingLine {
   line: string;
   readingId: string;
@@ -94,7 +97,15 @@ function prunePendingLines(table: PublicTable): void {
   for (const [cardId, entry] of Object.entries(pendingLines)) {
     const slot = table.slots.find(s => s.stage === 'revealed' && s.cardId === cardId);
     const settled = slot?.stage === 'revealed' && slot.line === cleanLine(entry.line);
-    if (settled || now - entry.at > LINE_KEEP_MS || table.readingId !== entry.readingId) {
+    // A card that is still not revealed in the stored table after a short grace was undone or
+    // never flipped: its line must not come back with a later reveal of the same card.
+    const unrevealed = slot?.stage !== 'revealed' && now - entry.at > UNREVEALED_DROP_MS;
+    if (
+      settled ||
+      unrevealed ||
+      now - entry.at > LINE_KEEP_MS ||
+      table.readingId !== entry.readingId
+    ) {
       delete pendingLines[cardId];
     }
   }
@@ -270,8 +281,18 @@ export class TableController {
       // The dialog stays open until the GM answers: look again before the plan is made.
       await check();
       const text = typed.trim() === '' ? slot.cardName : typed.trim();
-      // An old kept line from an earlier flip must not outlive this one.
-      for (const id of Object.keys(pendingLines)) delete pendingLines[id];
+      // An old or other-reading kept line must not outlive this flip; a fresh one (a second GM
+      // flipping inside the keep window) stays.
+      const flipNow = Date.now();
+      for (const [id, entry] of Object.entries(pendingLines)) {
+        if (
+          id === slot.cardId ||
+          entry.readingId !== this.view.table.readingId ||
+          flipNow - entry.at > LINE_KEEP_MS
+        ) {
+          delete pendingLines[id];
+        }
+      }
       try {
         // The players' screens show the typed line under the card (the ceremony). It is set before
         // the apply, so the table write that follows the reveal (even the change watcher's) has it,
@@ -295,8 +316,14 @@ export class TableController {
         });
         this.deps.notifyInfo(`Flipped: ${slot.label}`);
         await this.load();
-        const restored = await restorePendingLines(this.deps);
-        if (restored) this.view = { ...this.view, table: restored };
+        // The flip itself succeeded: a failed restore is a warning, not a failed flip (the entry
+        // stays, so the change watcher can try again).
+        try {
+          const restored = await restorePendingLines(this.deps);
+          if (restored) this.view = { ...this.view, table: restored };
+        } catch (error) {
+          console.warn('Tarokka table: could not restore the kept line after the flip', error);
+        }
       } catch (error) {
         delete pendingLines[slot.cardId];
         throw error;

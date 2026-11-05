@@ -104,6 +104,48 @@ describe('link notifier', () => {
     expect(s.toasts.map(x => x[0])).toEqual([LINK_LOST_TOAST, LINK_BACK_TOAST, LINK_LOST_TOAST]);
   });
 
+  it('re-arms in steps while the throttle window runs, then shows the lost toast', () => {
+    const s = setup();
+    s.n.down();
+    s.advance(10); // lost at t=10
+    s.n.up();
+    s.advance(15);
+    s.n.down(); // t=25: grace ends at 35, the throttle window at 110
+    s.advance(10); // t=35: throttled, re-armed for t=110
+    expect(s.toasts.map(x => x[0])).toEqual([LINK_LOST_TOAST, LINK_BACK_TOAST]);
+    s.advance(70); // t=105: still waiting
+    expect(s.toasts).toHaveLength(2);
+    s.advance(5); // t=110: window over
+    expect(s.toasts.map(x => x[0])).toEqual([LINK_LOST_TOAST, LINK_BACK_TOAST, LINK_LOST_TOAST]);
+    s.n.up();
+    expect(s.toasts.at(-1)).toEqual([LINK_BACK_TOAST, 'info']);
+  });
+
+  it('an up() during the re-armed wait cancels it and shows nothing', () => {
+    const s = setup();
+    s.n.down();
+    s.advance(10);
+    s.n.up();
+    s.advance(15);
+    s.n.down();
+    s.advance(10); // re-armed for t=110
+    s.n.up(); // back before the lost toast was ever shown
+    s.advance(200);
+    expect(s.toasts.map(x => x[0])).toEqual([LINK_LOST_TOAST, LINK_BACK_TOAST]);
+  });
+
+  it('markLost owes a back toast without a lost toast', () => {
+    const s = setup();
+    s.n.markLost();
+    s.advance(500);
+    expect(s.toasts).toEqual([]);
+    s.n.down(); // retries failing add nothing
+    s.advance(500);
+    expect(s.toasts).toEqual([]);
+    s.n.up();
+    expect(s.toasts).toEqual([[LINK_BACK_TOAST, 'info']]);
+  });
+
   it('shows the back toast after a second lost toast', () => {
     const s = setup();
     s.n.down();

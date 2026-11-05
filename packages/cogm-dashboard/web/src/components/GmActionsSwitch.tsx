@@ -27,6 +27,21 @@ export function LivePlayLine(): JSX.Element {
       on: s.on,
     })),
   ];
+  // The button says it short; the list of what is off is in the tooltip and in the popover.
+  const label = live.unreadable
+    ? gmActions
+      ? "Live play: can't read"
+      : 'Live play off: Turn on'
+    : names.length === 0
+      ? 'Live play on'
+      : 'Live play off: Turn on';
+  const tip = live.unreadable
+    ? gmActions
+      ? 'The live play switches could not be read. Start session turns live play on and End session turns it off.'
+      : `${offReason([GM_ACTIONS_NAME])}. Start session turns live play on and End session turns it off.`
+    : names.length === 0
+      ? 'Live play is on: everything is switched on. End session turns it off.'
+      : `${offReason(names)}. Start session turns live play on and End session turns it off.`;
   return (
     <Popover
       label="Live play switches"
@@ -36,15 +51,9 @@ export function LivePlayLine(): JSX.Element {
           id="btn-gm"
           className={names.length === 0 && !live.unreadable ? 'on' : undefined}
           data-track="dash.header.gm-actions"
-          title="Start session turns live play on and End session turns it off"
+          title={tip}
         >
-          {live.unreadable
-            ? gmActions
-              ? "Live play: can't read the switches"
-              : `${offReason([GM_ACTIONS_NAME])}: Turn on`
-            : names.length === 0
-              ? 'Live play on: all set'
-              : `${offReason(names)}: Turn on`}
+          {label}
         </Button>
       }
     >

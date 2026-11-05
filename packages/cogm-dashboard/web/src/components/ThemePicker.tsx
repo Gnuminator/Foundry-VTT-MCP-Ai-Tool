@@ -48,23 +48,22 @@ export function ThemePicker(): JSX.Element {
   };
 
   return (
-    <label className="control-label" title="The look for this world; the players' page follows it">
-      Theme
-      <select
-        ref={ref}
-        id="select-theme"
-        className="select"
-        data-track="dash.header.theme"
-        value={shown}
-        disabled={choice !== null}
-        onChange={e => pick(e.target.value)}
-      >
-        {THEMES.map(t => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <select
+      ref={ref}
+      id="select-theme"
+      className="select"
+      aria-label="Theme"
+      title="The look for this world; the players' page follows it"
+      data-track="dash.header.theme"
+      value={shown}
+      disabled={choice !== null}
+      onChange={e => pick(e.target.value)}
+    >
+      {THEMES.map(t => (
+        <option key={t.id} value={t.id}>
+          {`Theme: ${t.name}`}
+        </option>
+      ))}
+    </select>
   );
 }

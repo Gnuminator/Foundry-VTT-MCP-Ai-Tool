@@ -345,12 +345,41 @@ body {
 }
 
 /* ---- Controls ---- */
+/* The controls are a row of their own under the title and the moment tabs, so the buttons stay on
+   one line at 1280 px and wider; the health line takes the rest of the row, or the next row. */
 .controls {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 0.55rem;
-  margin-left: auto;
+  flex: 1 1 100%;
   flex-wrap: wrap;
+}
+.controls .health-line {
+  order: 99;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.controls .stream-state .status-pill {
+  order: 98;
+}
+#live-header > h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+/* Every header control is one height and one line (header-tidy). */
+.topbar .controls .btn,
+.topbar .controls .select {
+  box-sizing: border-box;
+  height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.topbar .controls .select {
+  display: block;
+  line-height: 1.2;
 }
 .control-label {
   display: flex;
@@ -1059,6 +1088,25 @@ body {
   }
 }
 
+/* Below 900 px the title row gives way: the subtitle goes, the title shrinks and the controls
+   take the next row in full, so nothing sits under a large title. */
+@media (max-width: 899px) {
+  .topbar {
+    gap: 0.6rem 1rem;
+    padding: 0.55rem 0.9rem;
+  }
+  .topbar .subtitle-row {
+    display: none;
+  }
+  .brand h1,
+  #live-header > h1 {
+    font-size: 1.05rem;
+  }
+  .controls .health-line {
+    justify-content: flex-start;
+  }
+}
+
 /* Stack to a single column; panes size to content (capped scroll height). */
 @media (max-width: 760px) {
   .topbar {
@@ -1068,10 +1116,6 @@ body {
     grid-template-columns: 1fr;
     gap: 0.75rem;
     padding: 0.75rem;
-  }
-  .controls {
-    margin-left: 0;
-    width: 100%;
   }
   .subtitle {
     max-width: none;
@@ -1181,17 +1225,11 @@ body {
    ============================================================================= */
 
 /* ---- Master GM Actions toggle (armed = write surface live) ---- */
+/* All good is green, never the danger red (red is enemies and errors). */
 #btn-gm.on {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bad) 22%, transparent),
-    color-mix(in srgb, var(--bad) 10%, transparent)
-  );
-  border-color: var(--enemy);
-  color: color-mix(in srgb, var(--bad) 25%, var(--text));
-  box-shadow:
-    var(--inset-top),
-    0 0 14px -4px color-mix(in srgb, var(--bad) 50%, transparent);
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 55%, var(--border-strong));
+  color: color-mix(in srgb, var(--good) 45%, var(--text));
 }
 
 /* ---- Combat action bar ---- */

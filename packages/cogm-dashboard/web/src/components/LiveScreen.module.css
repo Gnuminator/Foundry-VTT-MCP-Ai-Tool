@@ -43,7 +43,9 @@
 }
 
 .undo {
-  max-width: 24rem;
+  /* A fixed width: the label carries the change, so the row must not shift after every write. */
+  flex: none;
+  width: 15rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 99 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ The bridge serves 99 tools in five sets. [Tool sets](TOOL-SETS.md) explains the 
 | [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
-| [Admin](#admin) | `foundry-mcp-admin` | 10 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -1411,7 +1411,7 @@ Parameters:
 
 ## Admin
 
-Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings.
+Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.
 
 ### get-modules
 
@@ -1502,6 +1502,18 @@ Parameters:
 - `area` (string, required): One of: `setting`, `pack`, `module`, `user`, `ownership`.
 - `target` (string): Setting namespace.key, a pack id, or a module id or title.
 - `value` (any): plan only: the new value, or the pack changes.
+
+### plan-token-rings
+
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors per plan: when some remain, apply and ask again. Tokens already on scenes keep their look. Apply with apply-planned-change, revert with undo-change.
+
+Kind: read-only. Title: Plan dynamic token rings for actors.
+
+Parameters:
+
+- `action` (string, required): One of: `enable`, `disable`.
+- `actorType` (string): Which actors; default all (characters and NPCs). One of: `all`, `npc`, `character`.
+- `names` (array of string): Only actors with these names.
 
 ### get-obsidian-mirror
 

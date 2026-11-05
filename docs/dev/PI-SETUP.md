@@ -142,7 +142,7 @@ listed).
   last started: the bot writes nothing while nobody speaks). Put `FORCE=1` in front of `bash` on the ssh line to go on anyway: `... | ssh foundry-pi 'FORCE=1 bash -s'`.
 - **Stages 5 and 12 warn when the dashboard player/GM split is off** (`dashboard-access.env` has neither
   `GM_DASHBOARD_TOKEN` nor `GM_EMAILS`): everyone who reaches port 3000 is then the GM.
-- **Stage 2 pins Node** (`NODE_VERSION`, default `v24.21.0`; change the pin in the script to move). Stages 2 and 3
+- **Stage 2 pins Node** (`NODE_VERSION`, default `v24.21.0`; change the pin in the script to move). Foundry 14.370 needs Node 24.22.1 or newer (14.368 and 14.369: 24.13.1), so run stage 2 with `NODE_VERSION=v24.22.2` before stage 3 installs 14.370. Stages 2 and 3
   unpack the new Node or Foundry next to the old one and swap with two renames (the old one stays as `.prev`), so
   a failure never leaves an empty `/opt/node24` or `/opt/foundry`.
 - **Stage 8 keeps the recordings out of `dietpi-backup`** (one line in `/boot/dietpi/.dietpi-backup_inc_exc`;
@@ -416,7 +416,7 @@ first if there is anything left to keep):
    bound to it and fails verification under any other name. A new card has a new SSH host key, so
    first clear the old one on this PC (`ssh-keygen -R foundry-pi`, and the same for the Tailscale
    name and the address you use), or SSH refuses with "host key changed".
-2. Stages 1, 2 and 3 (stage 3 needs the Linux/Node.js zip again: keep `FoundryVTT-Node-14.368.zip`
+2. Stages 1, 2 and 3 (stage 3 needs the Linux/Node.js zip again: keep `FoundryVTT-Node-14.370.zip`
    from your Downloads folder or fetch it from your foundryvtt.com account). Then `systemctl stop
 foundry`; the restore refuses to run while Foundry runs. Stage 4 (Tailscale) can go here too: a
    new login makes a new machine, so remove the old `foundry-pi` in the Tailscale admin console

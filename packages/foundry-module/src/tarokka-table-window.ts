@@ -17,9 +17,13 @@ import { onAiChangesUpdated } from './ai-changes-signal.js';
 import { MODULE_ID } from './constants.js';
 import { aiToolRequest } from './gm-helper-queries.js';
 import { parseRevealPlan } from './handouts-model.js';
+import { addCeremonyLine, playCeremony, registerCeremonySettings } from './tarokka-ceremony.js';
 import { parseReading } from './tarokka-model.js';
 import {
   canFlip,
+  ceremonyFor,
+  cleanLine,
+  lineAdded,
   emptyGmView,
   emptyTable,
   parsePublicTable,
@@ -61,11 +65,18 @@ export function registerTarokkaTableSettings(): void {
     type: Object,
     default: {},
   });
+  registerCeremonySettings();
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error);
 }
+
+/**
+ * Lines typed in a flip dialog, kept until the flip is over so no table write loses them. Shared
+ * by every controller: the change watcher (another controller) may write the table first.
+ */
+const pendingLines: Record<string, string> = {};
 
 /** The pieces of Foundry the controller needs; tests pass fakes. */
 export interface TableDeps {
@@ -106,7 +117,8 @@ export class TableController {
         stored,
         reading?.positions ?? null,
         reading ? readingIdOf(result) : '',
-        images
+        images,
+        pendingLines
       );
       if (seq !== this.loadSeq) return;
       if (!sameTable(stored, table)) await this.deps.writeTable(table);
@@ -206,18 +218,41 @@ export class TableController {
       // The dialog stays open until the GM answers: look again before the plan is made.
       await check();
       const text = typed.trim() === '' ? slot.cardName : typed.trim();
-      // No title: the reveal's neutral default keeps the position name off the players' page.
-      const plan = parseRevealPlan(
-        await this.deps.request('plan-tarokka-reveal', { position: slot.position, text })
-      );
-      if (!plan) throw new Error('The AI Tool made no plan for this flip');
-      await this.deps.request('apply-planned-change', {
-        planId: plan.planId,
-        confirm: true,
-        confirmDestructive: true,
-      });
-      this.deps.notifyInfo(`Flipped: ${slot.label}`);
-      await this.load();
+      try {
+        // The players' screens show the typed line under the card (the ceremony). It is set before
+        // the apply, so the table write that follows the reveal (even the change watcher's) has it.
+        if (typed.trim() !== '') pendingLines[slot.cardId] = typed.trim();
+        // No title: the reveal's neutral default keeps the position name off the players' page.
+        const plan = parseRevealPlan(
+          await this.deps.request('plan-tarokka-reveal', { position: slot.position, text })
+        );
+        if (!plan) throw new Error('The AI Tool made no plan for this flip');
+        await this.deps.request('apply-planned-change', {
+          planId: plan.planId,
+          confirm: true,
+          confirmDestructive: true,
+        });
+        this.deps.notifyInfo(`Flipped: ${slot.label}`);
+        await this.load();
+        await this.restoreLine(index, slot.cardId);
+      } finally {
+        delete pendingLines[slot.cardId];
+      }
+    });
+  }
+
+  /**
+   * Another GM client's change watcher may write the flipped card a moment after ours and drop
+   * the line (last write wins): look once more and put the typed line back if it is missing.
+   */
+  private async restoreLine(index: number, cardId: string): Promise<void> {
+    const line = cleanLine(pendingLines[cardId]);
+    const table = this.deps.readTable();
+    const now = table.slots[index];
+    if (!line || now?.stage !== 'revealed' || now.cardId !== cardId || now.line) return;
+    await this.saveTable({
+      ...table,
+      slots: table.slots.map((s, i) => (i === index ? { ...s, line } : s)),
     });
   }
 
@@ -459,6 +494,8 @@ let playerClass: (new () => PlayerWindowInstance) | null = null;
 let playerInstance: PlayerWindowInstance | null = null;
 
 let watchController: TableController | null = null;
+/** The table as this client last saw it, to tell a fresh flip from a first look. */
+let lastSeenTable: PublicTable | null = null;
 
 /**
  * GM clients: when the change log changes (an Undo, a new reading from the drawer), bring the
@@ -505,6 +542,21 @@ export function onTableSettingChanged(): void {
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not update the Tarokka table:`, error);
   }
+  try {
+    // The flip ceremony, on every client (the GM's too). The first call at `ready` only records
+    // the table, so joining or reloading never replays a flip.
+    const next = readTableSetting();
+    const prevTable = lastSeenTable;
+    const ceremony = ceremonyFor(prevTable, next);
+    lastSeenTable = next;
+    if (ceremony) playCeremony(ceremony);
+    else {
+      const added = lineAdded(prevTable, next);
+      if (added) addCeremonyLine(added.cardId, added.line);
+    }
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not play the Tarokka ceremony:`, error);
+  }
 }
 
 /** Forget the windows (tests). */
@@ -513,4 +565,5 @@ export function resetTarokkaTableWindowsForTests(): void {
   gmInstance = null;
   playerClass = null;
   playerInstance = null;
+  lastSeenTable = null;
 }

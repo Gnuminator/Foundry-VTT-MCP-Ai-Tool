@@ -21,6 +21,7 @@ import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
+import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
@@ -216,6 +217,11 @@ class FoundryMCPBridge {
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
         hint: "Lets the AI set a scene's darkness, light, weather and playlists, after you confirm.",
+      });
+      registerGuardedFeature({
+        id: TOKEN_RINGS_FEATURE_ID,
+        name: 'AI Tool: Token rings (writes)',
+        hint: "Lets the AI turn the dynamic token ring on or off on the actors' prototype tokens, in batches, after you confirm.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
@@ -420,7 +426,7 @@ class FoundryMCPBridge {
       this.updateLastActivity();
 
       // Update settings display with connection status
-      this.settings.updateConnectionStatusDisplay(true, 75); // MCP tools exposed by the bridge
+      this.settings.updateConnectionStatusDisplay(true);
 
       // Start heartbeat monitoring if enabled
       this.startHeartbeat();
@@ -483,7 +489,7 @@ class FoundryMCPBridge {
       this.lastConnectionState = 'disconnected';
 
       // Update settings display with disconnected status
-      this.settings.updateConnectionStatusDisplay(false, 0);
+      this.settings.updateConnectionStatusDisplay(false);
 
       logInfo(`[${MODULE_ID}] Bridge stopped`);
 

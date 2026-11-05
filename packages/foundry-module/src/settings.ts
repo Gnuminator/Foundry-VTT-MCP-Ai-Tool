@@ -513,7 +513,7 @@ export class ModuleSettings {
   /**
    * Update connection status display in settings
    */
-  updateConnectionStatusDisplay(connected: boolean, _toolCount: number): void {
+  updateConnectionStatusDisplay(connected: boolean): void {
     try {
       const statusText = connected ? 'Connected' : 'Not connected. Is the AI Tool server started?';
 

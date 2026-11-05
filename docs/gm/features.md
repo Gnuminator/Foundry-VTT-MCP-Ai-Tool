@@ -98,6 +98,14 @@ GM Actions. **End session** turns off again what it turned on. See
   needs this switch on, and it also marks the card revealed in the drawer and puts a page for
   the players in the reveal journal. The table needs the reading to exist first (dealt or chosen in
   the drawer, or by Claude), and the bridge to be connected.
+- **The flip as a ceremony:** type your own line for the card in the Flip box. When you press
+  **Flip**, every screen dims, the card turns over slowly with a soft chime, and your line fades in
+  under it; after a few seconds it fades out (a click closes it sooner) and the reading stays in
+  the table window and on the player page, with your line under the card. A sound file of your own
+  can be set in the module settings (Tarokka card flip sound).
+- **Paper fallback:** if the screens do not dim or the card does not turn (a slow connection, a
+  player who joined late), nothing is lost. The card is still flipped and on the player page. Just
+  read your line out loud and say "turn over the card", the way you would with a physical deck.
 - **More:** [The Tarokka drawer](dashboard.md#the-tarokka-drawer--tarokka).
 
 ## Ownership

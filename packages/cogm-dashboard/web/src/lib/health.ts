@@ -1,6 +1,6 @@
 // The GM health line (item gm-health-line): four parts, each a dot and a few words, built from what
 // the page already knows about the stream and the bridge. Pure, so the words are tested without a page.
-import type { BridgeStatus, StreamLink } from './stream';
+import { STREAM_DROP_GRACE_MS, type BridgeStatus, type StreamLink } from './stream';
 
 /** No status event (the server repeats it every ~17 s) for this long: the page calls itself not live. */
 export const STREAM_WATCHDOG_MS = 45_000;
@@ -44,12 +44,16 @@ function dashboardPart({ link, heardAt, now }: HealthInput): HealthPart {
   const base = { key: 'dashboard', label: 'Dashboard' } as const;
   if (!link) return { ...base, tone: 'unknown', text: 'connecting' };
   if (link.state === 'closed') return { ...base, tone: 'bad', text: 'closed, reload the page' };
-  if (link.state === 'dropped') return { ...base, tone: 'bad', text: 'reconnecting' };
+  if (link.state === 'dropped') {
+    // A blink reconnects in seconds: amber inside the same grace the header mark uses, red after.
+    const tone = now - link.since < STREAM_DROP_GRACE_MS ? 'warn' : 'bad';
+    return { ...base, tone, text: 'reconnecting' };
+  }
   if (heardAt !== null && now - heardAt > STREAM_WATCHDOG_MS) {
     return {
       ...base,
       tone: 'bad',
-      text: `not live, silent for ${Math.round((now - heardAt) / 1000)} s`,
+      text: `not live, silent for ${Math.round((now - heardAt) / 1000)} s, reload the page`,
     };
   }
   return {
@@ -91,7 +95,7 @@ export function healthParts(input: HealthInput): HealthPart[] {
   return [dashboardPart(input), bridgePart(input), foundryPart(input), updatePart(input)];
 }
 
-/** True when any part is red: the line then says so in its first words for a screen reader. */
+/** True when any part is red (the line carries `data-trouble` then). */
 export function healthTrouble(parts: readonly HealthPart[]): boolean {
   return parts.some(p => p.tone === 'bad');
 }

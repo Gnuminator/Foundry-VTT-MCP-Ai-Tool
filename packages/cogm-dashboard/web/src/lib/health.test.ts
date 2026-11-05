@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   STREAM_WATCHDOG_MS,
@@ -10,6 +10,10 @@ import {
   type HealthPart,
 } from './health';
 import type { BridgeStatus } from './stream';
+
+// stream.ts pulls in auth.ts, which reads the page's location when it loads; there is no page here.
+vi.mock('./auth', () => ({ streamUrl: (): string => '/api/stream' }));
+vi.mock('./api', () => ({ callTool: vi.fn() }));
 
 const NOW = Date.parse('2026-11-05T20:20:00.000Z');
 const GOOD: BridgeStatus = {
@@ -47,6 +51,13 @@ describe('healthParts', () => {
     expect(by(dead, 'dashboard')).toMatchObject({ tone: 'bad' });
     expect(by(dead, 'dashboard').text).toContain('not live');
     expect(healthTrouble(dead)).toBe(true);
+  });
+
+  it('keeps a fresh drop amber and turns it red after the grace', () => {
+    const at = (ago: number): HealthPart =>
+      by(healthParts(input({ link: { state: 'dropped', since: NOW - ago } })), 'dashboard');
+    expect(at(1000).tone).toBe('warn');
+    expect(at(6000).tone).toBe('bad');
   });
 
   it('says what a dropped or closed stream is', () => {

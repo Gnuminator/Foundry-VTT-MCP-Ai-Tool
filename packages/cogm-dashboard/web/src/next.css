@@ -256,6 +256,9 @@ main.moment-views #moment-during.during-no-bar {
 .health-label {
   font-weight: 600;
 }
+.health-text {
+  font-variant-numeric: tabular-nums;
+}
 .health-part[data-tone='bad'] .health-text {
   color: var(--bad-text);
   font-weight: 600;

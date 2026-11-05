@@ -1,0 +1,3 @@
+### Module
+
+- **Tarokka ceremony polish:** the line you type for a flip is kept until the table shows it, so a write from a second GM window can no longer drop it; Place and Show start from the stored table instead of an older copy; the overlay ignores clicks while it fades and Escape closes it; a missing sound file falls back to the chime (Foundry resolves instead of failing, so the module now checks), and a client that has not been clicked yet stays silent instead of playing the sound late. The GM docs (English and Danish) now say the ceremony needs the table shown to the players, lasts about 11 seconds, and that the line appears on the players' table.

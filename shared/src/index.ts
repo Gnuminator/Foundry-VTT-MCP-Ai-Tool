@@ -35,6 +35,7 @@ export * from './player-portrait.js';
 export * from './combat-change.js';
 export * from './scene-change.js';
 export * from './scene-mood.js';
+export * from './token-rings.js';
 export * from './scene-restore.js';
 export * from './npc-turn.js';
 export * from './paper-sync.js';

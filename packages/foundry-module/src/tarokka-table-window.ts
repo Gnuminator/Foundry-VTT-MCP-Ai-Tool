@@ -72,11 +72,60 @@ function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error);
 }
 
+/** How long a typed line is kept after the flip when the stored table never shows it. */
+const LINE_KEEP_MS = 10000;
+
+interface PendingLine {
+  line: string;
+  readingId: string;
+  at: number;
+}
+
 /**
- * Lines typed in a flip dialog, kept until the flip is over so no table write loses them. Shared
- * by every controller: the change watcher (another controller) may write the table first.
+ * Lines typed in a flip dialog, kept until the stored table shows the card revealed with its line
+ * (or {@link LINE_KEEP_MS} pass, or a new flip starts), so no table write loses them. Shared by
+ * every controller: the change watcher (another controller) may write the table first.
  */
-const pendingLines: Record<string, string> = {};
+const pendingLines: Record<string, PendingLine> = {};
+
+/** Drop the entries that are settled (the stored table has the line), stale or old. */
+function prunePendingLines(table: PublicTable): void {
+  const now = Date.now();
+  for (const [cardId, entry] of Object.entries(pendingLines)) {
+    const slot = table.slots.find(s => s.stage === 'revealed' && s.cardId === cardId);
+    const settled = slot?.stage === 'revealed' && slot.line === cleanLine(entry.line);
+    if (settled || now - entry.at > LINE_KEEP_MS || table.readingId !== entry.readingId) {
+      delete pendingLines[cardId];
+    }
+  }
+}
+
+/** The kept lines by card id, for {@link reconcile}. */
+function pendingLineMap(): Record<string, string> {
+  return Object.fromEntries(Object.entries(pendingLines).map(([id, e]) => [id, e.line]));
+}
+
+/**
+ * Put a kept line back on a revealed slot that lost it (another GM client wrote the table without
+ * it). Returns the table written, or null when there was nothing to restore.
+ */
+export async function restorePendingLines(deps: TableDeps): Promise<PublicTable | null> {
+  const table = deps.readTable();
+  prunePendingLines(table);
+  let changed = false;
+  const slots = table.slots.map(s => {
+    if (s.stage !== 'revealed' || s.line) return s;
+    const entry = s.cardId ? pendingLines[s.cardId] : undefined;
+    const line = cleanLine(entry?.line);
+    if (!line) return s;
+    changed = true;
+    return { ...s, line };
+  });
+  if (!changed) return null;
+  const next = { ...table, slots };
+  await deps.writeTable(next);
+  return next;
+}
 
 /** The pieces of Foundry the controller needs; tests pass fakes. */
 export interface TableDeps {
@@ -113,12 +162,13 @@ export class TableController {
       const reading = parseReading(result);
       const images = this.deps.readImages();
       const stored = this.deps.readTable();
+      prunePendingLines(stored);
       const table = reconcile(
         stored,
         reading?.positions ?? null,
         reading ? readingIdOf(result) : '',
         images,
-        pendingLines
+        pendingLineMap()
       );
       if (seq !== this.loadSeq) return;
       if (!sameTable(stored, table)) await this.deps.writeTable(table);
@@ -182,8 +232,10 @@ export class TableController {
   /** Put the next card face down on the table. */
   place(): Promise<void> {
     return this.act(async () => {
-      const next = placeNext(this.view.table);
-      if (next !== this.view.table) await this.saveTable(next);
+      // Start from the stored table: this window's copy may be older than another client's write.
+      const stored = this.deps.readTable();
+      const next = placeNext(stored);
+      if (next !== stored) await this.saveTable(next);
     });
   }
 
@@ -191,7 +243,7 @@ export class TableController {
   setShown(shown: boolean): Promise<void> {
     return this.act(async () => {
       if (shown && this.view.slots === null) throw new Error('There is no reading to show');
-      await this.saveTable({ ...this.view.table, shown });
+      await this.saveTable({ ...this.deps.readTable(), shown });
     });
   }
 
@@ -218,10 +270,19 @@ export class TableController {
       // The dialog stays open until the GM answers: look again before the plan is made.
       await check();
       const text = typed.trim() === '' ? slot.cardName : typed.trim();
+      // An old kept line from an earlier flip must not outlive this one.
+      for (const id of Object.keys(pendingLines)) delete pendingLines[id];
       try {
         // The players' screens show the typed line under the card (the ceremony). It is set before
-        // the apply, so the table write that follows the reveal (even the change watcher's) has it.
-        if (typed.trim() !== '') pendingLines[slot.cardId] = typed.trim();
+        // the apply, so the table write that follows the reveal (even the change watcher's) has it,
+        // and kept after it until the stored table shows it (the GM watcher restores it if lost).
+        if (typed.trim() !== '') {
+          pendingLines[slot.cardId] = {
+            line: typed.trim(),
+            readingId: this.view.table.readingId,
+            at: Date.now(),
+          };
+        }
         // No title: the reveal's neutral default keeps the position name off the players' page.
         const plan = parseRevealPlan(
           await this.deps.request('plan-tarokka-reveal', { position: slot.position, text })
@@ -234,25 +295,12 @@ export class TableController {
         });
         this.deps.notifyInfo(`Flipped: ${slot.label}`);
         await this.load();
-        await this.restoreLine(index, slot.cardId);
-      } finally {
+        const restored = await restorePendingLines(this.deps);
+        if (restored) this.view = { ...this.view, table: restored };
+      } catch (error) {
         delete pendingLines[slot.cardId];
+        throw error;
       }
-    });
-  }
-
-  /**
-   * Another GM client's change watcher may write the flipped card a moment after ours and drop
-   * the line (last write wins): look once more and put the typed line back if it is missing.
-   */
-  private async restoreLine(index: number, cardId: string): Promise<void> {
-    const line = cleanLine(pendingLines[cardId]);
-    const table = this.deps.readTable();
-    const now = table.slots[index];
-    if (!line || now?.stage !== 'revealed' || now.cardId !== cardId || now.line) return;
-    await this.saveTable({
-      ...table,
-      slots: table.slots.map((s, i) => (i === index ? { ...s, line } : s)),
     });
   }
 
@@ -546,6 +594,12 @@ export function onTableSettingChanged(): void {
     // The flip ceremony, on every client (the GM's too). The first call at `ready` only records
     // the table, so joining or reloading never replays a flip.
     const next = readTableSetting();
+    if (game.user?.isGM && Object.keys(pendingLines).length > 0) {
+      // A write from another GM client may have dropped the line this client kept: put it back.
+      restorePendingLines(foundryTableDeps()).catch((error: unknown) =>
+        console.warn(`[${MODULE_ID}] Could not restore the Tarokka line:`, error)
+      );
+    }
     const prevTable = lastSeenTable;
     const ceremony = ceremonyFor(prevTable, next);
     lastSeenTable = next;

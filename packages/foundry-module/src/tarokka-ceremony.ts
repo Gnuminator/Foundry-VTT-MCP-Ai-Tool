@@ -19,6 +19,18 @@ const FADE_MS = 1200;
 
 let current: { el: HTMLElement; timer: number; cardId: string } | null = null;
 
+/**
+ * Escape closes the overlay and nothing else: it is caught on the window before Foundry's own
+ * Escape (close the top window, open the main menu) sees it, so the table window stays open.
+ * Added while one is on screen, removed when it goes.
+ */
+function onKeyDown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || !current) return;
+  event.stopPropagation();
+  event.preventDefault();
+  endCeremony();
+}
+
 /** Register the optional sound setting. Call from the module `init` hook, every client. */
 export function registerCeremonySettings(): void {
   game.settings.register(MODULE_ID, FLIP_SOUND_SETTING, {
@@ -48,6 +60,8 @@ function playChime(): void {
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
+    // A browser keeps a new context suspended until the page has had a click or key press.
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
     const now = ctx.currentTime;
     const master = ctx.createGain();
     master.gain.setValueAtTime(0.0001, now);
@@ -76,7 +90,28 @@ function playChime(): void {
   }
 }
 
+/**
+ * A client whose page has had no click or key press yet keeps browser audio locked (Foundry shows
+ * `game.audio.locked`). Playing then only queues the sound until the first click, which would play
+ * it long after the card has turned: stay silent instead.
+ */
+function audioLocked(): boolean {
+  try {
+    return (game as unknown as { audio?: { locked?: boolean } }).audio?.locked === true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when Foundry's returned Sound could not load its file (it resolves, it does not reject). */
+export function soundFailed(sound: unknown): boolean {
+  if (typeof sound !== 'object' || sound === null) return false;
+  const s = sound as { failed?: unknown; loaded?: unknown };
+  return s.failed === true || s.loaded === false;
+}
+
 async function playSound(): Promise<void> {
+  if (audioLocked()) return;
   const src = soundPath();
   if (src) {
     try {
@@ -86,8 +121,10 @@ async function playSound(): Promise<void> {
         }
       ).audio?.AudioHelper;
       if (audio) {
-        await audio.play({ src, volume: 0.8, autoplay: true, loop: false }, false);
-        return;
+        // On v14 `play(data, false)` plays on this client only (false is the socket option).
+        const sound = await audio.play({ src, volume: 0.8, autoplay: true, loop: false }, false);
+        // A missing file resolves with a Sound that failed to load, so check it.
+        if (!soundFailed(sound)) return;
       }
     } catch {
       // Fall through to the built-in chime.
@@ -122,6 +159,7 @@ export function endCeremony(): void {
   const { el, timer } = current;
   current = null;
   window.clearTimeout(timer);
+  window.removeEventListener('keydown', onKeyDown, true);
   el.classList.add('fmb-tt-cer-out');
   window.setTimeout(() => el.remove(), FADE_MS);
 }
@@ -132,6 +170,7 @@ export function playCeremony(ceremony: Ceremony): void {
   if (current) {
     current.el.remove();
     window.clearTimeout(current.timer);
+    window.removeEventListener('keydown', onKeyDown, true);
     current = null;
   }
   const el = document.createElement('div');
@@ -139,6 +178,7 @@ export function playCeremony(ceremony: Ceremony): void {
   el.innerHTML = renderCeremonyHtml(ceremony);
   el.addEventListener('click', () => endCeremony());
   document.body.appendChild(el);
+  window.addEventListener('keydown', onKeyDown, true);
   const timer = window.setTimeout(() => endCeremony(), HOLD_MS);
   current = { el, timer, cardId: ceremony.cardId };
   void playSound();

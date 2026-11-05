@@ -181,7 +181,7 @@ function Assert-SafePorts {
 # The repo's Node: the newest portable Node 24 in %LOCALAPPDATA%\node24\node-v24.x.y-win-x64
 # (the version differs per PC), else the node on PATH.
 function Get-NodeExe {
-  $portableRoot = Join-Path $HOME 'AppData' 'Local' 'node24'
+  $portableRoot = [IO.Path]::Combine("$env:LOCALAPPDATA", 'node24')
   if ($IsWindows -and (Test-Path $portableRoot)) {
     $portable = Get-ChildItem $portableRoot -Directory -Filter 'node-v24.*-win-x64' |
       Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
@@ -213,7 +213,7 @@ function Get-FoundryNodeExe([string]$AppRoot) {
   if ($IsWindows) { $candidates += Join-Path $env:ProgramFiles 'nodejs' 'node.exe' }
   # The portable Node 24 folders too, newest first (Foundry 14.370 needs 24.22.1 or newer, which can be
   # newer than the node on PATH).
-  $portableRoot = Join-Path $HOME 'AppData' 'Local' 'node24'
+  $portableRoot = [IO.Path]::Combine("$env:LOCALAPPDATA", 'node24')
   if ($IsWindows -and (Test-Path $portableRoot)) {
     $candidates += @(Get-ChildItem $portableRoot -Directory -Filter 'node-v24.*-win-x64' |
       Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' } |

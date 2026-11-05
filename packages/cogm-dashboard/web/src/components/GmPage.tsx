@@ -33,6 +33,7 @@ import {
 import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE, currentMapPick, setMapPick } from '../lib/mapPick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
+import { HealthLine } from './HealthLine';
 import { RoleNotice } from './RoleNotice';
 import styles from './GmPage.module.css';
 
@@ -311,6 +312,7 @@ function GmWorkspace({
     <div className={styles.root} data-dragging={dragging ? '' : undefined}>
       <header className={styles.bar}>
         <strong className={styles.title}>GM page</strong>
+        <HealthLine />
         {sideBySide && !tabOpen ? (
           <div role="group" aria-label="Layout" className={styles.switcher}>
             {MODES.map(({ mode, label }) => (

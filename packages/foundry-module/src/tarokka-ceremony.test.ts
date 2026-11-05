@@ -11,6 +11,19 @@ import {
   type PublicTable,
 } from './tarokka-table-model.js';
 import type { PositionRow } from './tarokka-model.js';
+import { soundFailed } from './tarokka-ceremony.js';
+
+describe('soundFailed', () => {
+  it('flags the Sound Foundry resolves with when the file is missing', () => {
+    expect(soundFailed({ failed: true, loaded: false })).toBe(true);
+    expect(soundFailed({ loaded: false })).toBe(true);
+  });
+  it('accepts a loaded sound and anything it cannot read', () => {
+    expect(soundFailed({ failed: false, loaded: true })).toBe(false);
+    expect(soundFailed(undefined)).toBe(false);
+    expect(soundFailed('x')).toBe(false);
+  });
+});
 
 function table(overrides: Partial<PublicTable> = {}): PublicTable {
   return {

@@ -3,7 +3,7 @@
  * Snapshot, apply, undo through the real `applyGuardedOps`, the conflict check, and the refusals
  * (the bridge's own switches, the permission table, secrets).
  */
-import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from '../test-support/foundry-mock/index.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
 import {
@@ -17,7 +17,7 @@ import {
   type OpSnapshot,
 } from './guarded-write.js';
 import { getSetupInfo } from './setup-info.js';
-import { SETUP_FEATURE_ID, isSecretSetting } from './virtual-targets.js';
+import { MODULE_RELOAD_DELAY_MS, SETUP_FEATURE_ID, isSecretSetting } from './virtual-targets.js';
 
 const MODULE_ID = 'foundry-mcp-bridge';
 const g = globalThis as any;
@@ -222,9 +222,10 @@ describe('settings as a guarded target', () => {
       /looks like a secret/
     );
     world.setSetting('dnd5e', 'diagonalMovement', 'x'.repeat(5000));
-    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).rejects.toThrow(
-      /too much data/
-    );
+    // Too long to read back: "not found", so an undo of other changes is not blocked by it.
+    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).resolves.toEqual([
+      { exists: false },
+    ]);
   });
 
   it('checks the new value against the setting field before anything is confirmed', async () => {
@@ -242,12 +243,15 @@ describe('settings as a guarded target', () => {
   });
 
   it('keeps the Assistant GM role at OWNER on a pack', async () => {
+    world.setSetting('core', 'compendiumConfiguration', {});
     const lower: GuardedOp = {
       kind: 'update',
       uuid: 'PackConfig.dnd5e.monsters',
       changes: { ownership: { PLAYER: 'NONE', ASSISTANT: 'NONE' } },
     };
-    await expect(snapshotGuardedOps([lower])).rejects.toThrow(/Assistant GM role must keep OWNER/);
+    await applyGuardedOps(await request([lower]));
+    const stored = world.settings.get('core.compendiumConfiguration') as any;
+    expect(stored['dnd5e.monsters'].ownership).toEqual({ PLAYER: 'NONE', ASSISTANT: 'OWNER' });
   });
 
   it('refuses to read a Setting document into a snapshot by update or delete', async () => {
@@ -376,5 +380,149 @@ describe('getSetupInfo', () => {
     });
     expect(info.folders).toEqual([{ id: 'f1', name: 'Hidden' }]);
     expect(() => getSetupInfo({ area: 'bogus' })).toThrow();
+  });
+
+  it('lists modules with what they require and what needs them', () => {
+    const mk = (id: string, active: boolean, requires: any[] = []): any => ({
+      id,
+      title: id.toUpperCase(),
+      version: '1',
+      active,
+      relationships: { requires: new Set(requires) },
+    });
+    g.game.modules = new Map<string, any>([
+      ['lib', mk('lib', true)],
+      ['child', mk('child', true, [{ id: 'lib', type: 'module' }])],
+      [
+        'off',
+        mk('off', false, [
+          { id: 'gone', type: 'module' },
+          { id: 'dnd5e', type: 'system' },
+        ]),
+      ],
+    ]);
+    g.game.system = { id: 'dnd5e' };
+    const info = getSetupInfo({ area: 'module', target: '' }) as any;
+    const byId = Object.fromEntries(info.modules.map((m: any) => [m.id, m]));
+    expect(byId.lib.requiredBy).toEqual(['child']);
+    expect(byId.child.requires).toEqual([{ id: 'lib', installed: true, active: true }]);
+    expect(byId.off.requires).toEqual([
+      { id: 'gone', installed: false, active: false },
+      { id: 'dnd5e', installed: true, active: true },
+    ]);
+    expect((getSetupInfo({ area: 'module', target: 'chil' }) as any).modules).toHaveLength(1);
+  });
+
+  it('lists users with role and owned actors, never a password', () => {
+    g.game.users = [
+      {
+        id: 'u1',
+        name: 'Ask',
+        role: 1,
+        isGM: false,
+        active: true,
+        password: 'x',
+      },
+      { id: 'u2', name: 'Danni', role: 4, isGM: true, active: false },
+    ];
+    g.game.actors = [
+      { name: 'Cora', ownership: { u1: 3, default: 0 } },
+      { name: 'Wolf', ownership: {} },
+    ];
+    const info = getSetupInfo({ area: 'user' }) as any;
+    expect(info.users).toEqual([
+      {
+        id: 'u1',
+        name: 'Ask',
+        role: 'PLAYER',
+        isGM: false,
+        active: true,
+        owns: ['Cora'],
+      },
+      {
+        id: 'u2',
+        name: 'Danni',
+        role: 'GAMEMASTER',
+        isGM: true,
+        active: false,
+        owns: [],
+      },
+    ]);
+    expect(JSON.stringify(info)).not.toContain('"x"');
+  });
+
+  it('lists journal and scene ownership by user name', () => {
+    g.game.users = [{ id: 'u1', name: 'Ask', role: 1 }];
+    g.game.journal = [
+      { id: 'j1', name: 'Notes', ownership: { default: 0, u1: 2 } },
+      { id: 'j2', name: 'Other', ownership: { default: 1 } },
+    ];
+    g.game.scenes = [{ id: 's1', name: 'Map', ownership: { default: 2 } }];
+    const info = getSetupInfo({ area: 'ownership', target: 'journal:note' }) as any;
+    expect(info.documents).toEqual([
+      { id: 'j1', name: 'Notes', default: 'NONE', users: { Ask: 'OBSERVER' } },
+    ]);
+    expect((getSetupInfo({ area: 'ownership', target: 'scene' }) as any).documents[0].default).toBe(
+      'OBSERVER'
+    );
+    expect(() => getSetupInfo({ area: 'ownership', target: 'actor:x' })).toThrow(/journal/);
+  });
+
+  it('lets an undo put a pack back that has the Assistant below OWNER', async () => {
+    world.setSetting('core', 'compendiumConfiguration', {
+      'dnd5e.monsters': { ownership: { PLAYER: 'NONE', ASSISTANT: 'OBSERVER' } },
+    });
+    const op: GuardedOp = {
+      kind: 'update',
+      uuid: 'PackConfig.dnd5e.monsters',
+      changes: { ownership: { PLAYER: 'NONE', ASSISTANT: 'OBSERVER' } },
+    };
+    await expect(snapshotGuardedOps([op])).resolves.toHaveLength(1);
+  });
+
+  it('applies and then undoes a pack that had the Assistant below OWNER', async () => {
+    world.setSetting('core', 'compendiumConfiguration', {
+      'dnd5e.monsters': { ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OBSERVER' } },
+    });
+    const op: GuardedOp = {
+      kind: 'update',
+      uuid: 'PackConfig.dnd5e.monsters',
+      changes: { ownership: { PLAYER: 'NONE', ASSISTANT: 'OWNER' } },
+    };
+    const applied = await applyGuardedOps(await request([op]));
+    await applyGuardedOps(undoRequest(applied));
+    const stored = world.settings.get('core.compendiumConfiguration') as any;
+    expect(stored['dnd5e.monsters'].ownership.PLAYER).toBe('OBSERVER');
+    expect(stored['dnd5e.monsters'].ownership.ASSISTANT).toBe('OWNER');
+  });
+
+  it('reloads the windows once, after the whole apply, only when the module list changed', async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
+    const emitted: string[] = [];
+    const gm = globalThis as any;
+    const mockGame = gm.game;
+    const { user, socket } = mockGame;
+    gm.game.user = { ...(user ?? {}), can: (): boolean => true };
+    gm.game.socket = { emit: (e: string): number => emitted.push(e) };
+    onTestFinished(() => {
+      mockGame.user = user;
+      mockGame.socket = socket;
+    });
+    await applyGuardedOps(
+      await request([
+        {
+          kind: 'update',
+          uuid: 'GameSetting.core.moduleConfiguration',
+          changes: { 'value.beta': true },
+        },
+      ])
+    );
+    expect(emitted).toEqual([]);
+    await vi.advanceTimersByTimeAsync(MODULE_RELOAD_DELAY_MS + 10);
+    expect(emitted).toEqual(['reload']);
+    await applyGuardedOps(await request([setting('dnd5e.diagonalMovement', '5105')]));
+    await vi.advanceTimersByTimeAsync(MODULE_RELOAD_DELAY_MS + 10);
+    expect(emitted).toEqual(['reload']);
   });
 });

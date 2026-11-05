@@ -257,7 +257,7 @@ main.moment-views #moment-during.during-no-bar {
   font-weight: 600;
 }
 .health-part[data-tone='bad'] .health-text {
-  color: var(--danger, var(--text));
+  color: var(--bad-text);
   font-weight: 600;
 }
 

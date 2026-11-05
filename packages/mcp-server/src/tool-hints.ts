@@ -110,6 +110,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
     title: 'Plan room setup (teleports, rooms, levels, stairs, hazards)',
     kind: 'read',
   },
+  'plan-token-rings': { title: 'Plan dynamic token rings for actors', kind: 'read' },
   'play-playlist': { title: 'Play or stop playlist', kind: 'write' },
   'mark-play-session': { title: 'Mark play session start or end', kind: 'write' },
   // prep

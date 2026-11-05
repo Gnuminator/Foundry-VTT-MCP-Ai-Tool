@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 99 tools. Their definitions are about 119,100 characters of JSON, about 28,300 to
+The bridge has 100 tools. Their definitions are about 119,100 characters of JSON, about 28,300 to
 37,200 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -18,7 +18,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **play**  | `foundry-mcp-play`   | 37    | about 41,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,800      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
-| **admin** | `foundry-mcp-admin`  | 10    | about 8,700       | Modules and their errors, actor ownership, Foundry setup, the Obsidian mirror.               |
+| **admin** | `foundry-mcp-admin`  | 11    | about 9,500       | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.  |
 
 A prep chat with core and prep on carries about 40,600 characters instead of 119,100. Core alone is
 about 15% of everything.
@@ -53,7 +53,7 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `dnd5e-add-features-from-compendium`, `manage-world-items`, `plan-room-setup`
 - **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
   `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `plan-foundry-setup`,
-  `get-obsidian-mirror`, `plan-obsidian-mirror`
+  `plan-token-rings`, `get-obsidian-mirror`, `plan-obsidian-mirror`
 
 ## Prompts
 

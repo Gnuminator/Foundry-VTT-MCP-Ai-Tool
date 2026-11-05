@@ -160,6 +160,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'plan-ownership-change',
       'plan-table-viewer',
       'plan-foundry-setup',
+      'plan-token-rings',
       'get-obsidian-mirror',
       'plan-obsidian-mirror',
     ],

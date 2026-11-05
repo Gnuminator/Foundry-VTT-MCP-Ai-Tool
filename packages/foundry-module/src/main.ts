@@ -222,7 +222,6 @@ class FoundryMCPBridge {
         id: TOKEN_RINGS_FEATURE_ID,
         name: 'AI Tool: Token rings (writes)',
         hint: "Lets the AI turn the dynamic token ring on or off on the actors' prototype tokens, in batches, after you confirm.",
-        defaultEnabled: true,
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,

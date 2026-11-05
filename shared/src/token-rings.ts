@@ -5,7 +5,7 @@
  * colour itself once a ring is enabled.
  *
  * Flow:
- * - The bridge tool `plan-token-rings` (build set) sends a {@link TokenRingsPlanRequest} to the
+ * - The bridge tool `plan-token-rings` (admin set) sends a {@link TokenRingsPlanRequest} to the
  *   module's read-only `planTokenRings` query. The module builds one generic guarded `update` op
  *   per actor (`prototypeToken.ring.enabled`); nothing is written there.
  * - The bridge stores the ops as a guarded plan; `apply-planned-change` applies it and

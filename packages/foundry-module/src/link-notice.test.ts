@@ -93,6 +93,34 @@ describe('link notifier', () => {
     expect(s.toasts.length).toBe(3);
   });
 
+  it('announces a lasting outage after a flap once the throttle window passes', () => {
+    const s = setup();
+    s.n.down();
+    s.advance(10);
+    s.n.up();
+    s.advance(15);
+    s.n.down();
+    s.advance(500); // still down: the throttled toast waits out the window, then shows
+    expect(s.toasts.map(x => x[0])).toEqual([LINK_LOST_TOAST, LINK_BACK_TOAST, LINK_LOST_TOAST]);
+  });
+
+  it('shows the back toast after a second lost toast', () => {
+    const s = setup();
+    s.n.down();
+    s.advance(10);
+    s.n.up();
+    s.advance(150);
+    s.n.down();
+    s.advance(10);
+    s.n.up();
+    expect(s.toasts.map(x => x[0])).toEqual([
+      LINK_LOST_TOAST,
+      LINK_BACK_TOAST,
+      LINK_LOST_TOAST,
+      LINK_BACK_TOAST,
+    ]);
+  });
+
   it('reset cancels a pending toast', () => {
     const s = setup();
     s.n.down();

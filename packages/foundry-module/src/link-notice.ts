@@ -10,7 +10,7 @@
  */
 
 export const LINK_LOST_TOAST =
-  'Lost the link to the AI Tool, so Claude cannot reach Foundry right now. Foundry keeps trying by itself.';
+  'Lost the link to the AI Tool, so Claude cannot reach Foundry right now.';
 export const LINK_BACK_TOAST = 'The AI Tool link is back. Claude can reach Foundry again.';
 
 /** A drop shorter than this is not worth a toast. */
@@ -53,9 +53,24 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
   /** True once a "lost" toast was shown and the "back" toast is still owed. */
   let lostShown = false;
   let lastLostAt = -Infinity;
-  let lastBackAt = -Infinity;
 
   const allowed = (): boolean => options.isGM() && options.enabled();
+
+  /** Wait `ms`, then show "lost"; inside the throttle window wait out the rest of it (the link is still down). */
+  function arm(ms: number): void {
+    timer = setTimer(() => {
+      timer = null;
+      const wait = throttleMs - (now() - lastLostAt);
+      if (wait > 0) {
+        arm(wait);
+        return;
+      }
+      if (!allowed()) return;
+      lostShown = true;
+      lastLostAt = now();
+      options.notify(LINK_LOST_TOAST, 'warn');
+    }, ms);
+  }
 
   function cancelTimer(): void {
     if (timer !== null) {
@@ -67,20 +82,15 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
   return {
     down(): void {
       if (timer !== null || lostShown) return;
-      timer = setTimer(() => {
-        timer = null;
-        if (!allowed() || now() - lastLostAt < throttleMs) return;
-        lostShown = true;
-        lastLostAt = now();
-        options.notify(LINK_LOST_TOAST, 'warn');
-      }, graceMs);
+      arm(graceMs);
     },
     up(): void {
       cancelTimer();
       if (!lostShown) return;
+      // A "back" is only owed after a "lost" that was shown, and "lost" is throttled,
+      // so pairs stay at one per window and the last toast never contradicts the link.
       lostShown = false;
-      if (!allowed() || now() - lastBackAt < throttleMs) return;
-      lastBackAt = now();
+      if (!allowed()) return;
       options.notify(LINK_BACK_TOAST, 'info');
     },
     reset(): void {

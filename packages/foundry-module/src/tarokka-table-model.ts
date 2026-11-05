@@ -439,7 +439,7 @@ export function renderFlipDialogHtml(label: string, cardName: string): string {
     `<p>Flip <strong>${escapeHtml(cardName)}</strong> (${escapeHtml(label)}) for the players?</p>` +
     '<label class="fmb-tk-field">Your line for this card (optional; the card name is used if empty)' +
     '<textarea name="text" rows="3" maxlength="5000"></textarea></label>' +
-    '<p>Every screen dims, the card turns over with a sound and your line fades in under it. ' +
+    '<p>While the table is shown to the players, every screen dims, the card turns over with a sound and your line fades in under it. ' +
     'This marks the card revealed in the AI Tool and adds a page for the players. ' +
     'Undo it in the Changes window (AI Tool toolbar) or the dashboard.</p>'
   );

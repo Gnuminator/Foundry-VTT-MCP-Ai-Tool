@@ -19,6 +19,11 @@ const FADE_MS = 1200;
 
 let current: { el: HTMLElement; timer: number; cardId: string } | null = null;
 
+/** Escape closes the overlay. Added while one is on screen, removed when it goes. */
+function onKeyDown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') endCeremony();
+}
+
 /** Register the optional sound setting. Call from the module `init` hook, every client. */
 export function registerCeremonySettings(): void {
   game.settings.register(MODULE_ID, FLIP_SOUND_SETTING, {
@@ -48,6 +53,8 @@ function playChime(): void {
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
+    // A browser keeps a new context suspended until the page has had a click or key press.
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
     const now = ctx.currentTime;
     const master = ctx.createGain();
     master.gain.setValueAtTime(0.0001, now);
@@ -122,6 +129,7 @@ export function endCeremony(): void {
   const { el, timer } = current;
   current = null;
   window.clearTimeout(timer);
+  document.removeEventListener('keydown', onKeyDown);
   el.classList.add('fmb-tt-cer-out');
   window.setTimeout(() => el.remove(), FADE_MS);
 }
@@ -132,6 +140,7 @@ export function playCeremony(ceremony: Ceremony): void {
   if (current) {
     current.el.remove();
     window.clearTimeout(current.timer);
+    document.removeEventListener('keydown', onKeyDown);
     current = null;
   }
   const el = document.createElement('div');
@@ -139,6 +148,7 @@ export function playCeremony(ceremony: Ceremony): void {
   el.innerHTML = renderCeremonyHtml(ceremony);
   el.addEventListener('click', () => endCeremony());
   document.body.appendChild(el);
+  document.addEventListener('keydown', onKeyDown);
   const timer = window.setTimeout(() => endCeremony(), HOLD_MS);
   current = { el, timer, cardId: ceremony.cardId };
   void playSound();

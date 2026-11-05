@@ -1594,9 +1594,9 @@ test.describe('the layout trial', () => {
     await expect(strip(page)).toBeVisible();
     await expect(rows(page).locator('.combatant-text')).toHaveText([
       'Fighter',
-      'Wolf',
+      'Wolf 1',
       'Cleric',
-      'Wolf',
+      'Wolf 2',
     ]);
     await expect(page.locator('#combat-meta')).toHaveText('Round 2 · 4 combatants');
     await expect(page.locator('#combat-actions')).toBeHidden();
@@ -1736,6 +1736,9 @@ test.describe('when a write or a roll request fails', () => {
     ];
     await setup(page, { initial: [fight(wolves)] });
     await load(page);
+    // The rows say which is which too; data-name keeps the raw name.
+    await expect(page.locator('.combatant[data-id="c1"] .combatant-pick')).toHaveText('Wolf 1');
+    await expect(page.locator('.combatant[data-id="c3"] .combatant-pick')).toHaveText('Wolf 2');
     await page.locator('.combatant[data-id="c1"]').click();
     await page.locator('.combatant[data-id="c3"]').click();
     await page.locator('#combat-actions [data-sel="condition"]').click();
@@ -1750,10 +1753,15 @@ test.describe('when a write or a roll request fails', () => {
     });
     await load(page);
     await page.locator('#combat-actions [data-sel="end"]').click();
-    await page.getByRole('dialog').getByRole('button', { name: 'End combat' }).click();
-    await expect(undoToast(page, '✓ Applied: End combat on "Field"')).toBeVisible();
+    // The fight leaves the page while the question is open, as it does when Foundry ends it.
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
     push([noFight]);
-    await expect(page.locator('#pane-combat')).toBeFocused();
+    await expect(rows(page)).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'End combat' }).click();
+    await expect(undoToast(page, '✓ Applied: End combat on "Field"')).toBeVisible();
+    // The layout hides the pane with no fight, so the focus lands on the During bar, not the page.
+    await expect(page.locator('#during-bar button:focus')).toHaveCount(1);
   });
 
   test('a double click sends one plan', async ({ page }) => {

@@ -13,7 +13,16 @@
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
 import { useQueryClient } from '@tanstack/react-query';
-import { lazy, Suspense, useCallback, useRef, useState, type JSX, type MouseEvent } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+  type MouseEvent,
+} from 'react';
 import { RibbonBoundary } from './RibbonBoundary';
 
 import {
@@ -73,6 +82,25 @@ const StripRolls = lazy(() => import('./StripRolls').then(m => ({ default: m.Str
 const InitiativeRibbon = lazy(() =>
   import('./InitiativeRibbon').then(m => ({ default: m.InitiativeRibbon }))
 );
+
+/**
+ * End combat went in and the focus is still to move to the combat pane. Module level, not a ref:
+ * the strip can be mounted again when the fight leaves the page, and the new one finishes the job.
+ */
+const focusAfterEnd = { current: false };
+
+/**
+ * Where the focus goes once the fight is gone: the combat pane, or, when the layout hides the pane
+ * with no fight, the first button of the During bar.
+ */
+function focusAfterEndTarget(): void {
+  const pane = document.getElementById('pane-combat');
+  const target =
+    pane && pane.getBoundingClientRect().width > 0
+      ? pane
+      : document.querySelector<HTMLElement>('#during-bar button:not([aria-disabled="true"])');
+  target?.focus();
+}
 
 /** Boss prompts is remembered per browser; off by default (D-081). */
 const BOSS_PROMPTS_KEY = 'cogm_boss_prompts';
@@ -147,6 +175,8 @@ function BossLineView({ combatant }: { combatant: Combatant }): JSX.Element | nu
 
 interface RowProps {
   combatant: Combatant;
+  /** The name as the row shows it ("Wolf 2" when two share one); data-name keeps the raw name. */
+  shownName: string;
   selectable: boolean;
   selected: boolean;
   /** Boss prompts is on: the boss line and the reaction button. */
@@ -160,6 +190,7 @@ interface RowProps {
 
 function CombatantRow({
   combatant: c,
+  shownName,
   selectable,
   selected,
   bossFlag,
@@ -195,10 +226,10 @@ function CombatantRow({
         <div className="combatant-name">
           {selectable ? (
             <button type="button" className="combatant-pick" aria-pressed={selected}>
-              {c.name}
+              {shownName}
             </button>
           ) : (
-            <span className="combatant-text">{c.name}</span>
+            <span className="combatant-text">{shownName}</span>
           )}
           {c.isCurrentTurn && (
             <span className="turn-pill" data-turn-pill>
@@ -337,7 +368,10 @@ function ActionBar({
       data-sel="end"
       aria-disabled={writeOff}
       aria-busy={ending ? 'true' : undefined}
-      title={writeTitle ?? 'Plan ending this fight; you confirm it, and Undo brings it back'}
+      title={
+        (ending ? away : writeTitle) ??
+        'Plan ending this fight; you confirm it, and Undo brings it back'
+      }
       onClick={() => {
         if (!stale && !busy) onEnd();
       }}
@@ -475,6 +509,24 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
   );
   const [attackOpen, setAttackOpen] = useState(false);
 
+  // End combat went in: once the fight has left the page its bar is gone, and the focus goes to the
+  // pane (after the confirm window gave it back to the button that is about to unmount).
+  const fightGone = real === null;
+  useEffect(() => {
+    if (fightGone && focusAfterEnd.current) {
+      focusAfterEnd.current = false;
+      // The confirm window gives focus back to the unmounting button a moment later: take it
+      // again if it fell to the page.
+      const toPane = (): void => {
+        const active = document.activeElement;
+        if (!active || active === document.body) focusAfterEndTarget();
+      };
+      toPane();
+      window.setTimeout(toPane, 150);
+      window.setTimeout(toPane, 500);
+    }
+  }, [fightGone, ending, busy]);
+
   const showSample = sample && real === null;
   const combat = showSample ? SAMPLE_COMBAT : real;
   const mode = showSample ? 'live' : stripMode(real, away);
@@ -520,6 +572,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
 
   const rowProps = (c: Combatant): RowProps => ({
     combatant: c,
+    shownName: shownNames.get(c.id) ?? c.name,
     selectable,
     selected: kept.has(c.id),
     bossFlag,
@@ -611,11 +664,14 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
                 onEnd={() => {
                   let applied = false;
                   void once(async () => {
-                    applied = await planEnd(() => setEnding(true));
-                  }).then(() => {
                     // The fight is over and the bar unmounts with it: focus would drop to the page.
+                    // The effect above moves it if the fight is only gone from the page later.
+                    applied = await planEnd(() => setEnding(true));
+                    if (applied) focusAfterEnd.current = true;
+                  }).then(() => {
+                    // The fight was read again before the lock dropped: the bar is gone now.
                     if (applied) {
-                      requestAnimationFrame(() => document.getElementById('pane-combat')?.focus());
+                      requestAnimationFrame(focusAfterEndTarget);
                     }
                   });
                 }}

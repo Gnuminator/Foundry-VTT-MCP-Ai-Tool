@@ -91,16 +91,17 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       // changed or the preset is gone, so the confirm never names a scene the buttons did not.
       const shown = moods.data;
       const fresh = (await moods.refetch()).data;
-      if (
-        fresh &&
-        shown &&
-        (fresh.sceneId !== shown.sceneId || !fresh.presets.some(p => p.name === preset))
-      ) {
-        toast(
-          `The scene changed to ${fresh.sceneName}. The moods are updated; pick again.`,
-          'warn'
-        );
-        return;
+      if (fresh && shown) {
+        const sceneMoved = fresh.sceneId !== shown.sceneId || fresh.sceneName !== shown.sceneName;
+        if (sceneMoved || !fresh.presets.some(p => p.name === preset)) {
+          toast(
+            sceneMoved
+              ? `The scene changed to ${fresh.sceneName}. The moods are updated; pick again.`
+              : `The mood "${preset}" is gone. The moods are updated; pick again.`,
+            'warn'
+          );
+          return;
+        }
       }
       let planned: Planned | null;
       try {

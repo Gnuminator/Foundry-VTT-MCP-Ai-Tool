@@ -159,7 +159,7 @@ the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 | **play**  | 37    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
 | **prep**  | 20    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
 | **build** | 8     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells; room setup                               |
-| **admin** | 11    | Modules and their errors, actor ownership, Foundry setup, the Obsidian mirror                                                            |
+| **admin** | 11    | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror                                               |
 
 ---
 

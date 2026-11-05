@@ -111,7 +111,8 @@ export function assertUserUpdate(
   if (isTableViewerUser(user)) {
     const flagRoot = `flags.${MODULE_ID}`;
     const touchesFlag = [...changePaths, ...unsetPaths]
-      .map(path => path.replace(/^[-=]=/, ''))
+      // Foundry reads "==" and "-=" on any segment of an update path: strip them everywhere.
+      .map(path => path.replace(/(^|\.)[-=]=/g, '$1'))
       .some(
         path =>
           path === 'flags' ||

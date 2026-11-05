@@ -387,7 +387,8 @@ interface ModuleLike {
   id: string;
   title?: string;
   active?: boolean;
-  incompatible?: boolean;
+  /** Foundry's own flag on a package (core version, dependencies): it cannot be used here. */
+  unavailable?: boolean;
   relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
 }
 
@@ -442,11 +443,13 @@ export function moduleClosureProblem(
   for (const [id, on] of flips) {
     const m = mods.get(id);
     if (on) {
-      if (m?.incompatible === true) problems.push(`${name(id)} is not compatible with this world`);
+      if (!m) problems.push(`${id} is no longer installed`);
+      if (m?.unavailable === true) {
+        problems.push(`${name(id)} is not usable in this world (Foundry marks it unavailable)`);
+      }
       for (const dep of m ? moduleRequiredIds(m) : []) {
-        if (mods.has(dep) && !enabled(dep)) {
-          problems.push(`${name(id)} now needs ${name(dep)}, which is off`);
-        }
+        if (!mods.has(dep)) problems.push(`${name(id)} needs ${dep}, which is not installed`);
+        else if (!enabled(dep)) problems.push(`${name(id)} now needs ${name(dep)}, which is off`);
       }
     } else {
       const forced = forcedOnBy(id);

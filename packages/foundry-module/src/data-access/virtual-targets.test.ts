@@ -134,6 +134,7 @@ describe('settings as a guarded target', () => {
   });
 
   it('turns one module on or off and leaves the others alone', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
     const ops: GuardedOp[] = [
       {
         kind: 'update',
@@ -502,6 +503,7 @@ describe('getSetupInfo', () => {
   });
 
   it('reloads the windows once, after the whole apply, only when the module list changed', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
     vi.useFakeTimers();
     onTestFinished(() => vi.useRealTimers());
     const emitted: string[] = [];
@@ -577,24 +579,21 @@ describe('module toggles: apply-time checks', () => {
   });
 
   it('refuses a module the world or system requires, and an incompatible one', async () => {
-    installModules([
-      mkModule('core-lib', true),
-      mkModule('old', false, [], { incompatible: true }),
-    ]);
+    installModules([mkModule('core-lib', true), mkModule('old', false, [], { unavailable: true })]);
     g.game.world.relationships.requires = new Set([{ id: 'core-lib', type: 'module' }]);
     world.setSetting('core', 'moduleConfiguration', { 'core-lib': true, old: false });
     await expect(applyGuardedOps(await request([moduleOp({ 'core-lib': false })]))).rejects.toThrow(
       /required by the world/
     );
     await expect(applyGuardedOps(await request([moduleOp({ old: true })]))).rejects.toThrow(
-      /not compatible/
+      /not usable in this world/
     );
   });
 
-  it('flags forced and incompatible modules in the read', () => {
+  it('flags forced and unavailable modules in the read', () => {
     installModules([
       mkModule('core-lib', true),
-      mkModule('old', false, [], { incompatible: true }),
+      mkModule('old', false, [], { unavailable: true }),
       mkModule('plain', true),
     ]);
     g.game.system.relationships.requires = new Set([{ id: 'core-lib', type: 'module' }]);
@@ -602,7 +601,7 @@ describe('module toggles: apply-time checks', () => {
       (getSetupInfo({ area: 'module' }) as any).modules.map((m: any) => [m.id, m])
     );
     expect(byId['core-lib'].forcedOn).toBe('system');
-    expect(byId.old.incompatible).toBe(true);
+    expect(byId.old.unavailable).toBe(true);
     expect(byId.plain.forcedOn).toBeUndefined();
   });
 

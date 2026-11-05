@@ -195,7 +195,7 @@ interface ModuleLike {
   title?: string;
   version?: string;
   active?: boolean;
-  incompatible?: boolean;
+  unavailable?: boolean;
   relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
 }
 
@@ -263,7 +263,7 @@ function modulesInfo(target: string | undefined): unknown {
         requiredBy: requiredBy.get(m.id) ?? [],
         // Foundry keeps these on (the world or system needs them) or off (not compatible).
         ...(forced ? { forcedOn: forced } : {}),
-        ...(m.incompatible === true ? { incompatible: true } : {}),
+        ...(m.unavailable === true ? { unavailable: true } : {}),
       };
     })
     .sort((a, b) => a.id.localeCompare(b.id));

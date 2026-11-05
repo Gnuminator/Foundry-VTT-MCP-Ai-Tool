@@ -86,8 +86,8 @@ interface ModuleRow {
   requiredBy: string[];
   /** Foundry keeps this module on: the world or the system requires it. */
   forcedOn?: 'world' | 'system';
-  /** Not compatible with this world: Foundry keeps it off. */
-  incompatible?: boolean;
+  /** Foundry marks it unavailable (core version, dependencies): it cannot be used here. */
+  unavailable?: boolean;
 }
 
 interface UserRow {
@@ -384,10 +384,12 @@ export class FoundrySetupTools {
     if (missing.length > 0) {
       throw new Error(`${row.title} cannot be turned on: not installed: ${missing.join(', ')}`);
     }
-    // Foundry itself keeps these on (the world or system needs them) or off (incompatible).
+    // Foundry itself keeps these on (the world or system needs them) or off (unavailable).
     for (const m of flips.values()) {
-      if (value && m.incompatible) {
-        throw new Error(`${m.title} (${m.id}) is not compatible with this world and stays off`);
+      if (value && m.unavailable) {
+        throw new Error(
+          `${m.title} (${m.id}) is not usable in this world (Foundry marks it unavailable)`
+        );
       }
       if (!value && m.forcedOn) {
         throw new Error(

@@ -483,7 +483,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
           active: false,
           requires: [],
           requiredBy: [],
-          incompatible: true,
+          unavailable: true,
         },
       ],
     }));
@@ -492,7 +492,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
     ).rejects.toThrow(/required by the world/);
     await expect(
       plan(tools, { mode: 'plan', area: 'module', target: 'old', value: true })
-    ).rejects.toThrow(/not compatible/);
+    ).rejects.toThrow(/not usable in this world/);
   });
 
   it('asks the bridge for the target, and names a module list that is too large', async () => {

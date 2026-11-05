@@ -87,6 +87,9 @@ describe('assertUserUpdate', () => {
       'flags.foundry-mcp-bridge',
       'flags',
       '==flags',
+      'flags.==foundry-mcp-bridge',
+      'flags.foundry-mcp-bridge.==tableViewer',
+      'flags.foundry-mcp-bridge.-=tableViewer',
     ]) {
       expect(() => assertUserUpdate(table, [path], [], { [path]: false }, 'foundry-setup')).toThrow(
         /table viewer flag/

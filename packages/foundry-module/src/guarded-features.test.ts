@@ -70,13 +70,27 @@ describe('registerGuardedFeature', () => {
 
   it('words the hint of a read-only switch without the confirm and undo promise', () => {
     registerGuardedFeature({
+      id: 'who-notices',
+      name: 'AI Tool: Who would notice',
+      hint: 'Shows.',
+      readOnly: true,
+    });
+    const config = register.mock.calls.at(-1)?.[2];
+    expect(config.hint).toBe('Shows. Off by default; it only reads and changes nothing.');
+  });
+
+  it('registers the read-only rules check on by default, as main.ts does', () => {
+    registerGuardedFeature({
       id: 'rules-check',
       name: 'AI Tool: Rules check',
       hint: 'Checks.',
       readOnly: true,
+      defaultEnabled: true,
     });
-    const config = register.mock.calls.at(-1)?.[2];
-    expect(config.hint).toBe('Checks. Off by default; it only reads and changes nothing.');
+    const [, key, config] = register.mock.calls.at(-1) ?? [];
+    expect(key).toBe('feature.rules-check.enabled');
+    expect(config).toMatchObject({ default: true });
+    expect(config.hint).toBe('Checks. On by default; it only reads and changes nothing.');
   });
 
   it('registers a switch that starts on with defaultEnabled (D-082)', () => {

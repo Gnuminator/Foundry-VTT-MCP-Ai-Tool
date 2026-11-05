@@ -291,7 +291,7 @@ describe('check-action', () => {
   it('is one read-only tool', () => {
     const defs = tools({}).t.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['check-action']);
-    expect(defs[0]?.description).toMatch(/off by default/);
+    expect(defs[0]?.description).toMatch(/on by default/);
   });
 
   it('refuses while the switch is off and reads nothing else', async () => {

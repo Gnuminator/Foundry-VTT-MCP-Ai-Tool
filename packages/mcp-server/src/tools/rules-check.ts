@@ -97,7 +97,7 @@ function usesFrom(v: unknown): UsesFact | null {
 /**
  * Rules check (I-126). `check-action` reads whether an item, spell or attack looks legal right now
  * (turn, activation cost, range to a target, spell slots and uses left) and says why. It writes
- * nothing and composes read queries (plus the module's `getSpentActions`, which an older module lacks). Off by
+ * nothing and composes read queries (plus the module's `getSpentActions`, which an older module lacks). On by
  * default (feature `rules-check`).
  */
 export class RulesCheckTools {
@@ -118,7 +118,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.',
+          'Rules check (on by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {

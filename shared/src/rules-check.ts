@@ -2,7 +2,7 @@
  * Rules check helper (I-126): the read-only `check-action` tool says whether an item, spell or
  * attack looks legal right now (whose turn it is, what it costs, range to a target, spell slots
  * and uses left) and why, before anything is applied. It writes nothing. It is switched on by the
- * world setting `feature.rules-check.enabled` (off by default).
+ * world setting `feature.rules-check.enabled` (on by default).
  *
  * The backend gathers the facts from existing read queries (`getCombatState`,
  * `getCharacterEntity`, `getCharacterResources`, `measureDistance`); there is no module query of

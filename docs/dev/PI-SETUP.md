@@ -910,7 +910,7 @@ session then turns off what the record names; press Start and End once to clear 
 | `foundry-mcp-bridge.feature.table-viewer.enabled` | on    | The TV's Table user; on by default, written for the same reason.                                                     |
 | `foundry-mcp-bridge.feature.change-undo.enabled`  | on    | Undo for everything from the Changes list; on by default, written for the same reason.                               |
 | `foundry-mcp-bridge.feature.who-notices.enabled`  | on    | Read-only: the passive Perception row in the Party drawer. It changes nothing, so it is safe to leave on.            |
-| `foundry-mcp-bridge.feature.rules-check.enabled`  | on    | Read-only: "does this attack look legal now". It changes nothing.                                                    |
+| `foundry-mcp-bridge.feature.rules-check.enabled`  | on    | Read-only: "does this attack look legal now"; on by default, written so a stored "off" cannot hide it.               |
 | `dnd5e.autoApplyDowned`                           | `all` | Unconscious and Dead land on monsters and characters at 0 hit points (W51: passed in David's combat test).           |
 | `item-piles.enableTrading`                        | on    | Players can use Request Trade. Item Piles is not active in every world: a world without it gets a warning, no error. |
 

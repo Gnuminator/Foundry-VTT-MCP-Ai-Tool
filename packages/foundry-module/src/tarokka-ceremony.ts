@@ -107,7 +107,7 @@ function reducedMotion(): boolean {
  * add it to the ceremony that is on screen for that card. Does nothing when there is none.
  */
 export function addCeremonyLine(cardId: string, line: string): void {
-  if (!current || current.cardId !== cardId) return;
+  if (current?.cardId !== cardId) return;
   const stage = current.el.querySelector('.fmb-tt-cer-stage');
   if (!stage || stage.querySelector('.fmb-tt-cer-line')) return;
   const p = document.createElement('p');

@@ -275,7 +275,7 @@ export function lineAdded(
   prev: PublicTable | null,
   next: PublicTable
 ): { cardId: string; line: string } | null {
-  if (!prev || prev.readingId !== next.readingId) return null;
+  if (prev?.readingId !== next.readingId) return null;
   for (const [i, slot] of next.slots.entries()) {
     const was = prev.slots[i];
     if (

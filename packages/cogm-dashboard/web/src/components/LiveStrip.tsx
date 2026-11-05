@@ -333,7 +333,10 @@ export function LiveStrip(): JSX.Element {
     }, 'next');
 
   // Busy on the button only once the write runs, not while the GM answers the question.
-  const endCombat = (): Promise<void> => once(() => planEnd(() => setBusy('end')));
+  const endCombat = (): Promise<void> =>
+    once(async () => {
+      await planEnd(() => setBusy('end'));
+    });
 
   const addCondition = (condition: string): Promise<void> =>
     once(async () => {

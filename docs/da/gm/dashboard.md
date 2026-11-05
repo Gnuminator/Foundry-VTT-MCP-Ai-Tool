@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: fd8acb8497ec
+sourceHash: d0b49fb3aa02
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -519,7 +519,8 @@ I confirm-vinduet:
 - **Cancel** (eller Escape, eller et klik udenfor) kører ingenting.
 - **Destructive action**: sletninger, Tarokka-reveals, hides og hver Undo kræver et ekstra trin. Sæt
   kryds ved "I understand this changes the live game and may be hard to undo.", og klik derefter på
-  **Run destructive action**.
+  **Run destructive action**. Undtagelsen er **End combat** på strips: den spørger i én linje uden
+  kryds, og Undo bringer kampen tilbage.
 
 ## Tool runneren (🛠 Tools)
 

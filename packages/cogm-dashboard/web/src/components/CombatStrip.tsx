@@ -610,12 +610,9 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
                 onClear={() => setPicked(new Set())}
                 onEnd={() => {
                   let applied = false;
-                  void once(() =>
-                    planEnd(() => {
-                      applied = true;
-                      setEnding(true);
-                    })
-                  ).then(() => {
+                  void once(async () => {
+                    applied = await planEnd(() => setEnding(true));
+                  }).then(() => {
                     // The fight is over and the bar unmounts with it: focus would drop to the page.
                     if (applied) {
                       requestAnimationFrame(() => document.getElementById('pane-combat')?.focus());

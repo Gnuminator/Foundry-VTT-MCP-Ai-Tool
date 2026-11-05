@@ -506,7 +506,8 @@ In the confirm window:
 - **Cancel** (or Escape, or a click outside) runs nothing.
 - **Destructive action**: deletes, Tarokka reveals, hides and every Undo need a second step. Tick
   "I understand this changes the live game and may be hard to undo.", then click **Run destructive
-  action**.
+  action**. The exception is **End combat** on the strips: it asks in one line with no tick, and
+  Undo brings the fight back.
 
 ## The tool runner (🛠 Tools)
 

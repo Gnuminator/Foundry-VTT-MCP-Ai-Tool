@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ceremonyFor,
   cleanLine,
+  lineAdded,
   MAX_LINE,
   parsePublicTable,
   reconcile,
@@ -59,6 +60,19 @@ describe('ceremonyFor', () => {
     expect(ceremonyFor(table(), flipped())).not.toBeNull();
     expect(ceremonyFor(table(), { ...flipped(), shown: false })).toBeNull();
     expect(ceremonyFor(flipped(), flipped())).toBeNull();
+  });
+});
+
+describe('lineAdded', () => {
+  it('sees a line that arrives after the flip, for the same card only', () => {
+    expect(lineAdded(flipped(), flipped('Late line.'))).toEqual({
+      cardId: 'swords-7',
+      line: 'Late line.',
+    });
+    expect(lineAdded(flipped('Old'), flipped('Old'))).toBeNull();
+    expect(lineAdded(table(), flipped('New'))).toBeNull();
+    expect(lineAdded(flipped(), flipped('x'))).not.toBeNull();
+    expect(lineAdded(null, flipped('x'))).toBeNull();
   });
 });
 

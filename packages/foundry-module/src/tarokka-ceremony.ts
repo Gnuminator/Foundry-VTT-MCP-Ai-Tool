@@ -17,7 +17,7 @@ export const FLIP_SOUND_SETTING = 'tarokkaFlipSound';
 const HOLD_MS = 11000;
 const FADE_MS = 1200;
 
-let current: { el: HTMLElement; timer: number } | null = null;
+let current: { el: HTMLElement; timer: number; cardId: string } | null = null;
 
 /** Register the optional sound setting. Call from the module `init` hook, every client. */
 export function registerCeremonySettings(): void {
@@ -102,6 +102,20 @@ function reducedMotion(): boolean {
     : false;
 }
 
+/**
+ * The GM's line reached the table after the card turned (another GM client wrote the flip first):
+ * add it to the ceremony that is on screen for that card. Does nothing when there is none.
+ */
+export function addCeremonyLine(cardId: string, line: string): void {
+  if (!current || current.cardId !== cardId) return;
+  const stage = current.el.querySelector('.fmb-tt-cer-stage');
+  if (!stage || stage.querySelector('.fmb-tt-cer-line')) return;
+  const p = document.createElement('p');
+  p.className = 'fmb-tt-cer-line';
+  p.textContent = line;
+  stage.appendChild(p);
+}
+
 /** Remove the overlay now (a click, a newer flip, or the end of the show). */
 export function endCeremony(): void {
   if (!current) return;
@@ -126,6 +140,6 @@ export function playCeremony(ceremony: Ceremony): void {
   el.addEventListener('click', () => endCeremony());
   document.body.appendChild(el);
   const timer = window.setTimeout(() => endCeremony(), HOLD_MS);
-  current = { el, timer };
+  current = { el, timer, cardId: ceremony.cardId };
   void playSound();
 }

@@ -17,11 +17,12 @@ import { onAiChangesUpdated } from './ai-changes-signal.js';
 import { MODULE_ID } from './constants.js';
 import { aiToolRequest } from './gm-helper-queries.js';
 import { parseRevealPlan } from './handouts-model.js';
-import { playCeremony, registerCeremonySettings } from './tarokka-ceremony.js';
+import { addCeremonyLine, playCeremony, registerCeremonySettings } from './tarokka-ceremony.js';
 import { parseReading } from './tarokka-model.js';
 import {
   canFlip,
   ceremonyFor,
+  lineAdded,
   emptyGmView,
   emptyTable,
   parsePublicTable,
@@ -70,6 +71,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error);
 }
 
+/**
+ * Lines typed in a flip dialog, kept until the flip is over so no table write loses them. Shared
+ * by every controller: the change watcher (another controller) may write the table first.
+ */
+const pendingLines: Record<string, string> = {};
+
 /** The pieces of Foundry the controller needs; tests pass fakes. */
 export interface TableDeps {
   request(tool: string, args: Record<string, unknown>): Promise<unknown>;
@@ -89,8 +96,6 @@ export interface TableDeps {
 export class TableController {
   view: GmView = emptyGmView();
   private loadSeq = 0;
-  /** Lines typed in the flip dialog, kept until the flip is over so no table write loses them. */
-  private readonly pendingLines: Record<string, string> = {};
 
   constructor(
     private readonly deps: TableDeps,
@@ -112,7 +117,7 @@ export class TableController {
         reading?.positions ?? null,
         reading ? readingIdOf(result) : '',
         images,
-        this.pendingLines
+        pendingLines
       );
       if (seq !== this.loadSeq) return;
       if (!sameTable(stored, table)) await this.deps.writeTable(table);
@@ -215,7 +220,7 @@ export class TableController {
       try {
         // The players' screens show the typed line under the card (the ceremony). It is set before
         // the apply, so the table write that follows the reveal (even the change watcher's) has it.
-        if (typed.trim() !== '') this.pendingLines[slot.cardId] = typed.trim();
+        if (typed.trim() !== '') pendingLines[slot.cardId] = typed.trim();
         // No title: the reveal's neutral default keeps the position name off the players' page.
         const plan = parseRevealPlan(
           await this.deps.request('plan-tarokka-reveal', { position: slot.position, text })
@@ -229,7 +234,7 @@ export class TableController {
         this.deps.notifyInfo(`Flipped: ${slot.label}`);
         await this.load();
       } finally {
-        delete this.pendingLines[slot.cardId];
+        delete pendingLines[slot.cardId];
       }
     });
   }
@@ -524,9 +529,14 @@ export function onTableSettingChanged(): void {
     // The flip ceremony, on every client (the GM's too). The first call at `ready` only records
     // the table, so joining or reloading never replays a flip.
     const next = readTableSetting();
-    const ceremony = ceremonyFor(lastSeenTable, next);
+    const prevTable = lastSeenTable;
+    const ceremony = ceremonyFor(prevTable, next);
     lastSeenTable = next;
     if (ceremony) playCeremony(ceremony);
+    else {
+      const added = lineAdded(prevTable, next);
+      if (added) addCeremonyLine(added.cardId, added.line);
+    }
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not play the Tarokka ceremony:`, error);
   }

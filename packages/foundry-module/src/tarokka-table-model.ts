@@ -267,6 +267,31 @@ export function ceremonyFor(prev: PublicTable | null, next: PublicTable): Ceremo
   return { index, cardId: slot.cardId, name, image: slot.image ?? null, line };
 }
 
+/**
+ * A line that reached an already revealed card after its flip was seen: another GM client's
+ * change watcher may write the revealed card a moment before the flipping GM adds the line.
+ */
+export function lineAdded(
+  prev: PublicTable | null,
+  next: PublicTable
+): { cardId: string; line: string } | null {
+  if (!prev || prev.readingId !== next.readingId) return null;
+  for (const [i, slot] of next.slots.entries()) {
+    const was = prev.slots[i];
+    if (
+      slot.stage === 'revealed' &&
+      slot.line &&
+      slot.cardId &&
+      was?.stage === 'revealed' &&
+      was.cardId === slot.cardId &&
+      !was.line
+    ) {
+      return { cardId: slot.cardId, line: slot.line };
+    }
+  }
+  return null;
+}
+
 /** The full-screen ceremony: a dim backdrop, the card turning over, the line fading in under it. */
 export function renderCeremonyHtml(c: Ceremony): string {
   const line = c.line !== '' ? `<p class="fmb-tt-cer-line">${escapeHtml(c.line)}</p>` : '';

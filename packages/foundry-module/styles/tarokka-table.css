@@ -152,7 +152,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(0 0 0 / 82%);
+  background: rgb(0 0 0 / 92%);
   cursor: pointer;
   animation: fmb-tt-cer-dim 1.2s ease-out both;
 }

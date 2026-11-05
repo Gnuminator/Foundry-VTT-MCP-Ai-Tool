@@ -98,7 +98,9 @@ function HeaderUndo(): JSX.Element {
         if (!off) void undo();
       }}
     >
-      {changes.isPending ? 'Loading changes' : busy ? 'Undoing...' : undoLabel(undoable)}
+      <span className={styles['undoText']}>
+        {changes.isPending ? 'Loading changes' : busy ? 'Undoing...' : undoLabel(undoable)}
+      </span>
     </Button>
   );
 }

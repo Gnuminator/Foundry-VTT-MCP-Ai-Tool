@@ -65,16 +65,16 @@ per session and to group the play log.
 
 The 📓 Obsidian link next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
 
-### Live play on: all set
+### Live play on
 
 **Start session** is the only switch for live play. One click turns on GM Actions and every
 **Turn on for tonight** switch; **End session** turns them off again. The line in the header
 shows the state and opens the list of switches. When the page cannot read the switches, the line
 says so (and still says if GM Actions is off).
 
-- **Live play on: all set**: tools that change the game can run after you confirm, and Undo in
+- **Live play on**: tools that change the game can run after you confirm, and Undo in
   Recent Changes works.
-- **Something is off** (for example "Handouts is off: Turn on"): the controls that need it stay on
+- **Something is off** (the button says "Live play off: Turn on"; hover it to see what is off): the controls that need it stay on
   the screen, greyed out, with the reason and a **Turn on** button next to them. One click turns
   everything on, the same as Start session.
 - It only guards the dashboard. It does not stop Claude Desktop.

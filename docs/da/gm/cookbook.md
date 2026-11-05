@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: b126d45148bc
+sourceHash: 9c621d480553
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---
@@ -162,7 +162,7 @@ andet set, siger det.
   [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** knapperne Damage / Heal og Condition på en combatant samt Start og End combat kræver alle,
   at live play er tændt. Hvis en knap er grået ud, siger den hvorfor og har en **Turn on** ved siden af;
-  headeren skal sige "Live play on: all set".
+  headeren skal sige "Live play on".
 
 ### Kør et bossfight
 

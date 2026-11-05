@@ -88,7 +88,7 @@ export default {
           await page.waitForFunction(
             () => {
               const t = document.querySelector('#btn-gm')?.textContent ?? '';
-              return t.trim() !== '' && !/GM Actions/i.test(t);
+              return t.trim() === 'Live play on';
             },
             undefined,
             { timeout: 10000 }

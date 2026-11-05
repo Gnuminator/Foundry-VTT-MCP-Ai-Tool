@@ -359,6 +359,7 @@ body {
   flex: 1 1 auto;
   justify-content: flex-end;
 }
+/* .stream-state is display: contents, so the pill inside it is the flex item. */
 .controls .stream-state .status-pill {
   order: 98;
 }
@@ -1095,7 +1096,7 @@ body {
     gap: 0.6rem 1rem;
     padding: 0.55rem 0.9rem;
   }
-  .topbar .subtitle-row {
+  .topbar .subtitle {
     display: none;
   }
   .brand h1,

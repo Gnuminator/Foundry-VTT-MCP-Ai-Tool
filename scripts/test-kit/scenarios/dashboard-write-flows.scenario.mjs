@@ -241,7 +241,7 @@ export default {
         });
         await page.waitForFunction(() => {
           const txt = document.querySelector('#btn-gm')?.textContent ?? '';
-          return txt.trim() !== '' && !/GM Actions/i.test(txt);
+          return txt.trim() === 'Live play on';
         });
       }
       t.check(await gmActionsLabelOn(page), 'the header does not name GM Actions as off');

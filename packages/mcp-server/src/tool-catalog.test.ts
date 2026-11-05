@@ -110,7 +110,7 @@ describe('tool catalog', () => {
     }
   });
 
-  it('keeps the tool counts and sizes in README.md and docs/reference/TOOL-SETS.md true', () => {
+  it('keeps the tool counts and sizes in docs/reference/TOOL-SETS.md true and out of README.md', () => {
     const read = (path: string): string =>
       readFileSync(fileURLToPath(new URL(`../../../${path}`, import.meta.url)), 'utf8').replace(
         /\r\n/g,
@@ -185,36 +185,13 @@ describe('tool catalog', () => {
       );
     }
 
-    const readmeFile = 'README.md';
-    const readme = read(readmeFile);
-    expect(
-      grab(readmeFile, readme, /([\d,]+) tools in five sets/),
-      `${readmeFile}: tool count`
-    ).toBe(tools.length);
-    expect(
-      grab(readmeFile, readme, /([\d,]+) tools let Claude/),
-      `${readmeFile}: tool count in the feature list`
-    ).toBe(tools.length);
-    expect(
-      grab(readmeFile, readme, /serves all ([\d,]+) tools/),
-      `${readmeFile}: tool count in the setup section`
-    ).toBe(tools.length);
-    expect(
-      grab(readmeFile, readme, /all ([\d,]+) tools are about/),
-      `${readmeFile}: tool count in the size sentence`
-    ).toBe(tools.length);
-    within10(
-      readmeFile,
-      'total size',
-      grab(readmeFile, readme, /tools are about ([\d,]+) characters/),
-      total
-    );
+    // The README carries no tool counts or sizes (they drift); they live in the generated docs.
+    const readme = read('README.md');
+    expect(readme, 'README.md: a hard-coded tool count').not.toMatch(/\b\d[\d,]*\s+tools\b/);
+    expect(readme, 'README.md: a hard-coded definition size').not.toMatch(/[\d,]+ characters of/);
     for (const set of TOOL_SET_NAMES) {
-      const row = new RegExp(String.raw`^\| \*\*${set}\*\*\s*\|\s*([\d,]+)\s*\|`, 'm');
-      const match = row.exec(readme);
-      expect(match, `${readmeFile}: no table row for ${set}`).not.toBeNull();
-      expect(num(match![1]), `${readmeFile}: tool count of ${set}`).toBe(
-        TOOL_SETS[set].tools.length
+      expect(readme, `README.md: a tool count column for ${set}`).not.toMatch(
+        new RegExp(String.raw`^\| \*\*${set}\*\*\s*\|\s*[\d,]+\s*\|`, 'm')
       );
     }
   });

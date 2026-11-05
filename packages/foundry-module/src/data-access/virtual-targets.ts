@@ -229,20 +229,16 @@ function packOf(packId: string): { metadata?: { label?: string } } | undefined {
 }
 
 /**
- * Foundry's own pack configuration refuses unless the Assistant GM role keeps OWNER; the bridge's
- * Assistant client reads every pack through that level, so a plan may not lower it.
+ * Foundry's own pack configuration refuses unless the Assistant GM role keeps OWNER, and the
+ * bridge's Assistant client reads every pack through that level. The plan tool refuses a lowering;
+ * an undo or rollback of a pack that sat below OWNER before the bridge fixed it would restore that
+ * level, so the module keeps OWNER here instead of failing the undo.
  */
-function assertAssistantKeepsPack(ownership: unknown, packId: string): void {
-  if (ownership === null || typeof ownership !== 'object') return;
+function keepAssistantOwner(ownership: unknown): unknown {
+  if (ownership === null || typeof ownership !== 'object') return ownership;
   const level = (ownership as Record<string, unknown>).ASSISTANT;
-  // A pack that already sits below OWNER (set before the bridge, or by hand) may be put back to
-  // that state by an undo, and its next plan may raise it; only a lowering from OWNER is refused.
-  const current = (readPackEntry(packId).ownership as Record<string, unknown> | undefined)
-    ?.ASSISTANT;
-  if (current !== undefined && current !== 'OWNER') return;
-  if (level !== undefined && level !== 'OWNER') {
-    throw new Error('The Assistant GM role must keep OWNER on a pack');
-  }
+  if (level === undefined || level === 'OWNER') return ownership;
+  return { ...(ownership as Record<string, unknown>), ASSISTANT: 'OWNER' };
 }
 
 /** Foundry 14 validates a setting through its DataField on `set`; refuse before the GM confirms. */
@@ -283,7 +279,6 @@ export function snapshotVirtual(
     const bad = paths.find(p => !(PACK_FIELDS as readonly string[]).includes(p));
     if (bad)
       throw new Error(`A pack configuration has no "${bad}" (use ownership, locked, folder)`);
-    assertAssistantKeepsPack(changes?.ownership, packId);
     const pack = packOf(packId);
     return {
       exists: pack !== undefined,
@@ -365,7 +360,8 @@ export async function executeVirtualUpdate(
 ): Promise<void> {
   if (uuid.startsWith(PACK_UUID_PREFIX)) {
     const packId = uuid.slice(PACK_UUID_PREFIX.length);
-    assertAssistantKeepsPack(changes.ownership, packId);
+    if (changes.ownership !== undefined)
+      changes = { ...changes, ownership: keepAssistantOwner(changes.ownership) };
     const all = packEntries();
     const entry = { ...(all[packId] ?? {}) };
     for (const [path, value] of Object.entries(changes)) setAtPath(entry, path, value);
@@ -383,19 +379,41 @@ export async function executeVirtualUpdate(
   for (const [path, value] of Object.entries(changes)) setAtPath(holder, path, value);
   for (const path of unset) deleteAtPath(holder, path);
   await game.settings.set(namespace, key, holder.value);
-  if (`${namespace}.${key}` === MODULE_CONFIG_SETTING) scheduleModuleReload();
+  if (`${namespace}.${key}` === MODULE_CONFIG_SETTING) moduleReloadNeeded = true;
 }
 
-/** Delay before the GM window reloads, so the apply result reaches the server first. */
-export const MODULE_RELOAD_DELAY_MS = 2500;
+/**
+ * Delay before the windows reload, so the apply result reaches the server and the change journal
+ * pump (5 s poll) has picked up the entry first.
+ */
+export const MODULE_RELOAD_DELAY_MS = 7000;
+
+let moduleReloadNeeded = false;
+
+/** Forget a pending reload (the apply failed and was rolled back). */
+export function clearModuleReload(): void {
+  moduleReloadNeeded = false;
+}
 
 /**
- * Foundry loads modules only at startup: after the module list changed, this GM window (the one
- * the bridge runs in) reloads so the change takes effect and the bridge reconnects by itself.
- * Players get Foundry's own reload prompt. A no-op outside a browser (tests).
+ * Foundry loads modules only at startup. Called once, after a whole apply succeeded: when a write
+ * changed the module list, every connected window reloads (the same socket message Foundry's own
+ * Module Management sends, needs the Modify Configuration Settings permission) and so does this
+ * GM window, where the bridge reconnects by itself. A no-op outside a browser (tests).
  */
-function scheduleModuleReload(): void {
+export function flushModuleReload(): void {
+  if (!moduleReloadNeeded) return;
+  moduleReloadNeeded = false;
   const reload = (): void => {
+    try {
+      const live = game as unknown as {
+        user?: { can?: (p: string) => boolean };
+        socket?: { emit?: (e: string) => void };
+      };
+      if (live.user?.can?.('SETTINGS_MODIFY')) live.socket?.emit?.('reload');
+    } catch {
+      // the local reload below still happens
+    }
     const utils = (globalThis as { foundry?: { utils?: { debouncedReload?: () => void } } }).foundry
       ?.utils;
     if (typeof utils?.debouncedReload === 'function') utils.debouncedReload();

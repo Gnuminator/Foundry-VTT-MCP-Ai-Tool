@@ -1492,7 +1492,7 @@ Parameters:
 
 ### plan-foundry-setup
 
-Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and the GM window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and every connected window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
 
 Kind: read-only. Title: Read or plan Foundry setup.
 
@@ -1500,7 +1500,7 @@ Parameters:
 
 - `mode` (string, required): One of: `read`, `plan`.
 - `area` (string, required): One of: `setting`, `pack`, `module`.
-- `target` (string): Setting namespace.key, or a pack id.
+- `target` (string): Setting namespace.key, a pack id, or a module id or title.
 - `value` (any): plan only: the new value, or the pack changes.
 
 ### get-obsidian-mirror

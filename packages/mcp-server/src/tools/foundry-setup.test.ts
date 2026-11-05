@@ -43,6 +43,16 @@ const packRow = {
   folder: null,
 };
 
+const userRows = [
+  { id: 'u1', name: 'Ask', role: 'PLAYER', isGM: false },
+  { id: 'u2', name: 'Danni', role: 'GAMEMASTER', isGM: true },
+  { id: 'u3', name: 'David', role: 'TRUSTED', isGM: false },
+];
+const ownershipRows = [
+  { id: 'j1', name: 'Strahd notes', default: 'NONE', users: { Ask: 'OBSERVER' } },
+  { id: 'j2', name: 'Strahd history', default: 'NONE', users: {} },
+];
+
 const dep = (id: string, installed = true, active = true): any => ({ id, installed, active });
 const moduleRows = [
   { id: 'lib', title: 'Lib', active: false, requires: [], requiredBy: [] },
@@ -95,6 +105,11 @@ function makeTools(): {
       return { area: 'setting', settings: rows };
     }
     if (data.area === 'module') return { area: 'module', modules: moduleRows };
+    if (data.area === 'user') return { area: 'user', users: userRows };
+    if (data.area === 'ownership') {
+      const kind = String(data.target).split(':')[0];
+      return { area: 'ownership', kind, documents: ownershipRows };
+    }
     return {
       area: 'pack',
       packs: [packRow],
@@ -337,6 +352,73 @@ describe('plan-foundry-setup: modules', () => {
     await expect(
       plan(tools, { mode: 'plan', area: 'module', target: 'libon', value: false })
     ).rejects.toThrow(/AI Tool module needs libon/);
+  });
+});
+
+describe('plan-foundry-setup: users', () => {
+  it('plans a role change as an update of User.<id> path role', async () => {
+    const { tools, createPlan } = makeTools();
+    await plan(tools, { mode: 'plan', area: 'user', target: 'ask', value: { role: 'TRUSTED' } });
+    expect(createPlan.mock.calls[0][0].ops).toEqual([
+      { kind: 'update', uuid: 'User.u1', changes: { role: 2 } },
+    ]);
+  });
+
+  it('refuses a Gamemaster, a Gamemaster role, an unknown user, a no-op and extra fields', async () => {
+    const { tools } = makeTools();
+    const run = (target: string, value: unknown): Promise<any> =>
+      plan(tools, { mode: 'plan', area: 'user', target, value });
+    await expect(run('Danni', { role: 'PLAYER' })).rejects.toThrow(/Gamemaster/);
+    await expect(run('Ask', { role: 'GAMEMASTER' })).rejects.toThrow();
+    await expect(run('Nobody', { role: 'PLAYER' })).rejects.toThrow(/No user/);
+    await expect(run('Ask', { role: 'PLAYER' })).rejects.toThrow(/Nothing to change/);
+    await expect(run('Ask', { role: 'PLAYER', password: 'x' })).rejects.toThrow();
+  });
+});
+
+describe('plan-foundry-setup: journal and scene ownership', () => {
+  it('plans default and per-user levels on one journal', async () => {
+    const { tools, createPlan } = makeTools();
+    const out = await plan(tools, {
+      mode: 'plan',
+      area: 'ownership',
+      target: 'journal:Strahd history',
+      value: { default: 'LIMITED', users: { ask: 'OBSERVER' } },
+    });
+    expect(createPlan.mock.calls[0][0].ops).toEqual([
+      {
+        kind: 'update',
+        uuid: 'JournalEntry.j2',
+        changes: { 'ownership.default': 1, 'ownership.u1': 2 },
+      },
+    ]);
+    expect(out.notes.join(' ')).toMatch(/spoilers/);
+  });
+
+  it('uses Scene.<id> for a scene and skips what already holds', async () => {
+    const { tools, createPlan } = makeTools();
+    await plan(tools, {
+      mode: 'plan',
+      area: 'ownership',
+      target: 'scene:j1',
+      value: { default: 'NONE', users: { Ask: 'OBSERVER', David: 'LIMITED' } },
+    });
+    expect(createPlan.mock.calls[0][0].ops[0]).toEqual({
+      kind: 'update',
+      uuid: 'Scene.j1',
+      changes: { 'ownership.u3': 1 },
+    });
+  });
+
+  it('refuses an ambiguous name, a Gamemaster, a bad target and a no-op', async () => {
+    const { tools } = makeTools();
+    const run = (target: string, value: unknown): Promise<any> =>
+      plan(tools, { mode: 'plan', area: 'ownership', target, value });
+    await expect(run('journal:Strahd', { default: 'NONE' })).rejects.toThrow(/name one of them/);
+    await expect(run('journal:j1', { users: { Danni: 'NONE' } })).rejects.toThrow(/Gamemaster/);
+    await expect(run('actor:j1', { default: 'NONE' })).rejects.toThrow(/journal:<name/);
+    await expect(run('journal:j1', { default: 'NONE' })).rejects.toThrow(/Nothing to change/);
+    await expect(run('journal:j1', {})).rejects.toThrow(/Give a default/);
   });
 });
 

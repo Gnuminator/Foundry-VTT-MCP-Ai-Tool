@@ -470,11 +470,7 @@ describe('applyGuardedOps: updating a User', () => {
   it('refuses a change of role, permissions or password from any feature, changing nothing', async () => {
     const user = makeDoc('User', { name: 'Table', role: 1, permissions: {}, flags: {} });
     for (const feature of ['table-viewer', FEATURE]) {
-      for (const changes of [
-        { role: 4 },
-        { 'permissions.SETTINGS_MODIFY': true },
-        { password: 'x' },
-      ]) {
+      for (const changes of [{ 'permissions.SETTINGS_MODIFY': true }, { password: 'x' }]) {
         const req = await request([{ kind: 'update', uuid: user.uuid, changes }], { feature });
         await expect(applyGuardedOps(req)).rejects.toThrow(/cannot be changed/);
       }
@@ -482,6 +478,29 @@ describe('applyGuardedOps: updating a User', () => {
     expect(user.source.role).toBe(1);
     expect(user.source.permissions).toEqual({});
     expect(user.source.password).toBeUndefined();
+  });
+
+  it('changes a role only from the setup feature, never to or from Gamemaster', async () => {
+    registerGuardedFeature({ id: 'foundry-setup', name: 'Setup', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', true);
+    const user = makeDoc('User', { name: 'Table', role: 1, permissions: {}, flags: {} });
+    // A Gamemaster role is refused at plan time, whatever the feature.
+    await expect(
+      request([{ kind: 'update', uuid: user.uuid, changes: { role: 4 } }], {
+        feature: 'foundry-setup',
+      })
+    ).rejects.toThrow(/None, Player, Trusted Player or Assistant GM/);
+    // Another feature may plan it, but the apply refuses.
+    const other = await request([{ kind: 'update', uuid: user.uuid, changes: { role: 2 } }], {
+      feature: 'table-viewer',
+    });
+    await expect(applyGuardedOps(other)).rejects.toThrow(/only changed by/);
+    expect(user.source.role).toBe(1);
+    const ok = await request([{ kind: 'update', uuid: user.uuid, changes: { role: 2 } }], {
+      feature: 'foundry-setup',
+    });
+    await expect(applyGuardedOps(ok)).resolves.toBeDefined();
+    expect(user.source.role).toBe(2);
   });
 });
 

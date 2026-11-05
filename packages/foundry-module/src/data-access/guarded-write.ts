@@ -29,7 +29,8 @@ import {
   isKnownFeature,
   isReadOnlyFeature,
 } from '../guarded-features.js';
-import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
+import { assertUserCreateAllowed } from '../table-viewer-user.js';
+import { assertUserRoleChange, assertUserUpdate } from '../user-role.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
   assertSetupFeature,
@@ -375,6 +376,12 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
       if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
+      // A role plan is checked before the GM sees it (the feature is checked again at apply).
+      if (doc.documentName === 'User') {
+        assertUserRoleChange(doc, {
+          ...op.changes,
+        });
+      }
       const source = sourceOf(doc);
       return {
         exists: true,
@@ -593,7 +600,13 @@ async function executeUpdate(
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
   if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (doc.documentName === 'User') {
-    assertUserUpdateAllowed(Object.keys(op.changes ?? {}), op.unset ?? []);
+    assertUserUpdate(
+      doc,
+      Object.keys(op.changes ?? {}),
+      op.unset ?? [],
+      op.changes ?? {},
+      req.feature
+    );
   }
   const changes: Record<string, unknown> = { ...op.changes };
   if (req.mode === 'apply' && isRulesTagged(doc.documentName) && !(RULES_FLAG_PATH in changes)) {

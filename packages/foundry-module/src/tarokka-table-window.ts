@@ -82,6 +82,8 @@ interface PendingLine {
   line: string;
   readingId: string;
   at: number;
+  /** When the apply finished; the unrevealed grace counts from here, not from the flip start. */
+  appliedAt?: number;
 }
 
 /**
@@ -99,7 +101,10 @@ function prunePendingLines(table: PublicTable): void {
     const settled = slot?.stage === 'revealed' && slot.line === cleanLine(entry.line);
     // A card that is still not revealed in the stored table after a short grace was undone or
     // never flipped: its line must not come back with a later reveal of the same card.
-    const unrevealed = slot?.stage !== 'revealed' && now - entry.at > UNREVEALED_DROP_MS;
+    const unrevealed =
+      slot?.stage !== 'revealed' &&
+      entry.appliedAt !== undefined &&
+      now - entry.appliedAt > UNREVEALED_DROP_MS;
     if (
       settled ||
       unrevealed ||
@@ -281,8 +286,8 @@ export class TableController {
       // The dialog stays open until the GM answers: look again before the plan is made.
       await check();
       const text = typed.trim() === '' ? slot.cardName : typed.trim();
-      // An old or other-reading kept line must not outlive this flip; a fresh one (a second GM
-      // flipping inside the keep window) stays.
+      // An old or other-reading kept line must not outlive this flip; a fresh one (another
+      // card of this reading flipped inside the keep window) stays.
       const flipNow = Date.now();
       for (const [id, entry] of Object.entries(pendingLines)) {
         if (
@@ -314,6 +319,8 @@ export class TableController {
           confirm: true,
           confirmDestructive: true,
         });
+        const kept = pendingLines[slot.cardId];
+        if (kept) kept.appliedAt = Date.now();
         this.deps.notifyInfo(`Flipped: ${slot.label}`);
         await this.load();
         // The flip itself succeeded: a failed restore is a warning, not a failed flip (the entry

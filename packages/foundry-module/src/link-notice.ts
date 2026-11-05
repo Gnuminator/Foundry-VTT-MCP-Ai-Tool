@@ -101,7 +101,6 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
     markLost(): void {
       cancelTimer();
       lostShown = true;
-      lastLostAt = now();
     },
     reset(): void {
       cancelTimer();

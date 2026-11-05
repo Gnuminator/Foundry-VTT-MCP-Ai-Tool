@@ -25,6 +25,13 @@ import * as log from './log.js';
 import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
+import { RecorderHealth } from './rec/health.js';
+import {
+  claimRunMarker,
+  clearRunMarker,
+  markerPath,
+  restartAfterCrashMessage,
+} from './run-marker.js';
 import { recoverMessage, recoverOrphans } from './rec/recover.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
@@ -59,7 +66,12 @@ interface Active {
   session: RecordingSession;
   recorder: VoiceRecorder;
   channel: VoiceBasedChannel;
+  health: RecorderHealth;
+  healthTimer: NodeJS.Timeout;
 }
+
+/** How often the recorder checks for members it has heard nothing from. */
+export const HEALTH_CHECK_INTERVAL_MS = 30_000;
 
 /** `2026-10-04_1930-discord` in local time. */
 export function sessionFolderName(d: Date): string {
@@ -95,11 +107,61 @@ export class RecorderBot {
   /** DM to the owner; set once the owner is known. */
   private notifyOwner: ((text: string) => Promise<boolean>) | undefined;
 
+  private readonly alertFailureLog = new LogThrottle();
+  private crashNotice: string | null = null;
+
   constructor(private readonly config: BotConfig) {}
 
+  /**
+   * Post to the GM channel (DISCORD_GM_BOT_CHANNEL_ID, else GAMENIGHT_WATCH_CHANNEL_ID), or to
+   * `fallback` (the voice channel) when none is set or the post fails. A failure is logged at most
+   * once per 24 hours.
+   */
+  async alertGm(text: string, fallback?: VoiceBasedChannel): Promise<void> {
+    const id = this.config.gmBotChannelId;
+    const tryChannel = async (target: { send(t: string): Promise<unknown> }): Promise<void> => {
+      await target.send(text);
+      this.alertFailureLog.reset();
+    };
+    try {
+      if (id) {
+        const ch = await this.client.channels.fetch(id);
+        if (!ch?.isSendable()) throw new Error('not a channel the bot can post in');
+        await tryChannel(ch);
+        return;
+      }
+      if (fallback) {
+        await tryChannel(fallback);
+        return;
+      }
+      throw new Error('no GM channel configured (DISCORD_GM_BOT_CHANNEL_ID)');
+    } catch (err) {
+      if (this.alertFailureLog.shouldLog()) {
+        log.error(
+          `Could not post a recorder alert (logged at most once per 24 hours): ${text}`,
+          err
+        );
+      }
+      if (id && fallback) {
+        try {
+          await fallback.send(text);
+        } catch {
+          // already logged above
+        }
+      }
+    }
+  }
+
   async run(): Promise<void> {
+    this.crashNotice = claimRunMarker(markerPath(this.config.sessionsDir));
+    this.client.on('error', err => log.error('Discord client error', err));
     this.client.once('clientReady', c => {
       log.info(`Logged in as ${c.user.tag}`);
+      if (this.crashNotice) {
+        const text = restartAfterCrashMessage(this.crashNotice);
+        log.info(text);
+        void this.alertGm(text);
+      }
       const body = [RECORD_COMMAND.toJSON()];
       const guildId = this.config.guildId;
       const registered = guildId
@@ -123,10 +185,16 @@ export class RecorderBot {
       const a = this.active;
       if (!a) return;
       const id = after.id;
+      const human = !after.member?.user.bot;
+      const muted = Boolean(after.selfMute || after.serverMute);
       if (before.channelId !== a.channel.id && after.channelId === a.channel.id) {
         a.session.log({ type: 'join', userId: id, username: after.member?.user.username });
+        if (human) a.health.join(id, after.member?.displayName ?? id, muted, Date.now());
       } else if (before.channelId === a.channel.id && after.channelId !== a.channel.id) {
         a.session.log({ type: 'leave', userId: id });
+        a.health.leave(id);
+      } else if (after.channelId === a.channel.id && human) {
+        a.health.setMuted(id, muted, Date.now());
       }
     });
     await this.client.login(this.config.token);
@@ -299,7 +367,11 @@ export class RecorderBot {
     if (sub === 'status') {
       const a = this.active;
       const text = a
-        ? `Recording in ${a.channel.name}: ${a.session.summaries().length} track(s), RTP tap ${a.recorder.rtpTapActive ? 'on' : 'off'}.`
+        ? [
+            `Recording in ${a.channel.name}: ${a.session.summaries().length} track(s), RTP tap ${a.recorder.rtpTapActive ? 'on' : 'off'}.`,
+            `Voice connection: ${a.recorder.connectionStatus}.`,
+            ...a.health.speakerLines(Date.now()),
+          ].join('\n')
         : 'Not recording.';
       await i.reply({ content: text, flags: MessageFlags.Ephemeral });
       return;
@@ -349,6 +421,17 @@ export class RecorderBot {
     for (const [id, m] of channel.members) {
       session.log({ type: 'present', userId: id, username: m.user.username, bot: m.user.bot });
     }
+    const health = new RecorderHealth();
+    const startedAt = Date.now();
+    for (const [id, m] of channel.members) {
+      if (!m.user.bot) {
+        health.join(id, m.displayName, Boolean(m.voice.selfMute || m.voice.serverMute), startedAt);
+      }
+    }
+    const healthTimer = setInterval(() => {
+      for (const line of health.silent(Date.now())) void this.alertGm(line, channel);
+    }, HEALTH_CHECK_INTERVAL_MS);
+    healthTimer.unref();
     const recorder = new VoiceRecorder({
       target: {
         guildId: guild.id,
@@ -357,9 +440,10 @@ export class RecorderBot {
       },
       session,
       resolveSpeaker: this.speakerResolver(guild),
-      alert: (msg): void => void channel.send(msg).catch(() => undefined),
+      alert: (msg): void => void this.alertGm(msg, channel),
+      health,
     });
-    this.active = { session, recorder, channel };
+    this.active = { session, recorder, channel, health, healthTimer };
     try {
       await recorder.start();
     } catch (err) {
@@ -378,6 +462,7 @@ export class RecorderBot {
     const a = this.active;
     if (!a) return 'Not recording.';
     this.active = undefined;
+    clearInterval(a.healthTimer);
     a.recorder.stop();
     const tracks = await a.session.stop(reason);
     if (tracks.length === 0)
@@ -412,5 +497,6 @@ export class RecorderBot {
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
     if (this.active) log.info(await this.stop('shutdown'));
     await this.client.destroy();
+    clearRunMarker(markerPath(this.config.sessionsDir));
   }
 }

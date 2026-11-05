@@ -13,7 +13,9 @@
  */
 import {
   MAX_SETTING_JSON,
+  forcedOnBy,
   isSecretSetting,
+  moduleListTooLarge,
   readPackEntry,
   readSettingValue,
   registeredSettings,
@@ -193,6 +195,7 @@ interface ModuleLike {
   title?: string;
   version?: string;
   active?: boolean;
+  incompatible?: boolean;
   relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
 }
 
@@ -226,22 +229,50 @@ function modulesInfo(target: string | undefined): unknown {
       requiredBy.set(dep.id, [...(requiredBy.get(dep.id) ?? []), m.id]);
     }
   }
+  // An exact id or title: the module and everything it needs or that needs it (both ways, all
+  // the way), so a plan sees the whole closure however many modules are installed.
+  const exact = lower
+    ? (mods.find(m => m.id.toLowerCase() === lower) ??
+      mods.find(m => (m.title ?? '').toLowerCase() === lower))
+    : undefined;
+  let keep: Set<string> | null = null;
+  if (exact) {
+    keep = new Set<string>();
+    const walk = (id: string): void => {
+      if (keep?.has(id)) return;
+      const m = byId.get(id);
+      if (!m) return;
+      keep?.add(id);
+      for (const dep of requiresOf(m)) walk(dep.id);
+      for (const other of requiredBy.get(id) ?? []) walk(other);
+    };
+    walk(exact.id);
+  }
   const rows = mods
-    .filter(m => !lower || `${m.id} ${m.title ?? ''}`.toLowerCase().includes(lower))
-    .map(m => ({
-      id: m.id,
-      title: m.title ?? m.id,
-      version: m.version ?? null,
-      active: m.active === true,
-      requires: requiresOf(m),
-      requiredBy: requiredBy.get(m.id) ?? [],
-    }))
+    .filter(m =>
+      keep ? keep.has(m.id) : !lower || `${m.id} ${m.title ?? ''}`.toLowerCase().includes(lower)
+    )
+    .map(m => {
+      const forced = forcedOnBy(m.id);
+      return {
+        id: m.id,
+        title: m.title ?? m.id,
+        version: m.version ?? null,
+        active: m.active === true,
+        requires: requiresOf(m),
+        requiredBy: requiredBy.get(m.id) ?? [],
+        // Foundry keeps these on (the world or system needs them) or off (not compatible).
+        ...(forced ? { forcedOn: forced } : {}),
+        ...(m.incompatible === true ? { incompatible: true } : {}),
+      };
+    })
     .sort((a, b) => a.id.localeCompare(b.id));
   return {
     area: 'module',
     total: rows.length,
     shown: Math.min(rows.length, MODULE_LIST_CAP),
     modules: rows.slice(0, MODULE_LIST_CAP),
+    ...(moduleListTooLarge() ? { listTooLarge: true } : {}),
   };
 }
 
@@ -298,7 +329,12 @@ function usersInfo(target: string | undefined): unknown {
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { area: 'user', total: rows.length, shown: Math.min(rows.length, LIST_CAP), users: rows };
+  return {
+    area: 'user',
+    total: rows.length,
+    shown: Math.min(rows.length, LIST_CAP),
+    users: rows.slice(0, LIST_CAP),
+  };
 }
 
 /**
@@ -325,10 +361,11 @@ function ownershipInfo(target: string | undefined): unknown {
     .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
   const rows = docs.slice(0, LIST_CAP).map(d => {
     const own = d.ownership ?? {};
-    const perUser: Record<string, string> = {};
+    // Keyed by user id: two users may share a name.
+    const perUser: Record<string, { name: string; level: string }> = {};
     for (const [id, level] of Object.entries(own)) {
       if (id === 'default') continue;
-      perUser[nameOf.get(id) ?? id] = LEVEL_NAMES[level] ?? String(level);
+      perUser[id] = { name: nameOf.get(id) ?? id, level: LEVEL_NAMES[level] ?? String(level) };
     }
     return {
       id: d.id,

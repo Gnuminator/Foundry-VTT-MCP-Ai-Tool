@@ -199,7 +199,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: SETUP_FEATURE_ID,
         name: 'AI Tool: Foundry setup (writes)',
-        hint: 'Lets the AI change Foundry settings and who can open a compendium pack, after you confirm; never passwords or these switches.',
+        hint: 'Lets the AI change Foundry settings, turn modules on or off, change user roles and who can open a compendium pack, journal or scene, after you confirm; never passwords, a Gamemaster or these switches.',
       });
       registerGuardedFeature({
         id: 'player-portrait',

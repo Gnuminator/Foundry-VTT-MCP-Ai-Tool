@@ -14,7 +14,7 @@ The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the
 | [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
-| [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -1411,7 +1411,7 @@ Parameters:
 
 ## Admin
 
-Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.
+Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.
 
 ### get-modules
 
@@ -1492,7 +1492,7 @@ Parameters:
 
 ### plan-foundry-setup
 
-Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role and owned actors; never a Gamemaster). area ownership: target journal:name or scene:name, value {default, users:{name: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and every connected window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role and owned actors; a Gamemaster is never set or changed; a role change signs that user out; two users with one name: give the id). area ownership: target journal:name or scene:name, value {default, users:{name or id: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and every connected window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
 
 Kind: read-only. Title: Read or plan Foundry setup.
 
@@ -1500,7 +1500,7 @@ Parameters:
 
 - `mode` (string, required): One of: `read`, `plan`.
 - `area` (string, required): One of: `setting`, `pack`, `module`, `user`, `ownership`.
-- `target` (string): Setting namespace.key, a pack id, or a module id or title.
+- `target` (string): Setting namespace.key, a pack id, a module id or title, a user name or id, or journal:name or scene:name.
 - `value` (any): plan only: the new value, or the pack changes.
 
 ### plan-token-rings

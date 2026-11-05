@@ -51,6 +51,20 @@ describe('assertUserUpdate', () => {
     );
   });
 
+  it('keeps the shared table viewer login at Player or below', () => {
+    const table = {
+      id: 'u9',
+      name: 'Table',
+      role: 1,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    };
+    expect(() => assertUserUpdate(table, ['role'], [], { role: 3 }, 'foundry-setup')).toThrow(
+      /table viewer login/
+    );
+    expect(() => assertUserUpdate(table, ['role'], [], { role: 0 }, 'foundry-setup')).not.toThrow();
+    expect(() => assertUserUpdate(table, ['role'], [], { role: 1 }, 'foundry-setup')).not.toThrow();
+  });
+
   it('lets an Assistant GM be changed although Foundry calls it a GM', () => {
     const assistant = { id: 'a1', name: 'Assistant GM', role: 3, isGM: true };
     expect(() =>

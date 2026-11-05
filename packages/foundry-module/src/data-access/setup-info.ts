@@ -8,7 +8,7 @@
  * - `area: "pack"`: compendium packs with their effective and configured ownership, locked flag
  *   and folder, plus the Compendium folders a pack can sit in.
  * - `area: "module"`: installed modules, on or off, with what each requires and what needs it.
- * - `area: "user"`: users with role, password set or not, and the actors each owns.
+ * - `area: "user"`: users with role and the actors each owns.
  * - `area: "ownership"`: world journals or scenes with their default and per-user level.
  */
 import {
@@ -251,7 +251,6 @@ interface UserLike {
   role?: number;
   isGM?: boolean;
   active?: boolean;
-  hasPassword?: unknown;
 }
 
 const ROLE_NAMES: Record<number, string> = {
@@ -270,7 +269,7 @@ const LEVEL_NAMES: Record<number, string> = {
 };
 
 /**
- * Users with their role, whether a password is set (never the password or its hash) and the
+ * Users with their role (never a password or its hash) and the
  * actors each owns, for the setup tool and for a login check.
  */
 function usersInfo(target: string | undefined): unknown {
@@ -295,7 +294,6 @@ function usersInfo(target: string | undefined): unknown {
         role: ROLE_NAMES[u.role ?? 0] ?? String(u.role),
         isGM: u.isGM === true,
         active: u.active === true,
-        hasPassword: typeof u.hasPassword === 'boolean' ? u.hasPassword : null,
         owns,
       };
     })

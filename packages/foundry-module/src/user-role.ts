@@ -12,7 +12,11 @@
  * `@gnuminator/shared`) and pinned by `virtual-targets.contract.test.ts`.
  */
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
-import { assertUserUpdateAllowed } from './table-viewer-user.js';
+import {
+  TABLE_VIEWER_ROLE,
+  assertUserUpdateAllowed,
+  isTableViewerUser,
+} from './table-viewer-user.js';
 
 /** Roles a plan may give or take: `CONST.USER_ROLES` names to numbers, without Gamemaster. */
 export const SETTABLE_USER_ROLES: Record<string, number> = {
@@ -54,6 +58,11 @@ export function assertUserRoleChange(
   const role = newRole(changes);
   if (typeof role !== 'number' || !Number.isInteger(role) || role < 0 || role > 3) {
     throw new Error('A role plan may only set None, Player, Trusted Player or Assistant GM');
+  }
+  if (role > TABLE_VIEWER_ROLE && isTableViewerUser(user)) {
+    throw new Error(
+      `${user.name ?? 'This user'} is the shared table viewer login (no password); it stays at Player or below`
+    );
   }
   // `isGM` is true for an Assistant GM too (role 3), which a plan may change.
   if (typeof user.role === 'number' && user.role > 3) {

@@ -413,7 +413,7 @@ describe('getSetupInfo', () => {
     expect((getSetupInfo({ area: 'module', target: 'chil' }) as any).modules).toHaveLength(1);
   });
 
-  it('lists users with role, password flag and owned actors, never a password', () => {
+  it('lists users with role and owned actors, never a password', () => {
     g.game.users = [
       {
         id: 'u1',
@@ -421,7 +421,6 @@ describe('getSetupInfo', () => {
         role: 1,
         isGM: false,
         active: true,
-        hasPassword: true,
         password: 'x',
       },
       { id: 'u2', name: 'Danni', role: 4, isGM: true, active: false },
@@ -438,7 +437,6 @@ describe('getSetupInfo', () => {
         role: 'PLAYER',
         isGM: false,
         active: true,
-        hasPassword: true,
         owns: ['Cora'],
       },
       {
@@ -447,7 +445,6 @@ describe('getSetupInfo', () => {
         role: 'GAMEMASTER',
         isGM: true,
         active: false,
-        hasPassword: null,
         owns: [],
       },
     ]);

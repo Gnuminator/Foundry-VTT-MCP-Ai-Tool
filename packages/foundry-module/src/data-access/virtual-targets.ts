@@ -32,6 +32,8 @@ export const PACK_CONFIG_SETTING = 'core.compendiumConfiguration';
 
 /** Values over this many JSON characters are never planned (or read back whole). */
 export const MAX_SETTING_JSON = 4000;
+/** The module list holds one entry per installed module, so it gets room for several hundred. */
+export const MAX_MODULE_CONFIG_JSON = 30000;
 
 /** Pack configuration fields a plan may set. */
 const PACK_FIELDS = ['ownership', 'locked', 'folder'] as const;
@@ -227,15 +229,16 @@ function packOf(packId: string): { metadata?: { label?: string } } | undefined {
 }
 
 /**
- * Foundry's own pack configuration refuses unless the Assistant GM role keeps OWNER; the bridge's
- * Assistant client reads every pack through that level, so a plan may not lower it.
+ * Foundry's own pack configuration refuses unless the Assistant GM role keeps OWNER, and the
+ * bridge's Assistant client reads every pack through that level. The plan tool refuses a lowering;
+ * an undo or rollback of a pack that sat below OWNER before the bridge fixed it would restore that
+ * level, so the module keeps OWNER here instead of failing the undo.
  */
-function assertAssistantKeepsPack(ownership: unknown): void {
-  if (ownership === null || typeof ownership !== 'object') return;
+function keepAssistantOwner(ownership: unknown): unknown {
+  if (ownership === null || typeof ownership !== 'object') return ownership;
   const level = (ownership as Record<string, unknown>).ASSISTANT;
-  if (level !== undefined && level !== 'OWNER') {
-    throw new Error('The Assistant GM role must keep OWNER on a pack');
-  }
+  if (level === undefined || level === 'OWNER') return ownership;
+  return { ...(ownership as Record<string, unknown>), ASSISTANT: 'OWNER' };
 }
 
 /** Foundry 14 validates a setting through its DataField on `set`; refuse before the GM confirms. */
@@ -276,7 +279,6 @@ export function snapshotVirtual(
     const bad = paths.find(p => !(PACK_FIELDS as readonly string[]).includes(p));
     if (bad)
       throw new Error(`A pack configuration has no "${bad}" (use ownership, locked, folder)`);
-    assertAssistantKeepsPack(changes?.ownership);
     const pack = packOf(packId);
     return {
       exists: pack !== undefined,
@@ -302,8 +304,14 @@ export function snapshotVirtual(
   }
   // A value that read mode cannot show must not be replaced blind, and a new value that looks
   // secret would land in the plan, the diff and the audit (and block its own undo).
-  if (JSON.stringify(value ?? null).length > MAX_SETTING_JSON) {
-    throw new Error(`${namespace}.${key} holds too much data to change through a plan`);
+  // This is "not found", not an error: the undo planner reads through here too, and a setting
+  // that grew past the cap since must not block a whole rewind. The setup tool refuses a new plan
+  // for it by name (read mode marks it `tooLong`). The module list has a larger cap: it names
+  // every installed module.
+  const cap =
+    `${namespace}.${key}` === MODULE_CONFIG_SETTING ? MAX_MODULE_CONFIG_JSON : MAX_SETTING_JSON;
+  if (JSON.stringify(value ?? null).length > cap) {
+    return { exists: false, documentName: 'Setting', name: null, source: {} };
   }
   if (changes && Object.values(changes).some(v => isSecretSetting(namespace, key, v))) {
     throw new Error(`The new value for ${namespace}.${key} looks like a secret and is not planned`);
@@ -351,8 +359,9 @@ export async function executeVirtualUpdate(
   unset: readonly string[]
 ): Promise<void> {
   if (uuid.startsWith(PACK_UUID_PREFIX)) {
-    assertAssistantKeepsPack(changes.ownership);
     const packId = uuid.slice(PACK_UUID_PREFIX.length);
+    if (changes.ownership !== undefined)
+      changes = { ...changes, ownership: keepAssistantOwner(changes.ownership) };
     const all = packEntries();
     const entry = { ...(all[packId] ?? {}) };
     for (const [path, value] of Object.entries(changes)) setAtPath(entry, path, value);
@@ -370,6 +379,47 @@ export async function executeVirtualUpdate(
   for (const [path, value] of Object.entries(changes)) setAtPath(holder, path, value);
   for (const path of unset) deleteAtPath(holder, path);
   await game.settings.set(namespace, key, holder.value);
+  if (`${namespace}.${key}` === MODULE_CONFIG_SETTING) moduleReloadNeeded = true;
+}
+
+/**
+ * Delay before the windows reload, so the apply result reaches the server and the change journal
+ * pump (5 s poll) has picked up the entry first.
+ */
+export const MODULE_RELOAD_DELAY_MS = 7000;
+
+let moduleReloadNeeded = false;
+
+/** Forget a pending reload (the apply failed and was rolled back). */
+export function clearModuleReload(): void {
+  moduleReloadNeeded = false;
+}
+
+/**
+ * Foundry loads modules only at startup. Called once, after a whole apply succeeded: when a write
+ * changed the module list, every connected window reloads (the same socket message Foundry's own
+ * Module Management sends, needs the Modify Configuration Settings permission) and so does this
+ * GM window, where the bridge reconnects by itself. A no-op outside a browser (tests).
+ */
+export function flushModuleReload(): void {
+  if (!moduleReloadNeeded) return;
+  moduleReloadNeeded = false;
+  const reload = (): void => {
+    try {
+      const live = game as unknown as {
+        user?: { can?: (p: string) => boolean };
+        socket?: { emit?: (e: string) => void };
+      };
+      if (live.user?.can?.('SETTINGS_MODIFY')) live.socket?.emit?.('reload');
+    } catch {
+      // the local reload below still happens
+    }
+    const utils = (globalThis as { foundry?: { utils?: { debouncedReload?: () => void } } }).foundry
+      ?.utils;
+    if (typeof utils?.debouncedReload === 'function') utils.debouncedReload();
+    else (globalThis as { location?: { reload?: () => void } }).location?.reload?.();
+  };
+  setTimeout(reload, MODULE_RELOAD_DELAY_MS);
 }
 
 /** The source of a virtual target after a write (for the result's `after` values). */

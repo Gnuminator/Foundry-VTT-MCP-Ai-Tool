@@ -33,7 +33,9 @@ import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewe
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
   assertSetupFeature,
+  clearModuleReload,
   executeVirtualUpdate,
+  flushModuleReload,
   isVirtualUuid,
   snapshotVirtual,
   virtualSource,
@@ -961,10 +963,12 @@ export async function applyGuardedOps(request: unknown): Promise<GuardedApplyRes
   try {
     const result = await runGuardedApply(req, ops);
     rememberOutcome({ changeId: req.changeId, status: 'applied', result });
+    flushModuleReload();
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     rememberOutcome({ changeId: req.changeId, status: 'failed', error: message });
+    clearModuleReload();
     throw error;
   }
 }

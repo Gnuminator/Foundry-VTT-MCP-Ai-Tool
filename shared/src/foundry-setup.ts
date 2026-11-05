@@ -1,7 +1,7 @@
 /**
  * Foundry setup with undo (D-135): `plan-foundry-setup` (admin set) reads and plans changes to a
  * world or client setting, a compendium pack's configuration (who may open it, locked, folder),
- * and (later) modules on or off and user roles. Each is a guarded update of a pseudo uuid the
+ * modules on or off for the world, and (later) user roles. Each is a guarded update of a pseudo uuid the
  * module understands (`module: data-access/virtual-targets.ts`), so plan, confirm, undo, the
  * conflict check and Recent Changes work as for any document.
  */
@@ -17,7 +17,7 @@ export const PACK_UUID_PREFIX = 'PackConfig.';
 export const MODULE_CONFIG_SETTING = 'core.moduleConfiguration';
 
 /** What `plan-foundry-setup` can read and change. */
-export const FOUNDRY_SETUP_AREAS = ['setting', 'pack'] as const;
+export const FOUNDRY_SETUP_AREAS = ['setting', 'pack', 'module'] as const;
 export type FoundrySetupArea = (typeof FOUNDRY_SETUP_AREAS)[number];
 
 export const FOUNDRY_SETUP_MODES = ['read', 'plan'] as const;

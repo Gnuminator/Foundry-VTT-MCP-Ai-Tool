@@ -7,6 +7,7 @@
  *   show only when `target` is their exact `namespace.key`.
  * - `area: "pack"`: compendium packs with their effective and configured ownership, locked flag
  *   and folder, plus the Compendium folders a pack can sit in.
+ * - `area: "module"`: installed modules, on or off, with what each requires and what needs it.
  */
 import {
   MAX_SETTING_JSON,
@@ -135,8 +136,12 @@ function settingsInfo(target: string | undefined): unknown {
       delete row.default;
     } else if (!row.valueError) {
       const json = JSON.stringify(value ?? null);
-      row.value =
-        json.length > MAX_SETTING_JSON ? `(${json.length} characters, too long to show)` : value;
+      if (json.length > MAX_SETTING_JSON) {
+        row.tooLong = true;
+        row.value = `(${json.length} characters, too long to show)`;
+      } else {
+        row.value = value;
+      }
     }
     return row;
   });
@@ -181,10 +186,68 @@ function packsInfo(target: string | undefined): unknown {
   };
 }
 
+interface ModuleLike {
+  id: string;
+  title?: string;
+  version?: string;
+  active?: boolean;
+  relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
+}
+
+/** Modules cap: a big world has well over the 50 settings rows. */
+const MODULE_LIST_CAP = 400;
+
+/**
+ * Installed modules with whether each is on, what each requires (installed and on?) and which
+ * active modules require it. The plan tool derives the dependency list from this.
+ */
+function modulesInfo(target: string | undefined): unknown {
+  const lower = (target ?? '').trim().toLowerCase();
+  const mods = [...(game.modules as unknown as Map<string, ModuleLike>).values()];
+  const byId = new Map(mods.map(m => [m.id, m]));
+  const systemId = (game.system as { id?: string } | undefined)?.id;
+  const requiresOf = (m: ModuleLike): Array<{ id: string; installed: boolean; active: boolean }> =>
+    [...(m.relationships?.requires ?? [])]
+      .filter((r): r is { id: string; type?: string } => typeof r?.id === 'string')
+      .filter(r => r.type === undefined || r.type === 'module' || r.type === 'system')
+      .map(r => {
+        if (r.type === 'system' || r.id === systemId) {
+          return { id: r.id, installed: true, active: true };
+        }
+        const dep = byId.get(r.id);
+        return { id: r.id, installed: dep !== undefined, active: dep?.active === true };
+      });
+  const requiredBy = new Map<string, string[]>();
+  for (const m of mods) {
+    if (m.active !== true) continue;
+    for (const dep of requiresOf(m)) {
+      requiredBy.set(dep.id, [...(requiredBy.get(dep.id) ?? []), m.id]);
+    }
+  }
+  const rows = mods
+    .filter(m => !lower || `${m.id} ${m.title ?? ''}`.toLowerCase().includes(lower))
+    .map(m => ({
+      id: m.id,
+      title: m.title ?? m.id,
+      version: m.version ?? null,
+      active: m.active === true,
+      requires: requiresOf(m),
+      requiredBy: requiredBy.get(m.id) ?? [],
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return {
+    area: 'module',
+    total: rows.length,
+    shown: Math.min(rows.length, MODULE_LIST_CAP),
+    modules: rows.slice(0, MODULE_LIST_CAP),
+  };
+}
+
 export function getSetupInfo(data: unknown): unknown {
   const { area, target } = (data ?? {}) as { area?: unknown; target?: unknown };
   const text = typeof target === 'string' ? target : undefined;
   if (area === 'setting') return settingsInfo(text);
   if (area === 'pack') return packsInfo(text);
-  throw new Error('getSetupInfo needs area "setting" or "pack"');
+  if (area === 'module') return modulesInfo(text);
+  throw new Error('getSetupInfo needs area "setting", "pack" or "module"');
 }

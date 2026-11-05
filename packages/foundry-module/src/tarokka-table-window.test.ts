@@ -147,16 +147,15 @@ describe('TableController', () => {
     await controller.load();
     await controller.place();
     // The other client's write lands last and has no line: the first revealed write loses it.
-    const write = deps.writeTable;
+    const write = deps.writeTable.bind(deps);
     let stripNext = true;
-    deps.writeTable = async t => {
+    deps.writeTable = async (t): Promise<void> => {
       if (!stripNext || !t.slots.some(s => s.stage === 'revealed')) return write(t);
       stripNext = false;
       const stripped = { ...t, slots: t.slots.map(s => ({ ...s, line: undefined })) };
       await write(stripped as PublicTable);
     };
     await controller.flip(0);
-    deps.writeTable = write;
     expect(get().slots[0]?.stage).toBe('revealed');
     expect(get().slots[0]?.line).toBe('Kept line.');
   });

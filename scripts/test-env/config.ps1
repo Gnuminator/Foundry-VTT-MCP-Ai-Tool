@@ -211,6 +211,15 @@ function Get-FoundryNodeExe([string]$AppRoot) {
   $max = if ($range -match '<\s*(\d+\.\d+\.\d+)') { [version]$Matches[1] } else { $null }
   $candidates = @(Get-Command node -All -ErrorAction SilentlyContinue | ForEach-Object Source)
   if ($IsWindows) { $candidates += Join-Path $env:ProgramFiles 'nodejs' 'node.exe' }
+  # The portable Node 24 folders too, newest first (Foundry 14.370 needs 24.22.1 or newer, which can be
+  # newer than the node on PATH).
+  $portableRoot = Join-Path $HOME 'AppData' 'Local' 'node24'
+  if ($IsWindows -and (Test-Path $portableRoot)) {
+    $candidates += @(Get-ChildItem $portableRoot -Directory -Filter 'node-v24.*-win-x64' |
+      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' } |
+      Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
+      ForEach-Object { Join-Path $_.FullName 'node.exe' })
+  }
   foreach ($exe in ($candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
     $v = Get-NodeVersion $exe
     if ($v -and $v -ge $min -and (-not $max -or $v -lt $max)) { return $exe }

@@ -36,7 +36,7 @@ same system and module versions, copied from A); B also runs kit runs and soak r
 | Rest      | vault, obsidian, logs, lock under the root            | the same under `C:\FoundryTestC`                      |
 
 All use one Foundry app folder, chosen machine-wide in `C:\FoundryTest\appdir.txt` (next to A's
-`lock.json`, not in git; first line = the folder, now `C:\FoundryTest\app-14.369`). It wins over an
+`lock.json`, not in git; first line = the folder, now `C:\FoundryTest\app-14.370-official`). It wins over an
 `AppDir` in any worktree's `local.json` (status warns if they differ), so every checkout starts the
 same Foundry version; with no file the default is `<Root>\app`. `status.ps1` prints the version it
 will start (`Foundry ver:`); change the choice with
@@ -68,7 +68,8 @@ Paths and ports come from `scripts/test-env/config.ps1` (`Get-NodeExe` there pic
 portable Node 24 folder, `%LOCALAPPDATA%\node24\node-v24.*-win-x64`); `scripts/test-env/local.json`
 (gitignored) overrides paths and ports. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
 Foundry runs on the Node its `app\package.json` requires (14.368 and 14.369: >=24.13.1 <25, the
-global Node 24); the bridge and dashboard use the repo's portable Node 24.
+global Node 24; 14.370: >=24.22.1 <25, found in the portable `%LOCALAPPDATA%\node24` folders by
+`Get-FoundryNodeExe`); the bridge and dashboard use the repo's portable Node 24.
 
 ## Rules
 

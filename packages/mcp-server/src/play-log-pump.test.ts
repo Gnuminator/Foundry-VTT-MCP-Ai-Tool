@@ -276,6 +276,22 @@ describe('PlayLogPump.pollOnce', () => {
     expect(markers[0]).toMatchObject({ details: { reason: 'foundry-reload' } });
   });
 
+  it('writes no reload marker when Foundry reopens the next day', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    foundry.add({ key: 'a' });
+    const pump = makePump();
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 12 * 3_600_000);
+    foundry.clientId = 'client-2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'x' });
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
   it('tracks health: last success, last error, and no recording while disconnected', async () => {
     const pump = makePump();
     foundry.add({ key: 'a' });

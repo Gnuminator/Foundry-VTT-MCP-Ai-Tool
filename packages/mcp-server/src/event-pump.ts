@@ -214,7 +214,7 @@ export class EventPump {
       .sort((a, b) => eventTime(a) - eventTime(b));
 
     const now = Date.now();
-    const gaps = this.detectGaps(state, received.length, events, now);
+    const { gaps, reloaded } = this.detectGaps(state, received.length, events, now);
     for (const gap of gaps) {
       await this.store.appendLines(worldId, 'sessions', `${localDateKey(now)}.jsonl`, [
         gapMarkerLine(this.health.pump, gap, now),
@@ -225,7 +225,6 @@ export class EventPump {
     const seqs = events.map(e => eventSeq(e.id)).filter((n): n is number => n !== null);
     if (seqs.length > 0) {
       const top = Math.max(...seqs);
-      const reloaded = gaps.some(g => g.reason === 'foundry-reload');
       state.lastSeq = reloaded || state.lastSeq === null ? top : Math.max(state.lastSeq, top);
     }
     if (events.length === 0) {
@@ -264,30 +263,30 @@ export class EventPump {
     receivedCount: number,
     fresh: SessionEvent[],
     now: number
-  ): PumpGap[] {
+  ): { gaps: PumpGap[]; reloaded: boolean } {
     const gaps: PumpGap[] = [];
     const outageStart = this.health.linkUp();
     const first = fresh[0];
     const to = first ? eventTime(first) : now;
+    // A new night is not a gap: Foundry closed and reopened days later restarts the counter and
+    // drops the link for hours. Only a break within one session's reach (SESSION_GAP_MS of the last
+    // good read) can have cost events that were still to be read.
+    const lastGood = this.health.lastSuccess ?? state.cursorMs;
+    const sameSession = lastGood !== null && now - lastGood < SESSION_GAP_MS;
     if (state.cursorMs !== null && receivedCount >= FETCH_LIMIT) {
       gaps.push({ reason: 'ring-wrap', fromMs: state.cursorMs, toMs: to, lost: null });
     }
     const seqs = fresh.map(e => eventSeq(e.id)).filter((n): n is number => n !== null);
-    if (state.lastSeq !== null && seqs.length > 0 && Math.min(...seqs) <= state.lastSeq) {
-      gaps.push({
-        reason: 'foundry-reload',
-        fromMs: state.cursorMs ?? to,
-        toMs: to,
-        lost: null,
-      });
-    } else if (
-      outageStart !== null &&
-      state.cursorMs !== null &&
-      now - outageStart >= LINK_GAP_MIN_MS
-    ) {
-      gaps.push({ reason: 'link-down', fromMs: outageStart, toMs: now, lost: null });
+    const reloaded =
+      state.lastSeq !== null && seqs.length > 0 && Math.min(...seqs) <= state.lastSeq;
+    if (reloaded) {
+      if (sameSession) {
+        gaps.push({ reason: 'foundry-reload', fromMs: lastGood ?? to, toMs: to, lost: null });
+      }
+    } else if (sameSession && outageStart !== null && now - outageStart >= LINK_GAP_MIN_MS) {
+      gaps.push({ reason: 'link-down', fromMs: lastGood ?? outageStart, toMs: now, lost: null });
     }
-    return gaps;
+    return { gaps, reloaded };
   }
 
   private notifyEvents(worldId: string, events: readonly SessionEvent[]): void {

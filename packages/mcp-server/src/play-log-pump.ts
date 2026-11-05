@@ -38,7 +38,7 @@ import {
   type PlayRecordsResponse,
 } from '@gnuminator/shared';
 
-import { DEFAULT_EVENT_POLL_MS, localDateKey } from './event-pump.js';
+import { DEFAULT_EVENT_POLL_MS, SESSION_GAP_MS, localDateKey } from './event-pump.js';
 import type { FoundryClient } from './foundry-client.js';
 import type { Logger } from './logger.js';
 import { PumpHealth, gapMarkerLine, type PumpGap } from './pump-health.js';
@@ -176,7 +176,12 @@ export class PlayLogPump {
     let response = await this.fetchRecords(state.lastSeq);
     const restarted = state.clientId !== null && response.clientId !== state.clientId;
     if (restarted) {
-      gaps.push({ reason: 'foundry-reload', fromMs: this.lastRecordMs ?? 0, lost: null });
+      // A new night (Foundry closed and reopened later) is not a gap; only a reload within one
+      // session's reach of the last good read can have cost records that were still to be read.
+      const lastGood = this.health.lastSuccess;
+      if (lastGood !== null && Date.now() - lastGood < SESSION_GAP_MS) {
+        gaps.push({ reason: 'foundry-reload', fromMs: lastGood, lost: null });
+      }
       // The buffer's seq numbering restarted at 1; the cursor we just asked
       // for meant nothing to it. Re-ask for everything it still has.
       response = await this.fetchRecords(0);

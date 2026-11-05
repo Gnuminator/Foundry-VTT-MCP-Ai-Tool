@@ -48,6 +48,11 @@ export class PumpHealth {
     this.downSinceMs = null;
   }
 
+  /** Time of the last good read in this process, or null before the first. */
+  get lastSuccess(): number | null {
+    return this.lastSuccessMs;
+  }
+
   error(message: string, now: number): void {
     this.lastError = { message, at: now };
   }

@@ -147,6 +147,40 @@ describe('EventPump gaps and health', () => {
     expect(pump.health.snapshot()).toMatchObject({ notRecordingSince: null, gapCount: 1 });
   });
 
+  it('treats Foundry closed overnight and reopened as a new night, not a gap', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const pump = makePump();
+    foundry.add(T0);
+    foundry.add(T0 + 1000);
+    await pump.pollOnce();
+
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 12 * 3_600_000);
+    await pump.pollOnce();
+    foundry.connected = true;
+    foundry.events = [];
+    foundry.seq = 0; // a fresh page load
+    foundry.add(T0 + 12 * 3_600_000);
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+
+    // The counter was reset to the new load, so a reload mid-session is still caught.
+    vi.setSystemTime(T0 + 12 * 3_600_000 + 60_000);
+    foundry.add(T0 + 12 * 3_600_000 + 30_000);
+    await pump.pollOnce();
+    foundry.events = [];
+    foundry.seq = 0;
+    foundry.add(T0 + 12 * 3_600_000 + 90_000);
+    vi.setSystemTime(T0 + 12 * 3_600_000 + 120_000);
+    await pump.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ details: { reason: 'foundry-reload' } });
+  });
+
   it('records the last error and clears it on the next good read', async () => {
     const pump = makePump();
     foundry.fail = 'refused';

@@ -130,6 +130,25 @@ describe('get-preflight recording check', () => {
     expect((await get([PUMP_OK]))?.status).toBe('ok');
   });
 
+  it('does not stay amber for an old gap', async () => {
+    const result = (await tools({
+      pumps: [
+        {
+          ...PUMP_OK,
+          lostCount: 3,
+          gapCount: 1,
+          lastGap: {
+            reason: 'foundry-reload',
+            at: new Date(Date.now() - 24 * 3_600_000).toISOString(),
+            fromMs: 1,
+            toMs: 2,
+          },
+        },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(result).recording?.status).toBe('ok');
+  });
+
   it('warns, in plain words, about an outage, an error and lost records', async () => {
     const result = (await tools({
       pumps: [
@@ -141,7 +160,7 @@ describe('get-preflight recording check', () => {
           gapCount: 2,
           lastGap: {
             reason: 'ring-wrap',
-            at: '2026-11-05T20:03:00.000Z',
+            at: new Date().toISOString(),
             fromMs: 1,
             toMs: 2,
           },

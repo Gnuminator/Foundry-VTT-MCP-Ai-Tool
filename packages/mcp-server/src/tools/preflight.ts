@@ -9,6 +9,7 @@ import {
 } from '@gnuminator/shared';
 import { z } from 'zod';
 
+import { SESSION_GAP_MS } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import type { PumpHealthSnapshot } from '../pump-health.js';
@@ -259,7 +260,9 @@ export class PreflightTools {
       if (p.lastError) {
         problems.push(`${p.pump}: last error at ${p.lastError.at}: ${p.lastError.message}`);
       }
-      if (p.gapCount > 0 && p.lastGap) {
+      // Only a recent gap is worth a warning; an old one is in the session log and must not keep
+      // the line amber for the weeks the backend runs.
+      if (p.gapCount > 0 && p.lastGap && Date.now() - Date.parse(p.lastGap.at) < SESSION_GAP_MS) {
         const lost = p.lostCount > 0 ? `, ${plural(p.lostCount, 'record')} lost` : '';
         problems.push(
           `${p.pump}: ${plural(p.gapCount, 'gap')} since the backend started (last ${p.lastGap.reason} at ${p.lastGap.at})${lost}`
@@ -290,7 +293,7 @@ export class PreflightTools {
       id: 'recording',
       label,
       status: 'ok',
-      detail: `Recording; last read ${last}. No gaps since the backend started.`,
+      detail: `Recording; last read ${last}. No recent gaps.`,
     };
   }
 

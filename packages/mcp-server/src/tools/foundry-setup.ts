@@ -136,7 +136,7 @@ export class FoundrySetupTools {
       {
         name: 'plan-foundry-setup',
         description:
-          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role, password set, owned actors; never a Gamemaster). area ownership: target journal:name or scene:name, value {default, users:{name: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and the GM window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
+          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role, password set, owned actors; never a Gamemaster). area ownership: target journal:name or scene:name, value {default, users:{name: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and every connected window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -144,7 +144,7 @@ export class FoundrySetupTools {
             area: { type: 'string', enum: [...FOUNDRY_SETUP_AREAS] },
             target: {
               type: 'string',
-              description: 'Setting namespace.key, or a pack id.',
+              description: 'Setting namespace.key, a pack id, or a module id or title.',
               ...freeText('a setting key or pack id the read mode lists; no picker has them'),
             },
             value: { description: 'plan only: the new value, or the pack changes.' },
@@ -359,7 +359,7 @@ export class FoundrySetupTools {
     const others = [...flips.values()].filter(m => m.id !== row.id);
     const state = value ? 'on' : 'off';
     const notes = [
-      'Foundry loads modules only at startup. After the apply, or the undo, this GM window reloads by itself (a few seconds, the bridge reconnects); each player gets Foundry’s reload prompt.',
+      'Foundry loads modules only at startup. After the apply, or the undo, every connected window reloads by itself a few seconds later (the bridge reconnects); players see the page reload.',
     ];
     if (others.length > 0) {
       notes.push(

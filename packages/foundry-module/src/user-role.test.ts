@@ -51,6 +51,13 @@ describe('assertUserUpdate', () => {
     );
   });
 
+  it('lets an Assistant GM be changed although Foundry calls it a GM', () => {
+    const assistant = { id: 'a1', name: 'Assistant GM', role: 3, isGM: true };
+    expect(() =>
+      assertUserUpdate(assistant, ['role'], [], { role: 1 }, 'foundry-setup')
+    ).not.toThrow();
+  });
+
   it('keeps refusing permissions and passwords, alone or with a role', () => {
     for (const path of ['permissions', 'permissions.SETTINGS_MODIFY', 'password', '==role']) {
       expect(() => assertUserUpdate(player, [path], [], { [path]: 1 }, 'foundry-setup')).toThrow(

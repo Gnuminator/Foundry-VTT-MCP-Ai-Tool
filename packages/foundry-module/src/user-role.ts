@@ -55,7 +55,8 @@ export function assertUserRoleChange(
   if (typeof role !== 'number' || !Number.isInteger(role) || role < 0 || role > 3) {
     throw new Error('A role plan may only set None, Player, Trusted Player or Assistant GM');
   }
-  if (user.isGM === true || (typeof user.role === 'number' && user.role > 3)) {
+  // `isGM` is true for an Assistant GM too (role 3), which a plan may change.
+  if (typeof user.role === 'number' && user.role > 3) {
     throw new Error(
       `${user.name ?? 'This user'} is a Gamemaster; the AI Tool does not change them`
     );

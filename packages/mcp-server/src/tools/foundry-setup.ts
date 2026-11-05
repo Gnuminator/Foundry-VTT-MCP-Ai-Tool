@@ -200,7 +200,8 @@ export class FoundrySetupTools {
     if (!user) {
       throw new Error(`No user "${target}" (${users.map(u => u.name).join(', ') || 'none'})`);
     }
-    if (user.isGM || user.role === 'GAMEMASTER') {
+    // Foundry's isGM is true for an Assistant GM too, which may be changed: only the role counts.
+    if (user.role === 'GAMEMASTER') {
       throw new Error(`${user.name} is a Gamemaster; the AI Tool never changes a Gamemaster`);
     }
     if (user.role === value.role) {

@@ -426,7 +426,7 @@ class FoundryMCPBridge {
       this.updateLastActivity();
 
       // Update settings display with connection status
-      this.settings.updateConnectionStatusDisplay(true, 75); // MCP tools exposed by the bridge
+      this.settings.updateConnectionStatusDisplay(true);
 
       // Start heartbeat monitoring if enabled
       this.startHeartbeat();
@@ -489,7 +489,7 @@ class FoundryMCPBridge {
       this.lastConnectionState = 'disconnected';
 
       // Update settings display with disconnected status
-      this.settings.updateConnectionStatusDisplay(false, 0);
+      this.settings.updateConnectionStatusDisplay(false);
 
       logInfo(`[${MODULE_ID}] Bridge stopped`);
 

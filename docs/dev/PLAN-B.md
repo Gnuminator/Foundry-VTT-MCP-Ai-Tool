@@ -57,7 +57,7 @@ once). Real players never join the test server, and they join Plan B only on a g
 - [ ] Node.js 24 is installed (Foundry 14 needs it) and restic (`winget install restic.restic`).
 - [ ] The repo's main checkout is built (`npm ci`, `npm run build`): Plan B runs the bridge and the
       dashboard from it.
-- [ ] Foundry's zip for the Pi's version is in `Downloads` (today `FoundryVTT-Node-14.368.zip`).
+- [ ] Foundry's zip for the Pi's version is in `Downloads` (`FoundryVTT-Node-14.370.zip` once the Pi runs 14.370, before that `FoundryVTT-Node-14.368.zip`).
       **After every Foundry update on the Pi, download the new version's Node.js zip too.**
       `restore.ps1` installs it when the world needs it, and refuses a mismatch: a newer Foundry
       would migrate the world so the Pi could not open it again.

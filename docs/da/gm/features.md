@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 146ae88e8d28
+sourceHash: 8b97e8b98ffe
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -102,6 +102,14 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   afsløring: det kræver, at denne knap er slået til, og det markerer også kortet som afsløret i
   skuffen og lægger en side til spillerne i afsløringsjournalen. Bordet kræver, at kortlægningen
   findes først (lagt eller valgt i skuffen, eller af Claude), og at bridgen er forbundet.
+- **At vende kortet som en ceremoni:** skriv din egen linje til kortet i Flip-boksen. Når du trykker
+  **Flip**, bliver alle skærme mørke, kortet vender langsomt med en blød klokketone, og din linje
+  toner frem under det. Efter få sekunder toner det ud igen (et klik lukker det før), og
+  kortlægningen bliver stående i bordvinduet og på spillersiden med din linje under kortet. Du kan
+  vælge din egen lydfil i modulets indstillinger (Tarokka card flip sound).
+- **Papir som reserve:** hvis skærmene ikke bliver mørke, eller kortet ikke vender (langsom
+  forbindelse, en spiller der kom for sent), er intet tabt. Kortet er stadig vendt og står på
+  spillersiden. Læs bare din linje højt og sig "vend kortet", som med et rigtigt sæt kort.
 - **Mere:** [The Tarokka drawer](dashboard.md#tarokka-skuffen--tarokka).
 
 ## Ownership

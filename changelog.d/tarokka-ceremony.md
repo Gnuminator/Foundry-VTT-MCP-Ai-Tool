@@ -1,0 +1,3 @@
+### Module
+
+- **Tarokka flip as a ceremony:** when the GM flips a card on the Tarokka table, every screen dims, the card turns over slowly with a sound, and the GM's own line for the card (typed in the Flip box) fades in under it. The line stays under the card in the table window afterwards. The sound is a soft built-in chime, or a world audio file set in the module settings ("Tarokka card flip sound"). Reload, a new reading, an Undo and joining late never replay it, and reduced-motion browsers get a still reveal. The flip is the same guarded reveal as before (confirm dialog, undo in Changes); the line is only what the GM typed, no book text ships.

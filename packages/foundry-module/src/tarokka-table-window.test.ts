@@ -122,6 +122,44 @@ describe('TableController', () => {
     expect(get().shown).toBe(false);
   });
 
+  it('keeps the GM line on the flipped slot so the ceremony can show it', async () => {
+    const { controller, get } = makeController({ flipText: '  The sun shines on you.  ' });
+    await controller.load();
+    await controller.place();
+    await controller.flip(0);
+    expect(get().slots[0]).toMatchObject({
+      stage: 'revealed',
+      line: 'The sun shines on you.',
+    });
+    // A later reload keeps the line; a flip with no typed text has none.
+    await controller.load();
+    expect(get().slots[0]?.line).toBe('The sun shines on you.');
+    await controller.place();
+    const second = makeController({ flipText: '' });
+    await second.controller.load();
+    await second.controller.place();
+    await second.controller.flip(0);
+    expect(second.get().slots[0]?.line).toBeUndefined();
+  });
+
+  it('puts the line back when another GM client wrote the flipped card without it', async () => {
+    const { controller, deps, get } = makeController({ flipText: 'Kept line.' });
+    await controller.load();
+    await controller.place();
+    // The other client's write lands last and has no line: the first revealed write loses it.
+    const write = deps.writeTable.bind(deps);
+    let stripNext = true;
+    deps.writeTable = async (t): Promise<void> => {
+      if (!stripNext || !t.slots.some(s => s.stage === 'revealed')) return write(t);
+      stripNext = false;
+      const stripped = { ...t, slots: t.slots.map(s => ({ ...s, line: undefined })) };
+      await write(stripped as PublicTable);
+    };
+    await controller.flip(0);
+    expect(get().slots[0]?.stage).toBe('revealed');
+    expect(get().slots[0]?.line).toBe('Kept line.');
+  });
+
   it('flips a placed card through a normal reveal, then the face appears', async () => {
     const { controller, request, get } = makeController({ flipText: '  ' });
     await controller.load();

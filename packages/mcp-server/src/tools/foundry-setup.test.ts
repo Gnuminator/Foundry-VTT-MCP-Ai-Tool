@@ -43,6 +43,47 @@ const packRow = {
   folder: null,
 };
 
+const dep = (id: string, installed = true, active = true): any => ({ id, installed, active });
+const moduleRows = [
+  { id: 'lib', title: 'Lib', active: false, requires: [], requiredBy: [] },
+  {
+    id: 'libon',
+    title: 'Lib On',
+    active: true,
+    requires: [],
+    requiredBy: ['child', 'bridgeuser', 'foundry-mcp-bridge'],
+  },
+  { id: 'child', title: 'Child', active: true, requires: [dep('libon')], requiredBy: [] },
+  {
+    id: 'fancy',
+    title: 'Fancy',
+    active: false,
+    requires: [dep('lib', true, false)],
+    requiredBy: [],
+  },
+  {
+    id: 'broken',
+    title: 'Broken',
+    active: false,
+    requires: [dep('ghost', false, false)],
+    requiredBy: [],
+  },
+  {
+    id: 'bridgeuser',
+    title: 'Bridge user',
+    active: true,
+    requires: [dep('libon')],
+    requiredBy: [],
+  },
+  {
+    id: 'foundry-mcp-bridge',
+    title: 'AI Tool',
+    active: true,
+    requires: [dep('libon')],
+    requiredBy: [],
+  },
+];
+
 function makeTools(): {
   tools: FoundrySetupTools;
   query: Mock;
@@ -53,6 +94,7 @@ function makeTools(): {
       const rows = [settingRow, secretRow, rangeRow].filter(r => r.id === data.target);
       return { area: 'setting', settings: rows };
     }
+    if (data.area === 'module') return { area: 'module', modules: moduleRows };
     return {
       area: 'pack',
       packs: [packRow],
@@ -248,5 +290,91 @@ describe('plan-foundry-setup: packs', () => {
       /No compendium folder/
     );
     await expect(plan(tools, { ...base, value: {} })).rejects.toThrow(/at least one/);
+  });
+});
+
+describe('plan-foundry-setup: modules', () => {
+  it('turns a module off with one flag and a reload note', async () => {
+    const { tools, createPlan } = makeTools();
+    const out = await plan(tools, { mode: 'plan', area: 'module', target: 'child', value: false });
+    const input = createPlan.mock.calls[0][0];
+    expect(input.ops).toEqual([
+      {
+        kind: 'update',
+        uuid: 'GameSetting.core.moduleConfiguration',
+        changes: { 'value.child': false },
+      },
+    ]);
+    expect(out.notes.join(' ')).toMatch(/reload/i);
+    expect(out.autoApply).toBe(false);
+  });
+
+  it('turns on the modules a module requires, and names them', async () => {
+    const { tools, createPlan } = makeTools();
+    const out = await plan(tools, { mode: 'plan', area: 'module', target: 'Fancy', value: true });
+    expect(createPlan.mock.calls[0][0].ops[0].changes).toEqual({
+      'value.fancy': true,
+      'value.lib': true,
+    });
+    expect(out.notes.join(' ')).toMatch(/Also turned on.*Lib/);
+  });
+
+  it('refuses a missing dependency, a no-op, a bad value and an unknown module', async () => {
+    const { tools } = makeTools();
+    const run = (target: string, value: unknown): Promise<any> =>
+      plan(tools, { mode: 'plan', area: 'module', target, value });
+    await expect(run('broken', true)).rejects.toThrow(/not installed: ghost/);
+    await expect(run('child', true)).rejects.toThrow(/already on/);
+    await expect(run('child', 'yes')).rejects.toThrow(/true \(on\) or false/);
+    await expect(run('chld', false)).rejects.toThrow(/No installed module/);
+  });
+
+  it('never turns off the AI Tool or what it needs', async () => {
+    const { tools } = makeTools();
+    await expect(
+      plan(tools, { mode: 'plan', area: 'module', target: 'foundry-mcp-bridge', value: false })
+    ).rejects.toThrow(/AI Tool module cannot be turned off/);
+    await expect(
+      plan(tools, { mode: 'plan', area: 'module', target: 'libon', value: false })
+    ).rejects.toThrow(/AI Tool module needs libon/);
+  });
+});
+
+describe('plan-foundry-setup: round-2 lows', () => {
+  it('reports a read error and a too-long value instead of "no value yet"', async () => {
+    const { tools, query } = makeTools();
+    query.mockReturnValueOnce({
+      area: 'setting',
+      settings: [{ ...settingRow, value: undefined, valueError: 'boom' }],
+    });
+    await expect(
+      plan(tools, { mode: 'plan', area: 'setting', target: settingRow.id, value: '5105' })
+    ).rejects.toThrow(/could not be read \(boom\)/);
+    query.mockReturnValueOnce({
+      area: 'setting',
+      settings: [{ ...settingRow, tooLong: true, value: '(5000 characters)' }],
+    });
+    await expect(
+      plan(tools, { mode: 'plan', area: 'setting', target: settingRow.id, value: '5105' })
+    ).rejects.toThrow(/too much data/);
+  });
+
+  it('puts the Assistant GM back to OWNER when the pack already has it lower', async () => {
+    const { tools, createPlan, query } = makeTools();
+    query.mockReturnValueOnce({
+      area: 'pack',
+      packs: [{ ...packRow, ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OBSERVER' } }],
+      folders: [],
+    });
+    await plan(tools, {
+      mode: 'plan',
+      area: 'pack',
+      target: 'dnd5e.monsters',
+      value: { ownership: { PLAYER: 'NONE' } },
+    });
+    expect(createPlan.mock.calls[0][0].ops[0].changes.ownership).toEqual({
+      PLAYER: 'NONE',
+      ASSISTANT: 'OWNER',
+    });
   });
 });

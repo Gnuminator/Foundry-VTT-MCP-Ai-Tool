@@ -222,9 +222,10 @@ describe('settings as a guarded target', () => {
       /looks like a secret/
     );
     world.setSetting('dnd5e', 'diagonalMovement', 'x'.repeat(5000));
-    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).rejects.toThrow(
-      /too much data/
-    );
+    // Too long to read back: "not found", so an undo of other changes is not blocked by it.
+    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).resolves.toEqual([
+      { exists: false },
+    ]);
   });
 
   it('checks the new value against the setting field before anything is confirmed', async () => {
@@ -376,5 +377,48 @@ describe('getSetupInfo', () => {
     });
     expect(info.folders).toEqual([{ id: 'f1', name: 'Hidden' }]);
     expect(() => getSetupInfo({ area: 'bogus' })).toThrow();
+  });
+
+  it('lists modules with what they require and what needs them', () => {
+    const mk = (id: string, active: boolean, requires: any[] = []): any => ({
+      id,
+      title: id.toUpperCase(),
+      version: '1',
+      active,
+      relationships: { requires: new Set(requires) },
+    });
+    g.game.modules = new Map<string, any>([
+      ['lib', mk('lib', true)],
+      ['child', mk('child', true, [{ id: 'lib', type: 'module' }])],
+      [
+        'off',
+        mk('off', false, [
+          { id: 'gone', type: 'module' },
+          { id: 'dnd5e', type: 'system' },
+        ]),
+      ],
+    ]);
+    g.game.system = { id: 'dnd5e' };
+    const info = getSetupInfo({ area: 'module', target: '' }) as any;
+    const byId = Object.fromEntries(info.modules.map((m: any) => [m.id, m]));
+    expect(byId.lib.requiredBy).toEqual(['child']);
+    expect(byId.child.requires).toEqual([{ id: 'lib', installed: true, active: true }]);
+    expect(byId.off.requires).toEqual([
+      { id: 'gone', installed: false, active: false },
+      { id: 'dnd5e', installed: true, active: true },
+    ]);
+    expect((getSetupInfo({ area: 'module', target: 'chil' }) as any).modules).toHaveLength(1);
+  });
+
+  it('lets an undo put a pack back that has the Assistant below OWNER', async () => {
+    world.setSetting('core', 'compendiumConfiguration', {
+      'dnd5e.monsters': { ownership: { PLAYER: 'NONE', ASSISTANT: 'OBSERVER' } },
+    });
+    const op: GuardedOp = {
+      kind: 'update',
+      uuid: 'PackConfig.dnd5e.monsters',
+      changes: { ownership: { PLAYER: 'NONE', ASSISTANT: 'OBSERVER' } },
+    };
+    await expect(snapshotGuardedOps([op])).resolves.toHaveLength(1);
   });
 });

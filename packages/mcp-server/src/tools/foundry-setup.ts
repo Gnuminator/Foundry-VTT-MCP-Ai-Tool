@@ -3,6 +3,8 @@ import {
   FOUNDRY_SETUP_AREAS,
   FOUNDRY_SETUP_FEATURE_ID,
   FOUNDRY_SETUP_MODES,
+  MODULE_CONFIG_SETTING,
+  MODULE_ID,
   PACK_OWNERSHIP_LEVELS,
   PACK_OWNERSHIP_ROLES,
   PACK_UUID_PREFIX,
@@ -57,6 +59,8 @@ interface SettingRow {
   choices?: Record<string, unknown>;
   range?: { min?: number; max?: number; step?: number };
   redacted?: true;
+  tooLong?: true;
+  valueError?: string;
   value?: unknown;
 }
 
@@ -69,10 +73,20 @@ interface PackRow {
   folder: { id: string | null; name: string | null } | null;
 }
 
+interface ModuleRow {
+  id: string;
+  title: string;
+  active: boolean;
+  requires: Array<{ id: string; installed: boolean; active: boolean }>;
+  /** Active modules that require this one. */
+  requiredBy: string[];
+}
+
 interface SetupInfo {
   area: string;
   settings?: SettingRow[];
   packs?: PackRow[];
+  modules?: ModuleRow[];
   folders?: Array<{ id: string; name: string }>;
 }
 
@@ -102,7 +116,7 @@ export class FoundrySetupTools {
       {
         name: 'plan-foundry-setup',
         description:
-          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
+          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and the GM window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -147,9 +161,93 @@ export class FoundrySetupTools {
     }
     if (!p.target) throw new Error('Plan mode needs a target');
     if (p.value === undefined) throw new Error('Plan mode needs a value');
-    return p.area === 'setting'
-      ? this.planSetting(p.target, p.value)
-      : this.planPack(p.target, p.value);
+    if (p.area === 'setting') return this.planSetting(p.target, p.value);
+    if (p.area === 'module') return this.planModule(p.target, p.value);
+    return this.planPack(p.target, p.value);
+  }
+
+  /**
+   * A module on or off for the world: one update of `core.moduleConfiguration`, one flag per
+   * module. Turning one on also turns on the installed modules it requires; turning one off also
+   * turns off the active modules that require it. Both lists are in the plan.
+   */
+  private async planModule(target: string, value: unknown): Promise<unknown> {
+    if (typeof value !== 'boolean') throw new Error('A module value is true (on) or false (off)');
+    const modules = (await this.info('module', undefined)).modules ?? [];
+    const wanted = target.trim().toLowerCase();
+    const row =
+      modules.find(m => m.id.toLowerCase() === wanted) ??
+      modules.find(m => m.title.toLowerCase() === wanted);
+    if (!row) {
+      const near = modules
+        .filter(m => `${m.id} ${m.title}`.toLowerCase().includes(wanted))
+        .slice(0, 8)
+        .map(m => m.id);
+      throw new Error(
+        `No installed module "${target}"${near.length ? ` (did you mean ${near.join(', ')}?)` : ''}`
+      );
+    }
+    if (row.id === MODULE_ID) throw new Error('The AI Tool module cannot be turned off by a plan');
+    if (row.active === value) {
+      throw new Error(
+        `Nothing to change: ${row.title} (${row.id}) is already ${value ? 'on' : 'off'}`
+      );
+    }
+    const byId = new Map(modules.map(m => [m.id, m]));
+    const flips = new Map<string, ModuleRow>();
+    const missing: string[] = [];
+    const visit = (m: ModuleRow): void => {
+      if (flips.has(m.id)) return;
+      flips.set(m.id, m);
+      if (value) {
+        for (const dep of m.requires) {
+          if (!dep.installed) missing.push(`${dep.id} (needed by ${m.id})`);
+          else if (!dep.active) {
+            const depRow = byId.get(dep.id);
+            if (depRow) visit(depRow);
+          }
+        }
+      } else {
+        for (const id of m.requiredBy) {
+          const user = byId.get(id);
+          if (user?.active) visit(user);
+        }
+      }
+    };
+    visit(row);
+    if (missing.length > 0) {
+      throw new Error(`${row.title} cannot be turned on: not installed: ${missing.join(', ')}`);
+    }
+    if (flips.has(MODULE_ID)) {
+      throw new Error(`The AI Tool module needs ${row.id}, so it cannot be turned off by a plan`);
+    }
+    const changes: Record<string, unknown> = {};
+    const pathLabels: Record<string, string> = {};
+    for (const m of flips.values()) {
+      changes[`value.${m.id}`] = value;
+      pathLabels[`value.${m.id}`] = `${m.title} (${m.id})`;
+    }
+    const others = [...flips.values()].filter(m => m.id !== row.id);
+    const state = value ? 'on' : 'off';
+    const notes = [
+      'Foundry loads modules only at startup. After the apply, or the undo, this GM window reloads by itself (a few seconds, the bridge reconnects); each player gets Foundry’s reload prompt.',
+    ];
+    if (others.length > 0) {
+      notes.push(
+        value
+          ? `Also turned on, because ${row.title} requires them: ${others.map(m => m.title).join(', ')}.`
+          : `Also turned off, because they require ${row.title}: ${others.map(m => m.title).join(', ')}.`
+      );
+    }
+    const plan = await this.guardedWrites.createPlan({
+      feature: FOUNDRY_SETUP_FEATURE_ID,
+      summary: `Turn ${row.title} (${row.id}) ${state}${others.length ? ` with ${others.length} more` : ''}`,
+      ops: [{ kind: 'update', uuid: `${SETTING_UUID_PREFIX}${MODULE_CONFIG_SETTING}`, changes }],
+      pathLabels,
+      notes,
+    });
+    this.logger.info(`Planned module ${row.id} ${state}`);
+    return { ...plan, notes, autoApply: false };
   }
 
   private async planSetting(target: string, value: unknown): Promise<unknown> {
@@ -163,6 +261,12 @@ export class FoundrySetupTools {
       throw new Error(
         `${target} is a hidden setting (module bookkeeping, not on a settings screen); plans do not change those`
       );
+    }
+    if (row.valueError) {
+      throw new Error(`${target} could not be read (${row.valueError}); it is not planned`);
+    }
+    if (row.tooLong) {
+      throw new Error(`${target} holds too much data to change through a plan`);
     }
     if (row.value === undefined) {
       throw new Error(`${target} has no value yet; set it once in Foundry first`);
@@ -240,6 +344,12 @@ export class FoundrySetupTools {
         if (!level || current[role] === level) continue;
         merged[role] = level;
         lines.push(`${role}: ${current[role] ?? 'inherits'} to ${level}`);
+      }
+      // A pack that already has the Assistant GM below OWNER is put right in the same change:
+      // the module accepts only a map that keeps (or restores) OWNER for it.
+      if (current.ASSISTANT !== undefined && current.ASSISTANT !== 'OWNER') {
+        merged.ASSISTANT = 'OWNER';
+        lines.push(`ASSISTANT: ${current.ASSISTANT} to OWNER (the bridge needs it)`);
       }
       // A role gets the highest level of its own and every lower role, so a lower level set on
       // a higher role does nothing while a lower role keeps a higher one.

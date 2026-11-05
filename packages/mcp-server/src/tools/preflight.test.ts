@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
 import { BUILD_ID } from '../build-id.js';
+import type { PumpHealthSnapshot } from '../pump-health.js';
 import { WrapperRegistry } from '../wrapper-registry.js';
 import { PreflightTools, type PreflightToolsOptions } from './preflight.js';
 
@@ -41,6 +42,7 @@ interface Setup {
   paperNights?: Array<{ date: string; startedAt: string }>;
   paperNightsError?: string;
   wrappers?: Array<{ version: string | null; build?: string; sets: string }>;
+  pumps?: PumpHealthSnapshot[];
 }
 
 function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
@@ -88,6 +90,7 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
       },
     },
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
+    ...(setup.pumps ? { pumpHealth: () => setup.pumps ?? [] } : {}),
     logger: logger(),
     bridgeVersion: '1.2.3',
     wrapperStatus: () => {
@@ -105,6 +108,54 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
 function byId(result: PreflightChecksResult): Record<string, { status: string; detail: string }> {
   return Object.fromEntries(result.checks.map(c => [c.id, c]));
 }
+
+const PUMP_OK: PumpHealthSnapshot = {
+  pump: 'play',
+  lastSuccessAt: '2026-11-05T20:00:00.000Z',
+  lastError: null,
+  lostCount: 0,
+  gapCount: 0,
+  lastGap: null,
+  notRecordingSince: null,
+};
+
+describe('get-preflight recording check', () => {
+  it('is info with no pumps, unknown before the first read, ok when clean', async () => {
+    const get = async (pumps?: PumpHealthSnapshot[]): Promise<{ status: string } | undefined> =>
+      byId(
+        (await tools(pumps ? { pumps } : {}).tools.handleGetPreflight({})) as PreflightChecksResult
+      ).recording;
+    expect((await get())?.status).toBe('info');
+    expect((await get([{ ...PUMP_OK, lastSuccessAt: null }]))?.status).toBe('unknown');
+    expect((await get([PUMP_OK]))?.status).toBe('ok');
+  });
+
+  it('warns, in plain words, about an outage, an error and lost records', async () => {
+    const result = (await tools({
+      pumps: [
+        {
+          ...PUMP_OK,
+          notRecordingSince: '2026-11-05T20:05:00.000Z',
+          lastError: { message: 'disk full', at: '2026-11-05T20:04:00.000Z' },
+          lostCount: 7,
+          gapCount: 2,
+          lastGap: {
+            reason: 'ring-wrap',
+            at: '2026-11-05T20:03:00.000Z',
+            fromMs: 1,
+            toMs: 2,
+          },
+        },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    const rec = byId(result).recording;
+    expect(rec?.status).toBe('warn');
+    expect(rec?.detail).toContain('not recording since 2026-11-05T20:05:00.000Z');
+    expect(rec?.detail).toContain('disk full');
+    expect(rec?.detail).toContain('7 records lost');
+    expect(result.ready).toBe(true);
+  });
+});
 
 describe('get-preflight', () => {
   it('is one read tool with an action parameter', () => {
@@ -126,6 +177,7 @@ describe('get-preflight', () => {
       'modules',
       'obsidian',
       'play-session',
+      'recording',
     ]);
     const c = byId(result);
     expect(c['foundry-link']?.status).toBe('ok');

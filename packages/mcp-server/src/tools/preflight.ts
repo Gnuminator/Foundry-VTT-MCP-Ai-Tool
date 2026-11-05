@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
+import type { PumpHealthSnapshot } from '../pump-health.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-registry.js';
@@ -34,6 +35,8 @@ export interface PreflightToolsOptions {
   /** FOUNDRY_AI_OBSIDIAN_DIR is set (Obsidian notes render). */
   obsidianVaultDirSet: boolean;
   logger: Logger;
+  /** Health of the vault pumps (session events, play log); absent when none runs. */
+  pumpHealth?: () => PumpHealthSnapshot[];
   /** The stdio wrappers connected to this backend and their versions. */
   wrapperStatus?: () => WrapperStatus;
   /** Tests only: the bridge's version (default: the shared TOOL_VERSION). */
@@ -222,6 +225,7 @@ export class PreflightTools {
           }
     );
     checks.push(await this.playSessionCheck());
+    checks.push(this.recordingCheck());
 
     return {
       ready: !checks.some(c => c.status === 'fail'),
@@ -229,6 +233,64 @@ export class PreflightTools {
       scan,
       bridgeVersion: this.bridgeVersion,
       moduleVersion,
+    };
+  }
+
+  /** Whether the pumps that write the session and play logs are recording, and what they lost. */
+  private recordingCheck(): PreflightCheck {
+    const label = 'Session and play log recording';
+    const pumps = this.options.pumpHealth?.() ?? [];
+    if (pumps.length === 0) {
+      return {
+        id: 'recording',
+        label,
+        status: 'info',
+        detail: 'The session and play logs are switched off, so nothing is being recorded.',
+      };
+    }
+    const problems: string[] = [];
+    let unknown = false;
+    for (const p of pumps) {
+      if (p.notRecordingSince) {
+        problems.push(`${p.pump}: not recording since ${p.notRecordingSince} (no link to Foundry)`);
+      } else if (p.lastSuccessAt === null) {
+        unknown = true;
+      }
+      if (p.lastError) {
+        problems.push(`${p.pump}: last error at ${p.lastError.at}: ${p.lastError.message}`);
+      }
+      if (p.gapCount > 0 && p.lastGap) {
+        const lost = p.lostCount > 0 ? `, ${plural(p.lostCount, 'record')} lost` : '';
+        problems.push(
+          `${p.pump}: ${plural(p.gapCount, 'gap')} since the backend started (last ${p.lastGap.reason} at ${p.lastGap.at})${lost}`
+        );
+      }
+    }
+    if (problems.length > 0) {
+      return {
+        id: 'recording',
+        label,
+        status: 'warn',
+        detail: `${problems.join('; ')}. A gap marker is in the session log.`,
+      };
+    }
+    if (unknown) {
+      return {
+        id: 'recording',
+        label,
+        status: 'unknown',
+        detail: 'Nothing has been read from Foundry yet since the backend started.',
+      };
+    }
+    const last = pumps
+      .map(p => p.lastSuccessAt ?? '')
+      .sort()
+      .at(-1);
+    return {
+      id: 'recording',
+      label,
+      status: 'ok',
+      detail: `Recording; last read ${last}. No gaps since the backend started.`,
     };
   }
 

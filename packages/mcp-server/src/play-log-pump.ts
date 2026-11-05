@@ -41,6 +41,7 @@ import {
 import { DEFAULT_EVENT_POLL_MS, localDateKey } from './event-pump.js';
 import type { FoundryClient } from './foundry-client.js';
 import type { Logger } from './logger.js';
+import { PumpHealth, gapMarkerLine, type PumpGap } from './pump-health.js';
 import type { VaultStore } from './vault/store.js';
 import type { WorldIdResolver } from './vault/world-id.js';
 
@@ -109,6 +110,9 @@ export class PlayLogPump {
   /** Keys already on disk for `<worldId>::<dateKey>`, read from the file once per process. */
   private readonly writtenKeys = new Map<string, Set<string>>();
   private lastError: string | null = null;
+  /** Time of the newest record this process wrote, the start of a gap window. */
+  private lastRecordMs: number | null = null;
+  readonly health = new PumpHealth('play');
 
   constructor(options: PlayLogPumpOptions) {
     this.foundry = options.foundryClient;
@@ -145,6 +149,7 @@ export class PlayLogPump {
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
+        this.health.error(message, Date.now());
         if (message !== this.lastError) {
           this.logger.warn('Play log poll failed', { error: message });
         }
@@ -159,13 +164,19 @@ export class PlayLogPump {
   }
 
   private async poll(): Promise<number> {
-    if (!this.foundry.isConnected()) return 0;
+    if (!this.foundry.isConnected()) {
+      this.health.linkDown(Date.now());
+      return 0;
+    }
+    this.health.linkUp();
     const worldId = await this.worldIds.current();
     const state = await this.loadState(worldId);
 
+    const gaps: Array<Omit<PumpGap, 'toMs'>> = [];
     let response = await this.fetchRecords(state.lastSeq);
     const restarted = state.clientId !== null && response.clientId !== state.clientId;
     if (restarted) {
+      gaps.push({ reason: 'foundry-reload', fromMs: this.lastRecordMs ?? 0, lost: null });
       // The buffer's seq numbering restarted at 1; the cursor we just asked
       // for meant nothing to it. Re-ask for everything it still has.
       response = await this.fetchRecords(0);
@@ -175,6 +186,11 @@ export class PlayLogPump {
         clientId: response.clientId,
         expectedFrom: state.lastSeq + 1,
         oldestSeq: response.oldestSeq,
+      });
+      gaps.push({
+        reason: 'ring-wrap',
+        fromMs: this.lastRecordMs ?? 0,
+        lost: response.oldestSeq - (state.lastSeq + 1),
       });
     }
 
@@ -189,6 +205,16 @@ export class PlayLogPump {
       this.logger.warn('Play log dropped invalid records', { worldId, count: invalid });
     }
 
+    const now = Date.now();
+    const firstT = valid.length > 0 ? Math.min(...valid.map(r => r.t)) : now;
+    for (const g of gaps) {
+      const gap: PumpGap = { ...g, fromMs: g.fromMs || firstT, toMs: firstT };
+      await this.store.appendLines(worldId, 'sessions', `${localDateKey(now)}.jsonl`, [
+        gapMarkerLine(this.health.pump, gap, now),
+      ]);
+      this.health.gap(gap, now);
+    }
+
     const appended: PlayRecord[] = [];
     const written = await this.appendByDate(worldId, valid, appended);
 
@@ -196,6 +222,9 @@ export class PlayLogPump {
     state.clientId = response.clientId;
     state.lastSeq = response.latestSeq;
     if (changed) await this.saveState(worldId);
+    if (valid.length > 0)
+      this.lastRecordMs = Math.max(this.lastRecordMs ?? 0, ...valid.map(r => r.t));
+    this.health.success(now);
 
     if (written > 0) {
       this.notifyAppended(worldId, written);

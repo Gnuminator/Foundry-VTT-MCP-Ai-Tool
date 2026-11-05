@@ -22,6 +22,7 @@ import { parseReading } from './tarokka-model.js';
 import {
   canFlip,
   ceremonyFor,
+  cleanLine,
   lineAdded,
   emptyGmView,
   emptyTable,
@@ -233,9 +234,25 @@ export class TableController {
         });
         this.deps.notifyInfo(`Flipped: ${slot.label}`);
         await this.load();
+        await this.restoreLine(index, slot.cardId);
       } finally {
         delete pendingLines[slot.cardId];
       }
+    });
+  }
+
+  /**
+   * Another GM client's change watcher may write the flipped card a moment after ours and drop
+   * the line (last write wins): look once more and put the typed line back if it is missing.
+   */
+  private async restoreLine(index: number, cardId: string): Promise<void> {
+    const line = cleanLine(pendingLines[cardId]);
+    const table = this.deps.readTable();
+    const now = table.slots[index];
+    if (!line || now?.stage !== 'revealed' || now.cardId !== cardId || now.line) return;
+    await this.saveTable({
+      ...table,
+      slots: table.slots.map((s, i) => (i === index ? { ...s, line } : s)),
     });
   }
 

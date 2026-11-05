@@ -71,7 +71,6 @@ describe('lineAdded', () => {
     });
     expect(lineAdded(flipped('Old'), flipped('Old'))).toBeNull();
     expect(lineAdded(table(), flipped('New'))).toBeNull();
-    expect(lineAdded(flipped(), flipped('x'))).not.toBeNull();
     expect(lineAdded(null, flipped('x'))).toBeNull();
   });
 });

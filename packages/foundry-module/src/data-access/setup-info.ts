@@ -8,6 +8,8 @@
  * - `area: "pack"`: compendium packs with their effective and configured ownership, locked flag
  *   and folder, plus the Compendium folders a pack can sit in.
  * - `area: "module"`: installed modules, on or off, with what each requires and what needs it.
+ * - `area: "user"`: users with role, password set or not, and the actors each owns.
+ * - `area: "ownership"`: world journals or scenes with their default and per-user level.
  */
 import {
   MAX_SETTING_JSON,
@@ -243,11 +245,110 @@ function modulesInfo(target: string | undefined): unknown {
   };
 }
 
+interface UserLike {
+  id: string;
+  name?: string;
+  role?: number;
+  isGM?: boolean;
+  active?: boolean;
+  hasPassword?: unknown;
+}
+
+const ROLE_NAMES: Record<number, string> = {
+  0: 'NONE',
+  1: 'PLAYER',
+  2: 'TRUSTED',
+  3: 'ASSISTANT',
+  4: 'GAMEMASTER',
+};
+const LEVEL_NAMES: Record<number, string> = {
+  [-1]: 'INHERIT',
+  0: 'NONE',
+  1: 'LIMITED',
+  2: 'OBSERVER',
+  3: 'OWNER',
+};
+
+/**
+ * Users with their role, whether a password is set (never the password or its hash) and the
+ * actors each owns, for the setup tool and for a login check.
+ */
+function usersInfo(target: string | undefined): unknown {
+  const lower = (target ?? '').trim().toLowerCase();
+  const users = [...(game.users as unknown as Iterable<UserLike>)];
+  const actors = [
+    ...((game.actors ?? []) as unknown as Iterable<{
+      name?: string;
+      ownership?: Record<string, number>;
+    }>),
+  ];
+  const rows = users
+    .filter(u => !lower || `${u.id} ${u.name ?? ''}`.toLowerCase().includes(lower))
+    .map(u => {
+      const owns = actors
+        .filter(a => a.ownership?.[u.id] === 3)
+        .map(a => a.name ?? '?')
+        .slice(0, 20);
+      return {
+        id: u.id,
+        name: u.name ?? u.id,
+        role: ROLE_NAMES[u.role ?? 0] ?? String(u.role),
+        isGM: u.isGM === true,
+        active: u.active === true,
+        hasPassword: typeof u.hasPassword === 'boolean' ? u.hasPassword : null,
+        owns,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { area: 'user', total: rows.length, shown: Math.min(rows.length, LIST_CAP), users: rows };
+}
+
+/**
+ * Ownership of world journals and scenes: `target` is `journal` or `scene`, optionally followed by
+ * `:` and a part of the name or an id. Each row has the default level and the level per user.
+ */
+function ownershipInfo(target: string | undefined): unknown {
+  const [kindRaw, ...rest] = (target ?? '').split(':');
+  const kind = (kindRaw ?? '').trim().toLowerCase();
+  if (kind !== 'journal' && kind !== 'scene') {
+    throw new Error('Ownership target is "journal" or "scene", optionally ":" and a name');
+  }
+  const wanted = rest.join(':').trim().toLowerCase();
+  const collection = (kind === 'journal' ? game.journal : game.scenes) as unknown as
+    | Iterable<{ id: string; name?: string; ownership?: Record<string, number> }>
+    | undefined;
+  const users = [...(game.users as unknown as Iterable<UserLike>)];
+  const nameOf = new Map(users.map(u => [u.id, u.name ?? u.id]));
+  const docs = [...(collection ?? [])]
+    .filter(
+      d =>
+        !wanted || d.id === rest.join(':').trim() || (d.name ?? '').toLowerCase().includes(wanted)
+    )
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+  const rows = docs.slice(0, LIST_CAP).map(d => {
+    const own = d.ownership ?? {};
+    const perUser: Record<string, string> = {};
+    for (const [id, level] of Object.entries(own)) {
+      if (id === 'default') continue;
+      perUser[nameOf.get(id) ?? id] = LEVEL_NAMES[level] ?? String(level);
+    }
+    return {
+      id: d.id,
+      name: d.name ?? d.id,
+      default: LEVEL_NAMES[own.default ?? 0] ?? String(own.default),
+      users: perUser,
+    };
+  });
+  return { area: 'ownership', kind, total: docs.length, shown: rows.length, documents: rows };
+}
+
 export function getSetupInfo(data: unknown): unknown {
   const { area, target } = (data ?? {}) as { area?: unknown; target?: unknown };
   const text = typeof target === 'string' ? target : undefined;
   if (area === 'setting') return settingsInfo(text);
   if (area === 'pack') return packsInfo(text);
   if (area === 'module') return modulesInfo(text);
-  throw new Error('getSetupInfo needs area "setting", "pack" or "module"');
+  if (area === 'user') return usersInfo(text);
+  if (area === 'ownership') return ownershipInfo(text);
+  throw new Error('getSetupInfo needs area "setting", "pack", "module", "user" or "ownership"');
 }

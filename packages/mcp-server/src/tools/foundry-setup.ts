@@ -8,7 +8,11 @@ import {
   PACK_OWNERSHIP_LEVELS,
   PACK_OWNERSHIP_ROLES,
   PACK_UUID_PREFIX,
+  SETTABLE_USER_ROLES,
   SETTING_UUID_PREFIX,
+  SETUP_OWNERSHIP_TYPES,
+  USER_UUID_PREFIX,
+  type SettableUserRole,
   freeText,
   unwrapBridgeReply,
   type GuardedOp,
@@ -82,11 +86,27 @@ interface ModuleRow {
   requiredBy: string[];
 }
 
+interface UserRow {
+  id: string;
+  name: string;
+  role: string;
+  isGM: boolean;
+}
+
+interface OwnershipDocRow {
+  id: string;
+  name: string;
+  default: string;
+  users: Record<string, string>;
+}
+
 interface SetupInfo {
   area: string;
   settings?: SettingRow[];
   packs?: PackRow[];
   modules?: ModuleRow[];
+  users?: UserRow[];
+  documents?: OwnershipDocRow[];
   folders?: Array<{ id: string; name: string }>;
 }
 
@@ -116,7 +136,7 @@ export class FoundrySetupTools {
       {
         name: 'plan-foundry-setup',
         description:
-          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and the GM window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
+          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role, password set, owned actors; never a Gamemaster). area ownership: target journal:name or scene:name, value {default, users:{name: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and the GM window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -163,7 +183,115 @@ export class FoundrySetupTools {
     if (p.value === undefined) throw new Error('Plan mode needs a value');
     if (p.area === 'setting') return this.planSetting(p.target, p.value);
     if (p.area === 'module') return this.planModule(p.target, p.value);
+    if (p.area === 'user') return this.planUser(p.target, p.value);
+    if (p.area === 'ownership') return this.planOwnership(p.target, p.value);
     return this.planPack(p.target, p.value);
+  }
+
+  /** A user's role: one update of `User.<id>` path `role`. Never a Gamemaster, never the bridge user. */
+  private async planUser(target: string, raw: unknown): Promise<unknown> {
+    const value = z
+      .object({ role: z.enum(Object.keys(SETTABLE_USER_ROLES) as [string, ...string[]]) })
+      .strict()
+      .parse(raw);
+    const users = (await this.info('user', undefined)).users ?? [];
+    const wanted = target.trim().toLowerCase();
+    const user = users.find(u => u.id === target.trim() || u.name.toLowerCase() === wanted);
+    if (!user) {
+      throw new Error(`No user "${target}" (${users.map(u => u.name).join(', ') || 'none'})`);
+    }
+    if (user.isGM || user.role === 'GAMEMASTER') {
+      throw new Error(`${user.name} is a Gamemaster; the AI Tool never changes a Gamemaster`);
+    }
+    if (user.role === value.role) {
+      throw new Error(`Nothing to change: ${user.name} already has the role ${user.role}`);
+    }
+    const role = SETTABLE_USER_ROLES[value.role as SettableUserRole];
+    const notes = [
+      'Only None, Player, Trusted Player and Assistant GM can be set; a Gamemaster is never made or changed here. Passwords are never read or set.',
+    ];
+    if (value.role === 'ASSISTANT') {
+      notes.push(
+        'An Assistant GM sees and changes most of the world: give it to a person you trust.'
+      );
+    }
+    const plan = await this.guardedWrites.createPlan({
+      feature: FOUNDRY_SETUP_FEATURE_ID,
+      summary: `Change ${user.name}'s role: ${user.role} to ${value.role}`,
+      ops: [{ kind: 'update', uuid: `${USER_UUID_PREFIX}${user.id}`, changes: { role } }],
+      pathLabels: { role: `role of ${user.name}` },
+      notes,
+    });
+    this.logger.info(`Planned role change for ${user.name}`);
+    return { ...plan, notes, autoApply: false };
+  }
+
+  /**
+   * Who may see or edit a world journal or scene: the default level and per-user levels, one
+   * update of `ownership.default` and `ownership.<userId>`. Actors have plan-ownership-change.
+   */
+  private async planOwnership(target: string, raw: unknown): Promise<unknown> {
+    const levels = z.enum(PACK_OWNERSHIP_LEVELS);
+    const value = z
+      .object({ default: levels.optional(), users: z.record(levels).optional() })
+      .strict()
+      .parse(raw);
+    if (value.default === undefined && !value.users) {
+      throw new Error('Give a default level, users with levels, or both');
+    }
+    const [kind, ...rest] = target.split(':');
+    const name = rest.join(':').trim();
+    if (!(SETUP_OWNERSHIP_TYPES as readonly string[]).includes(kind?.trim() ?? '') || !name) {
+      throw new Error('An ownership target is journal:<name or id> or scene:<name or id>');
+    }
+    const info = await this.info('ownership', `${kind?.trim()}:${name}`);
+    const docs = info.documents ?? [];
+    const exact = docs.filter(d => d.id === name || d.name.toLowerCase() === name.toLowerCase());
+    const found = exact.length === 1 ? exact : docs;
+    if (found.length === 0) throw new Error(`No ${kind} matches "${name}"`);
+    if (found.length > 1) {
+      throw new Error(
+        `"${name}" matches ${found
+          .slice(0, 8)
+          .map(d => d.name)
+          .join(', ')}: name one of them`
+      );
+    }
+    const doc = found[0];
+    const users = (await this.info('user', undefined)).users ?? [];
+    const changes: Record<string, unknown> = {};
+    const pathLabels: Record<string, string> = {};
+    const lines: string[] = [];
+    if (value.default !== undefined && value.default !== doc.default) {
+      changes['ownership.default'] = PACK_OWNERSHIP_LEVELS.indexOf(value.default);
+      pathLabels['ownership.default'] = 'default for everyone';
+      lines.push(`everyone else: ${doc.default} to ${value.default}`);
+    }
+    for (const [userName, level] of Object.entries(value.users ?? {})) {
+      const user = users.find(u => u.name.toLowerCase() === userName.toLowerCase());
+      if (!user) throw new Error(`No user "${userName}" (${users.map(u => u.name).join(', ')})`);
+      if (user.isGM) throw new Error(`${user.name} is a Gamemaster and sees everything already`);
+      const was = doc.users[user.name] ?? 'inherits';
+      if (was === level) continue;
+      changes[`ownership.${user.id}`] = PACK_OWNERSHIP_LEVELS.indexOf(level);
+      pathLabels[`ownership.${user.id}`] = `${user.name}`;
+      lines.push(`${user.name}: ${was} to ${level}`);
+    }
+    if (Object.keys(changes).length === 0) {
+      throw new Error(`Nothing to change: ${doc.name} already looks like that`);
+    }
+    const uuid = `${kind?.trim() === 'journal' ? 'JournalEntry' : 'Scene'}.${doc.id}`;
+    const notes = [
+      'This changes what players can open or see; journals and scenes can hold spoilers.',
+    ];
+    const plan = await this.guardedWrites.createPlan({
+      feature: FOUNDRY_SETUP_FEATURE_ID,
+      summary: `Ownership of ${doc.name}: ${lines.join(', ')}`,
+      ops: [{ kind: 'update', uuid, changes }],
+      pathLabels,
+      notes,
+    });
+    return { ...plan, notes: [...lines, ...notes], autoApply: false };
   }
 
   /**

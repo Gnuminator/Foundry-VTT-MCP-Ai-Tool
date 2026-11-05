@@ -410,6 +410,64 @@ describe('getSetupInfo', () => {
     expect((getSetupInfo({ area: 'module', target: 'chil' }) as any).modules).toHaveLength(1);
   });
 
+  it('lists users with role, password flag and owned actors, never a password', () => {
+    g.game.users = [
+      {
+        id: 'u1',
+        name: 'Ask',
+        role: 1,
+        isGM: false,
+        active: true,
+        hasPassword: true,
+        password: 'x',
+      },
+      { id: 'u2', name: 'Danni', role: 4, isGM: true, active: false },
+    ];
+    g.game.actors = [
+      { name: 'Cora', ownership: { u1: 3, default: 0 } },
+      { name: 'Wolf', ownership: {} },
+    ];
+    const info = getSetupInfo({ area: 'user' }) as any;
+    expect(info.users).toEqual([
+      {
+        id: 'u1',
+        name: 'Ask',
+        role: 'PLAYER',
+        isGM: false,
+        active: true,
+        hasPassword: true,
+        owns: ['Cora'],
+      },
+      {
+        id: 'u2',
+        name: 'Danni',
+        role: 'GAMEMASTER',
+        isGM: true,
+        active: false,
+        hasPassword: null,
+        owns: [],
+      },
+    ]);
+    expect(JSON.stringify(info)).not.toContain('"x"');
+  });
+
+  it('lists journal and scene ownership by user name', () => {
+    g.game.users = [{ id: 'u1', name: 'Ask', role: 1 }];
+    g.game.journal = [
+      { id: 'j1', name: 'Notes', ownership: { default: 0, u1: 2 } },
+      { id: 'j2', name: 'Other', ownership: { default: 1 } },
+    ];
+    g.game.scenes = [{ id: 's1', name: 'Map', ownership: { default: 2 } }];
+    const info = getSetupInfo({ area: 'ownership', target: 'journal:note' }) as any;
+    expect(info.documents).toEqual([
+      { id: 'j1', name: 'Notes', default: 'NONE', users: { Ask: 'OBSERVER' } },
+    ]);
+    expect((getSetupInfo({ area: 'ownership', target: 'scene' }) as any).documents[0].default).toBe(
+      'OBSERVER'
+    );
+    expect(() => getSetupInfo({ area: 'ownership', target: 'actor:x' })).toThrow(/journal/);
+  });
+
   it('lets an undo put a pack back that has the Assistant below OWNER', async () => {
     world.setSetting('core', 'compendiumConfiguration', {
       'dnd5e.monsters': { ownership: { PLAYER: 'NONE', ASSISTANT: 'OBSERVER' } },

@@ -60,6 +60,8 @@ export interface PrepDigestToolsOptions {
    * "Previously on". Unset: no `previously` part (tests only; the backend always sets it).
    */
   sessionsDir?: string;
+  /** Reads "Previously on"; default readPreviously (tests inject one that hangs). */
+  readPreviously?: (sessionsDir: string) => Promise<PrepPreviously>;
   logger: Logger;
   now?: () => number;
 }
@@ -214,7 +216,7 @@ export class PrepDigestTools {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
-        readPreviously(sessionsDir),
+        (this.options.readPreviously ?? readPreviously)(sessionsDir),
         new Promise<PrepPreviously>(resolve => {
           timer = setTimeout(
             () =>

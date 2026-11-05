@@ -1,6 +1,7 @@
 /**
  * "Previously on" for `get-prep-digest`: the GM summary of the newest recorded session that has
- * one. The voice pipeline (tools/session-notes) writes `<sessions>/<session>-discord/notes/` with
+ * one. The voice pipeline (tools/session-notes) writes `<sessions>/<session>-discord/notes/` (a
+ * restart in the same minute is `<session>-discord-2`, `-3` and so on; the highest is newest) with
  * `summary.<lang>.md` for the GM, plus a player recap draft and transcripts. Only
  * `summary.en.md` and `summary.da.md` are ever opened here: never the recap draft
  * (`recap.player.*.md`) and never a transcript.
@@ -8,13 +9,15 @@
  * The sessions folder sits on the PC that records (FVTT_SESSIONS_DIR, else
  * Documents/FoundrySessions). A bridge on another host cannot see it, and then says so.
  */
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { PREP_PREVIOUSLY_MAX_CHARS, type PrepPreviously } from '@gnuminator/shared';
 
 /** Session folders the recorder makes end in this. */
 const SESSION_FOLDER = /-discord(?:-\d+)?$/;
+/** A summary file larger than this is skipped unread (a real one is a few KB). */
+const MAX_SUMMARY_BYTES = 64 * 1024;
 /** The digest is English: English first, then Danish when only that one was written. */
 const LANGS = ['en', 'da'] as const;
 /** Newest session folders looked at for a written summary. */
@@ -66,6 +69,21 @@ function cap(text: string, max: number): { text: string; truncated: boolean } {
   return { text: (end > max / 2 ? cut.slice(0, end) : cut).trimEnd(), truncated: true };
 }
 
+/**
+ * Newest first: the folder name starts with the date and time, then a restart in the same minute
+ * adds `-N`, which is compared as a number (`-discord-10` is newer than `-discord-9`).
+ */
+function newestFirst(a: string, b: string): number {
+  const split = (name: string): [string, number] => {
+    const m = /^(.*-discord)(?:-(\d+))?$/.exec(name);
+    return m ? [m[1], m[2] ? Number(m[2]) : 0] : [name, 0];
+  };
+  const [baseA, restartA] = split(a);
+  const [baseB, restartB] = split(b);
+  if (baseA !== baseB) return baseA < baseB ? 1 : -1;
+  return restartB - restartA;
+}
+
 function errorCode(error: unknown): string | undefined {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : undefined;
@@ -81,8 +99,7 @@ export async function readPreviously(sessionsDir: string): Promise<PrepPreviousl
     names = (await readdir(sessionsDir, { withFileTypes: true }))
       .filter(e => e.isDirectory() && SESSION_FOLDER.test(e.name))
       .map(e => e.name)
-      .sort()
-      .reverse();
+      .sort(newestFirst);
   } catch (error) {
     const code = errorCode(error);
     const why =
@@ -103,7 +120,9 @@ export async function readPreviously(sessionsDir: string): Promise<PrepPreviousl
     for (const lang of LANGS) {
       let raw: string;
       try {
-        raw = await readFile(join(sessionsDir, session, 'notes', `summary.${lang}.md`), 'utf-8');
+        const file = join(sessionsDir, session, 'notes', `summary.${lang}.md`);
+        if ((await stat(file)).size > MAX_SUMMARY_BYTES) continue;
+        raw = await readFile(file, 'utf-8');
       } catch {
         continue;
       }

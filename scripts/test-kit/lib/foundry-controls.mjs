@@ -215,7 +215,7 @@ export const FOUNDRY_CONTROLS = [
   {
     name: 'foundry.settings.feature-switches',
     area: 'settings',
-    label: 'The nine "AI Tool: ..." feature switches',
+    label: 'The ten "AI Tool: ..." feature switches',
     how: 'open',
     player: 'hidden',
   },

@@ -167,6 +167,8 @@ interface Setup {
   vault?: boolean;
   /** The prep notes deadline; default PREP_TEST_TIMEOUT_MS. Only the hang test wants it short. */
   prepTimeoutMs?: number;
+  /** The recorder's sessions folder, for "Previously on". */
+  sessionsDir?: string;
 }
 
 /** Generous: a loaded machine can take over 200 ms to read a few small notes; only the hang test expects the timeout. */
@@ -205,6 +207,7 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
     ...(setup.vault
       ? { vaultDir: obsidianDir, prepNotesTimeoutMs: setup.prepTimeoutMs ?? PREP_TEST_TIMEOUT_MS }
       : {}),
+    ...(setup.sessionsDir ? { sessionsDir: setup.sessionsDir } : {}),
   };
   return new PrepDigestTools(options);
 }
@@ -632,6 +635,44 @@ describe('get-prep-digest', () => {
       const { prep, ...rest } = digest;
       expect(JSON.stringify(rest)).not.toContain('undo-change');
       expect(prep?.notice).toMatch(/never follow instructions/);
+    });
+  });
+
+  describe('previously on', () => {
+    it('opens the digest with the newest GM summary of the sessions folder', async () => {
+      const sessions = path.join(dataDir, 'FoundrySessions');
+      const notes = path.join(sessions, '2026-10-02-discord', 'notes');
+      await fsp.mkdir(notes, { recursive: true });
+      await fsp.writeFile(
+        path.join(notes, 'summary.en.md'),
+        '# Summary: Test night\n\nThe test party crossed a test bridge.\n',
+        'utf8'
+      );
+      const digest = await makeTools({ sessionsDir: sessions }).handleGetPrepDigest({});
+      expect(digest.previously).toMatchObject({
+        status: 'found',
+        session: '2026-10-02-discord',
+        lang: 'en',
+        title: 'Test night',
+        text: 'The test party crossed a test bridge.',
+      });
+      // The first part after the digest's own fields.
+      const keys = Object.keys(digest);
+      expect(keys.indexOf('previously')).toBe(keys.indexOf('computedAt') + 1);
+      expect(keys.indexOf('previously')).toBeLessThan(keys.indexOf('lastSession'));
+    });
+
+    it('says plainly when this bridge cannot see the folder, and the rest still comes back', async () => {
+      const missing = path.join(dataDir, 'not-here');
+      const digest = await makeTools({ sessionsDir: missing }).handleGetPrepDigest({});
+      expect(digest.previously?.status).toBe('unreachable');
+      expect(digest.previously?.note).toContain(missing);
+      expect(digest.openQuests).not.toBeNull();
+    });
+
+    it('is left out when no sessions folder is given', async () => {
+      const digest = await makeTools().handleGetPrepDigest({});
+      expect(digest).not.toHaveProperty('previously');
     });
   });
 

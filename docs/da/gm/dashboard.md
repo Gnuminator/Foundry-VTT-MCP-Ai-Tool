@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: f41cb04ae6e2
+sourceHash: e582b0c16354
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -639,6 +639,14 @@ Fakta til at forberede din næste session, ét sted og uden AI. **Refresh** geni
 
 Claude læser de samme fakta med `get-prep-digest`, som prompten `prep-next-session` bruger først.
 Uden Foundry forbundet viser skuffen stadig last session og siger, hvad der mangler.
+
+**Previously on.** `get-prep-digest` (ikke skuffen endnu) starter med et kort "Previously on":
+GM-resuméet fra den nyeste optagede session, der har et. Den læser kun
+`<sessions-mappe>/<dato>-discord/notes/summary.en.md` (eller `summary.da.md`, når kun det danske
+er skrevet), aldrig spillernes recap-kladde eller en transskription. Sessions-mappen er
+`FVTT_SESSIONS_DIR`, ellers `Documents\FoundrySessions` i din brugermappe, på den computer,
+bridgen kører på. Hvis ingen session har et resumé endnu, eller bridgen ikke kan se mappen (den
+kører på en anden computer), siger Claude det i én linje.
 
 ## Party-skuffen (🛡 Party)
 

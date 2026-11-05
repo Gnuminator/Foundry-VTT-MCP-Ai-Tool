@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: 8885ca2877f1
+sourceHash: b126d45148bc
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---
@@ -36,8 +36,9 @@ andet set, siger det.
   kampagnen, dine noter, de handouts du satte i kø, bosserne på dine scener og pre-flight-resultatet.
 - **Eller sig:** brug den færdige prompt `prep-next-session` (i beskedfeltets **+**-menu). Tilføj et
   focus, hvis du har et, for eksempel "Vallaki-festivalen".
-- **Hvad der sker:** Claude læser de samme fakta i ét hug (`get-prep-digest`) og hjælper dig med at
-  planlægge næste session.
+- **Hvad der sker:** Claude læser de samme fakta i ét hug (`get-prep-digest`), starter med et kort
+  "Previously on" fra GM-resuméet af din nyeste optagede session og hjælper dig med at planlægge
+  næste session. [Prep-skuffen](dashboard.md#prep-skuffen--prep) siger, hvor resuméet læses fra.
 - **Tip:** hold dine forberedelsesnoter i en journal, der hedder "Next session", og som kun du kan se.
   Prep-skuffen og Claude læser den begge. Bed om en kort liste over løse tråde til sidst: "Slut med de
   fem åbne tråde, én linje til hver."

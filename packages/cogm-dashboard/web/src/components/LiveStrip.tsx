@@ -426,7 +426,7 @@ export function LiveStrip(): JSX.Element {
       <div className={styles['header']}>
         <h2 className={styles['title']}>Live</h2>
         <span className={styles['meta']} id="live-meta" role="status">
-          {combat !== null ? turnText(combat, names) : 'No fight.'}
+          {combat !== null ? turnText(combat, names) : away ? 'The bridge is away.' : 'No fight.'}
         </span>
         {combat !== null && (
           <>

@@ -236,6 +236,31 @@ main.moment-views #moment-during.during-no-bar {
   white-space: normal;
 }
 
+/* The GM health line (components/HealthLine.tsx): four dots with words, wrapping on a narrow screen. */
+.health-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+.health-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.health-label {
+  font-weight: 600;
+}
+.health-part[data-tone='bad'] .health-text {
+  color: var(--danger, var(--text));
+  font-weight: 600;
+}
+
 /* Version tracker pane (I-127, panels/Versions.tsx). */
 .ver-table {
   width: 100%;

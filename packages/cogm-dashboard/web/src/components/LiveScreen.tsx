@@ -24,6 +24,7 @@ import { LivePlayLine } from './GmActionsSwitch';
 import { useHelp } from './HelpButton';
 import { LazyPanel, panelChunk, usePreloadPanels } from './LazyPanel';
 import { LiveStrip } from './LiveStrip';
+import { HealthLine } from './HealthLine';
 import { RoleNotice } from './RoleNotice';
 import { SessionMarker } from './SessionMarker';
 import { StreamState } from './StreamState';
@@ -124,6 +125,7 @@ export function LiveScreen(): JSX.Element {
           <SessionMarker />
           <LivePlayLine />
           <StreamState />
+          <HealthLine />
           <HeaderUndo />
           <Button
             type="button"

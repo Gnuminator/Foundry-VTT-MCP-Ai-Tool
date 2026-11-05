@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
+import { RootBoundary } from './components/RootBoundary';
 import { ToastProvider } from './components/Toasts';
 import { sendPlayersToPlayerPage } from './lib/role';
 import { applyCachedTheme } from './lib/theme';
@@ -28,7 +29,9 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ToastProvider>
-          <App />
+          <RootBoundary>
+            <App />
+          </RootBoundary>
         </ToastProvider>
       </TooltipProvider>
     </QueryClientProvider>

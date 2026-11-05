@@ -182,22 +182,39 @@ describe('TableController', () => {
     const { controller, request, get } = makeController({ flipText: 'Survives.' });
     await controller.load();
     await controller.place();
-    // A change-watcher load starts while the flip's apply is in flight, so it is the older load.
+    // A change-watcher load starts right after the flip's own load began, so it is the newer one
+    // and the flip's load drops its table write (sequence check).
+    let applied = false;
     let started = false;
     const original = request.getMockImplementation() as (
       tool: string,
       args: Record<string, unknown>
     ) => Promise<unknown>;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    let held = false;
     request.mockImplementation(async (tool, args) => {
+      if (tool === 'get-tarokka-reading' && started && !held) {
+        // The watcher's own reading arrives only after the flip is over.
+        held = true;
+        await gate;
+      }
       const result = await original(tool, args);
-      if (tool === 'apply-planned-change' && !started) {
+      if (tool === 'apply-planned-change') applied = true;
+      else if (tool === 'get-tarokka-reading' && applied && !started) {
         started = true;
         void controller.load();
       }
       return result;
     });
     await controller.flip(0);
+    // The flip's own load was dropped, so the table still lacks the card; the watcher load lands
+    // now and must still find the kept line.
+    release();
     await new Promise(r => setTimeout(r, 0));
+    expect(started).toBe(true);
     expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Survives.' });
   });
 

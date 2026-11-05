@@ -19,9 +19,16 @@ const FADE_MS = 1200;
 
 let current: { el: HTMLElement; timer: number; cardId: string } | null = null;
 
-/** Escape closes the overlay. Added while one is on screen, removed when it goes. */
+/**
+ * Escape closes the overlay and nothing else: it is caught on the window before Foundry's own
+ * Escape (close the top window, open the main menu) sees it, so the table window stays open.
+ * Added while one is on screen, removed when it goes.
+ */
 function onKeyDown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') endCeremony();
+  if (event.key !== 'Escape' || !current) return;
+  event.stopPropagation();
+  event.preventDefault();
+  endCeremony();
 }
 
 /** Register the optional sound setting. Call from the module `init` hook, every client. */
@@ -152,7 +159,7 @@ export function endCeremony(): void {
   const { el, timer } = current;
   current = null;
   window.clearTimeout(timer);
-  document.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('keydown', onKeyDown, true);
   el.classList.add('fmb-tt-cer-out');
   window.setTimeout(() => el.remove(), FADE_MS);
 }
@@ -163,7 +170,7 @@ export function playCeremony(ceremony: Ceremony): void {
   if (current) {
     current.el.remove();
     window.clearTimeout(current.timer);
-    document.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keydown', onKeyDown, true);
     current = null;
   }
   const el = document.createElement('div');
@@ -171,7 +178,7 @@ export function playCeremony(ceremony: Ceremony): void {
   el.innerHTML = renderCeremonyHtml(ceremony);
   el.addEventListener('click', () => endCeremony());
   document.body.appendChild(el);
-  document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keydown', onKeyDown, true);
   const timer = window.setTimeout(() => endCeremony(), HOLD_MS);
   current = { el, timer, cardId: ceremony.cardId };
   void playSound();

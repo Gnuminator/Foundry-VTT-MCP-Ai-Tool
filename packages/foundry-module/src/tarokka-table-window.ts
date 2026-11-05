@@ -93,7 +93,7 @@ function prunePendingLines(table: PublicTable): void {
   const now = Date.now();
   for (const [cardId, entry] of Object.entries(pendingLines)) {
     const slot = table.slots.find(s => s.stage === 'revealed' && s.cardId === cardId);
-    const settled = slot?.stage === 'revealed' && slot.line === entry.line;
+    const settled = slot?.stage === 'revealed' && slot.line === cleanLine(entry.line);
     if (settled || now - entry.at > LINE_KEEP_MS || table.readingId !== entry.readingId) {
       delete pendingLines[cardId];
     }

@@ -158,6 +158,7 @@
 }
 
 .fmb-tt-cer-out {
+  pointer-events: none;
   opacity: 0;
   transition: opacity 1.2s ease-in;
 }

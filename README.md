@@ -161,7 +161,7 @@ The dashboard always has every tool. Tool counts, sizes and the full lists are g
 | **play**  | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
 | **prep**  | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
 | **build** | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells; room setup                               |
-| **admin** | Modules and their errors, actor ownership, Foundry setup, the Obsidian mirror                                                            |
+| **admin** | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror                                               |
 
 ---
 

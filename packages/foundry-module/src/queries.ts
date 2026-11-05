@@ -52,6 +52,7 @@ import {
   SCENE_MOOD_PLAN_QUERY,
   SCENE_MOODS_QUERY,
 } from './scene-mood.js';
+import { planTokenRings, TOKEN_RINGS_PLAN_QUERY } from './token-rings.js';
 import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
 import { NPC_TURN_QUERY } from './npc-turn.js';
 import { planNpcTurnWithDamage } from './npc-turn-damage.js';
@@ -288,6 +289,11 @@ export class QueryHandlers {
     );
     handlers.on(`${modulePrefix}.${SCENE_MOODS_QUERY}`, () =>
       this.withGmGate('Failed to read the moods', () => Promise.resolve(getSceneMoods()))
+    );
+
+    // Dynamic token rings by default (I-093, read-only): one guarded op per actor. GM client only.
+    handlers.on(`${modulePrefix}.${TOKEN_RINGS_PLAN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the token rings', () => Promise.resolve(planTokenRings(data)))
     );
 
     // Scene restore (I-128, read-only): one scene's walls, lights, tiles and tokens as source

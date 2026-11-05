@@ -148,6 +148,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'planPaperSync',
   'planSceneChange',
   'planSceneMood',
+  'planTokenRings',
   'searchCharacterItems',
   'searchCompendium',
   'searchLinkCandidates',

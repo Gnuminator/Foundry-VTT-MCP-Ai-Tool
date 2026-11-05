@@ -27,6 +27,7 @@ import { MovementTools } from '../tools/movement.js';
 import { ObsidianMirrorTools } from '../tools/obsidian-mirror.js';
 import { OwnershipTools } from '../tools/ownership.js';
 import { SceneMoodTools } from '../tools/scene-mood.js';
+import { TokenRingsTools } from '../tools/token-rings.js';
 import { RulesCheckTools } from '../tools/rules-check.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import { NpcTurnTools } from '../tools/npc-turn.js';
@@ -92,6 +93,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     ownershipTools: new OwnershipTools({ ...base, guardedWrites: {} as any }),
     roomSetupTools: new RoomSetupTools({ ...base, guardedWrites: {} as any }),
     sceneMoodTools: new SceneMoodTools({ ...base, guardedWrites: {} as any }),
+    tokenRingsTools: new TokenRingsTools({ ...base, guardedWrites: {} as any }),
     rulesCheckTools: new RulesCheckTools(base),
     npcTurnTools: new NpcTurnTools({ ...base, guardedWrites: {} as any }),
     paperSyncTools: new PaperSyncTools({ ...base, guardedWrites: {} as any }),

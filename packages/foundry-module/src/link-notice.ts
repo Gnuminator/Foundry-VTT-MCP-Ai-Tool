@@ -37,6 +37,11 @@ export interface LinkNotifier {
   up(): void;
   /** An open link was lost (not a failed retry). */
   down(): void;
+  /**
+   * The link never opened and the GM was already told so by another message: owe the "back"
+   * toast for when it does open, without a "lost" toast of its own.
+   */
+  markLost(): void;
   /** The owner stopped the link on purpose: forget everything, say nothing. */
   reset(): void;
 }
@@ -92,6 +97,10 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
       lostShown = false;
       if (!allowed()) return;
       options.notify(LINK_BACK_TOAST, 'info');
+    },
+    markLost(): void {
+      cancelTimer();
+      lostShown = true;
     },
     reset(): void {
       cancelTimer();

@@ -455,6 +455,8 @@ class FoundryMCPBridge {
 
       // Show helpful message for GM users when MCP server isn't available
       if (dialled && this.isGMUser()) {
+        // The retries go on in the background: if a retry opens the link, owe the "back" toast.
+        this.linkNotifier.markLost();
         // A browser WebSocket error never says why (no ECONNREFUSED), so the first
         // failed start is the signal. Throttled in memory so a long outage does not spam.
         const now = Date.now();

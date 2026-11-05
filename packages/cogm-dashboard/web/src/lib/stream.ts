@@ -42,6 +42,9 @@ export interface BridgeStatus {
 
 export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
 
+/** When the last status event (the server's heartbeat) arrived, ms since the epoch (lib/health.ts). */
+export const STREAM_HEARD_KEY = ['stream', 'heard'] as const;
+
 /** The dashboard's own settings (app.ts settingsPayload, GM only); fields the page uses so far. */
 export interface DashboardSettings {
   gmActionsEnabled: boolean;
@@ -173,6 +176,8 @@ export function onStatus(queryClient: QueryClient, data: unknown): void {
   const before = queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY);
   const next = data as BridgeStatus;
   queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, next);
+  // The server repeats the status as a heartbeat: this is the watchdog's "last heard".
+  queryClient.setQueryData<number>(STREAM_HEARD_KEY, Date.now());
   // `unknown` counts too: a dropped or restarted bridge link reports it, not `unreachable`.
   if (before !== undefined && before.foundry !== 'reachable' && next?.foundry === 'reachable') {
     scheduleChangesReload(queryClient);
@@ -408,6 +413,18 @@ export function useBridgeStatus(): BridgeStatus | undefined {
     gcTime: Infinity,
   });
   return data ?? undefined;
+}
+
+/** When the stream last brought a status (the heartbeat); null before the first. */
+export function useStreamHeardAt(): number | null {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: STREAM_HEARD_KEY,
+    queryFn: () => queryClient.getQueryData<number>(STREAM_HEARD_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? null;
 }
 
 /** The dashboard settings as the stream last sent them; undefined until the first one. */

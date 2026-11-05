@@ -63,13 +63,12 @@ export async function waitReady(page) {
 }
 
 /**
- * Whether the header live play line says GM Actions are on: it names GM Actions only while they
- * are off ("Live play off: Turn on"); only "Live play on" is on.
+ * Whether the header live play button reports GM Actions on (its data-gm-actions attribute; the
+ * text alone cannot say, other switches can be off).
  * @param {import('playwright-core').Page} page
  */
 export async function gmActionsLabelOn(page) {
-  const label = (await page.locator('#btn-gm').textContent()) ?? '';
-  return label.trim() === 'Live play on';
+  return (await page.locator('#btn-gm').getAttribute('data-gm-actions')) === 'on';
 }
 
 /**

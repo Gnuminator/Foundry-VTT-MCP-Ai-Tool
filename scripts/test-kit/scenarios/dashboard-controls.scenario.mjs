@@ -87,8 +87,7 @@ export default {
           });
           await page.waitForFunction(
             () => {
-              const t = document.querySelector('#btn-gm')?.textContent ?? '';
-              return t.trim() === 'Live play on';
+              return document.querySelector('#btn-gm')?.getAttribute('data-gm-actions') === 'on';
             },
             undefined,
             { timeout: 10000 }

@@ -52,6 +52,7 @@ export function LivePlayLine(): JSX.Element {
           id="btn-gm"
           className={names.length === 0 && !live.unreadable ? 'on' : undefined}
           data-track="dash.header.gm-actions"
+          data-gm-actions={gmActions ? 'on' : 'off'}
           title={tip}
           aria-label={isOn ? undefined : `${label}. ${tip}`}
         >

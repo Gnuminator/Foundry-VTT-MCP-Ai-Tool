@@ -340,9 +340,6 @@ body {
   color: var(--text-mid);
   white-space: nowrap;
 }
-.session-control .link-btn {
-  font-size: var(--fs-sm);
-}
 
 /* ---- Controls ---- */
 /* The controls are a row of their own under the title and the moment tabs, so the buttons stay on

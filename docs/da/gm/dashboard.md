@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: c9e19d5a1e93
+sourceHash: 522b0684c671
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -66,7 +66,7 @@ Obsidian-note pr. session og til at gruppere play log.
   værktøjer, der ændrer spillet, kan køre, når du har bekræftet.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
 
-📓 Obsidian ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
+Obsidian-knappen ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
 
 ### Live play on
 

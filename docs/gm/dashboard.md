@@ -63,7 +63,7 @@ per session and to group the play log.
   change the game can run after you confirm.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
-The 📓 Obsidian link next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
+The Obsidian button next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
 
 ### Live play on
 

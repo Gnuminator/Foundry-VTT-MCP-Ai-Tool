@@ -4,6 +4,7 @@ import { registerAiToolControls } from './ai-tool-controls.js';
 import { registerLatestRecapButton } from './latest-recap.js';
 import { setBridgeLink } from './bridge-link.js';
 import { GM_GUIDE_URL } from './help-menu.js';
+import { createLinkNotifier } from './link-notice.js';
 import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
@@ -94,6 +95,15 @@ class FoundryMCPBridge {
   private lastConnectionState = 'disconnected';
   private lastServerNoticeAt = 0;
   private heartbeatWarned = false;
+  /** GM-only toasts when an open link is lost and when it is back. */
+  private linkNotifier = createLinkNotifier({
+    notify: (message, level) => {
+      if (level === 'warn') ui.notifications?.warn(message);
+      else ui.notifications?.info(message);
+    },
+    isGM: () => this.isGMUser(),
+    enabled: () => this.settings.getSetting('enableNotifications') !== false,
+  });
 
   constructor() {
     this.settings = new ModuleSettings();
@@ -403,6 +413,10 @@ class FoundryMCPBridge {
       logInfo(`[${MODULE_ID}] Starting MCP bridge...`);
 
       const config = this.settings.getBridgeConfig();
+      config.onLinkChange = (up): void => {
+        if (up) this.linkNotifier.up();
+        else this.linkNotifier.down();
+      };
 
       // Validate configuration
       const validation = this.settings.validateSettings();
@@ -424,9 +438,6 @@ class FoundryMCPBridge {
 
       this.lastConnectionState = 'connected';
       this.updateLastActivity();
-
-      // Update settings display with connection status
-      this.settings.updateConnectionStatusDisplay(true);
 
       // Start heartbeat monitoring if enabled
       this.startHeartbeat();
@@ -488,8 +499,8 @@ class FoundryMCPBridge {
 
       this.lastConnectionState = 'disconnected';
 
-      // Update settings display with disconnected status
-      this.settings.updateConnectionStatusDisplay(false);
+      // Stopped on purpose: no "lost" or "back" toast for this.
+      this.linkNotifier.reset();
 
       logInfo(`[${MODULE_ID}] Bridge stopped`);
 

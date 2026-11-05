@@ -26,9 +26,9 @@ needs to connect to it.
 | The module is off in this world.                                     | Settings tab (gear icon), **Module Management**, tick **Foundry AI Tool**, **Save Module Settings**.                                                                                   |
 | The bridge is switched off in the module settings.                   | **Game Settings**, category **Foundry AI Tool**, tick **AI Tool: Connect to the AI Tool server**, **Save Changes**.                                                                    |
 
-When it works, the hint under **AI Tool: Connect to the AI Tool server** in Game Settings ends with
-"Status: Connected". If it ends with "Status: Not connected. Is the AI Tool server started?", the
-server is not running or not reachable. If nothing helps, the tunnel client on your PC writes a log to
+If the link drops while you play, the GM whose browser holds it sees "Lost the link to the AI Tool"
+after about ten seconds, and "The AI Tool link is back" when it returns. Pre-flight also shows the
+link state. If nothing helps, the tunnel client on your PC writes a log to
 `%TEMP%\foundry-mcp-server\wrapper.log`; send it to the tool admin.
 
 ## A tool refuses to change something

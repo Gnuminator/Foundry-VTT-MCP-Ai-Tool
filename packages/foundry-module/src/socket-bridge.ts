@@ -33,6 +33,8 @@ export interface BridgeConfig {
   autoReconnect?: () => boolean;
   /** Builds the `module-hello` frame sent right after the link opens (PB-02). */
   getHello?: () => ModuleHelloData;
+  /** Called when an open link opens (true) or is lost (false). Not called for a failed retry or `disconnect()`. */
+  onLinkChange?: (up: boolean) => void;
 }
 
 /**
@@ -87,6 +89,8 @@ export class SocketBridge {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
   private stopped = false;
+  /** True from a successful open until the link is lost or closed on purpose. */
+  private linkUp = false;
   private activeConnectionType: 'websocket' | null = null;
   /** Module-initiated requests waiting for their `module-reply` (I-108). */
   private pendingRequests = new Map<string, PendingModuleRequest>();
@@ -153,6 +157,8 @@ export class SocketBridge {
           this.connectionState = CONNECTION_STATES.CONNECTED;
           this.reconnectAttempts = 0;
           this.bridgeCapabilities = null;
+          this.linkUp = true;
+          this.notifyLinkChange(true);
           this.log('Connected to MCP server via WebSocket');
           this.setupEventHandlers();
           this.sendHello();
@@ -196,6 +202,7 @@ export class SocketBridge {
 
   disconnect(): void {
     this.stopped = true;
+    this.linkUp = false;
     this.clearReconnectTimer();
 
     if (this.ws) {
@@ -396,11 +403,23 @@ export class SocketBridge {
 
   /** The link is down: note it and plan the retry (a pending retry keeps its RECONNECTING state). */
   private linkDown(): void {
+    if (this.linkUp) {
+      this.linkUp = false;
+      this.notifyLinkChange(false);
+    }
     this.rejectPendingRequests('Connection closed');
     this.bridgeCapabilities = null;
     this.releaseBridgeHelloWaiters();
     if (!this.reconnectTimer) this.connectionState = CONNECTION_STATES.DISCONNECTED;
     this.scheduleReconnect();
+  }
+
+  private notifyLinkChange(up: boolean): void {
+    try {
+      this.config.onLinkChange?.(up);
+    } catch (error) {
+      this.log(`Link change handler failed: ${String(error)}`);
+    }
   }
 
   private clearReconnectTimer(): void {

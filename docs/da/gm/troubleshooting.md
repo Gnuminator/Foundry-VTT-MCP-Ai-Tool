@@ -1,6 +1,6 @@
 ---
 source: gm/troubleshooting.md
-sourceHash: 2d3136eca013
+sourceHash: ad1e48e2d7bd
 title: Fejlfinding
 description: Symptom, sandsynlig årsag og løsning på de problemer, en GM oftest møder med Foundry AI Tool.
 ---
@@ -28,9 +28,9 @@ aldrig behøver at forbinde til den.
 | Modulet er slået fra i denne world.                                         | Settings tab (tandhjulet), **Module Management**, sæt kryds ved **Foundry AI Tool**, **Save Module Settings**.                                                                                    |
 | Bridgen er slået fra i modulets indstillinger.                              | **Game Settings**, kategorien **Foundry AI Tool**, sæt kryds ved **AI Tool: Connect to the AI Tool server**, **Save Changes**.                                                                    |
 
-Når det virker, slutter hjælpeteksten under **AI Tool: Connect to the AI Tool server** i Game Settings med
-"Status: Connected". Slutter den med "Status: Not connected. Is the AI Tool server started?", kører
-serveren ikke, eller den kan ikke nås. Hjælper intet, skriver tunnelklienten på din PC en log til
+Hvis forbindelsen falder, mens I spiller, ser den GM, hvis browser holder forbindelsen, "Lost the link
+to the AI Tool" efter ca. ti sekunder og "The AI Tool link is back", når den kommer igen. Pre-flight
+viser også forbindelsen. Hjælper intet, skriver tunnelklienten på din PC en log til
 `%TEMP%\foundry-mcp-server\wrapper.log`. Send den til værktøjets admin.
 
 ## Et værktøj nægter at ændre noget

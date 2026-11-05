@@ -37,6 +37,8 @@ export interface PublicSlot {
   cardId?: string;
   name?: string;
   image?: string;
+  /** The GM's own words for this card, typed in the flip dialog. Only when revealed. */
+  line?: string;
 }
 
 /** The world setting: the whole public table. */
@@ -48,6 +50,8 @@ export interface PublicTable {
 
 const MAX_NAME = 120;
 const MAX_IMAGE = 500;
+/** Longest line the table keeps; the full text is on the reveal page for the players. */
+export const MAX_LINE = 600;
 const CARD_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function emptyTable(readingId = ''): PublicTable {
@@ -68,6 +72,14 @@ export function safeImage(value: unknown): string | null {
   return v;
 }
 
+/** The GM's line as kept on the table: trimmed, cut at {@link MAX_LINE}; null when there is none. */
+export function cleanLine(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim();
+  if (v === '') return null;
+  return v.length > MAX_LINE ? `${v.slice(0, MAX_LINE - 1).trimEnd()}…` : v;
+}
+
 /** The public table from a stored value; anything malformed becomes an empty table. */
 export function parsePublicTable(raw: unknown): PublicTable {
   const r = (raw ?? {}) as Partial<PublicTable> | null;
@@ -77,11 +89,13 @@ export function parsePublicTable(raw: unknown): PublicTable {
     const s = (stored[i] ?? {}) as Partial<PublicSlot>;
     if (s.stage === 'revealed' && typeof s.cardId === 'string' && CARD_ID.test(s.cardId)) {
       const image = safeImage(s.image);
+      const line = cleanLine(s.line);
       return {
         stage: 'revealed',
         cardId: s.cardId.slice(0, 40),
         name: typeof s.name === 'string' ? s.name.slice(0, MAX_NAME) : s.cardId,
         ...(image ? { image } : {}),
+        ...(line ? { line } : {}),
       };
     }
     return { stage: s.stage === 'placed' ? 'placed' : 'empty' };
@@ -98,7 +112,8 @@ export function reconcile(
   current: PublicTable,
   positions: readonly PositionRow[] | null,
   readingId: string,
-  images: Readonly<Record<string, string>>
+  images: Readonly<Record<string, string>>,
+  lines: Readonly<Record<string, string>> = {}
 ): PublicTable {
   if (!positions || readingId === '') return emptyTable();
   const base = current.readingId === readingId ? current : emptyTable(readingId);
@@ -107,11 +122,16 @@ export function reconcile(
     const was = base.slots[i] ?? { stage: 'empty' };
     if (row?.revealed && row.cardId !== '') {
       const image = safeImage(images[row.cardId]);
+      // The line the GM just typed, else the one already on the table for this same card.
+      const line = cleanLine(
+        lines[row.cardId] ?? (was.stage === 'revealed' && was.cardId === row.cardId ? was.line : '')
+      );
       return {
         stage: 'revealed',
         cardId: row.cardId,
         name: (row.cardName || row.cardId).slice(0, MAX_NAME),
         ...(image ? { image } : {}),
+        ...(line ? { line } : {}),
       };
     }
     return { stage: was.stage === 'empty' ? 'empty' : 'placed' };
@@ -206,12 +226,57 @@ export function renderPlayerHtml(table: PublicTable): string {
   const slots = table.slots
     .map(s => {
       if (s.stage === 'revealed' && s.cardId) {
-        return `<li class="fmb-tt-slot">${renderFace(s.cardId, s.name ?? s.cardId, s.image ?? null)}</li>`;
+        const line = s.line ? `<p class="fmb-tt-line">${escapeHtml(s.line)}</p>` : '';
+        return `<li class="fmb-tt-slot">${renderFace(s.cardId, s.name ?? s.cardId, s.image ?? null)}${line}</li>`;
       }
       return `<li class="fmb-tt-slot">${s.stage === 'placed' ? renderBack() : renderEmpty()}</li>`;
     })
     .join('');
   return `<ul class="fmb-tt-table">${slots}</ul>`;
+}
+
+// ---------------------------------------------------------------------------
+// The flip ceremony
+// ---------------------------------------------------------------------------
+
+/** What the ceremony shows: the card that was just flipped and the GM's line for it. */
+export interface Ceremony {
+  index: number;
+  cardId: string;
+  name: string;
+  image: string | null;
+  line: string;
+}
+
+/**
+ * The ceremony a table change calls for: the first slot that is revealed now and was not before,
+ * in the same reading, while the table is shown. Null for the first look at the table, a new
+ * reading, an Undo or any change that flips nothing.
+ */
+export function ceremonyFor(prev: PublicTable | null, next: PublicTable): Ceremony | null {
+  if (!prev || !next.shown || prev.readingId === '' || prev.readingId !== next.readingId) {
+    return null;
+  }
+  const index = next.slots.findIndex(
+    (s, i) => s.stage === 'revealed' && prev.slots[i]?.stage !== 'revealed'
+  );
+  const slot = next.slots[index];
+  if (slot?.stage !== 'revealed' || !slot.cardId) return null;
+  const name = slot.name ?? slot.cardId;
+  const line = slot.line && slot.line !== name ? slot.line : '';
+  return { index, cardId: slot.cardId, name, image: slot.image ?? null, line };
+}
+
+/** The full-screen ceremony: a dim backdrop, the card turning over, the line fading in under it. */
+export function renderCeremonyHtml(c: Ceremony): string {
+  const line = c.line !== '' ? `<p class="fmb-tt-cer-line">${escapeHtml(c.line)}</p>` : '';
+  return (
+    '<div class="fmb-tt-cer-stage" role="presentation">' +
+    '<div class="fmb-tt-cer-card">' +
+    `<div class="fmb-tt-cer-side fmb-tt-cer-back">${renderBack()}</div>` +
+    `<div class="fmb-tt-cer-side fmb-tt-cer-front">${renderFace(c.cardId, c.name, c.image)}</div>` +
+    `</div>${line}</div>`
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -347,9 +412,10 @@ export function readingIdOf(result: unknown): string {
 export function renderFlipDialogHtml(label: string, cardName: string): string {
   return (
     `<p>Flip <strong>${escapeHtml(cardName)}</strong> (${escapeHtml(label)}) for the players?</p>` +
-    '<label class="fmb-tk-field">Text for the players (optional; the card name is used if empty)' +
+    '<label class="fmb-tk-field">Your line for this card (optional; the card name is used if empty)' +
     '<textarea name="text" rows="3" maxlength="5000"></textarea></label>' +
-    '<p>This marks the card revealed in the AI Tool and adds a page for the players. ' +
+    '<p>Every screen dims, the card turns over with a sound and your line fades in under it. ' +
+    'This marks the card revealed in the AI Tool and adds a page for the players. ' +
     'Undo it in the Changes window (AI Tool toolbar) or the dashboard.</p>'
   );
 }

@@ -122,6 +122,26 @@ describe('TableController', () => {
     expect(get().shown).toBe(false);
   });
 
+  it('keeps the GM line on the flipped slot so the ceremony can show it', async () => {
+    const { controller, get } = makeController({ flipText: '  The sun shines on you.  ' });
+    await controller.load();
+    await controller.place();
+    await controller.flip(0);
+    expect(get().slots[0]).toMatchObject({
+      stage: 'revealed',
+      line: 'The sun shines on you.',
+    });
+    // A later reload keeps the line; a flip with no typed text has none.
+    await controller.load();
+    expect(get().slots[0]?.line).toBe('The sun shines on you.');
+    await controller.place();
+    const second = makeController({ flipText: '' });
+    await second.controller.load();
+    await second.controller.place();
+    await second.controller.flip(0);
+    expect(second.get().slots[0]?.line).toBeUndefined();
+  });
+
   it('flips a placed card through a normal reveal, then the face appears', async () => {
     const { controller, request, get } = makeController({ flipText: '  ' });
     await controller.load();

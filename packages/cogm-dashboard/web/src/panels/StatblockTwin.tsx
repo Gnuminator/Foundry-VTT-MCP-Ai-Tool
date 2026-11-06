@@ -224,7 +224,7 @@ function Result({ found }: { found: Found }): JSX.Element {
       )}
       {verdict.kind === 'twin' && right && (
         <p className={`pf-detail ${styles['note']}`} id="twin-found">
-          {sameAsTwin(left.block, right.block) || left.block.rules === '2024'
+          {sameAsTwin(left.block, right.block)
             ? 'The monster you picked may already be the 2024 version. '
             : `Same monster, 2024 text. The older CR balances the book's encounters${
                 left.block.cr !== right.block.cr

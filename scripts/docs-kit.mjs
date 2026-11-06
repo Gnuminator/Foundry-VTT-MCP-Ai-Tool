@@ -7,6 +7,7 @@
  *
  *   node scripts/docs-kit.mjs           rewrite the block
  *   node scripts/docs-kit.mjs --check   exit 1 when the block is stale (CI, green)
+ *   node scripts/docs-kit.mjs --root d  work on another tree (tests)
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -68,10 +69,12 @@ export function replaceBlock(page, block) {
 
 async function main() {
   const check = process.argv.includes('--check');
-  const file = path.join(repoRoot, PAGE);
+  const rootArg = process.argv.indexOf('--root');
+  const root = rootArg > -1 ? path.resolve(process.argv[rootArg + 1]) : repoRoot;
+  const file = path.join(root, PAGE);
   if (!existsSync(file)) throw new Error(`${PAGE} not found`);
   const page = readFileSync(file, 'utf8');
-  const next = replaceBlock(page, await renderBlock());
+  const next = replaceBlock(page, await renderBlock(root));
   if (next === page) {
     console.log('docs-kit: TEST-KIT.md scenario table is current');
     return;

@@ -68,7 +68,11 @@ const body = text => text.replace(/\r/g, '').replace(/^---\n[\s\S]*?\n---\n/, ''
 export function sections(text) {
   const seen = new Map();
   const out = [];
-  for (const line of proseLines(body(text))) {
+  const raw = body(text).split('\n');
+  // proseLines blanks fenced lines (and removes code spans); the heading itself is read raw so a
+  // code span in it still counts in the slug.
+  for (const [i, prose] of proseLines(body(text)).entries()) {
+    const line = prose === '' ? '' : raw[i];
     const m = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
     if (!m) continue;
     const base = slugify(m[1]);
@@ -81,18 +85,32 @@ export function sections(text) {
   return out;
 }
 
-/** Paragraphs (blocks between blank lines) with the line they start on, wrapped lines joined. */
-function paragraphs(text) {
+/** Lines the front matter takes at the top of a page (0 when there is none). */
+function frontLines(text) {
+  const m = /^---\n[\s\S]*?\n---\n/.exec(text.replace(/\r/g, ''));
+  return m ? m[0].split('\n').length - 1 : 0;
+}
+
+/**
+ * Paragraphs (blocks between blank lines) with the line they start on (`offset` lines above the
+ * text, for the front matter), wrapped lines joined. A heading, a `:::` line or a table row is a
+ * block of its own: it neither joins the line before nor takes the line after.
+ */
+function paragraphs(text, offset = 0) {
   const out = [];
   let cur = null;
   text.split('\n').forEach((line, i) => {
+    const at = offset + i + 1;
     if (!line.trim()) {
       cur = null;
+    } else if (/^\s*(#{1,6}\s|:::|\|)/.test(line)) {
+      out.push({ line: at, text: line });
+      cur = null;
     } else if (!cur) {
-      cur = { line: i + 1, text: line };
+      cur = { line: at, text: line };
       out.push(cur);
     } else if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
-      cur = { line: i + 1, text: line };
+      cur = { line: at, text: line };
       out.push(cur);
     } else {
       cur.text += ` ${line}`;
@@ -110,13 +128,14 @@ export function check(root, quests = QUESTS) {
       problems.push(`${questPath}: the quest page or its checklist page ${listPath} is missing`);
       continue;
     }
-    const quest = body(readFileSync(qf, 'utf8'));
+    const questText = readFileSync(qf, 'utf8');
+    const quest = body(questText);
     const list = body(readFileSync(lf, 'utf8'));
     const listName = path.basename(listPath);
 
     // copy: lines of the quest whose words stand in a row in the checklist page
     const listRuns = shingles(words(list), COPY_WORDS);
-    for (const para of paragraphs(quest)) {
+    for (const para of paragraphs(quest, frontLines(questText))) {
       const ws = words(para.text);
       for (let k = 0; k + COPY_WORDS <= ws.length; k++) {
         const run = ws.slice(k, k + COPY_WORDS).join(' ');

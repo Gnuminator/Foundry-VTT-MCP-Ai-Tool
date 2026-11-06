@@ -112,7 +112,6 @@ test('above the out line: reads, outside writes, vault and scratchpad stay allow
         { command: 'cd "C:/Users/chris/Documents/Obsidian/vault" && git add -A && git pull' },
       ],
       ['Bash', { command: 'echo note > "C:/Users/chris/Documents/Obsidian/vault/Dev/x.md"' }],
-      ['Bash', { command: 'npm run lane:beat -- "t" "handed over"' }],
       ['PowerShell', { command: 'Get-Content a.ts | Select-Object -First 3' }],
     ];
     for (const [tool, args] of allowed) {
@@ -295,7 +294,7 @@ test('shellWritesRepo: writing verbs and redirects count, reading and quoted tex
     'git log --oneline -5 > /dev/null',
     'grep -rn "a > b" src',
     'npm test',
-    'npm run lane:beat -- t claimed',
+    'npm run foo -- t claimed',
     'node scripts/green.mjs --quick',
     'echo "rm -rf x" | head',
     'a=1; echo $a 2>&1',

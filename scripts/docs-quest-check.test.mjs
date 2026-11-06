@@ -119,6 +119,36 @@ test('repeated headings get numbered anchors and code fences are skipped', () =>
   );
 });
 
+test('a heading with a code span gets the slug GitHub gives it', () => {
+  const list = '# L\n\n## Run `npm ci` first\n\n```\n## Not a section\n```\n';
+  assert.deepEqual(
+    sections(list).map(s => s.slug),
+    ['run-npm-ci-first']
+  );
+});
+
+test('a problem is reported at the real file line, front matter included', () => {
+  const quest =
+    '---\ntitle: Q\n---\n# Q\n\n[a](list.md#start-here) [b](list.md#wrap-up)\n\n- [ ] Open the box and take out the one small red lantern.\n';
+  const problems = run(quest);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /q\.md:8: copies/);
+  assert.equal(quest.split('\n')[7].startsWith('- [ ] Open the box'), true);
+});
+
+test('a heading, a ::: line or a table row does not join the copy before or after it', () => {
+  // Each half alone is under 9 words; joined they would hit the copied run.
+  const links = '[a](list.md#start-here) [b](list.md#wrap-up)';
+  const half = (a, mid, b) => `# Q\n\n${links}\n\n${a}\n${mid}\n${b}\n`;
+  const a = 'Open the box and take out';
+  const b = 'the one small red lantern.';
+  assert.equal(run(half(a, '', b)).length, 0, 'a blank line already splits');
+  assert.equal(run(`# Q\n\n${links}\n\n${a} the one small red lantern.\n`).length, 1, 'control');
+  assert.equal(run(half(a, '## Mid', b)).length, 0);
+  assert.equal(run(half(a, '::: note', b)).length, 0);
+  assert.equal(run(half(`| ${a} |`, `| ${b} |`, '')).length, 0);
+});
+
 test('a missing page is reported', () => {
   const root = tree('# Q\n');
   fs.rmSync(path.join(root, 'list.md'));

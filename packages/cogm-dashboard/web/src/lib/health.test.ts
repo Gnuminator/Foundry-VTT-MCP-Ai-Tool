@@ -44,6 +44,35 @@ describe('healthParts', () => {
     expect(healthTrouble(parts)).toBe(false);
   });
 
+  it('adds Recorder and Play log only while they have something to say', () => {
+    expect(healthParts(input({ recording: { recorder: null, playLog: null } }))).toHaveLength(4);
+    const parts = healthParts(
+      input({
+        recording: {
+          recorder: { tone: 'warn', text: 'Mara has not been recorded for 7 min', detail: 'd1' },
+          playLog: { tone: 'unknown', text: 'unknown', detail: 'd2' },
+        },
+      })
+    );
+    expect(parts.map(p => p.key)).toEqual([
+      'dashboard',
+      'bridge',
+      'foundry',
+      'update',
+      'recorder',
+      'playlog',
+    ]);
+    expect(by(parts, 'recorder')).toMatchObject({ label: 'Recorder', tone: 'warn', detail: 'd1' });
+    expect(by(parts, 'playlog')).toMatchObject({ label: 'Play log', tone: 'unknown' });
+    expect(healthTrouble(parts)).toBe(false);
+    const red = healthParts(
+      input({
+        recording: { recorder: null, playLog: { tone: 'bad', text: 'not recording', detail: 'd' } },
+      })
+    );
+    expect(healthTrouble(red)).toBe(true);
+  });
+
   it('turns the dashboard part red after the 45 s watchdog', () => {
     const quiet = healthParts(input({ heardAt: NOW - STREAM_WATCHDOG_MS + 1000 }));
     expect(by(quiet, 'dashboard').tone).toBe('ok');

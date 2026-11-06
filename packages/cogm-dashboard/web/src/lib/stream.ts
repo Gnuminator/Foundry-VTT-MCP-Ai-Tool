@@ -42,6 +42,21 @@ export interface BridgeStatus {
 
 export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
 
+/** One extra dot of the health line (server recording-health.ts); absent when all is well. */
+export interface RecordingDot {
+  tone: 'warn' | 'bad' | 'unknown';
+  text: string;
+  detail: string;
+}
+
+/** The Recorder and Play log dots as the stream last sent them (null = hidden). */
+export interface RecordingHealth {
+  recorder: RecordingDot | null;
+  playLog: RecordingDot | null;
+}
+
+export const RECORDING_HEALTH_KEY = ['stream', 'recording-health'] as const;
+
 /** When the last status event (the server's heartbeat) arrived, ms since the epoch (lib/health.ts). */
 export const STREAM_HEARD_KEY = ['stream', 'heard'] as const;
 
@@ -199,6 +214,8 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   // so another open window follows without waiting for its minute poll.
   'play-session': queryClient => void queryClient.invalidateQueries({ queryKey: PLAY_SESSION_KEY }),
   status: onStatus,
+  'recording-health': (queryClient, data) =>
+    queryClient.setQueryData<RecordingHealth>(RECORDING_HEALTH_KEY, data as RecordingHealth),
   // A different world opened (GM only, no payload): the old world's events, errors and fight go,
   // and everything read from the game (handouts, changes, ...) is read again.
   reset: queryClient => {
@@ -409,6 +426,18 @@ export function useBridgeStatus(): BridgeStatus | undefined {
   const { data } = useQuery({
     queryKey: BRIDGE_STATUS_KEY,
     queryFn: () => queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? undefined;
+}
+
+/** The Recorder and Play log dots; undefined until the first event. */
+export function useRecordingHealth(): RecordingHealth | undefined {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: RECORDING_HEALTH_KEY,
+    queryFn: () => queryClient.getQueryData<RecordingHealth>(RECORDING_HEALTH_KEY) ?? null,
     staleTime: Infinity,
     gcTime: Infinity,
   });

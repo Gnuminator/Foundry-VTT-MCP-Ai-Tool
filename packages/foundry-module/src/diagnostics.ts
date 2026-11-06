@@ -53,8 +53,16 @@ interface WindowErrorLike {
 
 const MAX_ENTRIES = 500;
 const STORAGE_KEY = `${MODULE_ID}.diagnostics`;
-/** The world whose errors the persisted buffer holds (localStorage is shared by every world on this server). */
-const WORLD_KEY = `${MODULE_ID}.diagnostics.world`;
+/**
+ * The world whose errors the persisted buffer holds (localStorage is shared by every world on this
+ * server). No key of ours may be a dotted prefix of another: Foundry keeps client settings in
+ * localStorage as `namespace.key`, and modules that run `foundry.utils.expandObject` over that
+ * storage (Monk's Player Settings does) throw "Cannot use 'in' operator to search for 'world'"
+ * when `<id>.diagnostics` is a string and `<id>.diagnostics.world` also exists.
+ */
+const WORLD_KEY = `${MODULE_ID}.diagnosticsWorld`;
+/** The old name of WORLD_KEY (0.25.0 and before); moved to WORLD_KEY and removed at install. */
+const LEGACY_WORLD_KEY = `${MODULE_ID}.diagnostics.world`;
 
 export class Diagnostics {
   private buffer: DiagnosticEntry[] = [];
@@ -75,6 +83,12 @@ export class Diagnostics {
     if (this.installed) return;
     this.installed = true;
     this.installedAtMs = Date.now();
+
+    try {
+      this.migrateWorldKey();
+    } catch {
+      // storage unavailable
+    }
 
     try {
       this.restore();
@@ -208,6 +222,16 @@ export class Diagnostics {
     } catch {
       // storage may be full/unavailable; in-memory buffer still works
     }
+  }
+
+  /** Move the world marker from its old dotted key, which collides with STORAGE_KEY, to WORLD_KEY. */
+  private migrateWorldKey(): void {
+    const storage = window.localStorage;
+    if (!storage) return;
+    const legacy = storage.getItem(LEGACY_WORLD_KEY);
+    if (legacy === null) return;
+    if (storage.getItem(WORLD_KEY) === null) storage.setItem(WORLD_KEY, legacy);
+    storage.removeItem(LEGACY_WORLD_KEY);
   }
 
   private restore(): void {

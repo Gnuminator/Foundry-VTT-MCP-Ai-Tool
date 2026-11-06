@@ -1,6 +1,12 @@
 // The GM health line (item gm-health-line): four parts, each a dot and a few words, built from what
 // the page already knows about the stream and the bridge. Pure, so the words are tested without a page.
-import { STREAM_DROP_GRACE_MS, type BridgeStatus, type StreamLink } from './stream';
+import {
+  STREAM_DROP_GRACE_MS,
+  type BridgeStatus,
+  type RecordingDot,
+  type RecordingHealth,
+  type StreamLink,
+} from './stream';
 
 /** No status event (the server repeats it every ~17 s) for this long: the page calls itself not live. */
 export const STREAM_WATCHDOG_MS = 45_000;
@@ -10,10 +16,12 @@ export const UPDATE_STALE_MS = 30_000;
 export type HealthTone = 'ok' | 'warn' | 'bad' | 'unknown';
 
 export interface HealthPart {
-  key: 'dashboard' | 'bridge' | 'foundry' | 'update';
+  key: 'dashboard' | 'bridge' | 'foundry' | 'update' | 'recorder' | 'playlog';
   label: string;
   tone: HealthTone;
   text: string;
+  /** Longer plain words for hover (only the Recorder and Play log dots carry one). */
+  detail?: string;
 }
 
 export interface HealthInput {
@@ -22,6 +30,8 @@ export interface HealthInput {
   heardAt: number | null;
   status: BridgeStatus | undefined;
   now: number;
+  /** The Recorder and Play log dots from the server; each null or absent when all is well. */
+  recording?: RecordingHealth | undefined;
 }
 
 /** "12 s ago", "3 min ago", "2 h ago". */
@@ -90,9 +100,27 @@ function updatePart({ status, now }: HealthInput): HealthPart {
   return { ...base, tone: age > UPDATE_STALE_MS ? 'warn' : 'ok', text: ageText(age) };
 }
 
-/** The four parts in order: Dashboard, Bridge, Foundry, Last update. */
+function extraPart(
+  key: 'recorder' | 'playlog',
+  label: string,
+  dot: RecordingDot | null | undefined
+): HealthPart[] {
+  return dot ? [{ key, label, tone: dot.tone, text: dot.text, detail: dot.detail }] : [];
+}
+
+/**
+ * The four parts in order: Dashboard, Bridge, Foundry, Last update; then Recorder and Play log,
+ * each only while it has something to say (nothing extra when all is well).
+ */
 export function healthParts(input: HealthInput): HealthPart[] {
-  return [dashboardPart(input), bridgePart(input), foundryPart(input), updatePart(input)];
+  return [
+    dashboardPart(input),
+    bridgePart(input),
+    foundryPart(input),
+    updatePart(input),
+    ...extraPart('recorder', 'Recorder', input.recording?.recorder),
+    ...extraPart('playlog', 'Play log', input.recording?.playLog),
+  ];
 }
 
 /** True when any part is red (the line carries `data-trouble` then). */

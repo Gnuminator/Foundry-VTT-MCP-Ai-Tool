@@ -46,15 +46,18 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
      GM reads both channels, so it is not repeated in #dashboard-changelog.
    - A release with no GM or dashboard line posts nothing to #dashboard-changelog.
 
-   Post from the PC. Replace `GM role id` in the mention with the number from
-   `grep DISCORD_GM_ROLE_ID "$APPDATA/foundry-ai-tool/discord-bot.env"` (that prints only the id line, never the
-   token); left as is, the mention does not ping anyone:
+   Post from the PC. Easiest: start the text with `{gm}` and the script fills in the role mention from
+   `DISCORD_GM_ROLE_ID`. Or write the mention yourself as `<@&GM role id>`: replace the whole text `GM role id` (keep `<@&` and
+   `>`) with the number from `grep DISCORD_GM_ROLE_ID "$APPDATA/foundry-ai-tool/discord-bot.env"` (that
+   prints only the id line, never the token); left as is, the mention does not ping anyone. The role needs
+   "Allow anyone to @mention this role" in Discord, else the post goes through without a ping: check that the
+   first post pinged the GM.
 
    ```bash
    node packages/discord-bot/announce/announce.mjs changelog "**v0.26.0**
    - Spillersiden viser nu kampen live
    - ..."
-   node packages/discord-bot/announce/announce.mjs dashboard "<@&GM role id> Nyt i dashboardet (v0.26.0):
+   node packages/discord-bot/announce/announce.mjs dashboard "{gm} Nyt i dashboardet (v0.26.0):
    • Ny Conditions-knap til flere tokens ad gangen
    • ..."
    ```

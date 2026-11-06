@@ -253,6 +253,13 @@ main.moment-views #moment-during.during-no-bar {
   gap: 0.35rem;
   white-space: nowrap;
 }
+/* The Recorder and Play log words can be a sentence: they wrap instead of running off a phone. */
+.health-part[data-part='recorder'],
+.health-part[data-part='playlog'] {
+  white-space: normal;
+  min-width: 0;
+  max-width: 100%;
+}
 .health-label {
   font-weight: 600;
 }

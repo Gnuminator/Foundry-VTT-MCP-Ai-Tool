@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -216,6 +217,40 @@ def folder_with_notes(sessions: Path) -> Path:
     return folder
 
 
+def write_real_notes(folder: Path, raw_scene: bool) -> None:
+    """notes.json as the real writer produces it: one processed scene, plus a raw-fallback scene."""
+    from session_notes.model import Line, Roster
+    from session_notes.render import write_outputs
+    from session_notes.validate import raw_fallback
+
+    def line(n: int) -> Line:
+        return Line(f"u{n:06d}", float(n), n + 1.0, "ann", "Ann", "Ann", f"line {n}")
+
+    def scene(index: int, ln: Line) -> dict:
+        return {
+            "index": index,
+            "start": ln.start,
+            "end": ln.end,
+            "title_da": f"Scene {index}",
+            "title_en": f"Scene {index}",
+            "summary_da": "",
+            "summary_en": "",
+            "lines": [{"id": ln.id, "da": ln.text, "en": ln.text, "ooc": False}],
+        }
+
+    lines = [line(1), line(2)]
+    notes = [scene(1, lines[0])]
+    if raw_scene:
+        raw = scene(2, lines[1])
+        notes.append({**raw, **raw_fallback(SimpleNamespace(index=2, lines=[lines[1]])), "index": 2,
+                      "start": raw["start"], "end": raw["end"]})
+    session = {
+        f"{key}_{lang}": "x" for key in ("title", "summary", "recap_player") for lang in ("da", "en")
+    }
+    session.update({"changed_da": [], "changed_en": []})
+    write_outputs(folder / "notes", lines, Roster({"Ann": "Ann"}, ["Ann"]), notes, session)
+
+
 def test_a_paused_notes_run_tells_once_a_day(
     tmp_path: Path, sessions: Path, folder_with_timeline: Path
 ) -> None:
@@ -257,11 +292,8 @@ def test_raw_scenes_that_get_published_tell_the_gm(
     tmp_path: Path, sessions: Path, folder_with_notes: Path
 ) -> None:
     # What the writer really leaves after an exit-0 run that accepted raw scenes: a session part, a scene marked
-    # "fallback", and status "done".
-    (folder_with_notes / "notes" / "notes.json").write_text(
-        json.dumps({"complete": True, "scenes": [{"fallback": False}, {"fallback": True}], "session": {}}),
-        encoding="utf-8",
-    )
+    # "fallback", and status "done". Built with the real writer so the fixture follows its shape.
+    write_real_notes(folder_with_notes, raw_scene=True)
     (folder_with_notes / "notes" / "status.json").write_text(
         json.dumps({"state": "done", "message": "ok", "at": "x"}), encoding="utf-8"
     )
@@ -275,13 +307,24 @@ def test_raw_scenes_that_get_published_tell_the_gm(
 def test_scenes_that_are_all_processed_tell_nothing(
     tmp_path: Path, sessions: Path, folder_with_notes: Path
 ) -> None:
-    (folder_with_notes / "notes" / "notes.json").write_text(
-        json.dumps({"complete": True, "scenes": [{"fallback": False}], "session": {}}),
-        encoding="utf-8",
-    )
+    write_real_notes(folder_with_notes, raw_scene=False)
     bin_dir, calls = make_bin(tmp_path, publish=0)
     run_pass(sessions, bin_dir)
     assert tells(calls) == []
+
+
+def test_a_failed_transcription_tells(tmp_path: Path, sessions: Path) -> None:
+    folder = sessions / "2026-10-01-test"
+    (folder / "raw").mkdir(parents=True)
+    (folder / "raw" / "session.json").write_text("{}", encoding="utf-8")
+    (folder / "1-ann.flac").write_bytes(b"x")  # audio and a recording, but no timeline yet
+    bin_dir, calls = make_bin(tmp_path)
+    # A pwsh.cmd that fails stands in for voice-stack.ps1 transcribe (found before the real pwsh by name).
+    (bin_dir / "pwsh.cmd").write_text("@echo off\r\nexit /b 1\r\n", encoding="ascii")
+    code, out = run_pass(sessions, bin_dir)
+    sent = tells(calls)
+    assert code == 0 and "transcription failed" in out
+    assert len(sent) == 1 and "transcription" in sent[0] and "2026-10-01-test" in sent[0]
 
 
 def test_a_failed_notes_run_tells(

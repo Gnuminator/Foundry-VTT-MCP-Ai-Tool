@@ -28,6 +28,11 @@ import { CACHED_READ_TOOLS, createReadCache } from './read-cache.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
+import {
+  readRecordingHealth,
+  type PumpSnapshot,
+  type RecordingHealth,
+} from './recording-health.js';
 import { hostAllowlist } from './host-allowlist.js';
 import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
@@ -123,6 +128,10 @@ export interface DashboardDeps {
   spaceNow?: () => number;
   /** Test only: the status heartbeat interval in ms (default STATUS_HEARTBEAT_MS). */
   statusHeartbeatMs?: number;
+  /** Test only: the bot status URL (default config.botStatusUrl). */
+  botStatusUrl?: string;
+  /** Test only: how often the Recorder and Play log dots are re-read (default RECORDING_HEALTH_MS). */
+  recordingHealthMs?: number;
   /** The test kit's last-run.json for the version tracker; default env or the PC's kit home. */
   kitLastRunFile?: string | null;
 }
@@ -172,6 +181,8 @@ export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
 const PLAYER_SOURCE_INTERVAL_MS = 5_000;
 /** How often the GM stream repeats the bridge status (the page's watchdog allows 45 s of silence). */
 export const STATUS_HEARTBEAT_MS = 17_000;
+/** How often the Recorder and Play log dots of the health line are re-read. */
+export const RECORDING_HEALTH_MS = 15_000;
 /** Player-state broadcasts are coalesced over this window. */
 const PLAYER_BROADCAST_DEBOUNCE_MS = 250;
 
@@ -254,6 +265,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
+
+  // --- Recorder and Play log dots (item health-line-dots) -----------------------
+  let recordingHealth: RecordingHealth = { recorder: null, playLog: null };
+  let recordingHealthTimer: NodeJS.Timeout | null = null;
+  async function refreshRecordingHealth(): Promise<void> {
+    const next = await readRecordingHealth({
+      botStatusUrl: deps.botStatusUrl ?? config.botStatusUrl ?? '',
+      readPumps: async (): Promise<PumpSnapshot[] | null> => {
+        const r = await client.callTool<{ pumps?: PumpSnapshot[] }>(
+          'get-preflight',
+          { action: 'pumps' },
+          { timeoutMs: 4000 }
+        );
+        return Array.isArray(r?.pumps) ? r.pumps : null;
+      },
+    });
+    if (JSON.stringify(next) === JSON.stringify(recordingHealth)) return;
+    recordingHealth = next;
+    sse.broadcast('recording-health', recordingHealth, gmOnly);
+  }
 
   // --- Player view (M2) ------------------------------------------------------
   let playerTimer: NodeJS.Timeout | null = null;
@@ -795,6 +826,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     sse.add(res, role);
     sse.send(res, 'role', { role });
     sse.send(res, 'status', currentStatus);
+    sse.send(res, 'recording-health', recordingHealth);
     if (world) sse.send(res, 'world', world);
     sse.send(res, 'settings', settingsPayload());
     sse.send(res, 'theme', themePayload());
@@ -1204,10 +1236,18 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         }, deps.statusHeartbeatMs ?? STATUS_HEARTBEAT_MS);
         heartbeatTimer.unref();
       }
+      if (recordingHealthTimer === null) {
+        const tick = (): void => void refreshRecordingHealth().catch(() => undefined);
+        tick();
+        recordingHealthTimer = setInterval(tick, deps.recordingHealthMs ?? RECORDING_HEALTH_MS);
+        recordingHealthTimer.unref();
+      }
     },
     close(): void {
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       heartbeatTimer = null;
+      if (recordingHealthTimer) clearInterval(recordingHealthTimer);
+      recordingHealthTimer = null;
       playerView.stop();
       playerVaults?.stop();
       if (playerTimer) clearTimeout(playerTimer);

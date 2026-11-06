@@ -99,6 +99,11 @@ function isLoggedEvent(value: unknown): value is LoggedEvent {
   return !!e && typeof e.timestamp === 'string';
 }
 
+/** A gap marker from a pump (pump-health.ts): not activity at the table. */
+function isPumpGap(event: LoggedEvent): boolean {
+  return event.eventType === 'pump-gap';
+}
+
 function eventTimeOf(event: LoggedEvent): number {
   if (typeof event.timestampMs === 'number' && Number.isFinite(event.timestampMs)) {
     return event.timestampMs;
@@ -317,7 +322,9 @@ export class PlaySessionTools {
     const events: LoggedEvent[] = [];
     for (const file of files) {
       for (const line of await this.store.readLines(worldId, 'sessions', file)) {
-        if (isLoggedEvent(line) && Number.isFinite(eventTimeOf(line))) events.push(line);
+        if (isLoggedEvent(line) && !isPumpGap(line) && Number.isFinite(eventTimeOf(line))) {
+          events.push(line);
+        }
       }
     }
     const byTime = (a: LoggedEvent, b: LoggedEvent): number => eventTimeOf(a) - eventTimeOf(b);
@@ -364,7 +371,7 @@ export class PlaySessionTools {
     for (const file of files) {
       const all = (await this.store.readLines(worldId, 'sessions', file))
         .filter(isLoggedEvent)
-        .filter(e => Number.isFinite(eventTimeOf(e)));
+        .filter(e => !isPumpGap(e) && Number.isFinite(eventTimeOf(e)));
       for (const id of paperSyncChangeIds(all)) syncChangeIds.add(id);
       const events = all.filter(e => !isPaperSyncEvent(e));
       if (events.length === 0) continue;
@@ -408,7 +415,7 @@ export class PlaySessionTools {
         before.push(
           ...(await this.store.readLines(worldId, 'sessions', file))
             .filter(isLoggedEvent)
-            .filter(e => !isPaperSyncEvent(e) && eventTimeOf(e) < startMs)
+            .filter(e => !isPaperSyncEvent(e) && !isPumpGap(e) && eventTimeOf(e) < startMs)
         );
       }
       before.sort((a, b) => eventTimeOf(a) - eventTimeOf(b));

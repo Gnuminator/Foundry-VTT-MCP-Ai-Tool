@@ -38,9 +38,10 @@ import {
   type PlayRecordsResponse,
 } from '@gnuminator/shared';
 
-import { DEFAULT_EVENT_POLL_MS, localDateKey } from './event-pump.js';
+import { DEFAULT_EVENT_POLL_MS, SESSION_GAP_MS, localDateKey } from './event-pump.js';
 import type { FoundryClient } from './foundry-client.js';
 import type { Logger } from './logger.js';
+import { PumpHealth, gapMarkerLine, type PumpGap } from './pump-health.js';
 import type { VaultStore } from './vault/store.js';
 import type { WorldIdResolver } from './vault/world-id.js';
 
@@ -53,6 +54,15 @@ interface PlayPumpState {
   clientId: string | null;
   /** The highest sequence number the pump has already asked for. */
   lastSeq: number;
+  /** Time of the newest record written for this world; the 3 h rule counts from it. */
+  lastRecordMs?: number | null;
+}
+
+interface PlayMemState {
+  worldId: string;
+  clientId: string | null;
+  lastSeq: number;
+  lastRecordMs: number | null;
 }
 
 export interface PlayLogPumpOptions {
@@ -105,10 +115,11 @@ export class PlayLogPump {
   private readonly onRecords: PlayLogPumpOptions['onRecords'];
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
-  private state: { worldId: string; clientId: string | null; lastSeq: number } | null = null;
+  private state: PlayMemState | null = null;
   /** Keys already on disk for `<worldId>::<dateKey>`, read from the file once per process. */
   private readonly writtenKeys = new Map<string, Set<string>>();
   private lastError: string | null = null;
+  readonly health = new PumpHealth('play');
 
   constructor(options: PlayLogPumpOptions) {
     this.foundry = options.foundryClient;
@@ -145,6 +156,7 @@ export class PlayLogPump {
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
+        this.health.error(message, Date.now());
         if (message !== this.lastError) {
           this.logger.warn('Play log poll failed', { error: message });
         }
@@ -159,13 +171,25 @@ export class PlayLogPump {
   }
 
   private async poll(): Promise<number> {
-    if (!this.foundry.isConnected()) return 0;
+    if (!this.foundry.isConnected()) {
+      this.health.linkDown(Date.now());
+      return 0;
+    }
+    this.health.linkUp();
     const worldId = await this.worldIds.current();
     const state = await this.loadState(worldId);
 
+    const gaps: Array<Omit<PumpGap, 'toMs'>> = [];
     let response = await this.fetchRecords(state.lastSeq);
     const restarted = state.clientId !== null && response.clientId !== state.clientId;
     if (restarted) {
+      // A new night (Foundry closed and reopened later) is not a gap; only a reload within one
+      // session's reach of this world's newest record can have cost records that were still to be
+      // read (not the last read of any world: that is fresh on an idle always-on client).
+      const lastGood = state.lastRecordMs;
+      if (lastGood !== null && Date.now() - lastGood < SESSION_GAP_MS) {
+        gaps.push({ reason: 'foundry-reload', fromMs: lastGood, lost: null });
+      }
       // The buffer's seq numbering restarted at 1; the cursor we just asked
       // for meant nothing to it. Re-ask for everything it still has.
       response = await this.fetchRecords(0);
@@ -175,6 +199,11 @@ export class PlayLogPump {
         clientId: response.clientId,
         expectedFrom: state.lastSeq + 1,
         oldestSeq: response.oldestSeq,
+      });
+      gaps.push({
+        reason: 'ring-wrap',
+        fromMs: state.lastRecordMs ?? 0,
+        lost: response.oldestSeq - (state.lastSeq + 1),
       });
     }
 
@@ -189,13 +218,33 @@ export class PlayLogPump {
       this.logger.warn('Play log dropped invalid records', { worldId, count: invalid });
     }
 
+    const now = Date.now();
+    const firstT = valid.length > 0 ? Math.min(...valid.map(r => r.t)) : now;
+
+    // The data first: when its append fails the poll ends here with the state unmoved, and the
+    // retry would otherwise add the same marker again every poll.
     const appended: PlayRecord[] = [];
     const written = await this.appendByDate(worldId, valid, appended);
+    for (const g of gaps) {
+      const gap: PumpGap = { ...g, fromMs: g.fromMs || firstT, toMs: firstT };
+      await this.store.appendLines(worldId, 'sessions', `${localDateKey(now)}.jsonl`, [
+        gapMarkerLine(this.health.pump, gap, now),
+      ]);
+      this.health.gap(gap, now);
+    }
 
-    const changed = state.clientId !== response.clientId || state.lastSeq !== response.latestSeq;
+    const newestT = valid.length > 0 ? Math.max(...valid.map(r => r.t)) : null;
+    const lastRecordMs =
+      newestT === null ? state.lastRecordMs : Math.max(state.lastRecordMs ?? 0, newestT);
+    const changed =
+      state.clientId !== response.clientId ||
+      state.lastSeq !== response.latestSeq ||
+      state.lastRecordMs !== lastRecordMs;
     state.clientId = response.clientId;
     state.lastSeq = response.latestSeq;
+    state.lastRecordMs = lastRecordMs;
     if (changed) await this.saveState(worldId);
+    this.health.success(now);
 
     if (written > 0) {
       this.notifyAppended(worldId, written);
@@ -283,20 +332,24 @@ export class PlayLogPump {
     }
   }
 
-  private async loadState(
-    worldId: string
-  ): Promise<{ worldId: string; clientId: string | null; lastSeq: number }> {
+  private async loadState(worldId: string): Promise<PlayMemState> {
     if (this.state?.worldId === worldId) return this.state;
     const saved = await this.store.read<PlayPumpState>(worldId, 'sessions', PLAY_PUMP_STATE_FILE);
     const clientId = typeof saved?.data.clientId === 'string' ? saved.data.clientId : null;
     const lastSeq = typeof saved?.data.lastSeq === 'number' ? saved.data.lastSeq : 0;
-    this.state = { worldId, clientId, lastSeq };
+    const lastRecordMs =
+      typeof saved?.data.lastRecordMs === 'number' ? saved.data.lastRecordMs : null;
+    this.state = { worldId, clientId, lastSeq, lastRecordMs };
     return this.state;
   }
 
   private async saveState(worldId: string): Promise<void> {
     if (this.state?.worldId !== worldId) return;
-    const data: PlayPumpState = { clientId: this.state.clientId, lastSeq: this.state.lastSeq };
+    const data: PlayPumpState = {
+      clientId: this.state.clientId,
+      lastSeq: this.state.lastSeq,
+      lastRecordMs: this.state.lastRecordMs,
+    };
     await this.store.write(worldId, 'sessions', PLAY_PUMP_STATE_FILE, data);
   }
 }

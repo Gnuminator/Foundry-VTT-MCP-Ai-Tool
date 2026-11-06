@@ -73,8 +73,9 @@ async function lookup(uuid: string): Promise<Found | 'not-a-monster'> {
         );
   if (!block) throw new Error('This monster has no stat block to show.');
   const left = { uuid, block };
-  // A compendium entry says which rules it is written for; the 2024 pack always is.
-  if (ref.kind === 'compendium' && (ref.pack === TWIN_PACK || block.rules === '2024')) {
+  // Only the 2024 pack is surely 2024: an entry's own rules field defaults to the world setting
+  // when the data never stored it, so it cannot hide the twin search.
+  if (ref.kind === 'compendium' && ref.pack === TWIN_PACK) {
     return { left, verdict: { kind: 'already-2024' }, right: null };
   }
   // The search is scoped to the 2024 pack, so a common name cannot push the real hit out of a
@@ -223,8 +224,8 @@ function Result({ found }: { found: Found }): JSX.Element {
       )}
       {verdict.kind === 'twin' && right && (
         <p className={`pf-detail ${styles['note']}`} id="twin-found">
-          {sameAsTwin(left.block, right.block)
-            ? 'These look identical: the monster you picked may already be the 2024 version. '
+          {sameAsTwin(left.block, right.block) || left.block.rules === '2024'
+            ? 'The monster you picked may already be the 2024 version. '
             : `Same monster, 2024 text. The older CR balances the book's encounters${
                 left.block.cr !== right.block.cr
                   ? `; the 2024 one is CR ${formatCr(right.block.cr)} against ${formatCr(left.block.cr)}`
@@ -310,7 +311,7 @@ export function StatblockTwinDrawer({
         </RefPicker>
       </label>
       <label className={styles['pick']} htmlFor="twin-pack">
-        Or a monster from a compendium (type a few letters of its name)
+        Or a monster from a compendium (Pick from list, then type a few letters of its name)
         <RefPicker
           fieldId="twin-pack"
           refSpec={PACK_REF}

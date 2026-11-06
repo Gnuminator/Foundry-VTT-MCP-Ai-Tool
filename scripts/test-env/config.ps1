@@ -266,10 +266,11 @@ function Update-WorldVerified([string]$WorldDir, [string]$AppVersion) {
   $m =[regex]::Match($text, '("compatibility"\s*:\s*\{[^}]*?"verified"\s*:\s*)"(\d+(?:\.\d+)*)"')
   if (-not $m.Success) { return $false }
   $verified = $m.Groups[2].Value
-  # An integer is a generation: current as long as it is not above the app's generation.
-  if ($verified -notmatch '\.') {
-    if ([int]$verified -ge [int]($AppVersion -split '\.')[0]) { return $false }
-  } elseif ((Compare-FoundryVersion $verified $AppVersion) -ge 0) { return $false }
+  # A world from an older generation needs Foundry's own migration (Update World in setup): never
+  # marked verified here. An integer is a generation: current as long as it is not below the app's.
+  if ([int]($verified -split '\.')[0] -ne [int]($AppVersion -split '\.')[0]) { return $false }
+  if ($verified -notmatch '\.') { return $false }
+  if ((Compare-FoundryVersion $verified $AppVersion) -ge 0) { return $false }
   $bak = "$file.bak-verified"
   if (-not (Test-Path $bak)) { Copy-Item $file $bak }
   $new = $text.Remove($m.Groups[2].Index, $m.Groups[2].Length).Insert($m.Groups[2].Index, $AppVersion)

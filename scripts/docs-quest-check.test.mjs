@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { check, sections, words } from './docs-quest-check.mjs';
+import { check, sections, stripComments, words } from './docs-quest-check.mjs';
 
 const QUESTS = { 'q.md': 'list.md' };
 
@@ -44,6 +44,12 @@ test('words drops links, comments and marks', () => {
     'code',
     'bold',
   ]);
+});
+
+test('stripComments cuts comments, also nested openers and an unclosed one', () => {
+  assert.equal(stripComments('a<!-- x -->b'), 'a b');
+  assert.equal(stripComments('a<!-- <!-- x --> y -->b').includes('<!--'), false);
+  assert.equal(stripComments('a<!-- open'), 'a ');
 });
 
 test('sections lists ## headings with slugs', () => {

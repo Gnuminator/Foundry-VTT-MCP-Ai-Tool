@@ -31,11 +31,23 @@ export const QUESTS = {
 /** A copied run this long (in words) is a second copy of a step. */
 export const COPY_WORDS = 9;
 
+/** The text with every `<!-- ... -->` comment cut out (an unclosed one runs to the end). */
+export function stripComments(text) {
+  let out = '';
+  let pos = 0;
+  for (;;) {
+    const open = text.indexOf('<!--', pos);
+    if (open < 0) return out + text.slice(pos);
+    out += `${text.slice(pos, open)} `;
+    const close = text.indexOf('-->', open + 4);
+    if (close < 0) return out;
+    pos = close + 3;
+  }
+}
+
 /** Words of a text, lower case, markdown marks and punctuation dropped. */
 export function words(text) {
-  return text
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
+  return stripComments(text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'))
     .replace(/[`*_>#|]/g, ' ')
     .toLowerCase()
     .split(/[^\p{L}\p{N}'’-]+/u)
@@ -118,7 +130,7 @@ export function check(root, quests = QUESTS) {
     }
 
     // coverage: every section of the checklist is linked or skipped
-    const prose = proseLines(quest.replace(/<!--[\s\S]*?-->/g, '')).join('\n');
+    const prose = proseLines(stripComments(quest)).join('\n');
     const linked = new Set(
       [...prose.matchAll(/\]\(([^)#\s]*)#([^)\s]+)\)/g)]
         .filter(

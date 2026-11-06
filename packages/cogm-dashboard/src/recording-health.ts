@@ -113,7 +113,19 @@ export function recorderDot(answer: BotAnswer | null): HealthDot | null {
 function isBotAnswer(v: unknown): v is BotAnswer {
   if (v === null || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
-  return typeof o['recording'] === 'boolean' && Array.isArray(o['problems']);
+  const problems = o['problems'];
+  return (
+    typeof o['recording'] === 'boolean' &&
+    Array.isArray(problems) &&
+    problems.every(p => {
+      if (p === null || typeof p !== 'object') return false;
+      const q = p as Record<string, unknown>;
+      return (
+        (q['kind'] === 'silent' || q['kind'] === 'stream' || q['kind'] === 'rejoin') &&
+        typeof q['text'] === 'string'
+      );
+    })
+  );
 }
 
 export interface RecordingHealthSources {

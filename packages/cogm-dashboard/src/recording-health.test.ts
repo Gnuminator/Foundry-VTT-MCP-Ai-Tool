@@ -104,6 +104,13 @@ describe('readRecordingHealth', () => {
     expect(refused.recorder?.tone).toBe('unknown');
     expect((await run(reply({}, false))).recorder?.tone).toBe('unknown');
     expect((await run(reply({ nope: 1 }))).recorder?.tone).toBe('unknown');
+    // A reply whose problems are not the agreed shape is unknown, not a thrown error.
+    expect((await run(reply({ recording: true, problems: [null] }))).recorder?.tone).toBe(
+      'unknown'
+    );
+    expect(
+      (await run(reply({ recording: true, problems: [{ kind: 'x', text: 1 }] }))).recorder?.tone
+    ).toBe('unknown');
   });
 
   it('shows the Play log as unknown when the pumps cannot be read', async () => {

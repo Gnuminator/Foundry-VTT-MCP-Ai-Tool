@@ -77,6 +77,15 @@ describe('POST /api/tool failures', () => {
     expect(JSON.stringify(body)).not.toMatch(/ECONNREFUSED|31414/);
   });
 
+  it('answers any error thrown after the call went out as a 502 channel, never internal', async () => {
+    // `internal` means the dashboard threw before anything was sent (the page words it as "did not
+    // apply"); a throw once callTool ran may have landed, so it must not carry that kind.
+    const { status, body } = await post(new Error('socket hang up'));
+    expect(status).toBe(502);
+    expect(body).toMatchObject({ kind: 'channel' });
+    expect(body.kind).not.toBe('internal');
+  });
+
   it('passes a tool refusal through as a 422 with the kind tool', async () => {
     const { status, body } = await post(
       new ToolError('That journal is not there.', 'get-prep-digest')

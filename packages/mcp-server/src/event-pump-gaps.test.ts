@@ -41,12 +41,12 @@ let dataDir: string;
 let store: VaultStore;
 let foundry: FakeModule;
 
-function makePump(): EventPump {
+function makePump(worldIds?: { current: () => Promise<string> }): EventPump {
   const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;
   return new EventPump({
     foundryClient: foundry,
-    worldIds: { current: (): Promise<string> => Promise.resolve('w1') },
+    worldIds: worldIds ?? { current: (): Promise<string> => Promise.resolve('w1') },
     store,
     logger,
     intervalMs: 5000,
@@ -370,6 +370,35 @@ describe('EventPump gaps and health', () => {
     await pump.pollOnce();
     expect(pump.health.snapshot().notRecordingSince).toBeNull();
     expect(pump.health.snapshot().lastError?.message).toBe('refused');
+  });
+
+  it('clears "not recording" when the link returns even if the world-id fetch then fails', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    let failWorld = false;
+    const pump = makePump({
+      current: (): Promise<string> =>
+        failWorld ? Promise.reject(new Error('no world')) : Promise.resolve('w1'),
+    });
+    foundry.add(T0);
+    await pump.pollOnce();
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 60_000);
+    await pump.pollOnce();
+    expect(pump.health.snapshot().notRecordingSince).not.toBeNull();
+    foundry.connected = true;
+    failWorld = true;
+    await pump.pollOnce();
+    expect(pump.health.snapshot().notRecordingSince).toBeNull();
+    // The outage start survives the failed fetch, so the next good poll still marks the link.
+    failWorld = false;
+    foundry.add(T0 + 90_000);
+    vi.setSystemTime(T0 + 92_000);
+    await pump.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ details: { reason: 'link-down' } });
   });
 
   it('writes only the ring-wrap marker when an outage also overflowed the buffer', async () => {

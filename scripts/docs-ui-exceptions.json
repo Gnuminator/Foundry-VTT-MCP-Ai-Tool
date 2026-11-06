@@ -19,6 +19,16 @@
     { "name": "User Management", "reason": "Foundry setup screen section" },
     { "name": "User Permissions", "reason": "Foundry setup screen button" },
     { "name": "Prototype Token", "reason": "Foundry actor sheet header button" },
+    { "name": "Use the Cloudflare tunnel", "reason": "Claude Desktop extension settings field" },
+    { "name": "Code execution and file creation", "reason": "Claude Desktop settings toggle" },
+    { "name": "3D Dice Settings", "reason": "Dice So Nice settings menu in Foundry" },
+    { "name": "Enable Spell Selection", "reason": "Actor Studio module setting" },
+    { "name": "Enable Level Up", "reason": "Actor Studio module setting" },
+    { "name": "Open Compendium Browser", "reason": "Foundry compendium sidebar button" },
+    {
+      "name": "Allow Player Effect Application",
+      "reason": "Automated Conditions 5e module setting"
+    },
     { "name": "Level Up", "reason": "dnd5e character sheet button" }
   ]
 }

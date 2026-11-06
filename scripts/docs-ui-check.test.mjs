@@ -44,6 +44,17 @@ test('boldNames reads the Danish twins too', () => {
   assert.deepEqual(names.sort(), ['Handouts', 'Start session', 'Undo']);
 });
 
+test('boldNames joins hard-wrapped lines and reads tick and åbn', () => {
+  const text =
+    'First press\n**Reveal next** now.\n\n- tick\n  **Show cards**\n- Åbn **Handouts**\n\nThe **Open\nJournal** button.';
+  assert.deepEqual(boldNames(text), [
+    { name: 'Reveal next', line: 1 },
+    { name: 'Show cards', line: 4 },
+    { name: 'Handouts', line: 6 },
+    { name: 'Open Journal', line: 8 },
+  ]);
+});
+
 test('sourceStrings reads literals, template text and tag text', () => {
   const s = sourceStrings(
     "const a = 'Start session'; const b = `Start combat with ${n}`; <button>End session</button>"

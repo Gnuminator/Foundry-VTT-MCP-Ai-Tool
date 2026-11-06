@@ -23,7 +23,7 @@ import path from 'node:path';
 const UI_WORDS =
   'button|buttons|tab|tabs|panel|panels|drawer|drawers|switch|switches|toggle|card|cards|link|links|dialog|menu|section|chip|pill|banner|knob|checkbox|row|knap|knappen|knapper|fane|fanen|faner|panelet|skuffen|skuffe|menuen|kontakten';
 const VERBS =
-  'klik|tryk|v[æ]lg|click|clicks|press|presses|tap|taps|hit|choose|select|open|opens|use|uses|switch on|turn on|toggle';
+  'tick|untick|pick|go to|åbn|brug|slå til|klik|tryk|v[æ]lg|click|clicks|press|presses|tap|taps|hit|choose|select|open|opens|use|uses|switch on|turn on|toggle';
 
 /** Checklists outside docs/gm that also name dashboard controls. */
 export const CHECKLISTS = ['docs/dev/SMOKE-TEST.md'];
@@ -35,6 +35,8 @@ const SOURCE_DIRS = [
   // Controls the module adds inside Foundry (toolbar buttons, settings menus, windows).
   'packages/foundry-module/src',
   'packages/foundry-module/templates',
+  // Commands the Obsidian plugin adds to the command palette.
+  'packages/obsidian-plugin/src',
 ];
 const EXCEPTIONS_FILE = 'scripts/docs-ui-exceptions.json';
 
@@ -101,30 +103,51 @@ export function inCorpus(name, corpus) {
   return corpus.some(s => s.includes(n) && s.split(' ').length <= maxWords && re.test(s));
 }
 
-/** Bold names next to a UI word, with their line numbers. */
+/**
+ * Bold names next to a UI word, with the line number where their paragraph, list item or table
+ * row starts. The guides are hard-wrapped, so a block is joined into one line before matching.
+ */
 export function boldNames(text) {
   const found = [];
-  const lines = text.split('\n');
+  const blocks = [];
   let fence = false;
-  lines.forEach((line, i) => {
-    if (/^\s{0,3}(```|~~~)/.test(line)) fence = !fence;
+  let cur = null;
+  const flush = () => {
+    if (cur) blocks.push(cur);
+    cur = null;
+  };
+  text.split('\n').forEach((line, i) => {
+    if (/^\s{0,3}(```|~~~)/.test(line)) {
+      fence = !fence;
+      flush();
+      return;
+    }
     if (fence) return;
-    const plain = line.replace(/`[^`]*`/g, m => ' '.repeat(m.length));
-    const bold = '\\*\\*([^*]{2,60})\\*\\*';
-    const res = [
-      new RegExp(`${bold}(?:\\s+(?:${UI_WORDS})\\b)`, 'gi'),
-      new RegExp(`\\b(?:${UI_WORDS})\\s+${bold}`, 'gi'),
-      new RegExp(`\\b(?:${VERBS})\\s+(?:on\\s+|the\\s+|på\\s+)*${bold}`, 'gi'),
-    ];
+    if (!line.trim() || /^#{1,6}\s/.test(line) || /^\s*:::/.test(line)) return flush();
+    const starts = /^\s*(?:[-*+]|\d+\.)\s/.test(line) || /^\s*\|/.test(line);
+    if (starts) flush();
+    if (!cur) cur = { line: i + 1, text: '' };
+    cur.text += ` ${line.trim()}`;
+  });
+  flush();
+  const bold = '\\*\\*([^*]{2,60})\\*\\*';
+  const lead = '(?<![\\p{L}\\p{N}])';
+  const res = [
+    new RegExp(`${bold}(?:\\s+(?:${UI_WORDS})(?![\\p{L}\\p{N}]))`, 'giu'),
+    new RegExp(`${lead}(?:${UI_WORDS})\\s+${bold}`, 'giu'),
+    new RegExp(`${lead}(?:${VERBS})\\s+(?:on\\s+|the\\s+|på\\s+)*${bold}`, 'giu'),
+  ];
+  for (const b of blocks) {
+    const plain = b.text.replace(/`[^`]*`/g, m => ' '.repeat(m.length));
     for (const re of res) {
       for (const m of plain.matchAll(re)) {
-        const name = m[1].trim();
-        if (/[:.]$/.test(name)) continue; // a label such as **Tip:** or a bold sentence
-        if (!found.some(f => f.name === name && f.line === i + 1))
-          found.push({ name, line: i + 1 });
+        const name = m[1].replace(/\s+/g, ' ').trim();
+        if (!name || /[:.]$/.test(name)) continue; // a label such as **Tip:** or a bold sentence
+        if (!found.some(f => f.name === name && f.line === b.line))
+          found.push({ name, line: b.line });
       }
     }
-  });
+  }
   return found;
 }
 

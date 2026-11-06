@@ -38,9 +38,10 @@ export async function renderBlock(root = repoRoot) {
   const body = list.map(s => [
     `\`${s.id}\``,
     sizes.filter(z => s.sizes.includes(z)).join(', '),
+    s.tags.join(', '),
     `${esc(s.title)}${s.licensed ? ' (licensed)' : ''}`,
   ]);
-  const head = ['Id', 'Sizes', 'What it proves'];
+  const head = ['Id', 'Sizes', 'Tags', 'What it proves'];
   const widths = head.map((h, i) => Math.max(h.length, ...body.map(r => r[i].length)));
   const row = cells => `| ${cells.map((c, i) => c.padEnd(widths[i])).join(' | ')} |`;
   const lines = [

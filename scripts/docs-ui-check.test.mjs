@@ -37,6 +37,13 @@ test('boldNames finds names next to UI words and verbs, not labels or code', () 
   );
 });
 
+test('boldNames reads the Danish twins too', () => {
+  const names = boldNames(
+    'Tryk på **Start session**, åbn fanen **Handouts** og knappen **Undo**.'
+  ).map(b => b.name);
+  assert.deepEqual(names.sort(), ['Handouts', 'Start session', 'Undo']);
+});
+
 test('sourceStrings reads literals, template text and tag text', () => {
   const s = sourceStrings(
     "const a = 'Start session'; const b = `Start combat with ${n}`; <button>End session</button>"

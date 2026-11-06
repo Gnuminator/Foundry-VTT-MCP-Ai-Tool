@@ -21,9 +21,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const UI_WORDS =
-  'button|buttons|tab|tabs|panel|panels|drawer|drawers|switch|switches|toggle|card|cards|link|links|dialog|menu|section|chip|pill|banner|knob|checkbox|row';
+  'button|buttons|tab|tabs|panel|panels|drawer|drawers|switch|switches|toggle|card|cards|link|links|dialog|menu|section|chip|pill|banner|knob|checkbox|row|knap|knappen|knapper|fane|fanen|faner|panelet|skuffen|skuffe|menuen|kontakten';
 const VERBS =
-  'click|clicks|press|presses|tap|taps|hit|choose|select|open|opens|use|uses|switch on|turn on|toggle';
+  'klik|tryk|v[æ]lg|click|clicks|press|presses|tap|taps|hit|choose|select|open|opens|use|uses|switch on|turn on|toggle';
 
 /** Checklists outside docs/gm that also name dashboard controls. */
 export const CHECKLISTS = ['docs/dev/SMOKE-TEST.md'];
@@ -119,7 +119,7 @@ export function boldNames(text) {
     for (const re of res) {
       for (const m of plain.matchAll(re)) {
         const name = m[1].trim();
-        if (/[:]$/.test(name)) continue; // a label such as **Tip:**
+        if (/[:.]$/.test(name)) continue; // a label such as **Tip:** or a bold sentence
         if (!found.some(f => f.name === name && f.line === i + 1))
           found.push({ name, line: i + 1 });
       }

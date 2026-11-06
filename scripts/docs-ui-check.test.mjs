@@ -9,6 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   boldNames,
+  buildCorpus,
   check,
   inCorpus,
   normalize,
@@ -66,6 +67,21 @@ test('boldNames joins hard-wrapped lines and reads tick and åbn', () => {
 
 test('boldNames reads a bold name written as code, and skips bold inside code', () => {
   assert.deepEqual(boldNames('Press **`Undo`** or the `**Fake** button`.').map(b => b.name), ['Undo']);
+});
+
+test('boldNames does not join two bold runs around a code span', () => {
+  const names = boldNames('Press **Foo** `x` **Bar** button.').map(b => b.name);
+  assert.ok(!names.some(n => n.includes('`') || n.includes('Foo') && n.includes('Bar')), names.join('|'));
+});
+
+test('buildCorpus skips storybook fixtures', () => {
+  const root = tree({
+    'packages/cogm-dashboard/web/src/App.tsx': "export const a = <b>Real label</b>;\n",
+    'packages/cogm-dashboard/web/src/storybook/fixtures.ts': "export const x = 'Fixture only';\n",
+  });
+  const corpus = buildCorpus(root);
+  assert.ok(inCorpus('Real label', corpus));
+  assert.ok(!inCorpus('Fixture only', corpus));
 });
 
 test('sourceStrings skips comments and identifier-like words', () => {

@@ -51,18 +51,26 @@ test(
       { World: '{"compatibility":{"verified":14.369}}', App: '14.370.0' },
       // coreVersion newer than the app is not lowered.
       { World: world('14.372', '14.369'), App: '14.370.0' },
+      // A nested object before "verified" hides it from the bump: left alone, with a warning.
+      { World: '{"compatibility":{"x":{"a":1},"verified":"14.369"}}', App: '14.370.0' },
     ]);
     assert.deepEqual(
       out.map(o => o.Changed),
-      [true, false, false, false, false, false, true, false, false, false, true]
+      [true, false, false, false, false, false, true, false, false, false, true, false]
+    );
+    assert.equal(out[0].Version, '14.370');
+    assert.deepEqual(
+      out.map(o => o.Warned),
+      [false, false, false, false, false, false, false, false, true, true, false, true]
     );
     assert.equal(out[4].Text, world('13.351', '13'));
     // Only the two fields change: line endings and layout stay byte for byte.
-    assert.equal(out[6].Text, crlfTabs.replaceAll('14.369', '14.370'));
+    assert.equal(out[6].Text, crlfTabs.replace(/("verified"\s*:\s*")14\.369/, '$114.370'));
     assert.equal(JSON.parse(out[10].Text).coreVersion, '14.372');
     assert.equal(JSON.parse(out[10].Text).compatibility.verified, '14.370');
     const bumped = JSON.parse(out[0].Text);
-    assert.equal(bumped.coreVersion, '14.370');
+    // coreVersion does not matter to auto-launch and is left alone.
+    assert.equal(bumped.coreVersion, '14.369');
     assert.equal(bumped.compatibility.verified, '14.370');
     assert.equal(bumped.compatibility.minimum, '14');
     assert.equal(out[0].Backup, true);

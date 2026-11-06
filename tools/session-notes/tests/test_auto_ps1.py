@@ -319,10 +319,13 @@ def test_a_failed_transcription_tells(tmp_path: Path, sessions: Path) -> None:
     (folder / "raw" / "session.json").write_text("{}", encoding="utf-8")
     (folder / "1-ann.flac").write_bytes(b"x")  # audio and a recording, but no timeline yet
     bin_dir, calls = make_bin(tmp_path)
-    # A pwsh.cmd that fails stands in for voice-stack.ps1 transcribe (found before the real pwsh by name).
-    (bin_dir / "pwsh.cmd").write_text("@echo off\r\nexit /b 1\r\n", encoding="ascii")
-    code, out = run_pass(sessions, bin_dir)
+    # It writes its arguments to a marker file, which proves this fake ran and not the real transcriber.
+    marker = tmp_path / "voice-stack-ran.txt"
+    fake = tmp_path / "fake-voice-stack.ps1"
+    fake.write_text(f"Set-Content -LiteralPath '{marker}' -Value ($args -join ' ')\nexit 1\n", encoding="ascii")
+    code, out = run_pass(sessions, bin_dir, FVTT_VOICE_STACK=str(fake))
     sent = tells(calls)
+    assert marker.exists() and "transcribe" in marker.read_text(encoding="ascii", errors="replace")
     assert code == 0 and "transcription failed" in out
     assert len(sent) == 1 and "transcription" in sent[0] and "2026-10-01-test" in sent[0]
 

@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EventPump, eventSeq } from './event-pump.js';
+import { EventPump, PUMP_STATE_FILE, eventSeq } from './event-pump.js';
 import { VaultStore } from './vault/store.js';
 
 /** The module's buffer: strictly-after filter, newest `limit` events, `evt-<n>` ids per load. */
@@ -106,6 +106,8 @@ describe('EventPump gaps and health', () => {
   });
 
   it('marks a Foundry reload when the event counter goes backwards', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 2000);
     const pump = makePump();
     foundry.add(T0);
     foundry.add(T0 + 1000);
@@ -113,11 +115,134 @@ describe('EventPump gaps and health', () => {
     foundry.events = [];
     foundry.seq = 0;
     foundry.add(T0 + 5000); // evt-1 again
+    vi.setSystemTime(T0 + 6000);
     await pump.pollOnce();
     const markers = await gapMarkers();
     expect(markers).toHaveLength(1);
     expect(markers[0]).toMatchObject({ details: { reason: 'foundry-reload' } });
     expect(markers[0]?.description).toContain('Foundry was reloaded');
+  });
+
+  it('writes no marker for an empty first poll after a night, nor for the event after it', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const pump = makePump();
+    foundry.add(T0);
+    foundry.add(T0 + 1000);
+    await pump.pollOnce();
+
+    foundry.connected = false;
+    await pump.pollOnce();
+    const next = T0 + 14 * 3_600_000;
+    vi.setSystemTime(next);
+    foundry.connected = true;
+    foundry.events = [];
+    foundry.seq = 0; // Foundry reopened: a fresh page load, nothing happened yet
+    await pump.pollOnce();
+    vi.setSystemTime(next + 5000);
+    foundry.add(next + 4000); // evt-1 again, lower than the saved counter
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
+  it('writes one marker for a reload behind an outage with an empty reconnect poll', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const pump = makePump();
+    foundry.add(T0);
+    foundry.add(T0 + 1000);
+    await pump.pollOnce();
+
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.connected = true;
+    foundry.events = [];
+    foundry.seq = 0;
+    await pump.pollOnce(); // reconnected, nothing to read yet
+    expect(await gapMarkers()).toHaveLength(0);
+    vi.setSystemTime(T0 + 70_000);
+    foundry.add(T0 + 65_000);
+    await pump.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ details: { reason: 'foundry-reload' } });
+  });
+
+  it('holds a long outage until events show no reload explains it, then marks the link', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const pump = makePump();
+    foundry.add(T0);
+    await pump.pollOnce();
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.connected = true;
+    await pump.pollOnce(); // empty reconnect poll
+    expect(await gapMarkers()).toHaveLength(0);
+    foundry.add(T0 + 61_000);
+    vi.setSystemTime(T0 + 65_000);
+    await pump.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ details: { reason: 'link-down' } });
+  });
+
+  it('counts the 3 h rule from the world own newest event, not from the other world', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    let world = 'w1';
+    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    logger.child = (): unknown => logger;
+    const pump = new EventPump({
+      foundryClient: foundry,
+      worldIds: { current: (): Promise<string> => Promise.resolve(world) },
+      store,
+      logger,
+      intervalMs: 5000,
+    });
+    // w2 saved long ago (4 days) with its own counter
+    await store.write('w2', 'sessions', PUMP_STATE_FILE, {
+      cursorMs: T0 - 4 * 86_400_000,
+      boundaryIds: [],
+      lastSeq: 40,
+    });
+    foundry.add(T0);
+    await pump.pollOnce(); // world w1 is read fine just now
+    world = 'w2';
+    foundry.events = [];
+    foundry.seq = 0;
+    foundry.add(T0 + 2000);
+    vi.setSystemTime(T0 + 3000);
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+  });
+
+  it('does not repeat a marker every poll while the data append keeps failing', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 2000);
+    const pump = makePump();
+    foundry.add(T0);
+    foundry.add(T0 + 1000);
+    await pump.pollOnce();
+    foundry.events = [];
+    foundry.seq = 0;
+    foundry.add(T0 + 5000);
+    vi.setSystemTime(T0 + 6000);
+    const real = store.appendLines.bind(store);
+    vi.spyOn(store, 'appendLines').mockImplementation(async (w, k, f, lines) => {
+      if ((lines as Array<{ eventType?: string }>)[0]?.eventType === 'pump-gap') {
+        return real(w, k, f, lines);
+      }
+      throw new Error('locked');
+    });
+    await pump.pollOnce();
+    await pump.pollOnce();
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(1);
+    expect(pump.health.snapshot().gapCount).toBe(1);
   });
 
   it('marks an outage past a blip, and ignores a short one', async () => {
@@ -140,6 +265,7 @@ describe('EventPump gaps and health', () => {
     await pump.pollOnce();
     expect(pump.health.snapshot().notRecordingSince).not.toBeNull();
     foundry.connected = true;
+    foundry.add(T0 + 61_000);
     await pump.pollOnce();
     const markers = await gapMarkers();
     expect(markers).toHaveLength(1);

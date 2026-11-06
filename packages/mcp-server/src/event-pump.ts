@@ -58,6 +58,18 @@ interface PumpState {
   lastSeq?: number | null;
 }
 
+/** The pump's state for the current world, in memory (the saved part is {@link PumpState}). */
+interface PumpMemState {
+  worldId: string;
+  cursorMs: number | null;
+  boundary: Map<string, number>;
+  lastSeq: number | null;
+  /** When the link first went down and no poll with events has explained it yet. */
+  pendingOutage: number | null;
+  /** Gaps already written since the state last moved on (reason|from|to), so a retry adds none. */
+  writtenGaps: Set<string>;
+}
+
 /** An outage shorter than this is a blip, not a gap worth a marker. */
 export const LINK_GAP_MIN_MS = 15_000;
 
@@ -131,12 +143,7 @@ export class EventPump {
   private readonly onEvents: EventPumpOptions['onEvents'];
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
-  private state: {
-    worldId: string;
-    cursorMs: number | null;
-    boundary: Map<string, number>;
-    lastSeq: number | null;
-  } | null = null;
+  private state: PumpMemState | null = null;
   private lastError: string | null = null;
   readonly health = new PumpHealth('session events');
 
@@ -216,9 +223,14 @@ export class EventPump {
     const now = Date.now();
     const { gaps, reloaded } = this.detectGaps(state, received.length, events, now);
     for (const gap of gaps) {
+      // A marker already written for this very gap is not written again while the data append or
+      // the state save keeps failing; the memory is dropped once the state has moved on.
+      const gapKey = `${gap.reason}|${gap.fromMs}|${gap.toMs}`;
+      if (state.writtenGaps.has(gapKey)) continue;
       await this.store.appendLines(worldId, 'sessions', `${localDateKey(now)}.jsonl`, [
         gapMarkerLine(this.health.pump, gap, now),
       ]);
+      state.writtenGaps.add(gapKey);
       this.health.gap(gap, now);
       this.logger.warn('Event log gap', { worldId, reason: gap.reason });
     }
@@ -228,7 +240,10 @@ export class EventPump {
       state.lastSeq = reloaded || state.lastSeq === null ? top : Math.max(state.lastSeq, top);
     }
     if (events.length === 0) {
-      if (gaps.length > 0) await this.saveState(worldId);
+      if (gaps.length > 0) {
+        await this.saveState(worldId);
+        state.writtenGaps.clear();
+      }
       this.health.success(now);
       return 0;
     }
@@ -247,6 +262,7 @@ export class EventPump {
     for (const [id, ms] of state.boundary) if (ms < newest - 1) state.boundary.delete(id);
     state.cursorMs = newest;
     await this.saveState(worldId);
+    state.writtenGaps.clear();
     this.health.success(now);
     this.notifyAppended(worldId, events.length);
     this.notifyEvents(worldId, events);
@@ -259,19 +275,24 @@ export class EventPump {
    * past a blip. At most one of reload and outage, since the reload explains the outage.
    */
   private detectGaps(
-    state: { cursorMs: number | null; lastSeq: number | null },
+    state: PumpMemState,
     receivedCount: number,
     fresh: SessionEvent[],
     now: number
   ): { gaps: PumpGap[]; reloaded: boolean } {
     const gaps: PumpGap[] = [];
+    // The outage is kept until a poll with events shows whether a reload explains it, so a
+    // reconnect that reads nothing yet neither loses it nor writes a second line for one reload.
     const outageStart = this.health.linkUp();
+    if (outageStart !== null) {
+      state.pendingOutage = Math.min(state.pendingOutage ?? outageStart, outageStart);
+    }
     const first = fresh[0];
     const to = first ? eventTime(first) : now;
     // A new night is not a gap: Foundry closed and reopened days later restarts the counter and
-    // drops the link for hours. Only a break within one session's reach (SESSION_GAP_MS of the last
-    // good read) can have cost events that were still to be read.
-    const lastGood = this.health.lastSuccess ?? state.cursorMs;
+    // drops the link for hours. Only a break within one session's reach (SESSION_GAP_MS of this
+    // world's own newest event) can have cost events that were still to be read.
+    const lastGood = state.cursorMs;
     const sameSession = lastGood !== null && now - lastGood < SESSION_GAP_MS;
     if (state.cursorMs !== null && receivedCount >= FETCH_LIMIT) {
       gaps.push({ reason: 'ring-wrap', fromMs: state.cursorMs, toMs: to, lost: null });
@@ -281,10 +302,15 @@ export class EventPump {
       state.lastSeq !== null && seqs.length > 0 && Math.min(...seqs) <= state.lastSeq;
     if (reloaded) {
       if (sameSession) {
-        gaps.push({ reason: 'foundry-reload', fromMs: lastGood ?? to, toMs: to, lost: null });
+        gaps.push({ reason: 'foundry-reload', fromMs: lastGood, toMs: to, lost: null });
       }
-    } else if (sameSession && outageStart !== null && now - outageStart >= LINK_GAP_MIN_MS) {
-      gaps.push({ reason: 'link-down', fromMs: lastGood ?? outageStart, toMs: now, lost: null });
+      state.pendingOutage = null;
+    } else if (fresh.length > 0) {
+      const outage = state.pendingOutage;
+      if (sameSession && outage !== null && now - outage >= LINK_GAP_MIN_MS) {
+        gaps.push({ reason: 'link-down', fromMs: lastGood, toMs: now, lost: null });
+      }
+      state.pendingOutage = null;
     }
     return { gaps, reloaded };
   }
@@ -311,12 +337,7 @@ export class EventPump {
     }
   }
 
-  private async loadState(worldId: string): Promise<{
-    worldId: string;
-    cursorMs: number | null;
-    boundary: Map<string, number>;
-    lastSeq: number | null;
-  }> {
+  private async loadState(worldId: string): Promise<PumpMemState> {
     if (this.state?.worldId === worldId) return this.state;
     const saved = await this.store.read<PumpState>(worldId, 'sessions', PUMP_STATE_FILE);
     const cursorMs = typeof saved?.data.cursorMs === 'number' ? saved.data.cursorMs : null;
@@ -325,7 +346,14 @@ export class EventPump {
       if (typeof id === 'string' && cursorMs !== null) boundary.set(id, cursorMs);
     }
     const lastSeq = typeof saved?.data.lastSeq === 'number' ? saved.data.lastSeq : null;
-    this.state = { worldId, cursorMs, boundary, lastSeq };
+    this.state = {
+      worldId,
+      cursorMs,
+      boundary,
+      lastSeq,
+      pendingOutage: null,
+      writtenGaps: new Set<string>(),
+    };
     return this.state;
   }
 

@@ -260,7 +260,55 @@ describe('PlayLogPump.pollOnce', () => {
     expect(pump.health.snapshot()).toMatchObject({ lostCount: 1, gapCount: 1 });
   });
 
+  it('does not repeat a marker every poll while the data append keeps failing', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.add({ key: 'a' });
+    const pump = makePump();
+    await pump.pollOnce();
+    foundry.clientId = 'client-2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'x' });
+    const real = store.appendLines.bind(store);
+    vi.spyOn(store, 'appendLines').mockImplementation(async (w, k, f, lines) => {
+      if ((lines as Array<{ eventType?: string }>)[0]?.eventType === 'pump-gap') {
+        return real(w, k, f, lines);
+      }
+      throw new Error('locked');
+    });
+    await pump.pollOnce();
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    vi.restoreAllMocks();
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(1);
+  });
+
+  it('counts the 3 h rule from the world own newest record, so a world switch writes none', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.add({ key: 'a' });
+    const pump = makePump();
+    await pump.pollOnce(); // w1 read fine just now
+    // w2 was last recorded 4 days ago, in another page load
+    await store.write('w2', 'sessions', PLAY_PUMP_STATE_FILE, {
+      clientId: 'old-client',
+      lastSeq: 7,
+      lastRecordMs: T0 - 4 * 86_400_000,
+    });
+    foundry.worldId = 'w2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'n', t: T0 + 50_000 });
+    await pump.pollOnce();
+    expect((await store.readLines('w2', 'sessions', `${localDateKey(T0)}.jsonl`)).length).toBe(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
   it('writes a reload gap marker when the clientId changes, and none on a quiet run', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 60_000);
     foundry.add({ key: 'a' });
     const quiet = makePump();
     await quiet.pollOnce();

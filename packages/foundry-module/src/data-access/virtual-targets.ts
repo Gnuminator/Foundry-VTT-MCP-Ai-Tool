@@ -392,25 +392,66 @@ interface ModuleLike {
   relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
 }
 
+/** The id of the game system in play, or undefined. */
+function systemId(): string | undefined {
+  return (game.system as { id?: string } | undefined)?.id;
+}
+
+/**
+ * True when a `requires` entry is the game system (a `system` type, or the system's id whatever the
+ * type says): the one place read and apply agree on which entries are systems.
+ */
+export function isSystemRequirement(r: { id?: string; type?: string }): boolean {
+  return r.type === 'system' || (r.id !== undefined && r.id === systemId());
+}
+
 /** The ids of the modules (not systems) a module requires. */
 export function moduleRequiredIds(m: ModuleLike): string[] {
   return [...(m.relationships?.requires ?? [])]
-    .filter(r => typeof r?.id === 'string' && (r.type === undefined || r.type === 'module'))
+    .filter(
+      r =>
+        typeof r?.id === 'string' &&
+        (r.type === undefined || r.type === 'module') &&
+        !isSystemRequirement(r)
+    )
     .map(r => r.id as string);
 }
 
-/** `world` or `system` when Foundry itself forces this module on (the world or system requires it). */
+/**
+ * Whether a module is on: the module configuration first (a save in Module Management that no
+ * reload has followed yet), the state Foundry loaded at startup as the fallback.
+ */
+export function moduleIsOn(m: { id: string; active?: boolean } | undefined, id = m?.id): boolean {
+  if (id === undefined) return false;
+  const config = (readSettingValue('core', 'moduleConfiguration') ?? {}) as Record<string, unknown>;
+  const configured = config[id];
+  return typeof configured === 'boolean' ? configured : m?.active === true;
+}
+
+/**
+ * `world` or `system` when Foundry itself forces this module on: the world or system requires it
+ * directly, or it is needed (all the way down) by a module they require.
+ */
 export function forcedOnBy(moduleId: string): 'world' | 'system' | null {
-  const g = game as unknown as {
-    world?: { relationships?: { requires?: Iterable<{ id?: string; type?: string }> } };
-    system?: { relationships?: { requires?: Iterable<{ id?: string; type?: string }> } };
+  type Rel = { relationships?: { requires?: Iterable<{ id?: string; type?: string }> } };
+  const g = game as unknown as { world?: Rel; system?: Rel; modules?: Map<string, ModuleLike> };
+  const reaches = (root: Rel | undefined): boolean => {
+    const seen = new Set<string>();
+    const queue = [...(root?.relationships?.requires ?? [])]
+      .filter(r => r?.type === undefined || r.type === 'module')
+      .map(r => r.id);
+    while (queue.length > 0) {
+      const id = queue.pop();
+      if (id === undefined || seen.has(id)) continue;
+      if (id === moduleId) return true;
+      seen.add(id);
+      const m = g.modules?.get(id);
+      if (m) queue.push(...moduleRequiredIds(m));
+    }
+    return false;
   };
-  const needs = (list: Iterable<{ id?: string; type?: string }> | undefined): boolean =>
-    [...(list ?? [])].some(
-      r => r?.id === moduleId && (r.type === undefined || r.type === 'module')
-    );
-  if (needs(g.world?.relationships?.requires)) return 'world';
-  if (needs(g.system?.relationships?.requires)) return 'system';
+  if (reaches(g.world)) return 'world';
+  if (reaches(g.system)) return 'system';
   return null;
 }
 
@@ -422,13 +463,18 @@ export function forcedOnBy(moduleId: string): 'world' | 'system' | null {
  */
 export function moduleClosureProblem(
   uuid: string,
-  changes: Record<string, unknown>
+  changes: Record<string, unknown>,
+  unset: readonly string[] = []
 ): string | null {
   if (uuid !== `${SETTING_UUID_PREFIX}${MODULE_CONFIG_SETTING}`) return null;
   const flips = new Map<string, boolean>();
   for (const [path, value] of Object.entries(changes)) {
     const id = path.replace(/^value\./, '');
     if (typeof value === 'boolean') flips.set(id, value);
+  }
+  // Removing a module's entry (the undo of a first switch-on) puts it back to off.
+  for (const path of unset) {
+    if (path.startsWith('value.')) flips.set(path.slice('value.'.length), false);
   }
   const mods = (game.modules ?? new Map()) as unknown as Map<string, ModuleLike>;
   const config = (readSettingValue('core', 'moduleConfiguration') ?? {}) as Record<string, unknown>;

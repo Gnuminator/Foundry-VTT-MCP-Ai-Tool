@@ -536,7 +536,7 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
     expect(user.source.role).toBe(1);
   });
 
-  it('refuses an apply of a role change with the setup switch off, and an undo that raises one', async () => {
+  it('refuses an apply of a role change with the setup switch off, but still undoes a lowering', async () => {
     const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
     const applied = await applyGuardedOps(
       await request([roleOp(user.uuid, 0)], { feature: 'foundry-setup' })
@@ -545,11 +545,11 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
     await expect(
       applyGuardedOps(await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' }))
     ).rejects.toThrow(/switched off/);
-    // the undo of the lowering would raise the role again: it needs the switch
-    await expect(
-      applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' })
-    ).rejects.toThrow(/switch on/);
+    // the undo of the lowering raises the role again: an undo is always allowed (mode apply is
+    // the shape the Changes list sends; undo-change sends the original feature in mode undo)
     expect(user.source.role).toBe(0);
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(user.source.role).toBe(1);
   });
 
   it('applies and then undoes a new ownership key on a journal', async () => {

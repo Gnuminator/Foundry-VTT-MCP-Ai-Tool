@@ -15,10 +15,9 @@ then ends; it does not poll for lanes (see Waking). Vault paths are under
   the lane's ready state; lanes message nobody, so read it on every wake for every claimed item,
   inherited lanes included. Never message an idle lane. A lane that stopped with a handover and no
   running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt
-<date>.md`; a card if the turn cannot start sessions), and the stopped lane is archived first.
+<date>.md`; a card if the turn cannot start sessions), and the stopped lane is archived first (git refuses a branch another worktree holds; if the folder stays, `git checkout --detach` there once clean).
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
-  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red means
-  "Main is red").
+  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15`.
 - `list_sessions` without `linked` (lanes start their own successors), then `get_usage` with each
   running lane's id (lanes underreport their context) and `"self"` for yours and the plan
   percentages.
@@ -47,8 +46,7 @@ zone warns on two lanes on one path or a claim before its dependency is done; ch
   skill, follow CLAUDE.md", write your `claude://` link (`get_session "self"`, field `link`) as a
   `- link:` line under your claim, report "ready to merge" as a `- progress:` line on the item and
   message nobody. Pi work carries its rules (`pi-work`).
-- `start_session` takes `model` as a full id (`claude-sonnet-5-5`, `claude-haiku-5-5`,
-  `claude-opus-5-5`; the hook refuses a short name): Sonnet for coding, Haiku for read-only work,
+- `start_session` takes `model` as a full id (e.g. `claude-sonnet-5-5`): Sonnet for coding, Haiku for read-only work,
   Opus only for risky design. Every start, Agent and Workflow `agent()` call sets it (unset inherits
   Opus). If the app refuses a start (automated turn, phone, session started by a session), propose a card.
 
@@ -58,9 +56,8 @@ The planner ends after its outcome. At 200k context it plans the handover and ke
 
 1. Write the handover note (running lanes with session ids and `- progress:` state, open PRs, what
    is next), and start the next planner or leave a copy-paste prompt.
-2. Detach every running lane with `mcp__ccd_session_mgmt__detach_session` (their turn-end notes
-   stop waking this session and archiving it no longer takes them along; it cannot be undone, and
-   the app refuses a session the user placed). The next planner finds them through `list_sessions`
+2. Detach every running lane with `mcp__ccd_session_mgmt__detach_session` (their notes stop waking
+   this session; irreversible; the app refuses one the user placed). The next planner finds them through `list_sessions`
    and the Backlog lines.
 3. Only then archive this session (see Session cleanup).
 
@@ -79,8 +76,7 @@ The planner ends after its outcome. At 200k context it plans the handover and ke
 
 While lanes run, end each turn by stopping any old watcher, pushing your vault edits, then starting
 `node scripts/planner-wake.mjs` with `run_in_background`, and re-read the Backlog progress lines once
-after arming. It exits when a `- progress:` line in vault Backlog.md is new or changed (the app
-wakes you; the output names the item), or after 4 h of quiet (exit 4: re-arm or hand over). Exit 3
+after arming. It exits when a `- progress:` line in vault Backlog.md is new or changed (the output names the item), or after 4 h of quiet (exit 4: re-arm or hand over). Exit 3
 (idle over an hour, cold): start a fresh planner (`start_session`, Opus, the printed brief) and end.
 Exit 1: tell the user. Stop it when you hand over. Never poll or wake on a timer.
 
@@ -95,7 +91,7 @@ a check failed, 4 head moved (re-review), 5 timed out.
 Merge train: the gate refuses a module, bridge link or guarded-write PR once 4 such merges wait;
 then run `npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through
 the test server lock, and on green `npm run lane:merge -- --train-reset <main sha>`; bisect if red
-(`--train` shows the count). Run it before any Pi deploy too.
+(`--train` shows the count). Run it before any Pi deploy too. Tell the user what merged.
 
 ## Main is red
 
@@ -112,7 +108,7 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
 ## Session cleanup
 
 Archive only when certain: not running, worktree clean and pushed (`git worktree list` first), no
-process or background run from it, no other lane on that branch. Archiving deletes side-session notes, so a successor's needs live in the vault.
+process or background run from it, no other lane on that branch. Subagent worktrees (`agent-*`) can hold uncommitted work. Archiving deletes side-session notes, so a successor's needs live in the vault.
 
 ## Weekly check
 

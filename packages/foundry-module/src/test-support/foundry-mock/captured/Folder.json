@@ -1,0 +1,27 @@
+{
+  "kind": "Folder",
+  "foundry": "14.370",
+  "system": "dnd5e 6.0.6",
+  "samples": 15,
+  "paths": {
+    "_id": "string:15",
+    "_stats": "object:15",
+    "_stats.compendiumSource": "null:15",
+    "_stats.coreVersion": "string:15",
+    "_stats.createdTime": "number:15",
+    "_stats.duplicateSource": "null:15",
+    "_stats.exportSource": "null:15",
+    "_stats.lastModifiedBy": "null|string:15",
+    "_stats.modifiedTime": "number:15",
+    "_stats.systemId": "string:15",
+    "_stats.systemVersion": "string:15",
+    "color": "null|string:15",
+    "description": "string:15",
+    "flags": "object:15",
+    "folder": "null|string:15",
+    "name": "string:15",
+    "sort": "number:15",
+    "sorting": "string:15",
+    "type": "string:15"
+  }
+}

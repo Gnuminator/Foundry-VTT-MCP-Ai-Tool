@@ -475,7 +475,7 @@ async function createHero(args) {
   const describe = step => {
     const f = step?.flow;
     const a = f?.advancement;
-    return `${f?.item?.name ?? '?'} / ${a?.constructor?.typeName ?? '?'} "${a?.title ?? ''}" / level ${f?.level ?? '?'}`;
+    return `${f?.item?.name ?? '?'} / ${a?.constructor?.typeName ?? '?'} "${a?.name || a?.title || ''}" / level ${f?.level ?? '?'}`;
   };
 
   // Candidates for an ItemChoice whose pool is empty (the player browses a compendium instead).
@@ -799,7 +799,7 @@ async function createHero(args) {
         const type = adv?.constructor?.typeName;
         const made = picks.length;
         if (answers[type])
-          await answers[type](flow, adv, flow.level, `${flow.item.name}: ${adv.title}`);
+          await answers[type](flow, adv, flow.level, `${flow.item.name}: ${adv.name || adv.title}`);
         // Which item asked (class, subclass, feat, race, background), for the mechanical filter of the report.
         for (const p of picks.slice(made)) {
           p.itemType ??= flow.item.type;
@@ -831,7 +831,7 @@ async function createHero(args) {
         if (total <= made) continue;
         const available = await adv.availableChoices?.();
         const keys = available ? [...available.choices.asSet()] : [];
-        const title = `${root.name}: ${adv.title}`;
+        const title = `${root.name}: ${adv.name || adv.title}`;
         warnings.push(
           keys.length
             ? `${title} level ${lvl}: ${total - made} of ${total} choice(s) left, ${keys.length} option(s) were still open`

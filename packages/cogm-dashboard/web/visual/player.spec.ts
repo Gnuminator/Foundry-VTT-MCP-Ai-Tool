@@ -13,7 +13,11 @@ for (const screen of PLAYER_SCREENS) {
   test(`${screen.name}`, async ({ page }, info) => {
     test.skip(info.project.name === 'desktop-1440', 'the 1440 project only runs the axe check');
     await showPlayerScreen(page, screen);
-    await expect(page).toHaveScreenshot(`${screen.name}.png`, { fullPage: true });
+    // The status pill reads "Reconnecting" once the faked one-shot stream ends: not what is photographed.
+    await expect(page).toHaveScreenshot(`${screen.name}.png`, {
+      fullPage: true,
+      mask: [page.locator('#status')],
+    });
   });
 
   test(`axe: ${screen.name}`, async ({ page }, info) => {

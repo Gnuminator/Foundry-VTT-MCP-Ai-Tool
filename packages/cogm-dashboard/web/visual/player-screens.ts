@@ -163,7 +163,7 @@ const SHEET = {
     { key: 'prc', label: 'Perception', ability: 'wis', total: 3, passive: 13, proficiency: 0 },
   ],
   passivePerception: 13,
-  conditions: ['Poisoned', 'Concentrating: Bless'],
+  conditions: ['Poisoned'],
   concentration: 'Bless',
   spellcasting: { ability: 'wis', dc: 13, attack: 5 },
   slots: [

@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0-quest.md
-sourceHash: a56de8fa8217
+sourceHash: 57f4c19afac1
 title: 'Quest: forbered session 0'
 description: Opsætningen til session 0 som en liste med opgaver at sætte flueben ved, i fem trin fra indsamling af e-mails til en prøvekørsel som spiller.
 ---
@@ -8,10 +8,12 @@ description: Opsætningen til session 0 som en liste med opgaver at sætte flueb
 # Quest: forbered session 0
 
 Det her er [Forbered session 0](prepare-session-0.md) som en liste, du kan sætte flueben ved. Den side har
-billederne og begrundelserne; denne har kun rækkefølgen. Gør det en uge eller deromkring før session 0. Det
-tager ca. 30 minutter, plus prøvekørslen. Hvis du ændrer en indstilling, mens spillerne har spillet
-åbent, så bed dem genindlæse (F5), før de åbner builderen. Lad usage tracking være slået fra; det er
-den allerede.
+billederne og begrundelserne, og hvert trin herunder linker til sine trin; denne har kun rækkefølgen.
+Gør det cirka en uge før session 0; det tager en halv time, plus prøvekørslen. Spillere, der allerede
+har spillet åbent, skal genindlæse (F5) efter en ændret indstilling, før de åbner builderen. Lad usage
+tracking være slået fra; det er den allerede.
+
+<!-- quest-skips: bagefter -->
 
 :::note
 Tag trinene i rækkefølge. Trin 3 er det, der oftest er halvt gjort på forhånd, og det, en
@@ -23,25 +25,30 @@ sidste er en generalprøve.
 
 ## Trin 1 af 5: E-mails (5 minutter)
 
-- [ ] Bed hver spiller i Discord om den e-mailadresse, de vil bruge til at komme ind.
-- [ ] Send listen til værktøjets admin. En adresse, der ikke står på adminens liste, får aldrig en
-      login-kode og får heller ingen fejl.
-- [ ] Sig til spillerne, at de skal bruge præcis den adresse, de har givet dig.
+Trin: [Indsaml spillernes e-mails](prepare-session-0.md#0-indsaml-spillernes-e-mails).
+
+- [ ] Hver spiller har sagt i Discord, hvilken adresse de kommer ind med.
+- [ ] Listen er hos værktøjets admin. En adresse, der mangler på den, får ingen login-kode og ingen fejl.
+- [ ] Spillerne ved, at de skal skrive den adresse og ingen anden.
 
 **Du er færdig, når** adminen har sagt, at listen er lagt ind.
 
 ## Trin 2 af 5: Én bruger til hver spiller (5 minutter)
 
+Trin: [Én bruger til hver spiller](prepare-session-0.md#1-én-bruger-til-hver-spiller).
+
 - [ ] Tryk på **Esc** og vælg **User Management**.
-- [ ] For hver spiller klikker du på **Create Additional User**, skriver deres navn i **User Name**, lader
-      **Password** stå tomt og beholder rollen **Player**.
-- [ ] Klik på **Save and Return**.
-- [ ] Send hver spiller deres brugernavn i en direkte besked på Discord, sammen med linket til
+- [ ] Hver spiller har en bruger med sit navn, uden password og med rollen **Player**: brug **Create
+      Additional User** og derefter **Save and Return**.
+- [ ] Hver spiller har fået sit brugernavn i en direkte besked på Discord, sammen med linket til
       [Kom ind i spillet](../player/join.md).
 
 **Du er færdig, når** hver spiller har en bruger og kender sit eget brugernavn.
 
 ## Trin 3 af 5: Karakterer (15 minutter)
+
+Trin: [Lad spillerne oprette karakterer](prepare-session-0.md#2-lad-spillerne-oprette-karakterer-et-tjek-på-vores-server)
+og [Peg Actor Studio på 2024 Player's Handbook](prepare-session-0.md#3-peg-actor-studio-på-2024-players-handbook-delvist-gjort-på-vores-server).
 
 I **Game Settings**, kategorien **Core**, knappen **User Permissions**:
 
@@ -50,26 +57,25 @@ I **Game Settings**, kategorien **Core**, knappen **User Permissions**:
 
 I **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI Tool fork)**:
 
-- [ ] **Compendium Sources**, **Select sources**: sæt flueben ved
-      Player's Handbook-packs i hver række og fjern flueben ved D&D 5e-systemets egne packs. Tabellen står i
-      [Forbered session 0](prepare-session-0.md). Klik på **Save**, derefter **Yes** for at genindlæse.
-- [ ] **Configure ability scores**: sæt flueben ved den ene metode, du og spillerne er blevet enige om.
+- [ ] **Compendium Sources**, **Select sources**: Player's Handbook-packs har flueben i hver række, og
+      systemets egne packs har ikke (tabellen står på tjeklistesiden). **Save**, derefter **Yes** for at
+      genindlæse.
+- [ ] **Configure ability scores**: én metode har flueben, den du og spillerne er blevet enige om.
 - [ ] **Configure equipment & gold**: **Enable Equipment Selection** er afkrydset.
-- [ ] **Configure spells**: sæt flueben ved **Enable Spell Selection**.
-- [ ] **Configure progression**, under **Level Up Options**: sæt flueben ved **Enable Level Up** og
-      **Milestone Levelling**. Uden den indstilling ser ingen en **Level Up**-knap, før de har
-      nok experience points.
+- [ ] **Configure spells**: **Enable Spell Selection** har flueben.
+- [ ] **Configure progression**, **Level Up Options**: **Enable Level Up** og **Milestone Levelling**
+      har flueben. Uden dem ser ingen en **Level Up**-knap, før de har nok experience points.
 
 :::tip
 På vores server har scriptet allerede sat **Create Actors**, udstyret og Player's Handbook som kilde
 til udstyr. Tjek de tre, og sæt resten selv.
 :::
 
-**Du er færdig, når** species-listen kun viser 2024-species, en Cleric får en **Spells**-fane, og en ny karakters ark har en **Level Up**-knap.
+**Du er færdig, når** kun 2024-species tilbydes, en ny Cleric har en **Spells**-fane, og et nyt ark viser **Level Up**.
 
 ## Trin 4 af 5: Tilmeldingssiden (5 minutter)
 
-Valgfrit.
+Valgfrit. Trin: [Giv tilmeldingssiden kampagnens udseende](prepare-session-0.md#4-giv-tilmeldingssiden-kampagnens-udseende-valgfrit).
 
 - [ ] I **Game Settings**, kategorien **Foundry AI Tool**, klik på **Choose join page look**.
 - [ ] Behold eller ret **The lamplit line**, og klik derefter på **Apply The Veil**.
@@ -79,17 +85,19 @@ udseende.
 
 ## Trin 5 af 5: Prøv det som spiller (30 minutter)
 
-- [ ] I User Management laver du en bruger, der hedder **Test Player**, med rollen Player.
-- [ ] Åbn spillet i et privat browservindue og log ind som Test Player.
-- [ ] Følg [Lav din karakter](../player/make-a-character.md) til ende.
-- [ ] Som GM tjekker du arket med tjeklisten i trin 10 på den side.
-- [ ] Slet karakteren og brugeren Test Player.
+Trin: [Prøv det som spiller](prepare-session-0.md#5-prøv-det-som-spiller).
+
+- [ ] En bruger, der hedder **Test Player**, med rollen Player findes.
+- [ ] Du er logget ind som Test Player i et privat browservindue.
+- [ ] Du fulgte [Lav din karakter](../player/make-a-character.md) til ende.
+- [ ] Som GM tjekkede du det færdige ark mod tjeklisten i bunden af den side.
+- [ ] Karakteren og brugeren Test Player er slettet igen.
 
 **Du er færdig, når** en karakter på level 3 er blevet lavet rigtigt, fra det første klik til tjeklisten.
 
 ## Quest klaret
 
-På aftenen: læg linket til [Lav din karakter](../player/make-a-character.md) op i Discord,
-bliv i voice, og gå tjeklisten igennem med hver spiller, når de er færdige. Selve aftenen
-står i [Forbered session 0](prepare-session-0.md#på-aftenen) og dagsordenen i
+På aftenen: del [Lav din karakter](../player/make-a-character.md) i Discord, bliv i voice, og tjek
+hver spillers ark, når de er færdige. Selve aftenen står i [Forbered session
+0](prepare-session-0.md#på-aftenen) og dagsordenen i
 [Forberedelse og forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre).

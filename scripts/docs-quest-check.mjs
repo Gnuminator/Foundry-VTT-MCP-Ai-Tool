@@ -54,7 +54,10 @@ const body = text => text.replace(/^---\n[\s\S]*?\n---\n/, '');
 
 /** `## ` headings with their anchors. */
 export function sections(text) {
-  return [...body(text).matchAll(/^## (.+)$/gm)].map(m => ({ title: m[1].trim(), slug: slugify(m[1]) }));
+  return [...body(text).matchAll(/^## (.+)$/gm)].map(m => ({
+    title: m[1].trim(),
+    slug: slugify(m[1]),
+  }));
 }
 
 export function check(root, quests = QUESTS) {
@@ -77,7 +80,9 @@ export function check(root, quests = QUESTS) {
       for (let k = 0; k + COPY_WORDS <= ws.length; k++) {
         const run = ws.slice(k, k + COPY_WORDS).join(' ');
         if (listRuns.has(run)) {
-          problems.push(`${questPath}:${i + 1}: copies ${listName} ("${run}..."); link to the step instead`);
+          problems.push(
+            `${questPath}:${i + 1}: copies ${listName} ("${run}..."); link to the step instead`
+          );
           break;
         }
       }
@@ -87,26 +92,28 @@ export function check(root, quests = QUESTS) {
     const linked = new Set(
       [...quest.matchAll(/\]\(([^)#\s]*)#([^)\s]+)\)/g)]
         .filter(m => path.basename(m[1]) === listName)
-        .map(m => m[2]),
+        .map(m => m[2])
     );
     const skips = new Set(
       [...quest.matchAll(/<!--\s*quest-skips:\s*([^>]*?)\s*-->/g)]
         .flatMap(m => m[1].split(','))
         .map(s => s.trim())
-        .filter(Boolean),
+        .filter(Boolean)
     );
     const secs = sections(list);
     const slugs = new Set(secs.map(s => s.slug));
     for (const s of secs) {
       if (!linked.has(s.slug) && !skips.has(s.slug)) {
         problems.push(
-          `${questPath}: no link to "${s.title}" of ${listName}; add [..](${listName}#${s.slug}) or list the slug in <!-- quest-skips: ${s.slug} -->`,
+          `${questPath}: no link to "${s.title}" of ${listName}; add [..](${listName}#${s.slug}) or list the slug in <!-- quest-skips: ${s.slug} -->`
         );
       }
     }
     for (const k of skips) {
-      if (!slugs.has(k)) problems.push(`${questPath}: quest-skips names "${k}", which is no section of ${listName}`);
-      else if (linked.has(k)) problems.push(`${questPath}: "${k}" is both linked and in quest-skips`);
+      if (!slugs.has(k))
+        problems.push(`${questPath}: quest-skips names "${k}", which is no section of ${listName}`);
+      else if (linked.has(k))
+        problems.push(`${questPath}: "${k}" is both linked and in quest-skips`);
     }
   }
   return problems;
@@ -120,9 +127,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const problems = check(root);
   if (problems.length) {
-    console.error(`docs-quest: ${problems.length} problem(s). A quest page must link to the checklist steps, not copy them:`);
+    console.error(
+      `docs-quest: ${problems.length} problem(s). A quest page must link to the checklist steps, not copy them:`
+    );
     for (const p of problems) console.error(`  ${p}`);
     process.exit(1);
   }
-  console.log(`docs-quest: ${Object.keys(QUESTS).length} quest pages link to their checklists, no copied steps`);
+  console.log(
+    `docs-quest: ${Object.keys(QUESTS).length} quest pages link to their checklists, no copied steps`
+  );
 }

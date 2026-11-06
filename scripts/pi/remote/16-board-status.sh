@@ -137,11 +137,20 @@ const total = num(e.DISK_TOTAL_KB), free = num(e.DISK_FREE_KB);
 const gb = kb => (kb === null ? null : Math.round((kb / 1024 / 1024) * 10) / 10);
 const at = Date.parse(e.BACKUP_AT || "");
 const snap = num(e.SNAPSHOT_EPOCH);
-// timedatectl prints the offset as a signed number with a unit: -2.331ms, +1.2s, 340us.
+// timedatectl prints the offset as a signed span of one or more parts: +954us (seen on the Pi), -2.331ms, +1.2s,
+// +2min 5.300s. A large span has several parts (min, h, d) and a small one may use the micro sign (U+03BC or U+00B5).
 const offsetMs = (() => {
-  const m = /^([+-]?\d+(?:\.\d+)?)\s*(us|ms|s|min)$/.exec((e.CLOCK_OFFSET || "").trim());
+  const m = /^([+-]?)(.+)$/.exec((e.CLOCK_OFFSET || "").trim());
   if (!m) return null;
-  return Math.round(Number(m[1]) * { us: 0.001, ms: 1, s: 1000, min: 60000 }[m[2]] * 1000) / 1000;
+  const unit = { us: 0.001, "μs": 0.001, "µs": 0.001, ms: 1, s: 1000, min: 60000, h: 3600000, d: 86400000 };
+  const parts = m[2].split(/\s+/);
+  let total = 0;
+  for (const part of parts) {
+    const p = /^(\d+(?:\.\d+)?)(us|μs|µs|ms|s|min|h|d)$/.exec(part);
+    if (!p) return null;
+    total += Number(p[1]) * unit[p[2]];
+  }
+  return Math.round((m[1] === "-" ? -total : total) * 1000) / 1000;
 })();
 process.stdout.write(JSON.stringify({
   v: 1,
@@ -237,7 +246,7 @@ enable_unit foundry-board-status.timer
 
 if have_systemd; then
   say "one report now"
-  "$status_script" </dev/null || die "the first report failed (see the line above); check the token and that the board endpoint is deployed"
+  "$status_script" </dev/null || die "the first report failed (see the line above); check the token and that the board endpoint is deployed and accepts the report keys backup.snapshotAt, foundry.serviceActive and clock"
   ok "first report sent"
   systemctl list-timers foundry-board-status.timer --no-pager </dev/null || true
 else

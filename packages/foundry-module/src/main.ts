@@ -14,6 +14,7 @@ import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
+import { installCombatCreateGuard } from './combat-create-guard.js';
 import { applySelectionColor } from './token-selection-color.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
@@ -199,7 +200,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: SETUP_FEATURE_ID,
         name: 'AI Tool: Foundry setup (writes)',
-        hint: 'Lets the AI change Foundry settings and who can open a compendium pack, after you confirm; never passwords or these switches.',
+        hint: 'Lets the AI change Foundry settings, turn modules on or off, change user roles and who can open a compendium pack, journal or scene, after you confirm; never passwords, a Gamemaster or these switches.',
       });
       registerGuardedFeature({
         id: 'player-portrait',
@@ -231,7 +232,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: TOKEN_RINGS_FEATURE_ID,
         name: 'AI Tool: Token rings (writes)',
-        hint: "Lets the AI turn the dynamic token ring on or off on the actors' prototype tokens, in batches, after you confirm.",
+        hint: "Lets the AI turn the dynamic token ring on or off on the actors' default tokens or on tokens already placed on scenes, in batches, after you confirm.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
@@ -405,6 +406,10 @@ class FoundryMCPBridge {
       this.socketBridge = null;
       setBridgeLink(null);
     }
+
+    // A new bridge starts with a clean notifier: a "lost" left by the old one must not turn the
+    // first link of this one (which already shows "AI Tool connected") into "link is back".
+    this.linkNotifier.reset();
 
     this.isConnecting = true;
     let dialled = false;
@@ -651,6 +656,17 @@ Hooks.once('ready', () => {
     if (worldId) diagnostics.bindWorld(worldId);
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
+  }
+});
+
+// A fight created already begun must not throw in Combat#_onCreate on any client. Own try block.
+Hooks.once('ready', () => {
+  try {
+    if (!installCombatCreateGuard()) {
+      console.warn(`[${MODULE_ID}] Combat class has no _onCreate to guard`);
+    }
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not guard Combat creation:`, error);
   }
 });
 

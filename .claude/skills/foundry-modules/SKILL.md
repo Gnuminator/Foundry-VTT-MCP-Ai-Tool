@@ -55,7 +55,7 @@ the version on test server A (the pinned set) when the page was written or refre
 | `nice-more-dice`           | 1.4.2           | `references/nice-more-dice.md`           | keep     |
 | `item-piles`               | 3.3.4           | `references/item-piles.md`               | optional |
 | `tidy5e-sheet`             | 14.4.0          | `references/tidy5e-sheet.md`             | optional |
-| `quick-insert`             | 3.7.8           | `references/quick-insert.md`             | keep     |
+| `quick-insert`             | 3.7.8           | `references/quick-insert.md`             | drop     |
 | `find-the-culprit`         | 3.3.0           | `references/find-the-culprit.md`         | keep     |
 | `fxmaster`                 | 8.4.2           | `references/fxmaster.md`                 | keep     |
 | `tokenmagic`               | 0.8.4           | `references/tokenmagic.md`               | drop     |
@@ -80,7 +80,7 @@ None of the nine broke the world: all nine plus the 23 modules of the earlier ke
 | ------------------------------- | --------------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
 | Item Piles (+ `itempilesdnd5e`) | 3.3.4 (+ 1.1.0) | optional  | Replaces Loot Sheet NPC 5e. Needs the dnd5e companion; piles are `character` actors that `list-characters` shows |
 | Tidy 5e Sheets                  | 14.4.0          | optional  | Our writes and rolls show up in it live; it removes the Tokenizer portrait button                                |
-| Quick Insert                    | 3.7.8           | keep      | Turn on "GMs only", or players can search the names of actors and scenes they cannot see                         |
+| Quick Insert                    | 3.7.8           | drop      | Left out of Danni's picks. If it is ever added, turn on "GMs only" first (players could search hidden names)     |
 | Find the Culprit                | 3.3.0           | keep      | Disables our bridge during a search; Zero Modules and Reset restored the 14 modules that were active in that run |
 | FXMaster                        | 8.4.2           | keep      | Weather lives in a scene flag, separate from the core weather `plan-scene-mood` sets                             |
 | Token Magic FX                  | 0.8.4           | drop      | Works and survives our token moves, but noisy and overlaps Automated Animations                                  |

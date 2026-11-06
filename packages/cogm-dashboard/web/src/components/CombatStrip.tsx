@@ -87,18 +87,31 @@ const InitiativeRibbon = lazy(() =>
  * End combat went in and the focus is still to move to the combat pane. Module level, not a ref:
  * the strip can be mounted again when the fight leaves the page, and the new one finishes the job.
  */
-const focusAfterEnd = { current: false };
+const focusAfterEnd = { until: 0, timers: [] as number[] };
+
+/** How long after End combat went in the focus move may still happen (ms). */
+const FOCUS_AFTER_END_MS = 10_000;
+
+/** Cancels the focus checks still waiting (a fight is back on the page). */
+function cancelFocusChecks(): void {
+  for (const id of focusAfterEnd.timers) window.clearTimeout(id);
+  focusAfterEnd.timers.length = 0;
+}
 
 /**
- * Where the focus goes once the fight is gone: the combat pane, or, when the layout hides the pane
- * with no fight, the first button of the During bar.
+ * Where the focus goes once the fight is gone, only when it fell to the page: the combat pane, or,
+ * when the layout hides the pane with no fight, the Start combat button, else the During bar
+ * itself (not its first button, which is the layout switch).
  */
 function focusAfterEndTarget(): void {
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
   const pane = document.getElementById('pane-combat');
   const target =
     pane && pane.getBoundingClientRect().width > 0
       ? pane
-      : document.querySelector<HTMLElement>('#during-bar button:not([aria-disabled="true"])');
+      : (document.querySelector<HTMLElement>('#btn-during-start-combat, #btn-combat-start') ??
+        document.getElementById('during-bar'));
   target?.focus();
 }
 
@@ -244,7 +257,7 @@ function CombatantRow({
               className={`reaction-btn${reactionUsed ? ' used' : ''}`}
               data-track="dash.combat.reaction"
               data-reaction={c.id}
-              aria-label={reactionLabel(c.name, reactionUsed)}
+              aria-label={reactionLabel(shownName, reactionUsed)}
               aria-pressed={reactionUsed}
               aria-disabled={stale ? 'true' : undefined}
               title={
@@ -513,17 +526,21 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
   // pane (after the confirm window gave it back to the button that is about to unmount).
   const fightGone = real === null;
   useEffect(() => {
-    if (fightGone && focusAfterEnd.current) {
-      focusAfterEnd.current = false;
+    // The wish expires: an End combat that did not end the fight must not move the focus at the
+    // end of a later one. A fight on the page cancels the checks still waiting.
+    if (!fightGone) {
+      cancelFocusChecks();
+      return;
+    }
+    if (focusAfterEnd.until > Date.now()) {
+      focusAfterEnd.until = 0;
       // The confirm window gives focus back to the unmounting button a moment later: take it
       // again if it fell to the page.
-      const toPane = (): void => {
-        const active = document.activeElement;
-        if (!active || active === document.body) focusAfterEndTarget();
-      };
-      toPane();
-      window.setTimeout(toPane, 150);
-      window.setTimeout(toPane, 500);
+      focusAfterEndTarget();
+      focusAfterEnd.timers.push(
+        window.setTimeout(focusAfterEndTarget, 150),
+        window.setTimeout(focusAfterEndTarget, 500)
+      );
     }
   }, [fightGone, ending, busy]);
 
@@ -667,7 +684,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
                     // The fight is over and the bar unmounts with it: focus would drop to the page.
                     // The effect above moves it if the fight is only gone from the page later.
                     applied = await planEnd(() => setEnding(true));
-                    if (applied) focusAfterEnd.current = true;
+                    if (applied) focusAfterEnd.until = Date.now() + FOCUS_AFTER_END_MS;
                   }).then(() => {
                     // The fight was read again before the lock dropped: the bar is gone now.
                     if (applied) {

@@ -150,7 +150,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
   admin: {
     title: 'Admin',
     purpose:
-      'Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.',
+      'Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.',
     tools: [
       'get-modules',
       'get-module-errors',

@@ -14,7 +14,7 @@ The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the
 | [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
-| [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -1411,7 +1411,7 @@ Parameters:
 
 ## Admin
 
-Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.
+Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.
 
 ### get-modules
 
@@ -1492,7 +1492,7 @@ Parameters:
 
 ### plan-foundry-setup
 
-Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role and owned actors; never a Gamemaster). area ownership: target journal:name or scene:name, value {default, users:{name: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and every connected window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users, roles, actors; a Gamemaster is never changed; a role change signs them out; same name twice: use the id). area ownership: target journal:name or scene:name, value {default, users:{name or id: level}} (not actors). area module: target a module id or title (read lists all: on/off, requires, required by), value true or false; needed modules go on or dependents off with it, and windows reload on apply and undo. area setting: target namespace.key (read: partial name). area pack: target a pack id, value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of itself and lower roles}, locked, folder (name/null)}. Secrets are hidden. Needs the Foundry setup switch.
 
 Kind: read-only. Title: Read or plan Foundry setup.
 
@@ -1500,14 +1500,14 @@ Parameters:
 
 - `mode` (string, required): One of: `read`, `plan`.
 - `area` (string, required): One of: `setting`, `pack`, `module`, `user`, `ownership`.
-- `target` (string): Setting namespace.key, a pack id, or a module id or title.
+- `target` (string): Setting key, pack id, module id or title, user name or id, journal:name or scene:name.
 - `value` (any): plan only: the new value, or the pack changes.
 
 ### plan-token-rings
 
-Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
 
-Kind: read-only. Title: Plan dynamic token rings for actors.
+Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
 
 Parameters:
 

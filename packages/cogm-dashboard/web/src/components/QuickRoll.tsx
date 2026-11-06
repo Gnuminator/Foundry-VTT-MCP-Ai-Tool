@@ -23,6 +23,7 @@ import {
   cleanPick,
   pickLabel,
   rollArgs,
+  rollFailText,
   rollOptions,
   sentSummary,
   type Advantage,
@@ -118,7 +119,7 @@ export function useQuickRoll(): QuickRoll {
           } else {
             failed.push({
               name,
-              error: errorText(r.reason),
+              error: rollFailText(r.reason, errorText(r.reason)),
               ...(mayHaveApplied(r.reason) ? { maybeSent: true } : {}),
             });
             // The server says GM Actions are off whatever the page last heard: show it as off.

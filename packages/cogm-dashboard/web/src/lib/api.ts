@@ -2,7 +2,8 @@ import { authHeaders } from './auth';
 import { toolWords } from './toolWords';
 
 /**
- * A failed dashboard route: the server's own message when it sent one, else `HTTP <status>`.
+ * A failed dashboard route: the server's own message when it sent one, else a plain sentence for
+ * the status (`plainError`, never `HTTP <status>`).
  * `kind` is what failed when POST /api/tool reached the bridge: `tool`, `timeout` or `channel`.
  */
 export class ApiError extends Error {
@@ -72,12 +73,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body: unknown = await res.json().catch(() => undefined);
   if (!res.ok) {
     const refusal = refusalOf(body);
-    throw new ApiError(
-      refusal.message ?? plainError(res.status),
-      res.status,
-      field(body, 'kind'),
-      refusal.code
-    );
+    const kind = field(body, 'kind');
+    // The dashboard's own last-resort 500 (kind internal) says nothing a GM can use.
+    const message = kind === 'internal' ? undefined : refusal.message;
+    throw new ApiError(message ?? plainError(res.status), res.status, kind, refusal.code);
   }
   if (body === undefined) {
     // A 200 whose type is not JSON (HTML) is a sign-in page or a proxy's page standing in for the
@@ -99,7 +98,7 @@ export interface ToolConfirm {
 
 /**
  * A dashboard route that runs a bridge tool (POST /api/tool); the result, or the error thrown
- * (an ApiError with the HTTP status when the route refused it).
+ * (an ApiError with the status and kind when the route refused it).
  */
 export async function callTool<T>(
   name: string,
@@ -119,14 +118,22 @@ export async function callTool<T>(
 }
 
 /** Sentences the tools write for Claude, not for the GM. */
-const CLAUDE_TAILS = [
-  /\s*Tell the GM and stop here; do not work around it with other tools\.?/g,
-  /\s*It may have been applied already: check list-recent-changes first\.[^]*?make a new plan\.?/g,
-  /\s*Use [a-z][a-z0-9-]* to find the right one, then try again\.?/g,
+const CLAUDE_TAILS: [RegExp, string][] = [
+  [/\s*Tell the GM and stop here; do not work around it with other tools\.?/g, ''],
+  // The plan is gone but the change may have gone in: say that, and where to look.
+  [
+    /\s*It may have been applied already: check list-recent-changes first\.[^]*?make a new plan\.?/g,
+    ' It may have applied; check Recent Changes.',
+  ],
+  [/\s*Use [a-z][a-z0-9-]* to find the right one, then try again\.?/g, ''],
+  // The bridge's own prefix on a failed query (a method name, not a sentence for the GM).
+  [/Query foundry-mcp-bridge\.[\w.]+ failed:\s*/g, ''],
 ];
 
+// A tool name is a verb and lower-case words. A tail with a digit (a plan or change id such as
+// plan-m3x9k-1a2b3c4d) is not one, so it stays as it is.
 const TOOL_ID =
-  /\b(?:apply|undo|plan|get|list|create|update|suggest|request|roll|manage|measure|search|advance|send|dnd5e)(?:-[a-z0-9]+)+\b/g;
+  /\b(?:apply|undo|plan|get|list|create|update|suggest|request|roll|manage|measure|search|advance|send|dnd5e)(?:-[a-z]+)+(?![\w-])/g;
 
 /**
  * A message for the GM: the tails written for Claude are dropped and a tool id reads as words
@@ -138,7 +145,7 @@ export function plainText(message: string): string {
     /Tell the GM that Foundry is not connected \([^)]*\); do not retry\.?/,
     'Foundry is not connected: open the world in a browser with a GM joined.'
   );
-  for (const tail of CLAUDE_TAILS) text = text.replace(tail, '');
+  for (const [tail, instead] of CLAUDE_TAILS) text = text.replace(tail, instead);
   text = text.replace(TOOL_ID, id => toolWords(id).toLowerCase());
   return text.trim() || plainError(500);
 }

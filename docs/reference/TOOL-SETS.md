@@ -18,7 +18,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **play**  | `foundry-mcp-play`   | 37    | about 41,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,800      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
-| **admin** | `foundry-mcp-admin`  | 11    | about 9,500       | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.  |
+| **admin** | `foundry-mcp-admin`  | 11    | about 10,500      | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.  |
 
 A prep chat with core and prep on carries about 40,600 characters instead of 119,100. Core alone is
 about 15% of everything.

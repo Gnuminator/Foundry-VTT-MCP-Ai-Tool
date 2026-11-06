@@ -169,6 +169,34 @@ describe('planTokenRings, placed tokens', () => {
     );
   });
 
+  it('refuses scenes without tokens placed instead of planning the actors', () => {
+    expect(() => planTokenRings({ action: 'enable', scenes: ['Castle'] })).toThrow(/placed/);
+    expect(() =>
+      planTokenRings({ action: 'enable', tokens: 'actors', scenes: ['Castle'] })
+    ).toThrow(/placed/);
+  });
+
+  it('counts the token name and the actor name as seen when both were asked for', () => {
+    world.addScene({
+      id: 's4',
+      name: 'Crypt',
+      tokens: [
+        {
+          ...token('t9', 'Gob', 'npc', false, false, 's4'),
+          actor: { name: 'Goblin', type: 'npc' },
+        },
+      ],
+    });
+    const plan = planTokenRings({
+      action: 'enable',
+      tokens: 'placed',
+      scenes: ['Crypt'],
+      names: ['Gob', 'Goblin'],
+    });
+    expect(plan.ops).toHaveLength(1);
+    expect(plan.unmatched).toEqual([]);
+  });
+
   it('caps a plan at the batch size', () => {
     const many = Array.from({ length: TOKEN_RINGS_BATCH + 3 }, (_, i) =>
       token(`m${i}`, `Rat ${i}`, 'npc', false, false, 's3')

@@ -1172,7 +1172,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
             kind === 'timeout'
               ? 'Foundry took too long to answer.'
               : kind === 'channel'
-                ? 'The dashboard lost its link to Foundry. Check that the world is open with a GM joined.'
+                ? 'The dashboard lost its link to the bridge. Check that the AI Tool is running.'
                 : error instanceof Error
                   ? error.message
                   : 'The action did not work.',

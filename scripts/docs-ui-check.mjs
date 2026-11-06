@@ -13,8 +13,11 @@
  *   node scripts/docs-ui-check.mjs            check, exit 1 on a name nobody has
  *   node scripts/docs-ui-check.mjs --root d   check another tree (tests)
  *
- * Pages: docs/gm/** and docs/da/gm/** (the Danish twins keep the English button names), plus the
- * checklists listed in CHECKLISTS.
+ * Pages: docs/gm/**, docs/player/** and their docs/da twins (the Danish twins keep the English
+ * button names), plus the checklists listed in CHECKLISTS. A missing folder, a missing checklist, no
+ * dashboard strings or no names at all fail, so a move cannot shrink the scan unnoticed. The
+ * strings are the quoted text and tag text of the sources; comments, stories and quoted lowercase
+ * single words (ids, type members) are left out, so a label has to be shown somewhere to count.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +30,7 @@ const VERBS =
 
 /** Checklists outside docs/gm that also name dashboard controls. */
 export const CHECKLISTS = ['docs/dev/SMOKE-TEST.md'];
-const DOC_DIRS = ['docs/gm', 'docs/da/gm'];
+const DOC_DIRS = ['docs/gm', 'docs/da/gm', 'docs/player', 'docs/da/player'];
 const SOURCE_DIRS = [
   'packages/cogm-dashboard/web/src',
   'packages/cogm-dashboard/public',
@@ -40,13 +43,13 @@ const SOURCE_DIRS = [
 ];
 const EXCEPTIONS_FILE = 'scripts/docs-ui-exceptions.json';
 
-const walk = (dir, out = []) => {
+const walk = (dir, out = [], skip = []) => {
   if (!existsSync(dir)) return out;
   for (const n of readdirSync(dir)) {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) {
-      if (n === 'node_modules' || n === 'dist' || n === '__screenshots__') continue;
-      walk(p, out);
+      if (n === 'node_modules' || n === 'dist' || n === '__screenshots__' || skip.includes(n)) continue;
+      walk(p, out, skip);
     } else out.push(p);
   }
   return out;
@@ -63,25 +66,61 @@ export function normalize(s) {
     .toLowerCase();
 }
 
-/** Every string a dashboard source file shows: string literals, template text and tag text. */
-export function sourceStrings(text) {
+/** The text with every `open ... close` span cut out (an unclosed one runs to the end). */
+function cutSpans(text, open, close) {
+  let out = '';
+  let pos = 0;
+  for (;;) {
+    const a = text.indexOf(open, pos);
+    if (a < 0) return out + text.slice(pos);
+    out += `${text.slice(pos, a)} `;
+    const b = text.indexOf(close, a + open.length);
+    if (b < 0) return out;
+    pos = b + close.length;
+  }
+}
+
+/**
+ * Source without block comments, HTML comments and whole-line or trailing `//` comments. A `/*`
+ * inside a string ('/api/help/*', accept="image/*") is no comment: block comments are cut only
+ * where they start a line or follow whitespace or an opening bracket, comma, semicolon or `=`.
+ */
+export function stripSourceComments(text) {
+  const blocks = text.replace(/(^|[\s{(,;=])\/\*[\s\S]*?\*\//g, '$1 ');
+  return cutSpans(blocks, '<!--', '-->')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/(\s)\/\/\s.*$/gm, '$1');
+}
+
+/** A quoted word such as 'tarokka' or 'drawer-open': an identifier or a type member, not a label. */
+const IDENTIFIER = /^[a-z][a-z0-9_-]*$/;
+
+/**
+ * Every string a dashboard source file shows: string literals, template text and tag text.
+ * Comments are cut first, and a quoted lowercase single word (an id, a type union member, a CSS
+ * class) is not taken for a label.
+ */
+export function sourceStrings(source) {
+  const text = stripSourceComments(source);
   const out = [];
   for (const m of text.matchAll(
     /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g
   )) {
-    out.push((m[1] ?? m[2] ?? m[3] ?? '').replace(/\$\{[^}]*\}/g, ' '));
+    const s = (m[1] ?? m[2] ?? m[3] ?? '').replace(/\$\{[^}]*\}/g, ' ');
+    if (!IDENTIFIER.test(s.trim())) out.push(s);
   }
   for (const m of text.matchAll(/>([^<>{}\n][^<>{}]*)</g)) out.push(m[1]);
   // JSX text on its own line, next to an expression: "  Open {count} items"
-  for (const m of text.matchAll(/^\s*([A-Za-z][^<>{}=;()]*?)\s*$/gm)) out.push(m[1]);
+  for (const m of text.matchAll(/^\s*([A-Za-z+][^<>{}=;()]*?)\s*$/gm)) out.push(m[1]);
   return out;
 }
 
 export function buildCorpus(root) {
   const set = new Set();
   for (const d of SOURCE_DIRS) {
-    for (const f of walk(path.join(root, d))) {
-      if (!/\.(tsx?|jsx?|mjs|html)$/.test(f) || /\.(test|spec)\.|\.d\.ts$/.test(f)) continue;
+    // Storybook fixtures are not UI text a doc may name.
+    for (const f of walk(path.join(root, d), [], ['storybook'])) {
+      if (!/\.(tsx?|jsx?|mjs|html)$/.test(f) || /\.(test|spec|stories)\.|\.d\.ts$/.test(f)) continue;
       for (const s of sourceStrings(readFileSync(f, 'utf8'))) {
         const n = normalize(s);
         if (n) set.add(n);
@@ -104,8 +143,8 @@ export function inCorpus(name, corpus) {
 }
 
 /**
- * Bold names next to a UI word, with the line number where their paragraph, list item or table
- * row starts. The guides are hard-wrapped, so a block is joined into one line before matching.
+ * Bold names next to a UI word, with the line number of the line the name itself is on (the
+ * paragraph, list item or table row it sits in is joined into one line before matching). The guides are hard-wrapped, so a block is joined into one line before matching.
  */
 export function boldNames(text) {
   const found = [];
@@ -126,7 +165,8 @@ export function boldNames(text) {
     if (!line.trim() || /^#{1,6}\s/.test(line) || /^\s*:::/.test(line)) return flush();
     const starts = /^\s*(?:[-*+]|\d+\.)\s/.test(line) || /^\s*\|/.test(line);
     if (starts) flush();
-    if (!cur) cur = { line: i + 1, text: '' };
+    if (!cur) cur = { line: i + 1, text: '', parts: [] };
+    cur.parts.push({ at: cur.text.length, line: i + 1 });
     cur.text += ` ${line.trim()}`;
   });
   flush();
@@ -138,13 +178,18 @@ export function boldNames(text) {
     new RegExp(`${lead}(?:${VERBS})\\s+(?:on\\s+|the\\s+|på\\s+)*${bold}`, 'giu'),
   ];
   for (const b of blocks) {
-    const plain = b.text.replace(/`[^`]*`/g, m => ' '.repeat(m.length));
+    // **`Undo`** is a bold name written as code: drop the backticks (same length, so the line
+    // offsets hold); any other code span is blanked, since a bold word inside code is an example.
+    const unwrapped = b.text.replace(/\*\*`([^`]*)`\*\*/g, (m, c) => `** ${c} **`);
+    const plain = unwrapped.replace(/`[^`]*`/g, m => ' '.repeat(m.length));
     for (const re of res) {
       for (const m of plain.matchAll(re)) {
         const name = m[1].replace(/\s+/g, ' ').trim();
         if (!name || /[:.]$/.test(name)) continue; // a label such as **Tip:** or a bold sentence
-        if (!found.some(f => f.name === name && f.line === b.line))
-          found.push({ name, line: b.line });
+        // The line the name itself is on, not the line its paragraph starts on.
+        const at = m.index + m[0].indexOf('**');
+        const line = [...b.parts].reverse().find(p => p.at <= at)?.line ?? b.line;
+        if (!found.some(f => f.name === name && f.line === line)) found.push({ name, line });
       }
     }
   }
@@ -164,15 +209,24 @@ export function check(root) {
   const corpus = buildCorpus(root);
   const exceptions = loadExceptions(root);
   const pages = [];
-  for (const d of DOC_DIRS) {
-    for (const f of walk(path.join(root, d))) if (f.endsWith('.md')) pages.push(f);
-  }
-  for (const c of CHECKLISTS) if (existsSync(path.join(root, c))) pages.push(path.join(root, c));
   const problems = [];
+  // A moved or renamed folder or checklist must not shrink the scan without a word.
+  for (const d of DOC_DIRS) {
+    const found = walk(path.join(root, d)).filter(f => f.endsWith('.md'));
+    if (!found.length) problems.push(`${d}: no pages found; was the folder moved? Update DOC_DIRS`);
+    pages.push(...found);
+  }
+  for (const c of CHECKLISTS) {
+    if (existsSync(path.join(root, c))) pages.push(path.join(root, c));
+    else problems.push(`${c}: checklist not found; was it moved? Update CHECKLISTS`);
+  }
+  if (!corpus.length) problems.push('no dashboard strings found; were the source folders moved?');
   const used = new Set();
+  let names = 0;
   for (const f of pages) {
     const rel = path.relative(root, f).replace(/\\/g, '/');
     for (const { name, line } of boldNames(readFileSync(f, 'utf8'))) {
+      names++;
       const n = normalize(name);
       if (exceptions.has(n)) {
         used.add(n);
@@ -182,13 +236,14 @@ export function check(root) {
         problems.push(`${rel}:${line}: "${name}" is in no dashboard string`);
     }
   }
+  if (!names) problems.push('no bold control names found in any page; did the pages or the matcher change?');
   for (const k of exceptions.keys()) {
     if (!used.has(k))
       problems.push(`${EXCEPTIONS_FILE}: "${k}" is named by no doc any more; remove the exception`);
     else if (inCorpus(k, corpus))
       problems.push(`${EXCEPTIONS_FILE}: "${k}" is now a dashboard string; remove the exception`);
   }
-  return { problems, pages: pages.length, corpus: corpus.length };
+  return { problems, pages: pages.length, corpus: corpus.length, names };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -80,7 +80,9 @@ if ($Only -in 'all', 'foundry') {
     $foundryArgs = @("`"$main`"", "--dataPath=`"$($TestEnv.DataDir)`"", "--port=$($TestEnv.FoundryPort)", '--noupnp', '--noupdate')
     $worldId = if ($World) { $World } else { $TestEnv.WorldId }
     $worldDir = Join-Path $TestEnv.DataDir 'Data' 'worlds' $worldId
-    if (-not $NoWorld -and (Test-Path $worldDir)) { $foundryArgs += "--world=$worldId" }
+    if (-not $NoWorld -and (Test-Path $worldDir)) {
+      $foundryArgs += "--world=$worldId"
+    }
     # Foundry locks its data folder (Config/options.json.lock) and refreshes the
     # lock while running; right after a stop it is still fresh and a new start
     # fails with "already locked". Wait until it has gone stale.
@@ -88,6 +90,13 @@ if ($Only -in 'all', 'foundry') {
     $deadline = (Get-Date).AddSeconds(30)
     while ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalSeconds -lt 12 -and (Get-Date) -lt $deadline) {
       Start-Sleep -Seconds 1
+    }
+    # After a Foundry point update the world's verified build is older than the app and Foundry
+    # refuses to auto-launch it; bump it (only while nothing listens on this server's port, and
+    # after the data-folder lock wait, so a stopping Foundry has let go of world.json).
+    if ($foundryArgs -contains "--world=$worldId" -and -not (Test-NetConnection -ComputerName 127.0.0.1 -Port $TestEnv.FoundryPort -InformationLevel Quiet -WarningAction SilentlyContinue)) {
+      $bumped = Update-WorldVerified $worldDir (Get-FoundryAppVersion $TestEnv.AppDir)
+      if ($bumped) { Write-Host "foundry : world '$worldId' verified build bumped to $bumped (copy: world.json.bak-verified)" }
     }
     $appRoot = Split-Path $main
     $foundryNode = Get-FoundryNodeExe $appRoot

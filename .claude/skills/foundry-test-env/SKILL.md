@@ -171,6 +171,11 @@ never in `ai-tool-test`. Start Foundry on one with `start.ps1 -World <id>`.
 | `ai-tool-kit-licensed` | licensed profile (PHB 2024 and the other bought packs, local only) |
 | `strahd-kit`           | strahd profile: a throwaway copy of `curse-of-strahd`, made again  |
 
+After a Foundry point update (14.369 to 14.370) Foundry logs "requested World ... is not available
+to auto-launch" for a world whose `compatibility.verified` names an older build (`coreVersion`
+does not matter). `start.ps1 -World <id>` bumps both fields to the app's build first (copy:
+`world.json.bak-verified`), so every world launches on every server after an update.
+
 `kit init` gives each one three passwordless users and keeps them as test data: `Kit GM`
 (Gamemaster; the kit's builder and runs join as it, and it is the bridge user), `Claude`
 (Gamemaster; for sessions in the browser pane, so you can look around without taking the kit's

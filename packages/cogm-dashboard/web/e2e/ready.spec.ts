@@ -207,13 +207,13 @@ test('GM Actions follow the stream, and a failed read shows in the note', async 
   await fakeReady(page, {
     switches: null,
     gmActionsEnabled: false,
-    error: 'Foundry is not connected.',
+    error: 'Could not read the switches from Foundry.',
   });
   const block = await openReady(page);
 
   await expect(chips(block)).toHaveText(['✓ GM Actions']);
   await expect(block.locator('#ready-note')).toHaveText(
-    'Could not read the switches: Foundry is not connected.'
+    'Could not read the switches from Foundry.'
   );
   // GM Actions on is enough to offer turning off.
   await expect(block.locator('#btn-ready-off')).toBeVisible();

@@ -244,8 +244,9 @@ const replacing = [...moved]
 log(
   `REPLACE stale legacy copies with the content pack's version: ${replacing.length}${replacing.length ? ` (${replacing.slice(0, 40).join(' | ')})` : ''}`
 );
-// Kept entries that link into a pack players cannot open (a dead link for them). The summons and tables packs were
-// GM-only before the trim and are a known open point; anything else is drift.
+// Kept entries that link into a pack players cannot open (a dead link for them). A link into a GM-only pack is listed
+// below, not drift: a rerun of the trim could not fix it. The summons and tables packs were GM-only before the trim and
+// are a known open point; the check mode counts any other such pack as unexpected.
 const KNOWN_GM_ONLY = ['aitool-content.summons', 'aitool-content.tables'];
 const deadForPlayers = [...linkedPacks.keys()].filter(pid => {
   const p = game.packs.get(pid);

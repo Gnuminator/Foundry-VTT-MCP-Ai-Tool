@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 3.7.8, 2026-10-28 (test server B; the search window as GM and as a player, and the GMs-only setting, were driven live; the sheet filters and drag and drop from results were not).
 
-**Verdict: keep.** Ctrl+Space finds any actor, item, spell, journal, scene or macro in one box, which is what a GM new to Foundry needs most while running a table. One setting must be turned on first: by default a player can search the names of things they cannot see.
+**Verdict: drop.** Left out of Danni's picks (the list of 2026-11-04 has it under dropped), so it is not installed in the Strahd world. It still works: Ctrl+Space finds any actor, item, spell, journal, scene or macro in one box. If it is ever added, one setting must be turned on first: by default a player can search the names of things they cannot see.
 
 **For Danni's guides:** Press Ctrl+Space, type a few letters, and press Enter to open or drag the result onto the map or a sheet.
 

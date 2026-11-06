@@ -29,6 +29,30 @@
       "name": "Allow Player Effect Application",
       "reason": "Automated Conditions 5e module setting"
     },
-    { "name": "Level Up", "reason": "dnd5e character sheet button" }
+    { "name": "Level Up", "reason": "dnd5e character sheet button" },
+    { "name": "Identity", "reason": "Foundry prototype token configuration tab" },
+    { "name": "Dead", "reason": "Foundry token status icon" },
+    { "name": "Send login code", "reason": "Cloudflare Access login page" },
+    { "name": "Join Game Session", "reason": "Foundry join screen button" },
+    { "name": "Log Out", "reason": "Foundry game menu button" },
+    { "name": "Actor Studio", "reason": "Actor Studio module name (character builder in Foundry)" },
+    { "name": "Don't show this message again", "reason": "Actor Studio welcome window checkbox" },
+    { "name": "Create Character", "reason": "Actor Studio button" },
+    { "name": "Advancements", "reason": "Actor Studio step" },
+    { "name": "Add Selected", "reason": "Actor Studio button" },
+    { "name": "Amulet", "reason": "dnd5e holy symbol item name" },
+    { "name": "[+] Cantrips", "reason": "Actor Studio spell step button" },
+    { "name": "Finalize Spells", "reason": "Actor Studio button" },
+    { "name": "Add Character Level", "reason": "Actor Studio button" },
+    { "name": "Take Average", "reason": "Actor Studio hit point button" },
+    { "name": "User Configuration", "reason": "Foundry player configuration window" },
+    { "name": "Save Player Configuration", "reason": "Foundry player configuration button" },
+    {
+      "name": "Add Device",
+      "reason": "Obsidian Sync or Self-hosted LiveSync device dialog button"
+    },
+    { "name": "Ignore", "reason": "Obsidian plugin prompt button" },
+    { "name": "Open folder as vault", "reason": "Obsidian start screen button" },
+    { "name": "Revert Local Changes", "reason": "Obsidian plugin button" }
   ]
 }

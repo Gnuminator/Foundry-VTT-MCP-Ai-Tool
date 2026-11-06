@@ -169,7 +169,16 @@ describe('status script', () => {
   });
 
   test('clock offsets in us, s and min are converted to milliseconds', async () => {
-    for (const [offset, ms] of [['340us', 0.34], ['+1.2s', 1200], ['-2min', -120000]]) {
+    for (const [offset, ms] of [
+      ['340us', 0.34],
+      ['+954us', 0.954],
+      ['+500μs', 0.5],
+      ['+1.2s', 1200],
+      ['-2min', -120000],
+      ['+2min 5.300s', 125300],
+      ['-1h 2min 3s', -3723000],
+      ['garbage 2s', null],
+    ]) {
       const r = await run(fakePi({ offset }), { args: ['--dry-run'] });
       assert.equal(JSON.parse(r.stdout).clock.offsetMs, ms, offset);
     }

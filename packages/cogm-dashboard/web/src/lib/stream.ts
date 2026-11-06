@@ -1,5 +1,5 @@
-// The live stream (/api/stream, sse.ts on the server): one EventSource for the whole page, as the
-// old page has. Each event the new page uses lands in the TanStack Query cache under its own key,
+// The live stream (/api/stream, sse.ts on the server): one EventSource for the whole page.
+// Each event the page uses lands in the TanStack Query cache under its own key,
 // so a panel reads it like any other query and re-renders when it changes. EventSource reconnects
 // by itself; the server replays what a new connection needs (status, recent errors, ...).
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -109,7 +109,7 @@ export interface StreamLink {
 
 export const STREAM_LINK_KEY = ['stream', 'link'] as const;
 
-/** The old page keeps 150 entries on screen; the server keeps the newest 100. */
+/** The page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
 export const MODULE_ERRORS_KEY = ['stream', 'errors'] as const;
@@ -156,7 +156,7 @@ export const TAROKKA_KEY = ['game', 'tarokka'] as const;
  */
 export const CHANGES_KEY = ['game', 'changes'] as const;
 
-/** How long a burst of gm-change events waits before Recent Changes reloads once (as the old page). */
+/** How long a burst of gm-change events waits before Recent Changes reloads once. */
 export const CHANGES_RELOAD_MS = 400;
 let changesReload: ReturnType<typeof setTimeout> | null = null;
 
@@ -184,7 +184,7 @@ export function onEvents(queryClient: QueryClient, data: unknown): void {
 
 /**
  * The bridge link status. Foundry turning reachable again (a restart, a dropped link) reloads
- * Recent Changes as the old page did: a change made while the link was down sent no `gm-change`,
+ * Recent Changes: a change made while the link was down sent no `gm-change`,
  * and a load that failed meanwhile would stay failed.
  */
 export function onStatus(queryClient: QueryClient, data: unknown): void {
@@ -586,8 +586,8 @@ export function useBridgeAway(): boolean {
 }
 
 /**
- * An obsidian:// link to a note in this world's folder of the vault (the old page's
- * obsidianFileUrl), or null until both the vault name and the world id are known.
+ * An obsidian:// link to a note in this world's folder of the vault,
+ * or null until both the vault name and the world id are known.
  */
 export function useObsidianFileUrl(relativePath: string): string | null {
   const vault = useDashboardSettings()?.obsidian?.vault;

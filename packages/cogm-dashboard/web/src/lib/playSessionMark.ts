@@ -2,7 +2,7 @@
 // confirm). One hook for every button that does it (the header marker, Turn on for tonight's
 // "Start the session log"), so they share one pending state and one flow. Starting also turns on
 // live play (GM Actions and every Turn on for tonight switch); ending turns off what that turned
-// on, as the old page's End session did.
+// on.
 import {
   useIsMutating,
   useMutation,

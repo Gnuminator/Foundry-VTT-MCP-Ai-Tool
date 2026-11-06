@@ -154,7 +154,7 @@ test('the hand checklist stays ticked in this browser until Clear ticks', async 
   await drawer.getByLabel('Tokens the players should not know about yet are hidden.').check();
   await drawer.getByLabel("Read last session's note in Obsidian.").check();
 
-  // The old page reads the same key, so ticks carry over between the two.
+  // The ticks are kept in localStorage.
   const stored = await page.evaluate(() => localStorage.getItem('cogm_preflight_ticks'));
   expect(Object.keys(JSON.parse(stored ?? '{}') as object).sort()).toEqual([
     'hidden-tokens',
@@ -205,7 +205,7 @@ test('the drawer closes with ✕, Escape and the backdrop', async ({ page }) => 
 
   await header(page).click();
   await expect(drawer).toBeVisible();
-  // The backdrop covers the header while a drawer is open, as on the old page.
+  // The backdrop covers the header while a drawer is open.
   await expect(page.locator('.drawer-backdrop')).toBeVisible();
 });
 

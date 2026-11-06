@@ -1,6 +1,5 @@
 // The plan link (I-059, D-067): the Obsidian plugin opens /?plan=<planId> after it made a plan (a
 // handout reveal); the dashboard shows that plan's confirm window, so the GM approves it here.
-// Port of the old page's plan link handling (public/app.js).
 
 const PLAN_ID = /^plan-[a-z0-9-]{1,80}$/;
 

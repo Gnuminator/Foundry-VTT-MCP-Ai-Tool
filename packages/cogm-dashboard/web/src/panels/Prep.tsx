@@ -87,7 +87,7 @@ const count = (n: number, one: string, many: string): string => `${n} ${n === 1 
 const counter = (label: string, c: PrepCounter | null): string =>
   c ? `${label} ${c.remaining}/${c.max}` : '';
 
-/** A row of the old page's lists: a label, a detail under it, and maybe an Open button. */
+/** A row of a list: a label, a detail under it, and maybe an Open button. */
 function Row({
   label,
   detail,
@@ -451,7 +451,7 @@ export function PrepDrawer({
   const action: PrepAction = digest.data?.action ?? 'summary';
 
   const load = async (next: PrepAction = action): Promise<void> => {
-    // A load while one runs is dropped, as on the old page.
+    // A load while one runs is dropped.
     if (loading) return;
     nextAction.current = next;
     setLoading(true);

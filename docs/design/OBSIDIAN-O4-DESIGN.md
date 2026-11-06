@@ -457,7 +457,7 @@ building, 2026-09-29). The uuid is the only parameter: no label, no token.
 | `POST /api/open` `{uuid, userId?}` | acts                              | 401                       | 403          | acts: calls `open-in-foundry` once |
 
 - **GET shows, POST acts.** A click in Obsidian is a top-level navigation: it carries no header, and the
-  dashboard sets no cookie (the GM page keeps its token in localStorage `cogm_token`, `public/app.js:11-24`).
+  dashboard sets no cookie (the GM page keeps its token in localStorage `cogm_token`).
   So the GET cannot authenticate; it serves `public/open.html`, a shell with no data (like `/` and `/player`
   today), and never calls the bridge. Its script (`public/open.js`) reads the uuid from the URL and the token
   from the same localStorage key, shows "Open this Actor (`Actor.abc…`) on your Foundry screen?", and POSTs

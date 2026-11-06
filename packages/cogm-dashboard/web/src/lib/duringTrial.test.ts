@@ -77,7 +77,7 @@ describe('the trial steps', () => {
   });
 
   it('points at "Show everything" only in the step that the bar shows that button for', () => {
-    // The old page hid the button in the trial while this text pointed at it.
+    // The button must be visible in the trial, since this text points at it.
     const text = TOUR[1]?.text ?? '';
     expect(text).toContain(`"${fullButtonLabel('simple')}"`);
   });

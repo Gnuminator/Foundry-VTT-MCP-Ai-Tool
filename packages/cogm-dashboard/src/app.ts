@@ -654,7 +654,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // the dashboard itself.
   app.use(liveFrameMiddleware(config.foundryUrl));
   app.get('/', pageLimit, (_req: Request, res: Response) => {
-    // No old page to fall back to: say what is missing instead of a bare "Cannot GET /".
+    // Nothing else to fall back to: say what is missing instead of a bare "Cannot GET /".
     if (!fs.existsSync(reactIndex)) {
       res.status(503).type('text/plain').send('The dashboard is not built: run npm run build.');
       return;
@@ -672,7 +672,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       : '';
     res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
   });
-  // The old dashboard page (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
+  // The retired page address (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
   // /next/ above, so a saved link still lands on the dashboard. Its files are not served.
   const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
   // The pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers

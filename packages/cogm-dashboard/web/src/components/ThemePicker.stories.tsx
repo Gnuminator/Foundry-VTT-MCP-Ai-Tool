@@ -27,7 +27,7 @@ function Header(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">New dashboard (preview)</p>
+            <p className="subtitle">Foundry AI Tool</p>
           </div>
         </div>
         <div className="controls">

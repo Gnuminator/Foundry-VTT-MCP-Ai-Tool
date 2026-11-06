@@ -3,9 +3,8 @@
 // opens and folds on its own, so any of them can be open together), and how the GM's own choices are kept. No
 // React here, so the rules have unit tests; components/Folds.tsx does the rest.
 //
-// Unlike the old page, which started over whenever a fight began or ended or the window crossed
-// 600 or 900 px, a card the GM folded or opened keeps that choice for the same layout, fight and
-// width class. The choices are kept in this browser (lib/remember.ts).
+// A card the GM folded or opened keeps that choice for the same layout, fight and width class
+// (it does not start over when a fight begins or ends or the window crosses 600 or 900 px). The choices are kept in this browser (lib/remember.ts).
 import type { DuringContext } from './duringTrial';
 import type { DuringLayout } from './prefsModel';
 
@@ -21,7 +20,7 @@ export const FOLD_TITLES: Record<FoldCard, string> = {
   party: 'Party',
 };
 
-/** The old page's element ids of the cards (#pane-feed, #party-drawer, ...). */
+/** The element ids of the cards (#pane-feed, #party-drawer, ...). */
 export const FOLD_IDS: Record<FoldCard, string> = {
   feed: 'pane-feed',
   changes: 'pane-changes',

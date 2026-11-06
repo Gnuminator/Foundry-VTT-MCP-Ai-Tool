@@ -44,7 +44,7 @@ down until someone reloads.
 - **Telling the user:** the backend tracks `linkDownSince` (ISO time, null while connected) and logs
   one warning when the link has been down 5 minutes and one info line when it is back
   (`link-down` / `link-up`, the hook the Discord bot will use later). The dashboard status carries
-  `foundryDownSince`; `public/app.js` shows a banner above the panels when Foundry has been
+  `foundryDownSince`; the dashboard shows a banner above the panels when Foundry has been
   unreachable for 2 minutes or more: "Foundry is not connected to the bridge since HH:MM. Open
   Foundry in the bridge user's browser, or reload that tab."
 

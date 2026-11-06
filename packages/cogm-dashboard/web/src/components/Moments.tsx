@@ -1,7 +1,7 @@
 // The three moments of the evening (D-085, PB-16): Before, During and After, as tabs in the header
 // and one view each. The moment follows the play session (lib/session.ts); a tab click pins it.
 // Panels dock in their view's slots (Drawer.tsx, DockContext); the ones not in React yet show a
-// small card that points to the full dashboard. The look is the old page's moments.css.
+// small card that points to the full dashboard. The look is moments.css.
 import {
   useEffect,
   useLayoutEffect,
@@ -31,7 +31,7 @@ export type DockName = DrawerDockName | 'changes';
 const ORDER: readonly Moment[] = ['before', 'during', 'after'];
 
 /**
- * The panels docked in each moment, as on the old page. Tarokka and the Tool runner never dock.
+ * The panels docked in each moment. Tarokka and the Tool runner never dock.
  * Recent Changes is in During and After only; over Before it is not on the page.
  */
 export const DOCKS: Record<Moment, readonly DockName[]> = {

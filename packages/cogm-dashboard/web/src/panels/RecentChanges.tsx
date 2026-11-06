@@ -1,5 +1,5 @@
-// Recent Changes (D-077, I-109): what changed at the table and an Undo for it, ported from the old
-// page. Three tabs when the bridge has `list-changes`: Tool (every change made through the AI
+// Recent Changes (D-077, I-109): what changed at the table and an Undo for it.
+// Three tabs when the bridge has `list-changes`: Tool (every change made through the AI
 // Tool, Claude and the dashboard buttons: the guarded changes, list-recent-changes), Game (what
 // players and the GM did directly in Foundry) and Everything (both, with a person filter and
 // Redo); an older bridge shows the Tool list alone. It docks in the During

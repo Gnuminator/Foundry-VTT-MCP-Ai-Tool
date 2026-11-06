@@ -594,6 +594,8 @@ export function portableNodeDir(o = {}) {
   const version = (/** @type {string} */ n) => n.split('-')[1]?.split('.').map(Number) ?? [];
   const newest = names
     .filter(n => /^node-v24\.\d+\.\d+-win-x64$/.test(n))
+    // A folder older than 24.22 has the native crash this pin exists to avoid.
+    .filter(n => isSafeNode(n.split('-')[1]?.slice(1) ?? ''))
     .sort((a, b) => {
       const [x, y] = [version(a), version(b)];
       return (y[1] ?? 0) - (x[1] ?? 0) || (y[2] ?? 0) - (x[2] ?? 0);
@@ -638,7 +640,7 @@ export function nodeNote(o = {}) {
   if (dir) return `green: steps on Node 24 (${dir})`;
   return isSafeNode(version)
     ? `green: steps on Node ${version}`
-    : `green: no portable Node 24 found; steps run on Node ${version}`;
+    : `green: no portable Node 24.22+ found; steps run on Node ${version}`;
 }
 
 /**

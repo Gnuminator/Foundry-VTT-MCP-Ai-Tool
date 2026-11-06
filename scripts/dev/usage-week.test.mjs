@@ -258,6 +258,8 @@ test('lanes: the line is 200k before the 2026-11-03 22:59Z merge and 250k from i
   assert.ok(isLaneFile(file));
   assert.ok(!isLaneFile(path.join('projects', PROJECT_DIR, 'p.jsonl')));
   assert.equal(confirmedPeak([{ real: 100 }, { real: 900 }, { real: 120 }]), 120);
+  // a first response alone is never confirmed
+  assert.equal(confirmedPeak([{ real: 500_000 }]), 0);
   assert.equal(formatLanes(laneStats([], 1)), 'Lanes: none in the window');
 });
 

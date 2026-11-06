@@ -56,7 +56,7 @@ export class TokenRingsTools {
       {
         name: 'plan-token-rings',
         description:
-          "Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.",
+          "Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -110,6 +110,9 @@ export class TokenRingsTools {
     if (!features.find(f => f.id === TOKEN_RINGS_FEATURE_ID)?.enabled) {
       throw new Error(SWITCH_OFF);
     }
+    if (params.scenes?.length && params.tokens !== 'placed') {
+      throw new Error('scenes only applies with tokens "placed".');
+    }
     const request = Object.fromEntries(
       Object.entries(params).filter(([, v]) => v !== undefined)
     ) as unknown as TokenRingsPlanRequest;
@@ -117,6 +120,11 @@ export class TokenRingsTools {
       await this.foundryClient.query('foundry-mcp-bridge.planTokenRings', request),
       'Could not plan the token rings'
     );
+    if (params.tokens === 'placed' && built.unmatched === undefined) {
+      throw new Error(
+        'This Foundry module is too old to plan placed tokens: update the module, then ask again.'
+      );
+    }
     const plan = await this.guardedWrites.createPlan({
       feature: TOKEN_RINGS_FEATURE_ID,
       summary: built.summary,

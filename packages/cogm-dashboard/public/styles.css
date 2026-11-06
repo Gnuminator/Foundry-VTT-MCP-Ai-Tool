@@ -375,6 +375,10 @@ body {
   white-space: nowrap;
   text-decoration: none;
 }
+.topbar .controls .btn[hidden],
+.topbar .controls .select[hidden] {
+  display: none;
+}
 .topbar .controls .select {
   display: block;
   line-height: 1.2;

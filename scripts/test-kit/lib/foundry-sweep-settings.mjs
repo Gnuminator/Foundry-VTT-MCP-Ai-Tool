@@ -339,9 +339,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
 
   await sweep.row('module.settings.enhanced-index-open', 'gm', async () => {
     await openMenu('enhancedIndexMenu');
-    const title = gm
-      .locator('.application', { hasText: 'Creature Index Settings' })
-      .last();
+    const title = gm.locator('.application', { hasText: 'Creature Index Settings' }).last();
     await title.waitFor({ state: 'visible', timeout: 10000 });
     const controls = await title.evaluate(el => ({
       checks: [...el.querySelectorAll('input[type="checkbox"]')].map(
@@ -381,9 +379,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
     'module.settings.enhanced-index-rebuild',
     'gm',
     async () => {
-      const win = gm
-        .locator('.application', { hasText: 'Creature Index Settings' })
-        .last();
+      const win = gm.locator('.application', { hasText: 'Creature Index Settings' }).last();
       if (!(await win.count())) await openMenu('enhancedIndexMenu');
       const started = Date.now();
       await win.locator('button[data-action="rebuild"]').click();
@@ -393,8 +389,11 @@ export async function settingsRows(sweep, { t, gm, player }) {
         /The creature index is ready|Could not build the creature index/,
         240000
       );
-      const done = (await notifications(gm)).find(n => /complete|Failed to build/.test(n)) ?? '';
-      if (/Failed to build/.test(done)) throw new Error(done);
+      const done =
+        (await notifications(gm)).find(n =>
+          /The creature index is ready|Could not build the creature index/.test(n)
+        ) ?? '';
+      if (/^Could not build the creature index/.test(done)) throw new Error(done);
       return { note: done.slice(0, 120), timings: { rebuildMs: Date.now() - started } };
     },
     { expectErrors: [REBUILD_FAILED] }

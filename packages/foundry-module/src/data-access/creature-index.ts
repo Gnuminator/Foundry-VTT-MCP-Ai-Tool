@@ -655,9 +655,7 @@ export class PersistentCreatureIndex {
       const creatures: DnD5eCreatureIndex[] = [];
       const packFingerprints = new Map<string, PackFingerprint>();
 
-      ui.notifications?.info(
-        `Starting enhanced creature index build from ${actorPacks.length} packs...`
-      );
+      ui.notifications?.info(`Building the creature index from ${actorPacks.length} packs...`);
 
       for (let i = 0; i < actorPacks.length; i++) {
         const pack = actorPacks[i];

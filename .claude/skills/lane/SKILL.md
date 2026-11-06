@@ -18,29 +18,18 @@ tells you to Read it again when it changed it.
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
    brief, write `claimed: <session title> <date>` under it and, on the next line,
    `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
-   the board's lane card opens your session from it), commit and push the vault, then
-   `npm run lane:beat -- "<session title>" claimed` (see Heartbeat). If the item has `- touches:` or
-   `- depends on:` lines, look at the board's lane warnings first: another lane on the same paths,
-   or an unmerged dependency, means wait or ask the planner.
+   the board's lane card opens your session from it), commit and push the vault (the board reads
+   PR, CI and review state from GitHub, so a lane writes no heartbeat). If the item has
+   `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
+   the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
+   own worktree: the context lines (250k and 300k for a lane) are fixed at session start from the
+   project dir and transcript folder, so a session that only `cd`s into a worktree later keeps the
+   planner's 200k and 250k lines.
 2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. Reading more than about eight files to understand code goes to an
    Explore subagent (`model: "haiku"`) that returns a summary with file:line; you read only the few
    files you will edit.
-
-## Heartbeat
-
-Until the board shows PR state itself, beat at each milestone so the lane card shows your step and
-the 18-hour stale rule counts it:
-
-```bash
-npm run lane:beat -- "<session title>" "<step>"
-```
-
-It replaces a `- last seen: <date time> <step>` line under every claimed item of the lane and
-pushes only `Backlog.md`; a vault problem is a warning (skipped with uncommitted vault edits: rerun
-a minute later). Steps: `claimed`, `PR open`, `review`,
-`fixes`, `ready to merge`, `handed over`; also one when a long step runs past two hours.
 
 ## Work
 
@@ -156,8 +145,8 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts when
   the context is under the line again.
-- **Handover:** write the note at your first milestone and update it with the `- progress:` line at
-  each later one, so the handover is one step. Half a page to vault `Handoff/<lane> prompt
+- **Handover:** write it once, when you hand over (no per-milestone rewrites; the vault sees only
+  the claim and the `- progress:` line per PR). Half a page to vault `Handoff/<lane> prompt
   <date>.md` and in full in the chat in
   a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
   CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before saying a session can be closed, no background run it owns is still going. Push the note and a `- progress:` line (`handed over at <context>, no PR

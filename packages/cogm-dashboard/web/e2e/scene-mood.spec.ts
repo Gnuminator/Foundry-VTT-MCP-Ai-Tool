@@ -290,6 +290,8 @@ test('when the viewed scene changed, the click reloads the moods instead of plan
   await panel.getByRole('button', { name: 'Storm' }).click();
   await expect(toast(page, /The scene changed to Crypt/)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Dread' })).toBeVisible();
+  // The pressed button is gone: the focus moves to the first mood of the new list.
+  await expect(panel.getByRole('button', { name: 'Dread' })).toBeFocused();
   expect(named(calls, 'plan-scene-mood')).toHaveLength(0);
 });
 

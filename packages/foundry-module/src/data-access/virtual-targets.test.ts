@@ -134,6 +134,7 @@ describe('settings as a guarded target', () => {
   });
 
   it('turns one module on or off and leaves the others alone', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
     const ops: GuardedOp[] = [
       {
         kind: 'update',
@@ -460,7 +461,12 @@ describe('getSetupInfo', () => {
     g.game.scenes = [{ id: 's1', name: 'Map', ownership: { default: 2 } }];
     const info = getSetupInfo({ area: 'ownership', target: 'journal:note' }) as any;
     expect(info.documents).toEqual([
-      { id: 'j1', name: 'Notes', default: 'NONE', users: { Ask: 'OBSERVER' } },
+      {
+        id: 'j1',
+        name: 'Notes',
+        default: 'NONE',
+        users: { u1: { name: 'Ask', level: 'OBSERVER' } },
+      },
     ]);
     expect((getSetupInfo({ area: 'ownership', target: 'scene' }) as any).documents[0].default).toBe(
       'OBSERVER'
@@ -497,6 +503,7 @@ describe('getSetupInfo', () => {
   });
 
   it('reloads the windows once, after the whole apply, only when the module list changed', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
     vi.useFakeTimers();
     onTestFinished(() => vi.useRealTimers());
     const emitted: string[] = [];
@@ -524,5 +531,277 @@ describe('getSetupInfo', () => {
     await applyGuardedOps(await request([setting('dnd5e.diagonalMovement', '5105')]));
     await vi.advanceTimersByTimeAsync(MODULE_RELOAD_DELAY_MS + 10);
     expect(emitted).toEqual(['reload']);
+  });
+});
+
+const mkModule = (id: string, active: boolean, requires: any[] = [], extra: any = {}): any => ({
+  id,
+  title: id.toUpperCase(),
+  version: '1',
+  active,
+  relationships: { requires: new Set(requires) },
+  ...extra,
+});
+
+function installModules(list: any[]): void {
+  g.game.modules = new Map<string, any>(list.map(m => [m.id, m]));
+  g.game.system = { id: 'dnd5e', relationships: { requires: new Set() } };
+  g.game.world = { relationships: { requires: new Set() } };
+}
+
+const moduleOp = (changes: Record<string, boolean>): GuardedOp => ({
+  kind: 'update',
+  uuid: 'GameSetting.core.moduleConfiguration',
+  changes: Object.fromEntries(Object.entries(changes).map(([id, on]) => [`value.${id}`, on])),
+});
+
+describe('module toggles: apply-time checks', () => {
+  it('refuses an apply when a module it needs went off since the plan (closure grew)', async () => {
+    installModules([
+      mkModule('alpha', true),
+      mkModule('beta', false, [{ id: 'lib', type: 'module' }]),
+      mkModule('lib', true),
+    ]);
+    world.setSetting('core', 'moduleConfiguration', { alpha: true, beta: false, lib: true });
+    const req = await request([moduleOp({ beta: true })]);
+    // lib is switched off by someone else between plan and apply
+    world.setSetting('core', 'moduleConfiguration', { alpha: true, beta: false, lib: false });
+    await expect(applyGuardedOps(req)).rejects.toThrow(/Conflict.*now needs LIB, which is off/);
+    expect((world.settings.get('core.moduleConfiguration') as any).beta).toBe(false);
+  });
+
+  it('refuses turning off a module another active module now needs', async () => {
+    installModules([mkModule('lib', true), mkModule('child', true, [{ id: 'lib' }])]);
+    world.setSetting('core', 'moduleConfiguration', { lib: true, child: false });
+    const req = await request([moduleOp({ lib: false })]);
+    world.setSetting('core', 'moduleConfiguration', { lib: true, child: true });
+    await expect(applyGuardedOps(req)).rejects.toThrow(/CHILD is on and needs LIB/);
+  });
+
+  it('refuses a module the world or system requires, and an incompatible one', async () => {
+    installModules([mkModule('core-lib', true), mkModule('old', false, [], { unavailable: true })]);
+    g.game.world.relationships.requires = new Set([{ id: 'core-lib', type: 'module' }]);
+    world.setSetting('core', 'moduleConfiguration', { 'core-lib': true, old: false });
+    await expect(applyGuardedOps(await request([moduleOp({ 'core-lib': false })]))).rejects.toThrow(
+      /required by the world/
+    );
+    await expect(applyGuardedOps(await request([moduleOp({ old: true })]))).rejects.toThrow(
+      /not usable in this world/
+    );
+  });
+
+  it('flags forced and unavailable modules in the read', () => {
+    installModules([
+      mkModule('core-lib', true),
+      mkModule('old', false, [], { unavailable: true }),
+      mkModule('plain', true),
+    ]);
+    g.game.system.relationships.requires = new Set([{ id: 'core-lib', type: 'module' }]);
+    const byId = Object.fromEntries(
+      (getSetupInfo({ area: 'module' }) as any).modules.map((m: any) => [m.id, m])
+    );
+    expect(byId['core-lib'].forcedOn).toBe('system');
+    expect(byId.old.unavailable).toBe(true);
+    expect(byId.plain.forcedOn).toBeUndefined();
+  });
+
+  it('returns the whole closure of an exact target even past the list cap', () => {
+    const many = Array.from({ length: 450 }, (_, i) =>
+      mkModule(`m${String(i).padStart(3, '0')}`, true)
+    );
+    installModules([
+      ...many,
+      mkModule('zz-child', true, [{ id: 'zz-lib', type: 'module' }]),
+      mkModule('zz-lib', true),
+    ]);
+    const all = getSetupInfo({ area: 'module' }) as any;
+    expect(all.total).toBe(452);
+    expect(all.shown).toBe(400);
+    const one = getSetupInfo({ area: 'module', target: 'zz-lib' }) as any;
+    expect(one.modules.map((m: any) => m.id)).toEqual(['zz-child', 'zz-lib']);
+  });
+
+  it('names a module list that is too large for a plan', async () => {
+    installModules([mkModule('alpha', true)]);
+    const big = Object.fromEntries(Array.from({ length: 2500 }, (_, i) => [`mod${i}`, true]));
+    world.setSetting('core', 'moduleConfiguration', big);
+    expect((getSetupInfo({ area: 'module' }) as any).listTooLarge).toBe(true);
+    // the snapshot of a too-large list reads as "not found", so the apply names the real reason
+    await expect(applyGuardedOps(await request([moduleOp({ alpha: false })]))).rejects.toThrow(
+      /too much data/
+    );
+  });
+
+  it('checks the closure of a removed flag too (the undo of a first switch-on)', async () => {
+    installModules([
+      mkModule('fresh', true),
+      mkModule('child', false, [{ id: 'fresh', type: 'module' }]),
+    ]);
+    world.setSetting('core', 'moduleConfiguration', { fresh: true, child: false });
+    const op: GuardedOp = {
+      kind: 'update',
+      uuid: 'GameSetting.core.moduleConfiguration',
+      changes: {},
+      unset: ['value.fresh'],
+    };
+    const req = await request([op]);
+    world.setSetting('core', 'moduleConfiguration', { fresh: true, child: true });
+    await expect(applyGuardedOps(req)).rejects.toThrow(/CHILD is on and needs FRESH/);
+  });
+
+  it('names a module list that grew past the limit after the plan', async () => {
+    installModules([mkModule('alpha', true)]);
+    const req = await request([moduleOp({ alpha: false })]);
+    const big = Object.fromEntries(Array.from({ length: 2500 }, (_, i) => [`mod${i}`, true]));
+    world.setSetting('core', 'moduleConfiguration', big);
+    await expect(applyGuardedOps(req)).rejects.toThrow(/Conflict.*too much data/);
+  });
+
+  it('does not treat a type-less requirement on the system as a module', async () => {
+    installModules([mkModule('sysmod', false, [{ id: 'dnd5e' }])]);
+    world.setSetting('core', 'moduleConfiguration', { sysmod: false });
+    await expect(
+      applyGuardedOps(await request([moduleOp({ sysmod: true })]))
+    ).resolves.toBeDefined();
+  });
+
+  it('judges on from the module configuration first, in the read and at apply', () => {
+    installModules([mkModule('a', false), mkModule('b', true)]);
+    world.setSetting('core', 'moduleConfiguration', { a: true, b: false });
+    const byId = Object.fromEntries(
+      (getSetupInfo({ area: 'module' }) as any).modules.map((m: any) => [m.id, m])
+    );
+    expect(byId.a.active).toBe(true);
+    expect(byId.b.active).toBe(false);
+  });
+
+  it('marks the whole chain below a module the world requires as forced on', () => {
+    installModules([
+      mkModule('top', true, [{ id: 'mid', type: 'module' }]),
+      mkModule('mid', true, [{ id: 'low', type: 'module' }]),
+      mkModule('low', true),
+      mkModule('other', true),
+    ]);
+    g.game.world.relationships.requires = new Set([{ id: 'top', type: 'module' }]);
+    const byId = Object.fromEntries(
+      (getSetupInfo({ area: 'module' }) as any).modules.map((m: any) => [m.id, m])
+    );
+    expect(byId.low.forcedOn).toBe('world');
+    expect(byId.mid.forcedOn).toBe('world');
+    expect(byId.other.forcedOn).toBeUndefined();
+  });
+
+  it('walks each way on its own and keeps the target row past the cap', () => {
+    const many = Array.from({ length: 450 }, (_, i) =>
+      mkModule(`m${String(i).padStart(3, '0')}`, true, [{ id: 'zz-lib', type: 'module' }])
+    );
+    installModules([
+      ...many,
+      mkModule('zz-target', true, [{ id: 'zz-lib', type: 'module' }]),
+      mkModule('zz-lib', true),
+    ]);
+    const one = getSetupInfo({ area: 'module', target: 'zz-target' }) as any;
+    // the target and the library it needs, not the 450 other users of that library
+    expect(one.modules.map((m: any) => m.id)).toEqual(['zz-lib', 'zz-target']);
+    // turning the library off needs all its users: the target row survives the cap
+    const lib = getSetupInfo({ area: 'module', target: 'zz-lib' }) as any;
+    expect(lib.modules.length).toBe(400);
+    expect(lib.modules.some((m: any) => m.id === 'zz-lib')).toBe(true);
+  });
+
+  it('puts a module with no entry in the list back by removing the flag it added', async () => {
+    installModules([mkModule('alpha', true), mkModule('fresh', false)]);
+    world.setSetting('core', 'moduleConfiguration', { alpha: true });
+    const applied = await applyGuardedOps(await request([moduleOp({ fresh: true })]));
+    expect((world.settings.get('core.moduleConfiguration') as any).fresh).toBe(true);
+    await applyGuardedOps(undoRequest(applied));
+    expect(world.settings.get('core.moduleConfiguration')).toEqual({ alpha: true });
+  });
+});
+
+describe('module toggles: failure and reload', () => {
+  function reloadSpy(): string[] {
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
+    const emitted: string[] = [];
+    const mockGame = g.game;
+    const { user, socket } = mockGame;
+    mockGame.user = { ...(user ?? {}), can: (): boolean => true };
+    mockGame.socket = { emit: (e: string): number => emitted.push(e) };
+    onTestFinished(() => {
+      mockGame.user = user;
+      mockGame.socket = socket;
+    });
+    return emitted;
+  }
+  const missingPackOp: GuardedOp = {
+    kind: 'update',
+    uuid: 'PackConfig.nope.gone',
+    changes: { locked: true },
+  };
+
+  it('rolls back a failed multi-flag apply and reloads nothing', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
+    const emitted = reloadSpy();
+    // the pack does not exist, so op 1 fails after the module list was written
+    const req = await request([moduleOp({ beta: true }), missingPackOp]);
+    await expect(applyGuardedOps(req)).rejects.toThrow(/Op 1 .*rolled back/);
+    expect(world.settings.get('core.moduleConfiguration')).toEqual({ alpha: true, beta: false });
+    await vi.advanceTimersByTimeAsync(MODULE_RELOAD_DELAY_MS + 10);
+    expect(emitted).toEqual([]);
+  });
+
+  it('still reloads when the rollback of the module list did not complete', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
+    const emitted = reloadSpy();
+    const req = await request([moduleOp({ beta: true }), missingPackOp]);
+    const settings = g.game.settings;
+    const realSet = settings.set.bind(settings);
+    let calls = 0;
+    settings.set = (...args: unknown[]): Promise<unknown> =>
+      ++calls > 1 ? Promise.reject(new Error('disk full')) : realSet(...args);
+    await expect(applyGuardedOps(req)).rejects.toThrow(/rollback incomplete.*windows reload/);
+    settings.set = realSet;
+    await vi.advanceTimersByTimeAsync(MODULE_RELOAD_DELAY_MS + 10);
+    expect(emitted).toEqual(['reload']);
+  });
+
+  it('keeps two applies at once apart: one failing does not cancel the other reload', async () => {
+    installModules([mkModule('alpha', true), mkModule('beta', false)]);
+    const emitted = reloadSpy();
+    const good = await request([moduleOp({ beta: true })]);
+    const bad = await request([setting('dnd5e.diagonalMovement', '1')]);
+    world.setSetting('dnd5e', 'diagonalMovement', 'changed');
+    const results = await Promise.allSettled([applyGuardedOps(good), applyGuardedOps(bad)]);
+    expect(results.map(r => r.status)).toEqual(['fulfilled', 'rejected']);
+    await vi.advanceTimersByTimeAsync(MODULE_RELOAD_DELAY_MS + 10);
+    expect(emitted).toEqual(['reload']);
+  });
+});
+
+describe('users listing', () => {
+  it('caps the rows it shows and counts them', () => {
+    g.game.users = Array.from({ length: 60 }, (_, i) => ({
+      id: `u${i}`,
+      name: `User ${String(i).padStart(2, '0')}`,
+      role: 1,
+    }));
+    const info = getSetupInfo({ area: 'user' }) as any;
+    expect(info.total).toBe(60);
+    expect(info.shown).toBe(50);
+    expect(info.users).toHaveLength(50);
+  });
+
+  it('keys per-user ownership by id, so two users with one name stay apart', () => {
+    g.game.users = [
+      { id: 'u1', name: 'Ask', role: 1 },
+      { id: 'u2', name: 'Ask', role: 1 },
+    ];
+    g.game.journal = [{ id: 'j1', name: 'Notes', ownership: { default: 0, u1: 2, u2: 3 } }];
+    const doc = (getSetupInfo({ area: 'ownership', target: 'journal' }) as any).documents[0];
+    expect(doc.users).toEqual({
+      u1: { name: 'Ask', level: 'OBSERVER' },
+      u2: { name: 'Ask', level: 'OWNER' },
+    });
   });
 });

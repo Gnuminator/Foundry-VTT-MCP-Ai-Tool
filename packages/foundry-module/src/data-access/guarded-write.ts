@@ -29,15 +29,20 @@ import {
   isKnownFeature,
   isReadOnlyFeature,
 } from '../guarded-features.js';
-import { assertUserCreateAllowed } from '../table-viewer-user.js';
+import { assertUserCreateAllowed, assertUserDeleteAllowed } from '../table-viewer-user.js';
 import { assertUserRoleChange, assertUserUpdate } from '../user-role.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
   assertSetupFeature,
+  MODULE_LIST_TOO_LARGE_MESSAGE,
   clearModuleReload,
   executeVirtualUpdate,
   flushModuleReload,
+  isModuleListOp,
   isVirtualUuid,
+  moduleClosureProblem,
+  moduleListTooLarge,
+  noteIncompleteRollback,
   snapshotVirtual,
   virtualSource,
 } from './virtual-targets.js';
@@ -683,9 +688,14 @@ async function executeVirtual(
   const unset = op.unset ?? [];
   const paths = [...Object.keys(op.changes ?? {}), ...unset];
   const target = snapshotVirtual(op.uuid, paths, op.changes);
-  if (!target.exists) throw new Error(`Target not found: ${op.uuid}`);
+  if (!target.exists) {
+    if (isModuleListOp(op.uuid) && moduleListTooLarge()) {
+      throw new Error(MODULE_LIST_TOO_LARGE_MESSAGE);
+    }
+    throw new Error(`Target not found: ${op.uuid}`);
+  }
   const before = paths.map(path => readPath(target.source, path));
-  await executeVirtualUpdate(op.uuid, { ...op.changes }, unset);
+  await executeVirtualUpdate(op.uuid, { ...op.changes }, unset, req.changeId);
   const after = virtualSource(op.uuid);
   return {
     index,
@@ -803,6 +813,7 @@ async function executeDelete(
     throw new Error(`Document not found: ${op.uuid}`);
   }
   if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
+  if (doc.documentName === 'User') assertUserDeleteAllowed(req.feature, doc);
   const deleted = sourceOf(doc);
   const result: GuardedOpResult = {
     index,
@@ -976,12 +987,12 @@ export async function applyGuardedOps(request: unknown): Promise<GuardedApplyRes
   try {
     const result = await runGuardedApply(req, ops);
     rememberOutcome({ changeId: req.changeId, status: 'applied', result });
-    flushModuleReload();
+    flushModuleReload(req.changeId);
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     rememberOutcome({ changeId: req.changeId, status: 'failed', error: message });
-    clearModuleReload();
+    clearModuleReload(req.changeId);
     throw error;
   }
 }
@@ -994,8 +1005,25 @@ async function runGuardedApply(
   const current = await snapshotGuardedOps(ops);
   const conflicts: string[] = [];
   ops.forEach((op, i) => {
-    const reason = conflictReason(op, req.expected[i], current[i], req.mode);
+    // A module list that grew past what a plan can read back snapshots as missing: say so.
+    const tooLarge =
+      op.kind === 'update' &&
+      isModuleListOp(op.uuid) &&
+      current[i]?.exists === false &&
+      moduleListTooLarge();
+    const reason = tooLarge
+      ? MODULE_LIST_TOO_LARGE_MESSAGE
+      : conflictReason(op, req.expected[i], current[i], req.mode);
     if (reason) conflicts.push(`op ${i} (${op.kind}): ${reason}`);
+    // The modules a flag drags along are worked out again here: the world may have changed.
+    if (req.mode === 'apply' && op.kind === 'update') {
+      const problem = moduleClosureProblem(op.uuid, op.changes ?? {}, op.unset ?? []);
+      if (problem) {
+        conflicts.push(
+          `op ${i} (update): the modules involved changed since the plan was made (${problem}); plan it again`
+        );
+      }
+    }
   });
   if (conflicts.length > 0) {
     throw new Error(`Conflict, nothing was written: ${conflicts.join('; ')}`);
@@ -1009,10 +1037,11 @@ async function runGuardedApply(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const failures = await rollback(done, req);
+      const reloads = failures.length > 0 && noteIncompleteRollback(req.changeId);
       const rolled =
         failures.length === 0
           ? `the ${done.length} earlier op(s) were rolled back`
-          : `rollback incomplete: ${failures.join('; ')}`;
+          : `rollback incomplete: ${failures.join('; ')}${reloads ? ' (the module list may have changed, so the windows reload to match)' : ''}`;
       throw new Error(`Op ${index} (${op.kind}) failed: ${message}; ${rolled}`, {
         cause: error,
       });

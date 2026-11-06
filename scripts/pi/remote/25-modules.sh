@@ -193,6 +193,7 @@ was_foundry=0
 was_gm_browser=0
 work=""
 undo=""
+undo_failed="" # 1 when UNDO could not put every folder back (undo is cleared then, so the trap needs this)
 stop_services() {
   have_systemd || {
     warn "no systemd here (a test container?): nothing to stop"
@@ -229,6 +230,7 @@ on_exit() {
       fi
     fi
     start_services || warn "Foundry or the Assistant GM browser did not come back: see journalctl -u foundry -n 50"
+    [ -z "$undo_failed" ] || restored=0
     if [ "$restored" = 1 ]; then
       warn "the run did not finish: ${undo:+the old folders are back, }Foundry and the Assistant GM browser are as they were"
     else
@@ -262,6 +264,7 @@ if [ -n "$UNDO" ]; then
   undo_state || {
     state_phase installing
     undo=""
+    undo_failed=1
     die "putting the folders back did not finish (see the lines above); the state in $STATE is at phase=installing, so APPLY=1 is refused and UNDO=1 can run again once the cause is fixed"
   }
   state_phase undone
@@ -350,6 +353,7 @@ install -d -m 755 "$work" # root-owned: root copies the zips in here, and only $
 zip_total=0
 while IFS=$'\t' read -r id _ file _; do
   if [ -n "$ONLY" ] && [[ ",$ONLY," != *",$id,"* ]]; then continue; fi
+  case "$id" in foundry-mcp-bridge | aitool-content) continue ;; esac # pass 1 skips them with a line
   [[ "$file" =~ ^modules/[A-Za-z0-9_.-]+/[A-Za-z0-9_.+-]+/[A-Za-z0-9_.+-]+\.zip$ ]] && [[ "$file" != *..* ]] || continue # pass 1 refuses it with its own line
   [ -f "$MIRROR/$file" ] && [ ! -L "$MIRROR/$file" ] || continue
   zip_total=$((zip_total + $(stat -c %s "$MIRROR/$file")))
@@ -483,8 +487,8 @@ stop_services
 undo=1
 for row in "${plan[@]}"; do
   IFS='|' read -r id old new croot <<<"$row"
-  [ ! -e "$moddir/$id" ] || mv "$moddir/$id" "$prev/$id"
-  mv "$croot" "$moddir/$id"
+  [ ! -e "$moddir/$id" ] || mv -T "$moddir/$id" "$prev/$id"
+  mv -T "$croot" "$moddir/$id"
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$moddir/$id"
   ok "$id: ${old/NONE/not installed} -> $new (old folder: $prev/$id)"
 done

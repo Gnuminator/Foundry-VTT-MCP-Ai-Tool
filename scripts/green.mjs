@@ -995,11 +995,13 @@ const QUICK_TEST_OF = {
 };
 
 /**
- * Quick-mode inputs of `docs:ui` (the pages) and `docs:kit` (the kit page). A dashboard or scenario
- * change that stales them is caught by CI, which always runs both.
+ * Quick-mode inputs of `docs:ui` (the pages) and `docs:kit` (the kit page): a quick run executes
+ * the check when a changed file matches; CI always runs both.
  */
-const DOCS_UI_INPUT = /^(?:docs\/(?:gm|da\/gm)\/|docs\/dev\/SMOKE-TEST\.md$|scripts\/docs-ui-)/;
-const DOCS_KIT_INPUT = /^(?:docs\/dev\/TEST-KIT\.md$|scripts\/docs-kit\.mjs$)/;
+const DOCS_UI_INPUT =
+  /^(?:docs\/(?:gm|da\/gm|player|da\/player)\/|docs\/dev\/SMOKE-TEST\.md$|scripts\/docs-ui-|packages\/(?:cogm-dashboard\/(?:web\/src|public|src)|foundry-module\/(?:src|templates)|obsidian-plugin\/src)\/)/;
+const DOCS_KIT_INPUT =
+  /^(?:docs\/dev\/TEST-KIT\.md$|scripts\/docs-kit\.mjs$|scripts\/test-kit\/(?:scenarios|lib)\/)/;
 
 /** What `scripts/usage-catalog.mjs` scans (plus the script and its output): a change here can stale the catalogue. */
 const USAGE_CATALOG_INPUT =
@@ -1095,7 +1097,8 @@ export function quickLintSteps(files, cwd) {
  * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
  * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
  * mcp-server and runs the kit scenario check; that or a usage-catalogue input also runs the kit
- * control tests (a new control without its skip row). None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
+ * control tests (a new control without its skip row); a change to a `docs:ui` input (guides, UI
+ * source) runs `docs:ui`, and to a `docs:kit` input runs `docs:kit:check`. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
  * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}

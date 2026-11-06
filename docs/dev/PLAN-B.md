@@ -81,6 +81,8 @@ Open PowerShell 7 in the repo's main checkout.
    It names the backup it uses and its age. Older than 36 hours means the backups had stopped, and
    the script refuses. If you still want that older point, run `restore.ps1 -List` to see the
    snapshots and then `restore.ps1 -AllowOld`; you continue from the older point, tell the GM.
+   Naming a snapshot yourself (`restore.ps1 -Snapshot <id>`) skips this age check: you chose that
+   point on purpose.
 
 3. **Start everything:**
 

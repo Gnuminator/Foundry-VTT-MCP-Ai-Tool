@@ -9,10 +9,12 @@
  * - the user is not the one the bridge runs as.
  *
  * The values are mirrored from `shared/src/foundry-setup.ts` (the browser cannot resolve
- * `@gnuminator/shared`) and pinned by `virtual-targets.contract.test.ts`.
+ * `@gnuminator/shared`) and pinned by `user-role.test.ts`.
  */
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
+import { MODULE_ID } from './constants.js';
 import {
+  TABLE_VIEWER_FLAG,
   TABLE_VIEWER_ROLE,
   assertUserUpdateAllowed,
   isTableViewerUser,
@@ -64,6 +66,8 @@ export function assertUserRoleChange(
       `${user.name ?? 'This user'} is the shared table viewer login (no password); it stays at Player or below`
     );
   }
+  // No switch check here: an undo of a role lowering always works, on both undo routes. A redo
+  // is gated by the server (`requireRedoSwitches`) on both routes.
   // `isGM` is true for an Assistant GM too (role 3), which a plan may change.
   if (typeof user.role === 'number' && user.role > 3) {
     throw new Error(
@@ -91,6 +95,26 @@ export function assertUserUpdate(
   if (roleChange) assertUserRoleChange(user, changes, feature);
   if (unsetPaths.some(path => path.replace(/^[-=]=/, '').split('.')[0] === 'role')) {
     throw new Error("A User's role cannot be unset");
+  }
+  // The table viewer flag is what caps the shared login at Player: it cannot be changed or removed
+  // first and the role raised in a second step.
+  if (isTableViewerUser(user)) {
+    const flagRoot = `flags.${MODULE_ID}`;
+    const touchesFlag = [...changePaths, ...unsetPaths]
+      // Foundry reads "==" and "-=" on any segment of an update path: strip them everywhere.
+      .map(path => path.replace(/(^|\.)[-=]=/g, '$1'))
+      .some(
+        path =>
+          path === 'flags' ||
+          path === flagRoot ||
+          path === `${flagRoot}.${TABLE_VIEWER_FLAG}` ||
+          path.startsWith(`${flagRoot}.${TABLE_VIEWER_FLAG}.`)
+      );
+    if (touchesFlag) {
+      throw new Error(
+        `${user.name ?? 'This user'} is the shared table viewer login; its table viewer flag cannot be changed through a guarded write`
+      );
+    }
   }
   assertUserUpdateAllowed(
     changePaths.filter(path => path !== 'role'),

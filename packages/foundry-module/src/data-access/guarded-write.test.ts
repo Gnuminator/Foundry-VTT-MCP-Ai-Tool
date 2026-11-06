@@ -84,6 +84,9 @@ class FakeDoc {
   get flags(): any {
     return this.source.flags;
   }
+  get role(): unknown {
+    return this.source.role;
+  }
   get actor(): FakeDoc | null {
     return this.parent?.documentName === 'Actor' ? this.parent : null;
   }
@@ -501,6 +504,84 @@ describe('applyGuardedOps: updating a User', () => {
     });
     await expect(applyGuardedOps(ok)).resolves.toBeDefined();
     expect(user.source.role).toBe(2);
+  });
+});
+
+describe('applyGuardedOps: setup writes to users and ownership', () => {
+  beforeEach(() => {
+    registerGuardedFeature({ id: 'foundry-setup', name: 'Setup', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', true);
+  });
+  const roleOp = (uuid: string, role: number): GuardedOp => ({
+    kind: 'update',
+    uuid,
+    changes: { role },
+  });
+
+  it('refuses a role plan whose user changed since (stale plan), writing nothing', async () => {
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const req = await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' });
+    user.source.role = 3;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/Conflict/);
+    expect(user.source.role).toBe(3);
+  });
+
+  it('applies and then undoes a role change', async () => {
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const applied = await applyGuardedOps(
+      await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' })
+    );
+    expect(user.source.role).toBe(2);
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(user.source.role).toBe(1);
+  });
+
+  it('refuses an apply of a role change with the setup switch off, but still undoes a lowering', async () => {
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const applied = await applyGuardedOps(
+      await request([roleOp(user.uuid, 0)], { feature: 'foundry-setup' })
+    );
+    world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', false);
+    await expect(
+      applyGuardedOps(await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' }))
+    ).rejects.toThrow(/switched off/);
+    // the undo of the lowering raises the role again: an undo is always allowed (mode apply is
+    // the shape the Changes list sends; undo-change sends the original feature in mode undo)
+    expect(user.source.role).toBe(0);
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(user.source.role).toBe(1);
+  });
+
+  it('applies and then undoes a new ownership key on a journal', async () => {
+    const journal = makeDoc('JournalEntry', { name: 'Notes', ownership: { default: 0 } });
+    const op: GuardedOp = { kind: 'update', uuid: journal.uuid, changes: { 'ownership.u1': 2 } };
+    const applied = await applyGuardedOps(await request([op], { feature: 'foundry-setup' }));
+    expect(journal.source.ownership).toEqual({ default: 0, u1: 2 });
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(journal.source.ownership).toEqual({ default: 0 });
+  });
+
+  it('refuses to delete a User, except the Table user through its undo', async () => {
+    const person = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const table = makeDoc('User', {
+      name: 'Table',
+      role: 1,
+      permissions: {},
+      flags: { [MODULE_ID]: { tableViewer: true } },
+    });
+    const del = (uuid: string, feature: string, mode: 'apply' | 'undo'): Promise<unknown> =>
+      applyGuardedOps({
+        changeId: `del-${(changeSeq += 1)}`,
+        feature,
+        mode,
+        summary: 'Delete',
+        ops: [{ kind: 'delete', uuid }],
+        expected: [{ exists: true }],
+      });
+    await expect(del(person.uuid, 'foundry-setup', 'apply')).rejects.toThrow(/cannot be deleted/);
+    await expect(del(person.uuid, 'change-undo', 'undo')).rejects.toThrow(/cannot be deleted/);
+    await expect(del(table.uuid, 'foundry-setup', 'apply')).rejects.toThrow(/cannot be deleted/);
+    await expect(del(table.uuid, 'change-undo', 'undo')).resolves.toBeDefined();
   });
 });
 

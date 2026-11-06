@@ -13,7 +13,11 @@
  */
 import {
   MAX_SETTING_JSON,
+  forcedOnBy,
   isSecretSetting,
+  isSystemRequirement,
+  moduleIsOn,
+  moduleListTooLarge,
   readPackEntry,
   readSettingValue,
   registeredSettings,
@@ -193,6 +197,7 @@ interface ModuleLike {
   title?: string;
   version?: string;
   active?: boolean;
+  unavailable?: boolean;
   relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
 }
 
@@ -207,41 +212,83 @@ function modulesInfo(target: string | undefined): unknown {
   const lower = (target ?? '').trim().toLowerCase();
   const mods = [...(game.modules as unknown as Map<string, ModuleLike>).values()];
   const byId = new Map(mods.map(m => [m.id, m]));
-  const systemId = (game.system as { id?: string } | undefined)?.id;
   const requiresOf = (m: ModuleLike): Array<{ id: string; installed: boolean; active: boolean }> =>
     [...(m.relationships?.requires ?? [])]
       .filter((r): r is { id: string; type?: string } => typeof r?.id === 'string')
       .filter(r => r.type === undefined || r.type === 'module' || r.type === 'system')
       .map(r => {
-        if (r.type === 'system' || r.id === systemId) {
+        if (isSystemRequirement(r)) {
           return { id: r.id, installed: true, active: true };
         }
         const dep = byId.get(r.id);
-        return { id: r.id, installed: dep !== undefined, active: dep?.active === true };
+        return {
+          id: r.id,
+          installed: dep !== undefined,
+          active: dep !== undefined && moduleIsOn(dep),
+        };
       });
   const requiredBy = new Map<string, string[]>();
   for (const m of mods) {
-    if (m.active !== true) continue;
+    if (!moduleIsOn(m)) continue;
     for (const dep of requiresOf(m)) {
       requiredBy.set(dep.id, [...(requiredBy.get(dep.id) ?? []), m.id]);
     }
   }
+  // An exact id or title: the module, everything it needs (all the way down) and everything that
+  // needs it (all the way up), each direction walked on its own so a shared library does not pull
+  // in its other users. The target row always comes first.
+  const exact = lower
+    ? (mods.find(m => m.id.toLowerCase() === lower) ??
+      mods.find(m => (m.title ?? '').toLowerCase() === lower))
+    : undefined;
+  let keep: Set<string> | null = null;
+  if (exact) {
+    keep = new Set<string>();
+    keep.add(exact.id);
+    const walk = (id: string, next: (id: string) => string[]): void => {
+      for (const n of next(id)) {
+        if (keep?.has(n) || !byId.has(n)) continue;
+        keep?.add(n);
+        walk(n, next);
+      }
+    };
+    walk(exact.id, id => requiresOf(byId.get(id) as ModuleLike).map(d => d.id));
+    walk(exact.id, id => requiredBy.get(id) ?? []);
+  }
   const rows = mods
-    .filter(m => !lower || `${m.id} ${m.title ?? ''}`.toLowerCase().includes(lower))
-    .map(m => ({
-      id: m.id,
-      title: m.title ?? m.id,
-      version: m.version ?? null,
-      active: m.active === true,
-      requires: requiresOf(m),
-      requiredBy: requiredBy.get(m.id) ?? [],
-    }))
+    .filter(m =>
+      keep ? keep.has(m.id) : !lower || `${m.id} ${m.title ?? ''}`.toLowerCase().includes(lower)
+    )
+    .map(m => {
+      const forced = forcedOnBy(m.id);
+      return {
+        id: m.id,
+        title: m.title ?? m.id,
+        version: m.version ?? null,
+        active: moduleIsOn(m),
+        requires: requiresOf(m),
+        requiredBy: requiredBy.get(m.id) ?? [],
+        // Foundry keeps these on (the world or system needs them) or off (not compatible).
+        ...(forced ? { forcedOn: forced } : {}),
+        ...(m.unavailable === true ? { unavailable: true } : {}),
+      };
+    })
     .sort((a, b) => a.id.localeCompare(b.id));
+  // Past the cap the exact target's row (and the closure behind it) is never the one dropped.
+  const shownRows =
+    exact && rows.length > MODULE_LIST_CAP
+      ? [
+          ...rows.filter(r => r.id === exact.id),
+          ...rows.filter(r => r.id !== exact.id).slice(0, MODULE_LIST_CAP - 1),
+        ]
+      : rows.slice(0, MODULE_LIST_CAP);
   return {
     area: 'module',
+    shape: 2,
     total: rows.length,
-    shown: Math.min(rows.length, MODULE_LIST_CAP),
-    modules: rows.slice(0, MODULE_LIST_CAP),
+    shown: shownRows.length,
+    modules: shownRows,
+    ...(moduleListTooLarge() ? { listTooLarge: true } : {}),
   };
 }
 
@@ -298,7 +345,12 @@ function usersInfo(target: string | undefined): unknown {
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { area: 'user', total: rows.length, shown: Math.min(rows.length, LIST_CAP), users: rows };
+  return {
+    area: 'user',
+    total: rows.length,
+    shown: Math.min(rows.length, LIST_CAP),
+    users: rows.slice(0, LIST_CAP),
+  };
 }
 
 /**
@@ -325,10 +377,11 @@ function ownershipInfo(target: string | undefined): unknown {
     .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
   const rows = docs.slice(0, LIST_CAP).map(d => {
     const own = d.ownership ?? {};
-    const perUser: Record<string, string> = {};
+    // Keyed by user id: two users may share a name.
+    const perUser: Record<string, { name: string; level: string }> = {};
     for (const [id, level] of Object.entries(own)) {
       if (id === 'default') continue;
-      perUser[nameOf.get(id) ?? id] = LEVEL_NAMES[level] ?? String(level);
+      perUser[id] = { name: nameOf.get(id) ?? id, level: LEVEL_NAMES[level] ?? String(level) };
     }
     return {
       id: d.id,
@@ -337,7 +390,14 @@ function ownershipInfo(target: string | undefined): unknown {
       users: perUser,
     };
   });
-  return { area: 'ownership', kind, total: docs.length, shown: rows.length, documents: rows };
+  return {
+    area: 'ownership',
+    shape: 2,
+    kind,
+    total: docs.length,
+    shown: rows.length,
+    documents: rows,
+  };
 }
 
 export function getSetupInfo(data: unknown): unknown {

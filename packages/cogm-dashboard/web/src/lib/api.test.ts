@@ -55,6 +55,14 @@ describe('api errors', () => {
     expect(err.message).not.toMatch(/HTTP|502/);
   });
 
+  it("words the dashboard's own internal 500 and keeps its kind and status", async () => {
+    answer(500, { error: 'Internal error', kind: 'internal' });
+    const err = (await api('/x').catch((e: unknown) => e)) as ApiError;
+    expect(err.message).toBe(plainError(500));
+    expect(err.kind).toBe('internal');
+    expect(err.status).toBe(500);
+  });
+
   it('treats a 200 page that is not JSON as a login needed', async () => {
     answer(200, undefined, false, 'text/html; charset=utf-8');
     const err = (await api('/x').catch((e: unknown) => e)) as ApiError;
@@ -95,9 +103,10 @@ describe('plainText', () => {
   });
 
   it('strips the shared wording the tools send Claude (so an edit there cannot bring it back)', () => {
-    for (const tail of [STOP_AND_TELL, PLAN_GONE_TAIL]) {
-      expect(plainText(`Nothing happened. ${tail}`)).toBe('Nothing happened.');
-    }
+    expect(plainText(`Nothing happened. ${STOP_AND_TELL}`)).toBe('Nothing happened.');
+    expect(plainText(`Nothing happened. ${PLAN_GONE_TAIL}`)).toBe(
+      'Nothing happened. It may have applied; check Recent Changes.'
+    );
     expect(plainText(notFoundMessage('That journal', 'list-journals'))).toBe(
       'That journal not found.'
     );
@@ -107,18 +116,29 @@ describe('plainText', () => {
     expect(plainText(featureSwitchOff('Paper sync', 'Paper sync'))).not.toMatch(/Tell the GM/);
   });
 
-  it('drops the plan-gone tail that names tools', () => {
+  it('words the plan-gone tail as may-have-applied', () => {
     const text = errorText(
       new Error(
         'That plan is gone. It may have been applied already: check list-recent-changes first. If it was not, list the pending plans with get-planned-change or make a new plan.'
       )
     );
-    expect(text).toBe('That plan is gone.');
+    expect(text).toBe('That plan is gone. It may have applied; check Recent Changes.');
   });
 
   it('turns a tool id into words', () => {
     expect(plainText('plan-combat-change failed')).toBe('combat change failed');
     expect(plainText('Unknown tool: undo-change.')).toBe('Unknown tool: undo.');
+  });
+
+  it('leaves a plan or change id (a digit in its tail) alone', () => {
+    expect(plainText('Plan plan-m3x9k-1a2b3c4d is gone')).toBe('Plan plan-m3x9k-1a2b3c4d is gone');
+    expect(plainText('No change-1a2b3c4d')).toBe('No change-1a2b3c4d');
+  });
+
+  it('strips the bridge query prefix', () => {
+    expect(plainText('Query foundry-mcp-bridge.openDocumentForGm failed: No document found.')).toBe(
+      'No document found.'
+    );
   });
 
   it('never returns an empty message', () => {

@@ -127,9 +127,9 @@ function planPlacedRings(req: TokenRingsPlanRequest, wantOn: boolean): TokenRing
       if (wanted !== 'all' && actorType !== wanted) continue;
       if (names.size > 0) {
         const keys = [token.name, token.actor?.name].map(n => String(n ?? '').toLowerCase());
-        const hit = keys.find(k => names.has(k));
-        if (hit === undefined) continue;
-        seenNames.add(hit);
+        const hits = keys.filter(k => names.has(k));
+        if (hits.length === 0) continue;
+        for (const hit of hits) seenNames.add(hit);
       }
       matching.push(token);
     }
@@ -172,6 +172,9 @@ export function planTokenRings(request: unknown): TokenRingsPlan {
     throw new Error(
       `Unknown token ring target: ${typeof target === 'string' ? target : 'invalid'}`
     );
+  }
+  if (target !== 'placed' && lowerSet(req.scenes).size > 0) {
+    throw new Error('Scenes only apply to tokens placed on scenes: set tokens to "placed".');
   }
   const wantOn = req.action === 'enable';
   if (target === 'placed') return planPlacedRings(req, wantOn);

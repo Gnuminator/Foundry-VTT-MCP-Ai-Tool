@@ -67,7 +67,8 @@ export function loadSettings(env = process.env, envFile = defaultEnvFile(env)) {
     // An unreadable file is the same as no settings.
   }
   /** @param {string} key */
-  const pick = key => env[key] || /** @type {Record<string, string>} */ (fromFile)[key] || '';
+  const pick = key =>
+    (env[key] || '').trim() || (/** @type {Record<string, string>} */ (fromFile)[key] || '').trim();
   return {
     token: pick('DISCORD_TOKEN'),
     changelogChannel: pick('DISCORD_CHANGELOG_CHANNEL_ID'),
@@ -155,6 +156,7 @@ export async function runCli(argv, o = {}) {
     content = rest.join(' ');
   } else if (kind === 'dashboard' && rest.length >= 1) {
     target = 'dashboard';
+    // `{gm}` stands for the GM role mention; it is filled in below, once the settings are known.
     content = rest.join(' ');
   } else if (kind === 'gm-bot' && rest.length >= 1) {
     target = 'gmBot';
@@ -177,6 +179,10 @@ export async function runCli(argv, o = {}) {
   if (!s.token || !channelId) {
     log(`announce: no Discord settings for ${kind}; nothing posted`);
     return 0;
+  }
+  if (target === 'dashboard') {
+    // Without a numeric role id the placeholder is dropped, so the post stays a plain one.
+    content = content.replace(/\{gm\}/g, /^\d+$/.test(s.gmRoleId) ? `<@&${s.gmRoleId}>` : '').trim();
   }
   // #pr-log is chatty, so it is silent; #changelog is rare and follows the server's notification setting.
   const r = await postMessage({

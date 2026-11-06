@@ -84,6 +84,10 @@ interface ModuleRow {
   requires: Array<{ id: string; installed: boolean; active: boolean }>;
   /** Active modules that require this one. */
   requiredBy: string[];
+  /** Foundry keeps this module on: the world or the system requires it. */
+  forcedOn?: 'world' | 'system';
+  /** Foundry marks it unavailable (core version, dependencies): it cannot be used here. */
+  unavailable?: boolean;
 }
 
 interface UserRow {
@@ -97,14 +101,19 @@ interface OwnershipDocRow {
   id: string;
   name: string;
   default: string;
-  users: Record<string, string>;
+  /** Per user id (two users may share a name). */
+  users: Record<string, { name: string; level: string }>;
 }
 
 interface SetupInfo {
   area: string;
+  /** 2 on the module and ownership reads of this version; an older module leaves it out. */
+  shape?: number;
   settings?: SettingRow[];
   packs?: PackRow[];
   modules?: ModuleRow[];
+  /** The module list holds more data than a plan can read back. */
+  listTooLarge?: boolean;
   users?: UserRow[];
   documents?: OwnershipDocRow[];
   folders?: Array<{ id: string; name: string }>;
@@ -136,7 +145,7 @@ export class FoundrySetupTools {
       {
         name: 'plan-foundry-setup',
         description:
-          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users with role and owned actors; never a Gamemaster). area ownership: target journal:name or scene:name, value {default, users:{name: level}} (actors: plan-ownership-change). area module: target a module id or title (read lists all with on/off, requires, required by), value true or false; needed modules switch on or dependents off with it, and every connected window reloads after apply and undo. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
+          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users, roles, actors; a Gamemaster is never changed; a role change signs them out; same name twice: use the id). area ownership: target journal:name or scene:name, value {default, users:{name or id: level}} (not actors). area module: target a module id or title (read lists all: on/off, requires, required by), value true or false; needed modules go on or dependents off with it, and windows reload on apply and undo. area setting: target namespace.key (read: partial name). area pack: target a pack id, value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of itself and lower roles}, locked, folder (name/null)}. Secrets are hidden. Needs the Foundry setup switch.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -144,8 +153,9 @@ export class FoundrySetupTools {
             area: { type: 'string', enum: [...FOUNDRY_SETUP_AREAS] },
             target: {
               type: 'string',
-              description: 'Setting namespace.key, a pack id, or a module id or title.',
-              ...freeText('a setting key or pack id the read mode lists; no picker has them'),
+              description:
+                'Setting key, pack id, module id or title, user name or id, journal:name or scene:name.',
+              ...freeText('a key or id the read mode lists'),
             },
             value: { description: 'plan only: the new value, or the pack changes.' },
           },
@@ -164,13 +174,20 @@ export class FoundrySetupTools {
   }
 
   private async info(area: string, target: string | undefined): Promise<SetupInfo> {
-    return unwrapBridgeReply(
+    const reply = unwrapBridgeReply(
       (await this.foundryClient.query('foundry-mcp-bridge.getSetupInfo', {
         area,
         target,
       })) as SetupInfo,
       'Setup read refused'
     );
+    // An older module reads these two areas in another shape (a plan on it would be wrong).
+    if ((area === 'module' || area === 'ownership') && reply.shape !== 2) {
+      throw new Error(
+        'The Foundry module is older than this server and reads modules and ownership differently; update the module in Foundry first'
+      );
+    }
+    return reply;
   }
 
   private async planFoundrySetup(args: unknown): Promise<unknown> {
@@ -194,11 +211,18 @@ export class FoundrySetupTools {
       .object({ role: z.enum(Object.keys(SETTABLE_USER_ROLES) as [string, ...string[]]) })
       .strict()
       .parse(raw);
-    const users = (await this.info('user', undefined)).users ?? [];
+    const users = (await this.info('user', target.trim())).users ?? [];
     const wanted = target.trim().toLowerCase();
-    const user = users.find(u => u.id === target.trim() || u.name.toLowerCase() === wanted);
+    const matches = users.filter(u => u.id === target.trim() || u.name.toLowerCase() === wanted);
+    if (matches.length > 1) {
+      throw new Error(
+        `More than one user is called "${target}" (ids ${matches.map(u => u.id).join(', ')}): give the id as the target`
+      );
+    }
+    const user = matches[0];
     if (!user) {
-      throw new Error(`No user "${target}" (${users.map(u => u.name).join(', ') || 'none'})`);
+      const near = users.map(u => u.name).join(', ');
+      throw new Error(`No user "${target}"${near ? ` (did you mean ${near}?)` : ''}`);
     }
     // Foundry's isGM is true for an Assistant GM too, which may be changed: only the role counts.
     if (user.role === 'GAMEMASTER') {
@@ -216,6 +240,9 @@ export class FoundrySetupTools {
         'An Assistant GM sees and changes most of the world: give it to a person you trust.'
       );
     }
+    notes.push(
+      `Foundry signs ${user.name} out when the role changes, so they log in again. ${value.role === 'NONE' ? 'None means they cannot log in at all.' : ''}`.trim()
+    );
     const plan = await this.guardedWrites.createPlan({
       feature: FOUNDRY_SETUP_FEATURE_ID,
       summary: `Change ${user.name}'s role: ${user.role} to ${value.role}`,
@@ -254,12 +281,11 @@ export class FoundrySetupTools {
       throw new Error(
         `"${name}" matches ${found
           .slice(0, 8)
-          .map(d => d.name)
+          .map(d => `${d.name} (${d.id})`)
           .join(', ')}: name one of them`
       );
     }
     const doc = found[0];
-    const users = (await this.info('user', undefined)).users ?? [];
     const changes: Record<string, unknown> = {};
     const pathLabels: Record<string, string> = {};
     const lines: string[] = [];
@@ -269,10 +295,23 @@ export class FoundrySetupTools {
       lines.push(`everyone else: ${doc.default} to ${value.default}`);
     }
     for (const [userName, level] of Object.entries(value.users ?? {})) {
-      const user = users.find(u => u.name.toLowerCase() === userName.toLowerCase());
-      if (!user) throw new Error(`No user "${userName}" (${users.map(u => u.name).join(', ')})`);
-      if (user.isGM) throw new Error(`${user.name} is a Gamemaster and sees everything already`);
-      const was = doc.users[user.name] ?? 'inherits';
+      const candidates = (await this.info('user', userName.trim())).users ?? [];
+      const matches = candidates.filter(
+        u => u.id === userName.trim() || u.name.toLowerCase() === userName.trim().toLowerCase()
+      );
+      if (matches.length > 1) {
+        throw new Error(
+          `More than one user is called "${userName}" (ids ${matches.map(u => u.id).join(', ')}): use the id as the key`
+        );
+      }
+      const user = matches[0];
+      if (!user) {
+        const near = candidates.map(u => u.name).join(', ');
+        throw new Error(`No user "${userName}"${near ? ` (did you mean ${near}?)` : ''}`);
+      }
+      if (user.isGM)
+        throw new Error(`${user.name} is a Gamemaster or Assistant GM and sees everything already`);
+      const was = doc.users[user.id]?.level ?? 'inherits';
       if (was === level) continue;
       changes[`ownership.${user.id}`] = PACK_OWNERSHIP_LEVELS.indexOf(level);
       pathLabels[`ownership.${user.id}`] = `${user.name}`;
@@ -302,7 +341,15 @@ export class FoundrySetupTools {
    */
   private async planModule(target: string, value: unknown): Promise<unknown> {
     if (typeof value !== 'boolean') throw new Error('A module value is true (on) or false (off)');
-    const modules = (await this.info('module', undefined)).modules ?? [];
+    // The target goes along: an exact id or title brings back the whole closure of that module
+    // even in a world with more modules than the list shows.
+    const moduleInfo = await this.info('module', target.trim());
+    if (moduleInfo.listTooLarge) {
+      throw new Error(
+        'The list of modules in this world holds too much data for a plan to change it; turn the module on or off in Foundry itself'
+      );
+    }
+    const modules = moduleInfo.modules ?? [];
     const wanted = target.trim().toLowerCase();
     const row =
       modules.find(m => m.id.toLowerCase() === wanted) ??
@@ -333,19 +380,42 @@ export class FoundrySetupTools {
           if (!dep.installed) missing.push(`${dep.id} (needed by ${m.id})`);
           else if (!dep.active) {
             const depRow = byId.get(dep.id);
-            if (depRow) visit(depRow);
+            if (!depRow) {
+              throw new Error(
+                `The read did not include ${dep.id}, which ${m.id} needs; read the module list and try again`
+              );
+            }
+            visit(depRow);
           }
         }
       } else {
         for (const id of m.requiredBy) {
           const user = byId.get(id);
-          if (user?.active) visit(user);
+          if (!user) {
+            throw new Error(
+              `The read did not include ${id}, which needs ${m.id}; read the module list and try again`
+            );
+          }
+          if (user.active) visit(user);
         }
       }
     };
     visit(row);
     if (missing.length > 0) {
       throw new Error(`${row.title} cannot be turned on: not installed: ${missing.join(', ')}`);
+    }
+    // Foundry itself keeps these on (the world or system needs them) or off (unavailable).
+    for (const m of flips.values()) {
+      if (value && m.unavailable) {
+        throw new Error(
+          `${m.title} (${m.id}) is not usable in this world (Foundry marks it unavailable)`
+        );
+      }
+      if (!value && m.forcedOn) {
+        throw new Error(
+          `${m.title} (${m.id}) is required by the ${m.forcedOn} and Foundry keeps it on${m.id === row.id ? '' : `; turning ${row.title} off would need it off too`}`
+        );
+      }
     }
     if (flips.has(MODULE_ID)) {
       throw new Error(`The AI Tool module needs ${row.id}, so it cannot be turned off by a plan`);
@@ -475,7 +545,7 @@ export class FoundrySetupTools {
         lines.push(`${role}: ${current[role] ?? 'inherits'} to ${level}`);
       }
       // A pack that already has the Assistant GM below OWNER is put right in the same change:
-      // the module accepts only a map that keeps (or restores) OWNER for it.
+      // the module keeps OWNER for it on every write (an undo included).
       if (current.ASSISTANT !== undefined && current.ASSISTANT !== 'OWNER') {
         merged.ASSISTANT = 'OWNER';
         lines.push(`ASSISTANT: ${current.ASSISTANT} to OWNER (the bridge needs it)`);

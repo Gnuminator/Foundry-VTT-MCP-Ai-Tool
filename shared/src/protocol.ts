@@ -37,7 +37,8 @@ import type { MCPQuery, MCPResponse } from './types.js';
  * connection: the stdio wrapper sends `{version, build, sets}`, the dashboard
  * `{client: 'dashboard', version}`; an old backend answers "Unknown method", which both ignore.
  * The backend also answers calls that are not listed here (link_status, which the Pi health check
- * uses, switches, session notes, character_sheet, player_roll and more, see backend.ts and docs/dev/ARCHITECTURE.md section 3a). NOTE: these are the
+ * uses, switches, session notes, character_sheet, player_roll and more, see backend.ts and
+ * docs/dev/ARCHITECTURE.md section 3a). NOTE: these are the
  * control-channel verbs, distinct from `MCP_METHODS` in constants.ts, which are the
  * Foundry-side query handler names invoked *inside* a `call_tool`.
  */

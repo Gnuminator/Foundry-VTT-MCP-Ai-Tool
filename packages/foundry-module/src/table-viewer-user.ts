@@ -88,6 +88,16 @@ export function assertUserCreateAllowed(feature: string, data: Record<string, un
   }
 }
 
+/**
+ * Throws unless a `delete` of a User is the undo (or rollback) of creating the Table user, which
+ * is the only User a guarded write ever makes. No plan deletes a person's login.
+ */
+export function assertUserDeleteAllowed(feature: string, user: unknown): void {
+  if (!USER_CREATE_FEATURES.has(feature) || !isTableViewerUser(user)) {
+    throw new Error('A User cannot be deleted through a guarded write (only the Table user can)');
+  }
+}
+
 /** User fields no guarded write may change: who counts as a GM, what they may do, how they log in. */
 const USER_UPDATE_REFUSED = ['role', 'permissions', 'password', 'passwordSalt'];
 

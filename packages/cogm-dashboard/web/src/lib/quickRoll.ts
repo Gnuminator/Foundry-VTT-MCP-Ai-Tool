@@ -112,6 +112,19 @@ export function rollArgs(pick: RollPick, target: string): Record<string, unknown
   };
 }
 
+/**
+ * What a failed request says in the summary. A 5xx with no kind is a proxy giving up (a 524): the
+ * request may have gone out, so it gets the fixed sentence, never "Try again" next to "It may have
+ * been sent" (a second click posts a second card).
+ */
+export function rollFailText(reason: unknown, said: string): string {
+  const { status, kind } = (reason ?? {}) as { status?: unknown; kind?: unknown };
+  if (typeof status === 'number' && kind === undefined && status >= 500) {
+    return 'The answer did not come back.';
+  }
+  return said;
+}
+
 /** One line for the toast once every request has answered. */
 export function sentSummary(
   pick: RollPick,

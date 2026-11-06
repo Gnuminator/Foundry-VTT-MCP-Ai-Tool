@@ -4,17 +4,27 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SETTABLE_USER_ROLES as SHARED_ROLES } from '../../../shared/src/foundry-setup.js';
+import { registerGuardedFeature, resetGuardedFeaturesForTests } from './guarded-features.js';
 import { assertUserRoleChange, assertUserUpdate, SETTABLE_USER_ROLES } from './user-role.js';
 
 const g = globalThis as any;
 let saved: unknown;
 
+let setupSwitch = true;
+
 beforeEach(() => {
   saved = g.game;
-  g.game = { user: { id: 'bridge' } };
+  setupSwitch = true;
+  g.game = {
+    user: { id: 'bridge' },
+    settings: { register: (): undefined => undefined, get: (): boolean => setupSwitch },
+  };
+  resetGuardedFeaturesForTests();
+  registerGuardedFeature({ id: 'foundry-setup', name: 'Foundry setup', hint: 'Test.' });
 });
 afterEach(() => {
   g.game = saved;
+  resetGuardedFeaturesForTests();
 });
 
 const player = { id: 'u1', name: 'Ask', role: 1, isGM: false };
@@ -63,6 +73,45 @@ describe('assertUserUpdate', () => {
     );
     expect(() => assertUserUpdate(table, ['role'], [], { role: 0 }, 'foundry-setup')).not.toThrow();
     expect(() => assertUserUpdate(table, ['role'], [], { role: 1 }, 'foundry-setup')).not.toThrow();
+  });
+
+  it('refuses to change the table viewer flag, so the Player cap cannot be got around in two steps', () => {
+    const table = {
+      id: 'u9',
+      name: 'Table',
+      role: 1,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    };
+    for (const path of [
+      'flags.foundry-mcp-bridge.tableViewer',
+      'flags.foundry-mcp-bridge',
+      'flags',
+      '==flags',
+      'flags.==foundry-mcp-bridge',
+      'flags.foundry-mcp-bridge.==tableViewer',
+      'flags.foundry-mcp-bridge.-=tableViewer',
+    ]) {
+      expect(() => assertUserUpdate(table, [path], [], { [path]: false }, 'foundry-setup')).toThrow(
+        /table viewer flag/
+      );
+    }
+    expect(() =>
+      assertUserUpdate(table, [], ['flags.foundry-mcp-bridge.tableViewer'], {}, 'foundry-setup')
+    ).toThrow(/table viewer flag/);
+    // another user's flags are not this rule's business
+    expect(() =>
+      assertUserUpdate(player, ['flags.other.x'], [], { 'flags.other.x': 1 }, 'foundry-setup')
+    ).not.toThrow();
+  });
+
+  it('lets an undo raise a role whether or not the setup switch is on (one rule on both routes)', () => {
+    setupSwitch = false;
+    for (const feature of ['change-undo', 'rollback']) {
+      expect(() => assertUserUpdate(player, ['role'], [], { role: 2 }, feature)).not.toThrow();
+      expect(() => assertUserUpdate(player, ['role'], [], { role: 0 }, feature)).not.toThrow();
+    }
+    setupSwitch = true;
+    expect(() => assertUserUpdate(player, ['role'], [], { role: 2 }, 'change-undo')).not.toThrow();
   });
 
   it('lets an Assistant GM be changed although Foundry calls it a GM', () => {

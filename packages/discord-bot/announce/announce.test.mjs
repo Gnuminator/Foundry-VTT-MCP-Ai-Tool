@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -39,6 +42,19 @@ describe('announce', () => {
       gmRoleId: '',
       gmBotChannel: '',
     });
+  });
+
+  it('falls back to the file when the environment value is blank or only whitespace', () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'announce-'));
+    const file = path.join(dir, 'bot.env');
+    writeFileSync(file, 'DISCORD_TOKEN=from-file\nDISCORD_GM_ROLE_ID= 123 \n');
+    try {
+      const s = loadSettings({ DISCORD_TOKEN: '   ', DISCORD_GM_ROLE_ID: '' }, file);
+      expect(s.token).toBe('from-file');
+      expect(s.gmRoleId).toBe('123');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('posts gm-bot text as a normal, mention-free message to the GM bot channel, else the watch channel', async () => {
@@ -150,10 +166,30 @@ describe('announce', () => {
     expect(body.flags).toBeUndefined();
   });
 
+  it('keeps roles-only mentions when the text itself says @everyone or @here', async () => {
+    const f = fakeFetch();
+    await runCli(['dashboard', '<@&444> @everyone @here hej'], { env, fetchImpl: f, log: vi.fn() });
+    expect(JSON.parse(f.mock.calls[0][1].body).allowed_mentions).toEqual({ parse: [], roles: ['444'] });
+  });
+
+  it('fills {gm} with the role mention, drops it without a role id, and trims the id', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    await runCli(['dashboard', '{gm} Nyt'], { env: { ...env, DISCORD_GM_ROLE_ID: '444 ' }, fetchImpl: f, log });
+    const withId = JSON.parse(f.mock.calls[0][1].body);
+    expect(withId.content).toBe('<@&444> Nyt');
+    expect(withId.allowed_mentions).toEqual({ parse: [], roles: ['444'] });
+    const noRole = { ...env };
+    delete noRole.DISCORD_GM_ROLE_ID;
+    await runCli(['dashboard', '{gm} Nyt'], { env: noRole, fetchImpl: f, log });
+    expect(JSON.parse(f.mock.calls[1][1].body).content).toBe('Nyt');
+  });
+
   it('keeps the dashboard post mention-free without a GM role id, and #changelog never mentions', async () => {
     const f = fakeFetch();
     const log = vi.fn();
-    const { DISCORD_GM_ROLE_ID: _unused, ...noRole } = env;
+    const noRole = { ...env };
+    delete noRole.DISCORD_GM_ROLE_ID;
     await runCli(['dashboard', 'x'], { env: noRole, fetchImpl: f, log });
     expect(JSON.parse(f.mock.calls[0][1].body).allowed_mentions).toEqual({ parse: [] });
     await runCli(['changelog', '<@&444> x'], { env, fetchImpl: f, log });

@@ -130,6 +130,12 @@ describe('get-preflight recording check', () => {
     expect((await get([PUMP_OK]))?.status).toBe('ok');
   });
 
+  it('action "pumps" returns just the pump snapshots, nothing else', async () => {
+    const result = await tools({ pumps: [PUMP_OK] }).tools.handleGetPreflight({ action: 'pumps' });
+    expect(result).toEqual({ pumps: [PUMP_OK] });
+    expect(await tools().tools.handleGetPreflight({ action: 'pumps' })).toEqual({ pumps: [] });
+  });
+
   it('does not stay amber for an old gap', async () => {
     const result = (await tools({
       pumps: [

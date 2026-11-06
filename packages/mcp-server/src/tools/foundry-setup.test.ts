@@ -49,7 +49,12 @@ const userRows = [
   { id: 'u3', name: 'David', role: 'TRUSTED', isGM: false },
 ];
 const ownershipRows = [
-  { id: 'j1', name: 'Strahd notes', default: 'NONE', users: { Ask: 'OBSERVER' } },
+  {
+    id: 'j1',
+    name: 'Strahd notes',
+    default: 'NONE',
+    users: { u1: { name: 'Ask', level: 'OBSERVER' } },
+  },
   { id: 'j2', name: 'Strahd history', default: 'NONE', users: {} },
 ];
 
@@ -104,11 +109,11 @@ function makeTools(): {
       const rows = [settingRow, secretRow, rangeRow].filter(r => r.id === data.target);
       return { area: 'setting', settings: rows };
     }
-    if (data.area === 'module') return { area: 'module', modules: moduleRows };
+    if (data.area === 'module') return { area: 'module', shape: 2, modules: moduleRows };
     if (data.area === 'user') return { area: 'user', users: userRows };
     if (data.area === 'ownership') {
       const kind = String(data.target).split(':')[0];
-      return { area: 'ownership', kind, documents: ownershipRows };
+      return { area: 'ownership', shape: 2, kind, documents: ownershipRows };
     }
     return {
       area: 'pack',
@@ -419,6 +424,94 @@ describe('plan-foundry-setup: journal and scene ownership', () => {
     await expect(run('actor:j1', { default: 'NONE' })).rejects.toThrow(/journal:<name/);
     await expect(run('journal:j1', { default: 'NONE' })).rejects.toThrow(/Nothing to change/);
     await expect(run('journal:j1', {})).rejects.toThrow(/Give a default/);
+  });
+});
+
+describe('plan-foundry-setup: review lows of the module and user plans', () => {
+  it('says a role change signs the user out, and that None means no login', async () => {
+    const { tools, createPlan } = makeTools();
+    await plan(tools, { mode: 'plan', area: 'user', target: 'Ask', value: { role: 'NONE' } });
+    const notes: string[] = createPlan.mock.calls[0][0].notes;
+    expect(notes.join(' ')).toMatch(/signs Ask out/);
+    expect(notes.join(' ')).toMatch(/cannot log in/);
+  });
+
+  it('refuses two users with one name and asks for the id, in a user plan and an ownership plan', async () => {
+    const { tools, query } = makeTools();
+    const twins = [
+      { id: 'u1', name: 'Ask', role: 'PLAYER', isGM: false },
+      { id: 'u9', name: 'ask', role: 'PLAYER', isGM: false },
+    ];
+    query.mockImplementation((_m: string, data: any) =>
+      data.area === 'user'
+        ? { area: 'user', users: twins }
+        : { area: 'ownership', shape: 2, kind: 'journal', documents: ownershipRows }
+    );
+    await expect(
+      plan(tools, { mode: 'plan', area: 'user', target: 'Ask', value: { role: 'TRUSTED' } })
+    ).rejects.toThrow(/More than one user.*u1, u9/);
+    await expect(
+      plan(tools, {
+        mode: 'plan',
+        area: 'ownership',
+        target: 'journal:j2',
+        value: { users: { Ask: 'OBSERVER' } },
+      })
+    ).rejects.toThrow(/More than one user.*u1, u9/);
+    // the id works
+    await expect(
+      plan(tools, { mode: 'plan', area: 'user', target: 'u9', value: { role: 'TRUSTED' } })
+    ).resolves.toBeDefined();
+  });
+
+  it('refuses a module the world or system keeps on, and one that is incompatible', async () => {
+    const { tools, query } = makeTools();
+    query.mockImplementation(() => ({
+      area: 'module',
+      shape: 2,
+      modules: [
+        {
+          id: 'core-lib',
+          title: 'Core Lib',
+          active: true,
+          requires: [],
+          requiredBy: [],
+          forcedOn: 'world',
+        },
+        {
+          id: 'old',
+          title: 'Old',
+          active: false,
+          requires: [],
+          requiredBy: [],
+          unavailable: true,
+        },
+      ],
+    }));
+    await expect(
+      plan(tools, { mode: 'plan', area: 'module', target: 'core-lib', value: false })
+    ).rejects.toThrow(/required by the world/);
+    await expect(
+      plan(tools, { mode: 'plan', area: 'module', target: 'old', value: true })
+    ).rejects.toThrow(/not usable in this world/);
+  });
+
+  it('asks the bridge for the target, and names a module list that is too large', async () => {
+    const { tools, query } = makeTools();
+    await plan(tools, { mode: 'plan', area: 'module', target: 'fancy', value: true });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getSetupInfo', {
+      area: 'module',
+      target: 'fancy',
+    });
+    query.mockImplementation(() => ({
+      area: 'module',
+      shape: 2,
+      modules: moduleRows,
+      listTooLarge: true,
+    }));
+    await expect(
+      plan(tools, { mode: 'plan', area: 'module', target: 'fancy', value: true })
+    ).rejects.toThrow(/too much data/);
   });
 });
 

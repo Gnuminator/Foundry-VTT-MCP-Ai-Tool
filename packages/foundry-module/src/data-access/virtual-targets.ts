@@ -356,7 +356,8 @@ function deleteAtPath(target: Record<string, unknown>, path: string): void {
 export async function executeVirtualUpdate(
   uuid: string,
   changes: Record<string, unknown>,
-  unset: readonly string[]
+  unset: readonly string[],
+  changeId = ''
 ): Promise<void> {
   if (uuid.startsWith(PACK_UUID_PREFIX)) {
     const packId = uuid.slice(PACK_UUID_PREFIX.length);
@@ -379,7 +380,155 @@ export async function executeVirtualUpdate(
   for (const [path, value] of Object.entries(changes)) setAtPath(holder, path, value);
   for (const path of unset) deleteAtPath(holder, path);
   await game.settings.set(namespace, key, holder.value);
-  if (`${namespace}.${key}` === MODULE_CONFIG_SETTING) moduleReloadNeeded = true;
+  if (`${namespace}.${key}` === MODULE_CONFIG_SETTING) reloadMark(changeId).needed = true;
+}
+
+interface ModuleLike {
+  id: string;
+  title?: string;
+  active?: boolean;
+  /** Foundry's own flag on a package (core version, dependencies): it cannot be used here. */
+  unavailable?: boolean;
+  relationships?: { requires?: Iterable<{ id?: string; type?: string }> };
+}
+
+/** The id of the game system in play, or undefined. */
+function systemId(): string | undefined {
+  return (game.system as { id?: string } | undefined)?.id;
+}
+
+/**
+ * True when a `requires` entry is the game system (a `system` type, or the system's id whatever the
+ * type says): the one place read and apply agree on which entries are systems.
+ */
+export function isSystemRequirement(r: { id?: string; type?: string }): boolean {
+  return r.type === 'system' || (r.id !== undefined && r.id === systemId());
+}
+
+/** The ids of the modules (not systems) a module requires. */
+export function moduleRequiredIds(m: ModuleLike): string[] {
+  return [...(m.relationships?.requires ?? [])]
+    .filter(
+      r =>
+        typeof r?.id === 'string' &&
+        (r.type === undefined || r.type === 'module') &&
+        !isSystemRequirement(r)
+    )
+    .map(r => r.id as string);
+}
+
+/**
+ * Whether a module is on: the module configuration first (a save in Module Management that no
+ * reload has followed yet), the state Foundry loaded at startup as the fallback.
+ */
+export function moduleIsOn(m: { id: string; active?: boolean } | undefined, id = m?.id): boolean {
+  if (id === undefined) return false;
+  const config = (readSettingValue('core', 'moduleConfiguration') ?? {}) as Record<string, unknown>;
+  const configured = config[id];
+  return typeof configured === 'boolean' ? configured : m?.active === true;
+}
+
+/**
+ * `world` or `system` when Foundry itself forces this module on: the world or system requires it
+ * directly, or it is needed (all the way down) by a module they require.
+ */
+export function forcedOnBy(moduleId: string): 'world' | 'system' | null {
+  type Rel = { relationships?: { requires?: Iterable<{ id?: string; type?: string }> } };
+  const g = game as unknown as { world?: Rel; system?: Rel; modules?: Map<string, ModuleLike> };
+  const reaches = (root: Rel | undefined): boolean => {
+    const seen = new Set<string>();
+    const queue = [...(root?.relationships?.requires ?? [])]
+      .filter(r => r?.type === undefined || r.type === 'module')
+      .map(r => r.id);
+    while (queue.length > 0) {
+      const id = queue.pop();
+      if (id === undefined || seen.has(id)) continue;
+      if (id === moduleId) return true;
+      seen.add(id);
+      const m = g.modules?.get(id);
+      if (m) queue.push(...moduleRequiredIds(m));
+    }
+    return false;
+  };
+  if (reaches(g.world)) return 'world';
+  if (reaches(g.system)) return 'system';
+  return null;
+}
+
+/**
+ * The module list is changed one flag per module, and the plan tool adds the modules a flag
+ * drags along. The world may have changed between the plan and the apply (a module installed or
+ * switched meanwhile), so the closure is worked out again here from the live module list: why this
+ * change is no longer complete or allowed, or null. Plans for other targets give null.
+ */
+export function moduleClosureProblem(
+  uuid: string,
+  changes: Record<string, unknown>,
+  unset: readonly string[] = []
+): string | null {
+  if (uuid !== `${SETTING_UUID_PREFIX}${MODULE_CONFIG_SETTING}`) return null;
+  const flips = new Map<string, boolean>();
+  for (const [path, value] of Object.entries(changes)) {
+    const id = path.replace(/^value\./, '');
+    if (typeof value === 'boolean') flips.set(id, value);
+  }
+  // Removing a module's entry (the undo of a first switch-on) puts it back to off.
+  for (const path of unset) {
+    if (path.startsWith('value.')) flips.set(path.slice('value.'.length), false);
+  }
+  const mods = (game.modules ?? new Map()) as unknown as Map<string, ModuleLike>;
+  const config = (readSettingValue('core', 'moduleConfiguration') ?? {}) as Record<string, unknown>;
+  const enabled = (id: string): boolean => {
+    const flip = flips.get(id);
+    if (flip !== undefined) return flip;
+    const configured = config[id];
+    return typeof configured === 'boolean' ? configured : mods.get(id)?.active === true;
+  };
+  const problems: string[] = [];
+  const name = (id: string): string => mods.get(id)?.title ?? id;
+  for (const [id, on] of flips) {
+    const m = mods.get(id);
+    if (on) {
+      if (!m) problems.push(`${id} is no longer installed`);
+      if (m?.unavailable === true) {
+        problems.push(`${name(id)} is not usable in this world (Foundry marks it unavailable)`);
+      }
+      for (const dep of m ? moduleRequiredIds(m) : []) {
+        if (!mods.has(dep)) problems.push(`${name(id)} needs ${dep}, which is not installed`);
+        else if (!enabled(dep)) problems.push(`${name(id)} now needs ${name(dep)}, which is off`);
+      }
+    } else {
+      const forced = forcedOnBy(id);
+      if (forced)
+        problems.push(`${name(id)} is required by the ${forced} and cannot be turned off`);
+      for (const other of mods.values()) {
+        if (other.id !== id && enabled(other.id) && moduleRequiredIds(other).includes(id)) {
+          problems.push(`${name(other.id)} is on and needs ${name(id)}`);
+        }
+      }
+    }
+  }
+  return problems.length > 0 ? problems.join('; ') : null;
+}
+
+/** True when the module list holds more data than a plan can read back (read mode says so). */
+export function moduleListTooLarge(): boolean {
+  try {
+    return (
+      JSON.stringify(readSettingValue('core', 'moduleConfiguration') ?? null).length >
+      MAX_MODULE_CONFIG_JSON
+    );
+  } catch {
+    return false;
+  }
+}
+
+export const MODULE_LIST_TOO_LARGE_MESSAGE =
+  'The list of modules in this world holds too much data for a plan to change it; turn the module on or off in Foundry itself';
+
+/** True when a write of this plan changes the module list. */
+export function isModuleListOp(uuid: string): boolean {
+  return uuid === `${SETTING_UUID_PREFIX}${MODULE_CONFIG_SETTING}`;
 }
 
 /**
@@ -388,11 +537,41 @@ export async function executeVirtualUpdate(
  */
 export const MODULE_RELOAD_DELAY_MS = 7000;
 
-let moduleReloadNeeded = false;
+/**
+ * One mark per apply (by change id), so two applies at once cannot clear or take each other's
+ * reload. A rollback carries the same change id as the apply it undoes.
+ */
+interface ReloadMark {
+  needed: boolean;
+  rollbackFailed: boolean;
+}
+const reloadMarks = new Map<string, ReloadMark>();
 
-/** Forget a pending reload (the apply failed and was rolled back). */
-export function clearModuleReload(): void {
-  moduleReloadNeeded = false;
+function reloadMark(changeId: string): ReloadMark {
+  let mark = reloadMarks.get(changeId);
+  if (!mark) {
+    mark = { needed: false, rollbackFailed: false };
+    reloadMarks.set(changeId, mark);
+  }
+  return mark;
+}
+
+/**
+ * The rollback of a failed apply did not complete: if the apply had written the module list, the
+ * list may differ from what the windows loaded, so the reload still happens. True in that case.
+ */
+export function noteIncompleteRollback(changeId: string): boolean {
+  const mark = reloadMarks.get(changeId);
+  if (!mark?.needed) return false;
+  mark.rollbackFailed = true;
+  return true;
+}
+
+/** The apply failed: forget its reload, unless its rollback was incomplete (then reload anyway). */
+export function clearModuleReload(changeId = ''): void {
+  const mark = reloadMarks.get(changeId);
+  if (mark?.rollbackFailed) flushModuleReload(changeId);
+  else reloadMarks.delete(changeId);
 }
 
 /**
@@ -401,9 +580,10 @@ export function clearModuleReload(): void {
  * Module Management sends, needs the Modify Configuration Settings permission) and so does this
  * GM window, where the bridge reconnects by itself. A no-op outside a browser (tests).
  */
-export function flushModuleReload(): void {
-  if (!moduleReloadNeeded) return;
-  moduleReloadNeeded = false;
+export function flushModuleReload(changeId = ''): void {
+  const mark = reloadMarks.get(changeId);
+  reloadMarks.delete(changeId);
+  if (!mark?.needed) return;
   const reload = (): void => {
     try {
       const live = game as unknown as {

@@ -35,9 +35,20 @@ export function formatAge(ms: number): string {
   return m % 60 === 0 ? `${h} h` : `${h} h ${m % 60} min`;
 }
 
+/** What the dashboard's health line reads (item health-line-dots): problems in plain words. */
+export interface RecorderProblem {
+  kind: 'silent' | 'stream' | 'rejoin';
+  /** Plain words for the GM, without the "Recorder:" prefix. */
+  text: string;
+}
+
 export class RecorderHealth {
   private readonly members = new Map<string, Member>();
   private readonly lastAlertAt = new Map<string, number>();
+  /** Speakers whose audio stream failed and who have not sent a packet since. */
+  private readonly streamErrors = new Map<string, string>();
+  /** The failed rejoin attempt number while the bot is out of the channel, else null. */
+  private rejoinAttempt: number | null = null;
 
   /** Someone is in the channel (a join, or already there when the recording started). */
   join(userId: string, name: string, muted: boolean, now: number): void {
@@ -78,6 +89,7 @@ export class RecorderHealth {
     }
     m.lastPacket = now;
     m.silenceReported = false;
+    this.streamErrors.delete(userId);
   }
 
   /**
@@ -112,6 +124,7 @@ export class RecorderHealth {
 
   /** A per-speaker audio stream failed. */
   streamError(userId: string, name: string, message: string, now: number): string | null {
+    this.streamErrors.set(userId, name);
     return this.due(`stream:${userId}`, now)
       ? `Recorder: the audio stream for ${name} had an error (${message}). It is subscribed again, but check that their track keeps growing.`
       : null;
@@ -126,13 +139,47 @@ export class RecorderHealth {
 
   /** A rejoin failed; from attempt {@link REJOIN_ALERT_FROM} on, repeated every 5 minutes. */
   rejoinFailed(attempt: number, now: number): string | null {
+    this.rejoinAttempt = attempt;
     if (attempt < REJOIN_ALERT_FROM || !this.due('rejoin', now)) return null;
     return `Recorder: still cannot rejoin the voice channel (attempt ${attempt}). Nothing is being recorded until it is back.`;
   }
 
   /** A successful rejoin ends the repeat window, so the next outage reports at once. */
   rejoined(): void {
+    this.rejoinAttempt = null;
     this.lastAlertAt.delete('rejoin');
+  }
+
+  /**
+   * What is wrong right now, for the dashboard's health line: unlike {@link silent} this lists a
+   * silent speaker every time (not once), and a stream error until that speaker's next packet.
+   */
+  problems(now: number): RecorderProblem[] {
+    const out: RecorderProblem[] = [];
+    if (this.rejoinAttempt !== null && this.rejoinAttempt >= REJOIN_ALERT_FROM) {
+      out.push({
+        kind: 'rejoin',
+        text: `the bot cannot rejoin the voice channel (attempt ${this.rejoinAttempt})`,
+      });
+    }
+    for (const [id, name] of this.streamErrors) {
+      if (this.members.has(id)) {
+        out.push({ kind: 'stream', text: `the audio stream for ${name} failed` });
+      }
+    }
+    for (const m of this.members.values()) {
+      if (m.muted) continue;
+      const since = m.lastPacket ?? m.joinedAt;
+      if (now - since < SILENCE_MS) continue;
+      out.push({
+        kind: 'silent',
+        text:
+          m.lastPacket === null
+            ? `${m.name} has not been recorded at all`
+            : `${m.name} has not been recorded for ${formatAge(now - since)}`,
+      });
+    }
+    return out;
   }
 
   /** Per-speaker lines for /record status: last packet age, or "nothing yet". */

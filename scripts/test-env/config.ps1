@@ -184,7 +184,7 @@ function Get-NodeExe {
   $portableRoot = [IO.Path]::Combine("$env:LOCALAPPDATA", 'node24')
   if ($IsWindows -and (Test-Path $portableRoot)) {
     $portable = Get-ChildItem $portableRoot -Directory -Filter 'node-v24.*-win-x64' |
-      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and ([version]$Matches[1] -ge [version]'24.22.0') -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
       Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
       Select-Object -First 1
     if ($portable) { return Join-Path $portable.FullName 'node.exe' }

@@ -455,6 +455,11 @@ test('portableNodeDir: on Windows under Node older than 24.22 the newest portabl
   assert.equal(portableNodeDir({ ...base, version: '25.0.0' }), null, 'newer major');
   assert.ok(portableNodeDir({ ...base, version: '24.21.9' }), 'just below 24.22 still pins');
   assert.ok(portableNodeDir({ ...base, version: '22.22.2' }), 'Node 22 gets the pin');
+  assert.equal(
+    portableNodeDir({ ...base, readdir: () => ['node-v24.15.0-win-x64'] }),
+    null,
+    'a folder holding only node-v24.15.0 is not a safe pin'
+  );
   assert.equal(portableNodeDir({ ...base, platform: 'linux' }), null, 'not Windows');
   assert.equal(portableNodeDir({ ...base, localAppData: '' }), null, 'no LOCALAPPDATA');
   assert.equal(portableNodeDir({ ...base, exists: () => false }), null, 'no node.exe in it');
@@ -495,7 +500,7 @@ test('nodeNote: Windows says which Node the steps run on, other systems say noth
   );
   assert.equal(
     nodeNote({ platform: 'win32', version: '24.15.0', dir: null }),
-    'green: no portable Node 24 found; steps run on Node 24.15.0'
+    'green: no portable Node 24.22+ found; steps run on Node 24.15.0'
   );
   assert.equal(
     nodeNote({ platform: 'win32', version: '24.22.2', dir: null }),

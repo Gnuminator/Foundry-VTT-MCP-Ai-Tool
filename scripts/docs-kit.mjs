@@ -34,7 +34,7 @@ export async function renderBlock(root = repoRoot) {
   const sizes = contract.KIT_SIZES;
   const count = size => list.filter(s => s.sizes.includes(size)).length;
   const worlds = contract.KIT_WORLDS;
-  const esc = s => s.replace(/\|/g, '\\|');
+  const esc = s => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
   const body = list.map(s => [
     `\`${s.id}\``,
     sizes.filter(z => s.sizes.includes(z)).join(', '),

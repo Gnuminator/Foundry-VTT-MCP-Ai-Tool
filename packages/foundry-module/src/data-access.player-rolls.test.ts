@@ -47,6 +47,7 @@ import {
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import { eventTracker } from './session-events.js';
+import { changeJournal } from './change-journal.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -422,6 +423,24 @@ describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => 
     const done = await (da as any).playerRolls.rollTrackerInitiative({ id: 'a2' });
     expect(done).toBe(true);
     expect(rollInitiative).toHaveBeenCalledWith(['c2'], expect.any(Object));
+  });
+
+  it('breaks the change group just before the tracker roll, and not when it falls back', async () => {
+    const order: string[] = [];
+    const spy = vi
+      .spyOn(changeJournal, 'breakGroup')
+      .mockImplementation(() => void order.push('break'));
+    const rollInitiative = vi.fn(() => {
+      order.push('roll');
+      return Promise.resolve();
+    });
+    world.setCombat({ combatants: { contents: [{ id: 'c1', actorId: 'a1' }] }, rollInitiative });
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(order).toEqual(['break', 'roll']);
+    spy.mockClear();
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a9' });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('falls back (false) when the actor is in no fight, or there is none', async () => {

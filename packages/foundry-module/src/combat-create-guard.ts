@@ -6,7 +6,9 @@
  *
  * `_onCreate` runs on every client, so the guard wraps the Combat document class on each of them.
  * It gives a begun Combat that has no `previous` yet the state of a fight that has not begun
- * (round 0), so the start of round and turn events fire the way Combat#startCombat fires them.
+ * (round 0), so the start of round and first turn events fire (Combat#startCombat's `combatStart`
+ * hook and encounter recoveries are not part of this). A guarded undo or rollback gets its own
+ * current state as `previous`, so nothing replays.
  */
 import { MODULE_ID } from './constants.js';
 
@@ -14,6 +16,7 @@ interface CombatLike {
   round?: number;
   started?: boolean;
   previous?: unknown;
+  current?: object;
 }
 
 type OnCreate = (this: CombatLike, ...args: unknown[]) => unknown;
@@ -37,7 +40,13 @@ export function guardCombatCreate(documentClass: unknown): boolean {
   if ((original as unknown as Record<symbol, unknown>)[GUARDED]) return true;
   const wrapped: OnCreate = function (this: CombatLike, ...args: unknown[]) {
     if (!this.previous && Number(this.round ?? 0) > 0) {
-      this.previous = { ...UNSTARTED_STATE };
+      // A guarded undo or rollback re-creates an ended fight at its old round: nothing is
+      // replayed then (no round or turn events, no dnd5e recoveries), only the error goes.
+      const ns = (args[1] as Record<string, { changeMode?: unknown } | undefined> | null)?.[
+        MODULE_ID
+      ];
+      const restore = ns?.changeMode === 'undo' || ns?.changeMode === 'rollback';
+      this.previous = restore && this.current ? { ...this.current } : { ...UNSTARTED_STATE };
     }
     return (original as OnCreate).apply(this, args);
   };

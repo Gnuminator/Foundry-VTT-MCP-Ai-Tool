@@ -11,7 +11,12 @@ import { FoundryDataAccess } from './data-access.js';
 import { permissionManager } from './permissions.js';
 import { QueryHandlers } from './queries.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { NON_WRITE_METHODS, WRITE_METHODS, WRITES_DISABLED_MESSAGE } from './write-gate.js';
+import {
+  NON_WRITE_METHODS,
+  RECORDLESS_WRITE_METHODS,
+  WRITE_METHODS,
+  WRITES_DISABLED_MESSAGE,
+} from './write-gate.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -141,18 +146,31 @@ describe('write gate: behaviour', () => {
     });
     world.enableWrites();
     qh.registerHandlers();
-    (qh as any).dataAccess.playPlaylist = (): Promise<{ success: boolean }> => {
+    (qh as any).dataAccess.setInitiative = (): Promise<{ success: boolean }> => {
       order.push('write');
       return Promise.resolve({ success: true });
     };
-    await bridgeHandlers.get(wire('playPlaylist'))!({});
+    await bridgeHandlers.get(wire('setInitiative'))!({ combatantName: 'x', initiative: 1 });
     expect(order).toEqual(['break', 'write']);
     brk.mockClear();
     await bridgeHandlers.get(wire('ping'))!({});
     expect(brk).not.toHaveBeenCalled();
     world.setSetting(MODULE_ID, 'allowWriteOperations', false);
-    await expect(bridgeHandlers.get(wire('playPlaylist'))!({})).rejects.toThrow();
+    await expect(
+      bridgeHandlers.get(wire('setInitiative'))!({ combatantName: 'x' })
+    ).rejects.toThrow();
     expect(brk).not.toHaveBeenCalled();
+  });
+
+  it('keeps the group for writes that record nothing', async () => {
+    stubEverything();
+    const brk = vi.spyOn(changeJournal, 'breakGroup').mockImplementation(() => {});
+    world.enableWrites();
+    qh.registerHandlers();
+    await bridgeHandlers.get(wire('playPlaylist'))!({});
+    await bridgeHandlers.get(wire('sendChatMessage'))!({ message: 'hi' });
+    expect(brk).not.toHaveBeenCalled();
+    expect(RECORDLESS_WRITE_METHODS.filter(m => !WRITE_METHODS.includes(m))).toEqual([]);
   });
 
   it('never gates reads', async () => {

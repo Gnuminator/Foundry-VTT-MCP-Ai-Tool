@@ -73,6 +73,27 @@ export const WRITE_METHODS: readonly string[] = [
 ];
 
 /**
+ * Write methods that make no change-journal record (chat, rolls, playlists, a page popup, a
+ * notice, a folder, a portrait file). They do not break the change group: it would only end the
+ * window in which dnd5e's late follow-ups of an AI change stay with it, and some of them run as
+ * a step of a guarded apply itself.
+ */
+export const RECORDLESS_WRITE_METHODS: readonly string[] = [
+  'ensureJournalFolder',
+  'playPlaylist',
+  'playerRoll',
+  'postHandoutNotice',
+  'request-player-rolls',
+  'requestAbilityCheck',
+  'requestAttackRoll',
+  'rollNpcCheck',
+  'rollSavingThrows',
+  'sendChatMessage',
+  'showJournalPage',
+  'uploadPlayerPortrait',
+];
+
+/**
  * Methods that do not change the world: reads, the guarded-write plumbing
  * (`applyGuardedOps` has its own gate), the GM feed line after an allowed
  * change, the announce that tells the "AI changes" windows to refresh, opening a sheet on the GM's screen and clearing the local error list.
@@ -176,11 +197,12 @@ export function gateWriteHandlers(table: BridgeHandlerTable, prefix: string): vo
     const wire = `${prefix}.${method}`;
     const handler = table.get(wire);
     if (!handler) continue;
+    const breaks = !RECORDLESS_WRITE_METHODS.includes(method);
     table.set(wire, async (data: unknown) => {
       requireWriteOperations();
       // A direct write is its own change, never a follow-up of the guarded apply just before it
       // (the journal's guarded gap would else file it under the AI change in Recent Changes).
-      changeJournal.breakGroup();
+      if (breaks) changeJournal.breakGroup();
       return await handler(data);
     });
   }

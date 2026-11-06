@@ -34,6 +34,23 @@ describe('guardCombatCreate', () => {
     expect(seen[0]).toEqual({ previous: UNSTARTED_STATE, args: [{ a: 1 }, {}, 'u'] });
   });
 
+  it('gives a mutable copy, and a restored fight its own current state', () => {
+    const { FakeCombat, seen } = makeClass();
+    guardCombatCreate(FakeCombat);
+    const c = new FakeCombat();
+    c.round = 1;
+    c._onCreate({}, {}, 'u');
+    const prev = (seen[0] as { previous: object }).previous;
+    expect(prev).not.toBe(UNSTARTED_STATE);
+    expect(Object.isFrozen(prev)).toBe(false);
+
+    const back = new FakeCombat();
+    back.round = 3;
+    (back as unknown as { current: object }).current = { round: 3, turn: 2 };
+    back._onCreate({}, { 'foundry-mcp-bridge': { changeMode: 'undo' } }, 'u');
+    expect((seen[1] as { previous: unknown }).previous).toEqual({ round: 3, turn: 2 });
+  });
+
   it('leaves a combat that has a previous state, or has not begun, alone', () => {
     const { FakeCombat, seen } = makeClass();
     guardCombatCreate(FakeCombat);

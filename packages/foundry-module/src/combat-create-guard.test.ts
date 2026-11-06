@@ -75,4 +75,21 @@ describe('guardCombatCreate', () => {
     expect(guardCombatCreate({ prototype: {} })).toBe(false);
     expect(guardCombatCreate(undefined)).toBe(false);
   });
+
+  it('looks up an inherited _onCreate on the parent prototype on every call', () => {
+    class Base {
+      round = 0;
+      previous: unknown = undefined;
+      _onCreate(): string {
+        return 'base';
+      }
+    }
+    class Child extends Base {}
+    expect(guardCombatCreate(Child)).toBe(true);
+    const c = new Child();
+    expect(c._onCreate()).toBe('base');
+    // A patch registered on the parent after the guard went in is not skipped.
+    (Base.prototype as unknown as { _onCreate: () => string })._onCreate = (): string => 'patched';
+    expect(c._onCreate()).toBe('patched');
+  });
 });

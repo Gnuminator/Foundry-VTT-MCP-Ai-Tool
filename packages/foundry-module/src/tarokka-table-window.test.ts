@@ -267,6 +267,25 @@ describe('TableController', () => {
     expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Slow link.' });
   });
 
+  it('keeps the line when the fetch after the apply takes longer than the unrevealed grace', async () => {
+    vi.useFakeTimers();
+    const start = new Date('2026-11-05T20:00:00Z').getTime();
+    vi.setSystemTime(start);
+    const { controller, deps, get } = makeController({ flipText: 'Slow fetch.' });
+    await controller.load();
+    await controller.place();
+    const request = deps.request.bind(deps);
+    let applied = false;
+    deps.request = async (tool, args): Promise<unknown> => {
+      const result = await request(tool, args);
+      if (tool === 'apply-planned-change') applied = true;
+      if (tool === 'get-tarokka-reading' && applied) vi.setSystemTime(start + 2500);
+      return result;
+    };
+    await controller.flip(0);
+    expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Slow fetch.' });
+  });
+
   it('drops a kept line whose card was never revealed, so a later reveal does not use it', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-05T20:00:00Z'));

@@ -93,9 +93,11 @@ interface PendingLine {
  */
 const pendingLines: Record<string, PendingLine> = {};
 
-/** Drop the entries that are settled (the stored table has the line), stale or old. */
-function prunePendingLines(table: PublicTable): void {
-  const now = Date.now();
+/**
+ * Drop the entries that are settled (the stored table has the line), stale or old. `now` is when
+ * the judged fetch began, so a slow fetch cannot push a fresh flip past the unrevealed grace.
+ */
+function prunePendingLines(table: PublicTable, now: number = Date.now()): void {
   for (const [cardId, entry] of Object.entries(pendingLines)) {
     const slot = table.slots.find(s => s.stage === 'revealed' && s.cardId === cardId);
     const settled = slot?.stage === 'revealed' && slot.line === cleanLine(entry.line);
@@ -173,12 +175,13 @@ export class TableController {
     const seq = ++this.loadSeq;
     this.view = { ...this.view, status: 'loading' };
     this.changed();
+    const fetchStartedAt = Date.now();
     try {
       const result = await this.deps.request('get-tarokka-reading', {});
       const reading = parseReading(result);
       const images = this.deps.readImages();
       const stored = this.deps.readTable();
-      prunePendingLines(stored);
+      prunePendingLines(stored, fetchStartedAt);
       const table = reconcile(
         stored,
         reading?.positions ?? null,

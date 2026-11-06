@@ -114,7 +114,7 @@ export function boldNames(text) {
     const res = [
       new RegExp(`${bold}(?:\\s+(?:${UI_WORDS})\\b)`, 'gi'),
       new RegExp(`\\b(?:${UI_WORDS})\\s+${bold}`, 'gi'),
-      new RegExp(`\\b(?:${VERBS})\\s+(?:on\\s+|the\\s+)*${bold}`, 'gi'),
+      new RegExp(`\\b(?:${VERBS})\\s+(?:on\\s+|the\\s+|på\\s+)*${bold}`, 'gi'),
     ];
     for (const re of res) {
       for (const m of plain.matchAll(re)) {

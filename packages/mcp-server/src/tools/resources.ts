@@ -27,7 +27,7 @@ export class ResourceTools {
       {
         name: 'get-character-resources',
         description:
-          "Get a clean, structured view of a character's limited-use resources: spell slots per level (max/current/expended), class resources (Sorcery Points, Ki, Rages, Bardic Inspiration, Channel Divinity, Superiority Dice, etc.), item charges, current concentration (and on which spell), hit dice, and death save successes/failures when at 0 HP.",
+          "A character's limited-use resources: spell slots per level, class resources (Sorcery Points, Ki, Rages, Bardic Inspiration, Channel Divinity, Superiority Dice), item charges, concentration and its spell, hit dice, and death saves at 0 HP.",
         inputSchema: {
           type: 'object',
           properties: {

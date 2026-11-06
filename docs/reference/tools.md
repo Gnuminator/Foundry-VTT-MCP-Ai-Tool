@@ -311,7 +311,7 @@ Parameters:
 
 ### use-item
 
-Direct write. Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.
+Direct write. Use an item on a character (cast a spell, use an ability or feature, consume an item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Targets are optional. Returns "initiated" at once. Find items with get-character or search-character-items first.
 
 Kind: changes something and can delete or overwrite. Title: Use item.
 
@@ -326,17 +326,17 @@ Parameters:
 
 ### request-player-rolls
 
-Direct write. Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.
+Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.
 
 Kind: changes something. Title: Request player rolls.
 
 Parameters:
 
 - `rollType` (string, required): Type of roll to request (ability, skill, save, attack, initiative, custom). One of: `ability`, `skill`, `save`, `attack`, `initiative`, `custom`.
-- `rollTarget` (string, required): Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula
+- `rollTarget` (string, required): An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula
 - `targetPlayer` (string, required): Player name or character name to request the roll from
-- `isPublic` (boolean, required): Whether the roll should be public (true = visible to all players) or private (false = visible only to target player and GM).
-- `userConfirmedVisibility` (boolean, required): REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question. Always `true`.
+- `isPublic` (boolean, required): true: everyone sees the roll. false: only the target player and GM.
+- `userConfirmedVisibility` (boolean, required): Must be true. Set it only when the user said "public" or "private" or answered your question about it. Always `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
 - `dc` (integer)
@@ -372,7 +372,7 @@ Parameters:
 
 ### roll-npc-check
 
-Direct write. Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.
+Direct write. Roll for an NPC actor with no player prompt and post the result to chat: ability check, saving throw, skill check or attack.
 
 Kind: changes something. Title: Roll NPC check.
 
@@ -404,7 +404,7 @@ No parameters.
 
 ### get-chat-log
 
-Retrieve recent Foundry chat messages from the module's in-memory buffer. This is where dice rolls, ability uses, damage events, and combat narration live. Each message includes the speaker, message type, content, flavor text, and, for rolls, the formula, total, individual die results, critical/fumble status, advantage/disadvantage, and any damage total and types. Use this to follow what happened in the game.
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use it to follow what happened.
 
 Kind: read-only. Title: Get chat log.
 
@@ -417,7 +417,7 @@ Parameters:
 
 ### get-combat-play-by-play
 
-Return a structured, human-readable summary of the current or most recent combat encounter, reconstructed from the chat-log buffer and the recorded turn timeline. Includes each round broken into turns (who acted and what they did with roll/damage results), significant events (downed/dead/stabilized combatants, conditions applied/removed), and a final summary with total rounds and total damage dealt by each actor.
+Summary of the current or most recent combat, rebuilt from the chat-log buffer and the turn timeline: each round by turn (who acted, with roll and damage results), key events (downed, dead, stabilized, conditions applied or removed), and totals for rounds and damage dealt per actor.
 
 Kind: read-only. Title: Get combat play-by-play.
 
@@ -425,7 +425,7 @@ No parameters.
 
 ### send-chat-message
 
-Direct write. Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.
+Direct write. Post a chat message as a character or as the GM. Types: in-character (ic), out-of-character (ooc), emote, whisper.
 
 Kind: changes something. Title: Send chat message.
 
@@ -439,7 +439,7 @@ Parameters:
 
 ### get-character-resources
 
-Get a clean, structured view of a character's limited-use resources: spell slots per level (max/current/expended), class resources (Sorcery Points, Ki, Rages, Bardic Inspiration, Channel Divinity, Superiority Dice, etc.), item charges, current concentration (and on which spell), hit dice, and death save successes/failures when at 0 HP.
+A character's limited-use resources: spell slots per level, class resources (Sorcery Points, Ki, Rages, Bardic Inspiration, Channel Divinity, Superiority Dice), item charges, concentration and its spell, hit dice, and death saves at 0 HP.
 
 Kind: read-only. Title: Get character resources.
 
@@ -449,7 +449,7 @@ Parameters:
 
 ### get-active-effects
 
-List all active effects on an actor: name and icon, whether each is a condition (Blinded, Poisoned, etc.) vs a buff/debuff (Mage Armor, Haste, etc.), remaining duration (rounds/turns/seconds) where tracked, which attributes it modifies and by how much, and whether it requires concentration.
+Active effects on an actor: name, icon, condition or buff/debuff, remaining duration where tracked, what it modifies and by how much, and whether it needs concentration.
 
 Kind: read-only. Title: Get active effects.
 
@@ -557,7 +557,7 @@ Parameters:
 
 ### plan-token-change
 
-Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene's scale (a medium creature covers 5 ft; a scene whose squares are more than 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens, and one with less, such as 2.5 ft, gets larger ones); every creature on the scene (tokens with no creature size are skipped), or only the named ones; a 5 ft scene is no change.
+Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene's scale (a medium creature covers 5 ft, so a town or overland map with squares of 16 to 200 ft gets smaller tokens and a 2.5 ft scene larger ones); all creatures on the scene (tokens with no creature size are skipped) or only the named ones; a 5 ft scene changes nothing.
 
 Kind: read-only. Title: Plan token change.
 
@@ -630,7 +630,7 @@ Parameters:
 
 ### get-party
 
-GM ONLY. The dnd5e party (group actors, the primary party first): each member's HP, AC, passive Perception (and, when the AI Tool: Who would notice switch is on, passive Investigation and Insight under passives), conditions, exhaustion, hit dice and tokens on the current scene (and whether they are in the encounter), the travel pace and whether a slowed member forces slow pace, plus the current encounter. Read-only.
+The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.
 
 Kind: read-only. Title: Get party.
 
@@ -638,7 +638,7 @@ No parameters.
 
 ### plan-party-change
 
-Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e's short or long rest request card ("rest"), which each player clicks to rest. "place": put the members who have no token on the scene the GM is viewing onto the free squares nearest a spot: the centre of the GM's view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
+Plan one party action; nothing changes until apply-planned-change (the GM confirms; needs the "AI Tool: Party (writes)" switch). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one if none). "rest-request": post dnd5e's short or long rest request card ("rest"); each player clicks it to rest. "place": put members with no token on the GM's viewed scene, on the free squares nearest a spot: the centre of the GM's view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
 
 Kind: read-only. Title: Plan party change.
 
@@ -747,7 +747,7 @@ Parameters:
 
 ### plan-paper-sync
 
-GM ONLY. After a paper night: plan the numbers on ONE paper sheet as one guarded change for that character (apply-planned-change, undo-change; the "AI Tool: Paper sync (writes)" switch must be on, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request, listing every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only.
+After a paper night: plan the numbers on one paper sheet as one guarded change for that character (apply-planned-change, undo-change; needs the "AI Tool: Paper sync (writes)" switch, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request and lists every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only. Not for player chat: it shows more than players see.
 
 Kind: read-only. Title: Plan paper sheet sync.
 
@@ -826,7 +826,7 @@ Parameters:
 
 ### mark-play-session
 
-Direct write. GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault's own session log (sessions/&lt;date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
+Direct write. Mark the start or end of a play session with a line in the bridge vault's session log (sessions/&lt;date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
 
 Kind: changes something. Title: Mark play session start or end.
 
@@ -1127,7 +1127,7 @@ Make and change NPCs, monsters and items: from a compendium or from scratch, wit
 
 ### list-creatures-by-criteria
 
-CREATURE DISCOVERY (D&D 5e): Get a comprehensive list of creatures matching specific criteria (Challenge Rating, type, size, spellcasting, legendary actions). Perfect for encounter building - returns minimal data so Claude can use built-in monster knowledge to identify suitable creatures by name, then pull full details only for final selections. Features intelligent pack prioritization and high result limits for complete surveys.
+List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-entry-full.
 
 Kind: read-only. Title: List creatures by criteria.
 
@@ -1172,7 +1172,7 @@ Parameters:
 
 ### dnd5e-create-npc
 
-Direct write. [D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. Items, actions, features, and spells are NOT added by this tool; use dnd5e-add-feature (featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.
+Direct write. D&D 5e only. Create an NPC from scratch with a full stat block: identity, ability scores, saves, HP, AC, speeds, senses, skills, damage and condition traits, languages and biography. It adds no items, actions, features or spells: add them afterwards with dnd5e-add-feature. The actor goes in the "Foundry MCP Creatures" folder.
 
 Kind: changes something. Title: Create NPC.
 
@@ -1210,10 +1210,10 @@ Parameters:
 - `skills` (array of object): Skills with proficiency or expertise. Default: `[]`.
   - `skill` (string, required): One of: `Acrobatics`, `Animal Handling`, `Arcana`, `Athletics`, `Deception`, `History`, `Insight`, `Intimidation`, `Investigation`, `Medicine`, `Nature`, `Perception`, `Performance`, `Persuasion`, `Religion`, `Sleight of Hand`, `Stealth`, `Survival`.
   - `proficiency` (string, required): "proficient" = proficiency bonus once; "expert" = double proficiency. One of: `proficient`, `expert`.
-- `damageImmunities` (array of string): Damage types the creature is immune to (e.g. ["necrotic", "poison"]). Canonical values: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing, thunder. Non-canonical values are accepted with a warning. Default: `[]`.
+- `damageImmunities` (array of string): Damage types the creature is immune to (e.g. ["necrotic", "poison"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
 - `damageResistances` (array of string): Damage types the creature is resistant to. Same canonical set as damageImmunities. Default: `[]`.
 - `damageVulnerabilities` (array of string): Damage types the creature is vulnerable to. Same canonical set as damageImmunities. Default: `[]`.
-- `conditionImmunities` (array of string): Conditions the creature is immune to (e.g. ["charmed", "frightened"]). Canonical values: blinded, charmed, deafened, exhaustion, frightened, grappled, incapacitated, invisible, paralyzed, petrified, poisoned, prone, restrained, stunned, unconscious. Non-canonical values are accepted with a warning. Default: `[]`.
+- `conditionImmunities` (array of string): Conditions the creature is immune to (e.g. ["charmed", "frightened"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
 - `languages` (array of string): Languages the creature speaks (e.g. ["Common", "Goblin"]). Default: `[]`.
 - `languagesCustom` (string): Free-text language note (e.g. "telepathy 60 ft."). Default: `""`.
 - `biography` (string): HTML biography text shown in the character sheet. Default: `""`.
@@ -1223,40 +1223,24 @@ Parameters:
 
 ### dnd5e-add-feature
 
-Direct write. [D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. Set featureType to select the mode; each mode uses only its own parameters:
+Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. featureType picks the mode; each parameter says which modes use it. Required besides actorIdentifier:
 
-- passive: descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).
-  - Required: actorIdentifier, featureName
-  - Optional: description, sourceRules, sourceBook, sourcePage
-- save: feature that forces a saving throw (breath weapon, cone of cold, etc.).
-  - Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts
-  - Optional: description, activationType, halfOnSave, areaType, areaSize (required if areaType set), areaUnits, affectsType
-- attack: weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).
-  - Required: actorIdentifier, featureName, attackType, damageParts
-  - Required when ranged: rangeFt
-  - Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, sourceRules, sourceBook, sourcePage
-- attack-with-save: attack roll on hit + forced save for bonus damage (e.g. Stinger: piercing hit + CON save or poison damage).
-  - Required: actorIdentifier, featureName, attackType, damageParts, saveAbility, saveDC, saveDamageParts
-  - Required when ranged: rangeFt
-  - Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, sourceRules, sourceBook, sourcePage
-- aura: automatic-damage area, no to-hit, no save (all creatures in range take damage).
-  - Required: actorIdentifier, featureName, damageParts, areaType, areaSize
-  - Optional: description, activationType, areaUnits, affectsType, sourceRules, sourceBook, sourcePage
-- spellcasting: configure spell slots and casting ability. Run this BEFORE featureType "spells".
-  - Required: actorIdentifier, spellcastingClass, spellcastingLevel
-  - Optional: spellcastingAbility (default per class: wizard/artificer→INT, cleric/druid/ranger→WIS, sorcerer/warlock/bard/paladin→CHA), sourceRules
-- spells: import named spells from compendium. Names must be in English.
-  - Required: actorIdentifier, spellNames (max 50)
-  - Optional: compendiumPacks (default ["dnd5e.spells"])
+- passive: a trait with no roll (Magic Resistance): featureName
+- save: forces a saving throw (breath weapon): featureName, saveAbility, saveDC, damageParts
+- attack: weapon attack (Claw, Bite): featureName, attackType, damageParts (rangeFt when ranged)
+- attack-with-save: a hit plus a save for bonus damage (Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts
+- aura: damage to all in range, no roll: featureName, damageParts, areaType, areaSize
+- spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel
+- spells: import named spells from the compendium: spellNames (English, max 50)
 
-Use list-characters or get-character first to find the actorIdentifier.
+Find the actorIdentifier with list-characters or get-character.
 
 Kind: changes something. Title: Add feature to actor.
 
 Parameters:
 
-- `featureType` (string, required): Mode selector: determines which parameters are used and which Foundry handler is called. One of: `passive`, `save`, `attack`, `attack-with-save`, `aura`, `spellcasting`, `spells`.
-- `actorIdentifier` (string, required): Name or ID of the target actor (partial name match supported). Required for all featureTypes.
+- `featureType` (string, required): Mode: decides which parameters are used. One of: `passive`, `save`, `attack`, `attack-with-save`, `aura`, `spellcasting`, `spells`.
+- `actorIdentifier` (string, required): Name or ID of the target actor (partial name match works). Always required.
 - `featureName` (string): Name for the new feature/item; must be unique on the actor. Required for: passive, save, attack, attack-with-save, aura.
 - `description` (string): HTML description of the feature (optional). Used by: passive, save, attack, attack-with-save, aura. Default: `""`.
 - `activationType` (string): Action economy type. Used by: save, attack, attack-with-save, aura. Default: "action". One of: `action`, `bonus`, `reaction`, `legendary`, `lair`, `special`. Default: `action`.
@@ -1280,15 +1264,15 @@ Parameters:
 - `weaponClass` (string): Weapon category. Use "natural" for monster attacks (claws, bite, touch). Used by: attack, attack-with-save. Default: "natural". One of: `natural`, `simpleM`, `martialM`, `simpleR`, `martialR`. Default: `natural`.
 - `abilityModifier` (string): Ability used for to-hit and damage rolls. Omit to use default: STR for melee, DEX for ranged. Used by: attack, attack-with-save. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
 - `attackBonus` (number): Flat bonus to the attack roll only, not damage (e.g. 1 for +1 to hit). Used by: attack, attack-with-save. Default: 0. Range: 0 to 10. Default: `0`.
-- `proficient` (boolean): Whether the actor is proficient with this weapon (adds proficiency bonus to to-hit). Used by: attack, attack-with-save. Default: true. Default: `true`.
-- `equipped` (boolean): Whether the weapon is equipped and available for attack rolls. Used by: attack, attack-with-save. Default: true. Default: `true`.
+- `proficient` (boolean): Adds the proficiency bonus to hit. Used by: attack, attack-with-save. Default: true. Default: `true`.
+- `equipped` (boolean): Weapon is equipped. Used by: attack, attack-with-save. Default: true. Default: `true`.
 - `reachFt` (number): Melee reach in feet. Used by: attack, attack-with-save (melee only). Default: 5. Range: at least 5. Default: `5`.
 - `rangeFt` (number): Normal range in feet. Used by: attack, attack-with-save. Required when attackType is "ranged". Range: at least 1.
 - `longRangeFt` (number): Long range in feet; attacks beyond rangeFt up to this distance are at disadvantage. Must be greater than rangeFt. Used by: attack, attack-with-save (ranged only). Range: at least 1.
-- `properties` (array of string): Weapon property codes (e.g. ["fin", "lgt"]). Canonical 2014 codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. Used by: attack, attack-with-save. Default: []. Default: `[]`.
+- `properties` (array of string): Weapon property codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. Used by: attack, attack-with-save. Default: `[]`.
 - `spellcastingClass` (string): The spellcasting class; determines slot table and default casting ability. Warlock uses Pact Magic. Required for: spellcasting. One of: `artificer`, `bard`, `cleric`, `druid`, `paladin`, `ranger`, `sorcerer`, `warlock`, `wizard`.
 - `spellcastingLevel` (number): Class level (1–20). Determines how many slots the actor receives. Required for: spellcasting. Range: 1 to 20.
-- `spellcastingAbility` (string): Override the casting ability. Omit to use the class default. Used by: spellcasting. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `spellcastingAbility` (string): Casting ability. Omit for the class default (wizard, artificer INT; cleric, druid, ranger WIS; sorcerer, warlock, bard, paladin CHA). Used by: spellcasting. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
 - `spellNames` (array of string): English spell names to import (exact match, case-insensitive). Max 50 per call. Required for: spells. Items: 1 to 50.
 - `compendiumPacks` (array of string): Compendium pack IDs to search, in priority order (first match wins). Default: ["dnd5e.spells"] (SRD 2014). Use "dnd5e.spells24" for 2024 rules. Used by: spells. Default: `["dnd5e.spells"]`.
 - `sourceRules` (string): Rules edition. Used by: passive, attack, attack-with-save, aura, spellcasting. Default: "2014". One of: `2014`, `2024`. Default: `2014`.
@@ -1297,32 +1281,7 @@ Parameters:
 
 ### dnd5e-add-features-from-compendium
 
-Direct write. [D&D 5e only] Import class features and monster features from an official compendium pack onto an actor (NPC or PC). Each feature is looked up by EXACT name (case-insensitive) and embedded onto the actor as-is from the compendium data.
-
-USE THIS TOOL when you need to:
-
-- Add monster features by name (e.g. "Pack Tactics", "Nimble Escape", "Multiattack")
-- Add class features to an NPC caster (e.g. "Spellcasting", "Action Surge", "Font of Magic")
-- Mix features from monster and class compendiums on a custom NPC
-- Example: "add Spellcasting, Font of Magic and Metamagic to this sorcerer NPC"
-
-⚠️ IMPORTANT: feature names must be in English: the compendium uses English names. Translate BEFORE calling if the user provided names in another language.
-
-compendiumPacks controls which pack(s) to search (priority order, first match wins):
-
-- Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] → 2014 SRD
-- ["dnd5e.monsterfeatures24"]                              → 2024 monster features only
-- ["dnd5e.monsterfeatures24", "dnd5e.classfeatures"]       → 2024 monsters + 2014 class
-
-DO NOT USE THIS TOOL for:
-
-- Importing spell items → use dnd5e-add-feature with featureType "spells" instead
-- Setting up spellcasting class or spell slots → use dnd5e-add-feature with featureType "spellcasting"
-- Importing 2024 class features: they are embedded inside class items in the 2024 edition, not available in a separate compendium pack; this tool cannot import them
-- Creating custom/homebrew features from scratch → compendium-only, no homebrew
-- Non-dnd5e systems → this tool is dnd5e-exclusive
-
-Returns a detailed report: features added ✅, skipped (already on actor) ⏭️, not found in compendium ❌, and failed during import ⚠️. Use list-characters or get-character first to find the actorIdentifier.
+Direct write. D&D 5e only. Import monster features and class features by name from a compendium pack onto an actor (NPC or PC), copied as they are in the compendium. Examples: "Pack Tactics", "Multiattack", "Action Surge", "Font of Magic". Names must be exact (any case) and in English: translate them first. compendiumPacks is searched in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] is the 2014 SRD; ["dnd5e.monsterfeatures24"] is 2024 monster features only. Not for: spells or spell slots (use dnd5e-add-feature with featureType "spells" or "spellcasting"); 2024 class features (they live inside the class items, so this cannot import them); homebrew. Returns a report: added, skipped (already on the actor), not found, failed. Find the actorIdentifier with list-characters or get-character.
 
 Kind: changes something. Title: Add compendium features to actor.
 
@@ -1330,7 +1289,7 @@ Parameters:
 
 - `actorIdentifier` (string, required): Name or ID of the target actor (partial name match supported)
 - `featureNames` (array of string, required): English feature names to import (exact match, case-insensitive). Maximum 50 per call. Items: 1 to 50.
-- `compendiumPacks` (array of string): Compendium pack IDs to search, in priority order (first match wins). Defaults to ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] (SRD 2014). Use "dnd5e.monsterfeatures24" for 2024 monster features. Note: 2024 class features are not available in a separate pack. Default: `["dnd5e.monsterfeatures","dnd5e.classfeatures"]`.
+- `compendiumPacks` (array of string): Pack IDs to search in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] (SRD 2014); "dnd5e.monsterfeatures24" for 2024 monster features. Default: `["dnd5e.monsterfeatures","dnd5e.classfeatures"]`.
 
 ### manage-world-items
 

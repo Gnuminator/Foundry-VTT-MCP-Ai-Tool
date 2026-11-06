@@ -118,7 +118,7 @@ export class CharacterTools {
       {
         name: 'use-item',
         description:
-          'Direct write. Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.',
+          'Direct write. Use an item on a character (cast a spell, use an ability or feature, consume an item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Targets are optional. Returns "initiated" at once. Find items with get-character or search-character-items first.',
         inputSchema: {
           type: 'object',
           properties: {

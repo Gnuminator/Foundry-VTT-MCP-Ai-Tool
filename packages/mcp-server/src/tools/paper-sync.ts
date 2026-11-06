@@ -103,7 +103,7 @@ export class PaperSyncTools {
       {
         name: 'plan-paper-sync',
         description:
-          'GM ONLY. After a paper night: plan the numbers on ONE paper sheet as one guarded change for that character (apply-planned-change, undo-change; the "AI Tool: Paper sync (writes)" switch must be on, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request, listing every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only.',
+          'After a paper night: plan the numbers on one paper sheet as one guarded change for that character (apply-planned-change, undo-change; needs the "AI Tool: Paper sync (writes)" switch, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request and lists every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only. Not for player chat: it shows more than players see.',
         inputSchema: {
           type: 'object',
           additionalProperties: false,

@@ -93,7 +93,7 @@
     "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
     "prettier": "^3.0.0",
-    "typescript": "^5.0.0",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
     "vitest": "^3.2.6"
   },

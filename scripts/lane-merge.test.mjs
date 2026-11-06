@@ -475,6 +475,8 @@ test('risky categories: every category has patterns and the real paths match', (
     'scripts/lane-merge.mjs',
     'scripts/green.mjs',
     'scripts/drift-check.mjs',
+    'scripts/checks.mjs',
+    'scripts/ci-yaml.mjs',
     'scripts/heavy-lock.mjs',
     'scripts/pre-push.mjs',
     'scripts/lint-ratchet.mjs',

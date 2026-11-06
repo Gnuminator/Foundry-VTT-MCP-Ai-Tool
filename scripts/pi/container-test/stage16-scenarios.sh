@@ -170,7 +170,7 @@ if scenario installs-and-reports; then
   check "body is the report" node -e '
 const p = JSON.parse(require("fs").readFileSync("/tmp/post-body", "utf8"));
 if (p.host !== "foundry-pi" || p.foundry.version !== "14.368" || p.foundry.dnd5e !== "6.0.5" || p.backup.result !== "success") process.exit(1);
-if (Object.keys(p).sort().join() !== "backup,disk,foundry,host,sentAt,uptimeSeconds,v") process.exit(1);'
+if (Object.keys(p).sort().join() !== "backup,clock,disk,foundry,host,sentAt,uptimeSeconds,v") process.exit(1);'
   check "token not in the curl arguments" bash -c "! grep -qE '$SECRET_VAL|$SECRET_ID' /tmp/post-args"
   check "token not in the body" bash -c "! grep -qE '$SECRET_VAL|$SECRET_ID' /tmp/post-body"
   check "no secret printed" no_secret_in_output

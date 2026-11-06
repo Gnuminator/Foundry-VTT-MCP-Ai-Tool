@@ -1,7 +1,12 @@
 // Recent Changes: reading the bridge answers, the AI row state, the Everyone rows, the person
 // filter, the redo rule and the undo choice (just this, everything since, rewind the table) as
 // plain data. Pure functions, no DOM. Ported from the old changes-everyone.test.ts.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
+
+import { EVERYONE_CHANGES } from '../storybook/fixtures/changes';
 
 import {
   AI_LIMIT,
@@ -867,5 +872,67 @@ describe('the undo choice', () => {
       expect(rewindButtonLabel(12)).toBe('Undo all 12 changes');
       expect(rewindButtonLabel(null)).toBe('Undo all changes');
     });
+  });
+});
+
+// The bridge's own list-changes answer, written by packages/mcp-server's
+// change-summary-fixture.test.ts from the real ChangeHistory. Reading it here means a change to
+// the bridge's summary shape reaches the dashboard's tests.
+describe('the bridge change summary fixture', () => {
+  const raw: { changes: Record<string, unknown>[]; note?: string } = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL('../../../../../shared/fixtures/bridge/change-list.json', import.meta.url)
+      ),
+      'utf8'
+    )
+  );
+
+  // Keys the bridge sends that the Everyone tab does not read (yet), by kind.
+  const UNREAD = new Set(['userId', 'isGM', 'records', 'documents', 'undoneAt']);
+  const READ = new Set([
+    'kind',
+    'id',
+    'at',
+    'by',
+    'summary',
+    'lines',
+    'canUndo',
+    'ownData',
+    'undone',
+    'undoneBy',
+    'requestedBy',
+    'mode',
+    'feature',
+    'covers',
+    'things',
+  ]);
+
+  it('is read into every row, with the state the bridge meant', () => {
+    const list = readEveryoneChanges(raw);
+    expect(list.changes.map(c => c.id)).toEqual(raw.changes.map(c => c['id']));
+    expect(list.note).toBe(raw.note ?? '');
+    const byId = new Map(list.changes.map(c => [c.id, c]));
+    expect(byId.get('chg-1')).toMatchObject({ kind: 'ai', undone: true, undoneBy: 'chg-2' });
+    expect(byId.get('chg-2')).toMatchObject({ mode: 'undo', ownData: true });
+    expect(byId.get('chg-3')).toMatchObject({ requestedBy: 'Danni', canUndo: true });
+    expect(byId.get('act:h1')).toMatchObject({
+      kind: 'human',
+      by: 'Ilvara',
+      lines: ['Ilvara: HP 10 -> 5'],
+      things: [{ uuid: 'Actor.a1', name: 'Ilvara' }],
+    });
+  });
+
+  it('is the key set the Storybook list-changes fixture stays inside', () => {
+    const sent = new Set(raw.changes.flatMap(c => Object.keys(c)));
+    const fake = new Set(EVERYONE_CHANGES.changes.flatMap(c => Object.keys(c)));
+    expect([...fake].filter(k => !sent.has(k))).toEqual([]);
+  });
+
+  it('has no key the dashboard neither reads nor knowingly leaves out', () => {
+    const sent = new Set(raw.changes.flatMap(c => Object.keys(c)));
+    const unknown = [...sent].filter(k => !READ.has(k) && !UNREAD.has(k));
+    expect(unknown).toEqual([]);
   });
 });

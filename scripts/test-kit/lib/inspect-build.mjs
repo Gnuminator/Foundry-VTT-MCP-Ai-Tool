@@ -39,7 +39,10 @@ export async function inspectBuild(args) {
       from = {
         item: source ? label(source) : `(missing item ${itemId})`,
         advancement: advancementId,
-        title: source?.advancement?.byId?.[advancementId]?.title ?? '',
+        title:
+          source?.advancement?.byId?.[advancementId]?.name ||
+          source?.advancement?.byId?.[advancementId]?.title ||
+          '',
       };
     }
     const rootItem = typeof root === 'string' ? actor.items.get(root.split('.')[0]) : null;
@@ -103,7 +106,7 @@ export async function inspectBuild(args) {
         item: label(item),
         id: adv.id,
         type: adv.constructor?.typeName ?? adv.type,
-        title: adv.title ?? '',
+        title: adv.name || adv.title || '',
         level: Number.isFinite(adv.level) ? adv.level : (adv.levels?.[0] ?? null),
         value,
       });

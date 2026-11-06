@@ -168,6 +168,9 @@ export const RISKY_CATEGORIES = [
       'scripts/lane-merge.mjs',
       'scripts/green.mjs',
       'scripts/drift-check.mjs',
+      // The one list of checks green runs and drift-check is pinned to, and its ci.yml reader.
+      'scripts/checks.mjs',
+      'scripts/ci-yaml.mjs',
       // The heavy-check lock wraps green, lint-ratchet and drift-check's guards.
       'scripts/heavy-lock.mjs',
       'scripts/pre-push.mjs',

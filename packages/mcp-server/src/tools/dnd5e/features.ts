@@ -35,30 +35,16 @@ export class DnD5eFeaturesFromCompendiumTools {
       {
         name: 'dnd5e-add-features-from-compendium',
         description:
-          'Direct write. [D&D 5e only] Import class features and monster features from an official compendium ' +
-          'pack onto an actor (NPC or PC). Each feature is looked up by EXACT name ' +
-          '(case-insensitive) and embedded onto the actor as-is from the compendium data.\n\n' +
-          'USE THIS TOOL when you need to:\n' +
-          '  - Add monster features by name (e.g. "Pack Tactics", "Nimble Escape", "Multiattack")\n' +
-          '  - Add class features to an NPC caster (e.g. "Spellcasting", "Action Surge", "Font of Magic")\n' +
-          '  - Mix features from monster and class compendiums on a custom NPC\n' +
-          '  - Example: "add Spellcasting, Font of Magic and Metamagic to this sorcerer NPC"\n\n' +
-          '⚠️ IMPORTANT: feature names must be in English: the compendium uses English names. ' +
-          'Translate BEFORE calling if the user provided names in another language.\n\n' +
-          'compendiumPacks controls which pack(s) to search (priority order, first match wins):\n' +
-          '  - Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] → 2014 SRD\n' +
-          '  - ["dnd5e.monsterfeatures24"]                              → 2024 monster features only\n' +
-          '  - ["dnd5e.monsterfeatures24", "dnd5e.classfeatures"]       → 2024 monsters + 2014 class\n\n' +
-          'DO NOT USE THIS TOOL for:\n' +
-          '  - Importing spell items → use dnd5e-add-feature with featureType "spells" instead\n' +
-          '  - Setting up spellcasting class or spell slots → use dnd5e-add-feature with featureType "spellcasting"\n' +
-          '  - Importing 2024 class features: they are embedded inside class items in the 2024 ' +
-          'edition, not available in a separate compendium pack; this tool cannot import them\n' +
-          '  - Creating custom/homebrew features from scratch → compendium-only, no homebrew\n' +
-          '  - Non-dnd5e systems → this tool is dnd5e-exclusive\n\n' +
-          'Returns a detailed report: features added ✅, skipped (already on actor) ⏭️, ' +
-          'not found in compendium ❌, and failed during import ⚠️.\n' +
-          'Use list-characters or get-character first to find the actorIdentifier.',
+          'Direct write. D&D 5e only. Import monster features and class features by name from a compendium ' +
+          'pack onto an actor (NPC or PC), copied as they are in the compendium. ' +
+          'Examples: "Pack Tactics", "Multiattack", "Action Surge", "Font of Magic". ' +
+          'Names must be exact (any case) and in English: translate them first.\n' +
+          'compendiumPacks is searched in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] ' +
+          'is the 2014 SRD; ["dnd5e.monsterfeatures24"] is 2024 monster features only.\n' +
+          'Not for: spells or spell slots (use dnd5e-add-feature with featureType "spells" or "spellcasting"); ' +
+          '2024 class features (they live inside the class items, so this cannot import them); homebrew.\n' +
+          'Returns a report: added, skipped (already on the actor), not found, failed.\n' +
+          'Find the actorIdentifier with list-characters or get-character.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -82,10 +68,8 @@ export class DnD5eFeaturesFromCompendiumTools {
             compendiumPacks: {
               type: 'array',
               description:
-                'Compendium pack IDs to search, in priority order (first match wins). ' +
-                'Defaults to ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] (SRD 2014). ' +
-                'Use "dnd5e.monsterfeatures24" for 2024 monster features. ' +
-                'Note: 2024 class features are not available in a separate pack.',
+                'Pack IDs to search in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] ' +
+                '(SRD 2014); "dnd5e.monsterfeatures24" for 2024 monster features.',
               items: { type: 'string', minLength: 1 },
               default: ['dnd5e.monsterfeatures', 'dnd5e.classfeatures'],
               ...toolRef('compendium-pack', 'id', { filter: { documentName: 'Item' } }),

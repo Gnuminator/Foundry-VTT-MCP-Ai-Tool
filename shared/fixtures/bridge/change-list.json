@@ -1,0 +1,87 @@
+{
+  "changes": [
+    {
+      "kind": "ai",
+      "id": "chg-3",
+      "at": "2026-10-07T11:58:00.000Z",
+      "by": "AI",
+      "requestedBy": "Danni",
+      "summary": "Damage Wolf 2",
+      "lines": ["Actor \"Wolf 2\": HP 11 → 5"],
+      "mode": "apply",
+      "feature": "actor-change",
+      "canUndo": true,
+      "undone": false,
+      "documents": ["Actor.wolf2"]
+    },
+    {
+      "kind": "ai",
+      "id": "chg-2",
+      "at": "2026-10-07T11:57:00.000Z",
+      "by": "AI",
+      "summary": "Undo: Reveal",
+      "lines": ["Actor \"Wolf 2\": HP 11 → 5"],
+      "mode": "undo",
+      "feature": "change-undo",
+      "canUndo": true,
+      "ownData": true,
+      "undone": false,
+      "documents": ["Actor.wolf2"],
+      "covers": 1
+    },
+    {
+      "kind": "human",
+      "id": "act:h1",
+      "at": "2026-10-07T11:40:00.000Z",
+      "by": "Ilvara",
+      "userId": "u1",
+      "isGM": false,
+      "summary": "Ilvara: HP 10 -> 5",
+      "lines": ["Ilvara: HP 10 -> 5"],
+      "things": [
+        {
+          "uuid": "Actor.a1",
+          "name": "Ilvara"
+        }
+      ],
+      "records": 1,
+      "canUndo": true,
+      "undone": false
+    },
+    {
+      "kind": "human",
+      "id": "act:h0",
+      "at": "2026-10-07T11:20:00.000Z",
+      "by": "Aldric",
+      "userId": "u2",
+      "isGM": false,
+      "summary": "Ilvara: HP 20 -> 12",
+      "lines": ["Ilvara: HP 20 -> 12"],
+      "things": [
+        {
+          "uuid": "Actor.a1",
+          "name": "Ilvara"
+        }
+      ],
+      "records": 1,
+      "canUndo": true,
+      "undone": false
+    },
+    {
+      "kind": "ai",
+      "id": "chg-1",
+      "at": "2026-10-07T11:00:00.000Z",
+      "by": "AI",
+      "summary": "Damage Wolf 2",
+      "lines": ["Actor \"Wolf 2\": HP 11 → 5"],
+      "mode": "apply",
+      "feature": "actor-change",
+      "canUndo": false,
+      "undone": true,
+      "undoneBy": "chg-2",
+      "undoneAt": "2026-10-07T11:10:00.000Z",
+      "documents": ["Actor.wolf2"]
+    }
+  ],
+  "note": "The change journal is switched off on this bridge (FOUNDRY_AI_CHANGE_JOURNAL=off), so only AI changes are listed."
+}

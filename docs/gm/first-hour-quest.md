@@ -15,15 +15,19 @@ Do the whole quest in a test world, never in the campaign. A test world is a wor
 can break. Ask the tool admin for one if you don't have it.
 :::
 
+<!-- quest-skips: later-when-you-need-them -->
+
 **Progress:** stage 1 of 4 is the screen, stage 2 is people and worlds, stage 3 is the table,
 stage 4 is the tool. About an hour in all.
 
 ## Stage 1 of 4: The screen (15 minutes)
 
+Steps: [The screen](first-hour.md#1-the-screen-15-minutes).
+
 - [ ] Open Foundry, launch the test world and join as the **Game Master**.
 - [ ] Read [A tour of the Foundry screen](../foundry/screen-tour.md).
-- [ ] Find the **sidebar** on the right, the **scene controls** on the left, the **scene
-      navigation** at the top and the **map** in the middle.
+- [ ] Find the **map** in the middle, with the **sidebar** at its right, the **scene
+      controls** at its left and the **scene navigation** along the top.
 - [ ] Open the [Foundry glossary](../foundry/glossary.md) in a second tab and leave it there.
 - [ ] Read [Getting started](getting-started.md) (ours).
 
@@ -31,8 +35,10 @@ stage 4 is the tool. About an hour in all.
 
 ## Stage 2 of 4: People and worlds (10 minutes)
 
+Steps: [People and worlds](first-hour.md#2-people-and-worlds-10-minutes).
+
 - [ ] Read [Users and permissions](../foundry/users-and-permissions.md) and find the four roles:
-      Player, Trusted, Assistant and Game Master. Your players are Players, you are the Game Master.
+      Player, Trusted, Assistant and Game Master. Your players hold the Player role, you hold the Game Master role.
 - [ ] Read [Worlds and joining](../foundry/worlds-and-joining.md): what launching a world
       does, what the join page is and what **Return to Setup** does.
 
@@ -40,7 +46,8 @@ stage 4 is the tool. About an hour in all.
 
 ## Stage 3 of 4: Running the table (25 minutes)
 
-Try each one in the test world as you read it.
+Steps: [Running the table](first-hour.md#3-running-the-table-25-minutes). Do each task in the test
+world while you read.
 
 - [ ] [Scenes](../foundry/scenes.md): make a scene, then view it, then activate it. Notice that
       activating is what the players see.
@@ -61,6 +68,8 @@ Stuck on a button? Ask your [GM coach](gm-coach.md) in Claude. It answers from t
 
 ## Stage 4 of 4: The tool (10 minutes)
 
+Steps: [The tool](first-hour.md#4-the-tool-10-minutes).
+
 - [ ] Read [The dashboard](dashboard.md) down to "The header". You need the names of the panels,
       not every detail.
 - [ ] Open the dashboard on your second screen and find **Recent Changes**. Every change Claude
@@ -74,5 +83,5 @@ Stuck on a button? Ask your [GM coach](gm-coach.md) in Claude. It answers from t
 ## Quest complete
 
 That is the hour. Next in the same style: [Quest: prepare session 0](prepare-session-0-quest.md)
-and, every game night, [Quest: before a session](before-session-quest.md). Keep the
-[game night runbook](game-night-runbook.md) open on the night.
+and, every game night, [Quest: before a session](before-session-quest.md). On the night itself,
+have the [game night runbook](game-night-runbook.md) at hand.

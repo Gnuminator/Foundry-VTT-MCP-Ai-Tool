@@ -1,6 +1,6 @@
 ---
 source: gm/first-hour-quest.md
-sourceHash: ae1e8bdab3bc
+sourceHash: 90edbfc7baf0
 title: 'Quest: din første time'
 description: Din første time som en liste af små opgaver, du kan sætte flueben ved. Fire trin med tider, og til sidst en test world, du selv har klikket igennem.
 ---
@@ -17,15 +17,19 @@ Lav hele questen i en test world, aldrig i kampagnen. En test world er en world,
 kan gå i stykker. Bed værktøjets administrator om en, hvis du ikke har en.
 :::
 
+<!-- quest-skips: senere-når-du-får-brug-for-dem -->
+
 **Fremgang:** trin 1 af 4 er skærmen, trin 2 er mennesker og worlds, trin 3 er bordet,
 trin 4 er værktøjet. Ca. en time i alt.
 
 ## Trin 1 af 4: Skærmen (15 minutter)
 
+Se tjeklisten: [Skærmen](first-hour.md#1-skærmen-15-minutter).
+
 - [ ] Åbn Foundry, start test worlden og kom ind som **Game Master**.
 - [ ] Læs [A tour of the Foundry screen](../../foundry/screen-tour.md).
-- [ ] Find **sidebaren** til højre, **scene controls** til venstre, **scene
-      navigation** øverst og **kortet** i midten.
+- [ ] Find **kortet** i midten, med **sidebaren** til højre, **scene controls** til venstre
+      og **scene navigation** langs toppen.
 - [ ] Åbn [Foundry glossary](../../foundry/glossary.md) i en anden fane og lad den stå.
 - [ ] Læs [Kom i gang](getting-started.md) (vores egen).
 
@@ -33,8 +37,10 @@ trin 4 er værktøjet. Ca. en time i alt.
 
 ## Trin 2 af 4: Mennesker og worlds (10 minutter)
 
+Se tjeklisten: [Mennesker og worlds](first-hour.md#2-mennesker-og-worlds-10-minutter).
+
 - [ ] Læs [Users and permissions](../../foundry/users-and-permissions.md) og find de fire roller:
-      Player, Trusted, Assistant og Game Master. Dine spillere er Players, du er Game Master.
+      Player, Trusted, Assistant og Game Master. Dine spillere har rollen Player, du har rollen Game Master.
 - [ ] Læs [Worlds and joining](../../foundry/worlds-and-joining.md): hvad det gør at starte en
       world, hvad join-siden er, og hvad **Return to Setup** gør.
 
@@ -42,7 +48,8 @@ trin 4 er værktøjet. Ca. en time i alt.
 
 ## Trin 3 af 4: At køre bordet (25 minutter)
 
-Prøv hver af dem i test worlden, mens du læser.
+Se tjeklisten: [At køre bordet](first-hour.md#3-at-køre-bordet-25-minutter). Gør hver opgave i test
+worlden, mens du læser.
 
 - [ ] [Scenes](../../foundry/scenes.md): lav en scene, se den, og aktivér den derefter. Læg mærke til,
       at det er aktivering, der viser den for spillerne.
@@ -63,6 +70,8 @@ Går du i stå på en knap? Spørg din [GM coach](gm-coach.md) i Claude. Den sva
 
 ## Trin 4 af 4: Værktøjet (10 minutter)
 
+Se tjeklisten: [Værktøjet](first-hour.md#4-værktøjet-10-minutter).
+
 - [ ] Læs [Dashboardet](dashboard.md) ned til "The header". Du skal bruge navnene på
       panelerne, ikke hver detalje.
 - [ ] Åbn dashboardet på din anden skærm og find **Recent Changes**. Hver ændring, Claude
@@ -76,5 +85,5 @@ Går du i stå på en knap? Spørg din [GM coach](gm-coach.md) i Claude. Den sva
 ## Questen er klaret
 
 Så er timen gået. Næste i samme stil: [Quest: forbered session 0](prepare-session-0-quest.md)
-og, hver spilaften, [Quest: før en session](before-session-quest.md). Hold
-[spilaftenens runbook](game-night-runbook.md) åben på aftenen.
+og, hver spilaften, [Quest: før en session](before-session-quest.md). På selve aftenen skal
+[spilaftenens runbook](game-night-runbook.md) være ved hånden.

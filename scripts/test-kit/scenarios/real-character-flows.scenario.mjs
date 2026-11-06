@@ -74,7 +74,9 @@ const READ_USER = ({ userName }) => {
   return {
     userId: user.id,
     character: user.character?.id ?? null,
-    owned: game.actors.filter(a => a.testUserPermission(user, 'OWNER')).map(a => ({ id: a.id, name: a.name })),
+    owned: game.actors
+      .filter(a => a.testUserPermission(user, 'OWNER'))
+      .map(a => ({ id: a.id, name: a.name })),
     ownership: Object.fromEntries(game.actors.map(a => [a.id, a.ownership?.[user.id] ?? null])),
   };
 };
@@ -162,7 +164,12 @@ const DELETE_SIDE_SCENE = async ({ sceneId }) => {
 const READ_COMBATS = () => ({
   gameCombat: game.combat?.id ?? null,
   viewed: canvas.scene?.id ?? null,
-  combats: game.combats.map(c => ({ id: c.id, scene: c.scene?.id ?? null, round: c.round, started: c.started })),
+  combats: game.combats.map(c => ({
+    id: c.id,
+    scene: c.scene?.id ?? null,
+    round: c.round,
+    started: c.started,
+  })),
 });
 
 /**
@@ -185,7 +192,11 @@ const LEAVE_HEADLESS = async ({ sceneId }) => {
   if (scene && !canvas.ready) await canvas.draw(scene);
   // Targets the headless call may have left.
   game.user.targets.clear?.();
-  return { noCanvas: game.settings.get('core', 'noCanvas'), ready: !!canvas.ready, viewed: canvas.scene?.id ?? null };
+  return {
+    noCanvas: game.settings.get('core', 'noCanvas'),
+    ready: !!canvas.ready,
+    viewed: canvas.scene?.id ?? null,
+  };
 };
 
 /** Runs in the Foundry GM page: the targets set the user holds (document ids, whatever they are). */
@@ -216,7 +227,8 @@ const rollMode = roll =>
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
   id: 'real-character-flows',
-  title: 'Combat flows with real characters: assigned character, poisoned roll, timed condition undo, 0 HP undo, fight on an unviewed scene, no-canvas write',
+  title:
+    'Combat flows with real characters: assigned character, poisoned roll, timed condition undo, 0 HP undo, fight on an unviewed scene, no-canvas write',
   sizes: ['smoke', 'full'],
   tags: ['bridge', 'module', 'playlog'],
   needs: ['heroes', 'monsters', 'scene'],
@@ -237,7 +249,12 @@ export default {
   timeoutMs: 420000,
 
   async run(t) {
-    if (t.fake || !t.page) t.skip('needs the real Foundry GM page');
+    if (t.fake || !t.page) {
+      await t.step('needs a real browser', async () =>
+        t.skip('needs a real browser (the real Foundry GM page)')
+      );
+      return;
+    }
     const page = t.page;
     const sceneId = t.kit.scene.sceneId;
     const heroes = tokenHeroes(t.kit);
@@ -249,7 +266,9 @@ export default {
     const first = owner;
     const second = heroes.find(h => h.actorId !== first.actorId);
     // The two heroes of the fights (not the player's): `druid` and `cleric` are only labels.
-    const [cleric, druid] = heroes.filter(h => h.actorId !== first.actorId && h.actorId !== second.actorId);
+    const [cleric, druid] = heroes.filter(
+      h => h.actorId !== first.actorId && h.actorId !== second.actorId
+    );
     const flag = { scope: 'world', key: 'testKit' };
     const known = await page.evaluate(MESSAGE_IDS);
 
@@ -274,7 +293,11 @@ export default {
       while (open.length) await t.guarded.undo(/** @type {string} */ (open.pop()));
     });
     t.cleanup(async () => {
-      await page.evaluate(TOGGLE_STATUS, { actorId: first.actorId, status: 'poisoned', active: false });
+      await page.evaluate(TOGGLE_STATUS, {
+        actorId: first.actorId,
+        status: 'poisoned',
+        active: false,
+      });
       await page.evaluate(DELETE_MESSAGES, { known });
     });
     t.cleanup(async () => {
@@ -302,12 +325,19 @@ export default {
      */
     const requestAndRoll = async ability => {
       const before = await page.evaluate(MESSAGE_IDS);
-      await t.tool('request-ability-check', { targetPlayer: PLAYER, ability, isPublic: true }, { confirm: true });
+      await t.tool(
+        'request-ability-check',
+        { targetPlayer: PLAYER, ability, isPublic: true },
+        { confirm: true }
+      );
       const posted = await page.evaluate(NEW_ROLLS, { known: before });
       const b = posted.buttons[0];
       t.check(b, 'a roll button was posted', posted);
       const beforeClick = await page.evaluate(MESSAGE_IDS);
-      t.check(await page.evaluate(CLICK_BUTTON, { buttonId: b.id }), 'the button is in the chat log');
+      t.check(
+        await page.evaluate(CLICK_BUTTON, { buttonId: b.id }),
+        'the button is in the chat log'
+      );
       let roll;
       for (let i = 0; i < 30 && !roll; i++) {
         await sleep(500);
@@ -320,29 +350,39 @@ export default {
     // --- 1. Assigned character beside a second owned actor (PR 573) -----------------------
     /** @type {{assigned: any, other: any}} */
     let pair;
-    await t.step('the player owns two actors; the assigned one is not the first they own', async () => {
-      userBefore = await page.evaluate(READ_USER, { userName: PLAYER });
-      t.check(!userBefore.error, `no user ${PLAYER}`, userBefore);
-      for (const a of [first, second]) {
-        const r = await page.evaluate(SET_OWNERSHIP, { actorId: a.actorId, userName: PLAYER, level: 3 });
-        t.check(!r.error, `ownership for ${a.name}`, r);
+    await t.step(
+      'the player owns two actors; the assigned one is not the first they own',
+      async () => {
+        userBefore = await page.evaluate(READ_USER, { userName: PLAYER });
+        t.check(!userBefore.error, `no user ${PLAYER}`, userBefore);
+        for (const a of [first, second]) {
+          const r = await page.evaluate(SET_OWNERSHIP, {
+            actorId: a.actorId,
+            userName: PLAYER,
+            level: 3,
+          });
+          t.check(!r.error, `ownership for ${a.name}`, r);
+        }
+        const now = await page.evaluate(READ_USER, { userName: PLAYER });
+        const ownedIds = now.owned.map(o => o.id);
+        t.check(
+          ownedIds.includes(first.actorId) && ownedIds.includes(second.actorId),
+          'the player owns both actors',
+          now.owned
+        );
+        // The old code rolled for the first actor in game.actors order; assign the other one.
+        const firstOwned = now.owned.find(o => o.id === first.actorId || o.id === second.actorId);
+        const assigned = firstOwned.id === first.actorId ? second : first;
+        const other = firstOwned.id === first.actorId ? first : second;
+        const set = await page.evaluate(SET_CHARACTER, {
+          userName: PLAYER,
+          actorId: assigned.actorId,
+        });
+        t.equal(set.character, assigned.actorId, 'the assigned character');
+        pair = { assigned, other };
+        return `assigned ${assigned.name}, other owned ${other.name}`;
       }
-      const now = await page.evaluate(READ_USER, { userName: PLAYER });
-      const ownedIds = now.owned.map(o => o.id);
-      t.check(
-        ownedIds.includes(first.actorId) && ownedIds.includes(second.actorId),
-        'the player owns both actors',
-        now.owned
-      );
-      // The old code rolled for the first actor in game.actors order; assign the other one.
-      const firstOwned = now.owned.find(o => o.id === first.actorId || o.id === second.actorId);
-      const assigned = firstOwned.id === first.actorId ? second : first;
-      const other = firstOwned.id === first.actorId ? first : second;
-      const set = await page.evaluate(SET_CHARACTER, { userName: PLAYER, actorId: assigned.actorId });
-      t.equal(set.character, assigned.actorId, 'the assigned character');
-      pair = { assigned, other };
-      return `assigned ${assigned.name}, other owned ${other.name}`;
-    });
+    );
 
     await t.step('the roll request rolls for the assigned character', async () => {
       const roll = await requestAndRoll('str');
@@ -350,27 +390,42 @@ export default {
     });
 
     // --- 2. Poisoned roll with Automated Conditions (PR 562) -------------------------------
-    await t.step('a poisoned assigned character rolls with disadvantage (Automated Conditions)', async () => {
-      if (!(await page.evaluate(AC5E_ACTIVE, { id: AC5E }))) t.skip('Automated Conditions 5e is not active in this kit world');
-      const base = await requestAndRoll('str');
-      t.equal(rollMode(base), 'normal', `the unpoisoned roll (${base.formula})`);
-      const r = await page.evaluate(TOGGLE_STATUS, { actorId: pair.assigned.actorId, status: 'poisoned', active: true });
-      t.check(r.has, 'poisoned is on', r);
-      try {
-        const roll = await requestAndRoll('str');
-        t.equal(rollMode(roll), 'disadvantage', `the poisoned roll (${roll.formula})`);
-        return roll.formula;
-      } finally {
-        await page.evaluate(TOGGLE_STATUS, { actorId: pair.assigned.actorId, status: 'poisoned', active: false });
+    await t.step(
+      'a poisoned assigned character rolls with disadvantage (Automated Conditions)',
+      async () => {
+        if (!(await page.evaluate(AC5E_ACTIVE, { id: AC5E })))
+          t.skip('Automated Conditions 5e is not active in this kit world');
+        const base = await requestAndRoll('str');
+        t.equal(rollMode(base), 'normal', `the unpoisoned roll (${base.formula})`);
+        const r = await page.evaluate(TOGGLE_STATUS, {
+          actorId: pair.assigned.actorId,
+          status: 'poisoned',
+          active: true,
+        });
+        t.check(r.has, 'poisoned is on', r);
+        try {
+          const roll = await requestAndRoll('str');
+          t.equal(rollMode(roll), 'disadvantage', `the poisoned roll (${roll.formula})`);
+          return roll.formula;
+        } finally {
+          await page.evaluate(TOGGLE_STATUS, {
+            actorId: pair.assigned.actorId,
+            status: 'poisoned',
+            active: false,
+          });
+        }
       }
-    });
+    );
 
     // --- A fight on the viewed kit scene for the condition and 0 HP steps -------------------
     /** @type {any} */
     let hpBefore;
     await t.step('set-up: a fight on the kit scene with two heroes', async () => {
       await t.gm('endCombats');
-      const combat = await t.gm('startCombat', { sceneId, tokenIds: [druid.tokenId, cleric.tokenId] });
+      const combat = await t.gm('startCombat', {
+        sceneId,
+        tokenIds: [druid.tokenId, cleric.tokenId],
+      });
       t.equal(combat.combatantIds.length, 2, 'combatants');
       await t.tool('set-initiative', { combatantName: druid.name, initiative: 30 });
       await t.tool('set-initiative', { combatantName: cleric.name, initiative: 10 });
@@ -379,32 +434,39 @@ export default {
     });
 
     // --- 3. Timed condition undo after turns (PR 705) -------------------------------------
-    await t.step('a timed condition put on by the AI is undone after turns have passed', async () => {
-      const applied = await t.guarded.planApply('plan-actor-change', {
-        action: 'condition',
-        targets: [druid.name],
-        condition: 'blinded',
-        rounds: 1,
-      });
-      open.push(applied.changeId);
-      t.check(
-        (await page.evaluate(READ_ACTOR, { actorId: druid.actorId })).statuses.includes('blinded'),
-        'blinded is on after the apply'
-      );
-      // Past the holder's next turn start: two turns of a two-creature fight is a new round.
-      for (let i = 0; i < 3; i++) {
-        const moved = await t.tool('advance-combat-turn', {});
-        t.check(moved.success === true, 'advance-combat-turn', moved);
-        await sleep(800);
+    await t.step(
+      'a timed condition put on by the AI is undone after turns have passed',
+      async () => {
+        const applied = await t.guarded.planApply('plan-actor-change', {
+          action: 'condition',
+          targets: [druid.name],
+          condition: 'blinded',
+          rounds: 1,
+        });
+        open.push(applied.changeId);
+        t.check(
+          (await page.evaluate(READ_ACTOR, { actorId: druid.actorId })).statuses.includes(
+            'blinded'
+          ),
+          'blinded is on after the apply'
+        );
+        // Past the holder's next turn start: two turns of a two-creature fight is a new round.
+        for (let i = 0; i < 3; i++) {
+          const moved = await t.tool('advance-combat-turn', {});
+          t.check(moved.success === true, 'advance-combat-turn', moved);
+          await sleep(800);
+        }
+        const state = await t.tool('get-combat-state', {});
+        const row = (state.combatants || []).find(c => c.name === druid.name);
+        t.log(
+          `after the turns: round ${state.round}, ${druid.name} conditions ${JSON.stringify(row?.conditions)} timed ${JSON.stringify(row?.timed)}`
+        );
+        const undone = await t.guarded.undo(/** @type {string} */ (open.pop()));
+        t.equal(undone.undoOf, applied.changeId, 'the undo points at the change');
+        const after = await page.evaluate(READ_ACTOR, { actorId: druid.actorId });
+        t.check(!after.statuses.includes('blinded'), 'blinded is gone after the undo', after);
       }
-      const state = await t.tool('get-combat-state', {});
-      const row = (state.combatants || []).find(c => c.name === druid.name);
-      t.log(`after the turns: round ${state.round}, ${druid.name} conditions ${JSON.stringify(row?.conditions)} timed ${JSON.stringify(row?.timed)}`);
-      const undone = await t.guarded.undo(/** @type {string} */ (open.pop()));
-      t.equal(undone.undoOf, applied.changeId, 'the undo points at the change');
-      const after = await page.evaluate(READ_ACTOR, { actorId: druid.actorId });
-      t.check(!after.statuses.includes('blinded'), 'blinded is gone after the undo', after);
-    });
+    );
 
     // --- 4. A drop to 0 HP and its undo (PR 608) ------------------------------------------
     await t.step('a drop to 0 HP undoes together with its dnd5e follow-ups', async () => {
@@ -432,42 +494,52 @@ export default {
         up = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
       }
       t.equal(up.hp, hpBefore.hp, 'HP after the undo');
-      t.equal(up.statuses, hpBefore.statuses, 'statuses after the undo (the riders came off with the HP)');
+      t.equal(
+        up.statuses,
+        hpBefore.statuses,
+        'statuses after the undo (the riders came off with the HP)'
+      );
     });
 
-    await t.step('a monster dropped to 0 HP undoes with the rider dnd5e added (unlinked token)', async () => {
-      const monster = monsterOf(t.kit, 'beast');
-      const read = () => t.gm('readActor', { actorId: monster.actorId, sceneId, tokenId: monster.tokenId });
-      const before = await read();
-      const damage = await t.guarded.planApply('plan-actor-change', {
-        action: 'damage',
-        targets: [monster.name],
-        amount: before.hp.value + 20,
-        damageType: 'force',
-      });
-      open.push(damage.changeId);
-      await sleep(4000);
-      const down = await read();
-      t.equal(down.hp.value, 0, 'HP at the drop');
-      t.log(`${monster.name} at 0 HP: conditions ${JSON.stringify(down.conditions)} (before ${JSON.stringify(before.conditions)})`);
-      t.check(
-        down.conditions.length > before.conditions.length,
-        'dnd5e added a rider (Unconscious or Dead) at 0 HP',
-        down.conditions
-      );
-      const row = listOf(await t.tool('list-recent-changes', { limit: 20 }), 'changes').find(
-        c => c.changeId === damage.changeId
-      );
-      t.check(row && row.canUndo === true, 'the AI change is listed and can be undone', row);
-      await t.guarded.undo(/** @type {string} */ (open.pop()));
-      let up = await read();
-      for (let i = 0; i < 20 && up.conditions.join() !== before.conditions.join(); i++) {
-        await sleep(500);
-        up = await read();
+    await t.step(
+      'a monster dropped to 0 HP undoes with the rider dnd5e added (unlinked token)',
+      async () => {
+        const monster = monsterOf(t.kit, 'beast');
+        const read = () =>
+          t.gm('readActor', { actorId: monster.actorId, sceneId, tokenId: monster.tokenId });
+        const before = await read();
+        const damage = await t.guarded.planApply('plan-actor-change', {
+          action: 'damage',
+          targets: [monster.name],
+          amount: before.hp.value + 20,
+          damageType: 'force',
+        });
+        open.push(damage.changeId);
+        await sleep(4000);
+        const down = await read();
+        t.equal(down.hp.value, 0, 'HP at the drop');
+        t.log(
+          `${monster.name} at 0 HP: conditions ${JSON.stringify(down.conditions)} (before ${JSON.stringify(before.conditions)})`
+        );
+        t.check(
+          down.conditions.length > before.conditions.length,
+          'dnd5e added a rider (Unconscious or Dead) at 0 HP',
+          down.conditions
+        );
+        const row = listOf(await t.tool('list-recent-changes', { limit: 20 }), 'changes').find(
+          c => c.changeId === damage.changeId
+        );
+        t.check(row && row.canUndo === true, 'the AI change is listed and can be undone', row);
+        await t.guarded.undo(/** @type {string} */ (open.pop()));
+        let up = await read();
+        for (let i = 0; i < 20 && up.conditions.join() !== before.conditions.join(); i++) {
+          await sleep(500);
+          up = await read();
+        }
+        t.equal(up.hp, before.hp, 'HP after the undo');
+        t.equal(up.conditions, before.conditions, 'conditions after the undo (the rider came off)');
       }
-      t.equal(up.hp, before.hp, 'HP after the undo');
-      t.equal(up.conditions, before.conditions, 'conditions after the undo (the rider came off)');
-    });
+    );
 
     // --- 5. A fight on a scene the GM is not viewing (PR 608) -----------------------------
     await t.step('a fight on a scene the GM is not viewing starts, turns and ends', async () => {
@@ -490,7 +562,11 @@ export default {
       open.push(started.changeId);
       const seen = await page.evaluate(READ_COMBATS);
       t.equal(seen.gameCombat, null, 'game.combat is still null: the fight is on another scene');
-      t.check(seen.combats.some(c => c.scene === made.sceneId), 'the fight belongs to the side scene', seen);
+      t.check(
+        seen.combats.some(c => c.scene === made.sceneId),
+        'the fight belongs to the side scene',
+        seen
+      );
       await t.tool('set-initiative', { combatantName: druid.name, initiative: 30 });
       await t.tool('set-initiative', { combatantName: cleric.name, initiative: 10 });
       const state = await t.tool('get-combat-state', {});
@@ -499,9 +575,17 @@ export default {
       t.check(moved.success === true, 'advance-combat-turn on the unviewed fight', moved);
       const ended = await t.guarded.planApply('plan-combat-change', { action: 'end' });
       open.push(ended.changeId);
-      t.equal((await page.evaluate(READ_COMBATS)).combats.filter(c => c.scene === made.sceneId).length, 0, 'the fight is over');
+      t.equal(
+        (await page.evaluate(READ_COMBATS)).combats.filter(c => c.scene === made.sceneId).length,
+        0,
+        'the fight is over'
+      );
       await t.guarded.undo(/** @type {string} */ (open.pop()));
-      t.equal((await page.evaluate(READ_COMBATS)).combats.filter(c => c.scene === made.sceneId).length, 1, 'the undo brought the fight back');
+      t.equal(
+        (await page.evaluate(READ_COMBATS)).combats.filter(c => c.scene === made.sceneId).length,
+        1,
+        'the undo brought the fight back'
+      );
       // The undo of the end re-created the combat, so the first change (the start) now conflicts;
       // deleting the side scene in the cleanup removes the fight.
       open.length = openMark;
@@ -524,7 +608,11 @@ export default {
       t.check(weapon, 'one of the heroes has a weapon');
       headless = true;
       const state = await page.evaluate(GO_HEADLESS);
-      t.check(state.noCanvas === true && state.ready === false, 'the client is headless now', state);
+      t.check(
+        state.noCanvas === true && state.ready === false,
+        'the client is headless now',
+        state
+      );
       const before = await page.evaluate(MESSAGE_IDS);
       const used = await t.tool('use-item', {
         actorIdentifier: user.name,
@@ -535,12 +623,18 @@ export default {
       let card;
       await waitFor(
         async () => {
-          const now = await page.evaluate(({ known }) => {
-            const seen = new Set(known);
-            return game.messages.contents
-              .filter(m => !seen.has(m.id))
-              .map(m => ({ flavor: m.flavor ?? '', targets: m.flags?.dnd5e?.targets ?? m.system?.targets ?? null }));
-          }, { known: before });
+          const now = await page.evaluate(
+            ({ known }) => {
+              const seen = new Set(known);
+              return game.messages.contents
+                .filter(m => !seen.has(m.id))
+                .map(m => ({
+                  flavor: m.flavor ?? '',
+                  targets: m.flags?.dnd5e?.targets ?? m.system?.targets ?? null,
+                }));
+            },
+            { known: before }
+          );
           card = now[0];
           return now.length > 0;
         },

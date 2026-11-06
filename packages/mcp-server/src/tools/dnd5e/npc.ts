@@ -117,13 +117,10 @@ export class DnD5eNpcTools {
       {
         name: 'dnd5e-create-npc',
         description:
-          'Direct write. [D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: ' +
-          'identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, ' +
-          'HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, ' +
-          'damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. ' +
-          'Items, actions, features, and spells are NOT added by this tool; use dnd5e-add-feature ' +
-          '(featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") ' +
-          'to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.',
+          'Direct write. D&D 5e only. Create an NPC from scratch with a full stat block: identity, ability scores, ' +
+          'saves, HP, AC, speeds, senses, skills, damage and condition traits, languages and biography. ' +
+          'It adds no items, actions, features or spells: add them afterwards with dnd5e-add-feature. ' +
+          'The actor goes in the "Foundry MCP Creatures" folder.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -337,10 +334,8 @@ export class DnD5eNpcTools {
             damageImmunities: {
               type: 'array',
               description:
-                'Damage types the creature is immune to (e.g. ["necrotic", "poison"]). ' +
-                'Canonical values: acid, bludgeoning, cold, fire, force, lightning, necrotic, ' +
-                'piercing, poison, psychic, radiant, slashing, thunder. ' +
-                'Non-canonical values are accepted with a warning.',
+                'Damage types the creature is immune to (e.g. ["necrotic", "poison"]), lowercase 5e names. ' +
+                'Other values are accepted with a warning.',
               items: { type: 'string' },
               default: [],
             },
@@ -361,10 +356,8 @@ export class DnD5eNpcTools {
             conditionImmunities: {
               type: 'array',
               description:
-                'Conditions the creature is immune to (e.g. ["charmed", "frightened"]). ' +
-                'Canonical values: blinded, charmed, deafened, exhaustion, frightened, grappled, ' +
-                'incapacitated, invisible, paralyzed, petrified, poisoned, prone, restrained, ' +
-                'stunned, unconscious. Non-canonical values are accepted with a warning.',
+                'Conditions the creature is immune to (e.g. ["charmed", "frightened"]), lowercase 5e names. ' +
+                'Other values are accepted with a warning.',
               items: { type: 'string' },
               default: [],
               ...toolRef('condition', 'id'),

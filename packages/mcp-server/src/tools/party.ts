@@ -91,13 +91,13 @@ export class PartyTools {
       {
         name: 'get-party',
         description:
-          "GM ONLY. The dnd5e party (group actors, the primary party first): each member's HP, AC, passive Perception (and, when the AI Tool: Who would notice switch is on, passive Investigation and Insight under passives), conditions, exhaustion, hit dice and tokens on the current scene (and whether they are in the encounter), the travel pace and whether a slowed member forces slow pace, plus the current encounter. Read-only.",
+          "The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.",
         inputSchema: { type: 'object', properties: {} },
       },
       {
         name: 'plan-party-change',
         description:
-          'Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members\' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e\'s short or long rest request card ("rest"), which each player clicks to rest. "place": put the members who have no token on the scene the GM is viewing onto the free squares nearest a spot: the centre of the GM\'s view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).',
+          'Plan one party action; nothing changes until apply-planned-change (the GM confirms; needs the "AI Tool: Party (writes)" switch). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members\' tokens on the current scene to the encounter (starts one if none). "rest-request": post dnd5e\'s short or long rest request card ("rest"); each player clicks it to rest. "place": put members with no token on the GM\'s viewed scene, on the free squares nearest a spot: the centre of the GM\'s view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).',
         inputSchema: {
           type: 'object',
           properties: {

@@ -34,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Direct write. Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.',
+          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -47,7 +47,7 @@ export class DiceRollTools {
             rollTarget: {
               type: 'string',
               description:
-                'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula',
+                'An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula',
               ...toolRef(['ability', 'skill'], 'id'),
             },
             targetPlayer: {
@@ -60,13 +60,13 @@ export class DiceRollTools {
             isPublic: {
               type: 'boolean',
               description:
-                'Whether the roll should be public (true = visible to all players) or private (false = visible only to target player and GM).',
+                'true: everyone sees the roll. false: only the target player and GM.',
             },
             userConfirmedVisibility: {
               type: 'boolean',
               const: true,
               description:
-                'REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question.',
+                'Must be true. Set it only when the user said "public" or "private" or answered your question about it.',
             },
             rollModifier: {
               type: 'string',
@@ -162,7 +162,7 @@ export class DiceRollTools {
       {
         name: 'roll-npc-check',
         description:
-          'Direct write. Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.',
+          'Direct write. Roll for an NPC actor with no player prompt and post the result to chat: ability check, saving throw, skill check or attack.',
         inputSchema: {
           type: 'object',
           properties: {

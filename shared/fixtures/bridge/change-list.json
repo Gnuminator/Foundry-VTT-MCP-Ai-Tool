@@ -82,6 +82,5 @@
       "undoneAt": "2026-10-07T11:10:00.000Z",
       "documents": ["Actor.wolf2"]
     }
-  ],
-  "note": "The change journal is switched off on this bridge (FOUNDRY_AI_CHANGE_JOURNAL=off), so only AI changes are listed."
+  ]
 }

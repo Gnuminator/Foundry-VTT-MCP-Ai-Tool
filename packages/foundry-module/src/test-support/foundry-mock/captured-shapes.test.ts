@@ -16,8 +16,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   makeActor,
-  makeCombat,
-  makeCombatant,
   makeEffect,
   makeItem,
   makeJournal,
@@ -220,10 +218,26 @@ describe('captured shapes', () => {
     });
   });
 
-  it('covers kinds the fake has no maker for (a note for the next lane)', () => {
-    // Combat and Combatant had no samples on the test world; Scene.Note neither. Capture them
-    // once the world has some, then add them to CASES.
-    expect(typeof makeCombat).toBe('function');
-    expect(typeof makeCombatant).toBe('function');
+  // Types the real data has where the fakes got it wrong before. Each pin reads the captured type
+  // and, where the fake still differs, says so; the test fails when the fake is fixed so the
+  // entry is removed with it.
+  describe('types', () => {
+    const typeAt = (kind: string, path: string): string | undefined =>
+      load(kind).paths[path]?.split(':')[0];
+
+    it('keeps activities an object keyed by id, not an array', () => {
+      expect(typeAt('Actor.Item.weapon', 'system.activities')).toBe('object');
+      expect(typeAt('Actor.Item.weapon', 'system.activities.<id>')).toBe('object');
+    });
+
+    it('moves a token with x, y and rotation as numbers', () => {
+      for (const p of ['x', 'y', 'rotation']) expect(typeAt('Scene.Token', p)).toBe('number');
+    });
+
+    it("stores an effect's statuses as an array; the fake makes a Set", () => {
+      expect(typeAt('Actor.ActiveEffect', 'statuses')).toBe('array');
+      // Known gap: the fake turns the list into a Set. When this fails the fake was fixed.
+      expect(makeEffect({ statuses: ['poisoned'] }).statuses).toBeInstanceOf(Set);
+    });
   });
 });

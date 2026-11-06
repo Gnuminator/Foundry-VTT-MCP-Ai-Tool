@@ -62,7 +62,10 @@ function collectInPage() {
       if (path === 'flags') return;
       for (const [k, v] of Object.entries(value)) {
         // A Foundry id as a key (an activity, an ownership entry) is one path, not one per id.
-        const key = /^[A-Za-z0-9]{16}$/.test(k) && /\d/.test(k) ? '<id>' : k;
+        // Random ids have a digit or several capitals; a 16-letter key like compendiumSource has neither.
+        const idLike =
+          /^[A-Za-z0-9]{16}$/.test(k) && (/\d/.test(k) || (k.match(/[A-Z]/g) ?? []).length >= 4);
+        const key = idLike ? '<id>' : k;
         walk(v, path ? `${path}.${key}` : key, paths, seen, depth + 1);
       }
     }

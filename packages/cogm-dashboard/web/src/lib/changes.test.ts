@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { EVERYONE_CHANGES } from '../storybook/fixtures/changes';
+
 import {
   AI_LIMIT,
   EVERYONE_LIMIT,
@@ -920,6 +922,12 @@ describe('the bridge change summary fixture', () => {
       lines: ['Ilvara: HP 10 -> 5'],
       things: [{ uuid: 'Actor.a1', name: 'Ilvara' }],
     });
+  });
+
+  it('is the key set the Storybook list-changes fixture stays inside', () => {
+    const sent = new Set(raw.changes.flatMap(c => Object.keys(c)));
+    const fake = new Set(EVERYONE_CHANGES.changes.flatMap(c => Object.keys(c)));
+    expect([...fake].filter(k => !sent.has(k))).toEqual([]);
   });
 
   it('has no key the dashboard neither reads nor knowingly leaves out', () => {

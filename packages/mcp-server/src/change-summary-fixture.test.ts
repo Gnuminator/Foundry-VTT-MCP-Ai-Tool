@@ -128,6 +128,9 @@ describe('change summary fixture', () => {
         undoState: (): Promise<UndoState> => Promise.resolve(new Map()),
       },
       logger,
+      // The journal is on: the answer a bridge with the change journal gives (no note).
+      pullNow: (): Promise<void> => Promise.resolve(),
+      journalStart: (): Promise<number> => Promise.resolve(0),
       now: (): number => NOW,
     });
     const actual = JSON.parse(JSON.stringify(await history.list()));

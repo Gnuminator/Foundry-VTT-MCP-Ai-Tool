@@ -23,7 +23,7 @@ trin 4 er værktøjet. Ca. en time i alt.
 
 ## Trin 1 af 4: Skærmen (15 minutter)
 
-Trin: [Skærmen](first-hour.md#1-skærmen-15-minutter).
+Se tjeklisten: [Skærmen](first-hour.md#1-skærmen-15-minutter).
 
 - [ ] Åbn Foundry, start test worlden og kom ind som **Game Master**.
 - [ ] Læs [A tour of the Foundry screen](../../foundry/screen-tour.md).
@@ -36,10 +36,10 @@ Trin: [Skærmen](first-hour.md#1-skærmen-15-minutter).
 
 ## Trin 2 af 4: Mennesker og worlds (10 minutter)
 
-Trin: [Mennesker og worlds](first-hour.md#2-mennesker-og-worlds-10-minutter).
+Se tjeklisten: [Mennesker og worlds](first-hour.md#2-mennesker-og-worlds-10-minutter).
 
 - [ ] Læs [Users and permissions](../../foundry/users-and-permissions.md) og find de fire roller:
-      Player, Trusted, Assistant og Game Master. Hvilken er dine spillere?
+      Player, Trusted, Assistant og Game Master. Hvilken rolle har dine spillere?
 - [ ] Læs [Worlds and joining](../../foundry/worlds-and-joining.md): hvad det gør at starte en
       world, hvad join-siden er, og hvad **Return to Setup** gør.
 
@@ -47,7 +47,7 @@ Trin: [Mennesker og worlds](first-hour.md#2-mennesker-og-worlds-10-minutter).
 
 ## Trin 3 af 4: At køre bordet (25 minutter)
 
-Trin: [At køre bordet](first-hour.md#3-at-køre-bordet-25-minutter). Gør hver opgave i test
+Se tjeklisten: [At køre bordet](first-hour.md#3-at-køre-bordet-25-minutter). Gør hver opgave i test
 worlden, mens du læser.
 
 - [ ] [Scenes](../../foundry/scenes.md): lav en scene, se den, og aktivér den derefter. Læg mærke til,
@@ -69,7 +69,7 @@ Går du i stå på en knap? Spørg din [GM coach](gm-coach.md) i Claude. Den sva
 
 ## Trin 4 af 4: Værktøjet (10 minutter)
 
-Trin: [Værktøjet](first-hour.md#4-værktøjet-10-minutter).
+Se tjeklisten: [Værktøjet](first-hour.md#4-værktøjet-10-minutter).
 
 - [ ] Læs [Dashboardet](dashboard.md) ned til "The header". Du skal bruge navnene på
       panelerne, ikke hver detalje.

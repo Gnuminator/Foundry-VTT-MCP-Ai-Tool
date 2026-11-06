@@ -8,7 +8,7 @@ description: De 15 minutter før spil som en kort quest, fire trin med tider, de
 # Quest: før en session
 
 Det her er [Før hver session](before-session.md) som en liste, du kan sætte flueben ved, cirka 15
-minutter før spillerne kommer. Hvert trin linker til trinene på tjeklistesiden, som har den fulde
+minutter før spillerne kommer. Hvert trin linker til sin del af tjeklistesiden, som har den fulde
 ordlyd og løsningerne; her får du rækkefølgen og tiderne. De sjældne tilfælde bliver på
 tjeklistesiden: den mailede loginkode, Dice So Nices tematiske terninger (én gang, før session 1) og
 skabningsnavne på tokens, der allerede ligger på kortet.
@@ -22,7 +22,7 @@ Du skal bruge spillets adresse og dashboardets adresse fra værktøjets administ
 
 ## Trin 1 af 4: Start det hele (4 minutter)
 
-Trin: [Start det hele](before-session.md#start-det-hele).
+Se tjeklisten: [Start det hele](before-session.md#start-det-hele).
 
 - [ ] Claude Desktop kører.
 - [ ] Foundry er åben, verdenen er startet, og du er inde som GM.
@@ -33,7 +33,7 @@ Trin: [Start det hele](before-session.md#start-det-hele).
 
 ## Trin 2 af 4: Pre-flight og kontakter (3 minutter)
 
-Trin: [Kør pre-flight-tjekket](before-session.md#kør-pre-flight-tjekket) og
+Se tjeklisten: [Kør pre-flight-tjekket](before-session.md#kør-pre-flight-tjekket) og
 [Slå til, hvad aftenen kræver](before-session.md#slå-til-hvad-aftenen-kræver).
 
 - [ ] Klik på **✈ Pre-flight**. Ret alt, der er markeret med ✗, og se på hver **!**.
@@ -48,7 +48,7 @@ Trin: [Kør pre-flight-tjekket](before-session.md#kør-pre-flight-tjekket) og
 
 ## Trin 3 af 4: Hvad spillerne kommer til at se (6 minutter)
 
-Trin: [Tjek, hvad spillerne kommer til at se](before-session.md#tjek-hvad-spillerne-kommer-til-at-se).
+Se tjeklisten: [Tjek, hvad spillerne kommer til at se](before-session.md#tjek-hvad-spillerne-kommer-til-at-se).
 
 - [ ] Startscenen har et **Navigation Name**, når dens rigtige navn ville afsløre noget.
 - [ ] Skabninger, spillerne allerede kender, har **Display Name** sat til **Hovered by Anyone**.
@@ -61,7 +61,7 @@ Trin: [Tjek, hvad spillerne kommer til at se](before-session.md#tjek-hvad-spille
 
 ## Trin 4 af 4: Forbered og begynd (2 minutter)
 
-Trin: [Forbered](before-session.md#forbered) og [Når spillet begynder](before-session.md#når-spillet-begynder).
+Se tjeklisten: [Forbered](before-session.md#forbered) og [Når spillet begynder](before-session.md#når-spillet-begynder).
 
 - [ ] Kør prompten `prep-next-session` i Claude Desktop.
 - [ ] Læs sidste sessions note i Obsidian.

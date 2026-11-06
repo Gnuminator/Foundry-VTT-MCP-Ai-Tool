@@ -660,7 +660,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       return;
     }
     res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(reactIndex);
+    // With a root, so a folder such as .claude/worktrees above the build does not count as a dotfile.
+    res.sendFile(path.basename(reactIndex), { root: path.dirname(reactIndex) });
   });
   // The GM page (item gm-page-wrapper): Foundry and the live strip on one page.
   mountGmPage(app, { reactIndex, foundryUrl: config.foundryUrl, pageLimit, requireGm });

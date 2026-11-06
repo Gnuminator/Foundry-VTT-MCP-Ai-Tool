@@ -5,6 +5,7 @@
  * Foundry is, as the GM's browser reaches it (`DASHBOARD_FOUNDRY_URL`).
  */
 import fs from 'node:fs';
+import path from 'node:path';
 
 import type { Application, NextFunction, Request, RequestHandler, Response } from 'express';
 
@@ -62,6 +63,6 @@ export function mountGmPage(app: Application, deps: GmPageDeps): void {
     res.setHeader('X-Frame-Options', 'DENY');
     if (!fs.existsSync(deps.reactIndex)) return next();
     res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(deps.reactIndex);
+    res.sendFile(path.basename(deps.reactIndex), { root: path.dirname(deps.reactIndex) });
   });
 }

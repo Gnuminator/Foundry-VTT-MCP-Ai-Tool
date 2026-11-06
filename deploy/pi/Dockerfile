@@ -36,6 +36,7 @@ COPY docs/gm/                 ./docs/gm/
 COPY docs/foundry/            ./docs/foundry/
 COPY docs/da/gm/              ./docs/da/gm/
 COPY scripts/check-links.mjs  ./scripts/
+COPY scripts/tsc7.mjs         ./scripts/
 
 RUN npm run build
 

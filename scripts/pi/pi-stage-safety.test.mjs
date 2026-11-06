@@ -873,7 +873,7 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
       `echo "systemctl $*" >>"$LOG"
 case "$1" in
   stop) [ "\${RESTART_FAILS:-0}" = 1 ] && touch "$LOG.down" ;;
-  start) [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.down" ;;
+  start) touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.down" ;;
   is-active) [ "\${@: -1}" = foundry.service ] && [ -f "$LOG.down" ] && exit 1
     case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
   show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
@@ -882,7 +882,10 @@ exit 0`
     );
     tool(
       'curl',
-      `if [ "\${CURL_FAILS:-0}" = 1 ]; then exit 22; fi
+      `# CURL_FAILS: the status is unreadable while the players are looked at (before the restart). CRASH_AFTER_START: Foundry
+# was started but never answers (the unit is "active", Node died).
+if [ "\${CURL_FAILS:-0}" = 1 ] && [ ! -f "$LOG.started" ]; then exit 22; fi
+if [ "\${CRASH_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then exit 22; fi
 echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`
     );
     // The fake date: today and yesterday come from two files; the first sleep may move the clock past midnight.
@@ -1049,6 +1052,17 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active/);
     assert.equal(r.sleeps, 3);
     assert.match(r.calls, /restic backup/);
+    assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  test('a Foundry that is active but never answers (crashed on boot, Type=simple) fails the night', () => {
+    const r = nightly({
+      users: [0],
+      env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+    });
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active and answering/);
+    assert.equal(r.sleeps, 3);
     assert.doesNotMatch(r.calls, /restic forget/);
   });
 

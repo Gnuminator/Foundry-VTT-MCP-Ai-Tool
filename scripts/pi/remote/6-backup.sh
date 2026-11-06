@@ -203,16 +203,17 @@ restic backup --tag nightly \
 start_foundry
 rm -f "$skip_marker"
 
-# A backup that left Foundry down is a failed night, not a success: a start that returned 0 can still end with a
-# service that crashed on boot. Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS (30) to be active, else exit 1
-# with an ERROR line (the unit then shows failed, which the hourly board report and the bot see). The clean-up below
-# is left for the next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS.
+# A backup that left Foundry down is a failed night, not a success. foundry.service is Type=simple, so systemd calls it
+# active the moment the process starts, before Node has had time to crash on a world that will not open. So "active" is
+# not enough: Foundry must also answer /api/status. Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS (90) for both, else
+# exit 1 with an ERROR line (the hourly board report and the bot see the failed unit). The clean-up below is left for the
+# next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS.
 if [ "$we_stopped_foundry" = 1 ]; then
-  active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS:-30}"
+  active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS:-90}"
   active_tries=0
-  until systemctl is-active --quiet foundry.service; do
+  until systemctl is-active --quiet foundry.service && curl -fs --max-time 5 http://127.0.0.1:30000/api/status >/dev/null 2>&1; do
     if [ "$active_tries" -ge "$active_wait" ]; then
-      echo "ERROR: the backup is done, but foundry.service is not active after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
+      echo "ERROR: the backup is done, but foundry.service is not active and answering after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
       exit 1
     fi
     active_tries=$((active_tries + 1))

@@ -571,7 +571,7 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.doesNotMatch(source, /Select-String[^\n]*Registered tunnel connection/);
   });
 
-  test('restore.ps1 refuses a backup over 36 hours old without -Force, and warns with it', () => {
+  test('restore.ps1 refuses a backup over 36 hours old without -AllowOld, and warns with it', () => {
     const dir = mkdtempSync(path.join(tmp, 'restore-old-'));
     const repo = path.join(dir, 'repo');
     mkdirSync(repo);
@@ -607,15 +607,22 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     const refused = run([]);
     assert.equal(refused.status, 1, refused.stdout + refused.stderr);
     assert.match(refused.stderr, /REFUSED: the newest backup is 4\d(\.\d)? hours old \(more than 36\)/);
-    assert.match(refused.stderr, /-Force/);
+    assert.match(refused.stderr, /-AllowOld/);
+    // -Force is for the played-data refusal only: it does not waive the age check.
+    const forceOnly = run(['-Force']);
+    assert.equal(forceOnly.status, 1, forceOnly.stdout + forceOnly.stderr);
+    assert.match(forceOnly.stderr, /REFUSED: the newest backup/);
     // -List still works for an old backup: it only shows.
     const list = run(['-List']);
     assert.equal(list.status, 0, list.stdout + list.stderr);
     assert.match(list.stdout, /aaaaaaaa/);
-    // With -Force it goes past the age check (and fails later, at the restore itself, in this fake setup).
-    const forced = run(['-Force']);
-    assert.doesNotMatch(forced.stderr, /REFUSED: the newest backup/);
-    assert.match(forced.stdout + forced.stderr, /restoring it anyway because of -Force/);
+    // With -AllowOld it goes past the age check (and fails later, at the restore itself, in this fake setup).
+    const allowed = run(['-AllowOld']);
+    assert.doesNotMatch(allowed.stderr, /REFUSED: the newest backup/);
+    assert.match(allowed.stdout + allowed.stderr, /restoring it anyway because of -AllowOld/);
+    // A snapshot named on purpose is not second-guessed.
+    const named = run(['-Snapshot', 'aaaaaaaa']);
+    assert.doesNotMatch(named.stderr, /REFUSED: the newest backup/);
   });
 
   test('connector switch: only the two values change, the rest of the file stays byte for byte', () => {

@@ -80,7 +80,7 @@ Open PowerShell 7 in the repo's main checkout.
 
    It names the backup it uses and its age. Older than 36 hours means the backups had stopped, and
    the script refuses. If you still want that older point, run `restore.ps1 -List` to see the
-   snapshots and then `restore.ps1 -Force`; you continue from the older point, tell the GM.
+   snapshots and then `restore.ps1 -AllowOld`; you continue from the older point, tell the GM.
 
 3. **Start everything:**
 
@@ -293,7 +293,7 @@ names, so on the night nothing in Cloudflare has to change: `plan-b` reaches the
 | Problem                                        | What to do                                                                                                                                        |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `restore.ps1`: not a restic repository         | Drive E: is not connected, or the copy task never ran.                                                                                            |
-| `restore.ps1`: REFUSED, backup over 36 hours   | The Pi's nightly backup or the PC's copy task stopped. Check the logs in `E:\PiBackup\logs`; restore the old one anyway with `-Force`.            |
+| `restore.ps1`: REFUSED, backup over 36 hours   | The Pi's nightly backup or the PC's copy task stopped. Check the logs in `E:\PiBackup\logs`; restore the old one anyway with `-AllowOld`.         |
 | `start.ps1`: FAIL, one line                    | The line says what is missing (not restored, not built, no login, no Edge, no tunnel token). Fix that and start again.                            |
 | `restore.ps1`: Foundry x is needed             | Download that version's Node.js zip from foundryvtt.com and give it with `-FoundryZip`.                                                           |
 | `start.ps1`: REFUSED, a port is in use         | The line names the port. Close what holds it, or (rehearsal only) stop the test server.                                                           |

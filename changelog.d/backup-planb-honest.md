@@ -12,4 +12,4 @@
 - **Plan B output is honest:** `start.ps1` says it is waiting up to 30 s for Foundry's data lock, ends every
   failure with one `FAIL:` line and exit 1, and prints no literal `<domain>` placeholder; `check.ps1`
   reports the module link as unknown behind a login and reads the tunnel's current state; `restore.ps1`
-  refuses a backup over 36 hours old unless `-Force`.
+  refuses a newest backup over 36 hours old unless `-AllowOld` (`-Force` stays for the played-data refusal only).

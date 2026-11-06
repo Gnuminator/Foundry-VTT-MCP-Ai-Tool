@@ -195,7 +195,7 @@ jobs:
         run: node --test scripts/pi/board-status.test.mjs
 
       - name: Pi backup pull destination
-        # pull-destination.ps1: the PC-side pull refuses a destination that is not the backup drive (fake drives, no real disk).
+        # pull-destination.ps1: the PC-side pull refuses a drive letter that is not there (fake drives, no real disk).
         run: node --test scripts/pi/pull-destination.test.mjs
 
       - name: Pi stage 17 GitHub runners

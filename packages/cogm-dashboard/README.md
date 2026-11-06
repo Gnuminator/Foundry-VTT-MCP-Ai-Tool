@@ -257,6 +257,12 @@ header, flickered between runs). No `mask` is used today because the clock is fi
 is faked; a port with values that move on their own (Combat Tracker, Live Feed) adds a `mask`
 helper for those elements.
 
+The player pages are in the run too (`web/visual/player.spec.ts`, screens in `player-screens.ts`):
+`/player` with no personal link, with one (the character and an open roll request), with a handout
+meant for one player, and with a fight running, plus `/me`. They are plain pages, so their own fake
+(the player stream and `/api/me`) stands in for the bridge. Screenshots are taken at 1080 and 390
+wide in the neutral theme; axe runs on them at 1440 with no known-violations list.
+
 - **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
   image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
   operating system: a Windows or macOS run would differ from the PNGs and from CI.

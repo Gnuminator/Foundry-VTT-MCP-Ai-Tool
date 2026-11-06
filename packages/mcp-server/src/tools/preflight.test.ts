@@ -175,10 +175,30 @@ describe('get-preflight recording check', () => {
     }).tools.handleGetPreflight({})) as PreflightChecksResult;
     const rec = byId(result).recording;
     expect(rec?.status).toBe('warn');
-    expect(rec?.detail).toContain('not recording since 2026-11-05T20:05:00.000Z');
+    const clockOf = (iso: string): string => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    expect(rec?.detail).toContain(`not recording since ${clockOf('2026-11-05T20:05:00.000Z')}`);
+    expect(rec?.detail).not.toContain('2026-11-05T');
     expect(rec?.detail).toContain('disk full');
     expect(rec?.detail).toContain('7 records lost');
+    expect(rec?.detail).toContain('A gap marker is in the session log.');
     expect(result.ready).toBe(true);
+  });
+
+  it('does not mention a gap marker when only an outage or error is listed', async () => {
+    const result = (await tools({
+      pumps: [{ ...PUMP_OK, notRecordingSince: '2026-11-05T20:05:00.000Z' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    const rec = byId(result).recording;
+    expect(rec?.status).toBe('warn');
+    expect(rec?.detail).not.toContain('gap marker');
+  });
+
+  it('words the no-pump case neutrally', async () => {
+    const result = (await tools().tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(result).recording?.detail).not.toContain('switched off');
   });
 });
 

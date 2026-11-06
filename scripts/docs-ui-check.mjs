@@ -43,13 +43,13 @@ const SOURCE_DIRS = [
 ];
 const EXCEPTIONS_FILE = 'scripts/docs-ui-exceptions.json';
 
-const walk = (dir, out = []) => {
+const walk = (dir, out = [], skip = []) => {
   if (!existsSync(dir)) return out;
   for (const n of readdirSync(dir)) {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) {
-      if (n === 'node_modules' || n === 'dist' || n === '__screenshots__') continue;
-      walk(p, out);
+      if (n === 'node_modules' || n === 'dist' || n === '__screenshots__' || skip.includes(n)) continue;
+      walk(p, out, skip);
     } else out.push(p);
   }
   return out;
@@ -118,7 +118,8 @@ export function sourceStrings(source) {
 export function buildCorpus(root) {
   const set = new Set();
   for (const d of SOURCE_DIRS) {
-    for (const f of walk(path.join(root, d))) {
+    // Storybook fixtures are not UI text a doc may name.
+    for (const f of walk(path.join(root, d), [], ['storybook'])) {
       if (!/\.(tsx?|jsx?|mjs|html)$/.test(f) || /\.(test|spec|stories)\.|\.d\.ts$/.test(f)) continue;
       for (const s of sourceStrings(readFileSync(f, 'utf8'))) {
         const n = normalize(s);
@@ -142,8 +143,8 @@ export function inCorpus(name, corpus) {
 }
 
 /**
- * Bold names next to a UI word, with the line number where their paragraph, list item or table
- * row starts. The guides are hard-wrapped, so a block is joined into one line before matching.
+ * Bold names next to a UI word, with the line number of the line the name itself is on (the
+ * paragraph, list item or table row it sits in is joined into one line before matching). The guides are hard-wrapped, so a block is joined into one line before matching.
  */
 export function boldNames(text) {
   const found = [];
@@ -179,7 +180,7 @@ export function boldNames(text) {
   for (const b of blocks) {
     // **`Undo`** is a bold name written as code: drop the backticks (same length, so the line
     // offsets hold); any other code span is blanked, since a bold word inside code is an example.
-    const unwrapped = b.text.replace(/\*\*(\s*)`([^`]*)`(\s*)\*\*/g, (m, a, c, d) => `**${a} ${c} ${d}**`);
+    const unwrapped = b.text.replace(/\*\*`([^`]*)`\*\*/g, (m, c) => `** ${c} **`);
     const plain = unwrapped.replace(/`[^`]*`/g, m => ' '.repeat(m.length));
     for (const re of res) {
       for (const m of plain.matchAll(re)) {

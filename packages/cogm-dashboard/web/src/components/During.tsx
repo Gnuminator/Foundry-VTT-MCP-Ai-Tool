@@ -286,7 +286,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
     return undefined;
   }, [picking]);
   return (
-    <div className="during-bar" id="during-bar">
+    <div className="during-bar" id="during-bar" tabIndex={-1}>
       <NotReadyNote id={NOT_READY_BAR_ID} show={prefs === undefined} />
       <div className="layout-switch" role="group" aria-label="During layout">
         <span className="layout-switch-label">Layout</span>

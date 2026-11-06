@@ -15,7 +15,7 @@ describe('publicError', () => {
     });
     expect(publicError(new Error('C:\\secret\\path.ts boom'))).toEqual({
       status: 500,
-      body: { error: 'Internal error' },
+      body: { error: 'Internal error', kind: 'internal' },
     });
     expect(publicError(undefined).status).toBe(500);
   });

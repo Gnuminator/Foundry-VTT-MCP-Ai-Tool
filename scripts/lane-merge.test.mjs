@@ -2571,6 +2571,7 @@ function releaseFixture() {
           '': { name: 'foundry-ai-tool', version: v },
           shared: { name: '@x/shared', version: v },
           'packages/foundry-module': { version: v },
+          'packages/unversioned': { name: 'unversioned' },
           'node_modules/foo': { version: '1.0.0', resolved: 'https://r/foo.tgz' },
         },
       },
@@ -2666,6 +2667,15 @@ test('releasePr: the fold plus version bumps only; anything else is not a releas
   assert.match(
     why(edit('installer/nsis/foundry-mcp-server.nsi', 'Software\\Uninstall', 'Software\\Evil')),
     /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  // A lock version that moves to another entry (same count) is not a bump: versions are keyed.
+  assert.match(
+    why(x => {
+      x.head['package-lock.json'] = x.head['package-lock.json']
+        .replace('"name": "@x/shared",\n      "version": "0.26.0"', '"name": "@x/shared"')
+        .replace('"name": "unversioned"', '"name": "unversioned",\n      "version": "0.26.0"');
+    }),
+    /package-lock\.json drops or adds a version field/
   );
   // A dropped version field is not a bump.
   assert.match(

@@ -206,7 +206,12 @@ export function StartCombat({ onDismiss }: { onDismiss?: () => void }): JSX.Elem
     return (
       <div className="ca-row combat-start">
         <span className="ca-hint">No fight is running.</span>
-        <Button size="sm" data-track="dash.combat.start" onClick={() => setOpen(true)}>
+        <Button
+          id="btn-combat-start"
+          size="sm"
+          data-track="dash.combat.start"
+          onClick={() => setOpen(true)}
+        >
           Start combat
         </Button>
       </div>

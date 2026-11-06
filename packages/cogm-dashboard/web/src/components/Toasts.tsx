@@ -29,11 +29,12 @@ interface ToastItem {
   action?: ToastAction | undefined;
 }
 
-type ShowToast = (text: string, kind?: ToastKind, action?: ToastAction) => void;
+/** `code` is the usage code of an error toast when the caller knows it (the failed call's kind or status). */
+type ShowToast = (text: string, kind?: ToastKind, action?: ToastAction, code?: string) => void;
 
 const ToastContext = createContext<ShowToast>(() => undefined);
 
-/** The usage code of an error toast, as the old page derives it (an HTTP status or a timeout). */
+/** The usage code of an error toast from its text, when the caller gave none (a status or a timeout). */
 function toastCode(text: string): string {
   const http = /(?:HTTP|->) (\d{3})\b/.exec(text);
   if (http?.[1]) return http[1];
@@ -61,8 +62,10 @@ function handOnEscape(event: KeyboardEvent): void {
  */
 export function ToastProvider({ children }: { children: ReactNode }): JSX.Element {
   const [items, setItems] = useState<ToastItem[]>([]);
-  const show = useCallback<ShowToast>((text, kind = 'ok', action) => {
-    if (kind === 'err') usage().track('error', 'dash.toast.error', { code: toastCode(text) });
+  const show = useCallback<ShowToast>((text, kind = 'ok', action, code) => {
+    if (kind === 'err') {
+      usage().track('error', 'dash.toast.error', { code: code ?? toastCode(text) });
+    }
     setItems(list => [...list, { id: Date.now() + Math.random(), kind, text, action }]);
   }, []);
   const remove = useCallback((id: number) => {

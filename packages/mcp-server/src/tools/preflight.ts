@@ -340,7 +340,7 @@ export class PreflightTools {
         id: 'wrapper',
         label,
         status: 'ok',
-        detail: `No connector is older than the bridge (${this.bridgeVersion}).`,
+        detail: `No connector is older than the bridge (${status.current}).`,
       };
     }
     const old = status.wrappers.filter(

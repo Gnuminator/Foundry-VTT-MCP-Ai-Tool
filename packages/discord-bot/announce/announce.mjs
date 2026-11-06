@@ -67,7 +67,8 @@ export function loadSettings(env = process.env, envFile = defaultEnvFile(env)) {
     // An unreadable file is the same as no settings.
   }
   /** @param {string} key */
-  const pick = key => (env[key] || /** @type {Record<string, string>} */ (fromFile)[key] || '').trim();
+  const pick = key =>
+    (env[key] || '').trim() || (/** @type {Record<string, string>} */ (fromFile)[key] || '').trim();
   return {
     token: pick('DISCORD_TOKEN'),
     changelogChannel: pick('DISCORD_CHANGELOG_CHANNEL_ID'),

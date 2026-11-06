@@ -886,7 +886,9 @@ exit 0`
 # was started but never answers (the unit is "active", Node died).
 if [ "\${CURL_FAILS:-0}" = 1 ] && [ ! -f "$LOG.started" ]; then exit 22; fi
 if [ "\${CRASH_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then exit 22; fi
-echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`
+# SETUP_AFTER_START: Foundry answers after the restart, but from the setup screen (no world in the status).
+if [ "\${SETUP_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then echo '{"active":false,"version":"14.368"}'; exit 0; fi
+echo "{\\"active\\":true,\\"world\\":\\"curse-of-strahd\\",\\"users\\":$(head -n 1 "$SEQ")}"`
     );
     // The fake date: today and yesterday come from two files; the first sleep may move the clock past midnight.
     const days = join(d, 'days');
@@ -1059,6 +1061,17 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     const r = nightly({
       users: [0],
       env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+    });
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active and answering/);
+    assert.equal(r.sleeps, 3);
+    assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  test('a Foundry that answers from the setup screen (its world did not open) fails the night', () => {
+    const r = nightly({
+      users: [0],
+      env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active and answering/);

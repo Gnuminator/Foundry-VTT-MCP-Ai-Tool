@@ -182,7 +182,10 @@ start_foundry() {
 }
 trap start_foundry EXIT
 
+world_before=""
 if [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
+  # The world that runs now, so the wait after the restart can tell a world from the setup screen (which answers too).
+  world_before="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null | grep -o '"world" *: *"[A-Za-z0-9_.-]*"' | head -n 1 | sed 's/.*: *"\(.*\)"/\1/' || true)"
   echo "stopping foundry.service for the backup"
   systemctl stop foundry.service </dev/null
   foundry_stopped=1
@@ -205,13 +208,20 @@ rm -f "$skip_marker"
 
 # A backup that left Foundry down is a failed night, not a success. foundry.service is Type=simple, so systemd calls it
 # active the moment the process starts, before Node has had time to crash on a world that will not open. So "active" is
-# not enough: Foundry must also answer /api/status. Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS (90) for both, else
-# exit 1 with an ERROR line (the hourly board report and the bot see the failed unit). The clean-up below is left for the
-# next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS.
+# not enough: Foundry must also answer /api/status, and when a world ran before the backup, the status must name that
+# world again (Foundry answers on the setup screen too, which is what a world that will not open leaves). Give it up to
+# FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS (90) tries of about a second each (a curl that hangs takes up to 5 s more per try,
+# so a dead Foundry can take several minutes), else exit 1 with an ERROR line (the hourly board report and the bot see
+# the failed unit). The clean-up below is left for the next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS.
+foundry_answers() {
+  local json
+  json="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null)" || return 1
+  [ -z "$world_before" ] || printf '%s' "$json" | grep -q "\"world\" *: *\"$world_before\""
+}
 if [ "$we_stopped_foundry" = 1 ]; then
   active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS:-90}"
   active_tries=0
-  until systemctl is-active --quiet foundry.service && curl -fs --max-time 5 http://127.0.0.1:30000/api/status >/dev/null 2>&1; do
+  until systemctl is-active --quiet foundry.service && foundry_answers; do
     if [ "$active_tries" -ge "$active_wait" ]; then
       echo "ERROR: the backup is done, but foundry.service is not active and answering after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
       exit 1

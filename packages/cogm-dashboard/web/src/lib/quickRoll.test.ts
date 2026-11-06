@@ -5,6 +5,7 @@ import {
   cleanPick,
   pickLabel,
   rollArgs,
+  rollFailText,
   rollOptions,
   sentSummary,
 } from './quickRoll';
@@ -82,5 +83,22 @@ describe('labels', () => {
     expect(sentSummary(pick, ['A'], [late, { name: 'D', error: 'offline' }])).toBe(
       '✓ Sent: Dexterity save DC 14 to A. Not sent: D: offline. Not confirmed: C: no answer from Foundry. It may have been sent, check chat.'
     );
+  });
+});
+
+describe('rollFailText', () => {
+  it('uses a fixed sentence on a 5xx with no kind (a proxy gave up)', () => {
+    expect(rollFailText({ status: 524 }, 'Try again in a moment.')).toBe(
+      'The answer did not come back.'
+    );
+  });
+
+  it('keeps the words of a tool refusal, a timeout, a 4xx and a network error', () => {
+    expect(rollFailText({ status: 422, kind: 'tool' }, 'Nobody is logged in.')).toBe(
+      'Nobody is logged in.'
+    );
+    expect(rollFailText({ status: 502, kind: 'timeout' }, 'Took too long.')).toBe('Took too long.');
+    expect(rollFailText({ status: 403 }, 'Not allowed.')).toBe('Not allowed.');
+    expect(rollFailText(new Error('offline'), 'offline')).toBe('offline');
   });
 });

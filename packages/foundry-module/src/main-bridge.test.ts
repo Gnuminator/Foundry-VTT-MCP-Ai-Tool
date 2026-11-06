@@ -300,6 +300,48 @@ describe('main: link toasts', () => {
     fake.state.lastConfig.onLinkChange(true); // a background retry got through
     expect(linkToasts()).toEqual([expect.stringContaining('link is back')]);
   });
+
+  it('a new start() forgets the old bridge: a link coming back says only "connected"', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    fake.state.lastConfig.onLinkChange(false);
+    vi.advanceTimersByTime(11_000); // the old bridge's drop was shown
+    bridge['socketBridge'].connected = false; // the canvas reloads and start() runs again
+    await bridge.start();
+    expect(messages().filter(m => m.includes('AI Tool connected'))).toHaveLength(2);
+    fake.state.lastConfig.onLinkChange(true);
+    expect(linkToasts()).toEqual([expect.stringContaining('Lost the link')]);
+  });
+
+  it('a failed start for a non-GM shows no warning and owes no back toast', async () => {
+    vi.useFakeTimers();
+    world.setSetting(MODULE_ID, 'allowNonGmAccess', true);
+    g.game.user.isGM = false;
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    expect(messages().some(m => m.includes('Cannot reach the AI Tool server'))).toBe(false);
+    fake.state.lastConfig.onLinkChange(true);
+    expect(linkToasts()).toEqual([]);
+  });
+
+  it('a failed start with connection messages off owes no back toast', async () => {
+    vi.useFakeTimers();
+    world.setSetting(MODULE_ID, 'enableNotifications', false);
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    fake.state.lastConfig.onLinkChange(true);
+    expect(linkToasts()).toEqual([]);
+  });
+
+  it('a failed start, then stop, then the link coming up says nothing', async () => {
+    vi.useFakeTimers();
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    const { onLinkChange } = fake.state.lastConfig;
+    await bridge.stop();
+    onLinkChange(true);
+    expect(linkToasts()).toEqual([]);
+  });
 });
 
 describe('main: creature index warm-up at ready (#283)', () => {

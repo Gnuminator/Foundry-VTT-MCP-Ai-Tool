@@ -13,9 +13,14 @@ $out = foreach ($c in $cases) {
   New-Item -ItemType Directory -Force $dir | Out-Null
   $file = Join-Path $dir 'world.json'
   [IO.File]::WriteAllText($file, [string]$c.World)
-  $changed = Update-WorldVerified $dir ([string]$c.App)
+  # Warnings (stream 3) are collected apart so stdout stays one JSON document.
+  $result = @(Update-WorldVerified $dir ([string]$c.App) 3>&1)
+  $warnings = @($result | Where-Object { $_ -is [System.Management.Automation.WarningRecord] })
+  $changed = @($result | Where-Object { $_ -isnot [System.Management.Automation.WarningRecord] }) | Select-Object -First 1
   [pscustomobject]@{
     Changed = [bool]$changed
+    Version = [string]$changed
+    Warned  = ($warnings.Count -gt 0)
     Text    = [IO.File]::ReadAllText($file)
     Backup  = (Test-Path "$file.bak-verified")
   }

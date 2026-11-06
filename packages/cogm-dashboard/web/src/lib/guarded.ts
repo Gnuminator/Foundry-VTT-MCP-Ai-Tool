@@ -348,7 +348,12 @@ export function useGuardedTools(): GuardedTools {
           const stop = /[.!?]$/.test(text) ? '' : '.';
           error = `${text}${stop} ${checkHint}`;
         }
-        toast(timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`, 'err');
+        toast(
+          timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`,
+          'err',
+          undefined,
+          failCode(err)
+        );
         changed();
         return {
           outcome: {

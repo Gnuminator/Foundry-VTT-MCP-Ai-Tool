@@ -24,11 +24,13 @@ if (-not $Root) { $Root = $PlanBDefaults.Root }
 $L = Get-PlanBLayout $Root
 $state = Read-PlanBState $L
 $bad = 0
+$unknown = 0 # set here: lib.ps1 turns on strict mode, which makes reading an unset variable an error
 
 function Line([string]$Part, [bool]$Ok, [string]$Text, [switch]$Info, [switch]$Unknown) {
   $mark = if ($Unknown) { 'unknown' } elseif ($Info) { 'info' } elseif ($Ok) { 'OK' } else { 'PROBLEM' }
   $color = if ($Unknown) { 'Yellow' } elseif ($Info) { 'Gray' } elseif ($Ok) { 'Green' } else { 'Yellow' }
   Write-Host ('{0,-13} {1,-8} {2}' -f $Part, $mark, $Text) -ForegroundColor $color
+  if ($Unknown) { $script:unknown++ }
   if (-not $Ok -and -not $Info -and -not $Unknown) { $script:bad++ }
 }
 
@@ -114,4 +116,5 @@ $piUp = @($PlanBDefaults.PiAddresses | Where-Object { Test-PlanBPortOpen 30000 $
 Line 'pi' $true $(if ($piUp) { "the Pi's Foundry answers ($($piUp -join ', ')): make sure nobody plays there tonight" } else { "the Pi's Foundry does not answer" }) -Info
 
 if ($bad) { Write-Host "$bad problem(s)." -ForegroundColor Yellow; exit 1 }
-Write-Host 'Plan B is up.' -ForegroundColor Green
+if ($unknown) { Write-Host 'Plan B is up, but the module link is unknown: open the dashboard and look at its Foundry status.' -ForegroundColor Yellow }
+else { Write-Host 'Plan B is up.' -ForegroundColor Green }

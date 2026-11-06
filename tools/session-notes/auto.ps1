@@ -32,7 +32,8 @@ param([switch]$DryRun)
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Resolve-Path (Join-Path $here '..\..')
-$voiceStack = Join-Path $repo 'scripts\voice-stack.ps1'
+# FVTT_VOICE_STACK lets a test put its own script in place of voice-stack.ps1.
+$voiceStack = if ($env:FVTT_VOICE_STACK) { $env:FVTT_VOICE_STACK } else { Join-Path $repo 'scripts\voice-stack.ps1' }
 $sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Join-Path $env:USERPROFILE 'Documents\FoundrySessions' }
 if (-not (Test-Path $sessions)) { Write-Host "No sessions folder at $sessions; nothing to do."; exit 0 }
 

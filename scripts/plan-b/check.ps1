@@ -24,6 +24,7 @@ if (-not $Root) { $Root = $PlanBDefaults.Root }
 $L = Get-PlanBLayout $Root
 $state = Read-PlanBState $L
 $bad = 0
+$unknown = 0 # set here: lib.ps1 turns on strict mode, which makes reading an unset variable an error
 
 function Line([string]$Part, [bool]$Ok, [string]$Text, [switch]$Info, [switch]$Unknown) {
   $mark = if ($Unknown) { 'unknown' } elseif ($Info) { 'info' } elseif ($Ok) { 'OK' } else { 'PROBLEM' }

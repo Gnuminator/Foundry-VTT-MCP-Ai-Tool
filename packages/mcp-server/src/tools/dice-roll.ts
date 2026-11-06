@@ -59,8 +59,7 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
-              description:
-                'true: everyone sees the roll. false: only the target player and GM.',
+              description: 'true: everyone sees the roll. false: only the target player and GM.',
             },
             userConfirmedVisibility: {
               type: 'boolean',

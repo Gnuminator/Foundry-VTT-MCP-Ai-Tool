@@ -297,8 +297,7 @@ export class DnD5eAddFeatureTool {
             },
             equipped: {
               type: 'boolean',
-              description:
-                'Weapon is equipped. Used by: attack, attack-with-save. Default: true.',
+              description: 'Weapon is equipped. Used by: attack, attack-with-save. Default: true.',
               default: true,
             },
             reachFt: {

@@ -4,8 +4,8 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 100 tools. Their definitions are about 119,100 characters of JSON, about 28,300 to
-37,200 tokens that Claude reads at the start of every conversation, before anyone types. Many
+The bridge has 100 tools. Their definitions are about 116,600 characters of JSON, about 27,800 to
+36,400 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
@@ -15,12 +15,12 @@ what the conversation needs. The switches are remembered for new chats.
 | Set       | Claude Desktop entry | Tools | Size (characters) | For                                                                                          |
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
 | **core**  | `foundry-mcp`        | 24    | about 18,400      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
-| **play**  | `foundry-mcp-play`   | 37    | about 41,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
+| **play**  | `foundry-mcp-play`   | 37    | about 39,700      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
-| **build** | `foundry-mcp-build`  | 8     | about 28,800      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
+| **build** | `foundry-mcp-build`  | 8     | about 25,400      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 11    | about 10,500      | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.  |
 
-A prep chat with core and prep on carries about 40,600 characters instead of 119,100. Core alone is
+A prep chat with core and prep on carries about 40,600 characters instead of 116,600. Core alone is
 about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.

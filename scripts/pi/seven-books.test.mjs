@@ -431,7 +431,7 @@ describe('seven-books-trim.js', () => {
     assert.ok(!world.packs.has('world.legacy-other-books'));
     const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
     assert.match(stage, /trap '' HUP PIPE/);
-    assert.match(stage, /\|\| require_recent_snapshot/);
+    assert.match(stage, /^\[ "\$\{MODE:-trim\}" = check \] \|\| require_recent_snapshot/m);
     assert.match(stage, /MODE=check only reads/);
   });
 
@@ -447,7 +447,7 @@ describe('seven-books-trim.js', () => {
     assert.doesNotMatch(eff.description, /dnd5e\.items/);
   });
 
-  test('check mode: a trimmed world has no drift; a book put back, a visible SRD pack or a dead link is drift', async () => {
+  test('check mode: a trimmed world has no drift; a book put back or a visible SRD pack is drift; a link into a GM-only pack is listed, not drift', async () => {
     const check = `const CHECK_ONLY = true;\n${trimSource}`;
     const world = standardWorld();
     wire(world);

@@ -12,7 +12,6 @@
  * `@gnuminator/shared`) and pinned by `user-role.test.ts`.
  */
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
-import { isFeatureEnabled } from './guarded-features.js';
 import { MODULE_ID } from './constants.js';
 import {
   TABLE_VIEWER_FLAG,
@@ -67,17 +66,8 @@ export function assertUserRoleChange(
       `${user.name ?? 'This user'} is the shared table viewer login (no password); it stays at Player or below`
     );
   }
-  // An undo or redo that raises a role is a role change like any other: the setup switch must be on.
-  if (
-    feature === 'change-undo' &&
-    typeof user.role === 'number' &&
-    role > user.role &&
-    !isFeatureEnabled(SETUP_FEATURE_ID)
-  ) {
-    throw new Error(
-      `Raising a role again needs the "AI Tool: Foundry setup (writes)" switch on (${user.name ?? 'this user'})`
-    );
-  }
+  // No switch check here: an undo of a role lowering always works, on both undo routes. A redo
+  // is gated by the server (`requireRedoSwitches`) on both routes.
   // `isGM` is true for an Assistant GM too (role 3), which a plan may change.
   if (typeof user.role === 'number' && user.role > 3) {
     throw new Error(

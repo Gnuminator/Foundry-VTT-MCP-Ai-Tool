@@ -151,11 +151,12 @@ try {
     ForEach-Object { Remove-Item -Force $_.FullName; Write-Log "removed stale $($_.Name)" }
 
   if (-not $DryRun) {
-    Set-Content -Path $successFile -Value ("{0}  snapshot {1}" -f (Get-Date -Format 's'), $stamp)
     # Tell the Pi (its bot DMs you when no copy has arrived for 3 days). Having the newest snapshot already counts, but
     # only a FRESH snapshot does: copying a week-old snapshot is not a sign that the Pi's backups are running, so the
-    # record is left alone and the Pi's own stale-backup DM can fire.
+    # record is left alone and the Pi's own stale-backup DM can fire. last-success.txt says "(stale)" in that case.
     $snapAgeDays = Get-NewestSnapshotAgeDays ([DateTimeOffset]::FromUnixTimeSeconds([long]$epoch))
+    $staleNote = if ($snapAgeDays -gt $WarnAfterDays) { ' (stale: the Pi has made no new snapshot)' } else { '' }
+    Set-Content -Path $successFile -Value ("{0}  snapshot {1}{2}" -f (Get-Date -Format 's'), $stamp, $staleNote)
     if ($snapAgeDays -gt $WarnAfterDays) {
       Write-Log ("WARNING: the Pi's newest snapshot ({0}) is {1:N1} days old; the Pi has made no new one for more than {2} days. Not recording this copy on the Pi." -f $stamp, $snapAgeDays, $WarnAfterDays)
     } else {

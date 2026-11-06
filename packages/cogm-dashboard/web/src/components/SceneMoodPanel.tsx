@@ -79,6 +79,7 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
   // The preset whose plan or apply runs: every button waits, the one clicked says so once applying.
   const [running, setRunning] = useState<{ preset: string; applying: boolean } | null>(null);
   const lock = useRef(false);
+  const refocus = useRef(false);
 
   const applyMood = async (preset: string): Promise<void> => {
     if (lock.current || off.names.length > 0) return;
@@ -94,6 +95,7 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       if (fresh && shown) {
         const sceneMoved = fresh.sceneId !== shown.sceneId || fresh.sceneName !== shown.sceneName;
         if (sceneMoved || !fresh.presets.some(p => p.name === preset)) {
+          refocus.current = true;
           toast(
             sceneMoved
               ? `The scene changed to ${fresh.sceneName}. The moods are updated; pick again.`
@@ -149,15 +151,21 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
     } finally {
       lock.current = false;
       setRunning(null);
+      // The scene changed under the buttons: the list was read again and the pressed button may
+      // be gone, so the focus goes to the first mood of the new list once the buttons are free.
+      if (refocus.current) {
+        refocus.current = false;
+        requestAnimationFrame(() => focusFirstPreset());
+      }
     }
   };
 
   const rootRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  const focusFirstPreset = (): void =>
     rootRef.current
       ?.querySelector<HTMLElement>('[data-preset]:not([aria-disabled="true"])')
       ?.focus();
-  }, [moods.isSuccess]);
+  useEffect(focusFirstPreset, [moods.isSuccess]);
 
   return (
     <div

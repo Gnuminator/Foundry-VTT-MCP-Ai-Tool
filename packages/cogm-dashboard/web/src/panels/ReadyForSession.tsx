@@ -52,7 +52,9 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   const state = read.data?.switches ?? null;
   const list = state?.switches ?? [];
   const gmActions = settings?.gmActionsEnabled ?? read.data?.gmActionsEnabled ?? false;
-  const readError = read.error ? errorText(read.error) : (read.data?.error ?? null);
+  // The server's own sentence for a failed read already says what could not be read.
+  const readError = read.error ? errorText(read.error) : null;
+  const readerSaid = read.data?.error ?? null;
 
   // Set before the first re-render disables the buttons, so a fast double click sends once.
   const sending = useRef(false);
@@ -96,6 +98,8 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   let note = DEFAULT_NOTE;
   if (readError !== null) {
     note = `Could not read the switches: ${readError}`;
+  } else if (readerSaid !== null) {
+    note = readerSaid;
   } else if (allOn && state?.ready?.at) {
     const time = new Date(state.ready.at).toLocaleTimeString([], {
       hour: '2-digit',

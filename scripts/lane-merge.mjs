@@ -743,12 +743,15 @@ const jsonOf = text => {
 /**
  * The same JSON once the version fields are blanked: the top-level `version`, and in
  * package-lock.json the root's and each workspace entry's (the entries sync-version stamps).
- * @param {string} file @param {any} data @returns {{ data: any, versions: unknown[] } | null}
+ * The versions come back keyed (`version` for the top level, the package key for a lock entry), so
+ * a version that moves from one entry to another is not mistaken for a bump.
+ * @param {string} file @param {any} data
+ * @returns {{ data: any, versions: Map<string, unknown> } | null}
  */
 function withoutVersions(file, data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const copy = structuredClone(data);
-  const versions = [copy.version];
+  const versions = new Map([['version', copy.version]]);
   delete copy.version;
   if (file === 'package-lock.json') {
     for (const [key, entry] of Object.entries(copy.packages ?? {})) {
@@ -757,7 +760,7 @@ function withoutVersions(file, data) {
         key === 'shared' ||
         (key.startsWith('packages/') && !key.includes('node_modules'));
       if (own && entry && typeof entry === 'object' && 'version' in entry) {
-        versions.push(entry.version);
+        versions.set(`packages:${key}`, entry.version);
         delete entry.version;
       }
     }
@@ -815,15 +818,15 @@ export function releasePr(files, read) {
       if (!a || !b) return no(`${f.path} is not a JSON object`);
       if (!sameJson(a.data, b.data)) return no(`${f.path} changes more than its version`);
       // Every version field the base has must stay at the head (a dropped one is not a bump).
-      if (b.versions.length !== a.versions.length) {
+      if (b.versions.size !== a.versions.size) {
         return no(`${f.path} drops or adds a version field`);
       }
-      for (let i = 0; i < a.versions.length; i++) {
-        if ((a.versions[i] === undefined) !== (b.versions[i] === undefined)) {
+      for (const [key, v] of a.versions) {
+        if (!b.versions.has(key) || (v === undefined) !== (b.versions.get(key) === undefined)) {
           return no(`${f.path} drops or adds a version field`);
         }
       }
-      if (!b.versions.every(v => v === undefined || isVersion(v))) {
+      if (![...b.versions.values()].every(v => v === undefined || isVersion(v))) {
         return no(`${f.path} has a version that is not x.y.z`);
       }
       continue;
@@ -1361,7 +1364,8 @@ export function relaunchFromMain(o) {
 
 /**
  * The last line of every refusal (under `--wait-ci` the one before the `wait-ci ended:` verdict
- * line): every reason on one line, so a `tail` of the output shows why and not only the notices. Several reasons are numbered (a reason can hold `;` itself).
+ * line): every reason on one line, so a `tail` of the output shows why and not only the notices.
+ * Several reasons are numbered (a reason can hold `;` itself).
  * @param {string[]} reasons
  */
 export function refusedBecause(reasons) {

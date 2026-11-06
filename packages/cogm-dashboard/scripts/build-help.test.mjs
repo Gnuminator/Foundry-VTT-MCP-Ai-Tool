@@ -58,13 +58,23 @@ describe('build-help', () => {
     expect(pages['da-x'].html).not.toContain('data-en-id');
   });
 
-  it('writes the English heading id into data-en-id escaped once', () => {
-    const { pages } = build({
-      'gm/x.md': '# X\n\n## Q & A\n',
-      'da/gm/x.md': '# Ex\n\n## Sp & Sv\n',
+  it('warns when the headings are the same count but at other levels, and adds no data-en-id', () => {
+    const { status, stderr, stdout, pages } = build({
+      'gm/x.md': '# X\n\n## One\n\n### Two\n',
+      'da/gm/x.md': '# Ex\n\n### Et\n\n## To\n',
     });
-    expect(pages['da-x'].html).toMatch(/data-en-id="[^"&]*"/);
-    expect(pages['da-x'].html).not.toContain('&amp;amp;');
+    expect(status).toBe(0);
+    expect(`${stderr}${stdout}`).toContain('warning: da-x has its headings in another order');
+    expect(pages['da-x'].html).not.toContain('data-en-id');
+  });
+
+  it('pairs a repeated English heading with the numbered id the English page gave it', () => {
+    const { pages } = build({
+      'gm/x.md': '# X\n\n## Same\n\n## Same\n',
+      'da/gm/x.md': '# Ex\n\n## Et\n\n## To\n',
+    });
+    expect(pages['da-x'].html).toContain('<h2 id="et" data-en-id="same">');
+    expect(pages['da-x'].html).toContain('<h2 id="to" data-en-id="same-1">');
   });
 
   it('keys docs/foundry pages as foundry-<name> and links across folders', () => {

@@ -109,11 +109,11 @@ function makeTools(): {
       const rows = [settingRow, secretRow, rangeRow].filter(r => r.id === data.target);
       return { area: 'setting', settings: rows };
     }
-    if (data.area === 'module') return { area: 'module', modules: moduleRows };
+    if (data.area === 'module') return { area: 'module', shape: 2, modules: moduleRows };
     if (data.area === 'user') return { area: 'user', users: userRows };
     if (data.area === 'ownership') {
       const kind = String(data.target).split(':')[0];
-      return { area: 'ownership', kind, documents: ownershipRows };
+      return { area: 'ownership', shape: 2, kind, documents: ownershipRows };
     }
     return {
       area: 'pack',
@@ -445,7 +445,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
     query.mockImplementation((_m: string, data: any) =>
       data.area === 'user'
         ? { area: 'user', users: twins }
-        : { area: 'ownership', kind: 'journal', documents: ownershipRows }
+        : { area: 'ownership', shape: 2, kind: 'journal', documents: ownershipRows }
     );
     await expect(
       plan(tools, { mode: 'plan', area: 'user', target: 'Ask', value: { role: 'TRUSTED' } })
@@ -468,6 +468,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
     const { tools, query } = makeTools();
     query.mockImplementation(() => ({
       area: 'module',
+      shape: 2,
       modules: [
         {
           id: 'core-lib',
@@ -502,7 +503,12 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
       area: 'module',
       target: 'fancy',
     });
-    query.mockImplementation(() => ({ area: 'module', modules: moduleRows, listTooLarge: true }));
+    query.mockImplementation(() => ({
+      area: 'module',
+      shape: 2,
+      modules: moduleRows,
+      listTooLarge: true,
+    }));
     await expect(
       plan(tools, { mode: 'plan', area: 'module', target: 'fancy', value: true })
     ).rejects.toThrow(/too much data/);

@@ -322,10 +322,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     links
       .create(world, userId)
       .then(link => res.json({ userId, link: `/me?k=${link.key}`, createdAt: link.createdAt }))
-      .catch((error: unknown) =>
-        res
-          .status(500)
-          .json({ error: error instanceof Error ? error.message : 'Could not save the link.' })
+      .catch(() =>
+        res.status(500).json({ error: 'Could not save the link. Ask the person running the tool.' })
       );
   });
 
@@ -339,8 +337,10 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     links
       .remove(world, userId)
       .then(removed => res.json({ removed }))
-      .catch((error: unknown) =>
-        res.status(500).json({ error: error instanceof Error ? error.message : 'Could not save.' })
+      .catch(() =>
+        res
+          .status(500)
+          .json({ error: 'Could not remove the link. Ask the person running the tool.' })
       );
   });
 }

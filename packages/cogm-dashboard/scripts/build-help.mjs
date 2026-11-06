@@ -71,10 +71,13 @@ const fileOf = new Map();
 const keyOf = new Map();
 for (const { dir, prefix } of guideDirs) {
   if (!existsSync(dir)) continue;
-  for (const f of readdirSync(dir).filter(f => f.endsWith('.md')).sort()) {
+  for (const f of readdirSync(dir)
+    .filter(f => f.endsWith('.md'))
+    .sort()) {
     const key = `${prefix}${f.slice(0, -3)}`;
     // A gm page named `foundry-x` would share the key of docs/foundry/x.md.
-    if (fileOf.has(key)) fail(`page key ${key} is used by ${fileOf.get(key)} and ${path.join(dir, f)}`);
+    if (fileOf.has(key))
+      fail(`page key ${key} is used by ${fileOf.get(key)} and ${path.join(dir, f)}`);
     pages.push(key);
     fileOf.set(key, path.join(dir, f));
     keyOf.set(path.join(dir, f), key);
@@ -126,9 +129,16 @@ function render(page, body) {
         level: 'block',
         start: src => src.match(/^:::(?:note|tip|caution)[ \t]*$/m)?.index,
         tokenizer(src) {
-          const m = /^:::(note|tip|caution)[ \t]*\r?\n([\s\S]*?)\r?\n:::[ \t]*(?:\r?\n|$)/.exec(src);
+          const m = /^:::(note|tip|caution)[ \t]*\r?\n([\s\S]*?)\r?\n:::[ \t]*(?:\r?\n|$)/.exec(
+            src
+          );
           if (!m) return undefined;
-          return { type: 'callout', raw: m[0], kind: m[1], tokens: this.lexer.blockTokens(m[2], []) };
+          return {
+            type: 'callout',
+            raw: m[0],
+            kind: m[1],
+            tokens: this.lexer.blockTokens(m[2], []),
+          };
         },
         renderer(token) {
           return `<aside class="callout callout-${token.kind}">${this.parser.parse(token.tokens)}</aside>\n`;
@@ -172,6 +182,9 @@ for (const page of pages) {
 /** The `<hN id="...">` ids of a rendered page, in order. */
 const headingIds = html => [...html.matchAll(/<h[1-6] id="([^"]*)"/g)].map(m => m[1]);
 
+/** The levels of a rendered page's headings, in order (2 for an h2). */
+const headingLevels = html => [...html.matchAll(/<h([1-6]) id="/g)].map(m => Number(m[1]));
+
 // A link into a Danish page carries the English heading's anchor (the callers know no other).
 // When a twin has the same headings in the same order as its English page, each Danish heading
 // also answers to the English id (`data-en-id`), so the panel scrolls to the right place.
@@ -183,6 +196,13 @@ for (const page of pages.filter(p => p.startsWith('da-'))) {
   if (enIds.length !== daIds.length) {
     console.warn(
       `build-help: warning: ${page} has ${daIds.length} headings, its English page has ${enIds.length}; links with an English anchor will not find their heading`
+    );
+    continue;
+  }
+  // The same count in another order (an h2 where the English has an h3) would pair the wrong ids.
+  if (headingLevels(english.html).join() !== headingLevels(out.pages[page].html).join()) {
+    console.warn(
+      `build-help: warning: ${page} has its headings in another order or at other levels than its English page; links with an English anchor will not find their heading`
     );
     continue;
   }

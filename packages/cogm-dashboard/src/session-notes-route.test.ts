@@ -170,8 +170,11 @@ describe('/api/session-notes', () => {
     const down = await start(() => Promise.reject(new ChannelError('Control channel closed')));
     const res = await req(down.base, '/api/session-notes');
     expect(res.status).toBe(502);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
-      'bridge-unreachable'
+    const refusal = ((await res.json()) as { error: { code: string; message: string } }).error;
+    expect(refusal.code).toBe('bridge-unreachable');
+    // A fixed sentence: the channel error's own text stays in the log.
+    expect(refusal.message).toBe(
+      'The dashboard could not reach the session notes. Try again in a moment.'
     );
     dashboard?.close();
     await new Promise<void>(resolve => server!.close(() => resolve()));

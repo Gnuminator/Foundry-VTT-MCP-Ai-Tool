@@ -62,6 +62,8 @@ export function limitsFor(projectDir, transcriptPath) {
 // token counts at all is ignored, so an unknown shape falls back to the top level, never to 0.
 const FIELDS = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'];
 
+// scripts/dev/usage-week.mjs imports contextOf, so a change here changes the weekly usage report
+// as well as the hooks (they must read a response the same way).
 export function contextOf(usage) {
   const n = v => (Number.isFinite(v) ? v : 0);
   const passes = Array.isArray(usage.iterations)

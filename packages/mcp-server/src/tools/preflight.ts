@@ -88,8 +88,9 @@ export class PreflightTools {
           properties: {
             action: {
               type: 'string',
-              enum: ['checks', 'scan'],
-              description: '"checks" (default) for the checklist, "scan" for the findings only.',
+              enum: ['checks', 'scan', 'pumps'],
+              description:
+                '"checks" (default) the checklist, "scan" findings only, "pumps" log recording health only.',
             },
           },
         },
@@ -97,10 +98,13 @@ export class PreflightTools {
     ];
   }
 
-  async handleGetPreflight(args: unknown): Promise<PreflightChecksResult | PreflightScanResult> {
+  async handleGetPreflight(
+    args: unknown
+  ): Promise<PreflightChecksResult | PreflightScanResult | { pumps: PumpHealthSnapshot[] }> {
     const { action } = z
-      .object({ action: z.enum(['checks', 'scan']).default('checks') })
+      .object({ action: z.enum(['checks', 'scan', 'pumps']).default('checks') })
       .parse(args ?? {});
+    if (action === 'pumps') return { pumps: this.options.pumpHealth?.() ?? [] };
     if (action === 'scan') return this.scan();
     return this.checks();
   }

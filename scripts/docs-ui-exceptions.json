@@ -1,0 +1,34 @@
+{
+  "_about": "Bold names in docs/gm and the checklists that are not a dashboard or module string, for scripts/docs-ui-check.mjs. Every entry needs a reason; an entry that a doc stops naming, or that the dashboard starts using, fails the check so this list cannot rot.",
+  "names": [
+    { "name": "Alt + F4", "reason": "Windows keyboard shortcut" },
+    { "name": "Win + R", "reason": "Windows keyboard shortcut" },
+    { "name": "Always allow", "reason": "Claude Desktop permission prompt" },
+    { "name": "Connectors", "reason": "Claude Desktop menu" },
+    { "name": "Customize", "reason": "Claude Desktop menu" },
+    { "name": "Quit", "reason": "Claude Desktop tray menu" },
+    { "name": "Search and tools", "reason": "Claude Desktop chat box menu" },
+    { "name": "foundry-mcp-admin", "reason": "Claude Desktop connector name" },
+    { "name": "Basics", "reason": "Foundry scene configuration tab" },
+    { "name": "Save Changes", "reason": "Foundry configuration dialog button" },
+    { "name": "Combat Encounters", "reason": "Foundry sidebar tab" },
+    { "name": "Roll All", "reason": "Foundry combat tracker button" },
+    { "name": "Create Additional User", "reason": "Foundry user management button" },
+    { "name": "Save and Return", "reason": "Foundry setup button" },
+    { "name": "Save Configuration", "reason": "Foundry permission configuration button" },
+    { "name": "User Management", "reason": "Foundry setup screen section" },
+    { "name": "User Permissions", "reason": "Foundry setup screen button" },
+    { "name": "Prototype Token", "reason": "Foundry actor sheet header button" },
+    { "name": "Use the Cloudflare tunnel", "reason": "Claude Desktop extension settings field" },
+    { "name": "Code execution and file creation", "reason": "Claude Desktop settings toggle" },
+    { "name": "3D Dice Settings", "reason": "Dice So Nice settings menu in Foundry" },
+    { "name": "Enable Spell Selection", "reason": "Actor Studio module setting" },
+    { "name": "Enable Level Up", "reason": "Actor Studio module setting" },
+    { "name": "Open Compendium Browser", "reason": "Foundry compendium sidebar button" },
+    {
+      "name": "Allow Player Effect Application",
+      "reason": "Automated Conditions 5e module setting"
+    },
+    { "name": "Level Up", "reason": "dnd5e character sheet button" }
+  ]
+}

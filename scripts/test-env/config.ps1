@@ -237,6 +237,50 @@ function Get-FoundryAppVersion([string]$Dir) {
   return $null
 }
 
+# Foundry auto-launches a world (--world=<id>) only when world.json compatibility.verified is an
+# integer >= the core generation ("14") or a point build not older than the running Foundry
+# ("14.370"; World#canAutoLaunch in dist/packages/world.mjs). A world last opened on 14.369 says
+# verified "14.369" and, after a point update to 14.370, is refused with "requested World ... is not
+# available to auto-launch" (coreVersion does not matter). Foundry itself bumps both fields when it
+# opens the world from the setup screen. This does the same for a world about to be auto-launched:
+# text edit of the two fields only, a .bak-verified copy of the first original, nothing when the
+# world is already current. Call only while Foundry is not running on this data folder.
+function Compare-FoundryVersion([string]$A, [string]$B) {
+  $pa = @(($A -split '\.') | ForEach-Object { [int]$_ })
+  $pb = @(($B -split '\.') | ForEach-Object { [int]$_ })
+  for ($i = 0; $i -lt [Math]::Max($pa.Count, $pb.Count); $i++) {
+    $x = if ($i -lt $pa.Count) { $pa[$i] } else { 0 }
+    $y = if ($i -lt $pb.Count) { $pb[$i] } else { 0 }
+    if ($x -ne $y) { return [Math]::Sign($x - $y) }
+  }
+  return 0
+}
+
+# Returns $true when it changed world.json.
+function Update-WorldVerified([string]$WorldDir, [string]$AppVersion) {
+  $file = Join-Path $WorldDir 'world.json'
+  if (-not $AppVersion -or $AppVersion -notmatch '^\d+(\.\d+)*$' -or -not (Test-Path $file)) { return $false }
+  # package.json says 14.370.0; world.json (as Foundry writes it) says generation.build, 14.370.
+  $AppVersion = (($AppVersion -split '\.') | Select-Object -First 2) -join '.'
+  $text = [IO.File]::ReadAllText($file)
+  $m =[regex]::Match($text, '("compatibility"\s*:\s*\{[^}]*?"verified"\s*:\s*)"(\d+(?:\.\d+)*)"')
+  if (-not $m.Success) { return $false }
+  $verified = $m.Groups[2].Value
+  # An integer is a generation: current as long as it is not above the app's generation.
+  if ($verified -notmatch '\.') {
+    if ([int]$verified -ge [int]($AppVersion -split '\.')[0]) { return $false }
+  } elseif ((Compare-FoundryVersion $verified $AppVersion) -ge 0) { return $false }
+  $bak = "$file.bak-verified"
+  if (-not (Test-Path $bak)) { Copy-Item $file $bak }
+  $new = $text.Remove($m.Groups[2].Index, $m.Groups[2].Length).Insert($m.Groups[2].Index, $AppVersion)
+  $cm = [regex]::Match($new, '("coreVersion"\s*:\s*)"(\d+(?:\.\d+)*)"')
+  if ($cm.Success -and (Compare-FoundryVersion $cm.Groups[2].Value $AppVersion) -lt 0) {
+    $new = $new.Remove($cm.Groups[2].Index, $cm.Groups[2].Length).Insert($cm.Groups[2].Index, $AppVersion)
+  }
+  [IO.File]::WriteAllText($file, $new)
+  return $true
+}
+
 # The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).
 function Find-FoundryMain {
   foreach ($candidate in @((Join-Path $TestEnv.AppDir 'main.js'), (Join-Path $TestEnv.AppDir 'resources' 'app' 'main.js'))) {

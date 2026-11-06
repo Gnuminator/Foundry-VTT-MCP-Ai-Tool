@@ -8,6 +8,7 @@
  * active tool. "Changes", "Handouts" and "Tarokka" are the buttons; a later one is one more
  * entry in {@link AI_TOOL_BUTTONS}.
  */
+import { toGmMessage } from './gm-message.js';
 import { openAiChangesWindow } from './ai-changes-window.js';
 import { openCombatWindow } from './combat-window.js';
 import { MODULE_ID } from './constants.js';
@@ -132,9 +133,7 @@ export function addAiToolControls(
         onChange: (): void => {
           void Promise.resolve(button.open()).catch((error: unknown) => {
             console.error(`[${MODULE_ID}] Could not open "${button.title}":`, error);
-            ui.notifications.error(
-              `Could not open "${button.title}": ${error instanceof Error ? error.message : String(error)}`
-            );
+            ui.notifications.error(toGmMessage(`open "${button.title}"`, error));
           });
         },
       };

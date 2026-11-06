@@ -24,7 +24,7 @@ const SETUP_401 = /Failed to load resource.*status of 401/;
 // A failed rebuild is announced by an error notification, which Foundry also logs as a console error;
 // the row throws on that notification itself, so the console line only repeats it. A healthy rebuild
 // logs no error (a pack that cannot be indexed is a warning, not an error).
-const REBUILD_FAILED = /^Failed to build enhanced creature index/;
+const REBUILD_FAILED = /^Could not build the creature index/;
 
 /** The visible settings, by label, as the module registers them. */
 export const SETTING_LABELS = [
@@ -54,7 +54,7 @@ export const FEATURE_SWITCHES = [
 /** The three menu buttons: key, button label, the window or dialog title they open (null: a link). */
 export const MENUS = [
   ['helpMenu', 'Open the GM guide', null],
-  ['enhancedIndexMenu', 'Configure Enhanced Index', 'Enhanced Creature Index Settings'],
+  ['enhancedIndexMenu', 'Configure', 'Creature Index Settings'],
   ['joinPageMenu', 'Choose join page look', 'Join page look'],
 ];
 
@@ -340,7 +340,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
   await sweep.row('module.settings.enhanced-index-open', 'gm', async () => {
     await openMenu('enhancedIndexMenu');
     const title = gm
-      .locator('.application', { hasText: 'Enhanced Creature Index Settings' })
+      .locator('.application', { hasText: 'Creature Index Settings' })
       .last();
     await title.waitFor({ state: 'visible', timeout: 10000 });
     const controls = await title.evaluate(el => ({
@@ -360,14 +360,14 @@ export async function settingsRows(sweep, { t, gm, player }) {
   await sweep.row('module.settings.enhanced-index-save', 'gm', async () => {
     const key = 'autoRebuildIndex';
     const before = await read(key);
-    const win = gm.locator('.application', { hasText: 'Enhanced Creature Index Settings' }).last();
+    const win = gm.locator('.application', { hasText: 'Creature Index Settings' }).last();
     if (!(await win.count())) await openMenu('enhancedIndexMenu');
     const box = win.locator(`input[name="${key}"]`);
     try {
       if (before) await box.uncheck();
       else await box.check();
       await win.locator('button[type="submit"]').click();
-      await waitNotification(gm, /Enhanced Creature Index settings saved/);
+      await waitNotification(gm, /Creature index settings saved/);
       if ((await read(key)) === before) throw new Error(`${key} did not change`);
     } finally {
       if ((await read(key)) !== before) {
@@ -382,15 +382,15 @@ export async function settingsRows(sweep, { t, gm, player }) {
     'gm',
     async () => {
       const win = gm
-        .locator('.application', { hasText: 'Enhanced Creature Index Settings' })
+        .locator('.application', { hasText: 'Creature Index Settings' })
         .last();
       if (!(await win.count())) await openMenu('enhancedIndexMenu');
       const started = Date.now();
       await win.locator('button[data-action="rebuild"]').click();
-      await waitNotification(gm, /Rebuilding enhanced creature index/);
+      await waitNotification(gm, /Rebuilding the creature index/);
       await waitNotification(
         gm,
-        /Enhanced creature index complete|Failed to build enhanced creature index/,
+        /The creature index is ready|Could not build the creature index/,
         240000
       );
       const done = (await notifications(gm)).find(n => /complete|Failed to build/.test(n)) ?? '';

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  blamedOnBridge,
   consoleCounts,
   consoleErrorId,
   consoleSummaryLines,
@@ -215,4 +216,45 @@ test('keepChatNotificationsQuiet registers a script for every new page document'
     globalThis.setInterval = saved.setInterval;
     globalThis.clearInterval = clearSaved;
   }
+});
+
+test('blamedOnBridge follows the first stack frame that is not our diagnostics wrapper', () => {
+  const diag = 'http://localhost:30001/modules/foundry-mcp-bridge/dist/diagnostics.js:150';
+  const frame = (mod, file) => `    at fn (http://localhost:30001/modules/${mod}/${file}:10:5)`;
+  const wrapped = (...lines) => ({
+    message: ['Error: boom', frame('foundry-mcp-bridge', 'dist/diagnostics.js'), ...lines].join(
+      '\n'
+    ),
+    source: diag,
+  });
+  // The wrapper is the top frame of every console error: another module's frame decides.
+  assert.equal(
+    blamedOnBridge(wrapped(frame('monks-player-settings', 'a.js')), 'foundry-mcp-bridge'),
+    false
+  );
+  assert.equal(
+    blamedOnBridge(wrapped(frame('foundry-mcp-bridge', 'dist/main.js')), 'foundry-mcp-bridge'),
+    true
+  );
+  // A bridge path quoted in the message text is not a frame.
+  assert.equal(
+    blamedOnBridge(
+      { message: 'Failed in /modules/foundry-mcp-bridge/x.js', source: diag },
+      'foundry-mcp-bridge'
+    ),
+    false
+  );
+  // No frame: our log tag, or a source that is ours and not the wrapper.
+  assert.equal(
+    blamedOnBridge({ message: '[foundry-mcp-bridge] oops', source: diag }, 'foundry-mcp-bridge'),
+    true
+  );
+  assert.equal(
+    blamedOnBridge(
+      { message: 'x', source: 'http://h/modules/foundry-mcp-bridge/dist/main.js:3' },
+      'foundry-mcp-bridge'
+    ),
+    true
+  );
+  assert.equal(blamedOnBridge({ message: 'x', source: 'pageerror' }, 'foundry-mcp-bridge'), false);
 });

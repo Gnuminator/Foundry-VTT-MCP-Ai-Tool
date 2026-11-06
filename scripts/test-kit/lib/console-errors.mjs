@@ -71,6 +71,26 @@ export function normalizeMessage(message, source) {
   return fn ? `${line} (in ${fn})` : line;
 }
 
+/**
+ * Whether a console error is the bridge module's own. The module wraps console.error, so the
+ * top frame (and the `source` Playwright reports) of every console error is its
+ * `<id>/dist/diagnostics.js`; that frame is skipped. The blame follows the first other stack frame
+ * of the message, never a module path quoted in the message text. With no frame left, only a
+ * message that starts with our log tag (`[<id>]`) counts, or a source that is not diagnostics.js.
+ * @param {{message: string, source: string}} e
+ * @param {string} moduleId
+ */
+export function blamedOnBridge(e, moduleId) {
+  const message = String(e.message ?? '');
+  const source = String(e.source ?? '');
+  const frames = [...message.matchAll(/^\s*at\s+.*$/gm)]
+    .map(m => m[0])
+    .filter(line => !/\/dist\/diagnostics\.js/.test(line));
+  if (frames.length) return frames[0].includes(`/${moduleId}/`);
+  if (message.startsWith(`[${moduleId}]`)) return true;
+  return source.includes(`/${moduleId}/`) && !/\/dist\/diagnostics\.js/.test(source);
+}
+
 /** @param {string} text */
 const slug = text =>
   text

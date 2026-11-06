@@ -218,7 +218,7 @@ describe('TableController', () => {
     expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Survives.' });
   });
 
-  it('restores the kept line after a later write from another client dropped it', async () => {
+  it('does nothing once the stored table shows the line', async () => {
     const { controller, deps, get } = makeController({ flipText: 'Kept for the watcher.' });
     await controller.load();
     await controller.place();
@@ -226,6 +226,69 @@ describe('TableController', () => {
     expect(get().slots[0]?.line).toBe('Kept for the watcher.');
     // Settled: the stored table shows the line, so there is nothing to restore.
     expect(await restorePendingLines(deps)).toBeNull();
+  });
+
+  it('reports a successful flip even when restoring the kept line throws', async () => {
+    const { controller, deps, get } = makeController({ flipText: 'Kept.' });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await controller.load();
+    await controller.place();
+    const write = deps.writeTable.bind(deps);
+    deps.writeTable = async (t): Promise<void> => {
+      if (!t.slots.some(s => s.stage === 'revealed')) return write(t);
+      // The flip's own write loses the line, so the restore has work to do, and then fails.
+      await write({ ...t, slots: t.slots.map(s => ({ ...s, line: undefined })) } as PublicTable);
+      deps.writeTable = async (): Promise<void> => {
+        throw new Error('write refused');
+      };
+    };
+    await controller.flip(0);
+    expect(controller.view.actionError).toBeFalsy();
+    expect(deps.notifyError).not.toHaveBeenCalled();
+    expect(get().slots[0]?.stage).toBe('revealed');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('keeps the line when plan and apply together take longer than the unrevealed grace', async () => {
+    vi.useFakeTimers();
+    const start = new Date('2026-11-05T20:00:00Z').getTime();
+    vi.setSystemTime(start);
+    const { controller, deps, get } = makeController({ flipText: 'Slow link.' });
+    await controller.load();
+    await controller.place();
+    const request = deps.request.bind(deps);
+    deps.request = async (tool, args): Promise<unknown> => {
+      const result = await request(tool, args);
+      if (tool === 'apply-planned-change') vi.setSystemTime(start + 2500);
+      return result;
+    };
+    await controller.flip(0);
+    expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Slow link.' });
+  });
+
+  it('drops a kept line whose card was never revealed, so a later reveal does not use it', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-05T20:00:00Z'));
+    const { controller, deps, backend, revealed, get } = makeController({ flipText: 'Old line.' });
+    await controller.load();
+    await controller.place();
+    // The apply "succeeds" but the stored table never shows the card revealed (undone at once).
+    backend.failApply = false;
+    const request = deps.request.bind(deps);
+    deps.request = async (tool, args): Promise<unknown> => {
+      const result = await request(tool, args);
+      if (tool === 'apply-planned-change') revealed.length = 0;
+      return result;
+    };
+    await controller.flip(0);
+    expect(get().slots[0]?.stage).toBe('placed');
+    // Claude reveals the same card later, with no line.
+    vi.setSystemTime(new Date('2026-11-05T20:00:03Z'));
+    revealed.push('tome');
+    await controller.load();
+    expect(await restorePendingLines(deps)).toBeNull();
+    expect(get().slots[0]?.line).toBeUndefined();
   });
 
   it('puts the line back on a write that lands after the flip is over, then gives up', async () => {

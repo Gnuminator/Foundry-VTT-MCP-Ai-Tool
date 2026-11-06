@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 03c630a45c52
+sourceHash: 3a4400afdc43
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -204,7 +204,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Starter:** slået fra hver gang dashboardet starter. Turn on for tonight slår den til, End
   session slår den fra.
 - **Slå den til, når:** du handler fra dashboardet. Turn on for tonight gør det for dig.
-- **Mere:** [GM Actions](dashboard.md#live-play-on-all-set).
+- **Mere:** [GM Actions](dashboard.md#live-play-on).
 
 ## De andre knapper
 

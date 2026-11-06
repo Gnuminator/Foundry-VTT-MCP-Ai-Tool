@@ -240,11 +240,10 @@ export default {
           body: { action: 'set-gm-actions', value: true },
         });
         await page.waitForFunction(() => {
-          const txt = document.querySelector('#btn-gm')?.textContent ?? '';
-          return txt.trim() !== '' && !/GM Actions/i.test(txt);
+          return document.querySelector('#btn-gm')?.getAttribute('data-gm-actions') === 'on';
         });
       }
-      t.check(await gmActionsLabelOn(page), 'the header does not name GM Actions as off');
+      t.check(await gmActionsLabelOn(page), 'the header shows GM Actions on');
       // The drawers' features, on for the run and put back afterwards (after the undo below, which
       // registers later and so runs first).
       const { before: switchesBefore } = await t.gm('setFeatureSwitches', {

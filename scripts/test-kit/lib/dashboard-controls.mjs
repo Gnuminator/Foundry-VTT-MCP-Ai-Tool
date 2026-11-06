@@ -149,7 +149,6 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.back',
     'dash.live.header-undo',
     'dash.live.how-do-i',
-    'dash.live.more',
   ].map(name => ({
     name,
     how: 'skip',

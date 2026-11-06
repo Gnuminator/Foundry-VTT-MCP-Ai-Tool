@@ -609,12 +609,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
   },
   {
-    name: 'dash.live.more',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
-  },
-  {
     name: 'dash.live.next-turn',
     kind: 'action',
     surface: 'dashboard',

@@ -1,6 +1,6 @@
 ---
 source: gm/after-session.md
-sourceHash: b54459a76269
+sourceHash: df7397feedfb
 title: Efter hver session
 description: En kort tjekliste til GM'en, når en spilsession er slut.
 ---
@@ -17,7 +17,7 @@ er én handling.
 - [ ] Klik på **End session** i dashboardets header. Der skulle nu stå "No session". Det slår også
       det fra, som **Turn on for tonight** slog til, og **GM Actions**. Hvis administratoren har sat
       Discord-opslaget op, lægger botten linket til spillersiden i sin kanal inden for et par minutter.
-- [ ] Hvis dashboardets header stadig siger **Live play on: all set**, så klik på **End session** (det slår live play fra).
+- [ ] Hvis dashboardets header stadig siger **Live play on**, så klik på **End session** (det slår live play fra).
 - [ ] I Tarokka-skuffen (🃏 **Tarokka**, under **Advanced ▾**): fjern fluebenet ved **Show cards**, hvis det er sat.
 
 ## Slå funktioner fra

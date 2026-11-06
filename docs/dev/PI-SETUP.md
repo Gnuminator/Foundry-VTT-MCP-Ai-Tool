@@ -1518,7 +1518,7 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 The Pi's bot (`/etc/foundry-ai-tool/discord-bot.env`) was set up against a test server. Stage 26
 (`scripts/pi/remote/26-discord-game-server.sh`) points it at the game server "D&D GUTTERNE": `DISCORD_GUILD_ID`
 (so `/record` registers there at once), `DISCORD_SESSION_POST_CHANNEL_ID` (#session-notes, the session-over post),
-`GAMENIGHT_WATCH_CHANNEL_ID` (#gm-bot) and `DISCORD_CHANGELOG_CHANNEL_ID` (#changelog, Pi deploy lines). The token
+`GAMENIGHT_WATCH_CHANNEL_ID` (#gm-bot; the recorder's alerts go there too, or to `DISCORD_GM_BOT_CHANNEL_ID` when that is set) and `DISCORD_CHANGELOG_CHANNEL_ID` (#changelog, Pi deploy lines). The token
 and every other line stay as they are and are never printed. The first real run saves the old file as
 `discord-bot.env.before-game-server` (same owner and mode, it holds the token) and restarts the bot, which ends a
 recording, so it refuses while players are online or a recording runs. `/record` registered in the old server stays

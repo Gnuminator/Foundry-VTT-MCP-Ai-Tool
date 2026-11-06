@@ -179,7 +179,15 @@ describe('get-preflight recording check', () => {
       const d = new Date(iso);
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     };
-    expect(rec?.detail).toContain(`not recording since ${clockOf('2026-11-05T20:05:00.000Z')}`);
+    const dateOf = (iso: string): string => {
+      const d = new Date(iso);
+      const p = (n: number): string => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    };
+    // Not today: the date is in front of the time; the ISO form never shows.
+    expect(rec?.detail).toContain(
+      `not recording since ${dateOf('2026-11-05T20:05:00.000Z')} ${clockOf('2026-11-05T20:05:00.000Z')}`
+    );
     expect(rec?.detail).not.toContain('2026-11-05T');
     expect(rec?.detail).toContain('disk full');
     expect(rec?.detail).toContain('7 records lost');

@@ -145,6 +145,8 @@ export class EventPump {
   private inFlight: Promise<number> | null = null;
   private state: PumpMemState | null = null;
   private lastError: string | null = null;
+  /** Start of an outage whose link is back but not yet filed into the state (the world-id fetch or state load may still fail). */
+  private unfiledOutageStart: number | null = null;
   readonly health = new PumpHealth('session events');
 
   constructor(options: EventPumpOptions) {
@@ -201,11 +203,15 @@ export class EventPump {
       this.health.linkDown(Date.now());
       return 0;
     }
+    // The link is up again: clear "not recording" before anything that can fail (the world-id
+    // fetch is the first round trip after a reconnect), and keep the outage start until the state
+    // is loaded.
+    const upAfter = this.health.linkUp();
+    if (upAfter !== null && this.unfiledOutageStart === null) this.unfiledOutageStart = upAfter;
     const worldId = await this.worldIds.current();
     const state = await this.loadState(worldId);
 
-    // The link is up again: take the outage before the query, so a query that fails right after
-    // the reconnect does not leave "not recording" set. The outage is kept until a poll with
+    // File the outage before the query, so a query that fails right after the reconnect keeps it. The outage is kept until a poll with
     // events shows whether a reload explains it.
     this.takeOutage(state, Date.now());
 
@@ -293,8 +299,9 @@ export class EventPump {
    * wait for the next event.
    */
   private takeOutage(state: PumpMemState, now: number): void {
-    const outageStart = this.health.linkUp();
+    const outageStart = this.unfiledOutageStart;
     if (outageStart === null) return;
+    this.unfiledOutageStart = null;
     // Several outages before the next event: the longest one counts, blips do not add up.
     const held = state.pendingOutage;
     if (!held || now - outageStart > held.end - held.start) {

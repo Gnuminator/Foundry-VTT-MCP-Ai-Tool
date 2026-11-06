@@ -37,6 +37,7 @@ describe('playLogDot', () => {
     const dot = playLogDot([{ ...OK, gapCount: 1, lostCount: 3, lastGap: gap }], NOW);
     expect(dot?.tone).toBe('warn');
     expect(dot?.detail).toContain('3 lost');
+    expect(dot?.detail).toContain('A gap marker is in the session log.');
     const old = { ...gap, at: '2026-11-06T10:00:00.000Z' };
     expect(playLogDot([{ ...OK, gapCount: 1, lastGap: old }], NOW)).toBeNull();
   });
@@ -44,6 +45,8 @@ describe('playLogDot', () => {
   it('is amber for a pump error and unknown (never ok) when the bridge cannot be asked', () => {
     const err = { message: 'disk full', at: '2026-11-06T20:58:00.000Z' };
     expect(playLogDot([{ ...OK, lastError: err }], NOW)?.tone).toBe('warn');
+    // Only an error: no gap marker was written, so the dot does not mention one.
+    expect(playLogDot([{ ...OK, lastError: err }], NOW)?.detail).not.toContain('gap marker');
     expect(playLogDot(null, NOW)).toMatchObject({ tone: 'unknown', text: 'unknown' });
   });
 });

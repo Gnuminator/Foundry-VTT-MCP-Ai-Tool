@@ -97,6 +97,9 @@ function doneText(name: string, result: Applied | null): string {
 export const failCode = (err: unknown): string =>
   err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
 
+/** The tool's own words when a plan is gone but its change may have gone in (see api.ts). */
+const PLAN_GONE = /It may have been applied already/i;
+
 /**
  * Whether a failed write may still have landed in Foundry: the request went out but the answer
  * did not come back. The bridge stopped waiting (timeout), the bridge link dropped after the send
@@ -106,6 +109,9 @@ export const failCode = (err: unknown): string =>
 export function mayHaveApplied(err: unknown): boolean {
   if (!(err instanceof ApiError)) return true;
   if (err.kind === 'timeout' || err.kind === 'channel') return true;
+  // The plan is gone but the change may have gone in (the tool says so): the form must not keep
+  // its draft, or a second press plans and applies the same thing again.
+  if (err.kind === 'tool' && PLAN_GONE.test(err.message)) return true;
   return err.kind === undefined && err.status >= 500;
 }
 
@@ -234,7 +240,9 @@ export function useGuardedTools(): GuardedTools {
         body: JSON.stringify({ action: 'ready' }),
       })
         .then(data => applySwitchesWrite(queryClient, toast, data, 'ready'))
-        .catch((err: unknown) => toast(`✗ Turn on for tonight: ${errorText(err)}`, 'err'));
+        .catch((err: unknown) =>
+          toast(`✗ Turn on for tonight: ${errorText(err)}`, 'err', undefined, failCode(err))
+        );
     };
 
     /**
@@ -327,7 +335,9 @@ export function useGuardedTools(): GuardedTools {
             changedLater
               ? "✗ Couldn't undo it: it was changed after that. Nothing was written."
               : "✗ Couldn't undo it: Foundry no longer matches that change. Nothing was written.",
-            'err'
+            'err',
+            undefined,
+            failCode(err)
           );
           changed();
           return { outcome: { status: 'failed', error } };
@@ -344,7 +354,8 @@ export function useGuardedTools(): GuardedTools {
           if (err instanceof ApiError && err.kind === undefined && err.status >= 500) {
             error = 'The answer did not come back.';
           }
-          const text = error.trim();
+          // The plan-gone sentence already says it; word it with this call's own place to look.
+          const text = error.replace(/s*It may have applied; check [^.]*./, '').trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
           error = `${text}${stop} ${checkHint}`;
         }
@@ -417,7 +428,7 @@ export function useGuardedTools(): GuardedTools {
           shown = (await callTool<Plan | null>('get-planned-change', { planId })) ?? {};
         } catch (err) {
           usage().trackTool('apply-planned-change', 'error', failCode(err));
-          toast(`✗ Can't load the plan: ${errorText(err)}`, 'err');
+          toast(`✗ Can't load the plan: ${errorText(err)}`, 'err', undefined, failCode(err));
           return { outcome: { status: 'failed', error: `Can't load the plan: ${errorText(err)}` } };
         }
         lines = planLines(shown) ?? lines ?? [];
@@ -478,7 +489,7 @@ export function useGuardedTools(): GuardedTools {
         planned = await callTool<Plan | null>(planTool, args);
       } catch (err) {
         usage().trackTool(planTool, 'error', failCode(err));
-        toast(`✗ ${toolWords(planTool)}: ${errorText(err)}`, 'err');
+        toast(`✗ ${toolWords(planTool)}: ${errorText(err)}`, 'err', undefined, failCode(err));
         return { status: 'failed', error: errorText(err) };
       }
       usage().trackTool(planTool, 'ok');

@@ -118,7 +118,7 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
           toast(text.replace(/^Error:\s*/, ''), 'warn');
           void queryClient.invalidateQueries({ queryKey: MOOD_FEATURES_KEY });
         } else {
-          toast(`✗ Mood "${preset}": ${text}`, 'err');
+          toast(`✗ Mood "${preset}": ${text}`, 'err', undefined, failCode(err));
         }
         return;
       }
@@ -155,7 +155,13 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       // be gone, so the focus goes to the first mood of the new list once the buttons are free.
       if (refocus.current) {
         refocus.current = false;
-        requestAnimationFrame(() => focusFirstPreset());
+        requestAnimationFrame(() => {
+          // Only when the focus fell to the page: a GM who moved on during the refetch keeps it.
+          const active = document.activeElement;
+          if (active === null || active === document.body || rootRef.current?.contains(active)) {
+            focusFirstPreset();
+          }
+        });
       }
     }
   };

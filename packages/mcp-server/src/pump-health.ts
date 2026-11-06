@@ -107,6 +107,15 @@ const REASON_TEXT: Record<GapReason, string> = {
 };
 
 /** `HH:MM` in the host's local time. */
+/** HH:MM, with the date in front when the time is not today. */
+export function clockWithDay(ms: number, now: number = Date.now()): string {
+  const d = new Date(ms);
+  const n = new Date(now);
+  if (d.toDateString() === n.toDateString()) return clock(ms);
+  const p = (v: number): string => String(v).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${clock(ms)}`;
+}
+
 export function clock(ms: number): string {
   const d = new Date(ms);
   const p = (n: number): string => String(n).padStart(2, '0');

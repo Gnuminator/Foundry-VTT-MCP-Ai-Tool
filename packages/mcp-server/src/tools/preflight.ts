@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { SESSION_GAP_MS } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
-import { clock, type PumpHealthSnapshot } from '../pump-health.js';
+import { clockWithDay, type PumpHealthSnapshot } from '../pump-health.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-registry.js';
@@ -256,7 +256,7 @@ export class PreflightTools {
     const problems: string[] = [];
     let unknown = false;
     let recentGap = false;
-    const at = (iso: string): string => clock(Date.parse(iso));
+    const at = (iso: string): string => clockWithDay(Date.parse(iso));
     for (const p of pumps) {
       if (p.notRecordingSince) {
         problems.push(

@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 8b97e8b98ffe
+sourceHash: 3a4400afdc43
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -103,10 +103,15 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   skuffen og lægger en side til spillerne i afsløringsjournalen. Bordet kræver, at kortlægningen
   findes først (lagt eller valgt i skuffen, eller af Claude), og at bridgen er forbundet.
 - **At vende kortet som en ceremoni:** skriv din egen linje til kortet i Flip-boksen. Når du trykker
-  **Flip**, bliver alle skærme mørke, kortet vender langsomt med en blød klokketone, og din linje
-  toner frem under det. Efter få sekunder toner det ud igen (et klik lukker det før), og
-  kortlægningen bliver stående i bordvinduet og på spillersiden med din linje under kortet. Du kan
-  vælge din egen lydfil i modulets indstillinger (Tarokka card flip sound).
+  **Flip**, mens bordet vises for spillerne (**Show to players** er slået til), bliver alle skærme
+  mørke, kortet vender langsomt med en blød klokketone, og din linje toner frem under det. Det
+  varer cirka 11 sekunder og toner så ud igen (et klik eller Escape lukker det før).
+  Kortlægningen bliver stående på spillernes bord og på spillersiden med din linje under kortet;
+  dit eget bordvindue viser kortene, men ikke linjen. Vises bordet ikke, er flip kun en afsløring
+  uden ceremoni. Et kort, der afsløres fra skuffen eller af Claude, mens bordet vises, spiller også
+  ceremonien, men uden linje. Du kan vælge din egen lydfil i modulets indstillinger (Tarokka card
+  flip sound). En browser er stille, til siden har fået et klik eller et tastetryk, så klik et
+  vilkårligt sted i Foundry, når du er kommet ind.
 - **Papir som reserve:** hvis skærmene ikke bliver mørke, eller kortet ikke vender (langsom
   forbindelse, en spiller der kom for sent), er intet tabt. Kortet er stadig vendt og står på
   spillersiden. Læs bare din linje højt og sig "vend kortet", som med et rigtigt sæt kort.
@@ -199,7 +204,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Starter:** slået fra hver gang dashboardet starter. Turn on for tonight slår den til, End
   session slår den fra.
 - **Slå den til, når:** du handler fra dashboardet. Turn on for tonight gør det for dig.
-- **Mere:** [GM Actions](dashboard.md#live-play-on-all-set).
+- **Mere:** [GM Actions](dashboard.md#live-play-on).
 
 ## De andre knapper
 

@@ -99,10 +99,15 @@ GM Actions. **End session** turns off again what it turned on. See
   the players in the reveal journal. The table needs the reading to exist first (dealt or chosen in
   the drawer, or by Claude), and the bridge to be connected.
 - **The flip as a ceremony:** type your own line for the card in the Flip box. When you press
-  **Flip**, every screen dims, the card turns over slowly with a soft chime, and your line fades in
-  under it; after a few seconds it fades out (a click closes it sooner) and the reading stays in
-  the table window and on the player page, with your line under the card. A sound file of your own
-  can be set in the module settings (Tarokka card flip sound).
+  **Flip** while the table is shown to the players (**Show to players** is on), every screen dims,
+  the card turns over slowly with a soft chime, and your line fades in under it. It lasts about
+  11 seconds and then fades out (a click or Escape closes it sooner). The reading stays on the
+  players' table and on the player page, with your line under the card; your own table window shows
+  the cards but not the line. If the table is not shown, the flip is only a reveal, with no
+  ceremony. A card revealed from the drawer or by Claude while the table is shown also plays the
+  ceremony, without a line. A sound file of your own can be set in the module settings (Tarokka
+  card flip sound). A browser stays silent until the page has had a click or key press once, so
+  click anywhere in Foundry after joining.
 - **Paper fallback:** if the screens do not dim or the card does not turn (a slow connection, a
   player who joined late), nothing is lost. The card is still flipped and on the player page. Just
   read your line out loud and say "turn over the card", the way you would with a physical deck.
@@ -191,7 +196,7 @@ GM Actions. **End session** turns off again what it turned on. See
 - **Starts:** off every time the dashboard starts. Turn on for tonight turns it on, End session turns
   it off.
 - **Turn it on when:** you act from the dashboard. Turn on for tonight does it for you.
-- **More:** [GM Actions](dashboard.md#live-play-on-all-set).
+- **More:** [GM Actions](dashboard.md#live-play-on).
 
 ## The other switches
 

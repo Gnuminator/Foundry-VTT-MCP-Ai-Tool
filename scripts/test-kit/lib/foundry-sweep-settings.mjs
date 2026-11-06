@@ -1,6 +1,6 @@
 /**
  * The settings rows of the `foundry-controls` sweep: the "Foundry AI Tool" section of Configure
- * Settings, its nine feature switches, its three menus (the GM guide link, the Enhanced Creature
+ * Settings, a sample of its feature switches, its three menus (the GM guide link, the Enhanced Creature
  * Index window, the join page look dialog), and the same screen as a player sees it (no section at
  * all: the module's settings are world settings, which players do not get).
  */
@@ -37,7 +37,7 @@ export const SETTING_LABELS = [
   'AI Tool: Reconnect by itself',
 ];
 
-/** The nine feature switches: setting key, label, default. */
+/** A sample of the feature switches (main.ts registers more): setting key, label, default. */
 export const FEATURE_SWITCHES = [
   ['feature.tarokka.enabled', 'AI Tool: Tarokka (writes)', false],
   ['feature.handouts.enabled', 'AI Tool: Handouts (writes)', false],
@@ -46,6 +46,7 @@ export const FEATURE_SWITCHES = [
   ['feature.live-play.enabled', 'AI Tool: Live play (writes)', true],
   ['feature.live-play.autoApply', 'AI Tool: Live play, apply without confirming', false],
   ['feature.session-notes.enabled', 'AI Tool: Session notes (writes)', false],
+  ['feature.rules-check.enabled', 'AI Tool: Rules check', true],
   ['feature.ownership.enabled', 'AI Tool: Ownership (writes)', true],
   ['feature.change-undo.enabled', 'AI Tool: Undo for everything', true],
 ];

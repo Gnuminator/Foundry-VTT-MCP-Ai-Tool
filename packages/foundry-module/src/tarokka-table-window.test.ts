@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyTable, parsePublicTable, type PublicTable } from './tarokka-table-model.js';
-import { TableController, type TableDeps } from './tarokka-table-window.js';
+import { restorePendingLines, TableController, type TableDeps } from './tarokka-table-window.js';
 
 const CARDS = [
   ['tome', 'swords-7', 'Seven of Swords'],
@@ -90,6 +90,10 @@ function makeController(options: { flipText?: string | null; picked?: string | n
   };
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('TableController', () => {
   it('loads the reading and starts a clean public table for it', async () => {
     const { controller, get } = makeController();
@@ -158,6 +162,196 @@ describe('TableController', () => {
     await controller.flip(0);
     expect(get().slots[0]?.stage).toBe('revealed');
     expect(get().slots[0]?.line).toBe('Kept line.');
+  });
+
+  it('does not carry a line from a failed flip into the next flip with an empty field', async () => {
+    const { controller, backend, deps, get } = makeController({ flipText: 'Lost line.' });
+    await controller.load();
+    await controller.place();
+    backend.failApply = true;
+    await controller.flip(0);
+    expect(controller.view.actionError).toBe('apply refused');
+    backend.failApply = false;
+    (deps.confirmFlip as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => '');
+    await controller.flip(0);
+    expect(get().slots[0]).toMatchObject({ stage: 'revealed' });
+    expect(get().slots[0]?.line).toBeUndefined();
+  });
+
+  it('keeps the line when a second load drops the first one (sequence drop)', async () => {
+    const { controller, request, get } = makeController({ flipText: 'Survives.' });
+    await controller.load();
+    await controller.place();
+    // A change-watcher load starts right after the flip's own load began, so it is the newer one
+    // and the flip's load drops its table write (sequence check).
+    let applied = false;
+    let started = false;
+    const original = request.getMockImplementation() as (
+      tool: string,
+      args: Record<string, unknown>
+    ) => Promise<unknown>;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    let held = false;
+    request.mockImplementation(async (tool, args) => {
+      if (tool === 'get-tarokka-reading' && started && !held) {
+        // The watcher's own reading arrives only after the flip is over.
+        held = true;
+        await gate;
+      }
+      const result = await original(tool, args);
+      if (tool === 'apply-planned-change') applied = true;
+      else if (tool === 'get-tarokka-reading' && applied && !started) {
+        started = true;
+        void controller.load();
+      }
+      return result;
+    });
+    await controller.flip(0);
+    // The flip's own load was dropped, so the table still lacks the card; the watcher load lands
+    // now and must still find the kept line.
+    release();
+    await new Promise(r => setTimeout(r, 0));
+    expect(started).toBe(true);
+    expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Survives.' });
+  });
+
+  it('does nothing once the stored table shows the line', async () => {
+    const { controller, deps, get } = makeController({ flipText: 'Kept for the watcher.' });
+    await controller.load();
+    await controller.place();
+    await controller.flip(0);
+    expect(get().slots[0]?.line).toBe('Kept for the watcher.');
+    // Settled: the stored table shows the line, so there is nothing to restore.
+    expect(await restorePendingLines(deps)).toBeNull();
+  });
+
+  it('reports a successful flip even when restoring the kept line throws', async () => {
+    const { controller, deps, get } = makeController({ flipText: 'Kept.' });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await controller.load();
+    await controller.place();
+    const write = deps.writeTable.bind(deps);
+    deps.writeTable = async (t): Promise<void> => {
+      if (!t.slots.some(s => s.stage === 'revealed')) return write(t);
+      // The flip's own write loses the line, so the restore has work to do, and then fails.
+      await write({ ...t, slots: t.slots.map(s => ({ ...s, line: undefined })) } as PublicTable);
+      deps.writeTable = async (): Promise<void> => {
+        throw new Error('write refused');
+      };
+    };
+    await controller.flip(0);
+    expect(controller.view.actionError).toBeFalsy();
+    expect(deps.notifyError).not.toHaveBeenCalled();
+    expect(get().slots[0]?.stage).toBe('revealed');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('keeps the line when plan and apply together take longer than the unrevealed grace', async () => {
+    vi.useFakeTimers();
+    const start = new Date('2026-11-05T20:00:00Z').getTime();
+    vi.setSystemTime(start);
+    const { controller, deps, get } = makeController({ flipText: 'Slow link.' });
+    await controller.load();
+    await controller.place();
+    const request = deps.request.bind(deps);
+    deps.request = async (tool, args): Promise<unknown> => {
+      const result = await request(tool, args);
+      if (tool === 'apply-planned-change') vi.setSystemTime(start + 2500);
+      return result;
+    };
+    await controller.flip(0);
+    expect(get().slots[0]).toMatchObject({ stage: 'revealed', line: 'Slow link.' });
+  });
+
+  it('drops a kept line whose card was never revealed, so a later reveal does not use it', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-05T20:00:00Z'));
+    const { controller, deps, backend, revealed, get } = makeController({ flipText: 'Old line.' });
+    await controller.load();
+    await controller.place();
+    // The apply "succeeds" but the stored table never shows the card revealed (undone at once).
+    backend.failApply = false;
+    const request = deps.request.bind(deps);
+    deps.request = async (tool, args): Promise<unknown> => {
+      const result = await request(tool, args);
+      if (tool === 'apply-planned-change') revealed.length = 0;
+      return result;
+    };
+    await controller.flip(0);
+    expect(get().slots[0]?.stage).toBe('placed');
+    // Claude reveals the same card later, with no line.
+    vi.setSystemTime(new Date('2026-11-05T20:00:03Z'));
+    revealed.push('tome');
+    await controller.load();
+    expect(await restorePendingLines(deps)).toBeNull();
+    expect(get().slots[0]?.line).toBeUndefined();
+  });
+
+  it('puts the line back on a write that lands after the flip is over, then gives up', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-05T20:00:00Z'));
+    const { controller, deps, get } = makeController({ flipText: 'Late write.' });
+    await controller.load();
+    await controller.place();
+    const write = deps.writeTable.bind(deps);
+    let strip = true;
+    deps.writeTable = async (t): Promise<void> => {
+      // The flip's own writes lose the line, as another client's last write would.
+      if (strip && t.slots.some(s => s.stage === 'revealed')) {
+        await write({ ...t, slots: t.slots.map(s => ({ ...s, line: undefined })) } as PublicTable);
+        return;
+      }
+      await write(t);
+    };
+    await controller.flip(0);
+    strip = false;
+    // The flip's own restore was stripped too; the watcher's later restore lands it.
+    expect(get().slots[0]?.line).toBeUndefined();
+    expect((await restorePendingLines(deps))?.slots[0]?.line).toBe('Late write.');
+    expect(get().slots[0]?.line).toBe('Late write.');
+
+    // After 10 s a dropped line is no longer restored.
+    const second = makeController({ flipText: 'Too late.' });
+    await second.controller.load();
+    await second.controller.place();
+    const w2 = second.deps.writeTable.bind(second.deps);
+    second.deps.writeTable = async (t): Promise<void> => {
+      await w2({ ...t, slots: t.slots.map(s => ({ ...s, line: undefined })) } as PublicTable);
+    };
+    await second.controller.flip(0);
+    vi.setSystemTime(new Date('2026-11-05T20:00:11Z'));
+    expect(await restorePendingLines(second.deps)).toBeNull();
+    expect(second.get().slots[0]?.line).toBeUndefined();
+  });
+
+  it('place and show start from the stored table, not an older copy', async () => {
+    const { controller, deps, get } = makeController({ flipText: 'Line.' });
+    await controller.load();
+    await controller.place();
+    await controller.flip(0);
+    // Another client placed the second card and showed the table; this window did not hear.
+    await deps.writeTable({
+      ...get(),
+      shown: true,
+      slots: get().slots.map((s, i) => (i === 1 ? { stage: 'placed' as const } : s)),
+    });
+    await controller.place();
+    expect(get().slots.map(s => s.stage)).toEqual([
+      'revealed',
+      'placed',
+      'placed',
+      'empty',
+      'empty',
+    ]);
+    expect(get().slots[0]?.line).toBe('Line.');
+    await controller.setShown(false);
+    expect(get().shown).toBe(false);
+    expect(get().slots[0]?.line).toBe('Line.');
+    expect(get().slots[2]?.stage).toBe('placed');
   });
 
   it('flips a placed card through a normal reveal, then the face appears', async () => {

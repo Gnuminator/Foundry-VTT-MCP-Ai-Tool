@@ -511,23 +511,6 @@ export class ModuleSettings {
   }
 
   /**
-   * Update connection status display in settings
-   */
-  updateConnectionStatusDisplay(connected: boolean): void {
-    try {
-      const statusText = connected ? 'Connected' : 'Not connected. Is the AI Tool server started?';
-
-      // Update the hint for the enabled setting to show status
-      const enabledSetting = settingsRegistry().get(`${this.moduleId}.enabled`);
-      if (enabledSetting) {
-        enabledSetting.hint = `${enabledSetting.hint.split(' |')[0]} | Status: ${statusText}`;
-      }
-    } catch (error) {
-      console.warn(`[${this.moduleId}] Failed to update status display:`, error);
-    }
-  }
-
-  /**
    * Get current bridge configuration from settings
    */
   getBridgeConfig(): BridgeConfig {

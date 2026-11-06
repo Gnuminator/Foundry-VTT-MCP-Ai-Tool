@@ -1,0 +1,3 @@
+### Module (I-093)
+
+- **Round tokens with a ring, by default:** the new admin tool `plan-token-rings` plans turning Foundry's dynamic token ring on (or off again) for the characters and NPCs of the world, so their tokens are round instead of a bare square picture. dnd5e then flashes the ring when a token takes damage and marks whose turn it is. One plan covers up to 150 actors; the answer says how many are left, and asking again picks up there. It is a normal plan: you confirm it, it shows in Recent Changes and Undo puts every actor back. Only the actors' default tokens change; tokens already on a scene keep their old look. The switch "AI Tool: Token rings (writes)" ships off; turn it on in the module settings before asking.

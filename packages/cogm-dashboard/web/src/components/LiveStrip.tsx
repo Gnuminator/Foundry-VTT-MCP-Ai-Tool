@@ -45,6 +45,7 @@ import {
   CHANGES_KEY,
   HANDOUTS_KEY,
   useBridgeAway,
+  useBridgeStatus,
   useCombat,
   useDashboardSettings,
   refreshCombat,
@@ -215,6 +216,7 @@ function Card({
 export function LiveStrip(): JSX.Element {
   const combat = useCombat();
   const away = useBridgeAway();
+  const bridgeStatus = useBridgeStatus();
   const live = useLivePlay();
   const liveOff = live.off();
   const settings = useDashboardSettings();
@@ -429,7 +431,13 @@ export function LiveStrip(): JSX.Element {
       <div className={styles['header']}>
         <h2 className={styles['title']}>Live</h2>
         <span className={styles['meta']} id="live-meta" role="status">
-          {combat !== null ? turnText(combat, names) : 'No fight.'}
+          {combat !== null
+            ? turnText(combat, names)
+            : away
+              ? bridgeStatus?.controlChannel === 'connected'
+                ? 'Foundry is away.'
+                : 'The bridge is away.'
+              : 'No fight.'}
         </span>
         {combat !== null && (
           <>

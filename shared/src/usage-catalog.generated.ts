@@ -243,6 +243,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/ConditionsPanel.tsx',
   },
   {
+    name: 'dash.crash.reload',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/RootBoundary.tsx',
+  },
+  {
     name: 'dash.damage.amount',
     kind: 'action',
     surface: 'dashboard',
@@ -598,12 +604,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.live.how-do-i',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
-  },
-  {
-    name: 'dash.live.more',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',

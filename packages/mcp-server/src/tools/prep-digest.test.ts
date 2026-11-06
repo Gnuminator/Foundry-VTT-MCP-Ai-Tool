@@ -169,6 +169,8 @@ interface Setup {
   prepTimeoutMs?: number;
   /** The recorder's sessions folder, for "Previously on". */
   sessionsDir?: string;
+  /** Replaces the sessions folder reader (the never-answers test hands in one that never settles). */
+  readPreviously?: () => Promise<never>;
 }
 
 /** Generous: a loaded machine can take over 200 ms to read a few small notes; only the hang test expects the timeout. */
@@ -208,6 +210,10 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
       ? { vaultDir: obsidianDir, prepNotesTimeoutMs: setup.prepTimeoutMs ?? PREP_TEST_TIMEOUT_MS }
       : {}),
     ...(setup.sessionsDir ? { sessionsDir: setup.sessionsDir } : {}),
+    ...(setup.readPreviously ? { readPreviously: setup.readPreviously } : {}),
+    ...(setup.readPreviously && setup.prepTimeoutMs
+      ? { prepNotesTimeoutMs: setup.prepTimeoutMs }
+      : {}),
   };
   return new PrepDigestTools(options);
 }
@@ -641,7 +647,7 @@ describe('get-prep-digest', () => {
   describe('previously on', () => {
     it('opens the digest with the newest GM summary of the sessions folder', async () => {
       const sessions = path.join(dataDir, 'FoundrySessions');
-      const notes = path.join(sessions, '2026-10-02-discord', 'notes');
+      const notes = path.join(sessions, '2026-10-02_2000-discord', 'notes');
       await fsp.mkdir(notes, { recursive: true });
       await fsp.writeFile(
         path.join(notes, 'summary.en.md'),
@@ -651,7 +657,7 @@ describe('get-prep-digest', () => {
       const digest = await makeTools({ sessionsDir: sessions }).handleGetPrepDigest({});
       expect(digest.previously).toMatchObject({
         status: 'found',
-        session: '2026-10-02-discord',
+        session: '2026-10-02_2000-discord',
         lang: 'en',
         title: 'Test night',
         text: 'The test party crossed a test bridge.',
@@ -667,6 +673,17 @@ describe('get-prep-digest', () => {
       const digest = await makeTools({ sessionsDir: missing }).handleGetPrepDigest({});
       expect(digest.previously?.status).toBe('unreachable');
       expect(digest.previously?.note).toContain(missing);
+      expect(digest.openQuests).not.toBeNull();
+    });
+
+    it('a sessions folder that never answers becomes a note and the rest still comes back', async () => {
+      const digest = await makeTools({
+        sessionsDir: path.join(dataDir, 'FoundrySessions'),
+        readPreviously: () => new Promise<never>(() => undefined),
+        prepTimeoutMs: 100,
+      }).handleGetPrepDigest({});
+      expect(digest.previously).toMatchObject({ status: 'unreachable' });
+      expect(digest.previously?.note).toMatch(/gave no answer within \d+ s/);
       expect(digest.openQuests).not.toBeNull();
     });
 

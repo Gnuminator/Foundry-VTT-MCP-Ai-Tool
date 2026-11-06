@@ -11,7 +11,7 @@ import type { DashboardParameters } from '../storybook/withDashboard';
 
 import { LivePlayLine } from './GmActionsSwitch';
 
-// The live play line in the header: "Live play on: all set" or what is off with a Turn on. Start
+// The live play line in the header: "Live play on" or what is off with a Turn on. Start
 // session is the only switch; the line shows the state and its list holds one Turn on.
 const meta = {
   title: 'Components/Live play line',
@@ -74,7 +74,7 @@ export const AllSet: Story = {
   render,
   play: async ({ canvasElement }) => {
     const button = await within(canvasElement).findByRole('button', {
-      name: 'Live play on: all set',
+      name: 'Live play on',
     });
     await expect(button).toHaveClass('on');
   },
@@ -99,9 +99,7 @@ export const TurnsOn: Story = {
     const list = await within(document.body).findByRole('list', { name: 'Live play switches' });
     await expect(list).toBeVisible();
     await userEvent.click(within(document.body).getByRole('button', { name: 'Turn on' }));
-    await waitFor(() =>
-      expect(canvas.getByRole('button', { name: 'Live play on: all set' })).toBeVisible()
-    );
+    await waitFor(() => expect(canvas.getByRole('button', { name: 'Live play on' })).toBeVisible());
   },
 };
 

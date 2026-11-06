@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: d0b49fb3aa02
+sourceHash: 138267bfd16b
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -66,18 +66,18 @@ Obsidian-note pr. session og til at gruppere play log.
   værktøjer, der ændrer spillet, kan køre, når du har bekræftet.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
 
-📓 Obsidian ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
+Obsidian-knappen ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
 
-### Live play on: all set
+### Live play on
 
 **Start session** er den eneste kontakt til live play. Ét klik slår GM Actions og alle
 **Turn on for tonight**-kontakter til; **End session** slår dem fra igen. Linjen i headeren
 viser tilstanden og åbner listen over kontakter. Når siden ikke kan læse kontakterne, siger
 linjen det (og siger stadig til, hvis GM Actions er slået fra).
 
-- **Live play on: all set**: værktøjer, der ændrer spillet, kan køre, når du har bekræftet, og Undo
+- **Live play on**: værktøjer, der ændrer spillet, kan køre, når du har bekræftet, og Undo
   i Recent Changes virker.
-- **Something is off** (for eksempel "Handouts is off: Turn on"): de knapper, der skal bruge det,
+- **Something is off** (knappen siger "Live play off: Turn on"; hold musen over den for at se, hvad der er slået fra): de knapper, der skal bruge det,
   bliver stående på skærmen, nedtonede, med årsagen og en **Turn on**-knap ved siden af. Ét klik
   slår alt til, det samme som Start session.
 - Det beskytter kun dashboardet. Det stopper ikke Claude Desktop.

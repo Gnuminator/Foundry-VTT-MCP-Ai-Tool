@@ -43,6 +43,23 @@ async function main(argv: string[]): Promise<number> {
         }
       );
     };
+    // A stray rejection should not take a running recording down: log it, tell the GM, carry on.
+    process.on('unhandledRejection', (reason: unknown) => {
+      log.error('Unhandled rejection', reason);
+      void bot.alertGm(
+        `Recorder bot: an unexpected error was caught and the bot keeps running (${reason instanceof Error ? reason.message : String(reason)}).`
+      );
+    });
+    // An uncaught exception leaves the process in an unknown state: tell the GM (at most 3 s), then
+    // exit so the service manager restarts it; the run marker makes the restart announce itself.
+    process.on('uncaughtException', (err: Error) => {
+      log.error('Uncaught exception, exiting', err);
+      const done = (): never => process.exit(1);
+      setTimeout(done, 3000).unref();
+      bot
+        .alertGm(`Recorder bot: crashed (${err.message}). It will restart on its own.`)
+        .then(done, done);
+    });
     process.on('SIGINT', close);
     process.on('SIGTERM', close);
     await bot.run();

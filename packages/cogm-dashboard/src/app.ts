@@ -121,6 +121,8 @@ export interface DashboardDeps {
   spaceStatusFile?: string;
   /** Test clock for the space check's age. */
   spaceNow?: () => number;
+  /** Test only: the status heartbeat interval in ms (default STATUS_HEARTBEAT_MS). */
+  statusHeartbeatMs?: number;
   /** The test kit's last-run.json for the version tracker; default env or the PC's kit home. */
   kitLastRunFile?: string | null;
 }
@@ -168,6 +170,8 @@ export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
 };
 /** How often the player view context (visibility, handouts) is refreshed. */
 const PLAYER_SOURCE_INTERVAL_MS = 5_000;
+/** How often the GM stream repeats the bridge status (the page's watchdog allows 45 s of silence). */
+export const STATUS_HEARTBEAT_MS = 17_000;
 /** Player-state broadcasts are coalesced over this window. */
 const PLAYER_BROADCAST_DEBOUNCE_MS = 250;
 
@@ -249,6 +253,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let lastCombatJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
+  let heartbeatTimer: NodeJS.Timeout | null = null;
 
   // --- Player view (M2) ------------------------------------------------------
   let playerTimer: NodeJS.Timeout | null = null;
@@ -721,6 +726,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     res.json({
       ok: true,
       controlChannel: currentStatus.controlChannel,
+      foundry: currentStatus.foundry,
+      lastPollAt: currentStatus.lastPollAt,
+      foundryDownSince: currentStatus.foundryDownSince,
       splitEnabled: config.auth.splitEnabled,
     });
   });
@@ -1188,8 +1196,18 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     start(): void {
       playerView.start(PLAYER_SOURCE_INTERVAL_MS);
       playerVaults?.start();
+      // The heartbeat (item gm-health-line): the status again every STATUS_HEARTBEAT_MS, so a page
+      // can tell "quiet" from "the stream died without telling it" (its watchdog is 45 s).
+      if (heartbeatTimer === null) {
+        heartbeatTimer = setInterval(() => {
+          sse.broadcast('status', currentStatus, gmOnly);
+        }, deps.statusHeartbeatMs ?? STATUS_HEARTBEAT_MS);
+        heartbeatTimer.unref();
+      }
     },
     close(): void {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
       playerView.stop();
       playerVaults?.stop();
       if (playerTimer) clearTimeout(playerTimer);

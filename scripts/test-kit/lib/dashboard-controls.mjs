@@ -123,6 +123,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.paper', how: 'skip', why: NOT_DRIVEN },
   // The Reload button that stands in for the combat strip when its chunk fails to load.
   { name: 'dash.strip.reload', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.crash.reload', how: 'skip', why: NOT_DRIVEN },
 
   // --- the live strip (/next?strip=1; the e2e spec live-strip.spec.ts and the live check cover it) ---
   ...[
@@ -148,7 +149,6 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.back',
     'dash.live.header-undo',
     'dash.live.how-do-i',
-    'dash.live.more',
   ].map(name => ({
     name,
     how: 'skip',

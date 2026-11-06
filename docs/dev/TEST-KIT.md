@@ -483,7 +483,7 @@ fails the test); the drivers are `lib/foundry-sweep.mjs` and `foundry-sweep-chan
   just run an Undo and a Redo, and see only that person's rows.
 - **Handouts and Tarokka windows:** the reveals are done through the windows' own buttons, checked from the kit
   player's side and then undone.
-- **Settings:** the "Foundry AI Tool" section, the nine feature switches, the three settings menus (GM guide,
+- **Settings:** the "Foundry AI Tool" section, a sample of the feature switches, the three settings menus (GM guide,
   Enhanced Index, join page look), and the join page look: Apply The Veil and back to Foundry's look.
 - **Journal and chat:** the campaign status toggle on a journal (the GM cycles it, a player is refused) and the
   roll request card (the player rolls, the card says who did).

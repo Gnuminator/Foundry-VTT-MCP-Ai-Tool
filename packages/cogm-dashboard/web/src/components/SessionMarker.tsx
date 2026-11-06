@@ -40,15 +40,15 @@ export function SessionMarker(): JSX.Element {
       {home ? (
         <a
           id="session-obsidian"
-          className="link-btn"
+          className="btn"
           data-track="dash.session.open-obsidian"
           href={home}
           target="_blank"
           rel="noopener"
-          title="Open the campaign Home note in Obsidian"
+          title="Open the campaign Home note in Obsidian (needs Obsidian on this PC)"
           aria-label="Open the campaign Home note in Obsidian"
         >
-          📓 Obsidian
+          Obsidian
         </a>
       ) : null}
     </div>

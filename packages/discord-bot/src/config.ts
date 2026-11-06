@@ -12,6 +12,7 @@
  * | `FOUNDRY_AI_BACKUP_PULLS` | folder with the Pi's record of the PC's last backup copies |
  * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when a kind of copy is older than this; default 3  |
  * | `DISCORD_SESSION_POST_CHANNEL_ID` | channel for the "session is over" link post; unset = off |
+ * | `DISCORD_GM_BOT_CHANNEL_ID` | #gm-bot: recorder alerts go here (else `GAMENIGHT_WATCH_CHANNEL_ID`, else the voice channel chat) |
  * | `FOUNDRY_AI_DASHBOARD_URL` | where the bot reads the session state; default `http://127.0.0.1:3100` |
  * | `FOUNDRY_AI_PLAYER_PAGE_URL` | the player page link in the post (required for the post; no default) |
  * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
@@ -48,6 +49,12 @@ export interface BotConfig {
   playerPageUrl?: string | undefined;
   /** The dashboard's player token, when the deployment sets one. */
   playerToken?: string | undefined;
+  /**
+   * The #gm-bot channel for recorder alerts (silent speaker, stream error, rejoin trouble, restart
+   * after a crash). `DISCORD_GM_BOT_CHANNEL_ID`, else `GAMENIGHT_WATCH_CHANNEL_ID` (the same
+   * channel); unset means alerts go to the voice channel's text chat as before.
+   */
+  gmBotChannelId?: string | undefined;
 }
 
 export interface RehearsalConfig {
@@ -101,6 +108,7 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     dashboardUrl: get('FOUNDRY_AI_DASHBOARD_URL'),
     playerPageUrl: get('FOUNDRY_AI_PLAYER_PAGE_URL'),
     playerToken: get('FOUNDRY_AI_PLAYER_TOKEN'),
+    gmBotChannelId: get('DISCORD_GM_BOT_CHANNEL_ID') ?? get('GAMENIGHT_WATCH_CHANNEL_ID'),
   };
 }
 

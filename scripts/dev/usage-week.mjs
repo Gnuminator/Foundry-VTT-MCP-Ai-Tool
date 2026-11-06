@@ -41,10 +41,11 @@ export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
 export const MIN_TURNS = 3;
 export const RESET_DROP = 3;
-// Lane handover lines (context-alert.mjs): 200k until the change day, 250k from it (the user,
-// 2026-11-04). A lane session counts as handed over when its confirmed peak reached the line that
-// was in force on the day it started.
-export const LANE_LINE_CHANGE_DAY = '2026-11-04';
+// Lane handover lines (context-alert.mjs): 200k until the change, 250k from it (the user,
+// 2026-11-04). The change went live at the merge of the lines PR (2026-11-03 22:59:54Z), not at
+// midnight. A lane session counts as having reached the line when its confirmed peak reached the
+// line that was in force when it started.
+export const LANE_LINE_CHANGE_AT = Date.parse('2026-11-03T22:59:54Z');
 export const LANE_LINE_BEFORE = 200_000;
 export const LANE_LINE_AFTER = 250_000;
 export const TARGETS = {
@@ -174,7 +175,8 @@ export function parseResponse(line) {
     model,
     sidechain: Boolean(j.isSidechain),
     ctx: input + cacheRead + cacheCreate,
-    // the context the session holds (the last pass of an advisor response), as the hooks read it
+    // the context the session holds (the last pass of an advisor response), as the hooks read it:
+    // contextOf is imported from the hook file (context-alert.mjs) so both read a response alike
     real: contextOf(u),
     cost: (priceOf(model) * (input + 0.1 * cacheRead + 2 * cacheCreate + 5 * output)) / 1e6,
   };
@@ -347,24 +349,25 @@ export function isLaneFile(file) {
 }
 
 // The peak context of a session as the hooks confirm it: a reading counts only when the response
-// before it was at least as big, so one doubled response never counts.
+// before it was at least as big, so one doubled response never counts. The first response has no
+// response before it, so it is never confirmed on its own (as in the hook).
 export function confirmedPeak(turns) {
   let peak = 0;
-  for (let i = 0; i < turns.length; i++) {
-    const c = i === 0 ? turns[0].real : Math.min(turns[i].real, turns[i - 1].real);
+  for (let i = 1; i < turns.length; i++) {
+    const c = Math.min(turns[i].real, turns[i - 1].real);
     if (c > peak) peak = c;
   }
   return peak;
 }
 
-// Lane sessions that started in the window: how many reached their handover line, with the context
-// they handed over at, and how many reached 200k, 250k and 300k whatever the line was.
+// Lane sessions that started in the window: how many reached their handover line (not proof that
+// the lane then handed over), the peak they stood at afterwards, and how many reached 200k, 250k
+// and 300k whatever the line was.
 export function laneStats(qualifying, prCount) {
   const lanes = qualifying
     .filter(s => isLaneFile(s.file))
     .map(s => {
-      const line =
-        dayKey(new Date(s.turns[0].t)) >= LANE_LINE_CHANGE_DAY ? LANE_LINE_AFTER : LANE_LINE_BEFORE;
+      const line = s.turns[0].t >= LANE_LINE_CHANGE_AT ? LANE_LINE_AFTER : LANE_LINE_BEFORE;
       return { peak: confirmedPeak(s.turns), line };
     });
   const handed = lanes.filter(l => l.peak >= l.line);
@@ -549,8 +552,8 @@ export function formatModels(models) {
     .join(' | ')}`;
 }
 
-// Lane handovers: sessions in .claude/worktrees that reached their line (200k, 250k from
-// 2026-11-04), per merged PR, and the context they stopped at. Before 2026-11-04: 9 lanes, 5 of
+// Lane line: sessions in .claude/worktrees that reached their line (200k, 250k from the
+// 2026-11-03 22:59 UTC merge of the lines PR), per merged PR, and the peak after the line. Before 2026-11-04: 9 lanes, 5 of
 // them handed over at 200k within about 35 minutes.
 export function formatLanes(lanes) {
   if (!lanes || !lanes.lanes) return 'Lanes: none in the window';
@@ -558,8 +561,8 @@ export function formatLanes(lanes) {
     ? ` (${num(lanes.handoversPerPr, 2)} per merged PR)`
     : '';
   return (
-    `Lanes: ${lanes.lanes} sessions, ${lanes.handovers} handed over${perPr}, ` +
-    `context at handover median ${kilo(lanes.handoverMedian)} max ${kilo(lanes.handoverMax)}, ` +
+    `Lanes: ${lanes.lanes} sessions, ${lanes.handovers} reached line${perPr}, ` +
+    `peak after line median ${kilo(lanes.handoverMedian)} max ${kilo(lanes.handoverMax)}, ` +
     `peak median ${kilo(lanes.peakMedian)}; reached 200k ${lanes.over200k}, 250k ${lanes.over250k}, 300k ${lanes.over300k}`
   );
 }

@@ -111,7 +111,7 @@ test('the default lines are 200k and 250k, whatever the environment says', () =>
   assert.equal(OUT_AT, 250_000);
 });
 
-test('limitsFor: a lane (cwd under .claude/worktrees/) gets 250k and 300k, everything else 200k and 250k', () => {
+test('limitsFor: a lane (project dir under .claude/worktrees/) gets 250k and 300k, everything else 200k and 250k', () => {
   const main = { plan: 200_000, out: 250_000 };
   const lane = { plan: 250_000, out: 300_000 };
   assert.equal(LANE_PLAN_AT, 250_000);
@@ -157,7 +157,8 @@ test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main c
 test('limitsFor: a worktree project dir or a worktree transcript folder makes a lane', () => {
   const lane = { plan: 250_000, out: 300_000 };
   const main = { plan: 200_000, out: 250_000 };
-  const wt = 'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool--claude-worktrees-lane-a\\s.jsonl';
+  const wt =
+    'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool--claude-worktrees-lane-a\\s.jsonl';
   const mainT = 'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool\\s.jsonl';
   assert.deepEqual(limitsFor('C:\\P\\Foundry', wt), lane);
   assert.deepEqual(limitsFor('C:\\P\\Foundry', wt.toUpperCase()), lane);

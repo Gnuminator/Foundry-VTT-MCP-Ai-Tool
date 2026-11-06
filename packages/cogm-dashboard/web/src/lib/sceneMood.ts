@@ -15,6 +15,8 @@ export const SCENE_MOOD_SWITCH = 'AI Tool: Scene mood and music (writes)';
 
 /** The viewed scene's presets and how it looks now, as the panel shows them. */
 export interface MoodList {
+  /** The scene the presets belong to; '' when the bridge did not say. */
+  sceneId: string;
   sceneName: string;
   presets: SceneMoodPreset[];
   current: { darkness: number; globalLight: boolean; weather: string } | null;
@@ -50,6 +52,7 @@ export function readMoods(raw: unknown): MoodList | null {
       }
     : null;
   return {
+    sceneId: typeof raw.sceneId === 'string' ? raw.sceneId : '',
     sceneName: typeof raw.sceneName === 'string' && raw.sceneName ? raw.sceneName : 'this scene',
     presets,
     current,
@@ -96,16 +99,15 @@ export interface MoodOff {
 }
 
 /**
- * The switches that are off: `liveOff` (GM Actions and writes, from the session switches) and the
- * module's "Scene mood and music" switch from GET /api/features. A feature list that cannot be
- * read adds nothing: the plan then says so itself, as a hint toast.
+ * The switches that are off: `liveOff` (GM Actions and writes, from the session switches, which
+ * the panel's own Turn on keeps current) and the module's "Scene mood and music" switch from GET
+ * /api/features. Only that one entry is read from the feature list: its `writesAllowed` is a
+ * second, older copy of the writes switch and would stay stale after Turn on. A feature list that
+ * cannot be read adds nothing: the plan then says so itself, as a hint toast.
  */
 export function moodOff(liveOff: readonly string[], features: FeatureList | null): MoodOff {
   const names = [...liveOff];
   let note: string | null = null;
-  if (features?.writesAllowed === false && !names.includes('Allow Write Operations')) {
-    names.push('Allow Write Operations');
-  }
   const feature = features?.features?.find(f => f.id === SCENE_MOOD_FEATURE_ID);
   if (feature && !feature.enabled) {
     const full = feature.name || SCENE_MOOD_SWITCH;

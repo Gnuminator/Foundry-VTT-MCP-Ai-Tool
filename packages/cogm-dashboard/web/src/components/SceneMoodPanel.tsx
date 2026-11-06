@@ -33,6 +33,9 @@ export const SCENE_MOODS_KEY = [...GAME_STATE_KEY, 'scene-moods'] as const;
 /** The module's feature switches (GET /api/features), read again after a switch-off refusal. */
 export const MOOD_FEATURES_KEY = ['scene-mood-features'] as const;
 
+/** Scene mood does not use live play: its "cannot read the switches" says no more than that. */
+const MOOD_UNREADABLE = "Can't read the switches";
+
 /** What plan-scene-mood answers; the fields used here. */
 interface Planned {
   planId?: unknown;
@@ -59,17 +62,20 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       return list;
     },
     staleTime: 0,
+    // The viewed scene can change while the panel is open: read the list again when the GM comes
+    // back to the window, and (below) before every plan.
+    refetchOnWindowFocus: 'always',
     retry: false,
   });
   const features = useQuery({
     queryKey: MOOD_FEATURES_KEY,
     queryFn: () => api<FeatureList>('/api/features'),
-    staleTime: 15_000,
+    staleTime: 0,
     retry: false,
   });
 
   const off = moodOff(liveOff, features.data ?? null);
-  const offTitle = off.names.length > 0 ? offReason(off.names) : undefined;
+  const offTitle = off.names.length > 0 ? offReason(off.names, MOOD_UNREADABLE) : undefined;
   // The preset whose plan or apply runs: every button waits, the one clicked says so once applying.
   const [running, setRunning] = useState<{ preset: string; applying: boolean } | null>(null);
   const lock = useRef(false);
@@ -81,6 +87,22 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
     setRunning({ preset, applying: false });
     try {
       if (gated('plan-scene-mood')) return;
+      // The list may belong to the scene the GM just left: read it again, and stop when the scene
+      // changed or the preset is gone, so the confirm never names a scene the buttons did not.
+      const shown = moods.data;
+      const fresh = (await moods.refetch()).data;
+      if (fresh && shown) {
+        const sceneMoved = fresh.sceneId !== shown.sceneId || fresh.sceneName !== shown.sceneName;
+        if (sceneMoved || !fresh.presets.some(p => p.name === preset)) {
+          toast(
+            sceneMoved
+              ? `The scene changed to ${fresh.sceneName}. The moods are updated; pick again.`
+              : `The mood "${preset}" is gone. The moods are updated; pick again.`,
+            'warn'
+          );
+          return;
+        }
+      }
       let planned: Planned | null;
       try {
         planned = await callTool<Planned | null>('plan-scene-mood', moodPlanArgs(preset));
@@ -156,7 +178,14 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
           ? `The moods saved on ${moods.data.sceneName}. A click asks once, then sets the look and the music; Undo is in Recent Changes.`
           : 'The moods saved on the viewed scene.'}
       </p>
-      {liveOff.length > 0 && <TurnOnNote live={live} off={liveOff} id="scene-mood-turn-on" />}
+      {liveOff.length > 0 && (
+        <TurnOnNote
+          live={live}
+          off={liveOff}
+          id="scene-mood-turn-on"
+          unreadable={MOOD_UNREADABLE}
+        />
+      )}
       {off.note && (
         <p className={styles['off']} id="scene-mood-off" role="status">
           {off.note}

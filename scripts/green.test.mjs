@@ -208,7 +208,7 @@ test('lightFirst: --from a light step still runs typecheck and the other heavy s
 });
 
 test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY_STEPS fails here, not unlocked', () => {
-  const lightNpm = new Set(['emdash:ratchet', 'version:check', 'usage:catalog:check', 'docs:lint', 'docs:links', 'changelog:check', 'dev:test', 'wiki:test']);
+  const lightNpm = new Set(['emdash:ratchet', 'version:check', 'usage:catalog:check', 'docs:lint', 'docs:links', 'docs:ui', 'docs:kit:check', 'changelog:check', 'dev:test', 'wiki:test']);
   for (const s of STEPS.filter(s => LIGHT_FIRST.has(s.name))) {
     const line = commandLine(s);
     const ok = /^node --test /.test(line) || line === 'node tools/gm-coach/build.mjs' || line === 'node scripts/test-coverage-check.mjs' || line === 'npm test --prefix tools/livekit/recorder' || line === 'npm ci --prefix tools/livekit/recorder' || (/^npm run (\S+)$/.exec(line) && lightNpm.has(/^npm run (\S+)$/.exec(line)[1]));

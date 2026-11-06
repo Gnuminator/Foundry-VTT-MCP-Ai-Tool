@@ -12,15 +12,18 @@ export function TurnOnNote({
   live,
   off,
   id,
+  unreadable,
 }: {
   live: LivePlay;
   off: string[];
   id?: string;
+  /** The words for "the switches cannot be read", when "live play" does not fit the control. */
+  unreadable?: string;
 }): JSX.Element | null {
   if (off.length === 0) return null;
   return (
     <span className="turn-on-note" {...(id ? { id } : {})}>
-      <span>{offReason(off)}.</span>{' '}
+      <span>{offReason(off, unreadable)}.</span>{' '}
       <Button
         size="sm"
         data-track="dash.live.turn-on"

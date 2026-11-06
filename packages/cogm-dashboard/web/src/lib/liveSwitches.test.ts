@@ -39,6 +39,9 @@ describe('which switches a control still needs', () => {
     expect(offSwitches([GM_ACTIONS], true, null, true)).toEqual([]);
     expect(offReason([UNREADABLE])).toBe(UNREADABLE);
     expect(offReason(['GM Actions', UNREADABLE])).toBe(`${UNREADABLE}; GM Actions is off`);
+    // A control that does not use live play words it its own way.
+    expect(offReason([UNREADABLE], 'Custom')).toBe('Custom');
+    expect(offReason(['GM Actions', UNREADABLE], 'Custom')).toBe('Custom; GM Actions is off');
   });
 });
 

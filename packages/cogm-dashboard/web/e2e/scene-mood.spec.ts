@@ -218,3 +218,92 @@ test('Escape closes the panel and the focus goes back to its button', async ({ p
   await expect(panel).toBeHidden();
   await expect(page.locator('#btn-during-scene-mood')).toBeFocused();
 });
+
+test('a failed apply says so, adds no Undo and leaves the buttons usable', async ({ page }) => {
+  const calls = await setup(page, {
+    answer: call =>
+      call.name === 'apply-planned-change'
+        ? {
+            status: 422,
+            json: { ok: false, error: 'The scene changed since the plan', kind: 'tool' },
+          }
+        : undefined,
+  });
+  const panel = await openPanel(page);
+  await panel.getByRole('button', { name: 'Storm' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Apply mood' }).click();
+  await expect(toast(page, /The scene changed since the plan/)).toBeVisible();
+  expect(named(calls, 'apply-planned-change')).toHaveLength(1);
+  await expect(page.locator('.toast-stack').getByRole('button', { name: 'Undo' })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Storm' })).not.toHaveAttribute(
+    'aria-disabled',
+    'true'
+  );
+});
+
+test('a switch-off refusal from the plan is a hint, and the switches are read again', async ({
+  page,
+}) => {
+  let featureReads = 0;
+  const calls = await setup(page, {
+    answer: call =>
+      call.name === 'plan-scene-mood'
+        ? {
+            status: 422,
+            json: {
+              ok: false,
+              error:
+                '"AI Tool: Scene mood and music (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Scene mood and music (writes)".',
+              kind: 'tool',
+            },
+          }
+        : undefined,
+  });
+  // Registered after setup, so it runs first and passes on to setup's answer.
+  await page.route('**/api/features', async route => {
+    featureReads += 1;
+    await route.fallback();
+  });
+  const panel = await openPanel(page);
+  await expect.poll(() => featureReads).toBeGreaterThan(0);
+  const before = featureReads;
+  await panel.getByRole('button', { name: 'Storm' }).click();
+  await expect(toast(page, /is switched off\. In Foundry, open/)).toBeVisible();
+  await expect.poll(() => featureReads).toBeGreaterThan(before);
+  expect(named(calls, 'apply-planned-change')).toHaveLength(0);
+  await expect(page.getByRole('dialog')).toBeHidden();
+});
+
+test('when the viewed scene changed, the click reloads the moods instead of planning', async ({
+  page,
+}) => {
+  let scene = 'old';
+  const calls = await setup(page, {
+    answer: call =>
+      call.name === 'list-scene-moods' && scene === 'new'
+        ? ok({ ...MOODS, sceneId: 's2', sceneName: 'Crypt', presets: [{ name: 'Dread' }] })
+        : undefined,
+  });
+  const panel = await openPanel(page);
+  await expect(panel).toContainText('Village square');
+  scene = 'new';
+  await panel.getByRole('button', { name: 'Storm' }).click();
+  await expect(toast(page, /The scene changed to Crypt/)).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Dread' })).toBeVisible();
+  expect(named(calls, 'plan-scene-mood')).toHaveLength(0);
+});
+
+test('unreadable switches are described without "live play"', async ({ page }) => {
+  await setup(page);
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({
+      json: { switches: null, gmActionsEnabled: true, error: 'The bridge is away' },
+    })
+  );
+  const panel = await openPanel(page);
+  await expect(panel.getByRole('button', { name: 'Storm' })).toHaveAttribute(
+    'title',
+    "Can't read the switches"
+  );
+  await expect(panel.locator('#scene-mood-turn-on')).not.toContainText('live play');
+});

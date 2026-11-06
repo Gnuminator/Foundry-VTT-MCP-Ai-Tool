@@ -77,6 +77,14 @@ test('sourceStrings skips comments and identifier-like words', () => {
   assert.ok(stripSourceComments('const u = "http://x.y/z";').includes('http://x.y/z'));
 });
 
+test('a slash-star inside a string is no comment opener', () => {
+  const s = sourceStrings(
+    "const r = { '/api/help/*': 1 }; const a = 'image/*'; const g = '**/*.md'; const b = 'Start session'; /* gone: 'Hidden' */ const c = 'Shown';\n"
+  );
+  assert.ok(s.includes('Start session') && s.includes('Shown'));
+  assert.ok(!s.some(x => x.includes('Hidden')));
+});
+
 test('check fails when a doc folder, the checklist or all names are missing', () => {
   const root = tree({
     'packages/cogm-dashboard/web/src/App.tsx': 'export const A = () => <button>Begin</button>;\n',

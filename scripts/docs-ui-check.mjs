@@ -80,9 +80,14 @@ function cutSpans(text, open, close) {
   }
 }
 
-/** Source without block comments, HTML comments and whole-line or trailing `//` comments. */
+/**
+ * Source without block comments, HTML comments and whole-line or trailing `//` comments. A `/*`
+ * inside a string ('/api/help/*', accept="image/*") is no comment: block comments are cut only
+ * where they start a line or follow whitespace or an opening bracket, comma, semicolon or `=`.
+ */
 export function stripSourceComments(text) {
-  return cutSpans(cutSpans(text, '/*', '*/'), '<!--', '-->')
+  const blocks = text.replace(/(^|[\s{(,;=])\/\*[\s\S]*?\*\//g, '$1 ');
+  return cutSpans(blocks, '<!--', '-->')
     .replace(/^\s*\/\/.*$/gm, '')
     .replace(/(\s)\/\/\s.*$/gm, '$1');
 }

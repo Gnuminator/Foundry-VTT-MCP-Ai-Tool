@@ -43,8 +43,11 @@ export function guardCombatCreate(documentClass: unknown): boolean {
   // keeps the one captured here (a later patch of that same slot replaces the guard itself).
   const inherited = !Object.prototype.hasOwnProperty.call(proto, '_onCreate');
   const resolve = (): OnCreate => {
-    const parent = inherited ? Object.getPrototypeOf(proto) : null;
-    const current = (parent as Record<PropertyKey, unknown> | null)?._onCreate;
+    const parent = (inherited ? Object.getPrototypeOf(proto) : null) as Record<
+      PropertyKey,
+      unknown
+    > | null;
+    const current = parent?._onCreate;
     return (typeof current === 'function' ? current : original) as OnCreate;
   };
   const wrapped: OnCreate = function (this: CombatLike, ...args: unknown[]) {

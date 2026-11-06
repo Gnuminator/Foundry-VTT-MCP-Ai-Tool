@@ -273,9 +273,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     const next = await readRecordingHealth({
       botStatusUrl: deps.botStatusUrl ?? config.botStatusUrl ?? '',
       readPumps: async (): Promise<PumpSnapshot[] | null> => {
-        const r = await client.callTool<{ pumps?: PumpSnapshot[] }>('get-preflight', {
-          action: 'pumps',
-        });
+        const r = await client.callTool<{ pumps?: PumpSnapshot[] }>(
+          'get-preflight',
+          { action: 'pumps' },
+          { timeoutMs: 4000 }
+        );
         return Array.isArray(r?.pumps) ? r.pumps : null;
       },
     });

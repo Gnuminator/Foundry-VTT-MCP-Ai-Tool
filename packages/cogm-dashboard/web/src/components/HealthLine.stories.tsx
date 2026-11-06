@@ -66,9 +66,9 @@ export const RecorderCannotRejoin: Story = {
   parameters: seed({
     recorder: {
       tone: 'bad',
-      text: 'the bot cannot get back into the voice channel (attempt 4); nothing is recorded until it is back',
+      text: 'the bot cannot rejoin the voice channel (attempt 4)',
       detail:
-        'the bot cannot get back into the voice channel (attempt 4); nothing is recorded until it is back.',
+        'the bot cannot rejoin the voice channel (attempt 4). Nothing is recorded until it is back.',
     },
     playLog: null,
   }),

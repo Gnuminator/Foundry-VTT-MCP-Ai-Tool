@@ -159,7 +159,7 @@ export class RecorderHealth {
     if (this.rejoinAttempt !== null && this.rejoinAttempt >= REJOIN_ALERT_FROM) {
       out.push({
         kind: 'rejoin',
-        text: `the bot cannot get back into the voice channel (attempt ${this.rejoinAttempt}); nothing is recorded until it is back`,
+        text: `the bot cannot rejoin the voice channel (attempt ${this.rejoinAttempt})`,
       });
     }
     for (const [id, name] of this.streamErrors) {

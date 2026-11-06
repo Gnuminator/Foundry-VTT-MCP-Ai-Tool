@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { SESSION_GAP_MS } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
-import type { PumpHealthSnapshot } from '../pump-health.js';
+import { clock, type PumpHealthSnapshot } from '../pump-health.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-registry.js';
@@ -250,26 +250,31 @@ export class PreflightTools {
         id: 'recording',
         label,
         status: 'info',
-        detail: 'The session and play logs are switched off, so nothing is being recorded.',
+        detail: 'No session or play log recording is running, so nothing is being recorded.',
       };
     }
     const problems: string[] = [];
     let unknown = false;
+    let recentGap = false;
+    const at = (iso: string): string => clock(Date.parse(iso));
     for (const p of pumps) {
       if (p.notRecordingSince) {
-        problems.push(`${p.pump}: not recording since ${p.notRecordingSince} (no link to Foundry)`);
+        problems.push(
+          `${p.pump}: not recording since ${at(p.notRecordingSince)} (no link to Foundry)`
+        );
       } else if (p.lastSuccessAt === null) {
         unknown = true;
       }
       if (p.lastError) {
-        problems.push(`${p.pump}: last error at ${p.lastError.at}: ${p.lastError.message}`);
+        problems.push(`${p.pump}: last error at ${at(p.lastError.at)}: ${p.lastError.message}`);
       }
       // Only a recent gap is worth a warning; an old one is in the session log and must not keep
       // the line amber for the weeks the backend runs.
       if (p.gapCount > 0 && p.lastGap && Date.now() - Date.parse(p.lastGap.at) < SESSION_GAP_MS) {
         const lost = p.lostCount > 0 ? `, ${plural(p.lostCount, 'record')} lost` : '';
+        recentGap = true;
         problems.push(
-          `${p.pump}: ${plural(p.gapCount, 'gap')} since the backend started (last ${p.lastGap.reason} at ${p.lastGap.at})${lost}`
+          `${p.pump}: ${plural(p.gapCount, 'gap')} since the backend started (last ${p.lastGap.reason} at ${at(p.lastGap.at)})${lost}`
         );
       }
     }
@@ -278,7 +283,7 @@ export class PreflightTools {
         id: 'recording',
         label,
         status: 'warn',
-        detail: `${problems.join('; ')}. A gap marker is in the session log.`,
+        detail: `${problems.join('; ')}.${recentGap ? ' A gap marker is in the session log.' : ''}`,
       };
     }
     if (unknown) {
@@ -297,7 +302,7 @@ export class PreflightTools {
       id: 'recording',
       label,
       status: 'ok',
-      detail: `Recording; last read ${last}. No recent gaps.`,
+      detail: `Recording; last read ${last ? at(last) : 'never'}. No recent gaps.`,
     };
   }
 

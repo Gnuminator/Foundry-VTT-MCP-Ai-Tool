@@ -224,7 +224,7 @@ if [ "$we_stopped_foundry" = 1 ]; then
   active_tries=0
   until systemctl is-active --quiet foundry.service && foundry_answers; do
     if [ "$active_tries" -ge "$active_wait" ]; then
-      echo "ERROR: the backup is done, but foundry.service is not active, not answering, or not back on a world (it may be on the setup screen) after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
+      echo "ERROR: the backup is done, but foundry.service is not active, not answering, or not back on a world${world_before:+ (world $world_before ran before the backup; Foundry may be on the setup screen)} after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
       exit 1
     fi
     active_tries=$((active_tries + 1))

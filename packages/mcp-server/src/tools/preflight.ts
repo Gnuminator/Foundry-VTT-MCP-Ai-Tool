@@ -302,7 +302,7 @@ export class PreflightTools {
       id: 'recording',
       label,
       status: 'ok',
-      detail: `Recording; last read ${last}. No recent gaps.`,
+      detail: `Recording; last read ${last ? at(last) : 'never'}. No recent gaps.`,
     };
   }
 

@@ -8,5 +8,4 @@
 - **Event pump:** a full batch that still holds the saved boundary event is no longer taken for a
   ring wrap (nothing was lost); "not recording" clears when the link returns even if the first read
   then fails; a failed log or state write can no longer produce a second, inverted link-down line.
-  Only the event pump writes link-down lines.
 - **Module:** the live window's "Try again" clears the old answer before showing the panel again.

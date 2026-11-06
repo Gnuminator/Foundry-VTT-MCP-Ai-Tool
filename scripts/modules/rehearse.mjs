@@ -25,6 +25,7 @@ import { kitHome } from '../test-kit/lib/targets.mjs';
 import {
   archiveRoot,
   compareVersions,
+  dropPins,
   isSafeId,
   isSafeVersion,
   PI_MIRROR_PATH,
@@ -330,6 +331,11 @@ async function cmdArchive(o) {
     console.log(`archived ${id} ${p.version}${inList.get(id)?.licensed ? ' (licensed, PC only)' : ''}`);
   }
   const pinned = readPinned(root);
+  const removed = dropPins(pinned, strahd().dropped ?? []);
+  if (removed.length) {
+    pinned.updated = new Date().toISOString();
+    console.log(`unpinned dropped modules: ${removed.join(', ')} (their files stay in the archive)`);
+  }
   writePinned(root, pinned);
 }
 

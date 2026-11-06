@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   archiveDir,
   compareVersions,
+  dropPins,
   isSafeId,
   planUpdates,
   readManifest,
@@ -374,4 +375,13 @@ test('NotYourTurn blocks players and trusted players, and only warns for GM and 
   // Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. The AI Tool acts as a GM,
   // so a blocking GM value would stop AI-planned token moves.
   assert.deepEqual(nyt.worldSettings, { BlockPlayer: 3, BlockTrusted: 3, BlockAssistant: 1, BlockGM: 1 });
+});
+
+test('dropPins removes only the pins of dropped modules and reports them', () => {
+  const pin = { version: '1.0.0' };
+  const pinned = { updated: '', foundry: null, systems: { dnd5e: pin }, modules: { keep: pin, gone: pin } };
+  assert.deepEqual(dropPins(pinned, ['gone', 'never-pinned', 'dnd5e']), ['gone']);
+  assert.deepEqual(Object.keys(pinned.modules), ['keep']);
+  assert.ok(pinned.systems.dnd5e);
+  assert.deepEqual(dropPins(pinned, ['gone']), []);
 });

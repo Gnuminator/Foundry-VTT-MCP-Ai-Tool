@@ -37,11 +37,11 @@ export function offSwitches(
 export const UNREADABLE = "Can't read the live play switches";
 
 /** "Live play is off" or "Handouts and GM Actions are off", one line a disabled control shows. */
-export function offReason(names: string[]): string {
+export function offReason(names: string[], unreadable: string = UNREADABLE): string {
   if (names.length === 0) return '';
   if (names.includes(UNREADABLE)) {
     const others = names.filter(n => n !== UNREADABLE);
-    return others.length > 0 ? `${UNREADABLE}; ${offReason(others)}` : UNREADABLE;
+    return others.length > 0 ? `${unreadable}; ${offReason(others)}` : unreadable;
   }
   if (names.length === 1) return `${names[0]} is off`;
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are off`;

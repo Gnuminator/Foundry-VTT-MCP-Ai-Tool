@@ -13,7 +13,16 @@
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
 import { useQueryClient } from '@tanstack/react-query';
-import { lazy, Suspense, useCallback, useRef, useState, type JSX, type MouseEvent } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+  type MouseEvent,
+} from 'react';
 import { RibbonBoundary } from './RibbonBoundary';
 
 import {
@@ -50,7 +59,7 @@ import {
 } from '../lib/combat';
 import { useEndCombat } from '../lib/endCombat';
 import { useLivePlay, type LivePlay } from '../lib/livePlay';
-import { chipText } from '../lib/liveStrip';
+import { chipText, displayNames } from '../lib/liveStrip';
 import { offReason } from '../lib/liveSwitches';
 import { refreshCombat, useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { DelayedLoading, Panel, Pill } from '../ui';
@@ -73,6 +82,25 @@ const StripRolls = lazy(() => import('./StripRolls').then(m => ({ default: m.Str
 const InitiativeRibbon = lazy(() =>
   import('./InitiativeRibbon').then(m => ({ default: m.InitiativeRibbon }))
 );
+
+/**
+ * End combat went in and the focus is still to move to the combat pane. Module level, not a ref:
+ * the strip can be mounted again when the fight leaves the page, and the new one finishes the job.
+ */
+const focusAfterEnd = { current: false };
+
+/**
+ * Where the focus goes once the fight is gone: the combat pane, or, when the layout hides the pane
+ * with no fight, the first button of the During bar.
+ */
+function focusAfterEndTarget(): void {
+  const pane = document.getElementById('pane-combat');
+  const target =
+    pane && pane.getBoundingClientRect().width > 0
+      ? pane
+      : document.querySelector<HTMLElement>('#during-bar button:not([aria-disabled="true"])');
+  target?.focus();
+}
 
 /** Boss prompts is remembered per browser; off by default (D-081). */
 const BOSS_PROMPTS_KEY = 'cogm_boss_prompts';
@@ -147,6 +175,8 @@ function BossLineView({ combatant }: { combatant: Combatant }): JSX.Element | nu
 
 interface RowProps {
   combatant: Combatant;
+  /** The name as the row shows it ("Wolf 2" when two share one); data-name keeps the raw name. */
+  shownName: string;
   selectable: boolean;
   selected: boolean;
   /** Boss prompts is on: the boss line and the reaction button. */
@@ -160,6 +190,7 @@ interface RowProps {
 
 function CombatantRow({
   combatant: c,
+  shownName,
   selectable,
   selected,
   bossFlag,
@@ -195,10 +226,10 @@ function CombatantRow({
         <div className="combatant-name">
           {selectable ? (
             <button type="button" className="combatant-pick" aria-pressed={selected}>
-              {c.name}
+              {shownName}
             </button>
           ) : (
-            <span className="combatant-text">{c.name}</span>
+            <span className="combatant-text">{shownName}</span>
           )}
           {c.isCurrentTurn && (
             <span className="turn-pill" data-turn-pill>
@@ -278,11 +309,14 @@ function ActionBar({
   onClear,
   onEnd,
   ending,
+  busy,
   combatants,
   onPick,
 }: {
   count: number;
   stale: boolean;
+  /** Another write from the strip runs: the buttons that start one wait. */
+  busy: boolean;
   /** End combat's write runs (after the GM said yes): the button says so. */
   ending: boolean;
   onAct: (action: SelectionAction) => void;
@@ -295,6 +329,9 @@ function ActionBar({
 }): JSX.Element {
   const off = stale ? ('true' as const) : undefined;
   const away = stale ? 'The bridge is away' : undefined;
+  // A write that starts a change waits for the one that runs (the strip lock drops a second click).
+  const writeOff = stale || busy ? ('true' as const) : undefined;
+  const writeTitle = stale ? away : busy ? 'Another change is running' : undefined;
   // Held here, not in the button: the button remounts when the pick goes from none to some.
   const [targetsNote, setTargetsNote] = useState('');
   const foundryButton = (
@@ -329,11 +366,14 @@ function ActionBar({
       className="ca-btn ghost"
       data-track="dash.combat.end"
       data-sel="end"
-      aria-disabled={off}
+      aria-disabled={writeOff}
       aria-busy={ending ? 'true' : undefined}
-      title={away ?? 'Plan ending this fight; you confirm it, and Undo brings it back'}
+      title={
+        (ending ? away : writeTitle) ??
+        'Plan ending this fight; you confirm it, and Undo brings it back'
+      }
       onClick={() => {
-        if (!stale) onEnd();
+        if (!stale && !busy) onEnd();
       }}
     >
       {ending ? 'Ending...' : 'End combat'}
@@ -359,10 +399,10 @@ function ActionBar({
         className="ca-btn"
         data-track="dash.combat.selection-damage"
         data-sel="damage"
-        aria-disabled={off}
-        title={away}
+        aria-disabled={writeOff}
+        title={writeTitle}
         onClick={() => {
-          if (!stale) onAct('damage');
+          if (!stale && !busy) onAct('damage');
         }}
       >
         Damage / Heal
@@ -373,10 +413,10 @@ function ActionBar({
         className="ca-btn"
         data-track="dash.combat.selection-condition"
         data-sel="condition"
-        aria-disabled={off}
-        title={away}
+        aria-disabled={writeOff}
+        title={writeTitle}
         onClick={() => {
-          if (!stale) onAct('condition');
+          if (!stale && !busy) onAct('condition');
         }}
       >
         Condition
@@ -469,6 +509,24 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
   );
   const [attackOpen, setAttackOpen] = useState(false);
 
+  // End combat went in: once the fight has left the page its bar is gone, and the focus goes to the
+  // pane (after the confirm window gave it back to the button that is about to unmount).
+  const fightGone = real === null;
+  useEffect(() => {
+    if (fightGone && focusAfterEnd.current) {
+      focusAfterEnd.current = false;
+      // The confirm window gives focus back to the unmounting button a moment later: take it
+      // again if it fell to the page.
+      const toPane = (): void => {
+        const active = document.activeElement;
+        if (!active || active === document.body) focusAfterEndTarget();
+      };
+      toPane();
+      window.setTimeout(toPane, 150);
+      window.setTimeout(toPane, 500);
+    }
+  }, [fightGone, ending, busy]);
+
   const showSample = sample && real === null;
   const combat = showSample ? SAMPLE_COMBAT : real;
   const mode = showSample ? 'live' : stripMode(real, away);
@@ -495,6 +553,9 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
   const showAttack = attackOpen && selectable;
   if (attackOpen && !showAttack) setAttackOpen(false);
   const pickedRows = (combat?.combatants ?? []).filter(c => kept.has(c.id));
+  // Two Wolves read "Wolf 1" and "Wolf 2" in the questions, numbered across the whole fight.
+  const shownNames = displayNames(combat?.combatants ?? []);
+  const pickedNames = pickedRows.map(c => shownNames.get(c.id) ?? c.name);
   const partyRows = (combat?.combatants ?? []).filter(c => c.isPC && !c.defeated);
   const used = combat ? reactionsFor(reactions, combat.round) : NO_REACTIONS.used;
   const prompts = bossPrompts(combat);
@@ -511,6 +572,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
 
   const rowProps = (c: Combatant): RowProps => ({
     combatant: c,
+    shownName: shownNames.get(c.id) ?? c.name,
     selectable,
     selected: kept.has(c.id),
     bossFlag,
@@ -589,16 +651,30 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
               <ActionBar
                 count={kept.size}
                 stale={stale}
+                busy={busy}
                 onAct={action => {
                   const targets = selectedTargets(combat, kept);
-                  if (targets.length === 0) return;
+                  if (busy || targets.length === 0) return;
                   // One form at a time under the bar.
                   setDamageOpen(action === 'damage');
                   setConditionOpen(action === 'condition');
                 }}
                 onAttack={() => setAttackOpen(true)}
                 onClear={() => setPicked(new Set())}
-                onEnd={() => void once(() => planEnd(() => setEnding(true)))}
+                onEnd={() => {
+                  let applied = false;
+                  void once(async () => {
+                    // The fight is over and the bar unmounts with it: focus would drop to the page.
+                    // The effect above moves it if the fight is only gone from the page later.
+                    applied = await planEnd(() => setEnding(true));
+                    if (applied) focusAfterEnd.current = true;
+                  }).then(() => {
+                    // The fight was read again before the lock dropped: the bar is gone now.
+                    if (applied) {
+                      requestAnimationFrame(focusAfterEndTarget);
+                    }
+                  });
+                }}
                 ending={ending}
                 combatants={combat?.combatants ?? []}
                 onPick={ids => setPicked(new Set(ids))}
@@ -609,7 +685,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
             <Suspense fallback={<DelayedLoading as="div" />}>
               <ConditionForm
                 targets={selectedTargets(combat, kept)}
-                names={pickedRows.map(c => c.name)}
+                names={pickedNames}
                 stale={stale}
                 locked={busy}
                 once={once}
@@ -627,7 +703,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
             <Suspense fallback={<DelayedLoading as="div" />}>
               <DamageForm
                 targets={selectedTargets(combat, kept)}
-                names={pickedRows.map(c => c.name)}
+                names={pickedNames}
                 stale={stale}
                 locked={busy}
                 once={once}

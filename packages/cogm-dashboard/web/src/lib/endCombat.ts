@@ -15,25 +15,25 @@ import { endQuestion } from './liveStrip';
  * apply. `onApplying` runs once the GM said yes and the write starts (a button that says it is busy
  * only while the write runs, not while the question is open). It never throws: errors are toasts.
  */
-export function useEndCombat(): (onApplying?: () => void) => Promise<void> {
+export function useEndCombat(): (onApplying?: () => void) => Promise<boolean> {
   const toast = useToast();
   const askConfirm = useConfirm();
   const { gated, applyApproved } = useGuardedTools();
   return useCallback(
-    async (onApplying?: () => void): Promise<void> => {
+    async (onApplying?: () => void): Promise<boolean> => {
       const from = focusedElement();
-      if (gated('plan-combat-change')) return;
+      if (gated('plan-combat-change')) return false;
       let planned: { planId?: unknown; summary?: unknown; warning?: unknown } | null;
       try {
         planned = await callTool<typeof planned>('plan-combat-change', { action: 'end' });
       } catch (err) {
         toast(`✗ End combat: ${errorText(err)}`, 'err');
-        return;
+        return false;
       }
       const planId = typeof planned?.planId === 'string' ? planned.planId : '';
       if (!planId) {
         toast('✗ End combat: the bridge made no plan', 'err');
-        return;
+        return false;
       }
       const ok = await askConfirm({
         title: 'End combat',
@@ -47,9 +47,9 @@ export function useEndCombat(): (onApplying?: () => void) => Promise<void> {
         destructive: false,
         returnTo: from,
       });
-      if (!ok) return;
+      if (!ok) return false;
       onApplying?.();
-      await applyApproved(planId, true);
+      return (await applyApproved(planId, true)).status === 'done';
     },
     [toast, askConfirm, gated, applyApproved]
   );

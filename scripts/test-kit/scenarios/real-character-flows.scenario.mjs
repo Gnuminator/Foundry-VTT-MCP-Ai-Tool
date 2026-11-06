@@ -133,21 +133,27 @@ const MAKE_SIDE_SCENE = async ({ name, actorIds, flag }) => {
     grid: { size: 100 },
     flags: { [flag.scope]: { [flag.key]: { built: true } } },
   });
-  const tokens = [];
-  let x = 200;
-  for (const id of actorIds) {
-    const actor = game.actors.get(id);
-    const doc = await actor.getTokenDocument({ x, y: 300 });
-    tokens.push(doc.toObject());
-    x += 200;
+  try {
+    const tokens = [];
+    let x = 200;
+    for (const id of actorIds) {
+      const actor = game.actors.get(id);
+      const doc = await actor.getTokenDocument({ x, y: 300 });
+      tokens.push(doc.toObject());
+      x += 200;
+    }
+    const created = await scene.createEmbeddedDocuments('Token', tokens);
+    return {
+      sceneId: scene.id,
+      tokenIds: created.map(t => t.id),
+      viewed: canvas.scene?.id ?? null,
+      gameCombat: game.combat?.id ?? null,
+    };
+  } catch (error) {
+    // The caller never gets the id of a scene that threw half way: remove it here.
+    await scene.delete().catch(() => {});
+    throw error;
   }
-  const created = await scene.createEmbeddedDocuments('Token', tokens);
-  return {
-    sceneId: scene.id,
-    tokenIds: created.map(t => t.id),
-    viewed: canvas.scene?.id ?? null,
-    gameCombat: game.combat?.id ?? null,
-  };
 };
 
 /** Runs in the Foundry GM page: delete the side scene and any fight on it. */
@@ -280,9 +286,7 @@ export default {
     let sideSceneId = null;
     let headless = false;
 
-    t.cleanup(async () => {
-      if (headless) await page.evaluate(LEAVE_HEADLESS, { sceneId });
-    });
+    // Cleanups run last in first out: this list is the reverse of the order they run in.
     t.cleanup(async () => {
       if (sideSceneId) await page.evaluate(DELETE_SIDE_SCENE, { sceneId: sideSceneId });
     });
@@ -290,14 +294,23 @@ export default {
       await t.gm('endCombats');
     });
     t.cleanup(async () => {
-      while (open.length) await t.guarded.undo(/** @type {string} */ (open.pop()));
+      // One undo that throws (a conflict) must not leave the rest of the changes applied.
+      while (open.length) {
+        try {
+          await t.guarded.undo(/** @type {string} */ (open.pop()));
+        } catch (error) {
+          t.log(`cleanup undo failed: ${/** @type {any} */ (error)?.message || error}`);
+        }
+      }
     });
     t.cleanup(async () => {
-      await page.evaluate(TOGGLE_STATUS, {
-        actorId: first.actorId,
-        status: 'poisoned',
-        active: false,
-      });
+      for (const a of [first, second]) {
+        await page.evaluate(TOGGLE_STATUS, {
+          actorId: a.actorId,
+          status: 'poisoned',
+          active: false,
+        });
+      }
       await page.evaluate(DELETE_MESSAGES, { known });
     });
     t.cleanup(async () => {
@@ -310,6 +323,11 @@ export default {
           level: userBefore.ownership[a.actorId],
         });
       }
+    });
+
+    // Registered last, so it runs first: the client is back to normal before the other cleanups.
+    t.cleanup(async () => {
+      if (headless) await page.evaluate(LEAVE_HEADLESS, { sceneId });
     });
 
     // The two roll requests need the player user online.
@@ -408,11 +426,13 @@ export default {
           t.equal(rollMode(roll), 'disadvantage', `the poisoned roll (${roll.formula})`);
           return roll.formula;
         } finally {
-          await page.evaluate(TOGGLE_STATUS, {
-            actorId: pair.assigned.actorId,
-            status: 'poisoned',
-            active: false,
-          });
+          for (const a of [pair.assigned, pair.other]) {
+            await page.evaluate(TOGGLE_STATUS, {
+              actorId: a.actorId,
+              status: 'poisoned',
+              active: false,
+            });
+          }
         }
       }
     );
@@ -461,6 +481,15 @@ export default {
         t.log(
           `after the turns: round ${state.round}, ${druid.name} conditions ${JSON.stringify(row?.conditions)} timed ${JSON.stringify(row?.timed)}`
         );
+        // Foundry rewrote the effect as the turns passed; that must not read as someone's edit.
+        const listed = listOf(await t.tool('list-recent-changes', { limit: 20 }), 'changes').find(
+          c => c.changeId === applied.changeId
+        );
+        t.check(
+          listed && listed.canUndo === true,
+          'the timed change can still be undone after the turns',
+          listed
+        );
         const undone = await t.guarded.undo(/** @type {string} */ (open.pop()));
         t.equal(undone.undoOf, applied.changeId, 'the undo points at the change');
         const after = await page.evaluate(READ_ACTOR, { actorId: druid.actorId });
@@ -486,6 +515,11 @@ export default {
       t.check(row && row.canUndo === true, 'the AI change is listed and can be undone', row);
       const downAfter = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
       t.log(`at 0 HP the statuses are ${JSON.stringify(downAfter.statuses)}`);
+      t.check(
+        downAfter.statuses.some((/** @type {string} */ s) => s === 'unconscious' || s === 'dead'),
+        'dnd5e added a rider (Unconscious or Dead) at 0 HP',
+        downAfter.statuses
+      );
       await t.guarded.undo(/** @type {string} */ (open.pop()));
       // dnd5e's bloodied and unconscious riders follow the HP a moment after the write.
       let up = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
@@ -635,8 +669,9 @@ export default {
             },
             { known: before }
           );
-          card = now[0];
-          return now.length > 0;
+          // Wait for the card that names the target; an unrelated new message does not end the wait.
+          card = now.find(c => JSON.stringify(c.targets ?? []).includes(monster.name));
+          return Boolean(card);
         },
         { label: 'the usage card', timeoutMs: 15000, intervalMs: 500 }
       );

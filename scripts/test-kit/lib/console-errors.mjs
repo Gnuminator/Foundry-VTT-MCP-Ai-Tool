@@ -71,6 +71,29 @@ export function normalizeMessage(message, source) {
   return fn ? `${line} (in ${fn})` : line;
 }
 
+/**
+ * Whether a console error is the bridge module's own. The module wraps console.error, so the
+ * top frame (and the `source` Playwright reports) of every console error is its
+ * `<id>/dist/diagnostics.js`; that frame is skipped. The blame follows the first other stack frame
+ * of the message, never a module path quoted in the message text. A message that starts with our
+ * log tag (`[<id>]`) counts first, whatever the stack of the error it carries. With no frame left,
+ * only a source that is not diagnostics.js counts: an untagged string logged through the wrapper is
+ * not attributed, because the wrapper also carries other modules' errors. Chromium stack frames
+ * only (the kit drives Playwright Chromium).
+ * @param {{message: string, source: string}} e
+ * @param {string} moduleId
+ */
+export function blamedOnBridge(e, moduleId) {
+  const message = String(e.message ?? '');
+  const source = String(e.source ?? '');
+  if (message.startsWith(`[${moduleId}]`)) return true;
+  const frames = [...message.matchAll(/^[ \t]*at\s+(?:\S.*\(|https?:|file:).*$/gm)]
+    .map(m => m[0])
+    .filter(line => !/\/dist\/diagnostics\.js/.test(line));
+  if (frames.length) return frames[0].includes(`/${moduleId}/`);
+  return source.includes(`/${moduleId}/`) && !/\/dist\/diagnostics\.js/.test(source);
+}
+
 /** @param {string} text */
 const slug = text =>
   text

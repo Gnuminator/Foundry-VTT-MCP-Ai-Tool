@@ -11,10 +11,12 @@
  *   0  a progress line changed and the planner has been waiting less than --cold-after (default 3600 s)
  *   3  a progress line changed after --cold-after: the planner is cold, so it starts a fresh planner
  *      with the printed brief instead of working on in its old context
- *   4  nothing changed within --max-wait (default 14400 s): a quiet fallback wake
+ *   4  nothing changed within --max-wait (default 14400 s): a quiet fallback wake (the message says
+ *      how many fetches or reads failed, each also printed to stderr as it happened)
  *   1  usage error or no Backlog.md
  * The wait starts when the planner arms the watcher at the end of its turn, so "waiting" is the time
- * the planner has been idle. Output: one line per changed item, `<id>: <progress line>`.
+ * the planner has been idle. Output: one line per changed item, `<id>: <progress line>`; a
+ * multi-line value repeats the prefix on each line. Exit codes are set with process.exitCode.
  */
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
@@ -60,6 +62,14 @@ export function changedProgress(before, after) {
   return out;
 }
 
+/**
+ * Output lines for changed items: every line of a multi-line progress value gets the id prefix.
+ * @param {{ id: string, progress: string }[]} changes
+ * @returns {string[]}
+ */
+export const formatChanges = changes =>
+  changes.flatMap(c => c.progress.split('\n').map(line => `${c.id}: ${line}`));
+
 /** @param {number} waitedSeconds @param {number} coldAfter */
 export const isCold = (waitedSeconds, coldAfter) => waitedSeconds >= coldAfter;
 
@@ -68,9 +78,9 @@ export function freshBrief(changes) {
   return [
     'You are the Foundry AI Tool planner (load the `planner` skill, follow CLAUDE.md).',
     'The previous planner was idle over an hour; a lane reported:',
-    ...changes.map(c => `- ${c.id}: ${c.progress}`),
+    ...formatChanges(changes).map(l => `- ${l}`),
     'Read every claimed item in vault Backlog.md (progress lines) and `gh pr list --state open`, merge what is ready,',
-    'start or fix what is not, then arm the next `node scripts/planner-wake.mjs` watcher in the background.'
+    'start or fix what is not, then arm the next `node scripts/planner-wake.mjs` watcher in the background.',
   ].join('\n');
 }
 
@@ -80,8 +90,10 @@ export function freshBrief(changes) {
  */
 export function parseArgs(argv) {
   const o = {
-    vault: process.env.FOUNDRY_AI_OBSIDIAN_DIR || path.join(os.homedir(), 'Documents', 'Obsidian', 'vault'),
-    ...DEFAULTS
+    vault:
+      process.env.FOUNDRY_AI_OBSIDIAN_DIR ||
+      path.join(os.homedir(), 'Documents', 'Obsidian', 'vault'),
+    ...DEFAULTS,
   };
   const num = (/** @type {string} */ name, /** @type {string | undefined} */ v) => {
     const n = Number(v);
@@ -108,7 +120,7 @@ const gitIn = vault => args => {
     encoding: 'utf8',
     timeout: 30000,
     maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
   return { status: r.status, stdout: r.stdout ?? '' };
 };
@@ -116,14 +128,20 @@ const gitIn = vault => args => {
 /**
  * Backlog.md as the vault's upstream branch has it: fetch, then `git show @{u}:<path>`. Never touches
  * the working tree (the vault is shared with the planner, lanes and open Obsidian notes, and may be
- * dirty). A fetch problem is ignored: the last fetched copy is read. Returns null when unreadable.
+ * dirty). A failed fetch is reported through `warn` and the last fetched copy is read. Returns null
+ * (after a `warn` line) when unreadable.
  * @param {Git} git
+ * @param {(message: string) => void} [warn]
  * @returns {string | null}
  */
-export function readUpstreamBacklog(git) {
-  git(['fetch', '-q']);
+export function readUpstreamBacklog(git, warn = m => console.error(`planner-wake: ${m}`)) {
+  const fetched = git(['fetch', '-q']);
+  if (fetched.status !== 0)
+    warn(`git fetch failed (status ${fetched.status}); reading the last fetched copy`);
   const r = git(['show', `@{u}:${BACKLOG_PATH}`]);
-  return r.status === 0 && r.stdout ? r.stdout : null;
+  if (r.status === 0 && r.stdout) return r.stdout;
+  warn(`cannot read ${BACKLOG_PATH} from the upstream branch (git show status ${r.status})`);
+  return null;
 }
 
 async function main() {
@@ -132,35 +150,49 @@ async function main() {
     o = parseArgs(process.argv.slice(2));
   } catch (e) {
     console.error(`planner-wake: ${e instanceof Error ? e.message : e}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const git = gitIn(o.vault);
   const first = readUpstreamBacklog(git);
   if (first === null) {
-    console.error(`planner-wake: cannot read ${BACKLOG_PATH} from the upstream branch of ${o.vault}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const before = parseProgress(first);
   const started = Date.now();
+  let failed = 0;
   for (;;) {
     await new Promise(r => setTimeout(r, o.interval * 1000));
     const waited = (Date.now() - started) / 1000;
-    const text = readUpstreamBacklog(git);
+    const text = readUpstreamBacklog(git, m => {
+      failed++;
+      console.error(`planner-wake: ${m}`);
+    });
     const changes = text === null ? [] : changedProgress(before, parseProgress(text));
     if (changes.length) {
-      for (const c of changes) console.log(`${c.id}: ${c.progress}`);
+      for (const line of formatChanges(changes)) console.log(line);
       if (isCold(waited, o.coldAfter)) {
-        console.log(`planner-wake: cold (waited ${Math.round(waited / 60)} min); start a fresh planner with this brief:`);
+        console.log(
+          `planner-wake: cold (waited ${Math.round(waited / 60)} min); start a fresh planner with this brief:`
+        );
         console.log(freshBrief(changes));
-        process.exit(3);
+        process.exitCode = 3;
+        return;
       }
-      process.exit(0);
+      process.exitCode = 0;
+      return;
     }
     if (waited >= o.maxWait) {
-      console.log(`planner-wake: no progress change in ${Math.round(waited / 60)} min`);
-      process.exit(4);
+      const note = failed
+        ? ` (${failed} fetch or read problems, see stderr: the vault may be unreachable)`
+        : '';
+      console.log(`planner-wake: no progress change in ${Math.round(waited / 60)} min${note}`);
+      process.exitCode = 4;
+      return;
     }
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) await main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]))
+  await main();

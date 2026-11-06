@@ -151,7 +151,7 @@ const MAKE_SIDE_SCENE = async ({ name, actorIds, flag }) => {
     };
   } catch (error) {
     // The caller never gets the id of a scene that threw half way: remove it here.
-    await scene.delete();
+    await scene.delete().catch(() => {});
     throw error;
   }
 };
@@ -516,7 +516,7 @@ export default {
       const downAfter = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
       t.log(`at 0 HP the statuses are ${JSON.stringify(downAfter.statuses)}`);
       t.check(
-        downAfter.statuses.length > hpBefore.statuses.length,
+        downAfter.statuses.some((/** @type {string} */ s) => s === 'unconscious' || s === 'dead'),
         'dnd5e added a rider (Unconscious or Dead) at 0 HP',
         downAfter.statuses
       );
@@ -669,9 +669,9 @@ export default {
             },
             { known: before }
           );
-          // The card that names the target, else the first new one.
-          card = now.find(c => JSON.stringify(c.targets ?? []).includes(monster.name)) ?? now[0];
-          return now.length > 0;
+          // Wait for the card that names the target; an unrelated new message does not end the wait.
+          card = now.find(c => JSON.stringify(c.targets ?? []).includes(monster.name));
+          return Boolean(card);
         },
         { label: 'the usage card', timeoutMs: 15000, intervalMs: 500 }
       );

@@ -257,4 +257,27 @@ test('blamedOnBridge follows the first stack frame that is not our diagnostics w
     true
   );
   assert.equal(blamedOnBridge({ message: 'x', source: 'pageerror' }, 'foundry-mcp-bridge'), false);
+  // Our tag wins over a foreign top frame of the error it carries.
+  assert.equal(
+    blamedOnBridge(
+      {
+        message: ['[foundry-mcp-bridge] failed Error: x', frame('foundry', 'core.js')].join('\n'),
+        source: diag,
+      },
+      'foundry-mcp-bridge'
+    ),
+    true
+  );
+  // An untagged string through the wrapper, and prose that starts with "at ", are not ours.
+  assert.equal(
+    blamedOnBridge({ message: 'Error in a handler', source: diag }, 'foundry-mcp-bridge'),
+    false
+  );
+  assert.equal(
+    blamedOnBridge(
+      { message: 'at least 3 retries failed, see /modules/foundry-mcp-bridge/x', source: diag },
+      'foundry-mcp-bridge'
+    ),
+    false
+  );
 });

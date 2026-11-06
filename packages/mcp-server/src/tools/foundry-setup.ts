@@ -382,7 +382,7 @@ export class FoundrySetupTools {
             const depRow = byId.get(dep.id);
             if (!depRow) {
               throw new Error(
-                `The read did not include ${dep.id}, which ${m.id} needs; read the module list and try again`
+                `The read did not include ${dep.id}, which ${m.id} needs; too many modules depend on it for a plan, so change it in Foundry itself`
               );
             }
             visit(depRow);
@@ -393,7 +393,7 @@ export class FoundrySetupTools {
           const user = byId.get(id);
           if (!user) {
             throw new Error(
-              `The read did not include ${id}, which needs ${m.id}; read the module list and try again`
+              `The read did not include ${id}, which needs ${m.id}; too many modules depend on it for a plan, so change it in Foundry itself`
             );
           }
           if (user.active) visit(user);

@@ -1109,7 +1109,7 @@ Kind: read-only. Title: Run pre-flight check.
 
 Parameters:
 
-- `action` (string): "checks" (default) for the checklist, "scan" for the findings only. One of: `checks`, `scan`.
+- `action` (string): "checks" (default) the checklist, "scan" findings only, "pumps" log recording health only. One of: `checks`, `scan`, `pumps`.
 
 ### get-prep-digest
 

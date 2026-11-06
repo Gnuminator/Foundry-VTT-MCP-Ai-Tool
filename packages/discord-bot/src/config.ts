@@ -14,6 +14,8 @@
  * | `DISCORD_SESSION_POST_CHANNEL_ID` | channel for the "session is over" link post; unset = off |
  * | `DISCORD_GM_BOT_CHANNEL_ID` | #gm-bot: recorder alerts go here (else `GAMENIGHT_WATCH_CHANNEL_ID`, else the voice channel chat) |
  * | `FOUNDRY_AI_DASHBOARD_URL` | where the bot reads the session state; default `http://127.0.0.1:3100` |
+ * | `FOUNDRY_AI_BOT_STATUS_PORT` | port of the read-only status endpoint the dashboard's health line asks; unset = off |
+ * | `FOUNDRY_AI_BOT_STATUS_HOST` | its listen address; default `127.0.0.1` (the Pi network address to share it, never the internet) |
  * | `FOUNDRY_AI_PLAYER_PAGE_URL` | the player page link in the post (required for the post; no default) |
  * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
@@ -45,6 +47,10 @@ export interface BotConfig {
   sessionPostChannelId?: string | undefined;
   /** Where the bot reads the session state; default `http://127.0.0.1:3100`. */
   dashboardUrl?: string | undefined;
+  /** Port of the small status endpoint the dashboard's health line reads; unset means it is off. */
+  statusPort?: number | undefined;
+  /** Address the status endpoint listens on; default 127.0.0.1 (set the Pi-network address to share it). */
+  statusHost?: string | undefined;
   /** The player page link in the post; without it the post stays off (127.0.0.1 is no link for players). */
   playerPageUrl?: string | undefined;
   /** The dashboard's player token, when the deployment sets one. */
@@ -61,6 +67,13 @@ export interface RehearsalConfig {
   speakerTokens: string[];
   channelId: string;
   dir: string;
+}
+
+/** A usable TCP port, or undefined (the status endpoint stays off). */
+export function parseStatusPort(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : undefined;
 }
 
 export function defaultEnvFile(): string {
@@ -106,6 +119,8 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     backupStaleDays: parseStaleDays(get('FOUNDRY_AI_BACKUP_STALE_DAYS')),
     sessionPostChannelId: get('DISCORD_SESSION_POST_CHANNEL_ID'),
     dashboardUrl: get('FOUNDRY_AI_DASHBOARD_URL'),
+    statusPort: parseStatusPort(get('FOUNDRY_AI_BOT_STATUS_PORT')),
+    statusHost: get('FOUNDRY_AI_BOT_STATUS_HOST'),
     playerPageUrl: get('FOUNDRY_AI_PLAYER_PAGE_URL'),
     playerToken: get('FOUNDRY_AI_PLAYER_TOKEN'),
     gmBotChannelId: get('DISCORD_GM_BOT_CHANNEL_ID') ?? get('GAMENIGHT_WATCH_CHANNEL_ID'),

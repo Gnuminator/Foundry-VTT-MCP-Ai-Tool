@@ -365,6 +365,8 @@ export async function showPlayerScreen(page: Page, screen: PlayerScreen): Promis
       ],
     })
   );
+  // Opening a handout tells the GM's seen log: answered here, so no shot depends on the server.
+  await page.route('**/api/player/handout-seen', route => route.fulfill({ status: 204 }));
   await page.route('**/api/me', route =>
     route.fulfill({
       json: {

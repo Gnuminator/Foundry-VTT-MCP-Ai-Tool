@@ -14,6 +14,7 @@ import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
+import { installCombatCreateGuard } from './combat-create-guard.js';
 import { applySelectionColor } from './token-selection-color.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
@@ -651,6 +652,17 @@ Hooks.once('ready', () => {
     if (worldId) diagnostics.bindWorld(worldId);
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
+  }
+});
+
+// A fight created already begun must not throw in Combat#_onCreate on any client. Own try block.
+Hooks.once('ready', () => {
+  try {
+    if (!installCombatCreateGuard()) {
+      console.warn(`[${MODULE_ID}] Combat class has no _onCreate to guard`);
+    }
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not guard Combat creation:`, error);
   }
 });
 

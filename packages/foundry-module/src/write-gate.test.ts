@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { bridgeHandlers } from './bridge-handlers.js';
+import { changeJournal } from './change-journal.js';
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { permissionManager } from './permissions.js';
@@ -130,6 +131,28 @@ describe('write gate: behaviour', () => {
     qh.registerHandlers();
     await bridgeHandlers.get(wire('playPlaylist'))!({});
     expect(calls).toHaveBeenCalledWith('playPlaylist', expect.anything());
+  });
+
+  it('ends the change group before a write runs, so it is its own change', async () => {
+    stubEverything();
+    const order: string[] = [];
+    const brk = vi.spyOn(changeJournal, 'breakGroup').mockImplementation(() => {
+      order.push('break');
+    });
+    world.enableWrites();
+    qh.registerHandlers();
+    (qh as any).dataAccess.playPlaylist = (): Promise<{ success: boolean }> => {
+      order.push('write');
+      return Promise.resolve({ success: true });
+    };
+    await bridgeHandlers.get(wire('playPlaylist'))!({});
+    expect(order).toEqual(['break', 'write']);
+    brk.mockClear();
+    await bridgeHandlers.get(wire('ping'))!({});
+    expect(brk).not.toHaveBeenCalled();
+    world.setSetting(MODULE_ID, 'allowWriteOperations', false);
+    await expect(bridgeHandlers.get(wire('playPlaylist'))!({})).rejects.toThrow();
+    expect(brk).not.toHaveBeenCalled();
   });
 
   it('never gates reads', async () => {

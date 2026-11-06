@@ -14,6 +14,7 @@
  * checks the feature switches.
  */
 import type { BridgeHandlerTable } from './bridge-handlers.js';
+import { changeJournal } from './change-journal.js';
 import { WRITES_OFF_MESSAGE, writeOperationsAllowed } from './guarded-features.js';
 
 /** The refusal every gated write gets (the same text as guarded writes). */
@@ -177,6 +178,9 @@ export function gateWriteHandlers(table: BridgeHandlerTable, prefix: string): vo
     if (!handler) continue;
     table.set(wire, async (data: unknown) => {
       requireWriteOperations();
+      // A direct write is its own change, never a follow-up of the guarded apply just before it
+      // (the journal's guarded gap would else file it under the AI change in Recent Changes).
+      changeJournal.breakGroup();
       return await handler(data);
     });
   }

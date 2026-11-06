@@ -107,7 +107,8 @@ export async function journalRows(sweep, { t, gm, player }) {
  */
 export async function chatRows(sweep, { t, gm, player }) {
   const hero = playerHero(t.kit);
-  const label = 'STR Ability Check (Public)';
+  // The card names the ability by dnd5e's own label ("Strength"), not the short key.
+  const label = 'Strength Ability Check (Public)';
   const messageIds = () =>
     gm.evaluate(
       text =>
@@ -131,7 +132,7 @@ export async function chatRows(sweep, { t, gm, player }) {
       { targetPlayer: hero.name, ability: 'str', isPublic: true },
       { confirm: true }
     );
-    const button = gm.locator('.mcp-roll-button', { hasText: 'STR Ability Check' }).last();
+    const button = gm.locator('.mcp-roll-button', { hasText: 'Strength Ability Check' }).last();
     await button.waitFor({ state: 'attached', timeout: 15000 });
     const info = await button.evaluate(b => ({
       formula: /** @type {HTMLElement} */ (b).dataset.rollFormula ?? '',
@@ -142,7 +143,7 @@ export async function chatRows(sweep, { t, gm, player }) {
   });
 
   await sweep.row('module.chat.roll-button', 'player', async () => {
-    const button = player.locator('.mcp-roll-button', { hasText: 'STR Ability Check' }).last();
+    const button = player.locator('.mcp-roll-button', { hasText: 'Strength Ability Check' }).last();
     await button.waitFor({ state: 'visible', timeout: 15000 });
     const before = (await messageIds()).length;
     // Counted before the click: a card or a roll left by an earlier run must not pass for this one.

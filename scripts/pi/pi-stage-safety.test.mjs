@@ -872,7 +872,10 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
       'systemctl',
       `echo "systemctl $*" >>"$LOG"
 case "$1" in
-  is-active) case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
+  stop) [ "\${RESTART_FAILS:-0}" = 1 ] && touch "$LOG.down" ;;
+  start) [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.down" ;;
+  is-active) [ "\${@: -1}" = foundry.service ] && [ -f "$LOG.down" ] && exit 1
+    case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
   show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
 esac
 exit 0`
@@ -1035,6 +1038,25 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.notEqual(r.status, 0, r.out);
     assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
     assert.equal(r.markerText, dayAgo(0));
+  });
+
+  test('a backup that leaves Foundry down fails with an ERROR line after waiting for it', () => {
+    const r = nightly({
+      users: [0],
+      env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+    });
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active/);
+    assert.equal(r.sleeps, 3);
+    assert.match(r.calls, /restic backup/);
+    assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  test('a backup after which Foundry is active again succeeds without waiting', () => {
+    const r = nightly({ users: [0] });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.sleeps, 0);
+    assert.match(r.calls, /restic forget/);
   });
 
   test('a backup that finds nobody online also removes an old marker', () => {

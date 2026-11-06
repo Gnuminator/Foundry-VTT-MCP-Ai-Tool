@@ -18,7 +18,9 @@
 
   Refuses while Plan B runs (stop.ps1 first), refuses a root that holds data but no recorded restore
   (not Plan B's copy, -Force or not), and refuses to replace data a game night was played on until it
-  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead).
+  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead). A newest backup that
+  is more than 36 hours old is refused too (the Pi's nightly backup or the PC's copy task stopped);
+  -Force restores it anyway, with a warning.
   The restic password is read by restic from -PassFile; this script never reads or prints it.
 
 .EXAMPLE
@@ -38,7 +40,8 @@ param(
   [string]$LicenseFrom = '',
   # Only list the newest snapshots and say which one would be restored.
   [switch]$List,
-  # Move data a game night was played on aside to <Root>\previous\ instead of refusing.
+  # Move data a game night was played on aside to <Root>\previous\ instead of refusing; and restore a backup that is
+  # more than 36 hours old, which is refused without it.
   [switch]$Force,
   # Test hook: the restic program.
   [string]$Restic = ''
@@ -79,7 +82,12 @@ if ($List) {
 }
 Write-Step "snapshot $($pick.short_id) from $($pickTime.ToString('yyyy-MM-dd HH\:mm')) ($ageHours hours old)"
 if ($ageHours -gt 36) {
-  Write-Warning "the newest backup is more than a day and a half old: the Pi's nightly backup or this PC's copy task stopped. The game continues from that point."
+  # The Pi's nightly backup or this PC's copy task stopped: everything played since is not in this backup.
+  if (-not $Force) {
+    [Console]::Error.WriteLine("REFUSED: the newest backup is $ageHours hours old (more than 36): the Pi's nightly backup or this PC's copy task stopped, and the game would continue from that point. Run restore.ps1 -List to see the snapshots, or restore.ps1 -Force to restore this one anyway.")
+    exit 1
+  }
+  Write-Warning "the newest backup is $ageHours hours old (more than 36): restoring it anyway because of -Force. The game continues from that point."
 }
 
 # --- refusals ---------------------------------------------------------------------------------

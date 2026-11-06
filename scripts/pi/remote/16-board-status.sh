@@ -8,8 +8,9 @@
 #   header = "CF-Access-Client-Id: <id>.access"
 #   header = "CF-Access-Client-Secret: <secret>"
 # The stage refuses without a file like that and never prints a line of it. The status script reads the Pi, changes
-# nothing, and sends: up, uptime, disk free, the last nightly backup (result and time), Foundry up or down and the
-# Foundry and dnd5e versions. No log lines, no secrets, no host name but the constant "foundry-pi".
+# nothing, and sends: up, uptime, disk free, the last nightly backup (result and time), the time of the newest
+# dietpi-backup snapshot, Foundry up or down (and whether foundry.service is active), the clock (NTP synchronized and the
+# measured offset) and the Foundry and dnd5e versions. No log lines, no secrets, no host name but the constant "foundry-pi".
 
 require_root
 require_recent_snapshot
@@ -48,7 +49,7 @@ script_body="$(
 # Reads the Pi, changes nothing, POSTs one JSON object. Exit 0 only when the board answered 2xx.
 # Environment, for tests only: FOUNDRY_STATUS_TEST=1 (allows http, a non-root owner, and --dry-run),
 # FOUNDRY_STATUS_ETC, FOUNDRY_STATUS_URL, FOUNDRY_STATUS_NODE, FOUNDRY_STATUS_DF_PATH, FOUNDRY_STATUS_API,
-# FOUNDRY_STATUS_BACKUP_UNIT. With --dry-run (tests only) the JSON is printed and nothing is sent.
+# FOUNDRY_STATUS_BACKUP_UNIT, FOUNDRY_STATUS_FOUNDRY_UNIT, FOUNDRY_STATUS_SNAPSHOT_STATS. With --dry-run (tests only) the JSON is printed and nothing is sent.
 set -euo pipefail
 umask 077
 
@@ -60,6 +61,8 @@ node="${FOUNDRY_STATUS_NODE:-/opt/node24/bin/node}"
 df_path="${FOUNDRY_STATUS_DF_PATH:-/var/lib/foundry}"
 api="${FOUNDRY_STATUS_API:-http://127.0.0.1:30000/api/status}"
 backup_unit="${FOUNDRY_STATUS_BACKUP_UNIT:-foundry-backup.service}"
+foundry_unit="${FOUNDRY_STATUS_FOUNDRY_UNIT:-foundry.service}"
+snapshot_stats="${FOUNDRY_STATUS_SNAPSHOT_STATS:-/mnt/dietpi-backup/.dietpi-backup_stats}"
 dry=0
 [ "${1:-}" = "--dry-run" ] && [ "$test_mode" = 1 ] && dry=1
 
@@ -106,12 +109,24 @@ if command -v restic >/dev/null 2>&1; then
   )" || backup_at=""
 fi
 
+# The dietpi-backup snapshot: its stats file is written at the end of a run, so its mtime is the snapshot's age (the PC's
+# pull script reads the same file). Empty when there is no snapshot yet.
+snapshot_epoch="$(stat -c %Y "$snapshot_stats" 2>/dev/null || true)"
+# Is the Foundry service itself running? (/api/status below can answer on the setup screen with no world; this says the
+# unit is up.)
+foundry_unit_state="$(systemctl is-active "$foundry_unit" 2>/dev/null || true)"
+# The clock: Cloudflare Access tokens fail on a Pi whose clock has drifted (stage 18). timedatectl says whether NTP has the
+# clock; timesync-status gives the last measured offset (empty when systemd-timesyncd is not running).
+clock_synced="$(timedatectl show -p NTPSynchronized --value 2>/dev/null || true)"
+clock_offset="$(timedatectl timesync-status 2>/dev/null | sed -n 's/^[[:space:]]*Offset:[[:space:]]*//p' | head -n 1 || true)"
+
 # Foundry: /api/status answers on the setup screen too.
 api_json="$(curl -q -fs --max-time 5 "$api" 2>/dev/null || true)"
 
 payload="$(
   DISK_TOTAL_KB="$disk_total_kb" DISK_FREE_KB="$disk_free_kb" UPTIME_S="$uptime_s" BACKUP_RESULT="$backup_result" \
-    BACKUP_AT="$backup_at" API_JSON="$api_json" "$node" -e '
+    BACKUP_AT="$backup_at" API_JSON="$api_json" SNAPSHOT_EPOCH="$snapshot_epoch" FOUNDRY_UNIT_STATE="$foundry_unit_state" \
+    CLOCK_SYNCED="$clock_synced" CLOCK_OFFSET="$clock_offset" "$node" -e '
 const e = process.env;
 const num = v => (/^\d+$/.test(v || "") ? Number(v) : null);
 const word = (v, max) => (typeof v === "string" && /^[A-Za-z0-9._-]+$/.test(v) && v.length <= max ? v : null);
@@ -121,6 +136,13 @@ if (api === null || typeof api !== "object") api = null;
 const total = num(e.DISK_TOTAL_KB), free = num(e.DISK_FREE_KB);
 const gb = kb => (kb === null ? null : Math.round((kb / 1024 / 1024) * 10) / 10);
 const at = Date.parse(e.BACKUP_AT || "");
+const snap = num(e.SNAPSHOT_EPOCH);
+// timedatectl prints the offset as a signed number with a unit: -2.331ms, +1.2s, 340us.
+const offsetMs = (() => {
+  const m = /^([+-]?\d+(?:\.\d+)?)\s*(us|ms|s|min)$/.exec((e.CLOCK_OFFSET || "").trim());
+  if (!m) return null;
+  return Math.round(Number(m[1]) * { us: 0.001, ms: 1, s: 1000, min: 60000 }[m[2]] * 1000) / 1000;
+})();
 process.stdout.write(JSON.stringify({
   v: 1,
   host: "foundry-pi",
@@ -134,11 +156,17 @@ process.stdout.write(JSON.stringify({
   backup: {
     result: word(e.BACKUP_RESULT, 24),
     at: Number.isFinite(at) ? new Date(at).toISOString() : null,
+    snapshotAt: snap ? new Date(snap * 1000).toISOString() : null,
   },
   foundry: {
     up: api !== null,
+    serviceActive: e.FOUNDRY_UNIT_STATE ? e.FOUNDRY_UNIT_STATE === "active" : null,
     version: api ? word(String(api.version ?? ""), 24) : null,
     dnd5e: api && api.system === "dnd5e" ? word(String(api.systemVersion ?? ""), 24) : null,
+  },
+  clock: {
+    ntpSynced: e.CLOCK_SYNCED === "yes" ? true : e.CLOCK_SYNCED === "no" ? false : null,
+    offsetMs,
   },
 }));
 '

@@ -1432,6 +1432,9 @@ The Pi reports its own health to the PM board once an hour, because the PC is no
 systemd timer `foundry-board-status.timer` (minute 07 of every hour, and 5 minutes after boot). The script only reads the Pi and sends one JSON object: up and uptime,
 disk free (the disk with Foundry's data), the last nightly backup (the result of
 `foundry-backup.service` and the time of the newest restic snapshot, read with `--no-lock`), and
+the time of the newest `dietpi-backup` snapshot (`backup.snapshotAt`, from the mtime of its stats
+file), whether `foundry.service` itself is active (`foundry.serviceActive`), the clock (`clock.ntpSynced`
+and the last measured NTP `clock.offsetMs`, null when systemd-timesyncd does not run), and
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`. No log
 lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
 Today, red when the backup is older than 30 hours or no report came for 3 hours.

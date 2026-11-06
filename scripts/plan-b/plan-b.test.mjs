@@ -6,7 +6,7 @@
 // Needs PowerShell 7 (pwsh); skipped where it is missing.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -517,6 +517,105 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       }`);
     assert.equal(r.none, 0);
     assert.deepEqual(r.some, ['bridge', 'dashboard']);
+  });
+
+  test('tunnel state: the current state of each connection, not "was ever registered"', () => {
+    const r = ps(`
+      $reg = { param($i) "2026-11-06T10:00:0$i Z INF Registered tunnel connection connIndex=$i connection=abc event=0 ip=1.2.3.4" }
+      $drop = { param($i) "2026-11-06T11:00:0$i Z ERR Connection terminated error=x connIndex=$i" }
+      @{
+        none = Get-PlanBTunnelState @('2026-11-06 INF Starting tunnel', 'unrelated line')
+        up = Get-PlanBTunnelState @((& $reg 0), (& $reg 1))
+        dropped = Get-PlanBTunnelState @((& $reg 0), (& $reg 1), (& $drop 0), (& $drop 1))
+        partial = Get-PlanBTunnelState @((& $reg 0), (& $reg 1), (& $drop 1))
+        back = Get-PlanBTunnelState @((& $reg 0), (& $drop 0), (& $reg 0))
+        retry = Get-PlanBTunnelState @((& $reg 2), 'Retrying connection in up to 4s connIndex=2')
+        empty = Get-PlanBTunnelState @()
+      }`);
+    assert.equal(r.none.Connected, false);
+    assert.match(r.none.Message, /no connection/);
+    assert.equal(r.up.Connected, true);
+    assert.equal(r.dropped.Connected, false);
+    assert.match(r.dropped.Message, /down/);
+    assert.deepEqual([r.partial.Connected, r.partial.Up, r.partial.Seen], [true, 1, 2]);
+    assert.equal(r.back.Connected, true);
+    assert.equal(r.retry.Connected, false);
+    assert.equal(r.empty.Connected, false);
+  });
+
+  test('start.ps1 fails with one FAIL: line and exit 1, and prints no <domain> placeholder', () => {
+    const root = mkdtempSync(path.join(tmp, 'start-fail-'));
+    const r = spawnSync(
+      'pwsh',
+      ['-NoProfile', '-NonInteractive', '-File', path.join(here, 'start.ps1'), '-Root', root],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const lines = r.stderr.split(/\r?\n/).filter(Boolean);
+    assert.equal(lines.length, 1, r.stderr);
+    assert.match(lines[0], /^FAIL: nothing restored in .* yet: run restore\.ps1 first$/);
+    const source = readFileSync(path.join(here, 'start.ps1'), 'utf8');
+    assert.doesNotMatch(source, /Write-Host[^\n]*<domain>/);
+    assert.doesNotMatch(source, /\bthrow\b/);
+  });
+
+  test('start.ps1 says it waits for Foundry data lock, and for how long', () => {
+    const source = readFileSync(path.join(here, 'start.ps1'), 'utf8');
+    assert.match(source, /waiting for it to go stale \(at most 30 s\)/);
+  });
+
+  test('check.ps1 reports an unreadable module link as unknown and reads the tunnel state from the log tail', () => {
+    const source = readFileSync(path.join(here, 'check.ps1'), 'utf8');
+    assert.match(source, /Line 'module link' \$true '[^']*asks for a login[^']*' -Unknown/);
+    assert.match(source, /Get-PlanBTunnelState \$tail/);
+    assert.doesNotMatch(source, /Select-String[^\n]*Registered tunnel connection/);
+  });
+
+  test('restore.ps1 refuses a backup over 36 hours old without -Force, and warns with it', () => {
+    const dir = mkdtempSync(path.join(tmp, 'restore-old-'));
+    const repo = path.join(dir, 'repo');
+    mkdirSync(repo);
+    writeFileSync(path.join(repo, 'config'), 'x');
+    const pass = path.join(dir, 'pass');
+    writeFileSync(pass, 'x');
+    const old = new Date(Date.now() - 40 * 3600 * 1000).toISOString();
+    const json = JSON.stringify([
+      { id: 'aaaaaaaabbbbbbbb', short_id: 'aaaaaaaa', time: old, paths: ['/var/lib/foundry'] },
+    ]);
+    const fake = path.join(dir, 'fake-restic.ps1');
+    writeFileSync(fake, `if ($args[0] -eq 'snapshots') { '${json}' }\nexit 0\n`);
+    const run = extra =>
+      spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(here, 'restore.ps1'),
+          '-Root',
+          path.join(dir, 'root'),
+          '-Repo',
+          repo,
+          '-PassFile',
+          pass,
+          '-Restic',
+          fake,
+          ...extra,
+        ],
+        { encoding: 'utf8' }
+      );
+    const refused = run([]);
+    assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+    assert.match(refused.stderr, /REFUSED: the newest backup is 4\d(\.\d)? hours old \(more than 36\)/);
+    assert.match(refused.stderr, /-Force/);
+    // -List still works for an old backup: it only shows.
+    const list = run(['-List']);
+    assert.equal(list.status, 0, list.stdout + list.stderr);
+    assert.match(list.stdout, /aaaaaaaa/);
+    // With -Force it goes past the age check (and fails later, at the restore itself, in this fake setup).
+    const forced = run(['-Force']);
+    assert.doesNotMatch(forced.stderr, /REFUSED: the newest backup/);
+    assert.match(forced.stdout + forced.stderr, /restoring it anyway because of -Force/);
   });
 
   test('connector switch: only the two values change, the rest of the file stays byte for byte', () => {

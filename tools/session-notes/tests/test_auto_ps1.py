@@ -29,7 +29,13 @@ pytestmark = pytest.mark.skipif(
 def run_pass(
     sessions: Path, fake_bin: Path | None = None, args: tuple[str, ...] = (), **env: str
 ) -> tuple[int, str]:
-    full = {k: v for k, v in os.environ.items() if k != "FVTT_PI_HOST"}
+    # No test may reach the real Discord: drop every Discord setting and point announce.mjs at a missing env file.
+    full = {
+        k: v
+        for k, v in os.environ.items()
+        if k != "FVTT_PI_HOST" and not k.startswith(("DISCORD_", "GAMENIGHT_"))
+    }
+    full["ANNOUNCE_ENV_FILE"] = str(sessions.parent / "no-such-discord-bot.env")
     full["FVTT_SESSIONS_DIR"] = str(sessions)
     if fake_bin is not None:
         full["PATH"] = f"{fake_bin}{os.pathsep}{full['PATH']}"
@@ -170,7 +176,12 @@ def test_a_session_without_recorded_consent_is_not_processed(
 
 
 def make_bin(
-    tmp: Path, consent: int = 0, run: int = 0, publish: int = 0, node: int = 0
+    tmp: Path,
+    consent: int = 0,
+    run: int = 0,
+    publish: int = 0,
+    node: int = 0,
+    node_says: str = "announce: posted gm-bot (message 1)",
 ) -> tuple[Path, Path]:
     """A python.cmd that answers `session_notes consent|run|publish` with the given exit codes, and a
     node.cmd that stands in for announce.mjs: it logs its arguments and exits with ``node``."""
@@ -185,7 +196,7 @@ def make_bin(
         "exit /b 0",
     ]
     (bin_dir / "python.cmd").write_text("\r\n".join(python_lines) + "\r\n", encoding="ascii")
-    node_lines = ["@echo off", f'echo %* >> "{calls}"', f"exit /b {node}"]
+    node_lines = ["@echo off", f'echo %* >> "{calls}"', f"echo {node_says}", f"exit /b {node}"]
     (bin_dir / "node.cmd").write_text("\r\n".join(node_lines) + "\r\n", encoding="ascii")
     return bin_dir, calls
 
@@ -279,3 +290,17 @@ def test_a_dry_run_posts_nothing(tmp_path: Path, sessions: Path, folder_with_tim
     code, out = run_pass(sessions, bin_dir, args=("-DryRun",))
     assert code == 0 and "would tell the GM bot channel" in out
     assert tells(calls) == [] and not (sessions / ".notes-tells.json").exists()
+
+
+def test_a_tell_with_no_discord_settings_is_not_recorded_as_sent(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    # announce.mjs exits 0 and posts nothing when Discord is not configured.
+    bin_dir, calls = make_bin(
+        tmp_path, publish=1, node_says="announce: no Discord settings for gm-bot; nothing posted"
+    )
+    code, out = run_pass(sessions, bin_dir)
+    assert code == 0 and "tell not posted" in out and "told the GM bot channel" not in out
+    assert not (sessions / ".notes-tells.json").exists()
+    run_pass(sessions, bin_dir)
+    assert len(tells(calls)) == 2  # tried again on the next pass

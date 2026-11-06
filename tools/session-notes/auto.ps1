@@ -105,7 +105,8 @@ function Tell([string]$key, [string]$text) {
     }
     if ($sent.ContainsKey($key)) { return }
     $out = & node $announce gm-bot $text 2>&1
-    if ($LASTEXITCODE -ne 0) { Say "  tell not posted (announce exit $LASTEXITCODE): $out"; return }
+    # announce.mjs exits 0 for "no Discord settings"; only its "posted" line counts, so the tell is retried once configured.
+    if ($LASTEXITCODE -ne 0 -or "$out" -notmatch 'announce: posted') { Say "  tell not posted (announce exit $LASTEXITCODE): $out"; return }
     $sent[$key] = (Get-Date).ToString('yyyy-MM-dd')
     [System.IO.File]::WriteAllText($tellsFile, (($sent | ConvertTo-Json) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     Say "  told the GM bot channel: $text"

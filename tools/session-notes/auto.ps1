@@ -89,6 +89,29 @@ function Test-NotesDone([string]$folder) {
   try { return $null -ne (Get-Content $json -Raw -Encoding utf8 | ConvertFrom-Json).session } catch { return $false }
 }
 
+# Tells: one short post to the GM bot channel when a pass could not do its job (paused, skipped, failed, raw scenes),
+# so the GM does not have to open a log. Text is the folder name and the event only, never what was said. Best effort:
+# a missing Discord setting, a missing node or a failed post is logged and never fails the pass. Deduped through
+# <sessions>\.notes-tells.json (key -> date): the same key is not posted twice, so an hourly pass does not repeat itself.
+$tellsFile = Join-Path $sessions '.notes-tells.json'
+$announce = Join-Path $repo 'packages\discord-bot\announce\announce.mjs'
+function Tell([string]$key, [string]$text) {
+  if ($DryRun) { Say "  would tell the GM bot channel: $text"; return }
+  try {
+    $sent = @{}
+    if (Test-Path $tellsFile) {
+      $existing = Get-Content $tellsFile -Raw -Encoding utf8 | ConvertFrom-Json
+      foreach ($p in $existing.PSObject.Properties) { $sent[$p.Name] = [string]$p.Value }
+    }
+    if ($sent.ContainsKey($key)) { return }
+    $out = & node $announce gm-bot $text 2>&1
+    if ($LASTEXITCODE -ne 0) { Say "  tell not posted (announce exit $LASTEXITCODE): $out"; return }
+    $sent[$key] = (Get-Date).ToString('yyyy-MM-dd')
+    [System.IO.File]::WriteAllText($tellsFile, (($sent | ConvertTo-Json) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+    Say "  told the GM bot channel: $text"
+  } catch { Say "  tell failed: $_" }
+}
+
 $audioPattern = '\.(ogg|oga|opus|flac|wav|mp3|m4a)$'
 try {
   # 0. With the recorder on the Pi (FVTT_PI_HOST set, D-068): copy its finished recordings here.
@@ -113,7 +136,11 @@ try {
       $consentArgs = @('consent', 'check', $folder)
       if (-not $DryRun -and -not (Test-NotesDone $folder)) { $consentArgs += '--write-status' }
       $consentCode = Invoke-Notes $consentArgs
-      if ($consentCode -ne 0) { Say "$($dir.Name): not processed (consent check exit $consentCode; 77 = recording consent is missing)"; continue }
+      if ($consentCode -ne 0) {
+        Say "$($dir.Name): not processed (consent check exit $consentCode; 77 = recording consent is missing)"
+        if ($consentCode -eq 77) { Tell "consent|$($dir.Name)" "Session notes skipped for $($dir.Name): recording consent is missing for at least one speaker." }
+        continue
+      }
     }
 
     if ($recorded -and $hasAudio -and -not (Test-Path $timeline)) {
@@ -126,14 +153,18 @@ try {
       }
     }
 
+    $rawScenes = $false
     if ((Test-Path $timeline) -and -not (Test-NotesDone $folder)) {
       Say "$($dir.Name): writing notes"
       if (-not $DryRun) {
         $code = Invoke-Notes @('run', $folder)
         switch ($code) {
           0 { Say "$($dir.Name): notes done" }
-          75 { Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues" }
-          76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
+          75 {
+            Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues"
+            Tell "paused|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Session notes for $($dir.Name) are paused: the usage limit is reached or Claude is logged out. The next pass continues."
+          }
+          76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again"; $rawScenes = $true }
           default {
             Say "$($dir.Name): notes failed (exit $code), see notes\audit.jsonl"
             Write-Status $folder 'failed' "The notes run failed (exit $code); the next pass tries again." -KeepFresh
@@ -146,9 +177,19 @@ try {
     if ((Test-NotesDone $folder) -and -not (Test-Path (Join-Path $folder 'notes\approved.json'))) {
       if ($DryRun) { Say "$($dir.Name): would publish the notes to the bridge" }
       else {
+        # Raw-text scenes: this pass's notes run exited 76, or an earlier pass left status.json at "incomplete".
+        $statusFile = Join-Path $folder 'notes\status.json'
+        try { if ((Test-Path $statusFile) -and (Get-Content $statusFile -Raw -Encoding utf8 | ConvertFrom-Json).state -eq 'incomplete') { $rawScenes = $true } } catch { }
         $code = Invoke-Notes @('publish', $folder)
-        if ($code -eq 1) { Say "$($dir.Name): publish failed"; Write-Status $folder 'failed' 'Publishing the notes to Foundry failed; the next pass tries again.' }
-        elseif ($code -eq 0) { Write-Status $folder 'published' 'The notes are in Foundry.' }
+        if ($code -eq 1) {
+          Say "$($dir.Name): publish failed"
+          Write-Status $folder 'failed' 'Publishing the notes to Foundry failed; the next pass tries again.'
+          Tell "publish-failed|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Publishing the session notes for $($dir.Name) to Foundry failed. The next pass tries again."
+        }
+        elseif ($code -eq 0) {
+          Write-Status $folder 'published' 'The notes are in Foundry.'
+          if ($rawScenes) { Tell "raw|$($dir.Name)" "The session notes for $($dir.Name) are in Foundry, but some scenes are raw text (the notes writer did not finish them)." }
+        }
         elseif ($code -eq 3) { Say "$($dir.Name): publish: bridge not reachable, will retry"; Write-Status $folder 'waiting' 'The notes are written but Foundry cannot take them yet (bridge not reachable); the next pass tries again.' }
       }
     }

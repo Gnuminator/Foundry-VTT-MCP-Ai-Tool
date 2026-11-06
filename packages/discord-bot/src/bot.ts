@@ -7,6 +7,8 @@
  * that under Server Settings > Integrations).
  */
 
+import type { Server } from 'node:http';
+
 import {
   ChannelType,
   Client,
@@ -26,6 +28,7 @@ import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
 import { RecorderHealth } from './rec/health.js';
+import { startStatusServer } from './status-server.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
 import {
   claimRunMarker,
@@ -105,6 +108,7 @@ export class RecorderBot {
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
   private sessionPostTimer: NodeJS.Timeout | undefined;
+  private statusServer: Server | undefined;
   /** DM to the owner; set once the owner is known. */
   private notifyOwner: ((text: string) => Promise<boolean>) | undefined;
 
@@ -200,7 +204,25 @@ export class RecorderBot {
         a.health.setMuted(id, muted, Date.now());
       }
     });
+    this.startStatusEndpoint();
     await this.client.login(this.config.token);
+  }
+
+  /** The dashboard health line's read-only status endpoint (status-server.ts), when configured. */
+  private startStatusEndpoint(): void {
+    const port = this.config.statusPort;
+    if (port === undefined) return;
+    const host = this.config.statusHost ?? '127.0.0.1';
+    this.statusServer = startStatusServer(
+      host,
+      port,
+      () => ({
+        recording: this.active !== undefined,
+        problems: this.active?.health.problems(Date.now()) ?? [],
+      }),
+      err => log.error('Status endpoint error', err)
+    );
+    log.info(`Status endpoint: http://${host}:${port}/status`);
   }
 
   /**
@@ -500,6 +522,7 @@ export class RecorderBot {
   async shutdown(): Promise<void> {
     if (this.spaceTimer) clearInterval(this.spaceTimer);
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
+    this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));
     await this.client.destroy();
     clearRunMarker(markerPath(this.config.sessionsDir));

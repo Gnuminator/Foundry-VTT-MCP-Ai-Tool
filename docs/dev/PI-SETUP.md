@@ -359,6 +359,16 @@ ends while the bot is down is not announced. The bot posts the link to everyone 
 channel, so if `FOUNDRY_AI_PLAYER_PAGE_URL` carries a `?token=` (the player token), post only to a
 channel that holds nothing but players; never to one where non-players can read it.
 
+Health line dots (item health-line-dots, off by default): the GM health line can show a Recorder dot
+(a speaker silent for 5 minutes, a failed audio stream, the bot unable to rejoin) and a Play log dot.
+For the Recorder dot, set `FOUNDRY_AI_BOT_STATUS_PORT` (for example `3110`) in the bot's env file;
+the bot then answers `GET /status` with a small JSON document (is a recording running, what is
+wrong), no audio and no secrets. It listens on `127.0.0.1` unless `FOUNDRY_AI_BOT_STATUS_HOST` names
+another address; keep it on the Pi or the Pi network, never forwarded to the internet. In the
+dashboard's environment set `DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status`. With a URL set,
+a bot that does not answer shows "Recorder unknown" (grey), never OK; without one there is no
+Recorder dot. The Play log dot needs no setting.
+
 Rolling it out (each step with your OK, snapshot first): run stage 6 again (it installs the helper
 and the folder, and runs one backup now: **Foundry stops for a minute or two, so never run it during
 a game**), then a new tool build (stage 5) and stage 8, so the bot runs the build that reads the

@@ -5,7 +5,12 @@
 import { useEffect, useState, type JSX } from 'react';
 
 import { healthParts, healthTrouble, type HealthTone } from '../lib/health';
-import { useBridgeStatus, useStreamHeardAt, useStreamLink } from '../lib/stream';
+import {
+  useBridgeStatus,
+  useRecordingHealth,
+  useStreamHeardAt,
+  useStreamLink,
+} from '../lib/stream';
 
 const DOT: Record<HealthTone, string> = {
   ok: 'dot-green',
@@ -23,7 +28,8 @@ export function HealthLine(): JSX.Element {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return (): void => clearInterval(timer);
   }, []);
-  const parts = healthParts({ link, heardAt, status, now });
+  const recording = useRecordingHealth();
+  const parts = healthParts({ link, heardAt, status, now, recording });
   const trouble = healthTrouble(parts);
   return (
     <ul
@@ -33,7 +39,13 @@ export function HealthLine(): JSX.Element {
       data-trouble={trouble ? '' : undefined}
     >
       {parts.map(p => (
-        <li key={p.key} className="health-part" data-tone={p.tone} data-part={p.key}>
+        <li
+          key={p.key}
+          className="health-part"
+          data-tone={p.tone}
+          data-part={p.key}
+          title={p.detail}
+        >
           <span className={`dot ${DOT[p.tone]}`} aria-hidden="true" />
           <span className="health-label">{p.label}</span>{' '}
           <span className="health-text">{p.text}</span>

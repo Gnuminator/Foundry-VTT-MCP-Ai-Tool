@@ -34,6 +34,12 @@ export interface Config {
    * initiative ribbon load from it. Empty: the ribbon shows initials.
    */
   readonly foundryUrl?: string;
+  /**
+   * The Discord bot's status endpoint (`DASHBOARD_BOT_STATUS_URL`, for example
+   * `http://192.168.1.50:3110/status`, the bot's `FOUNDRY_AI_BOT_STATUS_PORT`). Empty: the health
+   * line shows no Recorder dot at all.
+   */
+  readonly botStatusUrl?: string;
   /** MCP backend control-channel host (JSON-lines TCP). */
   readonly mcpHost: string;
   /** MCP backend control-channel port. */
@@ -204,6 +210,7 @@ export const config: Config = {
   /** DNS rebinding guard: a tunnel's or proxy's public name must be listed here. */
   allowedHosts: parseAllowedHosts(process.env.DASHBOARD_ALLOWED_HOSTS ?? ''),
   foundryUrl: readString('DASHBOARD_FOUNDRY_URL', ''),
+  botStatusUrl: readString('DASHBOARD_BOT_STATUS_URL', ''),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
   mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
   pollIntervalMs,

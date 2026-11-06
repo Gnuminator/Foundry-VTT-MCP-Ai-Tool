@@ -107,6 +107,8 @@ interface OwnershipDocRow {
 
 interface SetupInfo {
   area: string;
+  /** 2 on the module and ownership reads of this version; an older module leaves it out. */
+  shape?: number;
   settings?: SettingRow[];
   packs?: PackRow[];
   modules?: ModuleRow[];
@@ -172,13 +174,20 @@ export class FoundrySetupTools {
   }
 
   private async info(area: string, target: string | undefined): Promise<SetupInfo> {
-    return unwrapBridgeReply(
+    const reply = unwrapBridgeReply(
       (await this.foundryClient.query('foundry-mcp-bridge.getSetupInfo', {
         area,
         target,
       })) as SetupInfo,
       'Setup read refused'
     );
+    // An older module reads these two areas in another shape (a plan on it would be wrong).
+    if ((area === 'module' || area === 'ownership') && reply.shape !== 2) {
+      throw new Error(
+        'The Foundry module is older than this server and reads modules and ownership differently; update the module in Foundry first'
+      );
+    }
+    return reply;
   }
 
   private async planFoundrySetup(args: unknown): Promise<unknown> {
@@ -272,7 +281,7 @@ export class FoundrySetupTools {
       throw new Error(
         `"${name}" matches ${found
           .slice(0, 8)
-          .map(d => d.name)
+          .map(d => `${d.name} (${d.id})`)
           .join(', ')}: name one of them`
       );
     }
@@ -300,7 +309,8 @@ export class FoundrySetupTools {
         const near = candidates.map(u => u.name).join(', ');
         throw new Error(`No user "${userName}"${near ? ` (did you mean ${near}?)` : ''}`);
       }
-      if (user.isGM) throw new Error(`${user.name} is a Gamemaster and sees everything already`);
+      if (user.isGM)
+        throw new Error(`${user.name} is a Gamemaster or Assistant GM and sees everything already`);
       const was = doc.users[user.id]?.level ?? 'inherits';
       if (was === level) continue;
       changes[`ownership.${user.id}`] = PACK_OWNERSHIP_LEVELS.indexOf(level);
@@ -370,13 +380,23 @@ export class FoundrySetupTools {
           if (!dep.installed) missing.push(`${dep.id} (needed by ${m.id})`);
           else if (!dep.active) {
             const depRow = byId.get(dep.id);
-            if (depRow) visit(depRow);
+            if (!depRow) {
+              throw new Error(
+                `The read did not include ${dep.id}, which ${m.id} needs; read the module list and try again`
+              );
+            }
+            visit(depRow);
           }
         }
       } else {
         for (const id of m.requiredBy) {
           const user = byId.get(id);
-          if (user?.active) visit(user);
+          if (!user) {
+            throw new Error(
+              `The read did not include ${id}, which needs ${m.id}; read the module list and try again`
+            );
+          }
+          if (user.active) visit(user);
         }
       }
     };

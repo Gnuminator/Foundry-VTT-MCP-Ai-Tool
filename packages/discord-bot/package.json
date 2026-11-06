@@ -13,11 +13,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node ../../scripts/tsc7.mjs",
     "start": "node dist/cli.js run",
     "convert": "node dist/cli.js convert",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
     "lint": "eslint src"
   },
   "dependencies": {

@@ -128,11 +128,11 @@ describe('change summary fixture', () => {
         undoState: (): Promise<UndoState> => Promise.resolve(new Map()),
       },
       logger,
-      now: () => NOW,
+      now: (): number => NOW,
     });
     const actual = JSON.parse(JSON.stringify(await history.list()));
     if (process.env['UPDATE_FIXTURES'] === '1') {
-      writeFileSync(FIXTURE, JSON.stringify(actual, null, 2) + '\n');
+      writeFileSync(FIXTURE, `${JSON.stringify(actual, null, 2)}\n`);
     }
     expect(actual).toEqual(JSON.parse(readFileSync(FIXTURE, 'utf8')));
     // Every kind the dashboard reads is in the sample.

@@ -206,7 +206,7 @@ describe('captured shapes', () => {
 
   describe.each(CASES)('$kind', c => {
     const real = topLevel(load(c.kind));
-    const made = c.make() as Record<string, unknown>;
+    const made = c.make();
     const keys = Object.keys(made).filter(k => typeof made[k] !== 'function');
 
     it('makes only keys the real document has', () => {

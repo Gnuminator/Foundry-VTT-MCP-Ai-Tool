@@ -37,7 +37,31 @@ describe('announce', () => {
       prLogChannel: '',
       dashboardChannel: '',
       gmRoleId: '',
+      gmBotChannel: '',
     });
+  });
+
+  it('posts gm-bot text as a normal, mention-free message to the GM bot channel, else the watch channel', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    const own = { ...env, DISCORD_GM_BOT_CHANNEL_ID: '555', GAMENIGHT_WATCH_CHANNEL_ID: '666' };
+    expect(await runCli(['gm-bot', '<@&444> notes', 'paused'], { env: own, fetchImpl: f, log })).toBe(0);
+    expect(f.mock.calls[0][0]).toContain('/channels/555/messages');
+    const body = JSON.parse(f.mock.calls[0][1].body);
+    expect(body.content).toBe('<@&444> notes paused');
+    expect(body.allowed_mentions).toEqual({ parse: [] });
+    expect(body.flags).toBeUndefined();
+    const watch = { ...env, GAMENIGHT_WATCH_CHANNEL_ID: '666' };
+    await runCli(['gm-bot', 'x'], { env: watch, fetchImpl: f, log });
+    expect(f.mock.calls[1][0]).toContain('/channels/666/messages');
+  });
+
+  it('does nothing for gm-bot without a channel, and rejects an empty gm-bot call', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    expect(await runCli(['gm-bot', 'x'], { env, fetchImpl: f, log })).toBe(0);
+    expect(f).not.toHaveBeenCalled();
+    expect(await runCli(['gm-bot'], { env, fetchImpl: f, log })).toBe(2);
   });
 
   it('formats the lines', () => {

@@ -44,6 +44,12 @@ again later; finished scenes are kept in `notes/.work/` and are not redone.
 writes notes where they are missing and publishes finished notes to the bridge (below). It never
 deletes audio (D-097). It does nothing when nothing is due, never runs twice at once (a lock
 file), and logs to `<sessions>\auto.log`. Try it with `pwsh tools/session-notes/auto.ps1 -DryRun`.
+When a pass cannot do its job it also posts one short line to the GM bot channel (`DISCORD_GM_BOT_CHANNEL_ID`,
+else `GAMENIGHT_WATCH_CHANNEL_ID`, in `discord-bot.env`) through `announce.mjs gm-bot`: the notes run paused
+(usage limit, or Claude logged out), a session skipped for missing recording consent, a failed transcription, notes run or publish, and notes
+published with raw-text scenes. The line names the session folder and the event, never what was said. Each event
+is posted once (a paused or failed run once per day), tracked in `<sessions>\.notes-tells.json`; a post that fails
+is only logged and tried again on the next pass. `-DryRun` prints what it would post.
 With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
 (normally `foundry-pi`): the pass first runs `pull.ps1`, which copies finished recordings from the
 Pi over SSH, checks every file's SHA-256 and marks them pulled there (the Pi deletes them 7 days

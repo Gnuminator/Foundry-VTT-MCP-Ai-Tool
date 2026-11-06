@@ -151,6 +151,12 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
     } finally {
       lock.current = false;
       setRunning(null);
+      // The scene changed under the buttons: the list was read again and the pressed button may
+      // be gone, so the focus goes to the first mood of the new list once the buttons are free.
+      if (refocus.current) {
+        refocus.current = false;
+        requestAnimationFrame(() => focusFirstPreset());
+      }
     }
   };
 
@@ -160,13 +166,6 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       ?.querySelector<HTMLElement>('[data-preset]:not([aria-disabled="true"])')
       ?.focus();
   useEffect(focusFirstPreset, [moods.isSuccess]);
-  // The scene changed under the buttons: the list was read again, the pressed button may be gone,
-  // so the focus goes to the first mood of the new list once it is drawn.
-  useEffect(() => {
-    if (!refocus.current) return;
-    refocus.current = false;
-    focusFirstPreset();
-  }, [moods.dataUpdatedAt]);
 
   return (
     <div

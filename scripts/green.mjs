@@ -565,7 +565,7 @@ function isSafeNode(version) {
 }
 
 /**
- * The folder of the newest portable Node 24 (`%LOCALAPPDATA%\node24\node-v24.*`, the toolchain the
+ * The folder of the newest portable Node 24.22+ (`%LOCALAPPDATA%\node24\node-v24.*`, the toolchain the
  * project uses on Windows), or null. Node 24.15 on Windows crashes natively (exit code 0xC0000409,
  * no message) in 20 to 40 percent of the co-GM dashboard socket test runs, which showed up as
  * vitest "Channel closed" on the fork pool; Node 24.22.2 passed 15 of 15 runs. The pin is skipped
@@ -573,7 +573,7 @@ function isSafeNode(version) {
  * @param {{ platform?: string, localAppData?: string, version?: string,
  *   readdir?: (dir: string) => string[], exists?: (file: string) => boolean }} [o]
  * @returns {string | null} the folder to put first on PATH, or null (not Windows, already Node 24.22+,
- *   or no portable Node 24 found)
+ *   or no portable Node 24.22+ found)
  */
 export function portableNodeDir(o = {}) {
   const {

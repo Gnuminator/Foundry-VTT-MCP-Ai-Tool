@@ -15,6 +15,7 @@ import {
   parseMonsterUuid,
   statBlockFromActor,
   statBlockFromCompendium,
+  twinSearchName,
   type StatBlock,
   type TwinVerdict,
 } from '../lib/statblockTwin';
@@ -25,7 +26,7 @@ import styles from './StatblockTwin.module.css';
 
 /** World actors and compendium actors; the value is the uuid. */
 const MONSTER_REF: ToolRef = {
-  kind: ['actor', 'compendium-entry'],
+  kind: ['actor', 'token', 'compendium-entry'],
   value: 'uuid',
   filter: { documentName: 'Actor' },
 };
@@ -38,33 +39,54 @@ interface Found {
   right: { uuid: string; block: StatBlock } | null;
 }
 
-interface SearchAnswer {
-  results?: { id?: string; name?: string; pack?: { id?: string } }[];
+/** list-ref-choices for one pack: the entries whose name contains the query. */
+interface PackList {
+  choices?: { id?: string; name?: string }[];
+  truncated?: boolean;
+}
+
+/** A token stands in with its base actor (an unlinked token differs from it only in deltas). */
+async function actorIdOfToken(tokenId: string): Promise<string> {
+  const token = await callTool<{ actor?: { id?: string } }>('get-token-details', { tokenId });
+  const id = token?.actor?.id;
+  if (!id) throw new Error('This token has no actor to show.');
+  return id;
 }
 
 async function lookup(uuid: string): Promise<Found | 'not-a-monster'> {
   const ref = parseMonsterUuid(uuid);
   if (!ref) return 'not-a-monster';
   const block =
-    ref.kind === 'world'
-      ? statBlockFromActor(await callTool('get-character', { identifier: ref.id }))
-      : statBlockFromCompendium(
+    ref.kind === 'compendium'
+      ? statBlockFromCompendium(
           await callTool('get-compendium-item', { packId: ref.pack, itemId: ref.id })
+        )
+      : statBlockFromActor(
+          await callTool('get-character', {
+            identifier: ref.kind === 'token' ? await actorIdOfToken(ref.id) : ref.id,
+          })
         );
   if (!block) throw new Error('This monster has no stat block to show.');
   const left = { uuid, block };
   if (ref.kind === 'compendium' && ref.pack === TWIN_PACK) {
     return { left, verdict: { kind: 'already-2024' }, right: null };
   }
-  const found = await callTool<SearchAnswer>('search-compendium', {
-    query: block.name,
-    packType: 'Actor',
-    limit: 50,
+  // The search is scoped to the 2024 pack, so a common name cannot push the real hit out of a
+  // shared cap; a list that still came back cut short is "unsure", never "no twin".
+  const wanted = twinSearchName(block.name);
+  const found = await callTool<PackList>('list-ref-choices', {
+    kind: 'compendium-entry',
+    parent: TWIN_PACK,
+    filter: { documentName: 'Actor' },
+    query: wanted,
+    limit: 200,
   });
-  const inPack = (found.results ?? []).filter(r => r.pack?.id === TWIN_PACK && r.id && r.name);
+  const inPack = (found.choices ?? []).filter(r => r.id && r.name);
   const verdict = decideTwin(
     block.name,
-    inPack.map(r => r.name ?? '')
+    inPack.map(r => r.name ?? ''),
+    undefined,
+    found.truncated === true
   );
   if (verdict.kind !== 'twin') return { left, verdict, right: null };
   const hit = inPack.find(r => r.name === verdict.name);
@@ -163,6 +185,11 @@ function Result({ found }: { found: Found }): JSX.Element {
               twin.
             </>
           )}
+        </div>
+      )}
+      {verdict.kind === 'unsure' && (
+        <div className="preflight-summary pf-warn" id="twin-unsure">
+          <strong>Could not check for a 2024 twin.</strong> {verdict.reason}
         </div>
       )}
       {verdict.kind === 'already-2024' && (

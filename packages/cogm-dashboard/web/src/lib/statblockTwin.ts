@@ -26,6 +26,13 @@ export const TWIN_TABLE: Readonly<Record<string, TableEntry>> = {
       'Strahd is a named monster of the book: there is no 2024 version, and his lair actions and spells have no 2024 counterpart.',
     closest: 'Vampire',
   },
+  // The same monster under the short name some imports use.
+  strahd: {
+    twin: null,
+    reason:
+      'Strahd is a named monster of the book: there is no 2024 version, and his lair actions and spells have no 2024 counterpart.',
+    closest: 'Vampire',
+  },
   wereraven: {
     twin: null,
     reason: 'The wereraven is a setting monster of the book; 2024 has no wereraven.',
@@ -36,6 +43,7 @@ export const TWIN_TABLE: Readonly<Record<string, TableEntry>> = {
 export type TwinVerdict =
   | { kind: 'twin'; name: string; how: 'name' | 'table' }
   | { kind: 'none'; reason: string; closest?: string }
+  | { kind: 'unsure'; reason: string }
   | { kind: 'already-2024' };
 
 /** Lower case, accents and punctuation gone, one space between words, trailing plural s dropped. */
@@ -50,10 +58,28 @@ export function normalizeName(name: string): string {
 }
 
 /**
+ * What to ask the 2024 pack for: the longest word of the name (or of the table's twin name),
+ * lower case. The pack search matches part of a name, so one plain word cannot miss a hit over
+ * punctuation or a plural; `decideTwin` then keeps only exact names.
+ */
+export function twinSearchName(name: string): string {
+  const entry = TWIN_TABLE[normalizeName(name)];
+  const words = normalizeName(entry?.twin ?? name)
+    .split(' ')
+    .filter(Boolean);
+  return words.reduce((best, w) => (w.length > best.length ? w : best), words[0] ?? '');
+}
+
+/**
  * The verdict for a 2014 monster. `candidates` are the names of the 2024 SRD actors the search
  * returned; `fromPack` is the pack the picked monster came from, if any.
  */
-export function decideTwin(name: string, candidates: string[], fromPack?: string): TwinVerdict {
+export function decideTwin(
+  name: string,
+  candidates: string[],
+  fromPack?: string,
+  truncated = false
+): TwinVerdict {
   if (fromPack === TWIN_PACK) return { kind: 'already-2024' };
   const key = normalizeName(name);
   const entry = TWIN_TABLE[key];
@@ -67,6 +93,14 @@ export function decideTwin(name: string, candidates: string[], fromPack?: string
   const wanted = entry ? normalizeName(entry.twin) : key;
   const hits = candidates.filter(c => normalizeName(c) === wanted);
   const first = hits[0];
+  if (first === undefined && truncated) {
+    // The search ran out of room: not finding it proves nothing, so do not say "no twin".
+    return {
+      kind: 'unsure',
+      reason:
+        'The list of 2024 monsters was cut short, so this could not be checked. Look the monster up in the 2024 compendium by hand.',
+    };
+  }
   if (first === undefined) {
     return {
       kind: 'none',
@@ -86,9 +120,11 @@ export function decideTwin(name: string, candidates: string[], fromPack?: string
 /** Where a picked monster lives: a compendium entry or a world actor. */
 export type MonsterRef =
   | { kind: 'compendium'; pack: string; id: string }
-  | { kind: 'world'; id: string };
+  | { kind: 'world'; id: string }
+  /** A token on a scene; its base actor stands in (an unlinked token differs only in deltas). */
+  | { kind: 'token'; id: string };
 
-/** `Compendium.<scope>.<pack>.Actor.<id>` or `Actor.<id>`; anything else is not a monster. */
+/** A compendium actor, `Actor.<id>` or `Scene.<s>.Token.<t>`; anything else is not a monster. */
 export function parseMonsterUuid(uuid: string): MonsterRef | null {
   const text = uuid.trim();
   const comp = /^Compendium\.([^.]+)\.([^.]+)\.Actor\.([A-Za-z0-9]+)$/.exec(text);
@@ -97,6 +133,8 @@ export function parseMonsterUuid(uuid: string): MonsterRef | null {
   }
   const world = /^Actor\.([A-Za-z0-9]+)$/.exec(text);
   if (world?.[1]) return { kind: 'world', id: world[1] };
+  const token = /^Scene\.[A-Za-z0-9]+\.Token\.([A-Za-z0-9]+)$/.exec(text);
+  if (token?.[1]) return { kind: 'token', id: token[1] };
   return null;
 }
 

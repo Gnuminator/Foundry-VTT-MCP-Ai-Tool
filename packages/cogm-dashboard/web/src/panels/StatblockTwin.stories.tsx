@@ -47,14 +47,15 @@ function answerFor(request: FakeRequest): Reply {
       if (args['itemId'] === 'named00000000001')
         return toolOk(actor('Strahd von Zarovich', 15, 17, 144, ['Legendary Actions']));
       return toolOk(actor('Vampire Spawn', 5, 16, 90, ['Multiattack', 'Claw', 'Bite']));
-    case 'search-compendium':
-      return args['query'] === 'Vampire Spawn'
+    case 'list-ref-choices':
+      return args['query'] === 'vampire'
         ? toolOk({
-            results: [
-              { id: 'new0000000000001', name: 'Vampire Spawn', pack: { id: 'dnd5e.actors24' } },
+            choices: [
+              { id: 'new0000000000001', name: 'Vampire Spawn' },
+              { id: 'new0000000000002', name: 'Vampire' },
             ],
           })
-        : toolOk({ results: [{ id: 'x', name: 'Vampire', pack: { id: 'dnd5e.actors24' } }] });
+        : toolOk({ choices: [] });
     default:
       return fail(404, 'No answer in this story.');
   }
@@ -68,7 +69,7 @@ const meta = {
       api: {
         tools: {
           'get-compendium-item': answerFor,
-          'search-compendium': answerFor,
+          'list-ref-choices': answerFor,
           'open-in-foundry': toolOk({}),
         },
       },

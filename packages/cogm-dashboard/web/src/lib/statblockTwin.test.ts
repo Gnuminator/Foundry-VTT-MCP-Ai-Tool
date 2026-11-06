@@ -8,6 +8,7 @@ import {
   parseMonsterUuid,
   statBlockFromActor,
   statBlockFromCompendium,
+  twinSearchName,
 } from './statblockTwin';
 
 describe('normalizeName', () => {
@@ -17,6 +18,15 @@ describe('normalizeName', () => {
     expect(normalizeName('Strahd von Zarovich')).toBe('strahd von zarovich');
     expect(normalizeName('Gnoll Pack-Lord')).toBe('gnoll pack lord');
     expect(normalizeName('Wolf')).toBe('wolf');
+  });
+});
+
+describe('twinSearchName', () => {
+  it('asks for the longest plain word', () => {
+    expect(twinSearchName('Vampire Spawn')).toBe('vampire');
+    expect(twinSearchName('Gnoll Pack-Lord')).toBe('gnoll');
+    expect(twinSearchName('Zombies')).toBe('zombie');
+    expect(twinSearchName('Rat')).toBe('rat');
   });
 });
 
@@ -44,6 +54,10 @@ describe('decideTwin rules', () => {
     expect(v.kind).toBe('none');
     expect(v).not.toHaveProperty('closest');
   });
+  it('a cut-off search without a hit is unsure, never "no twin"', () => {
+    expect(decideTwin('Rat', ['Giant Rat'], undefined, true).kind).toBe('unsure');
+    expect(decideTwin('Rat', ['Rat'], undefined, true).kind).toBe('twin');
+  });
   it('an empty search is no twin', () => {
     expect(decideTwin('Zombie', []).kind).toBe('none');
   });
@@ -67,7 +81,8 @@ describe('parseMonsterUuid', () => {
       id: 'VjTBkMPvgDBD1rxV',
     });
     expect(parseMonsterUuid('Compendium.dnd5e.items.Item.abc')).toBeNull();
-    expect(parseMonsterUuid('Scene.abc.Token.def')).toBeNull();
+    expect(parseMonsterUuid('Scene.abc.Token.def')).toEqual({ kind: 'token', id: 'def' });
+    expect(parseMonsterUuid('Scene.abc.Note.def')).toBeNull();
     expect(parseMonsterUuid('')).toBeNull();
   });
 });

@@ -26,8 +26,8 @@ Steps: [The screen](first-hour.md#1-the-screen-15-minutes).
 
 - [ ] Open Foundry, launch the test world and join as the **Game Master**.
 - [ ] Read [A tour of the Foundry screen](../foundry/screen-tour.md).
-- [ ] Find the four parts of the screen: **sidebar**, **scene controls**, **scene navigation**
-      and **map**.
+- [ ] Find the **map** in the middle, with the **sidebar** at its right, the **scene
+      controls** at its left and the **scene navigation** along the top.
 - [ ] Open the [Foundry glossary](../foundry/glossary.md) in a second tab and leave it there.
 - [ ] Read [Getting started](getting-started.md) (ours).
 
@@ -38,7 +38,7 @@ Steps: [The screen](first-hour.md#1-the-screen-15-minutes).
 Steps: [People and worlds](first-hour.md#2-people-and-worlds-10-minutes).
 
 - [ ] Read [Users and permissions](../foundry/users-and-permissions.md) and find the four roles:
-      Player, Trusted, Assistant and Game Master. Which one are your players?
+      Player, Trusted, Assistant and Game Master. Your players hold the Player role, you hold the Game Master role.
 - [ ] Read [Worlds and joining](../foundry/worlds-and-joining.md): what launching a world
       does, what the join page is and what **Return to Setup** does.
 
@@ -83,5 +83,5 @@ Steps: [The tool](first-hour.md#4-the-tool-10-minutes).
 ## Quest complete
 
 That is the hour. Next in the same style: [Quest: prepare session 0](prepare-session-0-quest.md)
-and, every game night, [Quest: before a session](before-session-quest.md). Keep the
-[game night runbook](game-night-runbook.md) open on the night.
+and, every game night, [Quest: before a session](before-session-quest.md). On the night itself,
+have the [game night runbook](game-night-runbook.md) at hand.

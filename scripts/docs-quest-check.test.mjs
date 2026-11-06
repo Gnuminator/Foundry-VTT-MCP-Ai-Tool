@@ -86,6 +86,33 @@ test('an unknown or doubled skip fails', () => {
   assert.match(doubled[0], /both linked and in quest-skips/);
 });
 
+test('a copy wrapped over two lines is still reported', () => {
+  const problems = run(
+    '# Q\n\n[a](list.md#start-here) [b](list.md#wrap-up)\n\n- [ ] Open the box and take out\n      the one small red lantern.\n'
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /:5: copies/);
+});
+
+test('a link to another page of the same name does not count', () => {
+  const problems = run('# Q\n\n[a](../x/list.md#start-here) [b](list.md#wrap-up)\n');
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /no link to "Start here"/);
+});
+
+test('a link inside a code span or a comment does not count', () => {
+  const problems = run('# Q\n\n`[a](list.md#start-here)` <!-- [b](list.md#wrap-up) -->\n');
+  assert.equal(problems.length, 2);
+});
+
+test('repeated headings get numbered anchors and code fences are skipped', () => {
+  const list = '# L\n\n## Same\n\n```\n## Not a section\n```\n\n## Same\n';
+  assert.deepEqual(
+    sections(list).map(s => s.slug),
+    ['same', 'same-1']
+  );
+});
+
 test('a missing page is reported', () => {
   const root = tree('# Q\n');
   fs.rmSync(path.join(root, 'list.md'));

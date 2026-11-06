@@ -38,7 +38,7 @@ Steps: [One user per player](prepare-session-0.md#1-one-user-per-player).
 - [ ] Press **Esc** and choose **User Management**.
 - [ ] Each player has a user with their name, no password and the role **Player**: use **Create
       Additional User**, then **Save and Return**.
-- [ ] Each player has been sent their user name in a Discord direct message, with the link to
+- [ ] Each player has their user name by Discord DM, and the link to
       [Join the game](../player/join.md).
 
 **You are done when** every player has a user and has their own user name.

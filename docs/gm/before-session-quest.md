@@ -25,7 +25,8 @@ Steps: [Start everything](before-session.md#start-everything).
 - [ ] Claude Desktop is running.
 - [ ] Foundry is open, the world is launched and you are in as GM.
 - [ ] The dashboard is open on your second screen.
-- [ ] The header looks calm: **✈ Pre-flight** is not red and no "Connection lost" mark shows.
+- [ ] The header looks calm: **✈ Pre-flight** reads "ready" or shows a count to fix, and there is
+      no "Connection lost" mark.
 
 **You are done when** the header looks calm. If it does not, see [Troubleshooting](troubleshooting.md).
 
@@ -51,7 +52,8 @@ Steps: [Check what players will see](before-session.md#check-what-players-will-s
 - [ ] The starting scene has a **Navigation Name** when its real name would give something away.
 - [ ] Creatures the players already know have **Display Name** set to **Hovered by Anyone**.
 - [ ] Tokens the players should not know about are hidden.
-- [ ] The player page (`/player`) shows nothing that is a secret.
+- [ ] The player page (the dashboard address plus `/player`, in a second tab) shows nothing that
+      is a secret.
 - [ ] Every page in your handouts journal is **None** unless you revealed it.
 - [ ] In the Tarokka drawer, **Show cards** is not ticked.
 
@@ -63,7 +65,7 @@ Steps: [Prepare](before-session.md#prepare) and [When play begins](before-sessio
 
 - [ ] In Claude Desktop, run the prompt `prep-next-session`.
 - [ ] Read last session's note in Obsidian.
-- [ ] Claude Desktop, the dashboard and Obsidian are on the screen the players cannot see.
+- [ ] Claude Desktop, the dashboard and Obsidian are on the screen the players cannot see, and are never shared in Discord or a video call.
 - [ ] When play begins, start the session log from the dashboard header.
 
 **You are done when** the header says "Session since" and the time.

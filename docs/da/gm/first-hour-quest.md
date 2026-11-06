@@ -1,6 +1,6 @@
 ---
 source: gm/first-hour-quest.md
-sourceHash: 4d024d31fc32
+sourceHash: 90edbfc7baf0
 title: 'Quest: din første time'
 description: Din første time som en liste af små opgaver, du kan sætte flueben ved. Fire trin med tider, og til sidst en test world, du selv har klikket igennem.
 ---
@@ -11,6 +11,7 @@ Det her er [Din første time som GM](first-hour.md) som en liste, du kan sætte 
 indhold, samme rækkefølge. Hvert trin har en tid, nogle få små opgaver og en måde at vide, at du er
 færdig. Du kan stoppe efter hvert trin og tage tråden op senere. På wikien kan felterne krydses af,
 og dine flueben bliver i denne browser. I dashboardets hjælpepanel kan du kun læse dem.
+
 :::note
 Lav hele questen i en test world, aldrig i kampagnen. En test world er en world, hvor intet
 kan gå i stykker. Bed værktøjets administrator om en, hvis du ikke har en.
@@ -27,8 +28,8 @@ Se tjeklisten: [Skærmen](first-hour.md#1-skærmen-15-minutter).
 
 - [ ] Åbn Foundry, start test worlden og kom ind som **Game Master**.
 - [ ] Læs [A tour of the Foundry screen](../../foundry/screen-tour.md).
-- [ ] Find skærmens fire dele: **sidebar**, **scene controls**, **scene navigation**
-      og **kortet**.
+- [ ] Find **kortet** i midten, med **sidebaren** til højre, **scene controls** til venstre
+      og **scene navigation** langs toppen.
 - [ ] Åbn [Foundry glossary](../../foundry/glossary.md) i en anden fane og lad den stå.
 - [ ] Læs [Kom i gang](getting-started.md) (vores egen).
 
@@ -39,7 +40,7 @@ Se tjeklisten: [Skærmen](first-hour.md#1-skærmen-15-minutter).
 Se tjeklisten: [Mennesker og worlds](first-hour.md#2-mennesker-og-worlds-10-minutter).
 
 - [ ] Læs [Users and permissions](../../foundry/users-and-permissions.md) og find de fire roller:
-      Player, Trusted, Assistant og Game Master. Hvilken rolle har dine spillere?
+      Player, Trusted, Assistant og Game Master. Dine spillere har rollen Player, du har rollen Game Master.
 - [ ] Læs [Worlds and joining](../../foundry/worlds-and-joining.md): hvad det gør at starte en
       world, hvad join-siden er, og hvad **Return to Setup** gør.
 
@@ -84,5 +85,5 @@ Se tjeklisten: [Værktøjet](first-hour.md#4-værktøjet-10-minutter).
 ## Questen er klaret
 
 Så er timen gået. Næste i samme stil: [Quest: forbered session 0](prepare-session-0-quest.md)
-og, hver spilaften, [Quest: før en session](before-session-quest.md). Hold
-[spilaftenens runbook](game-night-runbook.md) åben på aftenen.
+og, hver spilaften, [Quest: før en session](before-session-quest.md). På selve aftenen skal
+[spilaftenens runbook](game-night-runbook.md) være ved hånden.

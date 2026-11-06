@@ -1,6 +1,6 @@
 ---
 source: gm/before-session-quest.md
-sourceHash: 5bfaa8a73818
+sourceHash: e9fa1dff2a2c
 title: 'Quest: før en session'
 description: De 15 minutter før spil som en kort quest, fire trin med tider, der slutter, når sessionsloggen kører.
 ---
@@ -27,7 +27,8 @@ Se tjeklisten: [Start det hele](before-session.md#start-det-hele).
 - [ ] Claude Desktop kører.
 - [ ] Foundry er åben, verdenen er startet, og du er inde som GM.
 - [ ] Dashboardet er åbent på din anden skærm.
-- [ ] Headeren ser rolig ud: **✈ Pre-flight** er ikke rød, og der vises intet "Connection lost"-mærke.
+- [ ] Headeren ser rolig ud: **✈ Pre-flight** viser "ready" eller et antal at rette, og der er intet
+      "Connection lost"-mærke.
 
 **Du er færdig, når** headeren ser rolig ud. Hvis den ikke gør det, så se [Fejlfinding](troubleshooting.md).
 
@@ -53,7 +54,8 @@ Se tjeklisten: [Tjek, hvad spillerne kommer til at se](before-session.md#tjek-hv
 - [ ] Startscenen har et **Navigation Name**, når dens rigtige navn ville afsløre noget.
 - [ ] Skabninger, spillerne allerede kender, har **Display Name** sat til **Hovered by Anyone**.
 - [ ] Tokens, spillerne ikke skal vide om, er skjulte.
-- [ ] Spillersiden (`/player`) viser intet, der er hemmeligt.
+- [ ] Spillersiden (dashboardets adresse plus `/player`, i en ny fane) viser intet, der er
+      hemmeligt.
 - [ ] Hver side i din handouts-journal står på **None**, medmindre du har vist den.
 - [ ] I Tarokka-skuffen er **Show cards** ikke sat flueben ved.
 
@@ -65,7 +67,7 @@ Se tjeklisten: [Forbered](before-session.md#forbered) og [Når spillet begynder]
 
 - [ ] Kør prompten `prep-next-session` i Claude Desktop.
 - [ ] Læs sidste sessions note i Obsidian.
-- [ ] Claude Desktop, dashboardet og Obsidian ligger på den skærm, spillerne ikke kan se.
+- [ ] Claude Desktop, dashboardet og Obsidian ligger på den skærm, spillerne ikke kan se, og deles aldrig i Discord eller et videoopkald.
 - [ ] Når spillet begynder, så start sessionsloggen fra dashboardets header.
 
 **Du er færdig, når** headeren siger "Session since" og klokkeslættet.

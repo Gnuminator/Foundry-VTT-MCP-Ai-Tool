@@ -19,7 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { slugify } from './check-links.mjs';
+import { proseLines, slugify } from './check-links.mjs';
 
 /** quest page -> the checklist page it is made from. */
 export const QUESTS = {
@@ -50,14 +50,43 @@ function shingles(ws, n) {
 }
 
 /** Body of a page without its front matter. */
-const body = text => text.replace(/^---\n[\s\S]*?\n---\n/, '');
+const body = text => text.replace(/\r/g, '').replace(/^---\n[\s\S]*?\n---\n/, '');
 
-/** `## ` headings with their anchors. */
+/** `## ` headings (not in code blocks) with their anchors, repeats numbered -1, -2 like GitHub. */
 export function sections(text) {
-  return [...body(text).matchAll(/^## (.+)$/gm)].map(m => ({
-    title: m[1].trim(),
-    slug: slugify(m[1]),
-  }));
+  const seen = new Map();
+  const out = [];
+  for (const line of proseLines(body(text))) {
+    const m = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
+    if (!m) continue;
+    const base = slugify(m[1]);
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    if (line.startsWith('## ')) {
+      out.push({ title: m[1], slug: count === 0 ? base : `${base}-${count}` });
+    }
+  }
+  return out;
+}
+
+/** Paragraphs (blocks between blank lines) with the line they start on, wrapped lines joined. */
+function paragraphs(text) {
+  const out = [];
+  let cur = null;
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim()) {
+      cur = null;
+    } else if (!cur) {
+      cur = { line: i + 1, text: line };
+      out.push(cur);
+    } else if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
+      cur = { line: i + 1, text: line };
+      out.push(cur);
+    } else {
+      cur.text += ` ${line}`;
+    }
+  });
+  return out;
 }
 
 export function check(root, quests = QUESTS) {
@@ -75,23 +104,27 @@ export function check(root, quests = QUESTS) {
 
     // copy: lines of the quest whose words stand in a row in the checklist page
     const listRuns = shingles(words(list), COPY_WORDS);
-    quest.split('\n').forEach((line, i) => {
-      const ws = words(line);
+    for (const para of paragraphs(quest)) {
+      const ws = words(para.text);
       for (let k = 0; k + COPY_WORDS <= ws.length; k++) {
         const run = ws.slice(k, k + COPY_WORDS).join(' ');
         if (listRuns.has(run)) {
           problems.push(
-            `${questPath}:${i + 1}: copies ${listName} ("${run}..."); link to the step instead`
+            `${questPath}:${para.line}: copies ${listName} ("${run}..."); link to the step instead`
           );
           break;
         }
       }
-    });
+    }
 
     // coverage: every section of the checklist is linked or skipped
+    const prose = proseLines(quest.replace(/<!--[\s\S]*?-->/g, '')).join('\n');
     const linked = new Set(
-      [...quest.matchAll(/\]\(([^)#\s]*)#([^)\s]+)\)/g)]
-        .filter(m => path.basename(m[1]) === listName)
+      [...prose.matchAll(/\]\(([^)#\s]*)#([^)\s]+)\)/g)]
+        .filter(
+          m =>
+            path.posix.normalize(path.posix.join(path.posix.dirname(questPath), m[1])) === listPath
+        )
         .map(m => m[2])
     );
     const skips = new Set(

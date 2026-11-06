@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0-quest.md
-sourceHash: 57f4c19afac1
+sourceHash: 4f115f61ee67
 title: 'Quest: forbered session 0'
 description: Opsætningen til session 0 som en liste med opgaver at sætte flueben ved, i fem trin fra indsamling af e-mails til en prøvekørsel som spiller.
 ---
@@ -40,7 +40,7 @@ Se tjeklisten: [Én bruger til hver spiller](prepare-session-0.md#1-én-bruger-t
 - [ ] Tryk på **Esc** og vælg **User Management**.
 - [ ] Hver spiller har en bruger med sit navn, uden password og med rollen **Player**: brug **Create
       Additional User** og derefter **Save and Return**.
-- [ ] Hver spiller har fået sit brugernavn i en direkte besked på Discord, sammen med linket til
+- [ ] Hver spiller har sit brugernavn på Discord-DM og linket til
       [Kom ind i spillet](../player/join.md).
 
 **Du er færdig, når** hver spiller har en bruger og kender sit eget brugernavn.

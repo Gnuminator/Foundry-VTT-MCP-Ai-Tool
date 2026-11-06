@@ -686,7 +686,7 @@ export class PersistentCreatureIndex {
 
           const percent = Math.round(((i + 1) / actorPacks.length) * 100);
           notifier.show(
-            `Building creature index... ${percent}% (${i + 1}/${actorPacks.length}) — ` +
+            `Building creature index... ${percent}% (${i + 1}/${actorPacks.length}), ` +
               `${creatures.length} creatures indexed`
           );
         } catch (error) {

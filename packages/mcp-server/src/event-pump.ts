@@ -204,6 +204,11 @@ export class EventPump {
     const worldId = await this.worldIds.current();
     const state = await this.loadState(worldId);
 
+    // The link is up again: take the outage before the query, so a query that fails right after
+    // the reconnect does not leave "not recording" set. The outage is kept until a poll with
+    // events shows whether a reload explains it.
+    this.takeOutage(state, Date.now());
+
     const args: Record<string, unknown> = { limit: FETCH_LIMIT };
     if (state.cursorMs !== null) {
       args.sinceTimestamp = new Date(state.cursorMs - 1).toISOString();
@@ -221,7 +226,12 @@ export class EventPump {
       .sort((a, b) => eventTime(a) - eventTime(b));
 
     const now = Date.now();
-    const { gaps, reloaded, settled } = this.detectGaps(state, received.length, events, now);
+    // A full batch is a ring wrap only when the saved boundary is not in it: the query starts one
+    // millisecond before the cursor, so the boundary ids come back, and exactly FETCH_LIMIT
+    // events with a boundary id among them reached back to the cursor and lost nothing.
+    const reachedCursor = received.some(e => state.boundary.has(e.id));
+    const wrapped = received.length >= FETCH_LIMIT && !reachedCursor;
+    const { gaps, reloaded, settled } = this.detectGaps(state, wrapped, events, now);
     for (const gap of gaps) {
       // A marker already written for this very gap is not written again while the data append or
       // the state save keeps failing; the memory is dropped once the state has moved on.
@@ -265,13 +275,31 @@ export class EventPump {
     for (const [id, ms] of state.boundary) if (ms < newest - 1) state.boundary.delete(id);
     state.cursorMs = newest;
     state.lastSeq = nextSeq;
-    await this.saveState(worldId);
+    // The poll's memory commits here, before the save: a failed save must not leave an outage
+    // held against a cursor that already moved (it would write a second, inverted line).
     state.writtenGaps.clear();
     if (settled) state.pendingOutage = null;
+    await this.saveState(worldId);
     this.health.success(now);
     this.notifyAppended(worldId, events.length);
     this.notifyEvents(worldId, events);
     return events.length;
+  }
+
+  /**
+   * The outage (first seen down to the reconnect) is kept in the state until a poll with events
+   * shows whether a reload explains it, so a reconnect that reads nothing yet neither loses it nor
+   * writes a second line for one reload. Its length is the length of the outage itself, not the
+   * wait for the next event.
+   */
+  private takeOutage(state: PumpMemState, now: number): void {
+    const outageStart = this.health.linkUp();
+    if (outageStart === null) return;
+    // Several outages before the next event: the longest one counts, blips do not add up.
+    const held = state.pendingOutage;
+    if (!held || now - outageStart > held.end - held.start) {
+      state.pendingOutage = { start: outageStart, end: now };
+    }
   }
 
   /**
@@ -281,23 +309,12 @@ export class EventPump {
    */
   private detectGaps(
     state: PumpMemState,
-    receivedCount: number,
+    wrapped: boolean,
     fresh: SessionEvent[],
     now: number
   ): { gaps: PumpGap[]; reloaded: boolean; settled: boolean } {
     const gaps: PumpGap[] = [];
-    // The outage (first seen down to the reconnect poll) is kept until a poll with events shows
-    // whether a reload explains it, so a reconnect that reads nothing yet neither loses it nor
-    // writes a second line for one reload. Its length is the length of the outage itself, not the
-    // wait for the next event. `settled` tells the caller to drop it once the state has moved on.
-    const outageStart = this.health.linkUp();
-    if (outageStart !== null) {
-      // Several outages before the next event: the longest one counts, blips do not add up.
-      const held = state.pendingOutage;
-      if (!held || now - outageStart > held.end - held.start) {
-        state.pendingOutage = { start: outageStart, end: now };
-      }
-    }
+    // `settled` tells the caller to drop the held outage once the state has moved on.
     const first = fresh[0];
     const to = first ? eventTime(first) : now;
     // A new night is not a gap: Foundry closed and reopened days later restarts the counter and
@@ -305,7 +322,7 @@ export class EventPump {
     // world's own newest event) can have cost events that were still to be read.
     const lastGood = state.cursorMs;
     const sameSession = lastGood !== null && now - lastGood < SESSION_GAP_MS;
-    if (state.cursorMs !== null && receivedCount >= FETCH_LIMIT) {
+    if (state.cursorMs !== null && wrapped) {
       gaps.push({ reason: 'ring-wrap', fromMs: state.cursorMs, toMs: to, lost: null });
     }
     const seqs = fresh.map(e => eventSeq(e.id)).filter((n): n is number => n !== null);

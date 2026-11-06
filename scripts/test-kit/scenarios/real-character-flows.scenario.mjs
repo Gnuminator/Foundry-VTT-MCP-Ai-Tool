@@ -229,10 +229,8 @@ export default {
     'apply-planned-change',
     'undo-change',
     'list-recent-changes',
-    'roll-initiative-for-npcs',
     'get-character',
     'use-item',
-    'get-world-info',
   ],
   gmActions: ['readActor', 'startCombat', 'endCombats'],
   timeoutMs: 420000,
@@ -434,6 +432,40 @@ export default {
       }
       t.equal(up.hp, hpBefore.hp, 'HP after the undo');
       t.equal(up.statuses, hpBefore.statuses, 'statuses after the undo (the riders came off with the HP)');
+    });
+
+    await t.step('a monster dropped to 0 HP undoes with the rider dnd5e added (unlinked token)', async () => {
+      const monster = monsterOf(t.kit, 'beast');
+      const read = () => t.gm('readActor', { actorId: monster.actorId, sceneId, tokenId: monster.tokenId });
+      const before = await read();
+      const damage = await t.guarded.planApply('plan-actor-change', {
+        action: 'damage',
+        targets: [monster.name],
+        amount: before.hp.value + 20,
+        damageType: 'force',
+      });
+      open.push(damage.changeId);
+      await sleep(4000);
+      const down = await read();
+      t.equal(down.hp.value, 0, 'HP at the drop');
+      t.log(`${monster.name} at 0 HP: conditions ${JSON.stringify(down.conditions)} (before ${JSON.stringify(before.conditions)})`);
+      t.check(
+        down.conditions.length > before.conditions.length,
+        'dnd5e added a rider (Unconscious or Dead) at 0 HP',
+        down.conditions
+      );
+      const row = listOf(await t.tool('list-recent-changes', { limit: 20 }), 'changes').find(
+        c => c.changeId === damage.changeId
+      );
+      t.check(row && row.canUndo === true, 'the AI change is listed and can be undone', row);
+      await t.guarded.undo(/** @type {string} */ (open.pop()));
+      let up = await read();
+      for (let i = 0; i < 20 && up.conditions.join() !== before.conditions.join(); i++) {
+        await sleep(500);
+        up = await read();
+      }
+      t.equal(up.hp, before.hp, 'HP after the undo');
+      t.equal(up.conditions, before.conditions, 'conditions after the undo (the rider came off)');
     });
 
     // --- 5. A fight on a scene the GM is not viewing (PR 608) -----------------------------

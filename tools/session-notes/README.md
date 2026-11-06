@@ -46,7 +46,7 @@ deletes audio (D-097). It does nothing when nothing is due, never runs twice at 
 file), and logs to `<sessions>\auto.log`. Try it with `pwsh tools/session-notes/auto.ps1 -DryRun`.
 When a pass cannot do its job it also posts one short line to the GM bot channel (`DISCORD_GM_BOT_CHANNEL_ID`,
 else `GAMENIGHT_WATCH_CHANNEL_ID`, in `discord-bot.env`) through `announce.mjs gm-bot`: the notes run paused
-(usage limit, or Claude logged out), a session skipped for missing recording consent, a failed publish, and notes
+(usage limit, or Claude logged out), a session skipped for missing recording consent, a failed transcription, notes run or publish, and notes
 published with raw-text scenes. The line names the session folder and the event, never what was said. Each event
 is posted once (a paused or failed run once per day), tracked in `<sessions>\.notes-tells.json`; a post that fails
 is only logged and tried again on the next pass. `-DryRun` prints what it would post.

@@ -256,14 +256,52 @@ def test_a_failed_publish_tells(tmp_path: Path, sessions: Path, folder_with_note
 def test_raw_scenes_that_get_published_tell_the_gm(
     tmp_path: Path, sessions: Path, folder_with_notes: Path
 ) -> None:
+    # What the writer really leaves after an exit-0 run that accepted raw scenes: a session part, a scene marked
+    # "fallback", and status "done".
+    (folder_with_notes / "notes" / "notes.json").write_text(
+        json.dumps({"complete": True, "scenes": [{"fallback": False}, {"fallback": True}], "session": {}}),
+        encoding="utf-8",
+    )
     (folder_with_notes / "notes" / "status.json").write_text(
-        json.dumps({"state": "incomplete", "message": "two scenes are raw", "at": "x"}),
+        json.dumps({"state": "done", "message": "ok", "at": "x"}), encoding="utf-8"
+    )
+    bin_dir, calls = make_bin(tmp_path, publish=0)
+    run_pass(sessions, bin_dir)
+    run_pass(sessions, bin_dir)
+    sent = tells(calls)
+    assert len(sent) == 1 and "raw" in sent[0]
+
+
+def test_scenes_that_are_all_processed_tell_nothing(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    (folder_with_notes / "notes" / "notes.json").write_text(
+        json.dumps({"complete": True, "scenes": [{"fallback": False}], "session": {}}),
         encoding="utf-8",
     )
     bin_dir, calls = make_bin(tmp_path, publish=0)
     run_pass(sessions, bin_dir)
+    assert tells(calls) == []
+
+
+def test_a_failed_notes_run_tells(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, run=2)
+    run_pass(sessions, bin_dir)
     sent = tells(calls)
-    assert len(sent) == 1 and "raw" in sent[0]
+    assert len(sent) == 1 and "failed (exit 2)" in sent[0]
+
+
+def test_a_corrupt_dedup_file_is_set_aside_and_the_tell_still_goes(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    (sessions / ".notes-tells.json").write_text("{ not json", encoding="utf-8")
+    bin_dir, calls = make_bin(tmp_path, publish=1)
+    code, _ = run_pass(sessions, bin_dir)
+    assert code == 0 and len(tells(calls)) == 1
+    assert (sessions / ".notes-tells.json.bad").exists()
+    assert "publish-failed" in (sessions / ".notes-tells.json").read_text(encoding="utf-8")
 
 
 def test_a_clean_publish_tells_nothing(

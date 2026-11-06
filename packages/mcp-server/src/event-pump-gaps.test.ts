@@ -307,6 +307,42 @@ describe('EventPump gaps and health', () => {
     expect(markers[0]).toMatchObject({ details: { reason: 'foundry-reload' } });
   });
 
+  it('does not turn a short blip into a link-down line when the next event comes later', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const pump = makePump();
+    foundry.add(T0);
+    await pump.pollOnce();
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 5000);
+    foundry.connected = true;
+    await pump.pollOnce(); // back after 5 s, nothing to read
+    foundry.add(T0 + 40_000);
+    vi.setSystemTime(T0 + 41_000);
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
+  it('writes no reload marker when the data append fails once on a plain batch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 2000);
+    const pump = makePump();
+    foundry.add(T0);
+    foundry.add(T0 + 1000);
+    await pump.pollOnce();
+    foundry.add(T0 + 3000);
+    foundry.add(T0 + 4000);
+    vi.setSystemTime(T0 + 5000);
+    const spy = vi.spyOn(store, 'appendLines').mockRejectedValueOnce(new Error('locked'));
+    await pump.pollOnce();
+    spy.mockRestore();
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
   it('records the last error and clears it on the next good read', async () => {
     const pump = makePump();
     foundry.fail = 'refused';

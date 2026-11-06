@@ -65,7 +65,7 @@ interface PumpMemState {
   boundary: Map<string, number>;
   lastSeq: number | null;
   /** When the link first went down and no poll with events has explained it yet. */
-  pendingOutage: number | null;
+  pendingOutage: { start: number; end: number } | null;
   /** Gaps already written since the state last moved on (reason|from|to), so a retry adds none. */
   writtenGaps: Set<string>;
 }
@@ -221,7 +221,7 @@ export class EventPump {
       .sort((a, b) => eventTime(a) - eventTime(b));
 
     const now = Date.now();
-    const { gaps, reloaded } = this.detectGaps(state, received.length, events, now);
+    const { gaps, reloaded, settled } = this.detectGaps(state, received.length, events, now);
     for (const gap of gaps) {
       // A marker already written for this very gap is not written again while the data append or
       // the state save keeps failing; the memory is dropped once the state has moved on.
@@ -234,10 +234,13 @@ export class EventPump {
       this.health.gap(gap, now);
       this.logger.warn('Event log gap', { worldId, reason: gap.reason });
     }
+    // The counter moves with the cursor, after the data is on disk: a failed append must not make
+    // the retried batch look like a reload.
     const seqs = events.map(e => eventSeq(e.id)).filter((n): n is number => n !== null);
+    let nextSeq = state.lastSeq;
     if (seqs.length > 0) {
       const top = Math.max(...seqs);
-      state.lastSeq = reloaded || state.lastSeq === null ? top : Math.max(state.lastSeq, top);
+      nextSeq = reloaded || state.lastSeq === null ? top : Math.max(state.lastSeq, top);
     }
     if (events.length === 0) {
       if (gaps.length > 0) {
@@ -261,8 +264,10 @@ export class EventPump {
     for (const event of events) state.boundary.set(event.id, eventTime(event));
     for (const [id, ms] of state.boundary) if (ms < newest - 1) state.boundary.delete(id);
     state.cursorMs = newest;
+    state.lastSeq = nextSeq;
     await this.saveState(worldId);
     state.writtenGaps.clear();
+    if (settled) state.pendingOutage = null;
     this.health.success(now);
     this.notifyAppended(worldId, events.length);
     this.notifyEvents(worldId, events);
@@ -279,13 +284,19 @@ export class EventPump {
     receivedCount: number,
     fresh: SessionEvent[],
     now: number
-  ): { gaps: PumpGap[]; reloaded: boolean } {
+  ): { gaps: PumpGap[]; reloaded: boolean; settled: boolean } {
     const gaps: PumpGap[] = [];
-    // The outage is kept until a poll with events shows whether a reload explains it, so a
-    // reconnect that reads nothing yet neither loses it nor writes a second line for one reload.
+    // The outage (first seen down to the reconnect poll) is kept until a poll with events shows
+    // whether a reload explains it, so a reconnect that reads nothing yet neither loses it nor
+    // writes a second line for one reload. Its length is the length of the outage itself, not the
+    // wait for the next event. `settled` tells the caller to drop it once the state has moved on.
     const outageStart = this.health.linkUp();
     if (outageStart !== null) {
-      state.pendingOutage = Math.min(state.pendingOutage ?? outageStart, outageStart);
+      // Several outages before the next event: the longest one counts, blips do not add up.
+      const held = state.pendingOutage;
+      if (!held || now - outageStart > held.end - held.start) {
+        state.pendingOutage = { start: outageStart, end: now };
+      }
     }
     const first = fresh[0];
     const to = first ? eventTime(first) : now;
@@ -304,15 +315,13 @@ export class EventPump {
       if (sameSession) {
         gaps.push({ reason: 'foundry-reload', fromMs: lastGood, toMs: to, lost: null });
       }
-      state.pendingOutage = null;
     } else if (fresh.length > 0) {
       const outage = state.pendingOutage;
-      if (sameSession && outage !== null && now - outage >= LINK_GAP_MIN_MS) {
-        gaps.push({ reason: 'link-down', fromMs: lastGood, toMs: now, lost: null });
+      if (sameSession && outage !== null && outage.end - outage.start >= LINK_GAP_MIN_MS) {
+        gaps.push({ reason: 'link-down', fromMs: lastGood, toMs: outage.end, lost: null });
       }
-      state.pendingOutage = null;
     }
-    return { gaps, reloaded };
+    return { gaps, reloaded, settled: fresh.length > 0 };
   }
 
   private notifyEvents(worldId: string, events: readonly SessionEvent[]): void {

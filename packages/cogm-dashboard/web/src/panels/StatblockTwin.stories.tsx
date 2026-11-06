@@ -19,7 +19,7 @@ const actor = (
   fullData: {
     name,
     system: {
-      attributes: { ac: { flat: ac }, hp: { max: hp }, movement: { speeds: { walk: '30' } } },
+      attributes: { ac: { override: ac }, hp: { max: hp }, movement: { speeds: { walk: '30' } } },
       details: { cr, type: { value: 'undead' } },
       traits: { size: 'med' },
       abilities: {
@@ -43,10 +43,10 @@ function answerFor(request: FakeRequest): Reply {
   switch (request.tool?.name) {
     case 'get-compendium-item':
       if (args['itemId'] === 'old0000000000001')
-        return toolOk(actor('Vampire Spawn', 5, 15, 82, ['Bite', 'Claws', 'Regeneration']));
+        return toolOk(actor('Vampire Spawn', 4, 13, 60, ['Bite', 'Claws', 'Regeneration']));
       if (args['itemId'] === 'named00000000001')
-        return toolOk(actor('Strahd von Zarovich', 15, 17, 144, ['Legendary Actions']));
-      return toolOk(actor('Vampire Spawn', 5, 16, 90, ['Multiattack', 'Claw', 'Bite']));
+        return toolOk(actor('Strahd von Zarovich', 9, 12, 99, ['Legendary Actions']));
+      return toolOk(actor('Vampire Spawn', 5, 14, 70, ['Multiattack', 'Claw', 'Bite']));
     case 'list-ref-choices':
       return args['query'] === 'vampire'
         ? toolOk({

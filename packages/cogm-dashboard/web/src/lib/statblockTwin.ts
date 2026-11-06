@@ -145,6 +145,8 @@ export interface StatBlock {
   creatureType: string;
   cr: number | null;
   ac: number | null;
+  /** The rules version the entry says it is ("2014", "2024"), or empty when not known. */
+  rules: string;
   hp: number | null;
   speed: string;
   abilities: { key: string; value: number }[];
@@ -194,7 +196,15 @@ export function statBlockFromCompendium(raw: unknown): StatBlock | null {
     size: SIZES[str(rec(system['traits'])['size'])] ?? '',
     creatureType: str(rec(details['type'])['value']),
     cr: num(details['cr']),
-    ac: num(ac['flat']) ?? num(ac['value']),
+    // dnd5e 6: the prepared `system` carries the computed AC; in the source a fixed AC sits in
+    // `override`, and `flat` only feeds natural armour.
+    ac:
+      num(rec(rec(rec(r['system'])['attributes'])['ac'])['value']) ??
+      num(ac['override']) ??
+      (Array.isArray(ac['calcs']) && ac['calcs'].length === 1 && ac['calcs'][0] === 'natural'
+        ? num(ac['flat'])
+        : null),
+    rules: str(rec(rec(r['system'])['source'])['rules']) || str(rec(system['source'])['rules']),
     hp: num(hp['max']) ?? num(hp['value']),
     speed: Object.entries(speeds)
       .filter(([, v]) => v !== null && v !== '' && v !== '0' && v !== 0)
@@ -219,6 +229,7 @@ export function statBlockFromActor(raw: unknown): StatBlock | null {
     creatureType: str(stats['creatureType']),
     cr: num(stats['challengeRating']),
     ac: num(stats['armorClass']),
+    rules: '',
     hp: num(hp['max']),
     speed: '',
     abilities: ABILITY_KEYS.map(key => ({ key, value: num(rec(abilities[key])['value']) ?? 10 })),

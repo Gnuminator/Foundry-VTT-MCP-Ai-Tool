@@ -24,9 +24,13 @@ import { Button, Card } from '../ui';
 
 import styles from './StatblockTwin.module.css';
 
-/** World actors and compendium actors; the value is the uuid. */
-const MONSTER_REF: ToolRef = {
-  kind: ['actor', 'token', 'compendium-entry'],
+/**
+ * Two pickers: the world's actors and tokens (listed at once), and the compendiums (a list that
+ * needs a few typed letters, so it cannot share a picker with the first). The value is the uuid.
+ */
+const WORLD_REF: ToolRef = { kind: ['actor', 'token'], value: 'uuid' };
+const PACK_REF: ToolRef = {
+  kind: 'compendium-entry',
   value: 'uuid',
   filter: { documentName: 'Actor' },
 };
@@ -43,6 +47,7 @@ interface Found {
 interface PackList {
   choices?: { id?: string; name?: string }[];
   truncated?: boolean;
+  note?: string;
 }
 
 /** A token stands in with its base actor (an unlinked token differs from it only in deltas). */
@@ -68,7 +73,8 @@ async function lookup(uuid: string): Promise<Found | 'not-a-monster'> {
         );
   if (!block) throw new Error('This monster has no stat block to show.');
   const left = { uuid, block };
-  if (ref.kind === 'compendium' && ref.pack === TWIN_PACK) {
+  // A compendium entry says which rules it is written for; the 2024 pack always is.
+  if (ref.kind === 'compendium' && (ref.pack === TWIN_PACK || block.rules === '2024')) {
     return { left, verdict: { kind: 'already-2024' }, right: null };
   }
   // The search is scoped to the 2024 pack, so a common name cannot push the real hit out of a
@@ -82,6 +88,17 @@ async function lookup(uuid: string): Promise<Found | 'not-a-monster'> {
     limit: 200,
   });
   const inPack = (found.choices ?? []).filter(r => r.id && r.name);
+  if (inPack.length === 0 && found.note) {
+    // A missing or unreadable pack is not "no twin".
+    return {
+      left,
+      verdict: {
+        kind: 'unsure',
+        reason: 'The 2024 monsters could not be read in this world, so this could not be checked.',
+      },
+      right: null,
+    };
+  }
   const verdict = decideTwin(
     block.name,
     inPack.map(r => r.name ?? ''),
@@ -171,6 +188,13 @@ function Column({
   );
 }
 
+/** Same numbers and the same feature list: probably the 2024 entry itself, copied into a world. */
+function sameAsTwin(a: StatBlock, b: StatBlock): boolean {
+  return (
+    a.cr === b.cr && a.ac === b.ac && a.hp === b.hp && a.features.join('|') === b.features.join('|')
+  );
+}
+
 function Result({ found }: { found: Found }): JSX.Element {
   const { left, verdict, right } = found;
   return (
@@ -199,11 +223,15 @@ function Result({ found }: { found: Found }): JSX.Element {
       )}
       {verdict.kind === 'twin' && right && (
         <p className={`pf-detail ${styles['note']}`} id="twin-found">
-          Same monster, 2024 text. The 2014 CR balances the book&apos;s encounters
-          {left.block.cr !== right.block.cr
-            ? `; the 2024 one is CR ${formatCr(right.block.cr)} against ${formatCr(left.block.cr)}.`
-            : '.'}{' '}
-          You choose which one to run.
+          {sameAsTwin(left.block, right.block)
+            ? 'These look identical: the monster you picked may already be the 2024 version. '
+            : `Same monster, 2024 text. The older CR balances the book's encounters${
+                left.block.cr !== right.block.cr
+                  ? `; the 2024 one is CR ${formatCr(right.block.cr)} against ${formatCr(left.block.cr)}`
+                  : ''
+              }. `}
+          You choose which one to run. A compendium monster opens locked: import it to a scene to
+          run it.
         </p>
       )}
       <div className={styles['columns']}>
@@ -224,10 +252,16 @@ export function StatblockTwinDrawer({
   /** A monster to start on (the stories use it). */
   initialUuid?: string;
 }): JSX.Element {
-  const [uuid, setUuid] = useState(initialUuid);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const names = useRef(new Map<string, string>());
-  const wanted = uuid.trim();
+  const startsInWorld = parseMonsterUuid(initialUuid)?.kind !== 'compendium';
+  const [worldUuid, setWorldUuid] = useState(startsInWorld ? initialUuid : '');
+  const [packUuid, setPackUuid] = useState(startsInWorld ? '' : initialUuid);
+  // The one picked last is the one looked up.
+  const [last, setLast] = useState<'world' | 'pack'>(startsInWorld ? 'world' : 'pack');
+  const [worldOpen, setWorldOpen] = useState(false);
+  const [packOpen, setPackOpen] = useState(false);
+  const worldNames = useRef(new Map<string, string>());
+  const packNames = useRef(new Map<string, string>());
+  const wanted = (last === 'world' ? worldUuid : packUuid).trim();
   const query = useQuery({
     queryKey: ['statblock-twin', wanted],
     queryFn: () => lookup(wanted),
@@ -246,28 +280,61 @@ export function StatblockTwinDrawer({
       sub="GM only. Read only: nothing is converted or changed."
       close={<DrawerClose data-track="dash.twin.close" />}
     >
-      <label className={styles['pick']} htmlFor="twin-monster">
-        Monster (a world actor or a compendium entry)
+      <label className={styles['pick']} htmlFor="twin-world">
+        A monster in this world (an actor or a token on the scene you are viewing)
         <RefPicker
-          fieldId="twin-monster"
-          refSpec={MONSTER_REF}
+          fieldId="twin-world"
+          refSpec={WORLD_REF}
           multiple={false}
-          value={uuid}
+          value={worldUuid}
           onChange={v => {
-            setUuid(v);
+            setWorldUuid(v);
+            setLast('world');
           }}
           parentValue=""
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          names={names.current}
+          open={worldOpen}
+          onOpenChange={setWorldOpen}
+          names={worldNames.current}
         >
           <input
-            id="twin-monster"
+            id="twin-world"
             className="field-control"
             type="text"
             autoComplete="off"
-            value={uuid}
-            onChange={e => setUuid(e.target.value)}
+            value={worldUuid}
+            onChange={e => {
+              setWorldUuid(e.target.value);
+              setLast('world');
+            }}
+          />
+        </RefPicker>
+      </label>
+      <label className={styles['pick']} htmlFor="twin-pack">
+        Or a monster from a compendium (type a few letters of its name)
+        <RefPicker
+          fieldId="twin-pack"
+          refSpec={PACK_REF}
+          multiple={false}
+          value={packUuid}
+          onChange={v => {
+            setPackUuid(v);
+            setLast('pack');
+          }}
+          parentValue=""
+          open={packOpen}
+          onOpenChange={setPackOpen}
+          names={packNames.current}
+        >
+          <input
+            id="twin-pack"
+            className="field-control"
+            type="text"
+            autoComplete="off"
+            value={packUuid}
+            onChange={e => {
+              setPackUuid(e.target.value);
+              setLast('pack');
+            }}
           />
         </RefPicker>
       </label>
@@ -283,10 +350,10 @@ export function StatblockTwinDrawer({
           Couldn&apos;t look this up. {errorText(query.error)}
         </div>
       )}
-      {result === 'not-a-monster' && (
-        <div className="preflight-summary pf-warn">
-          That is not a monster. Pick an actor from the list.
-        </div>
+      {wanted !== '' && parseMonsterUuid(wanted) === null && (
+        <p className="pf-detail">
+          Use Pick from list to choose a monster; typed names are not looked up.
+        </p>
       )}
       {result && result !== 'not-a-monster' && !query.isFetching && <Result found={result} />}
     </Drawer>

@@ -95,7 +95,7 @@ describe('stat block readers', () => {
         name: 'Vampire Spawn',
         system: {
           attributes: {
-            ac: { flat: 16 },
+            ac: { override: 16 },
             hp: { value: 90, max: 90 },
             movement: { speeds: { walk: '30', fly: null } },
           },
@@ -117,6 +117,31 @@ describe('stat block readers', () => {
       features: ['Multiattack', 'Bite'],
     });
     expect(sb?.abilities).toHaveLength(6);
+  });
+  it('reads the AC the way dnd5e 6 stores it', () => {
+    const make = (extra: Record<string, unknown>, ac: Record<string, unknown>): unknown => ({
+      ...extra,
+      fullData: { name: 'X', system: { attributes: { ac, hp: {} }, details: {} } },
+    });
+    // prepared value wins
+    expect(
+      statBlockFromCompendium(make({ system: { attributes: { ac: { value: 16 } } } }, { flat: 12 }))
+        ?.ac
+    ).toBe(16);
+    // a fixed AC in override
+    expect(statBlockFromCompendium(make({}, { override: 16, flat: null }))?.ac).toBe(16);
+    // flat feeds only natural armour; armoured or unarmoured is not the flat number
+    expect(statBlockFromCompendium(make({}, { calcs: ['natural'], flat: 13 }))?.ac).toBe(13);
+    expect(
+      statBlockFromCompendium(make({}, { calcs: ['unarmored', 'armored'], flat: 12 }))?.ac
+    ).toBeNull();
+  });
+  it('reads the rules version', () => {
+    const sb = statBlockFromCompendium({
+      system: { source: { rules: '2024' } },
+      fullData: { name: 'X', system: { attributes: {}, details: {} } },
+    });
+    expect(sb?.rules).toBe('2024');
   });
   it('reads a world actor', () => {
     const sb = statBlockFromActor({

@@ -52,12 +52,23 @@ param(
 . (Join-Path $PSScriptRoot 'lib.ps1')
 if (-not $Root) { $Root = $PlanBDefaults.Root }
 $L = Get-PlanBLayout $Root
+
+# One failure style for everything below: a single "FAIL:" line on stderr and exit 1 (no PowerShell stack
+# trace). Refusals that name a rule keep their "REFUSED:" line.
+function Fail([string]$Message) {
+  [Console]::Error.WriteLine("FAIL: $Message")
+  exit 1
+}
+
 $state = Read-PlanBState $L
-if (-not $state -or -not $state.restoredAt) { throw "nothing restored in $Root yet: run restore.ps1 first" }
+if (-not $state -or -not $state.restoredAt) { Fail "nothing restored in $Root yet: run restore.ps1 first" }
 $World = [string]$state.world
 $ports = Get-PlanBPorts -GameNight:$GameNight
-if ($Tunnel -and -not $GameNight) { Write-Host "Rehearsal with the spare tunnel: open it at plan-b-test.<domain> (that route reaches port $($ports.Foundry)); plan-b.<domain> reaches nothing tonight." }
-if ($PublicHost -and $PublicHost -notmatch '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$') { throw "-PublicHost must be a host name like plan-b.example.com" }
+if ($Tunnel -and -not $GameNight) {
+  $where = if ($PublicHost) { "https://$PublicHost" } else { 'the plan-b-test name of your domain, the one your Cloudflare route sends to this PC' }
+  Write-Host "Rehearsal with the spare tunnel: open it at $where (that route reaches port $($ports.Foundry)); the plan-b name reaches nothing tonight."
+}
+if ($PublicHost -and $PublicHost -notmatch '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$') { Fail "-PublicHost must be a host name like plan-b.example.com" }
 
 # --- refusals ---------------------------------------------------------------------------------
 if ($state.PSObject.Properties['services'] -and $state.services) {
@@ -70,7 +81,7 @@ if ($state.PSObject.Properties['services'] -and $state.services) {
       Marker = $p.Value.log
     }
     if ((Resolve-PlanBStop $f).Action -in 'stop', 'unknown') {
-      throw "Plan B already runs ($($p.Name), pid $($p.Value.pid)): see check.ps1, or stop.ps1 first"
+      Fail "Plan B already runs ($($p.Name), pid $($p.Value.pid)): see check.ps1, or stop.ps1 first"
     }
   }
 }
@@ -88,24 +99,24 @@ if ($GameNight) {
   }
 }
 $ver = Test-WorldVersion (Get-PlanBAppBuild $L) (Get-PlanBWorldCoreVersion $L $World)
-if (-not $ver.Ok) { throw "refused: $($ver.Message)" }
+if (-not $ver.Ok) { Fail "refused: $($ver.Message)" }
 $standalone = Join-Path $PlanBRepoRoot 'packages' 'mcp-server' 'dist' 'standalone.js'
 $server = Join-Path $PlanBRepoRoot 'packages' 'cogm-dashboard' 'dist' 'server.js'
 foreach ($f in $standalone, $server) {
-  if (-not (Test-Path -LiteralPath $f)) { throw "not built: $f (run npm ci and npm run build in $PlanBRepoRoot)" }
+  if (-not (Test-Path -LiteralPath $f)) { Fail "not built: $f (run npm ci and npm run build in $PlanBRepoRoot)" }
 }
 $node = Get-PlanBNodeExe $L
 $chromium = $null
 if (-not $NoAssistantGm) {
-  if (-not (Test-Path -LiteralPath $L.AssistantEnv)) { throw "no Assistant GM login in $($L.AssistantEnv) (restore.ps1 brings it); or start with -NoAssistantGm and keep a GM browser open" }
+  if (-not (Test-Path -LiteralPath $L.AssistantEnv)) { Fail "no Assistant GM login in $($L.AssistantEnv) (restore.ps1 brings it); or start with -NoAssistantGm and keep a GM browser open" }
   $chromium = Get-PlanBChromium
-  if (-not $chromium) { throw 'no Edge or Chrome found for the Assistant GM; or start with -NoAssistantGm' }
+  if (-not $chromium) { Fail 'no Edge or Chrome found for the Assistant GM; or start with -NoAssistantGm' }
 }
 $tunnelToken = $null
 if ($Tunnel) {
   $cloudflared = Get-Command cloudflared -ErrorAction SilentlyContinue
-  if (-not $cloudflared) { throw 'cloudflared is not installed: winget install Cloudflare.cloudflared (runbook, Part C step)' }
-  if (-not (Test-Path -LiteralPath $PlanBDefaults.TunnelTokenFile)) { throw "no tunnel token: run scripts\plan-b\set-tunnel-token.ps1 first (runbook, Part C step)" }
+  if (-not $cloudflared) { Fail 'cloudflared is not installed: winget install Cloudflare.cloudflared (runbook, Part C step)' }
+  if (-not (Test-Path -LiteralPath $PlanBDefaults.TunnelTokenFile)) { Fail "no tunnel token: run scripts\plan-b\set-tunnel-token.ps1 first (runbook, Part C step)" }
   # DPAPI: only this Windows user on this PC can turn the file back into the token. Never printed.
   $secure = Get-Content -LiteralPath $PlanBDefaults.TunnelTokenFile -Raw | ConvertTo-SecureString
   $tunnelToken = [System.Net.NetworkCredential]::new('', $secure).Password
@@ -164,6 +175,9 @@ Write-PlanBState $L $state
 # still fresh and a new start fails. Wait until it has gone stale.
 $lock = Join-Path $L.DataDir 'Config' 'options.json.lock'
 $deadline = (Get-Date).AddSeconds(30)
+if ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalSeconds -lt 12) {
+  Write-Host 'Foundry was stopped a moment ago and still holds its data lock: waiting for it to go stale (at most 30 s)...' -ForegroundColor Gray
+}
 while ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalSeconds -lt 12 -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
 
 $main = Join-Path $L.AppDir 'main.js'
@@ -224,6 +238,5 @@ Write-Host "Dashboard: http://localhost:$($ports.Dashboard)"
 Write-Host 'Check:     .\scripts\plan-b\check.ps1'
 $dead = Get-PlanBDeadServices $listening
 if ($dead.Count) {
-  [Console]::Error.WriteLine("FAILED: $($dead -join ', ') never started listening (see the lines above). The rest runs; stop.ps1 stops it all.")
-  exit 1
+  Fail "$($dead -join ', ') never started listening (see the lines above). The rest runs; stop.ps1 stops it all."
 }

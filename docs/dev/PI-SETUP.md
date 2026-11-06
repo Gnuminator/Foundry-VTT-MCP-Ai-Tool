@@ -328,10 +328,12 @@ is a dry run records nothing. The command also shows in the Pi's SSH log (stage 
 cannot be told (it is off, or stage 6 has not been rerun), the pull only logs a WARNING and the
 copy still counts as done.
 
-What the snapshot record means: it says "this PC has the newest snapshot", not "the snapshot is
-fresh". A snapshot run that finds the newest snapshot already on this PC counts as a copy, so if
-`dietpi-backup` itself stops on the Pi, the record keeps being renewed. That case is covered on the
-PC by the `WarnAfterDays` log line in `pull-snapshot.ps1`, not by the DM.
+What the snapshot record means: it says "this PC has a fresh snapshot". When the newest snapshot on
+the Pi is older than `WarnAfterDays` (3), `pull-snapshot.ps1` and `pull-restic.ps1` log a WARNING and
+leave the record alone, so if `dietpi-backup` itself stops on the Pi the record ages and the same DM
+fires (about 6 days after the last good backup: 3 days until the snapshot counts as stale, then the
+3-day record limit). The DM text only says the copy is old; it cannot tell "the PC did not copy" from
+"the Pi made no new backup", so look at `E:\PiBackup\logs` for the WARNING line.
 
 The bot reads the folder every 15 minutes (the first check after a bot start waits one interval, so
 a restart or a crash loop does not repeat the DM), with the same rules as the space notices. Each
@@ -1432,6 +1434,9 @@ The Pi reports its own health to the PM board once an hour, because the PC is no
 systemd timer `foundry-board-status.timer` (minute 07 of every hour, and 5 minutes after boot). The script only reads the Pi and sends one JSON object: up and uptime,
 disk free (the disk with Foundry's data), the last nightly backup (the result of
 `foundry-backup.service` and the time of the newest restic snapshot, read with `--no-lock`), and
+the time of the newest `dietpi-backup` snapshot (`backup.snapshotAt`, from the mtime of its stats
+file), whether `foundry.service` itself is active (`foundry.serviceActive`), the clock (`clock.ntpSynced`
+and the last measured NTP `clock.offsetMs`, null when systemd-timesyncd does not run), and
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`. No log
 lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
 Today, red when the backup is older than 30 hours or no report came for 3 hours.

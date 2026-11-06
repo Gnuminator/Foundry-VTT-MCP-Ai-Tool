@@ -128,6 +128,7 @@ export const STEPS = [
   nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-board-status', 'scripts/pi/board-status.test.mjs'),
+  nodeTest('pi-pull-destination', 'scripts/pi/pull-destination.test.mjs'),
   nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
   nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),

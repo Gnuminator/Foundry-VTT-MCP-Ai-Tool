@@ -25,11 +25,11 @@ $L = Get-PlanBLayout $Root
 $state = Read-PlanBState $L
 $bad = 0
 
-function Line([string]$Part, [bool]$Ok, [string]$Text, [switch]$Info) {
-  $mark = if ($Info) { 'info' } elseif ($Ok) { 'OK' } else { 'PROBLEM' }
-  $color = if ($Info) { 'Gray' } elseif ($Ok) { 'Green' } else { 'Yellow' }
+function Line([string]$Part, [bool]$Ok, [string]$Text, [switch]$Info, [switch]$Unknown) {
+  $mark = if ($Unknown) { 'unknown' } elseif ($Info) { 'info' } elseif ($Ok) { 'OK' } else { 'PROBLEM' }
+  $color = if ($Unknown) { 'Yellow' } elseif ($Info) { 'Gray' } elseif ($Ok) { 'Green' } else { 'Yellow' }
   Write-Host ('{0,-13} {1,-8} {2}' -f $Part, $mark, $Text) -ForegroundColor $color
-  if (-not $Ok -and -not $Info) { $script:bad++ }
+  if (-not $Ok -and -not $Info -and -not $Unknown) { $script:bad++ }
 }
 
 function Get-Json([string]$Url) {
@@ -95,15 +95,18 @@ if (-not $health) {
     } else { ' (open Foundry as the GM in a browser on this PC: the module there holds the link)' }
     Line 'module link' $linked "Foundry $($st.status.foundry) through port $($ports.Link)$hint"
   } else {
-    Line 'module link' $true 'cannot be read (the dashboard asks for a login)' -Info
+    # Behind a login the dashboard does not answer /api/state: the link is not known, which is not the same as down.
+    Line 'module link' $true 'cannot be read (the dashboard asks for a login). Open the dashboard and look at its Foundry status' -Unknown
   }
 }
 
 # The spare tunnel (Part C).
 if ($svcNames -contains 'tunnel') {
   $log = Join-Path $L.LogDir 'tunnel.err.log'
-  $registered = (Test-Path $log) -and (Select-String -LiteralPath $log -Pattern 'Registered tunnel connection' -Quiet)
-  Line 'tunnel' $registered $(if ($registered) { 'connected to Cloudflare' } else { "not connected yet; see $log" })
+  # The current state, from the end of the log: a connection that was registered and dropped later is down.
+  $tail = if (Test-Path -LiteralPath $log) { @(Get-Content -LiteralPath $log -Tail 400) } else { @() }
+  $tunnel = Get-PlanBTunnelState $tail
+  Line 'tunnel' $tunnel.Connected $(if ($tunnel.Connected) { "connected to Cloudflare ($($tunnel.Message))" } else { "$($tunnel.Message); see $log" })
 }
 
 # The Pi, for information: Plan B is for a Pi that is down.

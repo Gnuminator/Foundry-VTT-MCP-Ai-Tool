@@ -24,12 +24,11 @@ export async function waitForDashboard(page) {
 }
 
 /**
- * Whether GM Actions are on, from the header live play line: it names GM Actions only while they
- * are off ("GM Actions is off: Turn on"); "Live play on: all set" or another switch's name is on.
+ * Whether GM Actions are on, from the header live play button's data-gm-actions attribute (its
+ * text says only "Live play on" or "Live play off: Turn on", and other switches can be off).
  */
 export async function gmActionsOn(page) {
-  const label = (await page.locator('#btn-gm').textContent()) ?? '';
-  return label.trim() !== '' && !/GM Actions/i.test(label);
+  return (await page.locator('#btn-gm').getAttribute('data-gm-actions')) === 'on';
 }
 
 /**
@@ -53,8 +52,7 @@ export async function setGmActions(page, on, { human = false } = {}) {
     await setGmActionsApi(new URL(page.url()).origin, false);
   }
   await page.waitForFunction(want => {
-    const t = document.querySelector('#btn-gm')?.textContent ?? '';
-    return (t.trim() !== '' && !/GM Actions/i.test(t)) === want;
+    return (document.querySelector('#btn-gm')?.getAttribute('data-gm-actions') === 'on') === want;
   }, on);
   // The "Turned on" toast sits bottom right and stays up while the window is hovered or blurred:
   // a demo cursor sent to a control behind it would wait for ever. It stays visible but lets

@@ -16,7 +16,8 @@
  *  6. A headless write without a canvas (PR 651): `use-item` with targets on a client that has
  *     `core.noCanvas` on and no canvas drawn.
  *
- * Each check fails on the code before its fix; the PR description names how that was shown.
+ * Each check except the 0 HP one fails on the code before its fix (that one is a regression guard);
+ * the PR description names how that was shown.
  * Everything the scenario changes is put back (ownership, assigned character, statuses, HP, the
  * side scene, the fights, the viewed scene's canvas).
  */
@@ -471,6 +472,8 @@ export default {
     // --- 5. A fight on a scene the GM is not viewing (PR 608) -----------------------------
     await t.step('a fight on a scene the GM is not viewing starts, turns and ends', async () => {
       await t.gm('endCombats');
+      // Earlier steps' pending undos stay in `open` for the cleanup; this step drops only its own.
+      const openMark = open.length;
       const made = await page.evaluate(MAKE_SIDE_SCENE, {
         name: 'Kit Flows Side Scene',
         actorIds: [druid.actorId, cleric.actorId],
@@ -501,7 +504,7 @@ export default {
       t.equal((await page.evaluate(READ_COMBATS)).combats.filter(c => c.scene === made.sceneId).length, 1, 'the undo brought the fight back');
       // The undo of the end re-created the combat, so the first change (the start) now conflicts;
       // deleting the side scene in the cleanup removes the fight.
-      open.length = 0;
+      open.length = openMark;
     });
 
     // --- 6. A headless write without a canvas (PR 651) --------------------------------------
@@ -519,8 +522,8 @@ export default {
         }
       }
       t.check(weapon, 'one of the heroes has a weapon');
-      const state = await page.evaluate(GO_HEADLESS);
       headless = true;
+      const state = await page.evaluate(GO_HEADLESS);
       t.check(state.noCanvas === true && state.ready === false, 'the client is headless now', state);
       const before = await page.evaluate(MESSAGE_IDS);
       const used = await t.tool('use-item', {

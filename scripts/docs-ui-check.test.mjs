@@ -70,8 +70,8 @@ test('boldNames reads a bold name written as code, and skips bold inside code', 
 });
 
 test('boldNames does not join two bold runs around a code span', () => {
-  const names = boldNames('Press **Foo** `x` **Bar** button.').map(b => b.name);
-  assert.ok(!names.some(n => n.includes('`') || n.includes('Foo') && n.includes('Bar')), names.join('|'));
+  // The UI word sits inside the code span, so Foo is not a button name.
+  assert.deepEqual(boldNames('See **Foo** `button` **Bar** here.').map(b => b.name), []);
 });
 
 test('buildCorpus skips storybook fixtures', () => {

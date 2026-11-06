@@ -7,9 +7,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "build": "node ../scripts/tsc7.mjs",
+    "dev": "node ../scripts/tsc7.mjs --watch",
+    "typecheck": "node ../scripts/tsc7.mjs --noEmit",
     "test": "vitest run"
   },
   "devDependencies": {

@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/build-help.mjs --soft && tsx watch src/server.ts",
     "dev:web": "vite --config web/vite.config.ts",
-    "build": "tsc && node scripts/build-help.mjs && vite build --config web/vite.config.ts",
+    "build": "node ../../scripts/tsc7.mjs && node scripts/build-help.mjs && vite build --config web/vite.config.ts",
     "build:web": "vite build --config web/vite.config.ts",
     "start": "node dist/server.js",
     "test": "vitest run",
@@ -20,7 +20,7 @@
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "storybook": "storybook dev -c web/.storybook -p 6006",
     "build-storybook": "storybook build -c web/.storybook -o storybook-static",
-    "typecheck": "tsc --noEmit && tsc -p web --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit && node ../../scripts/tsc7.mjs -p web --noEmit",
     "lint": "eslint src web",
     "lint:fix": "eslint src web --fix"
   },

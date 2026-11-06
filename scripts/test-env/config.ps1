@@ -241,10 +241,11 @@ function Get-FoundryAppVersion([string]$Dir) {
 # integer >= the core generation ("14") or a point build not older than the running Foundry
 # ("14.370"; World#canAutoLaunch in dist/packages/world.mjs). A world last opened on 14.369 says
 # verified "14.369" and, after a point update to 14.370, is refused with "requested World ... is not
-# available to auto-launch" (coreVersion does not matter). Foundry itself bumps both fields when it
-# opens the world from the setup screen. This does the same for a world about to be auto-launched:
-# text edit of the two fields only, a .bak-verified copy of the first original, nothing when the
-# world is already current. Call only while Foundry is not running on this data folder.
+# available to auto-launch" (coreVersion does not matter, so it is left alone). Foundry itself bumps
+# both fields when it opens the world from the setup screen. This bumps only verified for a world
+# about to be auto-launched: text edit of that one field, a .bak-verified copy of the first
+# original, nothing when the world is already current. Call only while Foundry is not running on
+# this data folder.
 function Compare-FoundryVersion([string]$A, [string]$B) {
   $pa = @(($A -split '\.') | ForEach-Object { [int]$_ })
   $pb = @(($B -split '\.') | ForEach-Object { [int]$_ })
@@ -256,30 +257,34 @@ function Compare-FoundryVersion([string]$A, [string]$B) {
   return 0
 }
 
-# Returns $true when it changed world.json.
+# Returns the new verified version ("14.370") when it changed world.json, else $null.
 function Update-WorldVerified([string]$WorldDir, [string]$AppVersion) {
   $file = Join-Path $WorldDir 'world.json'
-  if (-not $AppVersion -or $AppVersion -notmatch '^\d+(\.\d+)*$' -or -not (Test-Path $file)) { return $false }
+  if (-not $AppVersion -or $AppVersion -notmatch '^\d+(\.\d+)*$' -or -not (Test-Path $file)) { return $null }
   # package.json says 14.370.0; world.json (as Foundry writes it) says generation.build, 14.370.
   $AppVersion = (($AppVersion -split '\.') | Select-Object -First 2) -join '.'
   $text = [IO.File]::ReadAllText($file)
-  $m =[regex]::Match($text, '("compatibility"\s*:\s*\{[^}]*?"verified"\s*:\s*)"(\d+(?:\.\d+)*)"')
-  if (-not $m.Success) { return $false }
+  $m = [regex]::Match($text, '("compatibility"\s*:\s*\{[^}]*?"verified"\s*:\s*)"(\d+(?:\.\d+)*)"')
+  if (-not $m.Success) {
+    # [^}]*? stops at the first closing brace, so a nested object before "verified" also lands here.
+    if ($text -match '"compatibility"') { Write-Warning "world.json in $WorldDir has a compatibility block but no string verified the bump can read; left as it is." }
+    return $null
+  }
   $verified = $m.Groups[2].Value
   # A world from an older generation needs Foundry's own migration (Update World in setup): never
-  # marked verified here. An integer is a generation: current as long as it is not below the app's.
-  if ([int]($verified -split '\.')[0] -ne [int]($AppVersion -split '\.')[0]) { return $false }
-  if ($verified -notmatch '\.') { return $false }
-  if ((Compare-FoundryVersion $verified $AppVersion) -ge 0) { return $false }
+  # marked verified here. A bare generation ("14", no point build) is left alone too: Foundry accepts
+  # it for any build of that generation.
+  if ([int]($verified -split '\.')[0] -ne [int]($AppVersion -split '\.')[0]) { return $null }
+  if ($verified -notmatch '\.') { return $null }
+  if ((Compare-FoundryVersion $verified $AppVersion) -ge 0) { return $null }
   $bak = "$file.bak-verified"
   if (-not (Test-Path $bak)) { Copy-Item $file $bak }
   $new = $text.Remove($m.Groups[2].Index, $m.Groups[2].Length).Insert($m.Groups[2].Index, $AppVersion)
-  $cm = [regex]::Match($new, '("coreVersion"\s*:\s*)"(\d+(?:\.\d+)*)"')
-  if ($cm.Success -and (Compare-FoundryVersion $cm.Groups[2].Value $AppVersion) -lt 0) {
-    $new = $new.Remove($cm.Groups[2].Index, $cm.Groups[2].Length).Insert($cm.Groups[2].Index, $AppVersion)
-  }
-  [IO.File]::WriteAllText($file, $new)
-  return $true
+  # Write beside the world, then move over it: a crash never leaves a half-written world.json.
+  $tmp = "$file.tmp-verified"
+  [IO.File]::WriteAllText($tmp, $new)
+  Move-Item -LiteralPath $tmp -Destination $file -Force
+  return $AppVersion
 }
 
 # The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).

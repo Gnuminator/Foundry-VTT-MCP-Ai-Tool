@@ -11,10 +11,8 @@ import { limitsFor } from './context-alert.mjs';
 import { REPO_ROOT, decide, insideRepo, run, shellWritesRepo } from './context-stop.mjs';
 
 // The lane decision uses CLAUDE_PROJECT_DIR and the transcript path only, never the cwd, so the
-// fixtures (empty env, transcripts in the temp dir) are always the planner's line; tests that sit
-// near the line shift by BUMP (0 unless the lines change).
+// fixtures (empty env, transcripts in the temp dir) are always the planner's line.
 const OUT = limitsFor(undefined, undefined).out;
-const BUMP = OUT - 250_000;
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'context-stop.mjs');
 
@@ -112,6 +110,7 @@ test('above the out line: reads, outside writes, vault and scratchpad stay allow
         { command: 'cd "C:/Users/chris/Documents/Obsidian/vault" && git add -A && git pull' },
       ],
       ['Bash', { command: 'echo note > "C:/Users/chris/Documents/Obsidian/vault/Dev/x.md"' }],
+      ['Bash', { command: 'npm run foo -- t "handed over"' }],
       ['PowerShell', { command: 'Get-Content a.ts | Select-Object -First 3' }],
     ];
     for (const [tool, args] of allowed) {
@@ -126,28 +125,15 @@ test('under the line, and after a compact, nothing is denied', () => {
   const { root, env, cleanup } = fixture();
   try {
     const args = { file_path: inRepo('a.ts') };
-    const b = BUMP;
-    assert.equal(
-      decide(payload(transcript(root, [230_000 + b, 240_000 + b]), 'Edit', args), env),
-      null
-    );
+    assert.equal(decide(payload(transcript(root, [230_000, 240_000]), 'Edit', args), env), null);
     assert.ok(
-      decide(
-        payload(transcript(root, [230_000 + b, 255_000 + b], 'a.jsonl'), 'Edit', args),
-        env
-      ) === null
+      decide(payload(transcript(root, [230_000, 255_000], 'a.jsonl'), 'Edit', args), env) === null
     );
-    assert.ok(
-      decide(payload(transcript(root, [255_000 + b, 260_000 + b], 'b.jsonl'), 'Edit', args), env)
-    );
+    assert.ok(decide(payload(transcript(root, [255_000, 260_000], 'b.jsonl'), 'Edit', args), env));
     // after /compact the context falls and the deny lifts
     assert.equal(
       decide(
-        payload(
-          transcript(root, [255_000 + b, 260_000 + b, 90_000, 95_000], 'c.jsonl'),
-          'Edit',
-          args
-        ),
+        payload(transcript(root, [255_000, 260_000, 90_000, 95_000], 'c.jsonl'), 'Edit', args),
         env
       ),
       null
@@ -230,10 +216,7 @@ test('a doubled phantom reading never stops a session', () => {
     }
     // Two big responses in a row are real.
     assert.ok(
-      decide(
-        payload(transcript(root, [255_000 + BUMP, 262_000 + BUMP], 'real.jsonl'), 'Edit', args),
-        env
-      )
+      decide(payload(transcript(root, [255_000, 262_000], 'real.jsonl'), 'Edit', args), env)
     );
   } finally {
     cleanup();

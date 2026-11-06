@@ -224,8 +224,8 @@ test('lanes: handovers per merged PR and the context they stopped at', async () 
     assert.equal(r.lanes.over200k, 2);
     assert.equal(r.lanes.over250k, 1);
     assert.equal(r.lanes.over300k, 0);
-    assert.match(formatReport(r), /Lanes: 4 sessions, 2 handed over \(1\.00 per merged PR\)/);
-    assert.match(formatReport(r), /at handover median 234k max 262k/);
+    assert.match(formatReport(r), /Lanes: 4 sessions, 2 reached line \(1\.00 per merged PR\)/);
+    assert.match(formatReport(r), /peak after line median 234k max 262k/);
     const noPrs = await buildReport({ root, now: NOW, days: 7 });
     assert.equal(noPrs.lanes.handoversPerPr, null);
     assert.doesNotMatch(formatReport(noPrs), /per merged PR\), context/);
@@ -234,7 +234,7 @@ test('lanes: handovers per merged PR and the context they stopped at', async () 
   }
 });
 
-test('lanes: the line is 200k before 2026-11-04 and 250k from it; no lanes prints a line', () => {
+test('lanes: the line is 200k before the 2026-11-03 22:59Z merge and 250k from it; no lanes prints a line', () => {
   const turn = (ctx, t) => ({ real: ctx, t: t.getTime() });
   const file = path.join('projects', `${PROJECT_DIR}--claude-worktrees-lane-z`, 'z.jsonl');
   const old = {

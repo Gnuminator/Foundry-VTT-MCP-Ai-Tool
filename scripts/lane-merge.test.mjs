@@ -2667,6 +2667,17 @@ test('releasePr: the fold plus version bumps only; anything else is not a releas
     why(edit('installer/nsis/foundry-mcp-server.nsi', 'Software\\Uninstall', 'Software\\Evil')),
     /foundry-mcp-server\.nsi changes more than its version line/
   );
+  // A lock entry that loses its version is named by key, not by position.
+  assert.match(
+    why(
+      edit(
+        'package-lock.json',
+        '"name": "@x/shared",\n      "version": "0.26.0"',
+        '"name": "@x/shared"'
+      )
+    ),
+    /package-lock\.json drops or adds a version field/
+  );
   // A dropped version field is not a bump.
   assert.match(
     why(edit('packages/foundry-module/module.json', '  "version": "0.26.0",\n', '')),

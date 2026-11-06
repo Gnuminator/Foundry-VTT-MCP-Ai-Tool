@@ -334,7 +334,15 @@ export class EventPump {
       }
     } else if (fresh.length > 0) {
       const outage = state.pendingOutage;
-      if (sameSession && outage !== null && outage.end - outage.start >= LINK_GAP_MIN_MS) {
+      // A wrap in the same read already covers the break from the cursor to the first fresh
+      // event; a second "read back" line would contradict it.
+      const alreadyMarked = gaps.some(g => g.reason === 'ring-wrap');
+      if (
+        sameSession &&
+        !alreadyMarked &&
+        outage !== null &&
+        outage.end - outage.start >= LINK_GAP_MIN_MS
+      ) {
         gaps.push({ reason: 'link-down', fromMs: lastGood, toMs: outage.end, lost: null });
       }
     }

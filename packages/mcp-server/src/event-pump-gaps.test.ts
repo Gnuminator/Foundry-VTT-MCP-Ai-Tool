@@ -372,6 +372,26 @@ describe('EventPump gaps and health', () => {
     expect(pump.health.snapshot().lastError?.message).toBe('refused');
   });
 
+  it('writes only the ring-wrap marker when an outage also overflowed the buffer', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const pump = makePump();
+    foundry.add(T0);
+    await pump.pollOnce();
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 60_000);
+    await pump.pollOnce();
+    foundry.connected = true;
+    for (let i = 1; i <= 1000; i++) foundry.add(T0 + 1000 + i);
+    vi.setSystemTime(T0 + 62_000);
+    await pump.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ details: { reason: 'ring-wrap' } });
+    expect(markers[0]?.description).not.toContain('read back');
+  });
+
   it('retries a failed link-down line and writes it exactly once', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(T0);

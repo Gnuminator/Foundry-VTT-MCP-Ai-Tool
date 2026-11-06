@@ -6,6 +6,6 @@
   marker only when a recent gap is listed, and no longer says the logs are "switched off" when
   nothing is recording.
 - **Event pump:** a full batch that still holds the saved boundary event is no longer taken for a
-  ring wrap (nothing was lost); "not recording" clears when the link returns even if the first read
-  then fails; a failed log or state write can no longer produce a second, inverted link-down line.
+  ring wrap (nothing was lost); "not recording" clears when the link returns even if the event
+  read then fails; a link-down line is no longer written next to a ring-wrap line for the same break; a failed log or state write can no longer produce a second, inverted link-down line.
 - **Module:** the live window's "Try again" clears the old answer before showing the panel again.

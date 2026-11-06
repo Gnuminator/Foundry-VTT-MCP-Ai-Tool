@@ -268,6 +268,21 @@ test('blamedOnBridge follows the first stack frame that is not our diagnostics w
     ),
     true
   );
+  // A frame without a function name (anonymous code) is still a frame.
+  assert.equal(
+    blamedOnBridge(
+      {
+        message: [
+          'Error: x',
+          '    at http://localhost:30001/modules/foundry/core.js:1:2',
+          frame('foundry-mcp-bridge', 'dist/main.js'),
+        ].join('\n'),
+        source: diag,
+      },
+      'foundry-mcp-bridge'
+    ),
+    false
+  );
   // An untagged string through the wrapper, and prose that starts with "at ", are not ours.
   assert.equal(
     blamedOnBridge({ message: 'Error in a handler', source: diag }, 'foundry-mcp-bridge'),

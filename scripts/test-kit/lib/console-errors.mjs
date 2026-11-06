@@ -87,7 +87,7 @@ export function blamedOnBridge(e, moduleId) {
   const message = String(e.message ?? '');
   const source = String(e.source ?? '');
   if (message.startsWith(`[${moduleId}]`)) return true;
-  const frames = [...message.matchAll(/^[ \t]*at\s+\S.*(?:\(|https?:|file:).*$/gm)]
+  const frames = [...message.matchAll(/^[ \t]*at\s+(?:\S.*\(|https?:|file:).*$/gm)]
     .map(m => m[0])
     .filter(line => !/\/dist\/diagnostics\.js/.test(line));
   if (frames.length) return frames[0].includes(`/${moduleId}/`);

@@ -571,6 +571,14 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.doesNotMatch(source, /Select-String[^\n]*Registered tunnel connection/);
   });
 
+  test('check.ps1 sets its unknown counter before use (lib.ps1 turns on strict mode)', () => {
+    const source = readFileSync(path.join(here, 'check.ps1'), 'utf8');
+    assert.match(readFileSync(path.join(here, 'lib.ps1'), 'utf8'), /Set-StrictMode -Version Latest/);
+    const set = source.indexOf('\n$unknown = 0');
+    assert.ok(set > 0 && set < source.indexOf('function Line'), '$unknown = 0 before the Line function');
+    assert.match(source, /if \(\$unknown\) \{ Write-Host 'Plan B is up, but the module link is unknown/);
+  });
+
   test('restore.ps1 refuses a backup over 36 hours old without -AllowOld, and warns with it', () => {
     const dir = mkdtempSync(path.join(tmp, 'restore-old-'));
     const repo = path.join(dir, 'repo');

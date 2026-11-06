@@ -48,7 +48,7 @@ When a pass cannot do its job it also posts one short line to the GM bot channel
 else `GAMENIGHT_WATCH_CHANNEL_ID`, in `discord-bot.env`) through `announce.mjs gm-bot`: the notes run paused
 (usage limit, or Claude logged out), a session skipped for missing recording consent, a failed transcription, notes run or publish, and notes
 published with raw-text scenes. The line names the session folder and the event, never what was said. Each event
-is posted once (a paused or failed run once per day), tracked in `<sessions>\.notes-tells.json`; a post that fails
+is posted once (a paused or failed step once per day), tracked in `<sessions>\.notes-tells.json`; a post that fails
 is only logged and tried again on the next pass. `-DryRun` prints what it would post.
 With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
 (normally `foundry-pi`): the pass first runs `pull.ps1`, which copies finished recordings from the

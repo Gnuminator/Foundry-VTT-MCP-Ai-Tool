@@ -794,11 +794,20 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
   assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), ['docs-links-quick']);
 });
 
+test('quickSteps: docs:ui and docs:kit also run for the sources and scenarios they read', () => {
+  assert.ok(quickNames(['docs/player/join.md']).includes('docs-ui-quick'));
+  assert.ok(quickNames(['packages/foundry-module/src/x.ts']).includes('docs-ui-quick'));
+  assert.ok(quickNames(['packages/cogm-dashboard/web/src/App.tsx']).includes('docs-ui-quick'));
+  assert.ok(quickNames(['scripts/test-kit/scenarios/a.scenario.mjs']).includes('docs-kit-quick'));
+  assert.ok(quickNames(['scripts/test-kit/lib/contract.mjs']).includes('docs-kit-quick'));
+  assert.ok(!quickNames(['docs/dev/X.md']).includes('docs-ui-quick'));
+});
+
 test('quickSteps: a dashboard web or test-kit change builds the mcp-server and runs the kit scenario check', () => {
   const web = quickNames(['packages/cogm-dashboard/web/src/App.tsx']);
   assert.ok(web.includes('build-mcp-server') && web.includes('kit-check'), web.join(','));
   assert.ok(web.indexOf('build-mcp-server') < web.indexOf('kit-check'));
-  assert.deepEqual(quickNames(['scripts/test-kit/scenarios/a.json']), ['kit-controls', 'build-mcp-server', 'kit-check']);
+  assert.deepEqual(quickNames(['scripts/test-kit/scenarios/a.json']), ['docs-kit-quick', 'kit-controls', 'build-mcp-server', 'kit-check']);
   // a module or catalogue input runs the control tests (a new control needs its skip row), not the scenario check
   assert.deepEqual(quickNames(['packages/foundry-module/src/ui/x.ts']).filter(n => n.startsWith('kit')), ['kit-controls']);
   assert.deepEqual(quickNames(['shared/src/usage-catalog.generated.ts']).filter(n => n.startsWith('kit')), ['kit-controls']);
@@ -847,6 +856,7 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'lint-changed',
     'unit-cogm-dashboard',
     'catalog-check',
+    'docs-ui-quick',
     'build-dashboard',
     'bundle-budget',
     'kit-controls',

@@ -664,7 +664,18 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     res.sendFile(path.basename(reactIndex), { root: path.dirname(reactIndex) });
   });
   // The GM page (item gm-page-wrapper): Foundry and the live strip on one page.
-  mountGmPage(app, { reactIndex, foundryUrl: config.foundryUrl, pageLimit, requireGm });
+  mountGmPage(app, {
+    sendIndex: (res: Response): boolean => {
+      if (!fs.existsSync(reactIndex)) return false;
+      res.setHeader('Cache-Control', 'no-cache');
+      // With a root, so a folder such as .claude/worktrees above the build does not count as a dotfile.
+      res.sendFile(path.basename(reactIndex), { root: path.dirname(reactIndex) });
+      return true;
+    },
+    foundryUrl: config.foundryUrl,
+    pageLimit,
+    requireGm,
+  });
   // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
   // dropped, and the target is always "/" plus that, so it can never leave this origin.
   app.get(['/next', '/next/', '/legacy', '/legacy/'], pageLimit, (req: Request, res: Response) => {

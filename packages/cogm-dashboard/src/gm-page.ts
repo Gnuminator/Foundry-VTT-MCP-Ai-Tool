@@ -4,9 +4,6 @@
  * (so the page's relative links keep resolving) and the one GM-only answer the page needs: where
  * Foundry is, as the GM's browser reaches it (`DASHBOARD_FOUNDRY_URL`).
  */
-import fs from 'node:fs';
-import path from 'node:path';
-
 import type { Application, NextFunction, Request, RequestHandler, Response } from 'express';
 
 import { normalizeFoundryUrl } from './combat-images.js';
@@ -40,7 +37,8 @@ export function gmRedirectTarget(originalUrl: string): string {
 }
 
 export interface GmPageDeps {
-  readonly reactIndex: string;
+  /** Sends the built React page (no-cache) and answers true; false when it is not built. */
+  readonly sendIndex: (res: Response) => boolean;
   readonly foundryUrl: string | undefined;
   readonly pageLimit: RequestHandler;
   readonly requireGm: (req: Request, res: Response, next: () => void) => void;
@@ -61,8 +59,6 @@ export function mountGmPage(app: Application, deps: GmPageDeps): void {
     // earlier for Foundry, would otherwise let Foundry frame a page that frames Foundry).
     res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
     res.setHeader('X-Frame-Options', 'DENY');
-    if (!fs.existsSync(deps.reactIndex)) return next();
-    res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(path.basename(deps.reactIndex), { root: path.dirname(deps.reactIndex) });
+    if (!deps.sendIndex(res)) next();
   });
 }

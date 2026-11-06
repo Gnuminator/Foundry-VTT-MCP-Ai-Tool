@@ -107,7 +107,16 @@ const REASON_TEXT: Record<GapReason, string> = {
 };
 
 /** `HH:MM` in the host's local time. */
-function clock(ms: number): string {
+/** HH:MM, with the date in front when the time is not today. */
+export function clockWithDay(ms: number, now: number = Date.now()): string {
+  const d = new Date(ms);
+  const n = new Date(now);
+  if (d.toDateString() === n.toDateString()) return clock(ms);
+  const p = (v: number): string => String(v).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${clock(ms)}`;
+}
+
+export function clock(ms: number): string {
   const d = new Date(ms);
   const p = (n: number): string => String(n).padStart(2, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -116,7 +125,12 @@ function clock(ms: number): string {
 /** The plain words a gap carries in the log and in recaps. */
 export function gapDescription(pump: string, gap: PumpGap): string {
   const lost = gap.lost === null ? '' : ` (${gap.lost} lost)`;
-  return `Recording gap in the ${pump} log, about ${clock(gap.fromMs)} to ${clock(gap.toMs)}: ${REASON_TEXT[gap.reason]}, so some events may be missing${lost}.`;
+  const window = `about ${clock(gap.fromMs)} to ${clock(gap.toMs)}`;
+  if (gap.reason === 'link-down') {
+    // The pump reads the missed events back when the link returns, so none are assumed lost.
+    return `Recording gap in the ${pump} log, ${window}: ${REASON_TEXT[gap.reason]}; the events were read back when the link returned${lost}.`;
+  }
+  return `Recording gap in the ${pump} log, ${window}: ${REASON_TEXT[gap.reason]}, so some events may be missing${lost}.`;
 }
 
 /**

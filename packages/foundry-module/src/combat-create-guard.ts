@@ -38,6 +38,18 @@ export function guardCombatCreate(documentClass: unknown): boolean {
   const original = proto?._onCreate;
   if (!proto || typeof original !== 'function') return false;
   if ((original as unknown as Record<symbol, unknown>)[GUARDED]) return true;
+  // When the class only inherits `_onCreate`, look it up on the parent prototype on every call, so
+  // a patch registered on the parent after ready is not skipped. A class with its own `_onCreate`
+  // keeps the one captured here (a later patch of that same slot replaces the guard itself).
+  const inherited = !Object.prototype.hasOwnProperty.call(proto, '_onCreate');
+  const resolve = (): OnCreate => {
+    const parent = (inherited ? Object.getPrototypeOf(proto) : null) as Record<
+      PropertyKey,
+      unknown
+    > | null;
+    const current = parent?._onCreate;
+    return (typeof current === 'function' ? current : original) as OnCreate;
+  };
   const wrapped: OnCreate = function (this: CombatLike, ...args: unknown[]) {
     if (!this.previous && Number(this.round ?? 0) > 0) {
       // A guarded undo or rollback re-creates an ended fight at its old round: nothing is
@@ -48,7 +60,7 @@ export function guardCombatCreate(documentClass: unknown): boolean {
       const restore = ns?.changeMode === 'undo' || ns?.changeMode === 'rollback';
       this.previous = restore && this.current ? { ...this.current } : { ...UNSTARTED_STATE };
     }
-    return (original as OnCreate).apply(this, args);
+    return resolve().apply(this, args);
   };
   (wrapped as unknown as Record<symbol, unknown>)[GUARDED] = true;
   proto._onCreate = wrapped;

@@ -76,7 +76,8 @@ export const WRITE_METHODS: readonly string[] = [
  * Write methods that make no change-journal record (chat, rolls, playlists, a page popup, a
  * notice, a folder, a portrait file). They do not break the change group: it would only end the
  * window in which dnd5e's late follow-ups of an AI change stay with it, and some of them run as
- * a step of a guarded apply itself.
+ * a step of a guarded apply itself. playerRoll breaks the group itself on its initiative path
+ * (rollTrackerInitiative), where it starts a tracker roll that dnd5e follows up.
  */
 export const RECORDLESS_WRITE_METHODS: readonly string[] = [
   'ensureJournalFolder',

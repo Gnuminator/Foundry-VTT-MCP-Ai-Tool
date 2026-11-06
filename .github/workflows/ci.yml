@@ -585,6 +585,8 @@ jobs:
       - name: Usage catalogue is current
         # shared/src/usage-catalog.generated.ts lists every control that reports usage
         # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
+        # Stays on purpose although it is architecture independent: it is a few seconds, and it
+        # guards that the generated file the ARM build and shared tests import is not stale.
         run: npm run usage:catalog:check
 
       - name: Build (all workspaces)

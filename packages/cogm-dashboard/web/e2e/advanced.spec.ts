@@ -25,6 +25,7 @@ test('the menu lists the panels and tools in the old page order', async ({ page 
     '📜 Handouts',
     '🃏 Tarokka',
     '📝 After a paper night',
+    '🧛 2024 twin of a monster',
     '▦ Try the During layouts',
     '🛠 Tools',
     '🩺 Module diagnostics',

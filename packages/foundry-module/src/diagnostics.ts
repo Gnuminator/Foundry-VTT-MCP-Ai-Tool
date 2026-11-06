@@ -61,7 +61,7 @@ const STORAGE_KEY = `${MODULE_ID}.diagnostics`;
  * when `<id>.diagnostics` is a string and `<id>.diagnostics.world` also exists.
  */
 const WORLD_KEY = `${MODULE_ID}.diagnosticsWorld`;
-/** The old name of WORLD_KEY (0.25.0 and before); moved to WORLD_KEY and removed at install. */
+/** The old name of WORLD_KEY (earlier versions); moved to WORLD_KEY and removed at install. */
 const LEGACY_WORLD_KEY = `${MODULE_ID}.diagnostics.world`;
 
 export class Diagnostics {

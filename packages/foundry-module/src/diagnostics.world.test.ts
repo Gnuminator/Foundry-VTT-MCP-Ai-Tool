@@ -85,6 +85,17 @@ describe('Diagnostics world key migration', () => {
     expect(d.getErrors().map(e => e.id)).toEqual(['old']);
   });
 
+  it('drops the old errors when the migrated world differs from the bound one', () => {
+    store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
+    store.set('foundry-mcp-bridge.diagnostics.world', 'strahd');
+    const d = new Diagnostics();
+    d.install();
+
+    expect(d.bindWorld('other-world')).toBe(1);
+    expect(d.getErrors()).toEqual([]);
+    expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('other-world');
+  });
+
   it('keeps an existing new key over the old one', () => {
     store.set('foundry-mcp-bridge.diagnostics.world', 'old-world');
     store.set('foundry-mcp-bridge.diagnosticsWorld', 'strahd');

@@ -121,6 +121,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
   { name: 'dash.header.paper', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.header.twin', how: 'open', reach: [ADV], expect: '#twin-drawer' },
   // The Reload button that stands in for the combat strip when its chunk fails to load.
   { name: 'dash.strip.reload', how: 'skip', why: NOT_DRIVEN },
   { name: 'dash.crash.reload', how: 'skip', why: NOT_DRIVEN },
@@ -716,6 +717,10 @@ export const DASHBOARD_CONTROLS = [
     optional: true,
     why: 'only shown when the digest has a pre-flight result',
   },
+
+  // --- 2024 twin of a monster ---
+  { name: 'dash.twin.close', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.twin.open', how: 'skip', why: NOT_DRIVEN },
 
   // --- After a paper night (Paper nights B) ---
   { name: 'dash.paper.close', how: 'skip', why: NOT_DRIVEN },

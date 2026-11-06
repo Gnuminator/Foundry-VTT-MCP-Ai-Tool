@@ -7,6 +7,7 @@ import { useEffect, useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
 import { api, errorText } from '../lib/api';
+import { failCode } from '../lib/guarded';
 import { usePlaySessionMark } from '../lib/playSessionMark';
 import { usePlaySession } from '../lib/session';
 import {
@@ -68,7 +69,9 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
     onError: (err, action) => {
       toast(
         `✗ ${action === 'ready' ? 'Turn on for tonight' : 'Turning off'}: ${errorText(err)}`,
-        'err'
+        'err',
+        undefined,
+        failCode(err)
       );
       // A failed End may still have turned GM Actions off (the server does that first), and the
       // module may have changed some switches: read them again.

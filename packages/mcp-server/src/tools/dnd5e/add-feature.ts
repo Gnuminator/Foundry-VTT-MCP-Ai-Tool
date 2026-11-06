@@ -120,41 +120,16 @@ export class DnD5eAddFeatureTool {
       {
         name: 'dnd5e-add-feature',
         description:
-          'Direct write. [D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. ' +
-          'Set featureType to select the mode; each mode uses only its own parameters:\n\n' +
-          '• passive: descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n' +
-          '  Required: actorIdentifier, featureName\n' +
-          '  Optional: description, sourceRules, sourceBook, sourcePage\n\n' +
-          '• save: feature that forces a saving throw (breath weapon, cone of cold, etc.).\n' +
-          '  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n' +
-          '  Optional: description, activationType, halfOnSave, areaType, areaSize ' +
-          '(required if areaType set), areaUnits, affectsType\n\n' +
-          '• attack: weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n' +
-          '  Required: actorIdentifier, featureName, attackType, damageParts\n' +
-          '  Required when ranged: rangeFt\n' +
-          '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
-          'proficient, equipped, reachFt, longRangeFt, properties, sourceRules, sourceBook, sourcePage\n\n' +
-          '• attack-with-save: attack roll on hit + forced save for bonus damage ' +
-          '(e.g. Stinger: piercing hit + CON save or poison damage).\n' +
-          '  Required: actorIdentifier, featureName, attackType, damageParts, ' +
-          'saveAbility, saveDC, saveDamageParts\n' +
-          '  Required when ranged: rangeFt\n' +
-          '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
-          'proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, ' +
-          'sourceRules, sourceBook, sourcePage\n\n' +
-          '• aura: automatic-damage area, no to-hit, no save (all creatures in range take damage).\n' +
-          '  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n' +
-          '  Optional: description, activationType, areaUnits, affectsType, ' +
-          'sourceRules, sourceBook, sourcePage\n\n' +
-          '• spellcasting: configure spell slots and casting ability. ' +
-          'Run this BEFORE featureType "spells".\n' +
-          '  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n' +
-          '  Optional: spellcastingAbility (default per class: wizard/artificer→INT, ' +
-          'cleric/druid/ranger→WIS, sorcerer/warlock/bard/paladin→CHA), sourceRules\n\n' +
-          '• spells: import named spells from compendium. Names must be in English.\n' +
-          '  Required: actorIdentifier, spellNames (max 50)\n' +
-          '  Optional: compendiumPacks (default ["dnd5e.spells"])\n\n' +
-          'Use list-characters or get-character first to find the actorIdentifier.',
+          'Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. ' +
+          'featureType picks the mode; each parameter says which modes use it. Required besides actorIdentifier:\n' +
+          '- passive: a trait with no roll (Magic Resistance): featureName\n' +
+          '- save: forces a saving throw (breath weapon): featureName, saveAbility, saveDC, damageParts\n' +
+          '- attack: weapon attack (Claw, Bite): featureName, attackType, damageParts (rangeFt when ranged)\n' +
+          '- attack-with-save: a hit plus a save for bonus damage (Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts\n' +
+          '- aura: damage to all in range, no roll: featureName, damageParts, areaType, areaSize\n' +
+          '- spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel\n' +
+          '- spells: import named spells from the compendium: spellNames (English, max 50)\n' +
+          'Find the actorIdentifier with list-characters or get-character.',
 
         inputSchema: {
           type: 'object',
@@ -171,15 +146,14 @@ export class DnD5eAddFeatureTool {
                 'spellcasting',
                 'spells',
               ],
-              description:
-                'Mode selector: determines which parameters are used and which Foundry handler is called.',
+              description: 'Mode: decides which parameters are used.',
             },
 
             // ── Common ────────────────────────────────────────────────────────
             actorIdentifier: {
               type: 'string',
               description:
-                'Name or ID of the target actor (partial name match supported). Required for all featureTypes.',
+                'Name or ID of the target actor (partial name match works). Always required.',
               ...toolRef('actor', 'id', { filter: NPCS_ONLY }),
             },
             featureName: {
@@ -318,15 +292,12 @@ export class DnD5eAddFeatureTool {
             proficient: {
               type: 'boolean',
               description:
-                'Whether the actor is proficient with this weapon (adds proficiency bonus to to-hit). ' +
-                'Used by: attack, attack-with-save. Default: true.',
+                'Adds the proficiency bonus to hit. Used by: attack, attack-with-save. Default: true.',
               default: true,
             },
             equipped: {
               type: 'boolean',
-              description:
-                'Whether the weapon is equipped and available for attack rolls. ' +
-                'Used by: attack, attack-with-save. Default: true.',
+              description: 'Weapon is equipped. Used by: attack, attack-with-save. Default: true.',
               default: true,
             },
             reachFt: {
@@ -353,9 +324,8 @@ export class DnD5eAddFeatureTool {
             properties: {
               type: 'array',
               description:
-                'Weapon property codes (e.g. ["fin", "lgt"]). ' +
-                'Canonical 2014 codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. ' +
-                'Used by: attack, attack-with-save. Default: [].',
+                'Weapon property codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. ' +
+                'Used by: attack, attack-with-save.',
               items: { type: 'string' },
               default: [],
             },
@@ -389,8 +359,8 @@ export class DnD5eAddFeatureTool {
               type: 'string',
               enum: ['str', 'dex', 'con', 'int', 'wis', 'cha'],
               description:
-                'Override the casting ability. Omit to use the class default. ' +
-                'Used by: spellcasting.',
+                'Casting ability. Omit for the class default (wizard, artificer INT; cleric, druid, ranger WIS; ' +
+                'sorcerer, warlock, bard, paladin CHA). Used by: spellcasting.',
             },
 
             // ── Spells parameters ─────────────────────────────────────────────

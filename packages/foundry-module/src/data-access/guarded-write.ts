@@ -1005,11 +1005,19 @@ async function runGuardedApply(
   const current = await snapshotGuardedOps(ops);
   const conflicts: string[] = [];
   ops.forEach((op, i) => {
-    const reason = conflictReason(op, req.expected[i], current[i], req.mode);
+    // A module list that grew past what a plan can read back snapshots as missing: say so.
+    const tooLarge =
+      op.kind === 'update' &&
+      isModuleListOp(op.uuid) &&
+      current[i]?.exists === false &&
+      moduleListTooLarge();
+    const reason = tooLarge
+      ? MODULE_LIST_TOO_LARGE_MESSAGE
+      : conflictReason(op, req.expected[i], current[i], req.mode);
     if (reason) conflicts.push(`op ${i} (${op.kind}): ${reason}`);
     // The modules a flag drags along are worked out again here: the world may have changed.
     if (req.mode === 'apply' && op.kind === 'update') {
-      const problem = moduleClosureProblem(op.uuid, op.changes ?? {});
+      const problem = moduleClosureProblem(op.uuid, op.changes ?? {}, op.unset ?? []);
       if (problem) {
         conflicts.push(
           `op ${i} (update): the modules involved changed since the plan was made (${problem}); plan it again`

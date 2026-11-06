@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ciRunCommands } from './green.mjs';
+import { ciRunCommands } from './ci-yaml.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -142,7 +142,7 @@ function main() {
   if (unrun.length) {
     console.error('test-coverage: these test files are reached by no workflow command or runner:');
     for (const f of unrun) console.error(`  ${f}`);
-    console.error('Add them to a ci.yml step (and scripts/green.mjs) or delete them.');
+    console.error('Add them to a ci.yml step (and scripts/checks.mjs) or delete them.');
   }
   if (staleRunners.length) {
     console.error('test-coverage: RUNNERS entries that match no test file any more:');

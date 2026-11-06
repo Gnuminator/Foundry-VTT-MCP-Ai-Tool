@@ -49,6 +49,7 @@ test('everything on reads "Live play on" and is lit', async ({ page }) => {
   const button = page.locator('#btn-gm');
   await expect(button).toHaveText('Live play on');
   await expect(button).toHaveClass(/\bon\b/);
+  await expect(button).toHaveAttribute('data-gm-actions', 'on');
 });
 
 test('a switch that is off is named, and the list turns everything on', async ({ page }) => {
@@ -58,6 +59,7 @@ test('a switch that is off is named, and the list turns everything on', async ({
 
   const button = page.locator('#btn-gm');
   await expect(button).toHaveText('Live play off: Turn on');
+  await expect(button).toHaveAttribute('data-gm-actions', 'off');
   await expect(button).toHaveAttribute('title', /^GM Actions and Handouts are off./);
   await button.click();
   const switches = page.getByRole('list', { name: 'Live play switches' });
@@ -65,6 +67,7 @@ test('a switch that is off is named, and the list turns everything on', async ({
   await expect(switches.locator('[data-switch="handouts"]')).toHaveAttribute('data-on', 'false');
   await page.getByRole('button', { name: 'Turn on', exact: true }).click();
   await expect(button).toHaveText('Live play on');
+  await expect(button).toHaveAttribute('data-gm-actions', 'on');
   expect(posts).toEqual([{ action: 'ready' }]);
 });
 
@@ -75,6 +78,7 @@ test('GM Actions off alone is named too', async ({ page }) => {
 
   await expect(page.locator('#btn-gm')).toHaveText('Live play off: Turn on');
   await expect(page.locator('#btn-gm')).toHaveAttribute('title', /^GM Actions is off./);
+  await expect(page.locator('#btn-gm')).toHaveAttribute('data-gm-actions', 'off');
 });
 
 test('switches that could not be read do not read "on"', async ({ page }) => {
@@ -90,6 +94,7 @@ test('switches that could not be read do not read "on"', async ({ page }) => {
   const button = page.locator('#btn-gm');
   await expect(button).toHaveText("Live play: can't read");
   await expect(button).not.toHaveClass(/\bon\b/);
+  await expect(button).toHaveAttribute('data-gm-actions', 'on');
 });
 
 test('unreadable switches still say when GM Actions is off', async ({ page }) => {
@@ -101,4 +106,5 @@ test('unreadable switches still say when GM Actions is off', async ({ page }) =>
 
   await expect(page.locator('#btn-gm')).toHaveText('Live play off: Turn on');
   await expect(page.locator('#btn-gm')).toHaveAttribute('title', /^GM Actions is off./);
+  await expect(page.locator('#btn-gm')).toHaveAttribute('data-gm-actions', 'off');
 });

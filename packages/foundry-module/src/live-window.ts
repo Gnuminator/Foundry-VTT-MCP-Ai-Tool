@@ -408,6 +408,8 @@ function armWhy(): void {
     const lines = liveWindowWhy(frame.src, configuredSetting() !== '');
     // Show the live region first, then fill it in the next frame, so a screen reader announces
     // the text instead of a region that appeared with its text already in it.
+    // A second "Try again" must not flash the first answer before the new text is filled in.
+    panel.replaceChildren();
     panel.hidden = false;
     const paragraphs = lines.map(line => `<p>${escapeHtml(line)}</p>`).join('');
     window.requestAnimationFrame(() => {

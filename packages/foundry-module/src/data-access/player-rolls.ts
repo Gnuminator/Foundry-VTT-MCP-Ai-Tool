@@ -5,6 +5,7 @@ import { trackUsage } from '../usage-recorder.js';
 import { logDebug, logInfo } from '../log.js';
 import { dig, rec, type Rec } from '../doc-read.js';
 import { eventTracker } from '../session-events.js';
+import { changeJournal } from '../change-journal.js';
 
 /** A roll button's persisted state (world setting `rollStates`, keyed by button id). */
 interface RollButtonState {
@@ -726,6 +727,9 @@ export class PlayerRollsDataAccess {
         : shared.usesMessageModes()
           ? { messageMode: shared.rollModeFor(true) }
           : { messageOptions: { rollMode: shared.rollModeFor(true) } };
+      // playerRoll is a recordless write (no gate break), so end the change group here: dnd5e's
+      // follow-ups of this roll must not be filed under a guarded AI change just before it.
+      changeJournal.breakGroup();
       await combat.rollInitiative([mine.id], visibility);
     } catch (error) {
       // Foundry would not roll it (permissions, a module): the plain roll below still answers,

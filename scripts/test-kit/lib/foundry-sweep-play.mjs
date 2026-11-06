@@ -108,7 +108,7 @@ export async function journalRows(sweep, { t, gm, player }) {
 export async function chatRows(sweep, { t, gm, player }) {
   const hero = playerHero(t.kit);
   // The card names the ability by dnd5e's own label ("Strength"), not the short key.
-  const label = 'Strength Ability Check (Public)';
+  const label = 'Strength Ability Check';
   const messageIds = () =>
     gm.evaluate(
       text =>

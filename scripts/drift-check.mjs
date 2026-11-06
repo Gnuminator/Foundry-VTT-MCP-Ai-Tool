@@ -33,7 +33,11 @@ import { fileURLToPath } from 'node:url';
 /** A guard with `when` runs only if the branch or main since the merge base changed a file under it. */
 const DASHBOARD_PATH = ['packages/cogm-dashboard/', 'shared/']; // the web bundle imports shared/src
 
-/** The guards that fail when two PRs are each green alone but not together. */
+/**
+ * The guards that fail when two PRs are each green alone but not together. This literal is pinned to
+ * the drift entries of scripts/checks.mjs (the one list of checks) by scripts/green.test.mjs: change
+ * both together. It does not import that file because the merge gate runs this file on its own.
+ */
 export const CHECKS = [
   { name: 'lint baseline', command: 'npm run lint:ratchet', heavy: true },
   { name: 'em-dash baseline', command: 'npm run emdash:ratchet' },

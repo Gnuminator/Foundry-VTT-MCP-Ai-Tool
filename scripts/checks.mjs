@@ -8,7 +8,7 @@
  *     file on its own and falls back to the branch's copy when it imports another repo file
  *     (lane-merge.mjs, driftCheck), so it must not import this module. `green.test.mjs` compares
  *     that copy with `driftChecks()` below, so the two cannot drift apart.
- *   - `green.test.mjs` parses `.github/workflows/ci.yml` with a YAML parser (ciRunCommands) and
+ *   - `green.test.mjs` parses `.github/workflows/ci.yml` with a YAML parser (scripts/ci-yaml.mjs) and
  *     fails when a CI command is neither an entry nor in CI_ONLY, or an entry is gone from CI.
  *
  * Adding a script test means one `nodeTest(...)` line here and one `run:` line in ci.yml.
@@ -18,7 +18,6 @@
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import yaml from 'js-yaml';
 
 /**
  * @typedef {{ name: string, cmd: string, args: string[], env?: Record<string, string> }} Step
@@ -322,58 +321,6 @@ export const CI_ONLY = {
   'npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium':
     'Installs Chromium and its system packages on the CI runner; on a PC it is a one-time `npx playwright install chromium`.',
 };
-
-/** Collapse whitespace so a command compares the same however the YAML wrapped it. @param {string} s */
-export function normalizeCommand(s) {
-  return s.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * The steps of one job in a parsed workflow file.
- * @param {string} yamlText @param {string} job
- * @returns {Array<Record<string, unknown>>}
- */
-function jobSteps(yamlText, job) {
-  const doc = /** @type {any} */ (yaml.load(yamlText));
-  const steps = doc?.jobs?.[job]?.steps;
-  return Array.isArray(steps) ? steps : [];
-}
-
-/**
- * Every `run:` command of one job in a workflow file, in order, without `npm ci`: a single-line
- * `run:` is one command (a folded plain scalar is already joined by the parser), a `run: |` block
- * is one command per non-empty, non-comment line.
- * @param {string} yamlText @param {string} [job]
- * @returns {string[]}
- */
-export function ciRunCommands(yamlText, job = 'build-test') {
-  const commands = [];
-  for (const step of jobSteps(yamlText, job)) {
-    if (typeof step.run !== 'string') continue;
-    for (const line of step.run.split(/\r?\n/)) {
-      const text = line.trim();
-      if (text && !text.startsWith('#')) commands.push(text);
-    }
-  }
-  return commands.filter(c => normalizeCommand(c) !== 'npm ci');
-}
-
-/**
- * Parts of a job that change what a `run:` command does and that ciRunCommands does not follow
- * (`working-directory`, a `shell:` other than the default). The parity test fails while there are
- * any, so a new one is noticed.
- * @param {string} yamlText @param {string} [job]
- * @returns {string[]}
- */
-export function ciUnsupported(yamlText, job = 'build-test') {
-  const found = [];
-  for (const step of jobSteps(yamlText, job)) {
-    if (typeof step['working-directory'] === 'string') {
-      found.push(`working-directory: ${step['working-directory']}`);
-    }
-  }
-  return found;
-}
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes('--list')) {

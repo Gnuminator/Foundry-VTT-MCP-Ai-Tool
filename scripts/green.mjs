@@ -31,14 +31,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
-import {
-  STEPS,
-  HEAVY_STEPS,
-  CI_ONLY,
-  normalizeCommand,
-  ciRunCommands,
-  ciUnsupported,
-} from './checks.mjs';
+import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
+import { normalizeCommand, ciRunCommands, ciUnsupported } from './ci-yaml.mjs';
 
 export { STEPS, HEAVY_STEPS, CI_ONLY, normalizeCommand, ciRunCommands, ciUnsupported };
 

@@ -29,7 +29,7 @@
 # gm-script.sh refuses a real run of a file without a passed dry run of the same sha256.
 
 require_root
-trap '' HUP PIPE # a dropped ssh (HUP, closed pipe) (ssh dropped) must not kill the stage halfway through a step
+trap '' HUP PIPE # a dropped ssh (HUP, closed pipe) must not kill the stage halfway through a step
 [ "${MODE:-trim}" = check ] || require_recent_snapshot # the drift check only reads
 
 WORLD="${WORLD:-curse-of-strahd}"

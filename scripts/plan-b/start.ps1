@@ -53,8 +53,9 @@ param(
 if (-not $Root) { $Root = $PlanBDefaults.Root }
 $L = Get-PlanBLayout $Root
 
-# One failure style for everything below: a single "FAIL:" line on stderr and exit 1 (no PowerShell stack
-# trace). Refusals that name a rule keep their "REFUSED:" line.
+# One failure style for this script's own checks below: a single "FAIL:" line on stderr and exit 1 (no PowerShell stack
+# trace). Refusals that name a rule keep their "REFUSED:" line. An unexpected error inside a lib.ps1 function is not
+# caught here and still ends with PowerShell's own error text.
 function Fail([string]$Message) {
   [Console]::Error.WriteLine("FAIL: $Message")
   exit 1

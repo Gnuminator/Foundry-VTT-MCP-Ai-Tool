@@ -23,8 +23,9 @@
  * Combat in an AI burst are never split off as a person's action. The same goes for dnd5e's
  * dependent deletes: when the AI deleted an effect or an item, the effects on other actors, the
  * templates, regions and summoned tokens dnd5e removes with it (in the active GM's browser)
- * stay with the AI change, and the undo planner puts them back with it (`aiFollowUps`). A GM's
- * own click on the tracker within the action gap of such an AI write (the guarded gap, 3 s,
+ * stay with the AI change, and the undo planner puts them back with it (`aiFollowUps`). A direct
+ * bridge write (Next turn, initiative, a rest) ends the change group first, so it is its own change. A GM's
+ * own click in Foundry's UI within the action gap of an AI write (the guarded gap, 3 s,
  * counted from the write), in the bridge's browser, is the one case this cannot tell apart (it is then hidden under the AI change). When the
  * active GM is another browser logged in as the same user, its dependent deletes have an
  * `actionId` of their own and are tied to the AI change by their data alone

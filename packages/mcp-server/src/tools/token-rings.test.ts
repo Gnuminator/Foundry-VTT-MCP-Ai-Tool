@@ -79,6 +79,49 @@ describe('plan-token-rings', () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
+  it('passes placed tokens, scenes and the unmatched names through', async () => {
+    query.mockImplementation((method: string) =>
+      Promise.resolve(
+        method === 'foundry-mcp-bridge.listGuardedFeatures'
+          ? [{ id: TOKEN_RINGS_FEATURE_ID, enabled }]
+          : {
+              summary: 'Rings on for 1 placed token',
+              ops: OPS,
+              count: 1,
+              remaining: 0,
+              alreadyDone: 0,
+              unmatched: ['scene Nowhere'],
+            }
+      )
+    );
+    const result: any = await tools.handleToolCall('plan-token-rings', {
+      action: 'enable',
+      tokens: 'placed',
+      scenes: ['Castle', 'Nowhere'],
+    });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.planTokenRings', {
+      action: 'enable',
+      tokens: 'placed',
+      scenes: ['Castle', 'Nowhere'],
+    });
+    expect(result.unmatched).toEqual(['scene Nowhere']);
+  });
+
+  it('refuses scenes without tokens placed, before it asks the module', async () => {
+    await expect(
+      tools.handleToolCall('plan-token-rings', { action: 'enable', scenes: ['Castle'] })
+    ).rejects.toThrow(/placed/);
+    expect(query).not.toHaveBeenCalledWith('foundry-mcp-bridge.planTokenRings', expect.anything());
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
+  it('refuses a plan for placed tokens from a module that is too old to know them', async () => {
+    await expect(
+      tools.handleToolCall('plan-token-rings', { action: 'enable', tokens: 'placed' })
+    ).rejects.toThrow(/too old/);
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
   it('rejects an unknown action and an unknown tool', async () => {
     await expect(tools.handleToolCall('plan-token-rings', { action: 'spin' })).rejects.toThrow();
     await expect(tools.handleToolCall('nope', {})).rejects.toThrow(/Unknown token rings tool/);

@@ -1505,9 +1505,9 @@ Parameters:
 
 ### plan-token-rings
 
-Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
 
-Kind: read-only. Title: Plan dynamic token rings for actors.
+Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
 
 Parameters:
 

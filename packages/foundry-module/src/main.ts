@@ -231,7 +231,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: TOKEN_RINGS_FEATURE_ID,
         name: 'AI Tool: Token rings (writes)',
-        hint: "Lets the AI turn the dynamic token ring on or off on the actors' prototype tokens, in batches, after you confirm.",
+        hint: "Lets the AI turn the dynamic token ring on or off on the actors' default tokens or on tokens already placed on scenes, in batches, after you confirm.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
@@ -405,6 +405,10 @@ class FoundryMCPBridge {
       this.socketBridge = null;
       setBridgeLink(null);
     }
+
+    // A new bridge starts with a clean notifier: a "lost" left by the old one must not turn the
+    // first link of this one (which already shows "AI Tool connected") into "link is back".
+    this.linkNotifier.reset();
 
     this.isConnecting = true;
     let dialled = false;

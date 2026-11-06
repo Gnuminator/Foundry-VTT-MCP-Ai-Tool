@@ -85,4 +85,97 @@ describe('planTokenRings', () => {
     expect(plan.remaining).toBe(TOKEN_RINGS_BATCH + 5 + 2 - TOKEN_RINGS_BATCH);
     expect(plan.summary).toContain('more need another plan');
   });
+
+  it('reports requested names that matched nothing', () => {
+    const plan = planTokenRings({ action: 'enable', names: ['strahd', 'Ghost'] });
+    expect(plan.unmatched).toEqual(['Ghost']);
+    expect(plan.summary).toContain('no match for "Ghost"');
+  });
+});
+
+describe('planTokenRings, placed tokens', () => {
+  function token(
+    id: string,
+    name: string,
+    type: string,
+    ring: boolean,
+    actorLink = false,
+    scene = 's1'
+  ): any {
+    return {
+      id,
+      name,
+      uuid: `Scene.${scene}.Token.${id}`,
+      actorLink,
+      actor: { name, type },
+      ring: { enabled: ring },
+    };
+  }
+
+  beforeEach(() => {
+    world.addScene({
+      id: 's1',
+      name: 'Barovia',
+      tokens: [
+        token('t1', 'Strahd', 'npc', false),
+        token('t2', 'Ireena', 'npc', true),
+        token('t3', 'Danni', 'character', false, true),
+        token('t4', 'Party', 'group', false),
+      ],
+    });
+    world.addScene({
+      id: 's2',
+      name: 'Castle',
+      tokens: [token('t5', 'Goblin', 'npc', false, false, 's2')],
+    });
+  });
+
+  it('plans one token update per placed token without a ring, linked or not', () => {
+    const plan = planTokenRings({ action: 'enable', tokens: 'placed' });
+    expect(plan.ops).toEqual([
+      { kind: 'update', uuid: 'Scene.s1.Token.t1', changes: { 'ring.enabled': true } },
+      { kind: 'update', uuid: 'Scene.s1.Token.t3', changes: { 'ring.enabled': true } },
+      { kind: 'update', uuid: 'Scene.s2.Token.t5', changes: { 'ring.enabled': true } },
+    ]);
+    expect(plan).toMatchObject({ count: 3, remaining: 0, alreadyDone: 1, unmatched: [] });
+    expect(plan.summary).toContain('3 placed tokens');
+  });
+
+  it('filters by scene, reports names that matched nothing, and can disable', () => {
+    const plan = planTokenRings({
+      action: 'enable',
+      tokens: 'placed',
+      scenes: ['castle', 'Nowhere'],
+      names: ['goblin', 'Ghost'],
+    });
+    expect(plan.ops).toHaveLength(1);
+    expect(plan.unmatched).toEqual(['scene Nowhere', 'Ghost']);
+    expect(plan.summary).toContain('no match for');
+    const off = planTokenRings({ action: 'disable', tokens: 'placed' });
+    expect(off.ops).toEqual([
+      { kind: 'update', uuid: 'Scene.s1.Token.t2', changes: { 'ring.enabled': false } },
+    ]);
+  });
+
+  it('refuses when nothing matches or all are done, and on a bad target', () => {
+    expect(() =>
+      planTokenRings({ action: 'enable', tokens: 'placed', scenes: ['Nowhere'] })
+    ).toThrow(/No placed/);
+    expect(() => planTokenRings({ action: 'enable', tokens: 'placed', names: ['Ireena'] })).toThrow(
+      /already have/
+    );
+    expect(() => planTokenRings({ action: 'enable', tokens: 'sky' })).toThrow(
+      /Unknown token ring target/
+    );
+  });
+
+  it('caps a plan at the batch size', () => {
+    const many = Array.from({ length: TOKEN_RINGS_BATCH + 3 }, (_, i) =>
+      token(`m${i}`, `Rat ${i}`, 'npc', false, false, 's3')
+    );
+    world.addScene({ id: 's3', name: 'Sewer', tokens: many });
+    const plan = planTokenRings({ action: 'enable', tokens: 'placed', scenes: ['Sewer'] });
+    expect(plan.ops).toHaveLength(TOKEN_RINGS_BATCH);
+    expect(plan.remaining).toBe(3);
+  });
 });

@@ -74,7 +74,7 @@ test('sourceStrings skips comments and identifier-like words', () => {
   );
   assert.deepEqual(s.filter(x => x.trim()).map(x => x.trim()), ['Start session']);
   assert.equal(stripSourceComments('a <!-- b --> c').includes('b'), false);
-  assert.ok(stripSourceComments('const u = "http://x.y/z";').includes('http://x.y/z'));
+  assert.ok(stripSourceComments('const u = "a//b";').includes('a//b'));
 });
 
 test('a slash-star inside a string is no comment opener', () => {

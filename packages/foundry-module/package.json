@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node ../../scripts/tsc7.mjs",
-    "dev": "node ../../scripts/tsc7.mjs --watch",
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
     "test": "vitest run",
     "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
     "lint": "eslint src",

@@ -195,7 +195,7 @@ describe('PC scripts', () => {
       dry > 0 && elseAt > dry && send > elseAt,
       'the record is inside the non-dry-run branch'
     );
-    assert.match(restic, /if \(\$sftpHost\) \{ \[void\]\(Send-PullRecord/);
+    assert.match(restic, /if \(\$sftpHost\) \{\n\s+if \(\$newest -and \(Get-NewestSnapshotAgeDays \$newest\) -le \$WarnAfterDays\) \{\n\s+\[void\]\(Send-PullRecord -Kind restic/);
     assert.ok(
       restic.indexOf('} catch {', send) > send,
       'and inside the try block, so a failed copy never records'

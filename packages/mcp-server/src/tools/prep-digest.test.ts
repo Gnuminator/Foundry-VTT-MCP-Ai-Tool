@@ -169,7 +169,7 @@ interface Setup {
   prepTimeoutMs?: number;
   /** The recorder's sessions folder, for "Previously on". */
   sessionsDir?: string;
-  /** Replaces the sessions folder reader (the 5 s guard test hands in one that never answers). */
+  /** Replaces the sessions folder reader (the never-answers test hands in one that never settles). */
   readPreviously?: () => Promise<never>;
 }
 

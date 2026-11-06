@@ -20,6 +20,17 @@ describe('redactVoiceDebug', () => {
   });
 });
 
+describe('redactVoiceDebug other forms', () => {
+  it('removes the session id, the endpoint and name=value secrets', () => {
+    const line =
+      '[NW] [WS] >> {"op":0,"d":{"session_id":"abc123sess","endpoint":"c-ams01-1.discord.media:443"}} wss://x/?token=tok123&v=8 secret_key=9,8,7';
+    const out = redactVoiceDebug(line);
+    expect(out).not.toMatch(/abc123sess|discord\.media|tok123|9,8,7/);
+    expect(out).toContain('"op":0');
+    expect(out).toContain('v=8');
+  });
+});
+
 describe('installRtpTap', () => {
   it('reports each new stream once and exposes the current RTP header', () => {
     const calls: unknown[] = [];

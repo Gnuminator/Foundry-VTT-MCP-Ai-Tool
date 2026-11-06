@@ -24,6 +24,7 @@ describe('readMoods', () => {
       playlists: [],
     });
     expect(list).toEqual({
+      sceneId: 's1',
       sceneName: 'Village',
       presets: [
         { name: 'Calm', globalLight: true },
@@ -104,16 +105,14 @@ describe('moodOff', () => {
     );
   });
 
-  it('keeps GM Actions first and adds writes only once', () => {
+  it('keeps the session switches first and leaves writes to them', () => {
     expect(
       moodOff(['GM Actions', 'Allow Write Operations'], {
         features: [{ ...FEATURE, enabled: false }],
         writesAllowed: false,
       }).names
     ).toEqual(['GM Actions', 'Allow Write Operations', 'Scene mood and music']);
-    expect(moodOff(['GM Actions'], { features: [FEATURE], writesAllowed: false }).names).toEqual([
-      'GM Actions',
-      'Allow Write Operations',
-    ]);
+    // A stale writesAllowed copy never adds a reason of its own (it outlived Turn on).
+    expect(moodOff([], { features: [FEATURE], writesAllowed: false }).names).toEqual([]);
   });
 });

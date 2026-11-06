@@ -3,6 +3,7 @@ import {
   TOKEN_RINGS_ACTIONS,
   TOKEN_RINGS_ACTOR_TYPES,
   TOKEN_RINGS_FEATURE_ID,
+  TOKEN_RINGS_TARGETS,
   freeText,
   unwrapBridgeReply,
   featureSwitchOff,
@@ -21,6 +22,8 @@ export interface TokenRingsToolsOptions {
 
 const planParams = z.object({
   action: z.enum(TOKEN_RINGS_ACTIONS),
+  tokens: z.enum(TOKEN_RINGS_TARGETS).optional(),
+  scenes: z.array(z.string().min(1)).max(100).optional(),
   actorType: z.enum(TOKEN_RINGS_ACTOR_TYPES).optional(),
   names: z.array(z.string().min(1)).max(100).optional(),
 });
@@ -53,11 +56,23 @@ export class TokenRingsTools {
       {
         name: 'plan-token-rings',
         description:
-          "Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors per plan: when some remain, apply and ask again. Tokens already on scenes keep their look. Apply with apply-planned-change, revert with undo-change.",
+          "Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.",
         inputSchema: {
           type: 'object',
           properties: {
             action: { type: 'string', enum: [...TOKEN_RINGS_ACTIONS] },
+            tokens: {
+              type: 'string',
+              enum: [...TOKEN_RINGS_TARGETS],
+              description:
+                'actors (default): the default token of each actor. placed: the tokens already placed on scenes.',
+            },
+            scenes: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'With tokens placed: only these scenes; default all scenes.',
+              ...freeText('Several scene names matched by the module; a picker holds one value'),
+            },
             actorType: {
               type: 'string',
               enum: [...TOKEN_RINGS_ACTOR_TYPES],
@@ -112,6 +127,7 @@ export class TokenRingsTools {
       count: built.count,
       remaining: built.remaining,
       alreadyDone: built.alreadyDone,
+      unmatched: built.unmatched ?? [],
       autoApply: false,
     };
   }

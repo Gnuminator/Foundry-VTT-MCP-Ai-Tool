@@ -17,7 +17,7 @@ import { BACK_TO_STANDARD_TEXT, STANDARD_HREF } from '../lib/liveScreen';
 import { CHANGES_KEY, useDashboardStream } from '../lib/stream';
 import { RollNpcInitiativeContext } from '../lib/startCombat';
 import { useWorldTheme } from '../lib/worldTheme';
-import { Button, Popover } from '../ui';
+import { Button } from '../ui';
 import { focusedElement, useConfirm } from './ConfirmDialog';
 import { DockContext } from './Drawer';
 import { LivePlayLine } from './GmActionsSwitch';
@@ -98,7 +98,9 @@ function HeaderUndo(): JSX.Element {
         if (!off) void undo();
       }}
     >
-      {changes.isPending ? 'Loading changes' : busy ? 'Undoing...' : undoLabel(undoable)}
+      <span className={styles['undoText']}>
+        {changes.isPending ? 'Loading changes' : busy ? 'Undoing...' : undoLabel(undoable)}
+      </span>
     </Button>
   );
 }
@@ -124,6 +126,7 @@ export function LiveScreen(): JSX.Element {
         <div className="controls">
           <SessionMarker />
           <LivePlayLine />
+          <ThemePicker />
           <StreamState />
           <HealthLine />
           <HeaderUndo />
@@ -136,25 +139,9 @@ export function LiveScreen(): JSX.Element {
           >
             How do I...
           </Button>
-          <Popover
-            label="More"
-            align="end"
-            trigger={
-              <Button type="button" id="live-more" data-track="dash.live.more">
-                More
-              </Button>
-            }
-          >
-            <div className={styles['menu']}>
-              <label className={styles['menuLabel']}>
-                Theme
-                <ThemePicker />
-              </label>
-              <a className="btn" href={STANDARD_HREF} data-track="dash.live.back">
-                {BACK_TO_STANDARD_TEXT}
-              </a>
-            </div>
-          </Popover>
+          <a className="btn" id="live-back" href={STANDARD_HREF} data-track="dash.live.back">
+            {BACK_TO_STANDARD_TEXT}
+          </a>
         </div>
       </header>
       <RoleNotice />

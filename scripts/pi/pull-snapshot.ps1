@@ -43,6 +43,10 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'space-check.ps1')
 . (Join-Path $PSScriptRoot 'record-pull.ps1')
+. (Join-Path $PSScriptRoot 'pull-destination.ps1')
+
+# An unplugged drive is logged on this PC's own disk (the log below lives on the drive) and ends the run.
+if (-not (Test-PullDestination -Destination $Destination -Job 'pull-snapshot')) { exit 1 }
 
 $snapDir = Join-Path $Destination 'snapshots'
 $logDir = Join-Path $Destination 'logs'
@@ -148,17 +152,30 @@ try {
 
   if (-not $DryRun) {
     Set-Content -Path $successFile -Value ("{0}  snapshot {1}" -f (Get-Date -Format 's'), $stamp)
-    # Tell the Pi (its bot DMs you when no copy has arrived for 3 days). Having the newest snapshot already counts.
-    [void](Send-PullRecord -Kind snapshot -PiHost $target -Ssh $Ssh -Log ${function:Write-Log})
+    # Tell the Pi (its bot DMs you when no copy has arrived for 3 days). Having the newest snapshot already counts, but
+    # only a FRESH snapshot does: copying a week-old snapshot is not a sign that the Pi's backups are running, so the
+    # record is left alone and the Pi's own stale-backup DM can fire.
+    $snapAgeDays = Get-NewestSnapshotAgeDays ([DateTimeOffset]::FromUnixTimeSeconds([long]$epoch))
+    if ($snapAgeDays -gt $WarnAfterDays) {
+      Write-Log ("WARNING: the Pi's newest snapshot ({0}) is {1:N1} days old; the Pi has made no new one for more than {2} days. Not recording this copy on the Pi." -f $stamp, $snapAgeDays, $WarnAfterDays)
+    } else {
+      [void](Send-PullRecord -Kind snapshot -PiHost $target -Ssh $Ssh -Log ${function:Write-Log})
+    }
   }
 } catch {
   Write-Log "FAILED: $($_.Exception.Message)"
   $exitCode = 1
 }
 
+# Freshness is the age of the newest snapshot itself (its time is in the archive name), not of the file: a file copied
+# today can hold a snapshot from last week.
 $newest = Get-ChildItem $snapDir -Filter 'pi-snapshot-*.tar.zst' -ErrorAction SilentlyContinue |
-  Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $newest -or $newest.LastWriteTime -lt (Get-Date).AddDays(-$WarnAfterDays)) {
-  Write-Log "WARNING: no snapshot copied in the last $WarnAfterDays days"
+  Sort-Object Name -Descending | Select-Object -First 1
+$newestTime = $null
+if ($newest -and $newest.Name -match 'pi-snapshot-(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})') {
+  $newestTime = [datetimeoffset][datetime]::ParseExact("$($Matches[1]) $($Matches[2]):$($Matches[3])", 'yyyy-MM-dd HH:mm', $null)
+}
+if ($null -eq $newestTime -or (Get-NewestSnapshotAgeDays $newestTime) -gt $WarnAfterDays) {
+  Write-Log "WARNING: no snapshot newer than $WarnAfterDays days here (newest: $(if ($newestTime) { $newestTime.ToString('yyyy-MM-dd HH:mm') } else { 'none' }))"
 }
 if (Get-Variable exitCode -ErrorAction SilentlyContinue) { exit $exitCode }

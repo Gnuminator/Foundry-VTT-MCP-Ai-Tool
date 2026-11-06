@@ -89,6 +89,46 @@ function Test-NotesDone([string]$folder) {
   try { return $null -ne (Get-Content $json -Raw -Encoding utf8 | ConvertFrom-Json).session } catch { return $false }
 }
 
+function Test-RawScenes([string]$folder) {
+  # notes.json lists every scene; one the writer could not process is kept as raw text and marked "fallback".
+  try {
+    $n = Get-Content (Join-Path $folder 'notes\notes.json') -Raw -Encoding utf8 | ConvertFrom-Json
+    return @($n.scenes | Where-Object { $_.fallback }).Count -gt 0
+  } catch { return $false }
+}
+
+# Tells: one short post to the GM bot channel when a pass could not do its job (paused, skipped, failed, raw scenes),
+# so the GM does not have to open a log. Text is the folder name and the event only, never what was said. Best effort:
+# a missing Discord setting, a missing node or a failed post is logged and never fails the pass. Deduped through
+# <sessions>\.notes-tells.json (key -> date): the same key is not posted twice, so an hourly pass does not repeat itself.
+$tellsFile = Join-Path $sessions '.notes-tells.json'
+$announce = Join-Path $repo 'packages\discord-bot\announce\announce.mjs'
+function Tell([string]$key, [string]$text) {
+  if ($DryRun) { Say "  would tell the GM bot channel: $text"; return }
+  try {
+    $sent = @{}
+    if (Test-Path $tellsFile) {
+      try {
+        $existing = Get-Content $tellsFile -Raw -Encoding utf8 | ConvertFrom-Json
+        foreach ($p in $existing.PSObject.Properties) { $sent[$p.Name] = [string]$p.Value }
+      } catch {
+        # A corrupt file would stop every tell: keep it aside and start again.
+        Move-Item -LiteralPath $tellsFile -Destination "$tellsFile.bad" -Force
+        $sent = @{}
+        Say "  .notes-tells.json was unreadable; moved to .notes-tells.json.bad"
+      }
+    }
+    if ($sent.ContainsKey($key)) { return }
+    $out = & node $announce gm-bot $text 2>&1
+    # announce.mjs exits 0 for "no Discord settings"; only its "posted" line counts, so the tell is retried once configured.
+    if ($LASTEXITCODE -ne 0 -or "$out" -notmatch 'announce: posted') { Say "  tell not posted (announce exit $LASTEXITCODE): $out"; return }
+    $sent[$key] = (Get-Date).ToString('yyyy-MM-dd')
+    [System.IO.File]::WriteAllText("$tellsFile.tmp", (($sent | ConvertTo-Json) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath "$tellsFile.tmp" -Destination $tellsFile -Force
+    Say "  told the GM bot channel: $text"
+  } catch { Say "  tell failed: $_" }
+}
+
 $audioPattern = '\.(ogg|oga|opus|flac|wav|mp3|m4a)$'
 try {
   # 0. With the recorder on the Pi (FVTT_PI_HOST set, D-068): copy its finished recordings here.
@@ -113,7 +153,11 @@ try {
       $consentArgs = @('consent', 'check', $folder)
       if (-not $DryRun -and -not (Test-NotesDone $folder)) { $consentArgs += '--write-status' }
       $consentCode = Invoke-Notes $consentArgs
-      if ($consentCode -ne 0) { Say "$($dir.Name): not processed (consent check exit $consentCode; 77 = recording consent is missing)"; continue }
+      if ($consentCode -ne 0) {
+        Say "$($dir.Name): not processed (consent check exit $consentCode; 77 = recording consent is missing)"
+        if ($consentCode -eq 77) { Tell "consent|$($dir.Name)" "Session notes skipped for $($dir.Name): recording consent is missing for at least one speaker." }
+        continue
+      }
     }
 
     if ($recorded -and $hasAudio -and -not (Test-Path $timeline)) {
@@ -122,7 +166,7 @@ try {
         try { & pwsh -NoProfile -File $voiceStack names $folder *> $null } catch { }
         if (-not (Test-Path (Join-Path $folder 'names.txt'))) { Say "$($dir.Name): no names.txt (bridge not reachable); transcribing without hotwords" }
         & pwsh -NoProfile -File $voiceStack transcribe $folder
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $timeline)) { Say "$($dir.Name): transcription failed (exit $LASTEXITCODE)"; Write-Status $folder 'failed' "Transcription failed (exit $LASTEXITCODE); the next pass tries again."; continue }
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $timeline)) { Say "$($dir.Name): transcription failed (exit $LASTEXITCODE)"; Write-Status $folder 'failed' "Transcription failed (exit $LASTEXITCODE); the next pass tries again."; Tell "transcribe-failed|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "The transcription of $($dir.Name) failed. The next pass tries again."; continue }
       }
     }
 
@@ -132,11 +176,15 @@ try {
         $code = Invoke-Notes @('run', $folder)
         switch ($code) {
           0 { Say "$($dir.Name): notes done" }
-          75 { Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues" }
+          75 {
+            Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues"
+            Tell "paused|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Session notes for $($dir.Name) are paused: the usage limit is reached or Claude is logged out. The next pass continues."
+          }
           76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
           default {
             Say "$($dir.Name): notes failed (exit $code), see notes\audit.jsonl"
             Write-Status $folder 'failed' "The notes run failed (exit $code); the next pass tries again." -KeepFresh
+            Tell "notes-failed|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "The notes run for $($dir.Name) failed (exit $code). The next pass tries again."
           }
         }
         if ($code -eq 75) { break }
@@ -146,9 +194,18 @@ try {
     if ((Test-NotesDone $folder) -and -not (Test-Path (Join-Path $folder 'notes\approved.json'))) {
       if ($DryRun) { Say "$($dir.Name): would publish the notes to the bridge" }
       else {
+        # Scenes the writer gave up on and kept as raw text (notes.json marks them "fallback"); read before publish.
+        $rawScenes = Test-RawScenes $folder
         $code = Invoke-Notes @('publish', $folder)
-        if ($code -eq 1) { Say "$($dir.Name): publish failed"; Write-Status $folder 'failed' 'Publishing the notes to Foundry failed; the next pass tries again.' }
-        elseif ($code -eq 0) { Write-Status $folder 'published' 'The notes are in Foundry.' }
+        if ($code -eq 1) {
+          Say "$($dir.Name): publish failed"
+          Write-Status $folder 'failed' 'Publishing the notes to Foundry failed; the next pass tries again.'
+          Tell "publish-failed|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Publishing the session notes for $($dir.Name) to Foundry failed. The next pass tries again."
+        }
+        elseif ($code -eq 0) {
+          Write-Status $folder 'published' 'The notes are in Foundry.'
+          if ($rawScenes) { Tell "raw|$($dir.Name)" "The session notes for $($dir.Name) are in Foundry, but some scenes are raw text (the notes writer did not finish them)." }
+        }
         elseif ($code -eq 3) { Say "$($dir.Name): publish: bridge not reachable, will retry"; Write-Status $folder 'waiting' 'The notes are written but Foundry cannot take them yet (bridge not reachable); the next pass tries again.' }
       }
     }

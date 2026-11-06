@@ -93,6 +93,7 @@ import { UndoPlanner } from './guarded-write/undo-planner.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
+import type { PumpHealthSnapshot } from './pump-health.js';
 import { ChangeJournalPump, changeJournalSettings } from './change-journal-pump.js';
 import { ChangeHistory, journalLinks } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
@@ -430,6 +431,8 @@ async function startBackend(): Promise<void> {
     logger,
   });
   const wrapperRegistry = new WrapperRegistry();
+  // Filled when the pumps start below; get-preflight reads their health through it.
+  const pumpHealthSources: Array<() => PumpHealthSnapshot> = [];
   const preflightTools = new PreflightTools({
     foundryClient,
     wrapperStatus: (): WrapperStatus => wrapperRegistry.status(),
@@ -437,6 +440,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     playSession: playSessionTools,
     obsidianVaultDirSet: Boolean(obsidianVaultDir),
+    pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
     logger,
   });
   const prepDigestTools = new PrepDigestTools({
@@ -611,6 +615,8 @@ async function startBackend(): Promise<void> {
         onAppended: renderObsidian,
         onEvents: (_worldId, events): void => gameEventHub.publishSessionEvents(events),
       });
+      const pump = eventPump;
+      pumpHealthSources.push(() => pump.health.snapshot());
       eventPump.start();
     } else {
       logger.info('Session event log disabled (FOUNDRY_AI_EVENT_LOG=off)');
@@ -630,6 +636,8 @@ async function startBackend(): Promise<void> {
         onAppended: renderObsidian,
         onRecords: (_worldId, records): void => gameEventHub.publishPlayRecords(records),
       });
+      const pump = playLogPump;
+      pumpHealthSources.push(() => pump.health.snapshot());
       playLogPump.start();
     } else {
       logger.info('Play log disabled (FOUNDRY_AI_PLAY_LOG=off)');

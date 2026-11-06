@@ -226,6 +226,82 @@ describe('main: "MCP server not found" notice (PB-03)', () => {
   });
 });
 
+describe('main: link toasts', () => {
+  const messages = (): string[] => world.notifications.map(n => n.message);
+  const linkToasts = (): string[] =>
+    messages().filter(m => m.includes('link to the AI Tool') || m.includes('link is back'));
+
+  beforeEach(() => {
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+  });
+
+  it('wires onLinkChange in start(): a lasting drop shows lost, then back', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    const { onLinkChange } = fake.state.lastConfig;
+    onLinkChange(false);
+    vi.advanceTimersByTime(11_000);
+    expect(linkToasts()).toEqual([expect.stringContaining('Lost the link')]);
+    onLinkChange(true);
+    expect(linkToasts()).toHaveLength(2);
+    expect(linkToasts()[1]).toContain('link is back');
+  });
+
+  it('stopNow() resets the notifier: a pending lost toast never shows', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    fake.state.lastConfig.onLinkChange(false);
+    await bridge.stop();
+    vi.advanceTimersByTime(60_000);
+    expect(linkToasts()).toEqual([]);
+  });
+
+  it('stopNow() forgets a shown lost toast: a later up() says nothing', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    const { onLinkChange } = fake.state.lastConfig;
+    onLinkChange(false);
+    vi.advanceTimersByTime(11_000);
+    await bridge.stop();
+    onLinkChange(true);
+    expect(linkToasts()).toHaveLength(1);
+  });
+
+  it('"Show connection messages" off silences both toasts', async () => {
+    vi.useFakeTimers();
+    world.setSetting(MODULE_ID, 'enableNotifications', false);
+    await bridge.start();
+    const { onLinkChange } = fake.state.lastConfig;
+    onLinkChange(false);
+    vi.advanceTimersByTime(11_000);
+    onLinkChange(true);
+    expect(linkToasts()).toEqual([]);
+  });
+
+  it('shows no toast for a player', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    g.game.user.isGM = false;
+    const { onLinkChange } = fake.state.lastConfig;
+    onLinkChange(false);
+    vi.advanceTimersByTime(11_000);
+    onLinkChange(true);
+    expect(linkToasts()).toEqual([]);
+  });
+
+  it('a start that could not connect still owes the back toast once the link opens', async () => {
+    vi.useFakeTimers();
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    expect(messages().some(m => m.includes('Cannot reach the AI Tool server'))).toBe(true);
+    vi.advanceTimersByTime(60_000); // no extra "lost" toast on top of the warning
+    expect(linkToasts()).toEqual([]);
+    fake.state.lastConfig.onLinkChange(true); // a background retry got through
+    expect(linkToasts()).toEqual([expect.stringContaining('link is back')]);
+  });
+});
+
 describe('main: creature index warm-up at ready (#283)', () => {
   let ensure: ReturnType<typeof vi.fn>;
 

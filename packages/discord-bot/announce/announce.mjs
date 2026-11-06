@@ -12,7 +12,8 @@
  * and callers treat that as a warning only.
  *
  * Settings: DISCORD_TOKEN, DISCORD_CHANGELOG_CHANNEL_ID, DISCORD_PRLOG_CHANNEL_ID,
- * DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID, DISCORD_GM_ROLE_ID, from the real
+ * DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID, DISCORD_GM_ROLE_ID, DISCORD_GM_BOT_CHANNEL_ID (the `gm-bot` kind: a
+ * normal, mention-free post for the session-notes run tells; GAMENIGHT_WATCH_CHANNEL_ID when unset), from the real
  * environment first, then from discord-bot.env (PC: %APPDATA%\foundry-ai-tool\discord-bot.env, Pi:
  * /etc/foundry-ai-tool/discord-bot.env, or the file ANNOUNCE_ENV_FILE names).
  */
@@ -56,7 +57,7 @@ export function defaultEnvFile(env = process.env) {
  * @param {Record<string, string | undefined>} env
  * @param {string} [envFile]
  * @returns {{ token: string, changelogChannel: string, prLogChannel: string,
- *   dashboardChannel: string, gmRoleId: string }}
+ *   dashboardChannel: string, gmRoleId: string, gmBotChannel: string }}
  */
 export function loadSettings(env = process.env, envFile = defaultEnvFile(env)) {
   let fromFile = {};
@@ -73,6 +74,8 @@ export function loadSettings(env = process.env, envFile = defaultEnvFile(env)) {
     prLogChannel: pick('DISCORD_PRLOG_CHANNEL_ID'),
     dashboardChannel: pick('DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID'),
     gmRoleId: pick('DISCORD_GM_ROLE_ID'),
+    // The GM bot channel (session-notes run tells); the game night watch channel when none is set.
+    gmBotChannel: pick('DISCORD_GM_BOT_CHANNEL_ID') || pick('GAMENIGHT_WATCH_CHANNEL_ID'),
   };
 }
 
@@ -131,7 +134,7 @@ export async function postMessage({
 }
 
 const USAGE =
-  'usage: announce.mjs pr <number> <title...> | changelog <text...> | dashboard <text...> | deploy <version>';
+  'usage: announce.mjs pr <number> <title...> | changelog <text...> | dashboard <text...> | gm-bot <text...> | deploy <version>';
 
 /**
  * @param {string[]} argv
@@ -142,7 +145,7 @@ const USAGE =
 export async function runCli(argv, o = {}) {
   const { env = process.env, fetchImpl, log = console.log, timeoutMs } = o;
   const [kind, ...rest] = argv;
-  /** @type {'prLog' | 'changelog' | 'dashboard'} */
+  /** @type {'prLog' | 'changelog' | 'dashboard' | 'gmBot'} */
   let target = 'changelog';
   let content = '';
   if (kind === 'pr' && rest.length >= 2 && /^\d+$/.test(rest[0])) {
@@ -153,6 +156,9 @@ export async function runCli(argv, o = {}) {
   } else if (kind === 'dashboard' && rest.length >= 1) {
     target = 'dashboard';
     content = rest.join(' ');
+  } else if (kind === 'gm-bot' && rest.length >= 1) {
+    target = 'gmBot';
+    content = rest.join(' ');
   } else if (kind === 'deploy' && rest.length === 1) {
     content = deployLine(rest[0]);
   } else {
@@ -161,7 +167,13 @@ export async function runCli(argv, o = {}) {
   }
   const s = loadSettings(env, o.envFile);
   const channelId =
-    target === 'prLog' ? s.prLogChannel : target === 'dashboard' ? s.dashboardChannel : s.changelogChannel;
+    target === 'prLog'
+      ? s.prLogChannel
+      : target === 'dashboard'
+        ? s.dashboardChannel
+        : target === 'gmBot'
+          ? s.gmBotChannel
+          : s.changelogChannel;
   if (!s.token || !channelId) {
     log(`announce: no Discord settings for ${kind}; nothing posted`);
     return 0;

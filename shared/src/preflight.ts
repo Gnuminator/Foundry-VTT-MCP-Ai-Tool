@@ -96,6 +96,7 @@ export const PREFLIGHT_CHECK_IDS = [
   'modules',
   'obsidian',
   'play-session',
+  'recording',
 ] as const;
 
 export type PreflightCheckId = (typeof PREFLIGHT_CHECK_IDS)[number];

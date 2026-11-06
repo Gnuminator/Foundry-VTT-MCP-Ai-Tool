@@ -81,6 +81,9 @@ export const STEPS = [
   { name: 'usage-catalog', cmd: 'npm', args: ['run', 'usage:catalog:check'] },
   { name: 'docs-lint', cmd: 'npm', args: ['run', 'docs:lint'] },
   { name: 'docs-links', cmd: 'npm', args: ['run', 'docs:links'] },
+  { name: 'docs-ui', cmd: 'npm', args: ['run', 'docs:ui'] },
+  { name: 'docs-kit', cmd: 'npm', args: ['run', 'docs:kit:check'] },
+  nodeTest('docs-ui-test', 'scripts/docs-ui-check.test.mjs'),
   nodeTest('hook-remote-guard', '.claude/hooks/guard-remote-commands.test.mjs'),
   nodeTest('hook-start-alerts', '.claude/hooks/start-alerts.test.mjs'),
   nodeTest('drift-check-test', 'scripts/drift-check.test.mjs'),
@@ -125,6 +128,7 @@ export const STEPS = [
   nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-board-status', 'scripts/pi/board-status.test.mjs'),
+  nodeTest('pi-pull-destination', 'scripts/pi/pull-destination.test.mjs'),
   nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
   nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
@@ -985,7 +989,17 @@ export function cloudGreen(o) {
 }
 
 /** Scripts whose tests live in another file. */
-const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
+const QUICK_TEST_OF = {
+  'scripts/pre-push.mjs': 'scripts/green.test.mjs',
+  'scripts/docs-kit.mjs': 'scripts/docs-ui-check.test.mjs',
+};
+
+/**
+ * Quick-mode inputs of `docs:ui` (the pages) and `docs:kit` (the kit page). A dashboard or scenario
+ * change that stales them is caught by CI, which always runs both.
+ */
+const DOCS_UI_INPUT = /^(?:docs\/(?:gm|da\/gm)\/|docs\/dev\/SMOKE-TEST\.md$|scripts\/docs-ui-)/;
+const DOCS_KIT_INPUT = /^(?:docs\/dev\/TEST-KIT\.md$|scripts\/docs-kit\.mjs$)/;
 
 /** What `scripts/usage-catalog.mjs` scans (plus the script and its output): a change here can stale the catalogue. */
 const USAGE_CATALOG_INPUT =
@@ -1141,6 +1155,12 @@ export function quickSteps(files, cwd = process.cwd()) {
   // script already covers web/tsconfig.json (tsc --noEmit && tsc -p web --noEmit).
   if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {
     steps.push({ name: 'catalog-check', cmd: 'npm', args: ['run', 'usage:catalog:check'] });
+  }
+  if (files.some(f => DOCS_UI_INPUT.test(f))) {
+    steps.push({ name: 'docs-ui-quick', cmd: 'npm', args: ['run', 'docs:ui'] });
+  }
+  if (files.some(f => DOCS_KIT_INPUT.test(f))) {
+    steps.push({ name: 'docs-kit-quick', cmd: 'npm', args: ['run', 'docs:kit:check'] });
   }
   const specs = files
     .filter(

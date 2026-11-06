@@ -527,6 +527,25 @@ function Get-PlanBStartTime([int]$ProcessId) {
   }
 }
 
+# The spare tunnel's CURRENT state from the lines of cloudflared's log. Each connection (connIndex=N) is up after
+# "Registered tunnel connection" and down after a later "Unregistered tunnel connection", "Connection terminated" or
+# "Retrying connection", so a tunnel that dropped an hour ago is not reported as connected because the log once said
+# so. Connected = at least one connection is up now.
+function Get-PlanBTunnelState([string[]]$Lines) {
+  $conn = @{}
+  foreach ($line in @($Lines)) {
+    if ($line -notmatch 'connIndex=(\d+)') { continue }
+    $idx = $Matches[1]
+    if ($line -match 'Registered tunnel connection') { $conn[$idx] = $true }
+    elseif ($line -match 'Unregistered tunnel connection|Connection terminated|Retrying connection') { $conn[$idx] = $false }
+  }
+  $up = @($conn.Values | Where-Object { $_ }).Count
+  $message = if ($conn.Count -eq 0) { 'no connection to Cloudflare registered yet' }
+  elseif ($up -gt 0) { "$up of $($conn.Count) connection(s) to Cloudflare are up" }
+  else { 'all connections to Cloudflare are down (the last log lines say it dropped)' }
+  return [pscustomobject]@{ Connected = ($up -gt 0); Up = $up; Seen = $conn.Count; Message = $message }
+}
+
 # Make a file or folder readable and writable by the current user only.
 function Protect-PlanBPath([string]$Path) {
   if (-not $IsWindows) { return }

@@ -172,6 +172,7 @@ fi
 # Foundry keeps its worlds in LevelDB, which must not change while it is copied, so Foundry is
 # stopped for the backup. The trap starts it again whatever happens, including a failed backup.
 foundry_stopped=0
+we_stopped_foundry=0
 start_foundry() {
   if [ "$foundry_stopped" = 1 ]; then
     foundry_stopped=0
@@ -185,6 +186,7 @@ if [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
   echo "stopping foundry.service for the backup"
   systemctl stop foundry.service </dev/null
   foundry_stopped=1
+  we_stopped_foundry=1
 else
   echo "foundry.service is not running under systemd: backing up as it is"
 fi
@@ -200,6 +202,24 @@ restic backup --tag nightly \
 
 start_foundry
 rm -f "$skip_marker"
+
+# A backup that left Foundry down is a failed night, not a success. foundry.service is Type=simple, so systemd calls it
+# active the moment the process starts, before Node has had time to crash on a world that will not open. So "active" is
+# not enough: Foundry must also answer /api/status. Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS (90) for both, else
+# exit 1 with an ERROR line (the hourly board report and the bot see the failed unit). The clean-up below is left for the
+# next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS.
+if [ "$we_stopped_foundry" = 1 ]; then
+  active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS:-90}"
+  active_tries=0
+  until systemctl is-active --quiet foundry.service && curl -fs --max-time 5 http://127.0.0.1:30000/api/status >/dev/null 2>&1; do
+    if [ "$active_tries" -ge "$active_wait" ]; then
+      echo "ERROR: the backup is done, but foundry.service is not active and answering after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
+      exit 1
+    fi
+    active_tries=$((active_tries + 1))
+    sleep 1 </dev/null
+  done
+fi
 
 # Foundry is back up before the slow clean-up starts.
 restic forget --keep-daily 7 --prune </dev/null

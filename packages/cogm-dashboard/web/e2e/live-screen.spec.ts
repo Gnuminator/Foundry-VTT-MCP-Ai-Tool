@@ -188,17 +188,18 @@ test('lays out the strip, Party, Handouts and What just happened on one page', a
   await expect(page.getByRole('button', { name: /Layout|Auto|Cards/ })).toHaveCount(0);
 });
 
-test('the header has the permanent Undo, Live play, How do I and More', async ({ page }) => {
+test('the header has the permanent Undo, Live play, Theme, How do I and the way back', async ({
+  page,
+}) => {
   await setup(page);
   await load(page);
   const header = page.locator('#live-header');
   await expect(header.locator('#live-header-undo')).toHaveText('Undo: Goblin 1: 5 fire damage');
   await expect(header.locator('#btn-gm')).toBeVisible();
   await expect(header.locator('#live-how-do-i')).toHaveText('How do I...');
-  await header.locator('#live-more').click();
-  const more = page.getByRole('dialog', { name: 'More' });
-  await expect(more.getByRole('link', { name: 'Old dashboard' })).toHaveCount(0);
-  await expect(more.getByRole('link', { name: 'Back to the During view' })).toBeVisible();
+  await expect(header.locator('#select-theme')).toBeVisible();
+  await expect(header.getByRole('link', { name: 'Old dashboard' })).toHaveCount(0);
+  await expect(header.getByRole('link', { name: 'Back to the During view' })).toBeVisible();
 });
 
 test('the header Undo undoes the newest change in one click, without a confirm window', async ({

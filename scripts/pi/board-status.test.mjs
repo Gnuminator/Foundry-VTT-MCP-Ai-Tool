@@ -8,7 +8,7 @@
 //   ARM64 container (scripts/pi/container-test/stage16-scenarios.sh).
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -33,7 +33,16 @@ const ID = 'header = "CF-Access-Client-Id: abc123.access"';
 const SECRET = 'header = "CF-Access-Client-Secret: s3cr3t-value-xyz"';
 
 // A fake Pi folder: the token file, a restic that prints one snapshot, a systemctl that answers `show`.
-function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', started = '123456', snapshotTime = '2026-10-23T02:31:09Z' } = {}) {
+function fakePi({
+  conf = `${ID}\n${SECRET}\n`,
+  backupResult = 'success',
+  started = '123456',
+  snapshotTime = '2026-10-23T02:31:09Z',
+  unitState = 'active',
+  ntp = 'yes',
+  offset = '-2.331ms',
+  snapshotEpoch = 1792200000,
+} = {}) {
   const d = tmp();
   const bin = path.join(d, 'bin');
   mkdirSync(bin);
@@ -43,11 +52,24 @@ function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', started
     writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
     chmodSync(path.join(bin, name), 0o755);
   };
-  stub('systemctl', `case "$*" in *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`);
+  stub(
+    'systemctl',
+    `case "$*" in is-active*) echo "${unitState}"; [ "${unitState}" = active ] ;; *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`,
+  );
+  stub(
+    'timedatectl',
+    `case "$*" in show*) echo "${ntp}" ;; timesync-status) ${offset ? `echo "       Offset: ${offset}"` : 'exit 1'} ;; esac`,
+  );
+  const stats = path.join(d, 'dietpi-backup_stats');
+  if (snapshotEpoch !== null) {
+    writeFileSync(stats, 'x');
+    const t = new Date(snapshotEpoch * 1000);
+    utimesSync(stats, t, t);
+  }
   stub('restic', `echo '[{"time":"${snapshotTime}","id":"deadbeef"}]'`);
   const scriptPath = path.join(d, 'board-status.sh');
   writeFileSync(scriptPath, script);
-  return { d, bin, scriptPath };
+  return { d, bin, scriptPath, stats };
 }
 
 function startBoard(status = 204) {
@@ -77,6 +99,7 @@ function run(pi, { args = [], env = {}, api = 'http://127.0.0.1:1/api/status', u
         FOUNDRY_STATUS_ETC: posix(path.join(pi.d, 'etc')),
         FOUNDRY_STATUS_NODE: posix(process.execPath),
         FOUNDRY_STATUS_DF_PATH: posix(pi.d),
+        FOUNDRY_STATUS_SNAPSHOT_STATS: posix(pi.stats),
         FOUNDRY_STATUS_API: api,
         FOUNDRY_STATUS_URL: url,
         ...env,
@@ -115,21 +138,41 @@ describe('status script', () => {
     const p = JSON.parse(r.stdout);
     assert.equal(p.v, 1);
     assert.equal(p.host, 'foundry-pi');
-    assert.deepEqual(p.foundry, { up: true, version: '14.368', dnd5e: '6.0.5' });
-    assert.deepEqual(p.backup, { result: 'success', at: '2026-10-23T02:31:09.000Z' });
+    assert.deepEqual(p.foundry, { up: true, serviceActive: true, version: '14.368', dnd5e: '6.0.5' });
+    assert.deepEqual(p.backup, {
+      result: 'success',
+      at: '2026-10-23T02:31:09.000Z',
+      snapshotAt: new Date(1792200000 * 1000).toISOString(),
+    });
+    assert.deepEqual(p.clock, { ntpSynced: true, offsetMs: -2.331 });
     assert.ok(Number.isFinite(Date.parse(p.sentAt)));
     assert.equal(typeof p.disk.freePercent, 'number');
-    assert.deepEqual(Object.keys(p).sort(), ['backup', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
+    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
     // No world name, user count or anything else Foundry said.
     assert.ok(!r.stdout.includes('curse'));
   });
 
   test('dry run: Foundry down and a failed backup are reported, not errors', async () => {
-    const r = await run(fakePi({ backupResult: 'failed' }), { args: ['--dry-run'] });
+    const r = await run(fakePi({ backupResult: 'failed', unitState: 'failed' }), { args: ['--dry-run'] });
     assert.equal(r.status, 0, r.stderr);
     const p = JSON.parse(r.stdout);
-    assert.deepEqual(p.foundry, { up: false, version: null, dnd5e: null });
+    assert.deepEqual(p.foundry, { up: false, serviceActive: false, version: null, dnd5e: null });
     assert.equal(p.backup.result, 'failed');
+  });
+
+  test('no snapshot yet, an unsynchronized clock and no offset are reported as null/false, never an error', async () => {
+    const r = await run(fakePi({ snapshotEpoch: null, ntp: 'no', offset: '' }), { args: ['--dry-run'] });
+    assert.equal(r.status, 0, r.stderr);
+    const p = JSON.parse(r.stdout);
+    assert.equal(p.backup.snapshotAt, null);
+    assert.deepEqual(p.clock, { ntpSynced: false, offsetMs: null });
+  });
+
+  test('clock offsets in us, s and min are converted to milliseconds', async () => {
+    for (const [offset, ms] of [['340us', 0.34], ['+1.2s', 1200], ['-2min', -120000]]) {
+      const r = await run(fakePi({ offset }), { args: ['--dry-run'] });
+      assert.equal(JSON.parse(r.stdout).clock.offsetMs, ms, offset);
+    }
   });
 
   test('odd version strings are dropped', async () => {

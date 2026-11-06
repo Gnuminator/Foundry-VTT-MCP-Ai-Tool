@@ -157,7 +157,7 @@ set says so.
   combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
   the hostile ones, and starts the fight at round 1 with an Undo. **End combat** shows once a fight runs. See [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
-  need live play on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "Live play on: all set".
+  need live play on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "Live play on".
 
 ### Run a boss fight
 

@@ -26,15 +26,23 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def run_pass(sessions: Path, fake_bin: Path | None = None, **env: str) -> tuple[int, str]:
-    full = {k: v for k, v in os.environ.items() if k != "FVTT_PI_HOST"}
+def run_pass(
+    sessions: Path, fake_bin: Path | None = None, args: tuple[str, ...] = (), **env: str
+) -> tuple[int, str]:
+    # No test may reach the real Discord: drop every Discord setting and point announce.mjs at a missing env file.
+    full = {
+        k: v
+        for k, v in os.environ.items()
+        if k != "FVTT_PI_HOST" and not k.startswith(("DISCORD_", "GAMENIGHT_"))
+    }
+    full["ANNOUNCE_ENV_FILE"] = str(sessions.parent / "no-such-discord-bot.env")
     full["FVTT_SESSIONS_DIR"] = str(sessions)
     if fake_bin is not None:
         full["PATH"] = f"{fake_bin}{os.pathsep}{full['PATH']}"
     full.update(env)
     assert PWSH is not None
     done = subprocess.run(
-        [PWSH, "-NoProfile", "-NonInteractive", "-File", str(AUTO)],
+        [PWSH, "-NoProfile", "-NonInteractive", "-File", str(AUTO), *args],
         env=full,
         capture_output=True,
         text=True,
@@ -162,3 +170,175 @@ def test_a_session_without_recorded_consent_is_not_processed(
     assert code == 0 and "recording consent is missing" in out
     assert status["state"] == "waiting" and "No recorded yes" in status["message"]
     assert not (folder_with_timeline / "notes" / "notes.json").exists()
+
+
+# --- Tells to the GM bot channel -----------------------------------------------------------------
+
+
+def make_bin(
+    tmp: Path,
+    consent: int = 0,
+    run: int = 0,
+    publish: int = 0,
+    node: int = 0,
+    node_says: str = "announce: posted gm-bot (message 1)",
+) -> tuple[Path, Path]:
+    """A python.cmd that answers `session_notes consent|run|publish` with the given exit codes, and a
+    node.cmd that stands in for announce.mjs: it logs its arguments and exits with ``node``."""
+    bin_dir = tmp / "bin-tells"
+    bin_dir.mkdir()
+    calls = tmp / "node-calls.txt"
+    python_lines = [
+        "@echo off",
+        f'if "%~3"=="consent" exit /b {consent}',
+        f'if "%~3"=="run" exit /b {run}',
+        f'if "%~3"=="publish" exit /b {publish}',
+        "exit /b 0",
+    ]
+    (bin_dir / "python.cmd").write_text("\r\n".join(python_lines) + "\r\n", encoding="ascii")
+    node_lines = ["@echo off", f'echo %* >> "{calls}"', f"echo {node_says}", f"exit /b {node}"]
+    (bin_dir / "node.cmd").write_text("\r\n".join(node_lines) + "\r\n", encoding="ascii")
+    return bin_dir, calls
+
+
+def tells(calls: Path) -> list[str]:
+    return calls.read_text(encoding="utf-8").splitlines() if calls.exists() else []
+
+
+@pytest.fixture
+def folder_with_notes(sessions: Path) -> Path:
+    """Notes written (notes.json with a session), not yet approved: the pass publishes them."""
+    folder = sessions / "2026-10-01-test"
+    (folder / "timeline").mkdir(parents=True)
+    (folder / "timeline" / "timeline.jsonl").write_text("{}\n", encoding="utf-8")
+    (folder / "notes").mkdir()
+    (folder / "notes" / "notes.json").write_text('{"session": {}}', encoding="utf-8")
+    return folder
+
+
+def test_a_paused_notes_run_tells_once_a_day(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, run=75)
+    assert run_pass(sessions, bin_dir)[0] == 0
+    assert run_pass(sessions, bin_dir)[0] == 0  # the next hourly pass: same event, same day
+    sent = tells(calls)
+    assert len(sent) == 1 and "gm-bot" in sent[0] and "2026-10-01-test" in sent[0]
+    assert "paused" in sent[0]
+    assert (sessions / ".notes-tells.json").exists()
+
+
+def test_a_session_without_consent_tells_the_gm_once(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, consent=77)
+    run_pass(sessions, bin_dir)
+    run_pass(sessions, bin_dir)
+    sent = tells(calls)
+    assert len(sent) == 1 and "consent" in sent[0] and "2026-10-01-test" in sent[0]
+
+
+def test_another_consent_code_tells_nothing(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, consent=2)
+    run_pass(sessions, bin_dir)
+    assert tells(calls) == []
+
+
+def test_a_failed_publish_tells(tmp_path: Path, sessions: Path, folder_with_notes: Path) -> None:
+    bin_dir, calls = make_bin(tmp_path, publish=1)
+    code, _ = run_pass(sessions, bin_dir)
+    sent = tells(calls)
+    assert code == 0 and len(sent) == 1 and "failed" in sent[0]
+
+
+def test_raw_scenes_that_get_published_tell_the_gm(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    # What the writer really leaves after an exit-0 run that accepted raw scenes: a session part, a scene marked
+    # "fallback", and status "done".
+    (folder_with_notes / "notes" / "notes.json").write_text(
+        json.dumps({"complete": True, "scenes": [{"fallback": False}, {"fallback": True}], "session": {}}),
+        encoding="utf-8",
+    )
+    (folder_with_notes / "notes" / "status.json").write_text(
+        json.dumps({"state": "done", "message": "ok", "at": "x"}), encoding="utf-8"
+    )
+    bin_dir, calls = make_bin(tmp_path, publish=0)
+    run_pass(sessions, bin_dir)
+    run_pass(sessions, bin_dir)
+    sent = tells(calls)
+    assert len(sent) == 1 and "raw" in sent[0]
+
+
+def test_scenes_that_are_all_processed_tell_nothing(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    (folder_with_notes / "notes" / "notes.json").write_text(
+        json.dumps({"complete": True, "scenes": [{"fallback": False}], "session": {}}),
+        encoding="utf-8",
+    )
+    bin_dir, calls = make_bin(tmp_path, publish=0)
+    run_pass(sessions, bin_dir)
+    assert tells(calls) == []
+
+
+def test_a_failed_notes_run_tells(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, run=2)
+    run_pass(sessions, bin_dir)
+    sent = tells(calls)
+    assert len(sent) == 1 and "failed (exit 2)" in sent[0]
+
+
+def test_a_corrupt_dedup_file_is_set_aside_and_the_tell_still_goes(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    (sessions / ".notes-tells.json").write_text("{ not json", encoding="utf-8")
+    bin_dir, calls = make_bin(tmp_path, publish=1)
+    code, _ = run_pass(sessions, bin_dir)
+    assert code == 0 and len(tells(calls)) == 1
+    assert (sessions / ".notes-tells.json.bad").exists()
+    assert "publish-failed" in (sessions / ".notes-tells.json").read_text(encoding="utf-8")
+
+
+def test_a_clean_publish_tells_nothing(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, publish=0)
+    run_pass(sessions, bin_dir)
+    assert tells(calls) == []
+
+
+def test_a_tell_that_cannot_be_posted_never_fails_the_pass_and_is_retried(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, publish=1, node=1)
+    code, out = run_pass(sessions, bin_dir)
+    assert code == 0 and "tell not posted" in out
+    assert not (sessions / ".notes-tells.json").exists()  # not recorded: the next pass tries again
+    run_pass(sessions, bin_dir)
+    assert len(tells(calls)) == 2
+
+
+def test_a_dry_run_posts_nothing(tmp_path: Path, sessions: Path, folder_with_timeline: Path) -> None:
+    bin_dir, calls = make_bin(tmp_path, consent=77)
+    code, out = run_pass(sessions, bin_dir, args=("-DryRun",))
+    assert code == 0 and "would tell the GM bot channel" in out
+    assert tells(calls) == [] and not (sessions / ".notes-tells.json").exists()
+
+
+def test_a_tell_with_no_discord_settings_is_not_recorded_as_sent(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path
+) -> None:
+    # announce.mjs exits 0 and posts nothing when Discord is not configured.
+    bin_dir, calls = make_bin(
+        tmp_path, publish=1, node_says="announce: no Discord settings for gm-bot; nothing posted"
+    )
+    code, out = run_pass(sessions, bin_dir)
+    assert code == 0 and "tell not posted" in out and "told the GM bot channel" not in out
+    assert not (sessions / ".notes-tells.json").exists()
+    run_pass(sessions, bin_dir)
+    assert len(tells(calls)) == 2  # tried again on the next pass

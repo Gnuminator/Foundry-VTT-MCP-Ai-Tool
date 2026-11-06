@@ -18,7 +18,9 @@
 
   Refuses while Plan B runs (stop.ps1 first), refuses a root that holds data but no recorded restore
   (not Plan B's copy, -Force or not), and refuses to replace data a game night was played on until it
-  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead).
+  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead). A newest backup that
+  is more than 36 hours old is refused too (the Pi's nightly backup or the PC's copy task stopped);
+  -AllowOld restores it anyway, with a warning (-Force does not waive this).
   The restic password is read by restic from -PassFile; this script never reads or prints it.
 
 .EXAMPLE
@@ -40,6 +42,9 @@ param(
   [switch]$List,
   # Move data a game night was played on aside to <Root>\previous\ instead of refusing.
   [switch]$Force,
+  # Restore the newest backup although it is more than 36 hours old (refused without it). A separate switch from -Force,
+  # so an old backup never also waves through replacing data a game night was played on.
+  [switch]$AllowOld,
   # Test hook: the restic program.
   [string]$Restic = ''
 )
@@ -78,8 +83,14 @@ if ($List) {
   exit 0
 }
 Write-Step "snapshot $($pick.short_id) from $($pickTime.ToString('yyyy-MM-dd HH\:mm')) ($ageHours hours old)"
-if ($ageHours -gt 36) {
-  Write-Warning "the newest backup is more than a day and a half old: the Pi's nightly backup or this PC's copy task stopped. The game continues from that point."
+if ($ageHours -gt 36 -and $Snapshot -eq 'latest') {
+  # The Pi's nightly backup or this PC's copy task stopped: everything played since is not in this backup. (A snapshot
+  # picked with -Snapshot is an explicit choice and is not second-guessed.)
+  if (-not $AllowOld) {
+    [Console]::Error.WriteLine("REFUSED: the newest backup is $ageHours hours old (more than 36): the Pi's nightly backup or this PC's copy task stopped, and the game would continue from that point. Run restore.ps1 -List to see the snapshots, or restore.ps1 -AllowOld to restore this one anyway.")
+    exit 1
+  }
+  Write-Warning "the newest backup is $ageHours hours old (more than 36): restoring it anyway because of -AllowOld. The game continues from that point."
 }
 
 # --- refusals ---------------------------------------------------------------------------------

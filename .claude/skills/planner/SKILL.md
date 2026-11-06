@@ -17,7 +17,7 @@ then ends; it does not poll for lanes (see Waking). Vault paths are under
   running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt
 <date>.md`; a card if the turn cannot start sessions), and the stopped lane is archived first (git refuses a branch another worktree holds; if the folder stays, `git checkout --detach` there once clean).
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
-  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15`.
+  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red: see Main is red).
 - `list_sessions` without `linked` (lanes start their own successors), then `get_usage` with each
   running lane's id (lanes underreport their context) and `"self"` for yours and the plan
   percentages.
@@ -34,7 +34,7 @@ never changed or reused: the live board, D-124, links by it), `- board: <area>`,
 `- area:`, `- progress:` (the lane's ready state), optional `- gate:`, `- blocked by:` (`W21` or
 `item:<id>`), `- pi: yes` (needs a Pi day and the user's OK), `- source:`, `- touches: path,
 folder/`, `- depends on: #380, item:<id>`, and `- claimed:` once a lane takes it. The board's Lanes
-zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names a before and an after number, and the lane puts both in the PR body. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Review lows become S items. Triage `## Captured on the board
+zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names a before and an after number, and the lane puts both in the PR body. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
 (triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`). The board rewrites
 `Backlog.md` in place: pull first, keep each item's lines together.
 

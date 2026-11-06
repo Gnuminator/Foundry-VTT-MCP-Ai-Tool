@@ -293,6 +293,14 @@ describe('BackupPullNotifier', () => {
     expect(await h.notifier.check(loud)).toEqual([]);
   });
 
+  it('the DM names the cause before the remedy', () => {
+    const text = backupPullMessage('stale', STALE, ['restic', 'snapshot']);
+    const cause = text.indexOf('The cause is either');
+    expect(cause).toBeGreaterThan(-1);
+    expect(cause).toBeLessThan(text.indexOf('Turn the PC on'));
+    expect(text).toContain('or that the Pi has made no new backup');
+  });
+
   it('an unreadable or invalid record tells the owner to run that pull task once; a missing one does not', () => {
     const unreadable = reading({
       restic: HOUR,

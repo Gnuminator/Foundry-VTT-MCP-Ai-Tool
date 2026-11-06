@@ -1,0 +1,3 @@
+### Pi
+
+- **Backup restart wait and seven-book trim lows:** the nightly backup now waits up to about 120 seconds for Foundry to come back (it was about 90), accepts any world after the restart (a world switched by hand during the day no longer fails the night; only the setup screen does) and its error says "not active, not answering, or not back on a world". The Discord DM about stale backup copies names the cause before the remedy. The seven-book trim keeps a refused relock from hiding the step's own error, opens a linked dnd5e pack that was already hidden (the dry run says "WILL OPEN"), and lists copied SRD entries that link to dnd5e packs themselves. Rerun stages 6 and 22 on the Pi at the next sitting; rebuild and restart the Discord bot for the DM text.

@@ -178,6 +178,8 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
 
   test('unpacking Foundry tolerates the node_modules/.bin links tar.exe cannot make, nothing else', () => {
     const r = ps(`
+      # pwsh 7.4+: a failing native command may throw when this is on; the unpack must not
+      $PSNativeCommandUseErrorActionPreference = $true
       $bin = @(
         "tar.exe: node_modules/.bin/semver: Can't create 'node_modules/.bin/semver': Invalid argument",
         "tar.exe: resources\\\\app\\\\node_modules\\\\.bin\\\\mime: Can't create 'x': Invalid argument",
@@ -193,6 +195,11 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         fakeOther = (Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: a.txt: Disk full"); exit 1')).Ok
         noText = (Test-FoundryUnpack 1 @()).Ok
         lookalike = (Test-FoundryUnpack 1 @("tar.exe: node_modules/.binary/x: Can't create")).Ok
+        binOther = (Test-FoundryUnpack 1 @("tar.exe: node_modules/.bin/x: No space left on device")).Ok
+        summaryOnly = Test-FoundryUnpack 1 @('tar.exe: Error exit delayed from previous errors.')
+        loud = Test-FoundryUnpack 0 @('tar.exe: something odd', '')
+        stale = (Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', 'exit 0')).Ok
+        missing = (Invoke-FoundryUnpack 'no-such-program-planb' @('-x')).Ok
       }`);
     assert.equal(r.clean, true);
     assert.equal(r.bin.Ok, true);
@@ -206,6 +213,21 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.fakeOther, false);
     assert.equal(r.noText, false);
     assert.equal(r.lookalike, false);
+    assert.equal(r.binOther, false, 'a .bin line is only tolerated when the link could not be created');
+    assert.match(r.summaryOnly.Message, /Error exit delayed from previous errors/);
+    assert.equal(r.loud.Ok, true);
+    assert.match(r.loud.Warning, /exited 0.*something odd/);
+    assert.equal(r.stale, true);
+    assert.equal(r.missing, false, 'a program that did not start is a failure');
+  });
+
+  test('restore.ps1 unpacks Foundry into app.new, checks it, then renames', () => {
+    const text = readFileSync(path.join(here, 'restore.ps1'), 'utf8');
+    const unpack = text.indexOf("Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $newApp)");
+    const move = text.indexOf('Move-Item -LiteralPath $newApp -Destination $L.AppDir');
+    const aside = text.indexOf('Move-Item -LiteralPath $L.AppDir -Destination $old');
+    assert.ok(unpack > 0 && aside > unpack && move > aside, 'unpack, then move the old app aside, then rename');
+    assert.doesNotMatch(text, /'-C', \$L\.AppDir/);
   });
 
   test('module port flag: set for a rehearsal, removed for game night, other flags kept', () => {

@@ -248,18 +248,29 @@ for (const id of hiddenLinked)
   log(
     `WILL OPEN ${id}: it is hidden from players although kept entries link to it (the real run makes it visible)`
   );
-// The copied SRD entries are not re-pointed themselves: say which of them link to other dnd5e packs (hidden or not).
+// The copied SRD entries are not re-pointed themselves: say which of them link to other dnd5e packs and which packs the
+// real run hides. Creature features sit in embedded items, so those are scanned too. A link into a pack that is never
+// hidden (dnd5e.rules) is not a dead one and is left out of the pack list.
 const copyLinkOut = [];
+const copyTargets = new Set();
+const copyBlob = o =>
+  blobOf(o) +
+  (o.items ?? [])
+    .map(i => JSON.stringify(i.system ?? '') + JSON.stringify(i.effects ?? ''))
+    .join('');
 for (const kind of ['items', 'monsters']) {
   const srdPack = game.packs.get(`dnd5e.${kind}`);
   if (!srdPack || !srdTargets[kind].size) continue;
   for (const d of await pick(srdPack, [...srdTargets[kind]])) {
-    const hits = [...blobOf(d.toObject()).matchAll(/Compendium\.dnd5e\.[A-Za-z0-9_.-]+/g)];
-    if (hits.length) copyLinkOut.push(`${d.name ?? d.id}`);
+    const hits = [...copyBlob(d.toObject()).matchAll(/Compendium\.(dnd5e\.[A-Za-z0-9_-]+)/g)];
+    if (hits.length) {
+      copyLinkOut.push(`${d.name ?? d.id}`);
+      for (const h of hits) if (hide.includes(h[1])) copyTargets.add(h[1]);
+    }
   }
 }
 log(
-  `COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES (not re-pointed): ${copyLinkOut.length}${copyLinkOut.length ? ` (${copyLinkOut.slice(0, 40).join(' | ')})` : ''}`
+  `COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES (not re-pointed): ${copyLinkOut.length}${copyLinkOut.length ? ` (${copyLinkOut.slice(0, 40).join(' | ')}; packs the real run hides: ${copyTargets.size ? [...copyTargets].join(', ') : 'none'})` : ''}`
 );
 log(`MOVE ${moved.size} entries to ${LEGACY}`);
 // A rerun deletes the old legacy copy of an entry that is moving again (it came back into aitool-content) and writes the
@@ -270,8 +281,8 @@ const replacing = [...moved]
 log(
   `REPLACE stale legacy copies with the content pack's version: ${replacing.length}${replacing.length ? ` (${replacing.slice(0, 40).join(' | ')})` : ''}`
 );
-// Kept entries that link into a pack players cannot open (a dead link for them). A link into a GM-only pack is listed
-// below, not drift: a rerun of the trim could not fix it. The summons and tables packs were GM-only before the trim and
+// Kept entries that link into a pack players cannot open (a dead link for them). A link into a GM-only aitool-content
+// pack is listed below, not drift: a rerun of the trim could not fix it (a hidden linked dnd5e pack is `open` drift). The summons and tables packs were GM-only before the trim and
 // are a known open point; the check mode counts any other such pack as unexpected.
 const KNOWN_GM_ONLY = ['aitool-content.summons', 'aitool-content.tables'];
 const deadForPlayers = [...linkedPacks.keys()].filter(pid => {
@@ -288,6 +299,7 @@ if (args.dryRun) {
     comeBack: comeBack.size,
     repoint: todo.length,
     hide: toHide.length,
+    open: hiddenLinked.length,
   };
   // The check mode of stage 22 (MODE=check) puts `const CHECK_ONLY = true;` in front of this file: a read-only run that
   // fails when the world no longer matches what the trim leaves, so a stage 11 push or a module update cannot undo the
@@ -296,8 +308,9 @@ if (args.dryRun) {
     const srdVisible = ['dnd5e.items', 'dnd5e.monsters'].filter(
       pid => game.packs.get(pid) && !same(ownershipOf(game.packs.get(pid)), HIDDEN)
     );
-    // Links into packs players cannot open are listed above but are not drift: running the trim again cannot change
-    // them (it never touches the ownership of aitool-content packs), so they are a finding for the user.
+    // Links into aitool-content packs players cannot open are listed above but are not drift: running the trim again
+    // cannot change them (it never touches the ownership of aitool-content packs), so they are a finding for the user.
+    // A hidden linked dnd5e pack is drift (`open` in the result): the real run makes it visible.
     const drift = { ...result, srdVisible: srdVisible.length };
     if (Object.values(drift).some(n => n > 0))
       throw new Error(

@@ -41,11 +41,11 @@ require_root
 require_recent_snapshot
 require_arm64
 
-# The pinned build: the fork's 2.10.5-aitool.5 release (tag on aitool/fixes d761248a), sha256sum of its
+# The pinned build: the fork's 2.10.5-aitool.7 release (tag on aitool/fixes 84d2ef0b), sha256sum of its
 # module.zip. For a newer build, set PINNED_SHA256=PENDING-RELEASE until its release exists: the stage then
 # refuses to run unless the environment gives it a zip and a checksum (STUDIO_ZIP and STUDIO_SHA256).
-PINNED_VERSION=2.10.5-aitool.5
-PINNED_SHA256=36236bfbc3aef58d48cde241d5c37bf4442e840fd26036e0a12a01025b00614a
+PINNED_VERSION=2.10.5-aitool.7
+PINNED_SHA256=135f4beb1710422dc6943fa2c2f7f189943aed12d8eba4d9a8283b7e05d15f73
 MODULE_ID=foundryvtt-actor-studio
 RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/download
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)

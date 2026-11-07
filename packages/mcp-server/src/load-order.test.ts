@@ -17,7 +17,6 @@ const ENTRIES = [
   './wrapper-version.js',
   './tool-reference.js',
   './tool-call-log.js',
-  './backend.js',
 ] as const;
 
 describe('load order', () => {

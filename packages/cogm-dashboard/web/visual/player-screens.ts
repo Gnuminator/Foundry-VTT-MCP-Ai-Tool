@@ -282,7 +282,7 @@ export const PLAYER_SCREENS: PlayerScreen[] = [
     key: false,
     stream: 'handouts',
     ready: async (page): Promise<void> => {
-      await expect(page.getByText('just for you')).toBeVisible();
+      await expect(page.locator('.handout-private')).toBeVisible();
       await expect(page.getByText('A sealed letter')).toHaveCount(0);
       await page.locator('summary', { hasText: 'A note slipped under the door' }).click();
       await expect(page.getByText('Meet me at the old mill')).toBeVisible();

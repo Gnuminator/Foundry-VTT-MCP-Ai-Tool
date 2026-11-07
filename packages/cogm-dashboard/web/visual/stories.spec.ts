@@ -17,6 +17,11 @@ import { contentClip, loadStories, showStory } from './stories';
 const FAILING = new Set(['serious', 'critical']);
 const stories = loadStories();
 
+// One theme per story: a Veil story is photographed only when it is a `ui-` primitive (they pin
+// the Veil tokens). Every story still gets its axe check, Veil ones included.
+const photographed = (story: (typeof stories)[number]): boolean =>
+  !story.tags.includes('veil') || story.id.startsWith('ui-');
+
 test('the stories are built', () => {
   expect(
     stories.length,
@@ -25,14 +30,16 @@ test('the stories are built', () => {
 });
 
 for (const story of stories) {
-  test(`story: ${story.id}`, async ({ page }) => {
-    await showStory(page, story);
-    const clip = await contentClip(page);
-    await expect(page).toHaveScreenshot(`${story.id}.png`, {
-      fullPage: true,
-      ...(clip ? { clip } : {}),
+  if (photographed(story)) {
+    test(`story: ${story.id}`, async ({ page }) => {
+      await showStory(page, story);
+      const clip = await contentClip(page);
+      await expect(page).toHaveScreenshot(`${story.id}.png`, {
+        fullPage: true,
+        ...(clip ? { clip } : {}),
+      });
     });
-  });
+  }
 
   test(`axe: ${story.id}`, async ({ page }) => {
     await showStory(page, story);

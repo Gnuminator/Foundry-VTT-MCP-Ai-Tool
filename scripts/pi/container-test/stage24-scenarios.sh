@@ -217,6 +217,18 @@ run_stage MODE=up $reh
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused on rehearsal ports with the live data folders"; else fail "up data (rc $RC): $OUT"; fi
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/data/"
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a trailing slash on the live tool data folder does not get past the refusal"; else fail "up data slash (rc $RC): $OUT"; fi
+# A rehearsal Foundry folder set to the live tool folder (the other kind) is caught too.
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/data" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "the rehearsal Foundry folder on the live tool folder is refused"; else fail "up cross kind (rc $RC): $OUT"; fi
+# A relative data folder is refused (compose and this script would resolve it against different folders).
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="rfdata" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'FOUNDRY_DATA_DIR must be an absolute path' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a relative data folder is refused"; else fail "up relative (rc $RC): $OUT"; fi
+# realpath that fails: the check fails closed instead of comparing raw strings.
+mkdir -p "$SB/nort"
+printf '#!/bin/sh\nexit 1\n' >"$SB/nort/realpath"
+chmod +x "$SB/nort/realpath"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" PATH="$SB/nort:$PATH"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'cannot check the data folders' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a failing realpath refuses instead of comparing raw paths"; else fail "up no realpath (rc $RC): $OUT"; fi
 mkdir -p "$SB/rfdata" "$SB/rdata"
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -qE 'compose.* up -d --no-build --wait .*foundry bridge dashboard$' && ! echo "$CALLS" | grep -qE 'compose.*--wait.*gm-browser' && ! echo "$CALLS" | grep -qE 'systemctl (disable|enable|stop|start)' && all_on $all_units; then

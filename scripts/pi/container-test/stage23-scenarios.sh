@@ -140,6 +140,7 @@ new_pi
 run_stage DRY_RUN=1
 if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run' && echo "$OUT" | grep -q 'docker.io' && [ ! -e "$(envf)" ] &&
   ! echo "$CALLS" | grep -qE 'apt-get (install|update)|compose.* build'; then pass "dry run prints the plan and changes nothing"; else fail "dry run (rc $RC): $OUT"; fi
+if echo "$OUT" | grep -q 'would write .*docker-daemon.json: live-restore true' && [ ! -e "$SB/etc/docker-daemon.json" ]; then pass "dry run names the daemon.json it would write"; else fail "dry run daemon.json line: $OUT"; fi
 
 # 2. refusals
 new_pi nocompose

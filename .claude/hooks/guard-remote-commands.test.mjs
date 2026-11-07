@@ -181,6 +181,11 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'docker kill foundry-ai-tool-pi-foundry-1'",
     "ssh foundry-pi 'docker -H unix:///var/run/docker.sock container rm x'",
     "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=1 bash -s' < stage.sh",
+    "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=$\\'1\\' bash -s' < stage.sh",
+    "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=\\1 bash -s' < stage.sh",
+    "ssh foundry-pi 'docker --context x compose down'",
+    "ssh foundry-pi 'docker -H unix:///var/run/docker.sock compose -p x down'",
+    "ssh foundry-pi 'docker --config /root/.d compose -p x rm -sf'",
   ]) {
     assert.equal(kind(c), 'ask', c);
   }
@@ -193,6 +198,11 @@ test('read-only docker commands over ssh are allowed', () => {
     "ssh foundry-pi 'docker logs --tail 50 foundry-ai-tool-pi-bridge-1'",
     "ssh foundry-pi 'docker compose -f x.yml -p p ps'",
     "ssh foundry-pi 'docker info'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p logs --tail 50 foundry'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p config'",
+    "ssh foundry-pi 'docker stats --no-stream'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p ps --filter status=stopped'",
+    "ssh foundry-pi 'docker --context x compose -p p ps'",
   ]) {
     assert.equal(kind(c), 'allow', c);
   }

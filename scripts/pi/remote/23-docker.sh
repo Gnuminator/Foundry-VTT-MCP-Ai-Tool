@@ -148,6 +148,7 @@ if [ "$dry" = 1 ]; then
     echo "    docker: not installed"
   fi
   echo "    packages a real run installs when missing: docker.io, $(pick_package docker-compose-v2 docker-compose || echo '(no compose package has a candidate: apt-get update first)'), docker-buildx"
+  if [ ! -e "$daemon_json" ]; then echo "    would write $daemon_json: live-restore true"; else echo "    $daemon_json exists: checked, not rewritten"; fi
   echo "    would write $env_file:"
   printf '%s\n' "$env_content" | sed 's/^/      /'
   if [ "$skip_build" = 1 ]; then echo "    SKIP_BUILD=1: no build"; else echo "    would build: docker compose -f deploy/pi/compose.yml build (in $checkout)"; fi
@@ -177,11 +178,20 @@ say "live-restore"
 # With live-restore the containers keep running while the daemon restarts (a docker.io upgrade restarts it). Written only
 # when there is no daemon.json yet; an existing file is never rewritten, only checked.
 if [ ! -e "$daemon_json" ]; then
+  install -d -m 0755 "$(dirname "$daemon_json")" || die "cannot create $(dirname "$daemon_json")"
   write_file "$daemon_json" 0644 '{
   "live-restore": true
 }' || true
+  [ -f "$daemon_json" ] || die "$daemon_json is missing after the write: live-restore is not set"
   if have_systemd && systemctl is-active --quiet docker.service 2>/dev/null; then
     systemctl reload docker.service >/dev/null 2>&1 || warn "systemctl reload docker.service failed: live-restore applies at the next daemon restart"
+    # Read it back: a reload that did not take leaves containers to restart with the daemon.
+    live_restore="$(docker info -f '{{.LiveRestoreEnabled}}' 2>/dev/null || true)"
+    if [ "$live_restore" = true ]; then
+      ok "live-restore is on (docker info)"
+    else
+      warn "docker info reports LiveRestoreEnabled='${live_restore:-unknown}' after the reload: it applies at the next daemon restart"
+    fi
   fi
 elif grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json"; then
   ok "$daemon_json already sets live-restore"

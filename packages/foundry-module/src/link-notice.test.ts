@@ -179,7 +179,11 @@ describe('link notifier', () => {
 });
 
 describe('link notifier publishing', () => {
-  function withPublish(opts: { gm?: boolean; enabled?: boolean } = {}) {
+  function withPublish(opts: { gm?: boolean; enabled?: boolean } = {}): {
+    n: ReturnType<typeof createLinkNotifier>;
+    published: string[];
+    advance: (ms: number) => void;
+  } {
     const published: string[] = [];
     let t = 0;
     const timers: { at: number; fn: () => void }[] = [];
@@ -237,7 +241,11 @@ describe('link notifier publishing', () => {
 });
 
 describe('link relay receiver', () => {
-  function recv(opts: { gm?: boolean; enabled?: boolean; holds?: boolean } = {}) {
+  function recv(opts: { gm?: boolean; enabled?: boolean; holds?: boolean } = {}): {
+    r: ReturnType<typeof createLinkRelayReceiver>;
+    toasts: [string, string][];
+    tick: (ms: number) => number;
+  } {
     let t = 0;
     const toasts: [string, string][] = [];
     const r = createLinkRelayReceiver({
@@ -248,7 +256,7 @@ describe('link relay receiver', () => {
       throttleMs: 100,
       now: () => t,
     });
-    return { r, toasts, tick: (ms: number) => (t += ms) };
+    return { r, toasts, tick: (ms: number): number => (t += ms) };
   }
   const lost = { state: 'lost', at: 1 } as const;
   const up = { state: 'up', at: 2 } as const;

@@ -64,7 +64,7 @@ test(
       [false, false, false, false, false, false, false, false, true, true, false, true]
     );
     assert.equal(out[4].Text, world('13.351', '13'));
-    // Only the two fields change: line endings and layout stay byte for byte.
+    // Only the verified field changes: line endings and layout stay byte for byte.
     assert.equal(out[6].Text, crlfTabs.replace(/("verified"\s*:\s*")14\.369/, '$114.370'));
     assert.equal(JSON.parse(out[10].Text).coreVersion, '14.372');
     assert.equal(JSON.parse(out[10].Text).compatibility.verified, '14.370');

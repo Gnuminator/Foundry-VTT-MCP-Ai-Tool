@@ -4,7 +4,7 @@
 #   pwsh scripts/test-env/world-verified.cases.ps1 < cases.json
 #
 # stdin: a JSON list of {World: "<world.json text>", App: "<app version>"}. stdout: a list of
-# {Changed, Text, Backup} in the same order, run on a temporary world folder. No real world is read.
+# {Changed, Version, Warned, Text, Backup} in the same order, run on a temporary world folder. No real world is read.
 . (Join-Path $PSScriptRoot 'config.ps1')
 
 $cases = @(ConvertFrom-Json ([Console]::In.ReadToEnd()))

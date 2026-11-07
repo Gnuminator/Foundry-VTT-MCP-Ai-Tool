@@ -70,5 +70,12 @@ test('checkCoverage: written paths, written globs and runner folders count as ru
 test('checkCoverage: a runner pattern with no file is stale', () => {
   const { staleRunners } = checkCoverage(['shared/src/c.test.ts'], '');
   assert.ok(staleRunners.includes('tools/*/tests/**'));
-  assert.ok(!staleRunners.includes('shared/src/**'));
+  assert.ok(!staleRunners.includes('shared/src/**/*.test.ts'));
+});
+
+test('checkCoverage: runners follow their real include patterns', () => {
+  // a .test.mjs in shared/src is not in its vitest include; a python test needs a pyproject.toml
+  const files = ['shared/src/a.test.mjs', 'tools/x/tests/test_a.py', 'tools/y/tests/test_b.py'];
+  const { unrun } = checkCoverage(files, '', new Set([...files, 'tools/x/pyproject.toml']));
+  assert.deepEqual(unrun, ['shared/src/a.test.mjs', 'tools/y/tests/test_b.py']);
 });

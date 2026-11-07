@@ -143,8 +143,9 @@ export function inCorpus(name, corpus) {
 }
 
 /**
- * Bold names next to a UI word, with the line number of the line the name itself is on (the
- * paragraph, list item or table row it sits in is joined into one line before matching). The guides are hard-wrapped, so a block is joined into one line before matching.
+ * Bold names next to a UI word, with the line number of the line the name itself is on. The
+ * guides are hard-wrapped, so a block (paragraph, list item or table row) is joined into one line
+ * before matching.
  */
 export function boldNames(text) {
   const found = [];

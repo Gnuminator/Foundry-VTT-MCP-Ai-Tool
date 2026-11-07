@@ -223,6 +223,13 @@ if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data fol
 # A relative data folder is refused (compose and this script would resolve it against different folders).
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="rfdata" TOOL_DATA_DIR="$SB/rdata"
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'FOUNDRY_DATA_DIR must be an absolute path' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a relative data folder is refused"; else fail "up relative (rc $RC): $OUT"; fi
+# A quoted value in deploy/pi/.env is unquoted like compose does: the live tool folder in quotes is still refused as live
+# data (without the strip it would start with a quote and hit the relative-path refusal instead).
+cp "$SB/tool/app/deploy/pi/.env" "$SB/env.bak"
+printf 'TOOL_DATA_DIR="%s"\n' "$SB/data" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a quoted .env value is unquoted before the live folder compare"; else fail "up quoted env (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
 # realpath that fails: the check fails closed instead of comparing raw strings.
 mkdir -p "$SB/nort"
 printf '#!/bin/sh\nexit 1\n' >"$SB/nort/realpath"

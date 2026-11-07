@@ -215,6 +215,10 @@ describe('status script', () => {
     const r = await run(pi, { args: ['--dry-run'] });
     assert.equal(r.status, 0, r.stderr);
     assert.equal(JSON.parse(r.stdout).deployed.containers, null);
+    // Positive control: with docker.service active the same stub is called, so the log mechanism works.
+    const control = fakePi({ containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }] });
+    await run(control, { args: ['--dry-run'] });
+    assert.match(readFileSync(control.callLog, 'utf8'), /^ps /m);
     assert.equal(existsSync(pi.callLog), false, 'a stopped daemon must not be socket-activated by a docker call');
   });
 

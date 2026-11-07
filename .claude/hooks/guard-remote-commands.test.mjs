@@ -268,6 +268,11 @@ test('long adversarial commands are checked in linear time', () => {
     'ssh foundry-pi systemctl stop ' + 'a '.repeat(1000),
     'ssh foundry-pi ' + 'a.sh '.repeat(400),
     ('# x\n' + 'ssh foundry-pi cat a\n').repeat(80),
+    // The docker compose rule reads global options between `docker` and `compose`.
+    'ssh foundry-pi docker ' + '-H x '.repeat(400),
+    'ssh foundry-pi docker ' + '-H x '.repeat(400) + 'compose',
+    'ssh foundry-pi docker -' + 'a'.repeat(2000),
+    'ssh foundry-pi ' + 'docker '.repeat(300),
   ];
   for (const c of long) {
     const ms = bestMs(() => decide(c, repo), 100);

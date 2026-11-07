@@ -27,11 +27,12 @@ way could send:
 - Email in `GM_EMAILS` list → **GM role** (full dashboard, write actions available).
 - Any other authenticated email → **player role** (read-only `/player` view).
 
-If the verified token is absent (e.g. a direct localhost request, or Access misconfigured), the
-dashboard falls back to its legacy behavior: when neither `GM_EMAILS` nor
-`GM_DASHBOARD_TOKEN` is set, every request is treated as GM (local-only mode, safe
-because nothing external can reach it without the tunnel). The token is read from the
-`Cf-Access-Jwt-Assertion` header, else from the `CF_Authorization` cookie.
+Legacy local-only mode depends only on configuration, not on the token: when neither `GM_EMAILS`
+nor `GM_DASHBOARD_TOKEN` is set, every request is treated as GM, with or without a verified
+token (safe because nothing external can reach it without the tunnel). When either is set, a
+request without a verified token (e.g. a direct localhost request, or Access misconfigured) gets
+no GM email identity and falls to the GM token check, then the player role. The token is read
+from the `Cf-Access-Jwt-Assertion` header, else from the `CF_Authorization` cookie.
 
 ---
 

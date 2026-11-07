@@ -170,7 +170,11 @@ fi
         dash_pid="$(systemctl show -p MainPID --value "$dash_unit" 2>/dev/null || true)"
         case "$dash_pid" in
           '' | 0 | *[!0-9]*) ;;
-          *) if tr '\0' '\n' <"${PROC_ROOT:-/proc}/$dash_pid/environ" 2>/dev/null | grep -q '^DASHBOARD_BOT_STATUS_URL='; then dash_stale=1; fi ;;
+          *)
+            # captured first, then matched: a `| grep -q` that stops early would SIGPIPE tr and read as "not set"
+            dash_env="$(tr '\0' '\n' <"${PROC_ROOT:-/proc}/$dash_pid/environ" 2>/dev/null || true)"
+            case "$dash_env" in DASHBOARD_BOT_STATUS_URL=* | *$'\n'DASHBOARD_BOT_STATUS_URL=*) dash_stale=1 ;; esac
+            ;;
         esac
       fi
       if [ "$dash_stale" = 1 ]; then

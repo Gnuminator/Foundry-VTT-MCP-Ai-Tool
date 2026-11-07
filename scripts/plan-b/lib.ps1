@@ -222,8 +222,9 @@ function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
 }
 
 # Runs the unpack with native stderr captured and neither the error preference nor
-# $PSNativeCommandUseErrorActionPreference (pwsh 7.3 experimental, 7.4 on by default in some
-# profiles) turning a non-zero exit into a throw, then judges it with Test-FoundryUnpack.
+# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
+# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
+# Test-FoundryUnpack.
 # $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
 # this run's; a run that leaves none (the program did not start) is a failure.
 function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {

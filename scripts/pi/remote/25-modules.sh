@@ -231,7 +231,9 @@ on_exit() {
     fi
     start_services || warn "Foundry or the Assistant GM browser did not come back: see journalctl -u foundry -n 50"
     [ -z "$undo_failed" ] || restored=0
-    if [ "$restored" = 1 ]; then
+    if [ "$restored" = 1 ] && [ "$run_word" = UNDO ]; then
+      warn "the UNDO did not finish (see above): Foundry and the Assistant GM browser were started again, not left as they were before it"
+    elif [ "$restored" = 1 ]; then
       warn "the run did not finish: ${undo:+the old folders are back, }Foundry and the Assistant GM browser are as they were"
     else
       warn "the run did not finish and NOT every old folder is back; Foundry and the Assistant GM browser were started again"

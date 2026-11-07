@@ -431,7 +431,7 @@ if have_systemd; then
   for pair in $RUNNERS; do
     unit="foundry-ai-tool-gh-runner-${pair%%:*}.service"
     if ! systemctl is-active --quiet "$unit"; then
-      ok "$unit is stopped (a play session is marked, or the state is unknown)"
+      ok "$unit is stopped (a play session is marked, a player is connected, or the state is unknown)"
       continue
     fi
     online=""

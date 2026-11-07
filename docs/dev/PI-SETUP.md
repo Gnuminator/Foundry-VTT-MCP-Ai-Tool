@@ -1698,7 +1698,7 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   `world.legacy-other-books` (same ids, tagged with the pack they came from), keeps entries that kept ones link to, copies the SRD
   items and creatures that kept entries link to into `world.linked-srd-items` and `world.linked-srd-creatures` (player-visible)
   and re-points the links, hides the dnd5e Item and Actor packs from Player and Trusted (a pack that kept entries link to stays
-  visible and is named in the log), and locks the module packs again at the end. A second run changes nothing. A rerun replaces
+  visible and is named in the log; one that was hidden already is opened), and locks the module packs again at the end. A second run changes nothing. A rerun replaces
   the legacy copy of an entry that came back into `aitool-content` (the dry run prints `REPLACE stale legacy copies`; a GM edit of
   the legacy copy is lost).
   `seven-books-delete-legacy.js` deletes the legacy pack for good (`MODE=delete`).

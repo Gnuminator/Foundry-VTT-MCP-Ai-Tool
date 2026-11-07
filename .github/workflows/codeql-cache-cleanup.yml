@@ -76,7 +76,7 @@ jobs:
           else
             echo "Deleted $deleted of $count caches, $((freed / 1048576)) MiB"
             # A failed delete is only fine if the cache is gone anyway (an eviction): list again.
-            # A cache that is being deleted can still be listed for a few seconds: look again before failing.
+            # A cache that is being deleted can still be listed for up to a minute (six checks, 10 s apart): look again before failing.
             cut -f1 old.tsv | sort > old.ids
             for attempt in 1 2 3 4 5 6; do
               gh cache list --limit 500 --key codeql-overlay-base-database --json id --jq '.[].id' > after.txt

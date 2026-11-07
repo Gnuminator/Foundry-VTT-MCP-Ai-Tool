@@ -180,6 +180,54 @@ test('a new hero that cannot spend its spell slots or starts hurt is reported', 
     compareHeroes(x).problems.map(p => p.kind),
     ['SYSTEM']
   );
+  // A shortfall a Constitution increase explains (level 17, modifier +3, 12 missing) has its own id; a hero
+  // with no such room (level 3, or a shortfall bigger than level times modifier) stays a plain STUDIO finding.
+  const con = (level, mod, value) => {
+    const c = pair();
+    c.studio.actor.level = level;
+    c.studio.actor.abilities = { con: { value: 16, mod } };
+    c.studio.actor.hp.max = 157;
+    c.studio.actor.hp.value = value;
+    return compareHeroes(c).problems.find(p => p.category === 'current hit points');
+  };
+  assert.equal(
+    con(17, 3, 145)?.id,
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind'
+  );
+  assert.equal(con(17, 3, 145)?.kind, 'STUDIO');
+  // a sum of increase levels is explained (4 + 6 = 10), one level's hit points (7 to 10 missing) is not
+  const own =
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
+  const plain = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
+  assert.equal(con(17, 3, 147)?.id, own);
+  assert.equal(con(17, 3, 150)?.id, plain); // 7 missing
+  assert.equal(con(17, 3, 148)?.id, plain); // 9 missing
+  assert.equal(con(17, 1, 145)?.id, own); // two terms are allowed at modifier +1: 12 is one
+  assert.equal(con(17, 1, 128)?.id, plain); // 29 would need more terms than modifier +1 allows
+  assert.equal(con(4, 2, 153)?.id, own); // level 4, 4 missing
+  // a hit point effect keeps the SYSTEM finding whatever the shortfall looks like
+  const s = pair();
+  s.studio.actor.level = 17;
+  s.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  s.studio.actor.hp.max = 157;
+  s.studio.actor.hp.value = 145;
+  s.studio.actor.hp.sources = [{ item: 'Draconic Resilience', keys: [] }];
+  assert.equal(
+    compareHeroes(s).problems.find(p => p.category === 'current hit points')?.kind,
+    'SYSTEM'
+  );
+  assert.equal(
+    con(3, 3, 145)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
+  assert.equal(
+    con(17, 3, 100)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
+  assert.equal(
+    con(17, 0, 145)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
   // The raw twin may have been hurt by an earlier scenario: that is not a difference.
   const w = pair();
   w.raw.actor.hp.value = 10;
@@ -723,7 +771,11 @@ const FORK_FIXED = [
   'feature-problems:no-slot-to-spend',
   'console:gas.captureAdvancement',
   'console:black-parchment.webp',
+  // a Constitution increase while levelling leaves the current hit points behind; fixed in aitool.6
+  'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind',
 ];
+const HP_STUDIO =
+  'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
 // fixed one build later: 2.10.5-aitool.2 fills the slots on every level up; aitool.1 filled level 1 only
 const SLOTS = 'spell-slots-available:spell-slots-a-new-hero-can-spend';
 const ALWAYS = [
@@ -750,8 +802,13 @@ test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed 
 test('the expected list for the fork build drops what the fork fixed', () => {
   // aitool.1 still expects the slot finding (it fills level 1 only), aitool.2 and later do not
   const first = loadExpected(undefined, '2.10.5-aitool.1').map(e => e.id);
-  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS].sort(), '2.10.5-aitool.1');
-  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.6-aitool.1']) {
+  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS, HP_STUDIO].sort(), '2.10.5-aitool.1');
+  // the hit points of a levelled hero are filled from aitool.6 on
+  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.5-aitool.5']) {
+    const ids = loadExpected(undefined, version).map(e => e.id);
+    assert.deepEqual(ids.sort(), [...ALWAYS, HP_STUDIO].sort(), version);
+  }
+  for (const version of ['2.10.5-aitool.6', '2.10.6-aitool.1']) {
     const ids = loadExpected(undefined, version).map(e => e.id);
     assert.deepEqual(ids.sort(), [...ALWAYS].sort(), version);
   }
@@ -785,10 +842,12 @@ test('a fork build older than the fix does not get the entry dropped', () => {
 
 test('the installed version set by the scenario picks the list loadExpected() returns', () => {
   try {
-    setStudioVersion('2.10.5-aitool.2');
+    setStudioVersion('2.10.5-aitool.6');
     assert.equal(loadExpected().length, ALWAYS.length);
-    setStudioVersion('2.10.5-aitool.1');
+    setStudioVersion('2.10.5-aitool.2');
     assert.equal(loadExpected().length, ALWAYS.length + 1);
+    setStudioVersion('2.10.5-aitool.1');
+    assert.equal(loadExpected().length, ALWAYS.length + 2);
     setStudioVersion('2.10.5');
     assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length + 1);
     setStudioVersion(null);

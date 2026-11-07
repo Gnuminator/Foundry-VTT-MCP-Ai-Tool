@@ -1,5 +1,9 @@
 import winston from 'winston';
 
+/** File log rotation: at most FILE_LOG_MAX_FILES files of FILE_LOG_MAX_BYTES each (25 MB in all). */
+export const FILE_LOG_MAX_BYTES = 5 * 1024 * 1024;
+export const FILE_LOG_MAX_FILES = 5;
+
 export interface LoggerConfig {
   level: string;
   format?: 'json' | 'simple';
@@ -50,6 +54,10 @@ export class Logger {
         new winston.transports.File({
           filename: config.filePath,
           format: winston.format.json(),
+          // Rotate: 5 files of 5 MB, newest unsuffixed (mcp-server.log, then mcp-server1.log ...).
+          maxsize: FILE_LOG_MAX_BYTES,
+          maxFiles: FILE_LOG_MAX_FILES,
+          tailable: true,
         })
       );
     }

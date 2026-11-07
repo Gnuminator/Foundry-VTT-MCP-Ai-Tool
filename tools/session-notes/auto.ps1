@@ -24,6 +24,9 @@
   A lock file keeps two passes from overlapping. The report goes to the console and to
   <sessions>\auto.log.
 
+  Test-only variable: FVTT_VOICE_STACK replaces scripts\voice-stack.ps1 (the pass logs one line
+  when it is set, so a leftover value does not quietly replace the real transcriber).
+
 .PARAMETER DryRun
   Only print what would be done.
 #>
@@ -43,6 +46,7 @@ function Say([string]$text) {
   Write-Host $line
   if (-not $DryRun) { Add-Content -Path $log -Value $line -Encoding utf8 }
 }
+if ($env:FVTT_VOICE_STACK) { Say "FVTT_VOICE_STACK is set (test only): using $voiceStack instead of scripts\voice-stack.ps1" }
 
 $lock = Join-Path $sessions '.auto.lock'
 if (Test-Path $lock) {

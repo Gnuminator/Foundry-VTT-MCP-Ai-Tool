@@ -9,8 +9,9 @@ import { fileURLToPath } from 'node:url';
 const kit = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'kit.mjs');
 
 // The negative control: with the bridge, dashboard, GM page and browser all dead, every scenario
-// of every size must fail. One that still passes (or skips) tests nothing.
-for (const size of ['smoke', 'full', 'long']) {
+// of every size must fail. One that still passes (or skips) tests nothing. Smoke is a subset of
+// full, so it is not run again.
+for (const size of ['full', 'long']) {
   test(`${size}: every scenario fails when the bridge is stopped`, () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'kit-negative-'));
     try {

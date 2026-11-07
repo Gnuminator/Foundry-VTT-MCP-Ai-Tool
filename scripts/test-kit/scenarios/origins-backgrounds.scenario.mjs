@@ -8,6 +8,7 @@
  * are listed in data/origins-expected.json. A `smoke` run takes two backgrounds, `full` every one.
  */
 import { runOriginList } from '../lib/origins-list.mjs';
+import { bridgeProbe } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -16,7 +17,7 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: [],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: [
     'listCompendium',
     'listOrigins',
@@ -34,6 +35,7 @@ export default {
   timeoutMs: 3 * 60 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     await runOriginList(t, 'background');
   },
 };

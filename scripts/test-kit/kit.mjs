@@ -481,14 +481,16 @@ async function cmdTarget(command, o) {
       const down = () => {
         throw new Error('negative control: the bridge is stopped');
       };
-      // A dead object: every property is a function that throws (`then` stays undefined so an await is safe).
+      // The dashboard and Foundry keep answering; only the bridge's link to Foundry is gone
+      // (health says disconnected, tool calls fail with 502, the player screen is empty).
+      /** @type {any} */ (fake).setBridgeDown(true);
+      // The browser pages are not simulated: every call on them throws (`then` stays undefined so an await is safe).
       const dead = () =>
         new Proxy(
           {},
           { get: (_target, key) => (key === 'then' || typeof key === 'symbol' ? undefined : down) }
         );
-      runDashboard = /** @type {any} */ (dead());
-      runGm = /** @type {any} */ ({ call: down, joinAs: down, page: dead() });
+      runGm = /** @type {any} */ ({ call: fake.gm.call, joinAs: down, page: dead() });
       // Scenarios that need a real browser get dead pages too, so they cannot skip their way to a non-fail.
       stoppedBrowserFactory = () => ({
         browser: /** @type {any} */ ({

@@ -9,6 +9,7 @@
  * Failures are KIT, CONTENT or SYSTEM; known and accepted ones are in data/origins-expected.json.
  */
 import { runFeats } from '../lib/origins-feats.mjs';
+import { bridgeProbe } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -18,7 +19,7 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: [],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: [
     'listCompendium',
     'listOrigins',
@@ -38,6 +39,7 @@ export default {
   timeoutMs: 4 * 60 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     await runFeats(t);
   },
 };

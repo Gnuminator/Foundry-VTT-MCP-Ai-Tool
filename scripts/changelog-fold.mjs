@@ -11,7 +11,10 @@
  * A fragment is one or more sections, each a `### Heading` line followed by bullets (`- ...`,
  * wrapped lines indented by two spaces). A section whose heading already exists under
  * "## Unreleased" is appended to the end of that section; a new heading becomes a new section at
- * the end of "Unreleased". Fragments are folded in file-name order. `changelog.d/README.md` explains
+ * the end of "Unreleased". Headings are compared by their base: a trailing "(...)" tag is dropped
+ * and the test aliases ("Testing", "Test kit", "Test environment") count as "Tests", so repeated
+ * "### Tooling (...)" fragments end up under one "### Tooling" (a new section is written with the
+ * base heading). Fragments are folded in file-name order. `changelog.d/README.md` explains
  * the format and is never folded.
  */
 import { readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -25,6 +28,21 @@ const check = process.argv.includes('--check');
 const dryRun = process.argv.includes('--dry-run');
 
 const UNRELEASED = '## Unreleased';
+
+const HEADING_ALIASES = new Map([
+  ['Testing', 'Tests'],
+  ['Test kit', 'Tests'],
+  ['Test environment', 'Tests'],
+]);
+
+/**
+ * The heading a section is filed under: no trailing "(...)" tag, test aliases folded to "Tests".
+ * @param {string} heading a "### ..." line
+ */
+function baseHeading(heading) {
+  const name = heading.slice(4).replace(/\s*\([^()]*\)\s*$/, '').trim();
+  return `### ${HEADING_ALIASES.get(name) ?? name}`;
+}
 
 /** @returns {string[]} fragment file names, sorted */
 function fragmentFiles() {
@@ -84,7 +102,8 @@ function fold(changelog, sections) {
   if (end < 0) end = lines.length;
   const block = lines.slice(start + 1, end);
   for (const section of sections) {
-    const at = block.indexOf(section.heading);
+    const base = baseHeading(section.heading);
+    const at = block.findIndex(line => line.startsWith('### ') && baseHeading(line) === base);
     if (at >= 0) {
       let stop = block.findIndex((line, i) => i > at && line.startsWith('### '));
       if (stop < 0) stop = block.length;
@@ -92,7 +111,7 @@ function fold(changelog, sections) {
       block.splice(stop, 0, ...section.lines);
     } else {
       while (block.length && block.at(-1) === '') block.pop();
-      block.push('', section.heading, '', ...section.lines);
+      block.push('', base, '', ...section.lines);
     }
   }
   while (block.length && block.at(-1) === '') block.pop();

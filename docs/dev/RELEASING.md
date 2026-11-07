@@ -10,7 +10,10 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
 1. **Fold the changelog.** `npm run changelog:fold -- --dry-run` shows the result, then `npm run changelog:fold`
    moves every fragment in `changelog.d/` into CHANGELOG "Unreleased" and deletes the files (D-089). Rename the
    `## Unreleased` heading to `## vX.Y.Z (released YYYY-MM-DD): <short summary>` and add a fresh empty
-   `## Unreleased` above it. Start the section with a line on whether the wire contracts changed.
+   `## Unreleased` above it. Start the section with a line on whether the wire contracts changed (say so when only
+   additive fields changed, for example new fields in the dashboard `/api/health` response). Write the
+   headline in words the previous release's headline did not use. The fold files repeated headings under one base
+   heading (`### Tooling (...)` tags are dropped; Testing, Test kit and Test environment go under `### Tests`).
 2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`.
 3. **Check.** `npm run green`.
 4. **Land it.** Commit on a branch (`Release vX.Y.Z`), open a PR, merge through the normal gate (the `lane` skill).

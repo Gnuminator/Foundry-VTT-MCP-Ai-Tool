@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`/next/?token=${GM_TOKEN}`);
 });
 
-test('the menu lists the panels and tools in the old page order', async ({ page }) => {
+test('the menu lists the panels and tools in their set order', async ({ page }) => {
   const button = page.locator('#btn-advanced');
   await expect(button).toHaveAttribute('aria-expanded', 'false');
   await button.click();

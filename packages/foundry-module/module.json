@@ -1,7 +1,7 @@
 {
   "id": "foundry-mcp-bridge",
   "title": "Foundry AI Tool",
-  "description": "MCP server bridge for Foundry VTT: gives AI models (Claude and others) live access to actors, combat, scenes, compendiums, and session events. Includes a dashboard for real-time session control. Built for D&D 5e. GM-only security gating.",
+  "description": "Lets Claude work with your Foundry world: look up characters, scenes and rules, and make changes you review first. Includes a co-GM dashboard for running a session. Built for D&D 5e (dnd5e 6) on Foundry 14. Only the GM can use it.",
   "version": "0.25.0",
   "compatibility": {
     "minimum": "14",
@@ -19,6 +19,15 @@
   "changelog": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases",
   "readme": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/README.md",
   "license": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/LICENSE",
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": { "minimum": "6" }
+      }
+    ]
+  },
   "esmodules": ["dist/main.js"],
   "styles": ["styles/module.css", "styles/enhanced-creature-index.css", "styles/tarokka-table.css"],
   "socket": true,

@@ -72,11 +72,22 @@ const pick = async (pack, ids) => {
 const unlocked = async (pack, fn) => {
   const wasLocked = pack.locked;
   if (wasLocked) await pack.configure({ locked: false });
+  let out;
   try {
-    return await fn();
-  } finally {
-    if (wasLocked) await pack.configure({ locked: true });
+    out = await fn();
+  } catch (e) {
+    // A refused relock must not replace the step's own error: it is added to it.
+    if (wasLocked) {
+      try {
+        await pack.configure({ locked: true });
+      } catch (r) {
+        e.message = `${e.message}\n(could not lock ${pack.collection} again: ${r.message})`;
+      }
+    }
+    throw e;
   }
+  if (wasLocked) await pack.configure({ locked: true });
+  return out;
 };
 const setOwnership = async (pack, wanted) => {
   if (same(ownershipOf(pack), wanted)) return false;
@@ -231,10 +242,25 @@ log(`HIDE from Player and Trusted: ${toHide.length} of ${hide.length} packs not 
 log(
   `LEFT VISIBLE because kept entries link to them: ${leftVisible.length}${leftVisible.length ? ` (${leftVisible.map(id => `${id} ${linkedPacks.get(id)}`).join(', ')})` : ''}`
 );
-for (const id of leftVisible) {
-  if (same(ownershipOf(game.packs.get(id)), HIDDEN))
-    log(`WARNING ${id} is hidden from players although kept entries link to it: make it visible`);
+// A linked pack that is hidden already is a dead link for players: the real run makes it visible (OPEN).
+const hiddenLinked = leftVisible.filter(id => same(ownershipOf(game.packs.get(id)), HIDDEN));
+for (const id of hiddenLinked)
+  log(
+    `WILL OPEN ${id}: it is hidden from players although kept entries link to it (the real run makes it visible)`
+  );
+// The copied SRD entries are not re-pointed themselves: say which of them link to other dnd5e packs (hidden or not).
+const copyLinkOut = [];
+for (const kind of ['items', 'monsters']) {
+  const srdPack = game.packs.get(`dnd5e.${kind}`);
+  if (!srdPack || !srdTargets[kind].size) continue;
+  for (const d of await pick(srdPack, [...srdTargets[kind]])) {
+    const hits = [...blobOf(d.toObject()).matchAll(/Compendium\.dnd5e\.[A-Za-z0-9_.-]+/g)];
+    if (hits.length) copyLinkOut.push(`${d.name ?? d.id}`);
+  }
 }
+log(
+  `COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES (not re-pointed): ${copyLinkOut.length}${copyLinkOut.length ? ` (${copyLinkOut.slice(0, 40).join(' | ')})` : ''}`
+);
 log(`MOVE ${moved.size} entries to ${LEGACY}`);
 // A rerun deletes the old legacy copy of an entry that is moving again (it came back into aitool-content) and writes the
 // content pack's version in its place: a GM edit of the legacy copy is lost, so the dry run says how many.
@@ -416,6 +442,7 @@ const real = async () => {
     }
   }
   log(`kept entries still linking to dnd5e.items or dnd5e.monsters: ${left}`);
+  for (const pid of hiddenLinked) await setOwnership(game.packs.get(pid), OPEN);
   for (const pid of hide) await setOwnership(game.packs.get(pid), HIDDEN);
   if (left !== 0) {
     throw new Error(

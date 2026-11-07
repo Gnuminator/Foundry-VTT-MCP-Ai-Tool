@@ -1,8 +1,8 @@
 // The one shell for a panel: a head (title, the "?" help, a line under the title, a status, the
 // actions), a body, a foot, and six states. Drawer and OverlayPane build on it, so every panel
-// has the same bones. It renders the old page's class names (.pane / .drawer, .pane-head /
+// has the same bones. It renders the class names (.pane / .drawer, .pane-head /
 // .drawer-head, .pane-title, .pane-meta, .pane-body / .tarokka-body), which styles.css and
-// moments.css still style; only the foot and the state blocks are new.
+// moments.css style; the foot and the state blocks have their own CSS module.
 import type { ComponentProps, ElementType, JSX, MouseEventHandler, ReactNode } from 'react';
 
 import { HelpButton } from '../components/HelpButton';

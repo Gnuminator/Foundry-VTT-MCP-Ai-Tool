@@ -117,7 +117,7 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
 }
 
 /**
- * One entry: the old page's button (id, data-track with its literal name, tooltip) as the child.
+ * One entry: a button (id, data-track with its literal name, tooltip) as the child.
  * Picking it runs `onSelect` and closes the menu. `onSelect` returns false when it opened nothing
  * (a pane toggled shut): the focus goes back to the Advanced button then.
  */

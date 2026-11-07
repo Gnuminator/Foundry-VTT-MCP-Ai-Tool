@@ -654,16 +654,28 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // the dashboard itself.
   app.use(liveFrameMiddleware(config.foundryUrl));
   app.get('/', pageLimit, (_req: Request, res: Response) => {
-    // No old page to fall back to: say what is missing instead of a bare "Cannot GET /".
+    // Nothing else to fall back to: say what is missing instead of a bare "Cannot GET /".
     if (!fs.existsSync(reactIndex)) {
       res.status(503).type('text/plain').send('The dashboard is not built: run npm run build.');
       return;
     }
     res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(reactIndex);
+    // With a root, so a folder such as .claude/worktrees above the build does not count as a dotfile.
+    res.sendFile(path.basename(reactIndex), { root: path.dirname(reactIndex) });
   });
   // The GM page (item gm-page-wrapper): Foundry and the live strip on one page.
-  mountGmPage(app, { reactIndex, foundryUrl: config.foundryUrl, pageLimit, requireGm });
+  mountGmPage(app, {
+    sendIndex: (res: Response): boolean => {
+      if (!fs.existsSync(reactIndex)) return false;
+      res.setHeader('Cache-Control', 'no-cache');
+      // With a root, so a folder such as .claude/worktrees above the build does not count as a dotfile.
+      res.sendFile(path.basename(reactIndex), { root: path.dirname(reactIndex) });
+      return true;
+    },
+    foundryUrl: config.foundryUrl,
+    pageLimit,
+    requireGm,
+  });
   // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
   // dropped, and the target is always "/" plus that, so it can never leave this origin.
   app.get(['/next', '/next/', '/legacy', '/legacy/'], pageLimit, (req: Request, res: Response) => {
@@ -672,7 +684,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       : '';
     res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
   });
-  // The old dashboard page (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
+  // The retired page address (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
   // /next/ above, so a saved link still lands on the dashboard. Its files are not served.
   const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
   // The pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers

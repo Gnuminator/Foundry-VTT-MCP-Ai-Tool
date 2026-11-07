@@ -68,7 +68,7 @@ describe('Enhanced Creature Index menu (AppV2)', () => {
     const Menu = createEnhancedIndexMenu() as unknown as MenuClass;
     expect(Menu.DEFAULT_OPTIONS).toMatchObject({
       tag: 'form',
-      window: { title: 'Enhanced Creature Index Settings' },
+      window: { title: 'Creature Index Settings' },
       form: { closeOnSubmit: false },
     });
     expect(typeof Menu.DEFAULT_OPTIONS.form.handler).toBe('function');
@@ -112,7 +112,7 @@ describe('Enhanced Creature Index menu (AppV2)', () => {
     expect(trackUsage).toHaveBeenCalledWith('action', 'module.settings.enhanced-index-save');
     expect(world.notifications.at(-1)).toEqual({
       level: 'info',
-      message: 'Enhanced Creature Index settings saved',
+      message: 'Creature index settings saved',
     });
   });
 
@@ -123,7 +123,7 @@ describe('Enhanced Creature Index menu (AppV2)', () => {
     Menu.DEFAULT_OPTIONS.actions.rebuild();
     expect(rebuild).toHaveBeenCalledOnce();
     expect(trackUsage).toHaveBeenCalledWith('action', 'module.settings.enhanced-index-rebuild');
-    expect(world.notifications.at(-1)?.message).toBe('Rebuilding enhanced creature index...');
+    expect(world.notifications.at(-1)?.message).toBe('Rebuilding the creature index...');
   });
 
   it('does nothing but count the click while the bridge is not loaded', () => {

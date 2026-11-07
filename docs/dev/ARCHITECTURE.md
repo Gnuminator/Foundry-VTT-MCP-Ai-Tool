@@ -584,7 +584,7 @@ it talks to the backend's control channel directly and makes no Anthropic API ca
 - **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
   and the GM-action surface. It only ever talks to its own server.
   The page is React + TypeScript + Vite (D-109, `web/`) and is served at `/`
-  (D-126); `/legacy/` and `/next/` redirect
+  (D-126); the retired addresses redirect
   to `/` (package README, "The React dashboard").
 
 **The live feed (`feed/`).** `McpControlClient` is a hardened, **read-only, never-spawning**

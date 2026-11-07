@@ -2,8 +2,7 @@
 // bridge answers (`list-recent-changes`, the AI's guarded changes, and `list-changes`, everyone's),
 // the state a row shows, the person filter, the redo rule, and the undo choice (just this,
 // everything since, rewind the table) as the dialogs it walks through. No React here, so the rules
-// have unit tests; panels/RecentChanges.tsx draws them and makes the calls. A typed port of the old
-// page's changes-everyone.js and the AI tab in public/app.js.
+// have unit tests; panels/RecentChanges.tsx draws them and makes the calls.
 
 /** How many changes the AI tab asks for. */
 export const AI_LIMIT = 20;

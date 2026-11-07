@@ -99,7 +99,7 @@ export function showDocked(id: string): boolean {
 interface DrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The old page's id (preflight-drawer, ...); styles.css keys on it. */
+  /** The element id (preflight-drawer, ...); the shared public/styles.css keys on it. */
   id: string;
   title: ReactNode;
   /** The line under the title (.drawer-sub). */
@@ -117,7 +117,7 @@ interface DrawerProps {
   onEscapeKey?: () => boolean;
   /** Radix's focus move on opening; preventDefault() and focus something else to take its place. */
   onOpenAutoFocus?: (event: Event) => void;
-  /** The bar under the head (.tarokka-actions on the old page). */
+  /** The bar under the head (.tarokka-actions). */
   actions?: ReactNode;
   bodyClassName?: string;
   /** Which face of the panel to show (Panel's states); the children show when it is ready. */
@@ -279,7 +279,7 @@ export function Drawer({
     id
   );
   const onTop = useOnTop(id, floating);
-  // The bar under the head (.tarokka-actions on the old page).
+  // The bar under the head (.tarokka-actions).
   const bar = actions !== undefined ? <div className="tarokka-actions">{actions}</div> : undefined;
   const shell = {
     as: 'aside',

@@ -1,6 +1,5 @@
-// The GM token (Phase 6 player/GM split), as the old page keeps it (public/app.js): open the page
-// once with ?token=<GM_DASHBOARD_TOKEN>; it is saved under the same key, so the old and the new
-// page share it, and taken out of the address bar once saved. Without the split no token is
+// The GM token (Phase 6 player/GM split): open the page
+// once with ?token=<GM_DASHBOARD_TOKEN>; it is saved under one shared key and taken out of the address bar once saved. Without the split no token is
 // needed. The server enforces the role; this only forwards the credential.
 
 const TOKEN_KEY = 'cogm_token';

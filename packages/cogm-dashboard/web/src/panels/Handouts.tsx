@@ -110,7 +110,7 @@ export function nextQueued(s: HandoutsState): QueuedPage | null {
   );
 }
 
-/** Opened 19:05: the time only, 24-hour, as the old page shows it. */
+/** Opened 19:05: the time only, 24-hour. */
 const openedAt = (iso: string): string =>
   new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -153,7 +153,7 @@ export function HandoutsDrawer({
     };
   }, [open]);
 
-  // A failed reload keeps the last rows and says so in the queue, as on the old page.
+  // A failed reload keeps the last rows and says so in the queue.
   const s = handouts.data;
   const next = s ? nextQueued(s) : null;
   const nameOf = (userId: string): string =>
@@ -172,7 +172,7 @@ export function HandoutsDrawer({
       ...(s.activeSceneId ? { sceneId: s.activeSceneId } : {}),
       ...(showNow ? { showNow: true } : {}),
     };
-    // Reloads after every attempt, as the old page does: a cancelled or failed reveal may still
+    // Reloads after every attempt: a cancelled or failed reveal may still
     // have changed the queue. An apply already started a reload (GAME_STATE_KEY); this joins it.
     // The button waits for the reload, so it never offers the page just revealed a second time.
     const who = next?.players?.length ? next.players.map(nameOf).join(', ') : 'every player';
@@ -213,7 +213,7 @@ export function HandoutsDrawer({
   }, [refocus]);
 
   // Not a guarded change: no plan to apply and nothing changes in Foundry, so no GM Actions gate.
-  // The old page says nothing when it works; the toast here says the row went on purpose, as
+  // The toast says the row went on purpose, as
   // a guarded change reports its result.
   const unqueue = (uuid: string): void => {
     setRemoving(uuid);

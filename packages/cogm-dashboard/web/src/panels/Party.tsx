@@ -409,7 +409,7 @@ export function PartyDrawer({
     return (): void => usage().endView('dash.party.view');
   }, [open]);
 
-  // A failed load empties the sections and says why under Members, as on the old page.
+  // A failed load empties the sections and says why under Members.
   const s = party.isError ? undefined : party.data;
   const groups = list(s?.groups);
   const g = groups.find(x => x.actorId === groupId) ?? groups[0];

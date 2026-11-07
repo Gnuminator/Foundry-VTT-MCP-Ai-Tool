@@ -87,8 +87,7 @@ export class Take {
   }
 
   /**
-   * The co-GM dashboard (local mode: every caller is GM). The takes drive the React dashboard at /;
-   * no take drives the old page.
+   * The co-GM dashboard (local mode: every caller is GM). The takes drive the React dashboard at /.
    */
   async dashboard(path = '/') {
     const win = await this.#open('Dashboard', `${this.env.dashboardUrl}${path}`);

@@ -30,7 +30,7 @@ look ahead or back):
 
 - **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
   next session notes, handouts waiting). **Turn on for tonight** at the
-  top of Pre-flight turns on, in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
+  top of Pre-flight turns on, in one click, what tonight needs ("AI Tool: Allow Write Operations", the Handouts, Live play, Party
   and Tarokka switches, GM Actions); **End session** turns off again what it turned on. Only the dashboard's
   GM route can do this (the bridge's control method `session_switches`, never an MCP tool), so
   Claude can never switch on its own writes.

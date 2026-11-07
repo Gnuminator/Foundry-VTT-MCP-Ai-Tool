@@ -398,7 +398,7 @@ refuses to write while a bridge backend holds its lock.
 **The write gate (module `write-gate.ts`, P-036).** Every bridge handler is classified as a write
 (it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
 unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
-operations are disabled in the module settings" while "Allow Write Operations" is off, whoever
+operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
 calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` adds
 the older per-operation checks (quantity limits, and `requiresGM` for deletes and world
 structure).
@@ -410,7 +410,7 @@ confirmation → `list-recent-changes` / `undo-change`. The **backend** owns pla
 15 minutes), confirmation (`confirm`, plus `confirmDestructive` when the plan deletes
 anything) and the **audit ring** (`gm/audit.json`, 500 entries, big deleted-document
 snapshots in `backups/`). The **module** only snapshots targets (`snapshotGuardedOps`) and
-executes (`applyGuardedOps`), re-checking on its own: a GM client, "Allow Write Operations",
+executes (`applyGuardedOps`), re-checking on its own: a GM client, "AI Tool: Allow Write Operations",
 the feature's own switch (`feature.<id>.enabled`, off unless the feature registers `defaultEnabled`; live play, ownership,
 player portrait, table viewer, rules check and change undo start on; not needed for undo), and that
 every target still matches the plan-time snapshot — otherwise nothing is written. Actors and

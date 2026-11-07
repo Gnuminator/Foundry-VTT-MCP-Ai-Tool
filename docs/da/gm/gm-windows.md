@@ -1,6 +1,6 @@
 ---
 source: gm/gm-windows.md
-sourceHash: d0fd6e3fb668
+sourceHash: 8864a4549f1e
 title: GM-vinduerne
 description: Fem små vinduer i Foundry (Combat, Party, Session, Scene, Loot), der holder det, du ser mest på under spillet, ved siden af kortet, hvor de bor, og hvad hvert af dem er til.
 ---
@@ -79,7 +79,7 @@ ikke rækken. Et blot indtastet terningslag fra den karakter, som `/r 1d20`, udf
 spillerne, at de skal klikke på kortet. Anmodningerne logges som alle andre anmodninger om roll, så recap og
 statistik ser dem.
 
-Knapperne er grå, med årsagen, mens "Allow Write Operations" er slået fra.
+Knapperne er grå, med årsagen, mens "AI Tool: Allow Write Operations" er slået fra.
 
 Hvornår: når du planlægger en combat eller et baghold og vil vide, hvad partiet kan tåle, og når
 nogen spørger "hvad var min passive Perception nu igen".

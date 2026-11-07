@@ -50,7 +50,10 @@ describe('RecorderHealth silence', () => {
     const h = new RecorderHealth();
     h.join('u1', 'Mara', false, T);
     expect(h.silent(T + 20 * MIN, false)).toEqual([]);
-    expect(h.silent(T + 20 * MIN, true)).toHaveLength(1);
+    // Back up: the windows start again now, so nobody is reported at once.
+    expect(h.silent(T + 20 * MIN, true)).toEqual([]);
+    expect(h.silent(T + 20 * MIN + SILENCE_MS - 1, true)).toEqual([]);
+    expect(h.silent(T + 20 * MIN + SILENCE_MS, true)).toHaveLength(1);
   });
 
   it('gives a member who unmutes a fresh window', () => {

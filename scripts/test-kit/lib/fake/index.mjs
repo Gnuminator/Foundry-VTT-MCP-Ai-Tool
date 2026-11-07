@@ -136,7 +136,7 @@ export async function startFake({ world: worldId }) {
         name: String(body.name ?? ''),
         kind: 'tool',
         error:
-          'Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.',
+          'Foundry VTT module not connected. Please ensure Foundry is running and the Foundry AI Tool module is enabled.',
       });
     }
     if (down && get && url.pathname === '/api/player/state') {

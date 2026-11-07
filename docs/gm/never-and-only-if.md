@@ -35,7 +35,7 @@ Short rules. Each has its reason on the next line.
 
 - **Click Start session only when play begins, and End session when it ends.**
   Start session is the only switch for live play: it turns on GM Actions and the five switches a
-  night needs (Allow Write Operations, Handouts, Live play, Party and Tarokka). The rest, such as the
+  night needs (AI Tool: Allow Write Operations, Handouts, Live play, Party and Tarokka). The rest, such as the
   Obsidian mirror and import, session notes, scene mood and room setup, stay off until you turn them on. With live play off, a misclick cannot change
   anything. End session (or Pre-flight's "Turn them off again") turns it all off again.
 - **Tick "Show cards" in the Tarokka drawer only if nobody else can see your screen.** (The
@@ -55,7 +55,7 @@ Short rules. Each has its reason on the next line.
   The tool never overwrites a note you edited, so it stops updating (it lists it in
   `AI Tool/_status.md`, or `AI Tool/Foundry/_status.md` for notes about PCs, NPCs, scenes and
   journals).
-- **Turn off "Allow Write Operations" only if you want the tool to change nothing.**
+- **Turn off "AI Tool: Allow Write Operations" only if you want the tool to change nothing.**
   It stops every change from Claude and from the dashboard, chat messages and Undo included;
   reading still works.
 - **Choose "Always allow" for the tools that change the game only if you are happy not to be asked

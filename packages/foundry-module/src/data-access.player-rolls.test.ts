@@ -1521,3 +1521,58 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(spy.toMessage).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('FoundryDataAccess: a failed roll button click', () => {
+  function clickWith(isGM: boolean): { error: ReturnType<typeof vi.fn> } {
+    const g2 = globalThis as any;
+    const error = vi.fn();
+    g2.ui = { notifications: { error, warn: vi.fn(), info: vi.fn() } };
+    g2.game.user = { id: 'u1', name: 'Alice', isGM };
+    const data: Record<string, unknown> = { 'button-id': 'b-fail', 'target-user-id': 'u1' };
+    const attrs: Record<string, string> = {
+      'data-roll-formula': '1d20',
+      'data-roll-label': 'Check',
+    };
+    const button: any = {
+      prop: (_name: string, value?: unknown): unknown => (value === undefined ? false : button),
+      text: (value?: string): unknown => (value === undefined ? 'Roll' : button),
+      data: (key: string): unknown => data[key],
+      attr: (key: string): string | undefined => attrs[key],
+      css: () => button,
+      show: () => button,
+      hide: () => button,
+    };
+    g2.$ = (el: unknown): unknown => el;
+    let handler: ((event: unknown) => unknown) | undefined;
+    const html: any = {
+      find: () => ({
+        length: 1,
+        each: (cb: (i: number, el: unknown) => void) => cb(0, button),
+        on: (_name: string, fn: (event: unknown) => unknown): void => {
+          handler = fn;
+        },
+      }),
+    };
+    vi.spyOn((da as any).playerRolls, 'rollForButton').mockRejectedValue(
+      new Error('x is undefined')
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    da.attachRollButtonHandlers(html);
+    handler?.({ currentTarget: button });
+    return { error };
+  }
+
+  it('tells a player to ask the GM, not to open the console', async () => {
+    const { error } = clickWith(false);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(String(error.mock.calls[0][0])).toContain('tell your GM');
+    expect(String(error.mock.calls[0][0])).not.toContain('F12');
+  });
+
+  it('tells a GM where to look in the console', async () => {
+    const { error } = clickWith(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(String(error.mock.calls[0][0])).toContain('F12');
+  });
+});

@@ -1,5 +1,5 @@
 /**
- * Posts to the read-only channels on the game server: #changelog (a short Danish line per
+ * Posts to the read-only channels on the game server: #changelog (a short English line per
  * release or Pi deploy, read by the players), #dashboard-changelog (the GM-only post about the
  * dashboard) and #pr-log (one line per PR merged to main).
  *
@@ -86,9 +86,9 @@ export function prLine(n, title) {
   return `[#${n}](<${REPO_URL}/pull/${n}>) ${clean}`;
 }
 
-/** The Danish line for a Pi deploy. @param {string} version */
+/** The English line for a Pi deploy. @param {string} version */
 export function deployLine(version) {
-  return `Serveren kører nu ${version}.`;
+  return `The server now runs ${version}.`;
 }
 
 /**

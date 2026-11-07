@@ -84,6 +84,9 @@ interface GmUserLike {
   isGM?: boolean;
 }
 
+/** Called (Hooks.callAll) in every client when the shared `linkState` setting changes. */
+export const LINK_STATE_CHANGED_HOOK = 'foundry-mcp-bridge.linkStateChanged';
+
 /**
  * Settings the module writes itself (roll state, connection notes): not a person
  * saving the settings window, so they never count as `module.settings.save`.
@@ -462,6 +465,10 @@ export class ModuleSettings {
       config: false,
       type: Object,
       default: { state: 'up', at: 0 },
+      // Not `updateSetting`: the first write in a world creates the document and fires `createSetting`.
+      onChange: () => {
+        Hooks.callAll(LINK_STATE_CHANGED_HOOK);
+      },
     });
 
     // DEPRECATED (see above): the notice throttle is in memory now.

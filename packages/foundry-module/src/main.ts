@@ -12,7 +12,12 @@ import {
 } from './link-notice.js';
 import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
-import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
+import {
+  LINK_STATE_CHANGED_HOOK,
+  ModuleSettings,
+  isBridgeUser,
+  registerSettingsUsageHooks,
+} from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { eventTracker } from './session-events.js';
 import { spentLedger } from './spent-actions.js';
@@ -122,8 +127,14 @@ class FoundryMCPBridge {
     holdsLink: () => this.socketBridge !== null,
   });
 
+  /** In memory only: what this browser last wrote to `linkState`. */
+  private lastPublishedLinkState: LinkRelayStateName | null = null;
+
   /** Writes the holder's notice state to the world so every other GM browser can show it. */
   private publishLinkState(state: LinkRelayStateName): void {
+    // One write per change of notice: a repeated "lost" (a failed start() while the outage lasts) writes nothing.
+    if (state === this.lastPublishedLinkState) return;
+    this.lastPublishedLinkState = state;
     try {
       const result = game.settings.set(MODULE_ID, 'linkState', { state, at: Date.now() });
       void Promise.resolve(result).catch(error => {
@@ -446,9 +457,15 @@ class FoundryMCPBridge {
 
     // A new bridge starts with a clean notifier: a "lost" left by the old one must not turn the
     // first link of this one (which already shows "AI Tool connected") into "link is back".
-    this.linkNotifier.reset();
+    // Silent: a start() during an outage must not tell the other GMs the outage ended.
+    this.linkNotifier.reset({ silent: true });
     // A "lost" left in the world by an earlier holder (browser killed mid-outage) must not stay on other GMs' screens.
-    if (parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')).state === 'lost') {
+    if (
+      this.isGMUser() &&
+      this.settings.getSetting('enableNotifications') !== false &&
+      this.lastPublishedLinkState !== 'lost' &&
+      parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')).state === 'lost'
+    ) {
       this.publishLinkState('quiet');
     }
 
@@ -734,11 +751,8 @@ Hooks.once('ready', async () => {
 
     // The link holder (the Assistant GM's browser) shares its lost/back notices through a world
     // setting; a GM browser that does not hold the link shows them too, also when it joins mid-outage.
-    Hooks.on('updateSetting', (setting: unknown) => {
-      if ((setting as { key?: unknown } | null)?.key === `${MODULE_ID}.linkState`) {
-        foundryMCPBridge.applyStoredLinkState();
-      }
-    });
+    // (The setting's onChange fires for the first write, a create, as well as for later updates.)
+    Hooks.on(LINK_STATE_CHANGED_HOOK, () => foundryMCPBridge.applyStoredLinkState());
     foundryMCPBridge.applyStoredLinkState();
 
     // Live screen B: the pinned button, and the live window if it was open before the reload.

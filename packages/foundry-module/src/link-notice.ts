@@ -50,8 +50,11 @@ export interface LinkNotifier {
    * toast for when it does open, without a "lost" toast of its own.
    */
   markLost(): void;
-  /** The owner stopped the link on purpose: forget everything, say nothing. */
-  reset(): void;
+  /**
+   * The owner stopped the link on purpose: forget everything, say nothing here. Other GMs who were
+   * told "lost" are told it ended quietly, unless `silent` (a restart while the outage lasts).
+   */
+  reset(options?: { silent?: boolean }): void;
 }
 
 export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
@@ -113,12 +116,12 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
       lostShown = true;
       if (allowed()) options.publish?.('lost');
     },
-    reset(): void {
+    reset(resetOptions): void {
       cancelTimer();
       const wasLost = lostShown;
       lostShown = false;
       // Other GM browsers were told "lost": tell them it ended without a "back" toast.
-      if (wasLost && allowed()) options.publish?.('quiet');
+      if (wasLost && !resetOptions?.silent && allowed()) options.publish?.('quiet');
     },
   };
 }

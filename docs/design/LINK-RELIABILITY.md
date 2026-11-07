@@ -25,6 +25,10 @@ down until someone reloads.
 
 ## PB-03: reconnect forever, no world writes
 
+(One exception, added later: the link holder writes the hidden world setting `linkState` once per
+confirmed "lost", "back" or "quiet" notice so the other GMs' browsers can show it; never per retry
+or per `start()`.)
+
 - **Module `socket-bridge.ts`:** no attempt limit. Backoff 1 s, 2 s, 4 s ... capped at 30 s, plus
   up to 20 % random jitter. One reconnect timer at most (error and close both fire on a failed
   connect today). The cap and "forever" hold for the WebSocket link.

@@ -31,6 +31,11 @@ describe('stage 28 as text', () => {
     for (const r of restarts) assert.match(r, /"\$unit"/, r);
   });
 
+  test('a running watch is also restarted when a file is newer than the service (a cut-off upgrade)', () => {
+    assert.match(stage, /unit_started_epoch "\$unit"/);
+    assert.match(stage, /stat -c %Y "\$f"\)" -gt "\$started"/);
+  });
+
   test('every rm -rf has a guarded variable and the settings file is never removed', () => {
     for (const m of stage.matchAll(/rm -(rf|f) ("[^"]*")/g)) assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
     assert.doesNotMatch(stage, /rm [^\n]*watch_env/);

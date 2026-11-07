@@ -169,7 +169,7 @@ fi
 # (git show aitool/main:scripts/gamenight-watch.mjs | sha256sum) and CHECK shows them again.
 (cd "$dest" && sha256sum $files >SHA256SUMS)
 chmod 0644 "$dest/SHA256SUMS"
-sed 's/^/    /' "$dest/SHA256SUMS"
+sed 's/^/    /' "$dest/SHA256SUMS" || true
 
 say "the settings file"
 mkdir -p "$TOOL_ETC"
@@ -192,9 +192,19 @@ if have_systemd; then
   systemctl enable "$unit" >/dev/null 2>&1
   if ! systemctl is-active --quiet "$unit"; then
     systemctl start "$unit"
-  elif file_changed "$unit_file" || file_changed "$dest/gamenight-watch.mjs" || file_changed "$dest/gamenight-watch-pi.mjs" || file_changed "$watch_env"; then
-    # Only the watch itself restarts; it holds no player and no recording.
-    systemctl restart "$unit"
+  else
+    # Restart when a file changed in this run, or is newer than the running service (a rerun after a cut-off upgrade: the
+    # files were written, the restart never happened). Only the watch itself restarts; it holds no player and no recording.
+    started="$(unit_started_epoch "$unit")"
+    restart=0
+    for f in "$unit_file" "$dest/gamenight-watch.mjs" "$dest/gamenight-watch-pi.mjs" "$watch_env"; do
+      if file_changed "$f"; then
+        restart=1
+      elif [ -n "$started" ] && [ -f "$f" ] && [ "$(stat -c %Y "$f")" -gt "$started" ]; then
+        restart=1
+      fi
+    done
+    if [ "$restart" = 1 ]; then systemctl restart "$unit"; fi
   fi
   sleep 2
   systemctl is-active --quiet "$unit" || die "$unit did not start: journalctl -u $unit -n 30"
@@ -204,5 +214,5 @@ else
   warn "no systemd here (a test container?): files and unit written, nothing started"
 fi
 
-echo "    Next: with a session marked the watch posts \"Game-night watch started\" in #gm-bot. Add the public address and the Access service token to $watch_env to switch the public check on."
+ok "next: with a session marked the watch posts \"Game-night watch started\" in #gm-bot; add the public address and the Access service token to $watch_env to switch the public check on"
 say "stage 28 done"

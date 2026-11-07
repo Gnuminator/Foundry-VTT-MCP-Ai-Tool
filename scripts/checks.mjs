@@ -141,6 +141,8 @@ export const CHECKS = [
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
+  nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
+  nodeTest('pi-gamenight-watch-stage', 'pi', 'scripts/pi/gamenight-watch-stage.test.mjs'),
   nodeTest('pi-space-check', 'pi', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'pi', 'scripts/pi/backup-pull-record.test.mjs'),
   nodeTest('pi-world-refs', 'pi', 'scripts/pi/world-refs.test.mjs'),

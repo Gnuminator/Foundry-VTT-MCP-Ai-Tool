@@ -21,6 +21,7 @@ import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { TOOL_SET_BUDGETS } from './tool-budgets.js';
 import { TOOL_HINTS } from './tool-hints.js';
 import { TOOL_MODULES } from './tools/index.js';
+import { instanceOf } from './tools/tool-module.js';
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
 import {
   ALL_TOOL_SET_NAMES,
@@ -66,10 +67,8 @@ describe('tool catalog', () => {
   it('keeps the tools map of each module equal to its definitions and routes', () => {
     const names = new Set<string>();
     for (const module of TOOL_MODULES) {
-      const instance = deps.get(module as never) as never;
-      const defined = (module.definitions as (t: never) => { name: string }[])(instance).map(
-        d => d.name
-      );
+      const instance = instanceOf(deps, module);
+      const defined = module.definitions(instance).map(d => d.name);
       expect(Object.keys(module.tools), module.id).toEqual(defined);
       // Player tools have no call_tool route (they run only through the player_tool message).
       const routed = defined.filter(name => module.tools[name]?.set !== PLAYER_TOOL_SET);

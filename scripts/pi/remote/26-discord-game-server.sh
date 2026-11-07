@@ -167,7 +167,7 @@ fi
 
 if [ "$dry" = 1 ]; then
   if [ "$undo" = 1 ]; then
-    say "dry run: would put $saved back as $env_file and restart $unit; nothing changed"
+    say "dry run: would set the stage's six keys in $env_file back to their values in $saved (a key the saved file lacks is removed; every other line, the token included, stays as it is now) and restart $unit; nothing changed"
   elif lines_right; then
     say "dry run: the lines are already right; a real run changes no setting (it still restarts a bot older than the file)"
   else
@@ -256,7 +256,7 @@ else
     tmp_saved=""
     ok "saved the current file as $saved (it holds the token: stays here)"
   else
-    ok "$saved already exists: kept (it is the Silvera-era file undo returns to)"
+    ok "$saved already exists: kept (it holds the Silvera-era values undo returns the stage's keys to)"
   fi
   set_keys "$wanted" ""
 fi

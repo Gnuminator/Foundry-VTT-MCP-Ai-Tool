@@ -1568,7 +1568,7 @@ there until the bot leaves it.
   stage warns that the post stays off. A rerun after a cut-off run restarts a bot that is older than the file.
 - **Check:** `CHECK=1` (the four lines, and "Registered /record in server ..." in the bot's journal since it started), then
   `/record` in a voice channel on the game server and a session-over post in #session-notes.
-- **Undo:** the same pipe with `UNDO=1` (the saved file back, the bot restarted).
+- **Undo:** the same pipe with `UNDO=1` (the six keys the stage set go back to their saved values, a key the saved file lacks is removed, the token and every other line stay as they are now; the bot is restarted).
 - Tests: `scripts/pi/discord-game-server.test.mjs` and `scripts/pi/container-test/stage26-scenarios.sh`.
 
 ## Join page look (stage 19)

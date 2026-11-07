@@ -1,3 +1,0 @@
-### Pi stages (seven-book baseline)
-
-- **One player-facing pack per type:** stage 22 gets `MODE=baseline` (and `MODE=baseline-undo`). A reviewed GM script, `seven-books-baseline.js`, copies the kept entries into `world.player-classes`, `-species`, `-backgrounds`, `-feats`, `-spells` and `-items` with the same ids, rewrites the Compendium links in the copies and in the class and spell-list journal pages, and only then hides the old packs. Dry run first, a second run changes nothing, `MODE=check` also checks it, and the undo deletes nothing. Stage 13 points Actor Studio at the six packs once they exist and are open to players. Not run on the Pi yet (needs a snapshot and the user's OK).

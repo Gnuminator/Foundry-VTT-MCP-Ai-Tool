@@ -1740,9 +1740,12 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   - **Pi sitting:** snapshot (`/boot/dietpi/dietpi-backup 1`), the user's OK, `scp` the three scripts, trim if not done
     (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `LINKS TO KEPT PACKS WITH NO ENTRY`),
     `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1`, stage 13, `MODE=check` (it now checks the baseline too once the six packs exist),
-    then join as a Player and build a character (class advancement, a spell list, the Actor Studio steps). About 20 to 60 s on a PC;
-    the Assistant GM is stopped meanwhile like any GM script.
-  - **Undo:** `MODE=baseline-undo APPLY=1`: the journals point at the old packs again, the old packs are visible, the six world
+    then join as a Player and build a character (class advancement, a spell list, the Actor Studio steps). The dry run took about 30 s
+    and the real run 2 to 3 minutes on the PC (the Pi will be slower; the stage has no timeout, the Assistant GM is stopped
+    meanwhile like any GM script). Afterwards the trim check lists the 11 old packs under `LINKS INTO PACKS PLAYERS CANNOT OPEN`:
+    expected, not drift. Run the baseline after the trim: a baseline made before a trim copies dropped books, which the next
+    baseline run removes again as orphans.
+  - **Undo:** `MODE=baseline-undo APPLY=1 OTHER_WORLDS_OK=1`: the journals point at the old packs again, the old packs are visible, the six world
     packs are hidden (nothing is deleted); run stage 13. Or restore the snapshot.
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
   Debian 13 ARM64 container, run by the ARM job in CI).

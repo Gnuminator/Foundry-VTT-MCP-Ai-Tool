@@ -270,7 +270,12 @@ for (const t of targetIds) {
   const ids = (await idx(t, [])).map(e => e._id);
   for (const d of await pick(game.packs.get(t), ids)) {
     const o = d.toObject();
-    targetIndex[t].set(o._id, { name: o.name, system: o.system, effects: o.effects ?? [] });
+    targetIndex[t].set(o._id, {
+      name: o.name,
+      system: o.system,
+      effects: o.effects ?? [],
+      ours: Boolean(sourcePackOf(o)), // tagged by this script; an entry the GM added by hand is never removed
+    });
   }
 }
 for (const id of sourcePacks) {
@@ -316,9 +321,19 @@ if (stale.length)
   throw new Error(
     `${stale.length} world pack entries are not the kept ones, nothing changed: ${stale.slice(0, 10).join(' | ')}`
   );
+// An orphan is a copy of ours that no kept pack has any more (a trim moved it out, or a module update dropped it): the
+// real run removes it, so the players' packs follow the kept packs; an untagged entry is only reported.
+const orphanIds = Object.fromEntries(targetIds.map(t => [t, []]));
+let foreign = 0;
 for (const t of targetIds)
-  for (const docId of targetIndex[t].keys())
-    if (!wantedCopy.has(docId) || wantedCopy.get(docId).target !== t) counts[t].orphan++;
+  for (const [docId, have] of targetIndex[t])
+    if (!wantedCopy.has(docId) || wantedCopy.get(docId).target !== t) {
+      if (have.ours) {
+        counts[t].orphan++;
+        orphanIds[t].push(docId);
+      } else foreign++;
+    }
+if (foreign) log(`NOT OURS in the world packs (no sourcePack tag, left alone): ${foreign}`);
 if (refreshNames.length)
   log(`REFRESH (copy differs from its source): ${refreshNames.slice(0, 20).join(' | ')}`);
 for (const t of targetIds) log(`COUNT ${t}: ${JSON.stringify(counts[t])}`);
@@ -347,7 +362,9 @@ log(
 );
 const orphans = targetIds.reduce((n, t) => n + counts[t].orphan, 0);
 if (orphans)
-  log(`ORPHANS in the world packs (entries no kept pack has any more, left in place): ${orphans}`);
+  log(
+    `ORPHANS in the world packs (copies no kept pack has any more; the real run removes them): ${orphans}`
+  );
 const totals = {
   copy: targetIds.reduce((n, t) => n + counts[t].copy, 0),
   refresh: targetIds.reduce((n, t) => n + counts[t].refresh, 0),
@@ -400,10 +417,17 @@ const real = async () => {
       );
       if (made.length !== chunk.length)
         throw new Error(
-          `${t}: created ${made.length} of ${chunk.length}; the old packs are untouched`
+          `${t}: created ${made.length} of ${chunk.length} (${replace.length} of them replaced a copy that is now missing: run again); the old packs are not hidden yet`
         );
     }
     log(`COPIED into ${t}: ${need.length} (now ${game.packs.get(t).index.size})`);
+  }
+  // Orphans go after all copies are in (an entry whose type changed is created in its new pack first).
+  for (const t of targetIds) {
+    if (!orphanIds[t].length) continue;
+    for (let i = 0; i < orphanIds[t].length; i += 40)
+      await Item.deleteDocuments(orphanIds[t].slice(i, i + 40), { pack: t });
+    log(`REMOVED ${orphanIds[t].length} orphan copies from ${t}`);
   }
   // The journal pages.
   let pagesDone = 0;

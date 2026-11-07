@@ -75,7 +75,7 @@ export const SOURCE_TARGETS = {
 const wp = n => `world.player-${n}`;
 export const BASELINE_TARGETS = {
   races: [wp('species')],
-  racialFeatures: [wp('species')],
+  racialFeatures: [wp('species'), wp('items')], // species traits are feat-type entries, which the baseline puts in items
   backgrounds: [wp('backgrounds')],
   classes: [wp('classes')],
   subclasses: [wp('classes')],

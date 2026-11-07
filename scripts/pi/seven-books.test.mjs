@@ -760,6 +760,30 @@ describe('seven-books-baseline.js', () => {
     assert.equal(player(world, 'feats').docs.get(id(5)).system.description.value, 'new text');
   });
 
+  test('a copy that no kept pack has any more is an orphan: drift in check mode, removed by the real run; a hand-made entry stays', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.get('aitool-content.feats').docs.delete(id(5)); // a trim moved it out
+    player(world, 'feats').docs.set(id(77), mk(77, 'GM homebrew', 'feat', '', 'feat')); // no sourcePack tag
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    await assert.rejects(run(check, world, true), /DRIFT.*"orphans":1/s);
+    const real = await run(baselineSource, world, false);
+    assert.match(real.lines.join('\n'), /REMOVED 1 orphan copies from world\.player-feats/);
+    assert.deepEqual(names(player(world, 'feats')), ['GM homebrew']);
+    assert.match((await run(check, world, true)).lines.join('\n'), /NOT OURS.*: 1/);
+  });
+
+  test('a trimmed and baselined world passes the combined check of stage 22', async () => {
+    const trimSrc = readFileSync(path.join(remote, 'seven-books-trim.js'), 'utf8');
+    const world = worlds();
+    await run(trimSrc, world, false);
+    await run(baselineSource, world, false);
+    const combined = `const CHECK_ONLY = true;\nawait (async () => {\n${trimSrc}\n})();\nawait (async () => {\nconst BASELINE_MODE = 'check';\n${baselineSource}\n})();\n`;
+    const { lines } = await run(combined, world, true);
+    assert.match(lines.join('\n'), /no drift: the world matches the seven-book trim/);
+    assert.match(lines.join('\n'), /no drift: the world matches the seven-book baseline/);
+  });
+
   test('stops on id collisions, on a world entry that is another entry, and without the trim', async () => {
     const world = worlds();
     world.packs.get('aitool-content.items').docs.set(id(1), mk(1, 'Twin', 'loot'));

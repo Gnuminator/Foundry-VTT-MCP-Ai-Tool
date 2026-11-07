@@ -283,6 +283,12 @@ test('Who would notice: a DC gives a tick or cross per PC and skill, and the row
     'Investigation 12',
     'Insight 10',
   ]);
+
+  // One skill picked: a single chip per character, still read only.
+  await notice.getByLabel('Notice DC').fill('11');
+  await notice.getByLabel('Notice skill').selectOption('investigation');
+  await expect(rows.nth(0).locator('.feature-pill')).toHaveText(['Investigation 9 ✗']);
+  await expect(rows.nth(1).locator('.feature-pill')).toHaveText(['Investigation 12 ✓']);
 });
 
 test('the group picker shows with two groups and switches without a load', async ({ page }) => {

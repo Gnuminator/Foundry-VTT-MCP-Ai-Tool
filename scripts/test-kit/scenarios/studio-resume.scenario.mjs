@@ -371,7 +371,7 @@ export default {
         });
         const state = await interrupted(actorId);
         t.check(state.picks.length >= 3, `only ${state.picks.join(', ')} were saved`, state);
-        await player().evaluate(id => game.actors.get(id).sheet.render(true), actorId);
+        // Closing the window opens the character's sheet by itself; the bar must show on it.
         await until(
           () =>
             player()

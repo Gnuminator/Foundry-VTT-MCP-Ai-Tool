@@ -1,6 +1,6 @@
 ### Pi
 
-- **Game-night watch on the Pi (stage 28):** `scripts/pi/remote/28-gamenight-watch.sh` installs the watch as a service
+- **Game-night watch on the Pi (stage 29):** `scripts/pi/remote/29-gamenight-watch.sh` installs the watch as a service
   that idles until a play session is marked, then checks Foundry, the dashboard's `/api/health`, the bridge link to
   Foundry's module, the Discord recorder and (with a Cloudflare Access service token read from an env file) the public
   address. It posts to `#gm-bot` when it starts, on every state change and when the session ends. A paper night is not

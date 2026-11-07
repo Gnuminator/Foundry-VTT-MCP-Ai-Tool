@@ -801,6 +801,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/panels/Party.tsx',
   },
   {
+    name: 'dash.party.notice-skill',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/Party.tsx',
+  },
+  {
     name: 'dash.party.open-actor',
     kind: 'action',
     surface: 'dashboard',

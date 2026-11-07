@@ -541,6 +541,19 @@ describe('bridge user and stale profile locks (compose container)', () => {
     assert.deepEqual(clearProfileLocks(profile), []);
     assert.deepEqual(clearProfileLocks(undefined), []);
   });
+
+  test('clearProfileLocks removes a dangling SingletonLock symlink (Chromium links it to host-pid)', t => {
+    const profile = abs('profile-locks-dangling');
+    mkdirSync(profile, { recursive: true });
+    try {
+      symlinkSync('host-123', path.join(profile, 'SingletonLock'));
+    } catch (e) {
+      if (e.code === 'EPERM') return t.skip('symlinks need a privilege on this Windows account');
+      throw e;
+    }
+    assert.deepEqual(clearProfileLocks(profile), ['SingletonLock']);
+    assert.deepEqual(readdirSync(profile), []);
+  });
 });
 
 describe('link check', () => {

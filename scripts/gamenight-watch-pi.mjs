@@ -1,7 +1,7 @@
 /**
  * Game-night watch on the Pi (backlog watch-on-pi). The same state machine and Discord posting as
  * scripts/gamenight-watch.mjs (the PC watch, I-145), run as a systemd service next to Foundry:
- * stage 28 installs both files and the unit. It idles until a play session is marked (the bridge's
+ * stage 29 installs both files and the unit. It idles until a play session is marked (the bridge's
  * `get-play-session` says open), then every minute checks
  *
  *   foundry    Foundry's /api/status on the Pi (a world is running)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 28: the game-night watch as a Pi service (backlog watch-on-pi). While a play session is marked, it checks Foundry,
+# Stage 29: the game-night watch as a Pi service (backlog watch-on-pi). While a play session is marked, it checks Foundry,
 # the dashboard (/api/health), the bridge link to Foundry's module, the Discord recorder and, when a token is set, the public
 # address through Cloudflare Access, and posts to #gm-bot when it starts, on every change, and when the session ends. The
 # GM then gets the alerts without the user's PC. Nothing it posts or logs holds an address, a query string or a token.
@@ -22,9 +22,9 @@
 #   UNDO=1     stop and remove the service and the installed files; the settings file is kept (it may hold the token)
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. These lines are bash:
 #   scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/   (from a clean checkout of main at the merge commit)
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
 # The service token is added by the user, never by Claude: edit $TOOL_ETC/gamenight-watch.env on the Pi, then
 # `systemctl restart foundry-ai-tool-gamenight-watch`. Tests only: SRC_DIR, TOOL_ETC, TOOL_DIR, UNIT_DIR, NODE_DIR.
 
@@ -49,7 +49,7 @@ if [ "$dry" != 1 ] && [ "$check" != 1 ]; then require_recent_snapshot; fi
 # A key with a value in an env file, by name only (the files hold the token).
 has_key() { grep -qE "^[[:space:]]*$2=[^[:space:]]" "$1" 2>/dev/null; }
 
-template="# Game-night watch on the Pi (stage 28, scripts/pi/remote/28-gamenight-watch.sh). The Discord token and the #gm-bot
+template="# Game-night watch on the Pi (stage 29, scripts/pi/remote/29-gamenight-watch.sh). The Discord token and the #gm-bot
 # channel come from discord-bot.env. Everything here is optional.
 #
 # The public check (the address players use, through Cloudflare Access) is off until all three lines are filled in.
@@ -109,7 +109,7 @@ if [ "$check" = 1 ]; then
   if [ "${rc:-0}" -ne 0 ] || printf '%s\n' "$out" | grep -q ' FAIL '; then
     die "at least one check failed (see above; the bridge link fails while no world is running, which is expected off game night)"
   fi
-  say "stage 28 check: all checks ok"
+  say "stage 29 check: all checks ok"
   exit 0
 fi
 
@@ -124,7 +124,7 @@ if [ "$undo" = 1 ]; then
   rm -rf "${dest:?}"
   have_systemd && systemctl daemon-reload
   ok "removed $unit_file and $dest; $watch_env is kept"
-  say "stage 28 done: removed"
+  say "stage 29 done: removed"
   exit 0
 fi
 
@@ -215,4 +215,4 @@ else
 fi
 
 ok "next: with a session marked the watch posts \"Game-night watch started\" in #gm-bot; add the public address and the Access service token to $watch_env to switch the public check on"
-say "stage 28 done"
+say "stage 29 done"

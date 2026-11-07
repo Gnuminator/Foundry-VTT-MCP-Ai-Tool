@@ -1,20 +1,10 @@
 #!/usr/bin/env bash
-# Pi stage 28 (scripts/pi/remote/28-gamenight-watch.sh, watch-on-pi) in a Debian 13 ARM64 container with the real lib.sh,
-# runuser, cmp and install (no systemd here: nothing starts) and a stand-in Node that answers --check and --once. Scenarios:
-#   1 refusals before anything is touched: two modes, a missing source file, no bot env, no token, no #gm-bot line
-#   2 DRY_RUN changes nothing and never prints a secret
-#   3 a real run: both files installed 0644 in a 0755 folder, the settings file created root:foundry 0640 with the public
-#     check off, the unit written with the right user and no secret in it
-#   4 a rerun changes nothing; an edited settings file is kept byte for byte; a changed script is installed again
-#   5 DRY_RUN reports the public check on once all three lines are filled in (names only)
-#   6 CHECK exits 0 when the round is clean and 1 when a check prints FAIL; it prints no secret
-#   7 the snapshot rule: a stale snapshot refuses before anything is written; DRY_RUN and CHECK need none
-#   8 UNDO removes the unit and the files and keeps the settings file
-# The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage28-scenarios.sh
-# (scripts/pi/gamenight-watch-stage.test.mjs runs it with PI_STAGE28_CONTAINER=1.) STAGE=<file> runs another copy of the script.
-#
-# DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.
+# Stage 28 (scripts/pi/remote/28-gm-watchdog.sh) and the Assistant GM driver's page ping, in a Debian 13 ARM64 container
+# with no systemd: stand-ins for systemctl and journalctl make the stage take its systemd path. The frozen-page scenario runs
+# the real driver against a stand-in playwright-core whose page stops answering (scripts/pi/gm-watchdog.test.mjs) on ARM64
+# Node. Each scenario prints PASS or FAIL lines:
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage28-scenarios.sh [name ...]
+# DESTRUCTIVE: it wipes the tool folders and installs the fakes into /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
 
 [ -f /.dockerenv ] || [ -n "${container:-}" ] || {
@@ -22,167 +12,182 @@ set -uo pipefail
   exit 98
 }
 
-STAGE="${STAGE:-/repo/scripts/pi/remote/28-gamenight-watch.sh}"
-LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
+H=/repo/scripts/pi/container-test
+R=/repo/scripts/pi/remote
+only=" $* "
+export DEBIAN_FRONTEND=noninteractive
+apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs curl ca-certificates; }
+{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
+  echo "SETUP FAILED: apt-get"
+  exit 99
+}
+mkdir -p /opt/node24/bin /run/systemd/system
+ln -sf "$(command -v node)" /opt/node24/bin/node
+for f in systemctl curl journalctl sleep logger; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
+eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$R/lib.sh")"
+id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
+DRIVER="$TOOL_DIR/gm-browser/assistant-gm.mjs"
+NEW=/root/assistant-gm.mjs
 
-FOUNDRY_USER=foundry
-TOOL_ETC=/etc/foundry-ai-tool
-TOOL_DIR=/opt/foundry-ai-tool
-NODE_DIR=/opt/node24
-id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin "$FOUNDRY_USER"
-install -d -m 0750 -o root -g "$FOUNDRY_USER" "$TOOL_ETC"
-install -d -m 0755 "$TOOL_DIR" "$NODE_DIR/bin"
-bot_env="$TOOL_ETC/discord-bot.env"
-watch_env="$TOOL_ETC/gamenight-watch.env"
-dest="$TOOL_DIR/gamenight-watch"
-src=/root/src
-unit_dir=/tmp/units
-unit_file="$unit_dir/foundry-ai-tool-gamenight-watch.service"
-token="FAKEtoken.0123456789abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWX"
-cf_secret="CFSECRETabcdef0123456789"
-mkdir -p "$unit_dir"
+fail=0
+check() { # $1 name, $2 what is expected in the output (grep -E), $3 the output
+  if grep -Eq -- "$2" <<<"$3"; then echo "PASS $1: $2"; else
+    echo "FAIL $1: wanted /$2/"
+    echo "$3" | sed 's/^/    /'
+    fail=1
+  fi
+}
+absent() { # $1 name, $2 what must not be in the output, $3 the output
+  if grep -Eq -- "$2" <<<"$3"; then
+    echo "FAIL $1: did not want /$2/"
+    echo "$3" | sed 's/^/    /'
+    fail=1
+  else echo "PASS $1: no /$2/"; fi
+}
+want() { [ -z "${only// /}" ] || [[ "$only" == *" $1 "* ]]; }
 
-# A stand-in Node: --check passes, --once prints one clean round (or a FAIL line when FAKE_FAIL=1). Never prints its env.
-cat >"$NODE_DIR/bin/node" <<'EOF'
-#!/usr/bin/env bash
-case "$*" in
-  *--check*) exit 0 ;;
-  *--once*)
-    echo "2026-11-07 20:00:00 session open: watch started"
-    echo "2026-11-07 20:00:00 foundry ok 12 ms -> up"
-    [ -f /tmp/fake-fail ] && echo "2026-11-07 20:00:00 bridge FAIL 3 ms (the Foundry module is not connected to the bridge) -> up"
-    exit 0 ;;
-esac
-EOF
-chmod 0755 "$NODE_DIR/bin/node"
-
-fresh() {
-  rm -rf "$dest" "$unit_file" "$watch_env" /tmp/fake-fail
-  mkdir -p "$src"
-  echo "// watch v1" >"$src/gamenight-watch.mjs"
-  echo "// pi watch v1" >"$src/gamenight-watch-pi.mjs"
-  cat >"$bot_env" <<EOF
-# The recorder bot's settings
-DISCORD_TOKEN=$token
-GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755
-EOF
-  chown "root:$FOUNDRY_USER" "$bot_env"
-  chmod 0640 "$bot_env"
+fresh_pi() {
+  rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" /var/lib/foundry-import
+  rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/gm-nojoin /tmp/gmbroken "$NEW"
+  mkdir -p "$FOUNDRY_DATA" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA"
+  echo '// old driver' >"$DRIVER"
+  printf '%s\n' '// assistant-gm features: extra-gm link-check page-ping' 'console.log("new driver");' >"$NEW"
+  echo fake-invocation-1 >/tmp/gm-invocation
+  printf '{"active":true,"world":"curse-of-strahd","users":0}' >/tmp/status
+  echo 0 >/tmp/status_rc
+  : >/tmp/calls
 }
 
-# run [VAR=value ...]: the stage as the user runs it (lib.sh and the stage on one stdin); output in OUT, its exit code returned.
-run() {
-  local code
-  OUT="$(cat "$LIB" "$STAGE" | env SRC_DIR="$src" UNIT_DIR="$unit_dir" "$@" bash -s 2>&1)"
-  code=$?
-  return "$code"
+# $1 the environment words (a single string), prints the output and "exit N"
+run_stage() {
+  local out rc
+  out="$(cd /root && cat "$R/lib.sh" "$R/28-gm-watchdog.sh" | env NO_SNAPSHOT=1 $1 bash -s 2>&1)"
+  rc=$?
+  printf '%s\nexit %s\n' "$out" "$rc"
 }
 
-# 1.
-fresh
-run DRY_RUN=1 UNDO=1
-rc=$?
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'one of'; then pass "two modes are refused"; else fail "two modes: rc=$rc $OUT"; fi
-mv "$src/gamenight-watch-pi.mjs" "$src/x"
-run DRY_RUN=1
-rc=$?
-mv "$src/x" "$src/gamenight-watch-pi.mjs"
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'scp scripts/gamenight-watch.mjs'; then pass "a missing source file says what to copy"; else fail "missing source: rc=$rc $OUT"; fi
-mv "$bot_env" "$bot_env.gone"
-run DRY_RUN=1
-rc=$?
-mv "$bot_env.gone" "$bot_env"
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'stage 8'; then pass "a missing bot env points at stage 8"; else fail "missing env: rc=$rc $OUT"; fi
-grep -v '^DISCORD_TOKEN=' "$bot_env" >"$bot_env.tmp" && cat "$bot_env.tmp" >"$bot_env" && rm "$bot_env.tmp"
-run DRY_RUN=1
-rc=$?
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'no DISCORD_TOKEN'; then pass "no token is refused"; else fail "no token: rc=$rc $OUT"; fi
-fresh
-grep -v '^GAMENIGHT_WATCH_CHANNEL_ID=' "$bot_env" >"$bot_env.tmp" && cat "$bot_env.tmp" >"$bot_env" && rm "$bot_env.tmp"
-run DRY_RUN=1
-rc=$?
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'stage 26'; then pass "no #gm-bot line points at stage 26"; else fail "no channel: rc=$rc $OUT"; fi
+if want frozen-page; then
+  out="$(cd /tmp && node --test --test-name-pattern='frozen page|page ping' /repo/scripts/pi/gm-watchdog.test.mjs 2>&1)"
+  rc=$?
+  if [ "$rc" = 0 ]; then echo "PASS frozen-page: the driver restarts a page that stops answering, on $(uname -m) node $(node -v)"; else
+    echo "FAIL frozen-page"
+    echo "$out" | tail -40 | sed 's/^/    /'
+    fail=1
+  fi
+fi
 
-# 2.
-fresh
-run DRY_RUN=1
-rc=$?
-if [ "$rc" -eq 0 ] && [ ! -e "$dest" ] && [ ! -e "$watch_env" ] && [ ! -e "$unit_file" ] && echo "$OUT" | grep -q 'public check: off'; then
-  pass "DRY_RUN says what it would do and changes nothing"; else fail "dry run: rc=$rc $OUT"; fi
-if ! echo "$OUT" | grep -q "$token"; then pass "the dry run does not print the token"; else fail "token in dry run output"; fi
+if want dry-run; then
+  fresh_pi
+  before="$(sha256sum "$DRIVER")"
+  out="$(run_stage '')"
+  check dry-run 'the deployed driver has no page watchdog yet' "$out"
+  check dry-run 'dry run: nothing was changed' "$out"
+  check dry-run 'exit 0' "$out"
+  [ "$before" = "$(sha256sum "$DRIVER")" ] && echo "PASS dry-run: driver unchanged" || {
+    echo "FAIL dry-run: driver changed"
+    fail=1
+  }
+  absent dry-run 'restart' "$(cat /tmp/calls)"
+fi
 
-# 3.
-run
-rc=$?
-if [ "$rc" -eq 0 ] && cmp -s "$src/gamenight-watch.mjs" "$dest/gamenight-watch.mjs" && cmp -s "$src/gamenight-watch-pi.mjs" "$dest/gamenight-watch-pi.mjs"; then
-  pass "both files are installed"; else fail "install: rc=$rc $OUT"; fi
-if [ "$(stat -c '%a' "$dest")" = 755 ] && [ "$(stat -c '%a %U' "$dest/gamenight-watch-pi.mjs")" = "644 root" ]; then pass "folder 0755, files 0644 root"; else fail "modes"; fi
-if [ "$(stat -c '%a %U:%G' "$watch_env")" = "640 root:$FOUNDRY_USER" ] && ! grep -qE '^[A-Z_]+=' "$watch_env"; then
-  pass "the settings file is root:$FOUNDRY_USER 0640 with every line commented out"; else fail "settings file: $(stat -c '%a %U:%G' "$watch_env")"; fi
-if grep -q "^User=$FOUNDRY_USER$" "$unit_file" && grep -q "EnvironmentFile=-$bot_env" "$unit_file" && grep -q "EnvironmentFile=-$watch_env" "$unit_file" &&
-  grep -q "ExecStart=$NODE_DIR/bin/node $dest/gamenight-watch-pi.mjs --post" "$unit_file" && ! grep -q "$token" "$unit_file"; then
-  pass "the unit runs as $FOUNDRY_USER, loads both env files and posts"; else fail "unit: $(cat "$unit_file" 2>&1)"; fi
-if ! echo "$OUT" | grep -q "$token"; then pass "the token is never printed"; else fail "token printed"; fi
+if want apply; then
+  fresh_pi
+  out="$(run_stage 'APPLY=1')"
+  check apply 'old driver kept as .*assistant-gm\.mjs\.prev-' "$out"
+  check apply 'joined the world again with the page watchdog on' "$out"
+  check apply 'exit 0' "$out"
+  grep -q 'new driver' "$DRIVER" && echo "PASS apply: new driver installed" || {
+    echo "FAIL apply: driver not installed"
+    fail=1
+  }
+  grep -q 'old driver' "$TOOL_DIR"/gm-browser/assistant-gm.mjs.prev-* && echo "PASS apply: old driver kept" || {
+    echo "FAIL apply: no backup"
+    fail=1
+  }
+  check apply 'restart foundry-ai-tool-gm-browser.service' "$(cat /tmp/calls)"
+  absent apply 'restart foundry.service' "$(cat /tmp/calls)"
+  out="$(run_stage 'APPLY=1')"
+  check rerun 'already this one' "$out"
+  check rerun 'exit 0' "$out"
+  out="$(run_stage 'UNDO=1')"
+  check undo 'putting .*assistant-gm\.mjs\.prev-.* back' "$out"
+  check undo 'the old driver is back' "$out"
+  grep -q 'old driver' "$DRIVER" && echo "PASS undo: old driver back" || {
+    echo "FAIL undo: not restored"
+    fail=1
+  }
+fi
 
-# 4.
-sums="$(sha256sum "$dest"/* "$unit_file" "$watch_env" | sha256sum)"
-m1="$(stat -c %Y "$dest/gamenight-watch-pi.mjs")"
-sleep 1
-run
-rc=$?
-if [ "$rc" -eq 0 ] && [ "$(sha256sum "$dest"/* "$unit_file" "$watch_env" | sha256sum)" = "$sums" ] && [ "$m1" = "$(stat -c %Y "$dest/gamenight-watch-pi.mjs")" ]; then
-  pass "a rerun changes nothing"; else fail "rerun: rc=$rc $OUT"; fi
-printf 'WATCH_PUBLIC_URL=https://pub.example\nCF_ACCESS_CLIENT_ID=abc.access\nCF_ACCESS_CLIENT_SECRET=%s\n' "$cf_secret" >>"$watch_env"
-env_sum="$(sha256sum <"$watch_env")"
-echo "// pi watch v2" >"$src/gamenight-watch-pi.mjs"
-run
-rc=$?
-if [ "$rc" -eq 0 ] && [ "$(sha256sum <"$watch_env")" = "$env_sum" ] && grep -q 'v2' "$dest/gamenight-watch-pi.mjs"; then
-  pass "an edited settings file is kept; a changed script is installed again"; else fail "edit/kept: rc=$rc $OUT"; fi
-if ! echo "$OUT" | grep -q "$cf_secret"; then pass "the Access secret is never printed"; else fail "Access secret printed"; fi
+if want stopped-unit; then
+  fresh_pi
+  touch /tmp/stopped-foundry-ai-tool-gm-browser.service
+  out="$(run_stage 'APPLY=1')"
+  check stopped 'was not running: left stopped' "$out"
+  check stopped 'exit 0' "$out"
+  absent stopped 'restart foundry-ai-tool-gm-browser' "$(cat /tmp/calls)"
+  absent stopped 'joined the world again' "$out"
+  check stopped 'the Assistant GM is stopped, so the watchdog starts with its next start' "$out"
+fi
 
-# 5.
-run DRY_RUN=1
-rc=$?
-if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'public check: on' && ! echo "$OUT" | grep -q "$cf_secret"; then pass "all three lines filled in: public check on, no value shown"; else fail "public on: rc=$rc $OUT"; fi
+if want players-online; then
+  fresh_pi
+  printf '{"active":true,"world":"curse-of-strahd","users":3}' >/tmp/status
+  out="$(run_stage 'APPLY=1')"
+  check players 'player\(s\) are online' "$out"
+  check players 'exit 1' "$out"
+  absent players 'restart foundry-ai-tool-gm-browser' "$(cat /tmp/calls)"
+  grep -q 'old driver' "$DRIVER" && echo "PASS players: driver unchanged" || {
+    echo "FAIL players: driver changed"
+    fail=1
+  }
+fi
 
-# 6.
-run CHECK=1
-rc=$?
-if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'foundry ok'; then pass "CHECK passes on a clean round"; else fail "check clean: rc=$rc $OUT"; fi
-touch /tmp/fake-fail
-run CHECK=1
-rc=$?
-rm -f /tmp/fake-fail
-if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'at least one check failed'; then pass "CHECK exits 1 when a check fails"; else fail "check fail: rc=$rc $OUT"; fi
-if ! echo "$OUT" | grep -q "$token" && ! echo "$OUT" | grep -q "$cf_secret"; then pass "CHECK prints no secret"; else fail "secret in check output"; fi
+if want cut-over; then
+  fresh_pi
+  touch /tmp/disabled-foundry-ai-tool-gm-browser.service
+  out="$(run_stage 'APPLY=1')"
+  check cut-over 'is disabled' "$out"
+  check cut-over 'exit 1' "$out"
+  absent cut-over 'restart' "$(cat /tmp/calls)"
+fi
 
-# 7.
-fresh
-mkdir -p /tmp/fakedietpi
-echo "2020-01-01_01:25:00  Backup completed" >/tmp/stats
-run DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/stats
-rc=$?
-if [ "$rc" -ne 0 ] && [ ! -e "$dest" ] && [ ! -e "$watch_env" ] && [ ! -e "$unit_file" ]; then pass "a stale snapshot refuses before anything is written"; else fail "stale snapshot: rc=$rc $OUT"; fi
-run DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/stats DRY_RUN=1
-rc=$?
-if [ "$rc" -eq 0 ]; then pass "DRY_RUN needs no snapshot"; else fail "dry run, stale snapshot: rc=$rc $OUT"; fi
-echo "$(date +%F)_09:00:00  Backup completed" >/tmp/stats
-run DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/stats
-rc=$?
-if [ "$rc" -eq 0 ] && [ -f "$dest/gamenight-watch-pi.mjs" ]; then pass "a snapshot from today allows the run"; else fail "fresh snapshot: rc=$rc $OUT"; fi
-run DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/stats CHECK=1
-rc=$?
-if [ "$rc" -eq 0 ]; then pass "CHECK works with the snapshot rule on"; else fail "check: rc=$rc $OUT"; fi
+if want failed-join; then
+  fresh_pi
+  touch /tmp/gm-nojoin
+  out="$(run_stage 'APPLY=1')"
+  check failed-join 'did not rejoin with the new driver: putting the old one back' "$out"
+  check failed-join 'the old one is back' "$out"
+  check failed-join 'exit 1' "$out"
+  grep -q 'old driver' "$DRIVER" && echo "PASS failed-join: old driver back" || {
+    echo "FAIL failed-join: old driver not restored"
+    fail=1
+  }
+fi
 
-# 8.
-env_sum="$(sha256sum <"$watch_env")"
-run UNDO=1
-rc=$?
-if [ "$rc" -eq 0 ] && [ ! -e "$dest" ] && [ ! -e "$unit_file" ] && [ "$(sha256sum <"$watch_env")" = "$env_sum" ]; then
-  pass "UNDO removes the unit and the files and keeps the settings file"; else fail "undo: rc=$rc $OUT"; fi
+if want refusals; then
+  fresh_pi
+  echo '// assistant-gm features: extra-gm link-check' >"$NEW"
+  out="$(run_stage 'APPLY=1')"
+  check old-source 'does not name the page-ping feature' "$out"
+  check old-source 'exit 1' "$out"
+  printf '%s\n' '// assistant-gm features: page-ping' 'let (' >"$NEW"
+  out="$(run_stage 'APPLY=1')"
+  check syntax 'does not parse' "$out"
+  rm -f "$NEW"
+  out="$(run_stage 'APPLY=1')"
+  check no-source 'no new driver at' "$out"
+  fresh_pi
+  out="$(run_stage 'APPLY=yes')"
+  check bad-apply 'APPLY must be 1 or left out' "$out"
+  out="$(run_stage 'APPLY=1 UNDO=1')"
+  check both 'pick one' "$out"
+  out="$(run_stage 'UNDO=1')"
+  check undo-none 'no assistant-gm.mjs.prev-' "$out"
+  rm -f "$DRIVER"
+  out="$(run_stage 'APPLY=1')"
+  check no-stage5 'run stage 5 first' "$out"
+  absent refusals 'restart' "$(cat /tmp/calls)"
+fi
 
-if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi
+[ "$fail" = 0 ] && echo "ALL PASSED" || echo "FAIL: see above"
+exit "$fail"

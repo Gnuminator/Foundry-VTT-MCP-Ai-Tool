@@ -360,7 +360,11 @@ The long-lived workhorse. Responsibilities:
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
-   class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
+   class's `getToolDefinitions()`; that union is what `list_tools` returns. Each class is
+   wired in by a small tool module (`tools/modules/<family>.ts`: how to build it, its
+   definitions, its routes), and `tools/index.ts` lists every module once, in `list_tools`
+   order. The backend, the router, the tool list and the test stub are all built from that
+   list, so a new tool family is one module file plus one line in the index. Every tool also
    belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
    feature gets one tool with an `action` parameter rather than several small tools.
 4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts`).

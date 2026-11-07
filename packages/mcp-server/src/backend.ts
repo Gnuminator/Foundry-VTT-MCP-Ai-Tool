@@ -33,72 +33,11 @@ import { Logger } from './logger.js';
 
 import { FoundryClient } from './foundry-client.js';
 
-import { CharacterTools } from './tools/character.js';
-
-import { CompendiumTools } from './tools/compendium.js';
-
-import { SceneTools } from './tools/scene.js';
-
-import { ActorCreationTools } from './tools/actor-creation.js';
-
-import { QuestCreationTools } from './tools/quest-creation.js';
-
-import { DiceRollTools } from './tools/dice-roll.js';
-
-import { CampaignManagementTools } from './tools/campaign-management.js';
-
-import { OwnershipTools } from './tools/ownership.js';
-import { SceneMoodTools } from './tools/scene-mood.js';
-import { TokenRingsTools } from './tools/token-rings.js';
-import { ActorImageTools } from './tools/actor-image.js';
-import { RulesCheckTools } from './tools/rules-check.js';
-import { SceneRestoreTools } from './tools/scene-restore.js';
-import { NpcTurnTools } from './tools/npc-turn.js';
-import { PaperSyncTools } from './tools/paper-sync.js';
-import { PcCreationTools } from './tools/pc-creation.js';
-import { RoomSetupTools } from './tools/room-setup.js';
-import { TableViewerTools } from './tools/table-viewer.js';
-import { FoundrySetupTools } from './tools/foundry-setup.js';
-
-import { TokenManipulationTools } from './tools/token-manipulation.js';
-
-import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
-import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
-import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
-
-import { ChatLogTools } from './tools/chat-log.js';
+import { createTools, guardedChangesModule, playerModule } from './tools/index.js';
 import { splitPlayerTools } from './tool-sets.js';
-import { LevelUpTools } from './tools/level-up.js';
-import {
-  PLAYER_CONFIG_ENV,
-  PlayerTools,
-  handlePlayerTool,
-  readExtraDenyTerms,
-} from './tools/player.js';
-import { ResourceTools } from './tools/resources.js';
-import { EffectsTools } from './tools/effects.js';
-import { CombatTools } from './tools/combat.js';
-import { MovementTools } from './tools/movement.js';
-import { SessionLogTools } from './tools/session-log.js';
-import { WaitForEventTools } from './tools/wait-for-event.js';
+import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
 import { GameEventHub } from './game-event-hub.js';
-import { CombatResolutionTools } from './tools/combat-resolution.js';
-import { EncounterTools } from './tools/encounter.js';
-import { SceneChangeTools } from './tools/scene-change.js';
-import { CombatChangeTools } from './tools/combat-change.js';
-import { DiagnosticsTools } from './tools/diagnostics.js';
-import { GuardedChangeTools } from './tools/guarded-changes.js';
-import { ChangeHistoryTools } from './tools/change-history.js';
-import { TarokkaTools } from './tools/tarokka.js';
-import { PlaySessionTools } from './tools/play-session.js';
-import { PlayStatsTools } from './tools/play-stats.js';
-import { PlayerViewTools } from './tools/player-view.js';
-import { PreflightTools } from './tools/preflight.js';
-import { WrapperRegistry, type WrapperStatus } from './wrapper-registry.js';
-import { LivePlayTools } from './tools/live-play.js';
-import { PartyTools } from './tools/party.js';
-import { PrepDigestTools } from './tools/prep-digest.js';
-import { RefChoiceTools } from './tools/ref-choices.js';
+import { WrapperRegistry } from './wrapper-registry.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
@@ -126,7 +65,6 @@ import { EveryoneNotes } from './obsidian/everyone-notes.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { messageOf } from './types/server-types.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
-import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import { ObsidianQuestImportTools } from './tools/obsidian-quest-import.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
@@ -295,58 +233,8 @@ async function startBackend(): Promise<void> {
     supportedSystems: systemRegistry.getSupportedSystems(),
   });
 
-  const rulesCheckTools = new RulesCheckTools({ foundryClient, logger });
-  const characterTools = new CharacterTools({
-    foundryClient,
-    logger,
-    systemRegistry,
-    rulesCheck: rulesCheckTools,
-  });
-
-  const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
-
-  const sceneTools = new SceneTools({ foundryClient, logger });
-
-  const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-
-  const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
-  const dnd5eNpcTools = new DnD5eNpcTools({ foundryClient, logger });
-  const dnd5eFeaturesFromCompendiumTools = new DnD5eFeaturesFromCompendiumTools({
-    foundryClient,
-    logger,
-  });
-
-  const questCreationTools = new QuestCreationTools({ foundryClient, logger });
-
-  const diceRollTools = new DiceRollTools({ foundryClient, logger, rulesCheck: rulesCheckTools });
-
-  const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
-
-  const tokenManipulationTools = new TokenManipulationTools({ foundryClient, logger });
-
-  const chatLogTools = new ChatLogTools({ foundryClient, logger });
-
-  const resourceTools = new ResourceTools({ foundryClient, logger });
-
-  const levelUpTools = new LevelUpTools({ foundryClient, logger });
-
-  const effectsTools = new EffectsTools({ foundryClient, logger });
-
-  const combatTools = new CombatTools({ foundryClient, logger });
-
-  const movementTools = new MovementTools({ foundryClient, logger });
-
-  const sessionLogTools = new SessionLogTools({ foundryClient, logger });
-
   // wait-for-game-event (I-001): the event pumps publish here, the tool sleeps on it.
   const gameEventHub = new GameEventHub();
-  const waitForEventTools = new WaitForEventTools({ hub: gameEventHub, logger });
-
-  const combatResolutionTools = new CombatResolutionTools({ foundryClient, logger });
-
-  const encounterTools = new EncounterTools({ foundryClient, logger });
-
-  const diagnosticsTools = new DiagnosticsTools({ foundryClient, logger });
 
   // Bridge vault (GM-only data off Foundry) + guarded writes (plan/apply/undo).
   const vaultStore = new VaultStore({ dataDir: resolveDataDir() });
@@ -386,7 +274,6 @@ async function startBackend(): Promise<void> {
       everyoneNotes?.schedule(worldId);
     },
   });
-  const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
   // Everyone's recent changes (I-109): the change-journal pump fills the vault, this index reads it.
   // The pump starts below once the Foundry link does; `list-changes` pulls the newest records through it.
   const changeJournalConfig = changeJournalSettings();
@@ -411,30 +298,13 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
-  const changeHistoryTools = new ChangeHistoryTools({ changeHistory, undoPlanner, logger });
   const tarokkaService = new TarokkaService({
     guardedWrites,
     store: vaultStore,
     worldIds,
     foundryClient,
   });
-  const tarokkaTools = new TarokkaTools({ tarokka: tarokkaService, logger });
-  const playSessionTools = new PlaySessionTools({
-    worldIds,
-    store: vaultStore,
-    logger,
-    onMarked: renderObsidian,
-  });
-  const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
   const secretTerms = new SecretTermsService({ store: vaultStore });
-  // The player set (D-136): runs only through the `player_tool` control message below.
-  const playerTools = new PlayerTools({
-    foundryClient,
-    logger,
-    secretTerms,
-    worldIds,
-    extraDenyTerms: (): string[] => readExtraDenyTerms(process.env[PLAYER_CONFIG_ENV]),
-  });
   const handouts = new HandoutsService({
     guardedWrites,
     store: vaultStore,
@@ -451,63 +321,9 @@ async function startBackend(): Promise<void> {
     handouts,
     logger,
   });
-  const playerViewTools = new PlayerViewTools({
-    handouts,
-    secretTerms,
-    foundryClient,
-    worldIds,
-    logger,
-  });
   const wrapperRegistry = new WrapperRegistry();
   // Filled when the pumps start below; get-preflight reads their health through it.
   const pumpHealthSources: Array<() => PumpHealthSnapshot> = [];
-  const preflightTools = new PreflightTools({
-    foundryClient,
-    wrapperStatus: (): WrapperStatus => wrapperRegistry.status(),
-    secretTerms,
-    worldIds,
-    playSession: playSessionTools,
-    obsidianVaultDirSet: Boolean(obsidianVaultDir),
-    pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
-    logger,
-  });
-  const prepDigestTools = new PrepDigestTools({
-    foundryClient,
-    worldIds,
-    store: vaultStore,
-    handouts,
-    preflight: preflightTools,
-    guardedWrites,
-    tarokka: tarokkaService,
-    vaultDir: obsidianVaultDir,
-    sessionsDir: sessionsDirFrom(process.env.FVTT_SESSIONS_DIR),
-    logger,
-  });
-  const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
-  const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
-  const roomSetupTools = new RoomSetupTools({ foundryClient, guardedWrites, logger });
-  const pcCreationTools = new PcCreationTools({ foundryClient, guardedWrites, logger });
-  const npcTurnTools = new NpcTurnTools({ foundryClient, guardedWrites, logger });
-  const paperSyncTools = new PaperSyncTools({ foundryClient, guardedWrites, logger });
-  const sceneRestoreTools = new SceneRestoreTools({
-    foundryClient,
-    guardedWrites,
-    worldIds,
-    logger,
-  });
-  const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
-  const tokenRingsTools = new TokenRingsTools({ foundryClient, guardedWrites, logger });
-  const actorImageTools = new ActorImageTools({ foundryClient, guardedWrites, logger });
-  const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
-  const foundrySetupTools = new FoundrySetupTools({ foundryClient, guardedWrites, logger });
-  const livePlayTools = new LivePlayTools({
-    foundryClient,
-    guardedWrites,
-    logger,
-    rulesCheck: rulesCheckTools,
-  });
-  const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
-  const combatChangeTools = new CombatChangeTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
@@ -518,80 +334,43 @@ async function startBackend(): Promise<void> {
     guardedWrites,
     logger,
   });
-  const obsidianMirrorTools = new ObsidianMirrorTools({
-    store: vaultStore,
-    worldIds,
+  logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
+  if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
+
+  // Every tool family, built from the modules in tools/index.ts with the services above.
+  const toolDeps = createTools({
+    foundryClient,
+    logger,
+    systemRegistry,
+    gameEventHub,
     guardedWrites,
-    status: (): ReturnType<ObsidianMirrorPump['status']> | null => mirrorPump?.status() ?? null,
-    env: {
+    worldIds,
+    store: vaultStore,
+    changeHistory,
+    undoPlanner,
+    tarokka: tarokkaService,
+    secretTerms,
+    handouts,
+    onPlaySessionMarked: renderObsidian,
+    wrapperStatus: () => wrapperRegistry.status(),
+    pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
+    obsidianVaultDir,
+    sessionsDir: sessionsDirFrom(process.env.FVTT_SESSIONS_DIR),
+    mirrorStatus: (): ReturnType<ObsidianMirrorPump['status']> | null =>
+      mirrorPump?.status() ?? null,
+    mirrorEnv: {
       vaultDirSet: Boolean(obsidianVaultDir),
       openBase: mirrorEnv.openBase,
       pollMs: mirrorEnv.pollMs,
       foundryUrl: mirrorEnv.foundryUrl,
     },
-    logger,
+    playerExtraDenyTerms: (): string[] => readExtraDenyTerms(process.env[PLAYER_CONFIG_ENV]),
   });
-  logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
-  if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
+  const guardedChangeTools = toolDeps.get(guardedChangesModule);
+  // The player set (D-136): runs only through the `player_tool` control message below.
+  const playerTools = toolDeps.get(playerModule);
 
   // Control-channel call_tool dispatch table (see tool-router.ts).
-  const refChoiceTools = new RefChoiceTools({
-    foundryClient,
-    guardedWrites,
-    logger,
-  });
-
-  const toolDeps = {
-    characterTools,
-    compendiumTools,
-    sceneTools,
-    actorCreationTools,
-    questCreationTools,
-    diceRollTools,
-    campaignManagementTools,
-    tokenManipulationTools,
-    ownershipTools,
-    sceneRestoreTools,
-    npcTurnTools,
-    paperSyncTools,
-    roomSetupTools,
-    pcCreationTools,
-    sceneMoodTools,
-    tokenRingsTools,
-    actorImageTools,
-    rulesCheckTools,
-    tableViewerTools,
-    foundrySetupTools,
-    dnd5eAddFeatureTool,
-    dnd5eNpcTools,
-    dnd5eFeaturesFromCompendiumTools,
-    chatLogTools,
-    resourceTools,
-    levelUpTools,
-    playerTools,
-    effectsTools,
-    combatTools,
-    movementTools,
-    obsidianMirrorTools,
-    sessionLogTools,
-    combatResolutionTools,
-    encounterTools,
-    changeHistoryTools,
-    guardedChangeTools,
-    tarokkaTools,
-    playSessionTools,
-    playStatsTools,
-    playerViewTools,
-    preflightTools,
-    prepDigestTools,
-    partyTools,
-    livePlayTools,
-    sceneChangeTools,
-    combatChangeTools,
-    diagnosticsTools,
-    refChoiceTools,
-    waitForEventTools,
-  };
   const toolRouter = buildToolRouter(toolDeps);
   // The same write twice within 3 s (a double click) answers with the first result (repeat-guard.ts).
   const repeatGuard = new RepeatGuard();

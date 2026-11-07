@@ -4,7 +4,23 @@
 
 ## v0.26.0 (released 2026-11-07): bridge logs that survive restarts, a Pi runner gate that counts players, token rings, Foundry setup tools, many review lows
 
-**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the tool `plan-token-rings` (options `tokens`, `scenes`) and the module query `foundry-mcp-bridge.planTokenRings` (a read; its plan applies through the guarded write); the module setting "AI Tool: Token rings (writes)", off by default; the areas `module`, `user` and `ownership` of `plan-foundry-setup`; `get-preflight` `action: "pumps"`; an optional build id in the connector's `hello`; the bot's opt-in status endpoint. The module write gate now lists the methods that make no change-journal record. **Changed:** the client-stored diagnostics key is now `foundry-mcp-bridge.diagnosticsWorld` (the old key is migrated; the namespace is the same); "AI Tool: Rules check" is on by default in a fresh world. **Removed:** the unused control call `wrapper_status`. Update the module and the bridge together: a v0.26.0 bridge refuses a placed-token plan and module or ownership reads from an older module.
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the tool `plan-token-rings` (options `tokens`, `scenes`) and the module query `foundry-mcp-bridge.planTokenRings` (a read; its plan applies through the guarded write); the module setting "AI Tool: Token rings (writes)", off by default; the areas `module`, `user` and `ownership` of `plan-foundry-setup`; `get-preflight` `action: "pumps"`; an optional build id in the connector's `hello`; the bot's opt-in status endpoint. The module write gate now lists the methods that make no change-journal record. **Changed:** the client-stored diagnostics key is now `foundry-mcp-bridge.diagnosticsWorld` (the old key is migrated; the namespace is the same); "AI Tool: Rules check" is on by default in a fresh world. **Removed:** the unused control call `wrapper_status`. Update the module and the bridge together: with an older module, `plan-token-rings` fails and a v0.26.0 bridge refuses module or ownership reads.
+
+### Tests (studio-fighter17-hp)
+
+- **Actor Studio hit points:** the test kit's one open Studio finding, a level 17 Fighter ending at 145 of 157 hit points, comes from the system: a Constitution increase raises the maximum for every level (2024 book) but only the new level's hit points reach the current value. The kit now gives such a shortfall (level 4 or more, a positive Constitution modifier, no more missing than level times modifier) its own finding id and expects it for Actor Studio builds before `2.10.5-aitool.6`, the fork fix that keeps a full-health hero at full health after a level up (fork branch, not released). Any other hit point shortfall stays a new STUDIO finding.
+- **Module pages say `2.10.5-aitool.5`:** the foundry-modules skill table and the Actor Studio page match what stage 13 put on the Pi, and mention the Select Spells window.
+
+### Tooling (review lows of #740, #792, #794, #816)
+
+- **Test coverage check:** reads `git ls-files -z` (non-ASCII test names no longer vanish), keys its
+  runner list on the real vitest include patterns, and counts a Python test only when its tool
+  folder has a `pyproject.toml`; the header lists what it cannot see.
+- **Local green:** skips `npm ci` for the Livekit recorder when its `node_modules` is newer than
+  the lockfile; the `usage-week` step is called `dev-scripts`.
+- **Test environment:** the world.json version bump swaps the file in one step; the session notes
+  pass logs a line when the test-only `FVTT_VOICE_STACK` override is set.
+- **Weekly usage report test:** the lane-line test uses UTC times and covers 22:59:53Z and 22:59:54Z.
 
 ### Test kit
 

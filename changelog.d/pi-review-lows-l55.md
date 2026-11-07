@@ -1,3 +1,0 @@
-### Pi
-
-- **Review lows of the module stage, the backup chain and the seven-book trim:** stage 25 no longer counts the bridge and content module zips in its disk check, says "NOT every old folder is back" after a failed UNDO, and moves folders with `mv -T`. Stage 6's restart wait now needs the same world back in `/api/status`, not only the setup screen. Stage 16 reads clock offsets in several parts (`2min 5.300s`) and in microseconds. The snapshot pull marks a stale copy in `last-success.txt`, the Plan B check says when the module link is unknown, and the bot's stale-backup DM names both causes.

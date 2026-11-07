@@ -496,6 +496,30 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
     ).rejects.toThrow(/not usable in this world/);
   });
 
+  it('refuses a plan whose closure the read cut, turning on and off, and names the target', async () => {
+    const { tools, query } = makeTools();
+    query.mockImplementation(() => ({
+      area: 'module',
+      shape: 2,
+      modules: [
+        {
+          id: 'top',
+          title: 'Top',
+          active: false,
+          requires: [dep('cut', true, false)],
+          requiredBy: [],
+        },
+        { id: 'base', title: 'Base', active: true, requires: [], requiredBy: ['cutuser'] },
+      ],
+    }));
+    const run = (target: string, value: boolean): Promise<any> =>
+      plan(tools, { mode: 'plan', area: 'module', target, value });
+    await expect(run('top', true)).rejects.toThrow(/did not include cut.*linked to top for a plan/);
+    await expect(run('base', false)).rejects.toThrow(
+      /did not include cutuser.*linked to base for a plan/
+    );
+  });
+
   it('asks the bridge for the target, and names a module list that is too large', async () => {
     const { tools, query } = makeTools();
     await plan(tools, { mode: 'plan', area: 'module', target: 'fancy', value: true });

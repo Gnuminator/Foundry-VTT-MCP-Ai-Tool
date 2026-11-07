@@ -553,7 +553,7 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
   });
 
   it('undoes a role lowering with the switch off in both real request shapes', async () => {
-    // as main.ts registers it: the Changes list sends change-undo in mode apply, so it is gated
+    // as main.ts registers it: the Changes list sends change-undo in mode apply
     registerGuardedFeature({ id: 'change-undo', name: 'Undo', hint: 'Test.' });
     world.setSetting(MODULE_ID, 'feature.change-undo.enabled', true);
     const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });

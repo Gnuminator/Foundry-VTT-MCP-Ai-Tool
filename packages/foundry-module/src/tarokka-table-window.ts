@@ -102,7 +102,10 @@ function prunePendingLines(table: PublicTable, now: number = Date.now()): void {
     const slot = table.slots.find(s => s.stage === 'revealed' && s.cardId === cardId);
     const settled = slot?.stage === 'revealed' && slot.line === cleanLine(entry.line);
     // A card that is still not revealed in the stored table after a short grace was undone or
-    // never flipped: its line must not come back with a later reveal of the same card.
+    // never flipped: its line must not come back with a later reveal of the same card. Residual:
+    // a watcher load that starts over the grace after the apply, while the stored table is still
+    // unrevealed, drops the line even though the reading shows the card revealed. It cannot be
+    // told apart from a later reveal by Claude of an undone card, so the line is lost, not misused.
     const unrevealed =
       slot?.stage !== 'revealed' &&
       entry.appliedAt !== undefined &&

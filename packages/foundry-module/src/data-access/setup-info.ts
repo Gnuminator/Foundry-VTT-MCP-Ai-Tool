@@ -275,7 +275,7 @@ function modulesInfo(target: string | undefined): unknown {
     })
     .sort((a, b) => a.id.localeCompare(b.id));
   // Past the cap only the exact target's row is never the one dropped; the closure behind it can
-  // be cut, and the setup tool then refuses the plan ("too many modules depend on it").
+  // be cut, and the setup tool then refuses the plan ("too many modules are linked to <target>").
   const shownRows =
     exact && rows.length > MODULE_LIST_CAP
       ? [

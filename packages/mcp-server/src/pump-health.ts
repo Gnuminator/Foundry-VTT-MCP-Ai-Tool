@@ -106,7 +106,6 @@ const REASON_TEXT: Record<GapReason, string> = {
   'ring-wrap': 'more happened between two reads than the buffer holds',
 };
 
-/** `HH:MM` in the host's local time. */
 /** HH:MM, with the date in front when the time is not today. */
 export function clockWithDay(ms: number, now: number = Date.now()): string {
   const d = new Date(ms);
@@ -116,6 +115,7 @@ export function clockWithDay(ms: number, now: number = Date.now()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${clock(ms)}`;
 }
 
+/** `HH:MM` in the host's local time. */
 export function clock(ms: number): string {
   const d = new Date(ms);
   const p = (n: number): string => String(n).padStart(2, '0');

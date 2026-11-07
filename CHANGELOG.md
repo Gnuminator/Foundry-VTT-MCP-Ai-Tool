@@ -42,7 +42,7 @@ Wire contracts: module id, socket channel, method prefix and ports are unchanged
 
 - **Party drawer fields:** the Notice DC box and the Party selects are now 2.25rem tall, so they are easy to tap.
 - **Tests:** the Who would notice skill pick is checked to stay read only, to survive a reload and to fall back to all three on a bad stored value; the Attack toast is checked to use the form's own weapon and target names when the module answer has none. The Who would notice story clears its stored choices.
-- **Attack form fixes:** the form shares the combat strip's one-write lock, Cancel and Escape do nothing while an attack runs, a failed weapon read shows its error, a vanished attacker falls back to the default one, the form says Undo does not give back ammunition, and a finished attack says so in a toast.
+- **Attack form fixes:** the form shares the combat strip's one-write lock, Cancel and Escape do nothing while an attack runs, a failed weapon read shows its error, and a vanished attacker falls back to the default one.
 - **World switch:** a feed read that was out when the world switched no longer writes the old world's cursor or events, and a fight read still out no longer brings the old fight back.
 - **Smaller fixes:** the live strip's Undo title matches its label when a change has no summary, the header says "reconnecting" instead of "reload the page" when the stream goes quiet, and the "?" detail button has a 2.25rem hit area.
 - **Live words, leftovers:** the GM Actions header tooltip uses one grammar ("GM Actions is on", "End session turns the switches off"), the Live Feed list is announced as "Live Feed events, newest first", and the GM Actions story and code comments use GM Actions and Tool Runner. Labels and comments only.

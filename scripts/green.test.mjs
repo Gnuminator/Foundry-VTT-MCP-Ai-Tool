@@ -1669,7 +1669,7 @@ test('checks.mjs: names are unique, every entry has a group, and green gets the 
   for (const h of heavy) assert.ok(names.includes(h), `HEAVY_STEPS names unknown step ${h}`);
 });
 
-test('installIsFresh: node_modules newer than the lockfile skips a local npm ci', () => {
+test('installIsFresh: node_modules/.package-lock.json newer than package-lock.json skips a local npm ci', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-'));
   try {
     assert.equal(installIsFresh(dir), false);

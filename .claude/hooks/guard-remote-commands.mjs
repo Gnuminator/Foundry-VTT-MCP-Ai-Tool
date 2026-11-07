@@ -394,22 +394,27 @@ const dockerDestroys = text =>
   scan(
     text,
     /\bdocker[ \t]+/g,
-    /(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+[ \t]+|-\S+[ \t]+)*/y,
+    /(?:(?:-H|--host|--context|-c|--config|-l|--log-level|--tlscacert|--tlscert|--tlskey)[ \t]+(?!-)\S+[ \t]+|-\S+[ \t]+)*/y,
     tailAt(
-      /(?:(?:rm|rmi|kill|stop)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop)\b)/y
+      /(?:(?:rm|rmi|kill|stop|restart)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop|restart)\b)/y
     )
   ) || followedInCommand(
     text,
     // docker's global options may sit between `docker` and `compose` (docker --context x compose down).
     [
       {
-        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
+        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level|--tlscacert|--tlscert|--tlskey)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
       },
     ],
-    /\b(?:down|rm|kill|stop)\b/g
+    /(?:\b(?:down|rm|kill|stop|restart)\b|--force-recreate\b)/g
   );
 
-/** Rules that ask: allowed only with the user's explicit OK, every time. */
+/**
+ * Rules that ask: allowed only with the user's explicit OK, every time.
+ * Decision (L113, 2026-11-07): `docker restart` and `compose restart` ask like `docker stop` (a restart is a stop),
+ * and so does `compose up --force-recreate` (it removes the old container). A raw ssh command never goes through
+ * the stage 24 quiet-table check, so the guard is the only place that asks. Plain `compose up -d` and `ps` stay free.
+ */
 const ASK = [
   [dockerDestroys, 'removing or killing containers (docker rm, kill, prune, compose down)'],
   [/\bTEST_ALLOW_CUTOVER=[^\s=]/, 'forcing the stage 24 cutover test switch on a real host'],

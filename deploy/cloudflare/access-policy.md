@@ -31,7 +31,8 @@ Legacy local-only mode depends only on configuration, not on the token: when nei
 nor `GM_DASHBOARD_TOKEN` is set, every request is treated as GM, with or without a verified
 token (safe because nothing external can reach it without the tunnel). When either is set, a
 request without a verified token (e.g. a direct localhost request, or Access misconfigured) gets
-no GM email identity and falls to the GM token check, then the player role. The token is read
+no GM email identity and falls to the GM token check, then the player role (or is refused when
+`PLAYER_DASHBOARD_TOKEN` is set and not presented). The token is read
 from the `Cf-Access-Jwt-Assertion` header, else from the `CF_Authorization` cookie.
 
 ---

@@ -217,7 +217,7 @@ pwsh scripts/test-env/reset-demo-world.ps1 -Snapshot      # save it as the clean
 ```
 
 `prepare-demo-world.mjs` deletes chat, combats and the journals live tests leave behind,
-keeps only a GM (renamed "GM") and "Player", and turns on "Allow Write Operations" and
+keeps only a GM (renamed "GM") and "Player", and turns on "AI Tool: Allow Write Operations" and
 "AI Tool: Handouts (writes)". It also adds invented prep content for the takes: a GM-only
 "Letters" journal with a letter to reveal, a "Next session" journal, one quest (through
 `create-quest-journal`) and a short recorded play session with one roll. It only runs in

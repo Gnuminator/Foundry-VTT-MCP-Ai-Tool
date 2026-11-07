@@ -210,6 +210,20 @@ describe('main: no world writes for connection state (PB-03)', () => {
     onSpy.mockRestore();
   });
 
+  it('an up is written even while the lost write is still in flight', async () => {
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
+    setSpy.mockImplementationOnce(() => new Promise(() => undefined));
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    fake.state.connectOk = true;
+    await bridge.start();
+    const states = setSpy.mock.calls
+      .filter(c => c[1] === 'linkState')
+      .map(c => (c[2] as { state: string }).state);
+    expect(states).toEqual(['lost', 'up']);
+  });
+
   it('with connection messages on, a start that connects after a lost one writes up', async () => {
     world.setSetting(MODULE_ID, 'enableNotifications', true);
     world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');

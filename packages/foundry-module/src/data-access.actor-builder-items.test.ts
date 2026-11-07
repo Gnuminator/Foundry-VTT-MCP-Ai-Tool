@@ -511,6 +511,31 @@ describe('FoundryDataAccess — useItem', () => {
     expect(result.message).toContain('targeting Goblin');
   });
 
+  it('rollAttack on a headless GM with an unresolved target leaves no targets behind', async () => {
+    noCanvasWorld();
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a2', name: 'Bandit', items: [item] });
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin', 'tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(userTargets.size).toBe(0);
+    expect(use).not.toHaveBeenCalled();
+  });
+
   it('still uses the item and says so when the no-canvas fallback fails', async () => {
     noCanvasWorld();
     headless();

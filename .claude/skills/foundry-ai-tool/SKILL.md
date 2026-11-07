@@ -28,8 +28,9 @@ The answer is `{ok, name, mutates, result}`; a tool error is HTTP 422 `{ok:false
 - Writes need `"confirm": true` in the body, destructive ones also `"confirmDestructive": true`
   (412 `confirm-required` / `confirm-destructive-required` otherwise). For `apply-planned-change`
   and `undo-change` the flags come from the body only, never from `args`.
-- With the player/GM split on (`GM_DASHBOARD_TOKEN` or `GM_EMAILS` set when starting the dashboard), send the GM
-  token as header `X-CoGM-Token`; without it `/api/tool` answers 403 `gm-required`. Don't put the
+- With the player/GM split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard; `GM_EMAILS`
+  turns it on too, but then the GM proves identity by Cloudflare Access email, not testable here),
+  send the GM token as header `X-CoGM-Token`; without it `/api/tool` answers 403 `gm-required`. Don't put the
   token in a URL; to use the dashboard UI in the browser pane, run it in local mode.
 
 ## Guarded writes

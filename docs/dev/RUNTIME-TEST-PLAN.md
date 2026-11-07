@@ -58,7 +58,7 @@ fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 
 - [ ] **Reads — finish the 4 skipped**: `get-character-entity` (entityIdentifier from a real item), `get-compendium-item` + `get-compendium-entry-full` (packId/itemId), `search-journals` (a query).
 - [ ] **Characters/items**: `get-character` (full name, partial — after fix, id, ambiguous), `search-character-items` (query/type/category combos), `use-item`, `manage-world-items` (create, list, update).
-- [ ] **Actor creation**: `create-actor-from-compendium` (1 + quantity + addToScene), `get-compendium-entry-full` — on a **test scene**.
+- [ ] **Actor creation**: `create-actor-from-compendium` (1 + quantity + addToScene), `get-compendium-entry-full`, on a **test scene**.
 - [ ] **dnd5e authoring**: `dnd5e-create-npc`, `dnd5e-add-feature`, `dnd5e-add-features-from-compendium`, attack/aura/passive/save-feature, spellcasting, add-spells — on a **throwaway test actor**, then delete it.
 - [ ] **Token manipulation**: `plan-token-change` move and update (apply, then undo), `get-token-details`, `plan-actor-change` condition (apply, then undo: **verify fix A: no dup events**), `plan-token-change` delete (test token only; undo restores its combatant).
 - [ ] **Combat tracker**: `get-combat-state`, `advance-combat-turn`, `set-initiative`, `roll-initiative-for-npcs` — in a test encounter.

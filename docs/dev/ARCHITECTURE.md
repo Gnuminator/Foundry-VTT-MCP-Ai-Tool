@@ -114,10 +114,10 @@ The module hooks Foundry's lifecycle:
   evaluation time, so it catches the earliest console/uncaught errors from _other_ modules.
 - **`ready`** — **the GM gate.** If the current user is not a GM (and the
   `allowNonGmAccess` world setting, default off, is not on), the bridge start
-  (`onReady()`) returns immediately and silently: no connection, no notifications. Other parts of
-  the module still run on every client, in their own `ready` hooks: the usage recorder, the
-  Tarokka table watch and the roll socket listener. Only for a GM does the bridge
-  read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
+  (`onReady()`) returns immediately and silently: no connection, no notifications. The same
+  `ready` hook has already started the usage recorder and the Tarokka table watch on every
+  client, and it goes on to register the roll socket listener, so those run for players too. Only
+  for a GM does the bridge read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
   if needed, and begin heartbeat monitoring + reconnect.
 
 The connection is **outbound**: the module dials the backend, not the other way around. This
@@ -550,10 +550,10 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 **Defense in depth, in layers:**
 
 1. **The `ready`-hook gate (module).** On `ready`, a non-GM user makes the bridge start (`onReady()`)
-   return immediately — no socket bridge, no query handlers doing work, no bridge UI. This is
-   silent by design: a player gets no error, no hint the bridge exists. The usage recorder, the
-   Tarokka table watch and the roll listener are separate `ready` hooks and still run on player
-   clients.
+   return immediately: no socket bridge, no query handlers doing work, no bridge UI. This is
+   silent by design: a player gets no error, no hint the bridge exists. Only `onReady()` returns
+   early. The usage recorder, the Tarokka table watch and the roll listener start in the same
+   `ready` hook and still run on player clients.
 2. **Per-handler GM validation (module).** Every query handler calls `validateGMAccess()`,
    which returns a silent failure unless `game.user.isGM` (or the opt-in `allowNonGmAccess`,
    default off). So even if a handler were reachable some other way, it does nothing for a

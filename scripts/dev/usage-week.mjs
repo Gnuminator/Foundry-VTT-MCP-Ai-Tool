@@ -350,7 +350,8 @@ export function isLaneFile(file) {
 
 // The peak context of a session as the hooks confirm it: a reading counts only when the response
 // before it was at least as big, so one doubled response never counts. The first response has no
-// response before it, so it is never confirmed on its own (as in the hook).
+// response before it, so it is never confirmed on its own (stricter than the hook, which counts a
+// single response).
 export function confirmedPeak(turns) {
   let peak = 0;
   for (let i = 1; i < turns.length; i++) {

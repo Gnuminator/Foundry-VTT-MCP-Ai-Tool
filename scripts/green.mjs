@@ -421,11 +421,34 @@ export function nodeNote(o = {}) {
 }
 
 /**
+ * True when `dir/node_modules` was written after `dir/package-lock.json`, so a local `npm ci`
+ * would only repeat the same install (10 to 30 s and network). CI always installs.
+ * @param {string} dir
+ */
+export function installIsFresh(dir) {
+  try {
+    return (
+      fs.statSync(path.join(dir, 'node_modules')).mtimeMs >
+      fs.statSync(path.join(dir, 'package-lock.json')).mtimeMs
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The default step runner: stdout and stderr of the step go straight to the log file.
  * @param {Step} step @param {number} fd @param {string} cwd
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
+  if (step.name === 'livekit-recorder-install' && !process.env.CI) {
+    const dir = path.join(cwd, 'tools', 'livekit', 'recorder');
+    if (installIsFresh(dir)) {
+      fs.writeSync(fd, 'node_modules is newer than package-lock.json: npm ci skipped\n');
+      return 0;
+    }
+  }
   const run = () => {
     // One command string with shell: true (a command plus an args array under a shell is DEP0190).
     const r = spawnSync(commandLine(step), {

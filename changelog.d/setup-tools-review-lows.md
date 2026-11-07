@@ -1,5 +1,0 @@
-### Foundry setup (D-135)
-
-- **Safer module toggles:** the modules a switch drags along are worked out again when the change is applied, so a module that went off or on since the plan is a conflict instead of a half-finished change. Modules the world or system needs stay on, incompatible ones stay off, and both are marked in the read and refused in the plan. A world with hundreds of modules plans fine (the target's whole dependency chain is read), and a module list too big to change is named. Two changes at once no longer cancel each other's reload, and a failed rollback still reloads the windows.
-- **Safer user roles:** a role plan says the user is signed out and that None means no login. Two users with one name are refused (use the id); journal and scene ownership is read per user id. Redoing a role change needs the setup switch on, the Table user's flag cannot be removed to lift its Player cap, and no guarded write can delete a person's login. The user list honours its row cap.
-- **Wording:** the setup switch hint, the Admin set text and the `target` text now name modules, user roles and journal and scene ownership.

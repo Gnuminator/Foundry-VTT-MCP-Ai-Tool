@@ -249,7 +249,9 @@ async function startBackend(): Promise<void> {
 
     enableFile: true,
 
-    filePath: path.join(os.tmpdir(), 'foundry-mcp-server', 'mcp-server.log'),
+    // LOG_FILE_PATH puts the log somewhere that survives a restart (the Pi unit sets it); the
+    // default is the temp folder, which a service with PrivateTmp loses at every restart.
+    filePath: config.logFilePath || path.join(os.tmpdir(), 'foundry-mcp-server', 'mcp-server.log'),
   });
 
   logger.info('Starting Foundry MCP Backend', {

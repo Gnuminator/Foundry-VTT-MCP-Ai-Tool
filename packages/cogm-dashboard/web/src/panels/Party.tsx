@@ -221,6 +221,7 @@ function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null
         <input
           type="number"
           id="party-notice-dc"
+          className="party-control"
           aria-label="Notice DC"
           value={dcText}
           onChange={e => setDcText(e.target.value)}
@@ -230,6 +231,7 @@ function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null
         Skill{' '}
         <select
           id="party-notice-skill"
+          className="party-control"
           aria-label="Notice skill"
           data-track="dash.party.notice-skill"
           value={skill}
@@ -530,7 +532,7 @@ export function PartyDrawer({
           {groups.length > 1 && g && (
             <select
               id="party-group"
-              className="party-group"
+              className="party-control party-group"
               aria-label="Party group"
               data-track="dash.party.group"
               value={g.actorId}

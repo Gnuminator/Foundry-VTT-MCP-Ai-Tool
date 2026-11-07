@@ -61,7 +61,7 @@ export const LAZY_LIMITS_KB = {
   InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
-  Party: 5, // 4.1 KB with the Who would notice skill picker, measured 2026-11-07 (was 3.0 KB)
+  Party: 5, // 4.1 KB measured 2026-11-07 (3.0 KB on 2026-10-16; Who would notice, the group picker and the skill picker since)
   PlayerLinks: 2, // 1.2 KB
   PreflightDrawer: 4, // 3.3 KB, measured 2026-10-31
   Prep: 4, // 3.2 KB

@@ -1288,6 +1288,26 @@ test.describe('picking combatants', () => {
     ).toBeVisible();
   });
 
+  test('Attack: a module answer without names makes the toast use the form names', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? ok({ success: true, status: 'initiated', message: 'Item use initiated' })
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    // No itemName or targets in the answer: the form's weapon and picked target fill in.
+    await expect(
+      toastLike(page, /Attack sent: Brannoc with Handaxe at Wolf\. The roll shows in the feed/)
+    ).toBeVisible();
+  });
+
   test('Attack: an attacker who left the fight falls back to the one whose turn it is', async ({
     page,
   }) => {

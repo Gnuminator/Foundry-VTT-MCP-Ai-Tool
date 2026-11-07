@@ -35,8 +35,18 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Loaded: Story = {};
+const clearNoticeChoices = (): void => {
+  localStorage.removeItem('cogm_party_notice_dc');
+  localStorage.removeItem('cogm_party_notice_skill');
+};
+
 /** I-078: DC 12 typed, Perception picked: a chip per character with its passive score and a tick or cross. */
 export const WhoWouldNotice: Story = {
+  // The play step writes both remembered choices; clear them so other stories open fresh.
+  beforeEach: (): (() => void) => {
+    clearNoticeChoices();
+    return clearNoticeChoices;
+  },
   play: async () => {
     const body = within(document.body);
     const dc = await waitFor(() => body.getByLabelText('Notice DC'), { timeout: 10_000 });

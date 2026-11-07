@@ -79,6 +79,8 @@ function fakePi({
     const cases = containers.map(c => `p-${c.service}-1) echo '${c.state}|${c.restarts}|${c.health}' ;;`).join('\n');
     stub('docker', `case "$1" in ps) printf '${names}\\n' ;; inspect) case "$4" in\n${cases}\nesac ;; esac`);
   }
+  // A CI runner has a real docker on PATH: "no docker" is a docker that answers nothing, which the script reports as null too.
+  else stub('docker', 'exit 1');
   const stats = path.join(d, 'dietpi-backup_stats');
   if (snapshotEpoch !== null) {
     writeFileSync(stats, 'x');

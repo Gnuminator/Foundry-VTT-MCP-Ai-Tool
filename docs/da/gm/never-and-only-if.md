@@ -1,6 +1,6 @@
 ---
 source: gm/never-and-only-if.md
-sourceHash: 47d7ef43ee1d
+sourceHash: 13f7fc47237e
 title: Gør aldrig det her, gør kun det her hvis
 description: Korte regler til GM'en, hver med sin begrundelse på én linje.
 ---

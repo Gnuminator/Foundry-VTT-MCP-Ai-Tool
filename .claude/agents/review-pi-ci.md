@@ -18,7 +18,7 @@ Return the finished review note as your answer.
    and a `dietpi-backup` snapshot first. A script that changes the Pi without a snapshot step or
    a read-back is a finding.
 2. **Destructive commands.** A recursive delete of an unguarded variable path is a finding;
-   it must use the `${var:?}` form (the guard hook asks the user for it; only stage 16 has a per-stage test). Check `.claude/hooks/guard-remote-commands.mjs` still allows
+   it must use the `${var:?}` form (the guard hook asks the user for it; per-stage tests sit in `scripts/pi/*.test.mjs`, check the stage has one). Check `.claude/hooks/guard-remote-commands.mjs` still allows
    read-only commands and blocks the new shape; its test file should cover it.
 3. **Exit and signal paths** (321 M1: SSH drop during MODE=up, EXIT trap dying on SIGPIPE, Pi
    stuck). Walk the failure path of each step. A fake (`curl`, `ssh`) that cannot fail in the test

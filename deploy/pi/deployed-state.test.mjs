@@ -3,7 +3,8 @@
 //   node --test deploy/pi/deployed-state.test.mjs
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -27,6 +28,11 @@ const GOOD_UNITS = {
   'foundry-ai-tool-dashboard.service': { active: 'active', sub: 'running', restarts: 0 },
   'foundry-ai-tool-gm-browser.service': { active: 'active', sub: 'running', restarts: 0 },
 };
+
+// 4000 lines overflow the pipe buffer. The stub exits 141 once a write fails, so the old `ldconfig | grep -q` pipeline
+// fails the test even where the runner ignores SIGPIPE (the write then errors instead of killing the stub).
+const LONG_LDCONFIG =
+  'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72" || exit 141; i=0; while [ $i -lt 4000 ]; do echo "libfiller$i.so.1 => /usr/lib/libfiller$i.so.1" || exit 141; i=$((i+1)); done';
 
 const OFF = { active: 'inactive', sub: 'dead', restarts: 0 };
 
@@ -69,7 +75,12 @@ function run(opts = {}) {
         : `${u}) printf 'LoadState=loaded\\nActiveState=${s.active}\\nSubState=${s.sub}\\nNRestarts=${s.restarts}\\n';;`
     )
     .join('\n');
-  const systemctl = stub(path.join(root, 'bin'), 'systemctl', `case "$2" in\n${unitCases}\nesac`);
+  const dockerActive = opts.dockerActive === false ? 1 : 0;
+  const systemctl = stub(
+    path.join(root, 'bin'),
+    'systemctl',
+    `echo "systemctl $1" >> "$CALL_LOG"\nif [ "$1" = is-active ]; then exit ${dockerActive}; fi\ncase "$2" in\n${unitCases}\nesac`
+  );
 
   let dockerPath = path.join(root, 'bin', 'no-docker');
   if (opts.containers !== null && opts.containers !== undefined) {
@@ -84,13 +95,16 @@ function run(opts = {}) {
     dockerPath = stub(
       path.join(root, 'bin'),
       'docker',
-      `case "$1" in\nps) case "$*" in *label=com.docker.compose.project=foundry-ai-tool-pi*) printf '${list}\\n';; *) printf 'runner-job-1|\\n';; esac;;\ninspect) case "$4" in\n${cases}\nrunner-job-1) echo 'exited|0|none';;\nesac;;\nesac`
+      `echo "docker $1" >> "$CALL_LOG"\n${opts.dockerPsFails ? 'if [ "$1" = ps ]; then exit 1; fi\n' : ''}case "$1" in\nps) case "$*" in *label=com.docker.compose.project=foundry-ai-tool-pi-rehearsal*) printf '${opts.rehearsal ? 'r-1\\n' : ''}';; *label=com.docker.compose.project=foundry-ai-tool-pi*) printf '${list}\\n';; *) printf 'runner-job-1|\\n';; esac;;\ninspect) case "$4" in\n${cases}\nrunner-job-1) echo 'exited|0|none';;\nesac;;\nesac`
     );
   }
-  const ldconfig = stub(path.join(root, 'bin'), 'ldconfig', opts.icu === false ? 'true' : opts.icu === 'long' ? 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"; i=0; while [ $i -lt 4000 ]; do echo "libfiller$i.so.1 => /usr/lib/libfiller$i.so.1"; i=$((i+1)); done' : 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"');
+  const ldconfig = stub(path.join(root, 'bin'), 'ldconfig', opts.icu === false ? 'true' : opts.icu === 'long' ? LONG_LDCONFIG :'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"');
 
+  const callLog = path.join(root, 'calls.log');
+  writeFileSync(callLog, '');
   const env = {
     ...process.env,
+    CALL_LOG: posix(callLog),
     TOOL_DIR: posix(tool),
     TOOL_ETC: posix(etc),
     SYSTEMCTL: systemctl,
@@ -99,7 +113,8 @@ function run(opts = {}) {
     ...(opts.expect ?? {}),
   };
   const r = spawnSync('bash', [script], { encoding: 'utf8', env });
-  return { code: r.status, out: r.stdout + r.stderr };
+  const calls = readFileSync(callLog, 'utf8').split('\n').filter(Boolean);
+  return { code: r.status, out: r.stdout + r.stderr, calls };
 }
 
 describe('deployed-state.sh', { skip: noBash }, () => {
@@ -261,6 +276,64 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   test('libicu is found when ldconfig prints a long list (no SIGPIPE under pipefail)', () => {
     const r = run({ icu: 'long' });
     assert.match(r.out, /libicu is installed/);
+  });
+
+  test('docker is queried only while docker.service is active (a stopped daemon is never socket-activated)', () => {
+    const r = run({ containers: { foundry: { state: 'running', restarts: 0, health: 'healthy' } }, dockerActive: false });
+    assert.match(r.out, /WARNING: docker is installed but not running/);
+    assert.doesNotMatch(r.out, /no containers in project|container foundry/);
+    assert.ok(!r.calls.some(c => c.startsWith('docker ')), `docker was called: ${r.calls}`);
+    assert.equal(r.code, 0, r.out);
+  });
+
+  test('a failing docker ps warns instead of reading as no containers', () => {
+    const r = run({ containers: {}, dockerPsFails: true });
+    assert.match(r.out, /WARNING: docker ps failed/);
+    assert.doesNotMatch(r.out, /no containers in project/);
+  });
+
+  test('a quoted empty value counts as missing, a quoted real value as set', () => {
+    const r = run({
+      env: {
+        'dashboard.env': 'DASHBOARD_FOUNDRY_URL=https://p.example\nOBSIDIAN_VAULT_NAME=""\n',
+        'bridge.env': "FOUNDRY_AI_OBSIDIAN_DIR=''\nFOUNDRY_AI_OPEN_BASE=\"http://pi:3000\"\n",
+        'dashboard-access.env': 'GM_DASHBOARD_TOKEN=abc\n',
+        'assistant-gm.env': 'ASSISTANT_GM_PASSWORD="pw"\n',
+      },
+    });
+    assert.match(r.out, /WARNING: dashboard\.env has no OBSIDIAN_VAULT_NAME/);
+    assert.match(r.out, /WARNING: bridge\.env has no FOUNDRY_AI_OBSIDIAN_DIR/);
+    assert.match(r.out, /ok: bridge\.env sets FOUNDRY_AI_OPEN_BASE/);
+  });
+
+  test('the helper line says which copy the hash came from', () => {
+    const helper = 'helper-v1\n';
+    const sha = createHash('sha256').update(helper).digest('hex');
+    const src = 'the v0.25.0 copy of assistant-gm.mjs';
+    const same = run({ helper, expect: { EXPECT_ASSISTANT_GM_SHA256: sha, EXPECT_ASSISTANT_GM_SOURCE: src } });
+    assert.match(same.out, /ok: Assistant GM helper matches the v0\.25\.0 copy of assistant-gm\.mjs/);
+    const diff = run({ helper, expect: { EXPECT_ASSISTANT_GM_SHA256: 'deadbeef', EXPECT_ASSISTANT_GM_SOURCE: src } });
+    assert.match(diff.out, /WARNING: Assistant GM helper differs from the v0\.25\.0 copy of assistant-gm\.mjs/);
+  });
+
+  test('read-only: the stand-ins only ever see show, is-active, ps or inspect', () => {
+    const healthy = { state: 'running', restarts: 0, health: 'healthy' };
+    const runs = [
+      run({}),
+      run({ containers: { foundry: healthy, bridge: healthy }, units: { 'foundry.service': OFF } }),
+      run({ containers: {}, dockerActive: false }),
+      run({ containers: {}, dockerPsFails: true }),
+    ];
+    const allowed = new Set(['systemctl show', 'systemctl is-active', 'docker ps', 'docker inspect']);
+    const seen = runs.flatMap(r => r.calls);
+    for (const call of seen) assert.ok(allowed.has(call), `not read-only: ${call}`);
+    assert.ok(seen.includes('docker inspect') && seen.includes('systemctl show'), 'the recorder saw nothing useful');
+  });
+
+  test('a rehearsal stack left behind warns', () => {
+    const r = run({ containers: {}, rehearsal: true });
+    assert.match(r.out, /WARNING: a rehearsal stack is present/);
+    assert.equal(r.code, 0, r.out);
   });
 
   test('missing libicu warns', () => {

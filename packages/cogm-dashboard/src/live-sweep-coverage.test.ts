@@ -9,7 +9,7 @@ const read = (relative: string): string =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 
 /**
- * Tools of tool-sets.ts the live sweep (scripts/live-write-sweep.mjs) does not run, each with
+ * Tools of the tool sets (docs/reference/TOOL-SETS.md) the live sweep (scripts/live-write-sweep.mjs) does not run, each with
  * the reason. A new write tool gets a sweep step in the same PR, or an entry here.
  */
 const RECORDED_SKIPS: Record<string, string> = {
@@ -35,45 +35,40 @@ const RECORDED_SKIPS: Record<string, string> = {
     'ships off behind the "Room setup" switch (I-133); checked by hand on server A (teleport and spawn: plan, apply, walk a token through, undo), see the PR',
 };
 
-/** Source text without `//` and block comments (a `]` in a comment must not end an array). */
-export function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
-}
-
-/** Every tool name listed in a `tools: [...]` array of tool-sets.ts. */
-export function toolSetNamesOf(source: string): string[] {
+/**
+ * Every tool name in the set bullets ("- **core:** `a`, `b`") of docs/reference/TOOL-SETS.md.
+ * The mcp-server catalog test keeps that page equal to TOOL_SETS, which tool-sets.ts derives from
+ * the tool modules, so the page is the readable source here (this package does not import the
+ * mcp-server).
+ */
+export function toolSetNamesOf(doc: string): string[] {
   const names = new Set<string>();
-  for (const block of stripComments(source).matchAll(/tools:\s*\[([^\]]*)\]/g)) {
-    for (const name of block[1].matchAll(/'([a-z][a-z0-9-]*)'/g)) names.add(name[1]);
+  const text = doc.replace(/\r\n/g, '\n');
+  const bullet = /^- \*\*(?:core|play|prep|build|admin|player):\*\*(?:[^\n]|\n(?!\n|- ))*/gm;
+  for (const block of text.matchAll(bullet)) {
+    for (const name of block[0].matchAll(/`([a-z][a-z0-9-]*)`/g)) names.add(name[1]);
   }
   return [...names];
 }
 
 function toolSetNames(): string[] {
-  return toolSetNamesOf(read('../../mcp-server/src/tool-sets.ts'));
+  return toolSetNamesOf(read('../../../docs/reference/TOOL-SETS.md'));
 }
 
 describe('live sweep coverage (I-016)', () => {
-  it('reads the names after a comment that holds a closing bracket', () => {
-    const source = [
-      "tools: ['alpha-one', // see [I-016]",
-      "  'beta-two', /* [x] */ 'gamma-three',",
-      '],',
+  it('reads the names of the set bullets of the tool sets page', () => {
+    const doc = [
+      '- **core:** `alpha-one`, `beta-two`,',
+      '  `gamma-three`',
+      '- **play:** `delta-four`',
+      '',
+      'Other text with `not-a-tool`.',
     ].join('\n');
-    expect(toolSetNamesOf(source)).toEqual(['alpha-one', 'beta-two', 'gamma-three']);
+    expect(toolSetNamesOf(doc)).toEqual(['alpha-one', 'beta-two', 'gamma-three', 'delta-four']);
   });
 
-  it('finds every quoted tool entry between TOOL_SETS and TOOL_SETS_ENV', () => {
-    const source = read('../../mcp-server/src/tool-sets.ts');
-    const start = source.indexOf('export const TOOL_SETS:');
-    const end = source.indexOf('export const TOOL_SETS_ENV');
-    const quoted = new Set<string>();
-    for (const block of stripComments(source.slice(start, end)).matchAll(
-      /tools:\s*\[([\s\S]*?)\n\s*\],/g
-    )) {
-      for (const name of block[1].matchAll(/'([a-z][a-z0-9-]*)'/g)) quoted.add(name[1]);
-    }
-    expect(toolSetNames().sort()).toEqual([...quoted].sort());
+  it('finds the tools of the tool sets page', () => {
+    expect(toolSetNames().length).toBeGreaterThan(90);
   });
 
   it('runs every write tool and every guarded plan tool, or records why not', () => {

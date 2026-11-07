@@ -18,7 +18,9 @@ import { TOOL_REF_KEY, checkToolRefs, stripToolRefs } from '@gnuminator/shared';
 import { describe, expect, it } from 'vitest';
 
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
+import { TOOL_SET_BUDGETS } from './tool-budgets.js';
 import { TOOL_HINTS } from './tool-hints.js';
+import { TOOL_MODULES } from './tools/index.js';
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
 import {
   ALL_TOOL_SET_NAMES,
@@ -37,8 +39,9 @@ const inSet = (set: (typeof ALL_TOOL_SET_NAMES)[number]): typeof tools =>
   tools.filter(t => TOOL_SETS[set].tools.includes(t.name));
 
 describe('tool catalog', () => {
-  it('lists exactly 107 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(107);
+  it('lists the tools of the tool modules in order; control methods such as record_usage are not tools', () => {
+    expect(tools.map(t => t.name)).toEqual(TOOL_MODULES.flatMap(m => Object.keys(m.tools)));
+    expect(tools.length).toBeGreaterThan(0);
     for (const method of [
       'record_usage',
       'session_switches',
@@ -60,6 +63,25 @@ describe('tool catalog', () => {
     );
   });
 
+  it('keeps the tools map of each module equal to its definitions and routes', () => {
+    const names = new Set<string>();
+    for (const module of TOOL_MODULES) {
+      const instance = deps.get(module as never) as never;
+      const defined = (module.definitions as (t: never) => { name: string }[])(instance).map(
+        d => d.name
+      );
+      expect(Object.keys(module.tools), module.id).toEqual(defined);
+      // Player tools have no call_tool route (they run only through the player_tool message).
+      const routed = defined.filter(name => module.tools[name]?.set !== PLAYER_TOOL_SET);
+      expect(Object.keys(module.routes).sort(), module.id).toEqual([...routed].sort());
+      for (const name of defined) {
+        expect(names.has(name), `${name} declared twice`).toBe(false);
+        names.add(name);
+        expect(ALL_TOOL_SET_NAMES as readonly string[], name).toContain(module.tools[name]?.set);
+      }
+    }
+  });
+
   it('annotates every parameter that names something (picker or free text)', () => {
     expect(tools.flatMap(t => checkToolRefs(t))).toEqual([]);
   });
@@ -76,24 +98,15 @@ describe('tool catalog', () => {
   });
 
   it('keeps each tool set within its size budget (characters of JSON Claude Desktop receives)', () => {
-    // Budgets with some room. Raise one only on purpose.
-    // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
-    const budget = {
-      core: 18_500, // about 18,200 with search-rules (I-152; raised 1,000 on purpose) on top of get-level-up-options (about 17,200); about 16,600 before
-      play: 50_000, // about 41,100 with the rounds field of plan-actor-change (condition-round-duration; raised 9,000 on purpose, confirmed by the user 2026-10-31); about 40,400 with wait-for-game-event (I-001; raised 1,000 on purpose, confirmed by the user 2026-10-29); about 39,400 before; about 39,000 with plan-combat-change (David's GM test; raised 1,500 on purpose, room for its start action); about 38,000 before, with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
-      prep: 22_500, // about 22,200 (22,183 measured after #620's encounter suggestions); about 22,450 with the five chosen-card arguments of plan-tarokka-import (tarokka-gm-choice, no raise); about 22,100 with the clear option of plan-tarokka-import (#507, raised 500 on purpose); about 21,900 before. Near full: the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
-      build: 29_000, // about 28,100 with plan-room-setup (I-133)
-      player: 2_500, // about 1,900; new set (D-136, player-connector-set): the five player tools, served only on /mcp/player, never on stdio
-      admin: 15_000, // raised from 10,500 to 15,000 for the placed-tokens text of plan-token-rings and room for the setup tools (the user, 2026-11-06); about 10,500 before; about 8,700 with plan-foundry-setup (D-135, part 1; raised from 8,000 to 10,500 for all three setup parts, the user's OK 2026-11-02); about 7,800 before
-    } as const;
+    // Budgets are in tool-budgets.ts (user-owned: a raise needs the user's OK).
     for (const set of ALL_TOOL_SET_NAMES) {
       const served = stripToolRefs(inSet(set));
       const size = JSON.stringify(served).length;
       // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
       // Written before the assertion, so an over-budget set still shows its (negative) room.
-      const room = budget[set] - size;
+      const room = TOOL_SET_BUDGETS[set] - size;
       process.stdout.write(
-        `tool-set headroom: ${set} ${room} characters (${size} of ${budget[set]})${room < 500 ? ' WARNING: under 500, the next tool needs a raise (the user decides)' : ''}\n`
+        `tool-set headroom: ${set} ${room} characters (${size} of ${TOOL_SET_BUDGETS[set]})${room < 500 ? ' WARNING: under 500, the next tool needs a raise (the user decides)' : ''}\n`
       );
       // A GitHub warning annotation on the CI run; nothing fails for it.
       if (room < 500 && process.env.GITHUB_ACTIONS) {
@@ -101,7 +114,7 @@ describe('tool catalog', () => {
           `::warning title=Tool-set headroom::${set} has ${room} characters left; the next tool needs a raise (the user decides)\n`
         );
       }
-      expect(size, set).toBeLessThanOrEqual(budget[set]);
+      expect(size, set).toBeLessThanOrEqual(TOOL_SET_BUDGETS[set]);
     }
   });
 

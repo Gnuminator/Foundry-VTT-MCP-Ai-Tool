@@ -41,33 +41,35 @@ in the file named by `FOUNDRY_AI_PLAYER_CONNECTOR_CONFIG`.
 
 ## What each set holds
 
-The source of truth is `packages/mcp-server/src/tool-sets.ts`; a test fails when this page and the
-code disagree. Each tool's description and parameters are in the [tool reference](tools.md).
+Each tool's set is the `set` field of its entry in the `tools` map of its module (`packages/mcp-server/src/tools/modules/`), and `tool-sets.ts` derives these lists from the modules, in the order of the tool list Claude receives. A test fails when this page and the code disagree. Each tool's description and parameters are in the [tool reference](tools.md).
 
-- **core:** `get-world-info`, `list-characters`, `get-character`, `get-character-entity`,
-  `search-character-items`, `get-level-up-options`, `list-scenes`, `get-current-scene`, `get-token-positions`,
-  `get-combat-state`, `list-journals`, `search-journals`, `search-compendium`,
-  `search-rules`, `get-compendium-item`, `list-compendium-packs`, `get-planned-change`, `apply-planned-change`,
-  `list-recent-changes`, `list-changes`, `plan-undo-changes`, `undo-change`, `open-in-foundry`,
-  `check-secret-terms`
-- **play:** `switch-scene`, `use-item`, `request-player-rolls`, `request-ability-check`,
-  `request-attack-roll`, `roll-npc-check`, `get-token-details`, `get-available-conditions`,
-  `get-chat-log`, `get-combat-play-by-play`, `send-chat-message`, `get-character-resources`,
-  `get-active-effects`, `advance-combat-turn`, `set-initiative`, `roll-initiative-for-npcs`,
-  `measure-distance`, `get-targets`, `get-recent-events`, `wait-for-game-event`, `plan-actor-change`,
-  `plan-token-change`, `roll-saving-throws`, `use-npc-activity`, `manage-rest`, `get-party`,
-  `plan-party-change`, `plan-combat-change`, `plan-scene-change`, `plan-scene-restore`, `plan-npc-turn`, `plan-paper-sync`, `plan-scene-mood`, `list-scene-moods`, `play-playlist`, `mark-play-session`, `check-action`
-- **prep:** `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`,
-  `create-campaign-dashboard`, `suggest-balanced-encounter`, `get-tarokka-reading`,
-  `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`, `plan-tarokka-reveal`,
-  `get-player-visibility`, `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`,
-  `list-ref-choices`, `get-session-log`, `get-play-session`, `get-play-stats`, `get-preflight`, `get-prep-digest`
-- **build:** `list-creatures-by-criteria`, `get-compendium-entry-full`,
-  `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
-  `dnd5e-add-features-from-compendium`, `manage-world-items`, `plan-room-setup`, `plan-pc-creation`, `plan-actor-image`
-- **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
-  `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `plan-foundry-setup`,
-  `plan-token-rings`, `get-obsidian-mirror`, `plan-obsidian-mirror`
+- **core:** `get-character`, `get-character-entity`, `list-characters`, `search-character-items`,
+  `search-compendium`, `search-rules`, `get-compendium-item`, `list-compendium-packs`,
+  `get-current-scene`, `get-world-info`, `list-scenes`, `list-journals`, `search-journals`,
+  `get-level-up-options`, `get-combat-state`, `get-token-positions`, `get-planned-change`,
+  `apply-planned-change`, `list-recent-changes`, `undo-change`, `open-in-foundry`, `list-changes`,
+  `plan-undo-changes`, `check-secret-terms`
+- **play:** `use-item`, `switch-scene`, `request-player-rolls`, `request-ability-check`,
+  `request-attack-roll`, `roll-npc-check`, `plan-scene-restore`, `plan-npc-turn`, `plan-paper-sync`,
+  `plan-scene-mood`, `list-scene-moods`, `check-action`, `get-token-details`,
+  `get-available-conditions`, `get-chat-log`, `get-combat-play-by-play`, `send-chat-message`,
+  `get-character-resources`, `get-active-effects`, `advance-combat-turn`, `set-initiative`,
+  `roll-initiative-for-npcs`, `measure-distance`, `get-targets`, `get-recent-events`,
+  `wait-for-game-event`, `roll-saving-throws`, `use-npc-activity`, `manage-rest`,
+  `mark-play-session`, `get-party`, `plan-party-change`, `plan-actor-change`, `plan-token-change`,
+  `plan-scene-change`, `play-playlist`, `plan-combat-change`
+- **prep:** `create-quest-journal`, `link-quest-to-npc`, `update-quest-journal`,
+  `create-campaign-dashboard`, `get-session-log`, `suggest-balanced-encounter`,
+  `get-tarokka-reading`, `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`,
+  `plan-tarokka-reveal`, `get-play-session`, `get-play-stats`, `get-player-visibility`,
+  `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`, `get-preflight`,
+  `get-prep-digest`, `list-ref-choices`
+- **build:** `manage-world-items`, `list-creatures-by-criteria`, `create-actor-from-compendium`,
+  `get-compendium-entry-full`, `dnd5e-add-feature`, `dnd5e-create-npc`,
+  `dnd5e-add-features-from-compendium`, `plan-room-setup`, `plan-pc-creation`, `plan-actor-image`
+- **admin:** `plan-ownership-change`, `list-actor-ownership`, `plan-token-rings`,
+  `plan-table-viewer`, `plan-foundry-setup`, `get-modules`, `get-module-errors`,
+  `clear-module-errors`, `get-module-manifest`, `get-obsidian-mirror`, `plan-obsidian-mirror`
 - **player:** `get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`,
   `get-book-entry`
 
@@ -102,9 +104,10 @@ tool.
 
 ## Adding a tool
 
-- Put it in exactly one set in `tool-sets.ts`. The tool catalog test fails otherwise, and also
-  when a set grows past its size budget.
-- Give it a title and a kind (read, write or destructive) in `tool-hints.ts`. Claude Desktop
+- Put it in exactly one set: the `set` field of its entry in the `tools` map of its module
+  (`tools/modules/`). The tool catalog test fails otherwise, and also when a set grows past its
+  size budget (`tool-budgets.ts`, which the user owns).
+- Give it a title and a kind (read, write or destructive) in the same `tools` entry (`title`, `kind`). Claude Desktop
   lets the GM allow the read-only tools once and keeps asking before the others; a test fails
   when a tool has no entry or a write is marked read-only.
 - A new feature gets **one tool with an `action` parameter** (like `manage-world-items`), not a

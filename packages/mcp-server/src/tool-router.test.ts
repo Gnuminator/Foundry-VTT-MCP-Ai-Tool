@@ -74,7 +74,11 @@ function tool(deps: ToolRouterDeps, id: string): any {
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(102);
+    // Every tool but the player set's, which runs only through the player_tool message.
+    expect(Object.keys(router)).toHaveLength(
+      TOOL_MODULES.flatMap(m => Object.values(m.tools)).filter(meta => meta.set !== 'player')
+        .length
+    );
   });
 
   it('routes direct tools to the owning method with the call args', async () => {

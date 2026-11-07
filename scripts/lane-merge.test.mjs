@@ -1006,6 +1006,12 @@ test('H1: without a drift-check on main, or with relative imports, the local scr
   assert.match(rel.text, /imports other repo files/);
 });
 
+test('the real scripts/drift-check.mjs has no relative imports and still exports runDriftCheck', () => {
+  const text = fs.readFileSync(path.join(REPO_ROOT, 'scripts', 'drift-check.mjs'), 'utf8');
+  assert.equal(hasRelativeImports(text), false, 'the gate runs a copy of it away from the repo');
+  assert.match(text, /export function runDriftCheck\b/);
+});
+
 test('hasRelativeImports', () => {
   assert.ok(hasRelativeImports(`import a from './a.mjs';`));
   assert.ok(hasRelativeImports(`export { b } from '../b.mjs';`));

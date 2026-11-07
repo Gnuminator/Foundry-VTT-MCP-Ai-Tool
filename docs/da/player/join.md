@@ -1,6 +1,6 @@
 ---
 source: player/join.md
-sourceHash: cfb3442ac819
+sourceHash: 747853503ad8
 title: Kom med i spillet
 description: 'Trin for trin med billeder: spillets webadresse, den ene e-mailkode, login til Foundry, at forlade spillet og Discord.'
 ---
@@ -103,7 +103,7 @@ skriver altid en besked, når den starter. Hvad der optages, og hvad der sker me
 ## Den skrivebeskyttede player page
 
 GM'en sender dig måske også en anden adresse: **player page**. Det er en skrivebeskyttet webside,
-praktisk på en telefon eller laptop, med combat order, session feed og de handouts, GM'en har vist
+praktisk på en telefon eller laptop, med Combat order, Live Feed og de handouts, GM'en har vist
 dig. Den er live nu. Den vil også have en e-mailkode, af samme slags som i trin 1 men et separat
 login, så det første besøg forløber på samme måde. Du behøver den ikke for at spille. Mere i
 [spillerguiden](README.md).

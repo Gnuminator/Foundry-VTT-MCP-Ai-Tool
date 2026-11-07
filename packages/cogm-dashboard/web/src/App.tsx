@@ -400,9 +400,9 @@ function Dashboard(): JSX.Element {
               <Button
                 id="btn-tools"
                 data-track="dash.header.tools"
-                title="Open the tool runner (run any bridge tool)"
+                title="Open the Tool Runner (run any bridge tool)"
               >
-                🛠 Tools
+                🛠 Tool Runner
               </Button>
             </AdvancedItem>
             <AdvancedItem

@@ -95,7 +95,7 @@ Spot-check that tool output matches what Foundry shows:
 
 **GM view (`/`):**
 
-- [ ] Live feed: events render correctly, in order, **no duplicates** (fix A), buffer cap respected.
+- [ ] Live Feed: events render correctly, in order, **no duplicates** (fix A), buffer cap respected.
 - [ ] Combat panel: initiative/turn/HP track the game. The strip has Damage / Heal, Condition and Clear (GM Actions on).
 - [ ] Tool Runner: search, schema-driven forms, read vs write vs destructive gating, confirm + destructive double-confirm, results in drawer, error display.
 - [ ] Settings: diagnostics, GM Actions master switch — persist + broadcast.

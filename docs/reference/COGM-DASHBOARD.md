@@ -3,7 +3,7 @@
 A live **GM dashboard** that runs in a browser next to Foundry VTT. It watches the game as it
 happens and lets you run parts of it from the page.
 
-![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip, the live feed and the party card](../images/cogm/overview.png)
+![The During screen: the combat tracker as an initiative ribbon with portraits and a combat order strip, the Live Feed and the party card](../images/cogm/overview.png)
 
 Before a session the page opens on **Before**, with Pre-flight and Prep:
 
@@ -18,7 +18,7 @@ Before a session the page opens on **Before**, with Pre-flight and Prep:
 - **Live combat tracker**: initiative order, current turn, HP bars, conditions, and death saves,
   all updating in real time. A ribbon of portraits shows who is up now and who is next; click one
   to pan Foundry to that token.
-- **Live event feed**: damage, healing, deaths, conditions, spell slots and more, color-coded by
+- **Live Feed**: damage, healing, deaths, conditions, spell slots and more, color-coded by
   type as they happen.
 - **Module diagnostics**: a running log of Foundry module errors and warnings so you catch a broken
   module mid-session.
@@ -36,7 +36,7 @@ look ahead or back):
   Claude can never switch on its own writes.
 - **During** (a session is running, after **Start session**): the Live Feed with the roll
   breakdowns in the middle; the party, handouts with who has seen them, and Recent Changes with
-  Undo beside it; the turn order as a slim strip at the top. Turns run in Foundry: the dashboard
+  Undo beside it; the combat order as a slim strip at the top. Turns run in Foundry: the dashboard
   watches, remembers and can take back changes made through the tool.
 - **After** (the session ended in the last 12 hours): tonight's stats on top (rolls with natural
   20s and 1s, the hero with the most damage, the highest d20 roll by a hero, who went down), the
@@ -50,7 +50,7 @@ help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the GM guides, the Prep, Party, Handouts and Tarokka
 panels (a panel already on the screen is scrolled to; otherwise it opens over the page), After a
-paper night, the Tools, module diagnostics, the player links and the During
+paper night, the Tool Runner, module diagnostics, the player links and the During
 layouts entry, and the Version tracker (on by default; Advanced turns it off).
 
 ### My character, one page per player
@@ -81,16 +81,16 @@ with secret sections and unidentified items' true names left out.
 
 ### Damage and conditions on several creatures at once
 
-![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](../images/cogm/combat-control.png)
+![The Combat order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](../images/cogm/combat-control.png)
 
-- **Click combatants in the During view's turn-order strip to multi-select** them.
+- **Click combatants in the During view's combat order strip to multi-select** them.
 - **Damage / Heal** opens a small form (amount, damage type chips, Damage or Heal) that applies at
   once to the picked creatures; dnd5e works out resistances, vulnerabilities and immunities, the
   toast has Undo and Recent Changes keeps the change. **Condition** opens condition chips: a chip
   plans it, one plain confirm asks, and it applies with Undo.
 - **Ask for a roll** (Party card and the strip): pick a check, save or skill, a DC and public or
   private, then ask one player or the whole party in one click; it shows in the play log.
-- The strip can start a fight (a token picker) and end one. Turn order, initiative and saving
+- The strip can start a fight (a token picker) and end one. The turn sequence, initiative and saving
   throws stay in Foundry's own combat tracker.
 
 ### Do (almost) anything the bridge can do
@@ -127,4 +127,4 @@ cd packages/cogm-dashboard
 npm run dev          # → http://localhost:3000
 ```
 
-No API key is needed: the live feed, combat tracker, diagnostics and GM Actions all work without one.
+No API key is needed: the Live Feed, combat tracker, diagnostics and GM Actions all work without one.

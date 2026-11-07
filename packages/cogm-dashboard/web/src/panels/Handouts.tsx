@@ -447,7 +447,7 @@ export function HandoutsDrawer({
           <Button
             id="handouts-add"
             data-track="dash.handouts.queue-page"
-            title="Queue a page for later: opens the tool runner on plan-page-reveal"
+            title="Queue a page for later: opens the Tool Runner on plan-page-reveal"
             onClick={() => onQueuePage(s?.activeSceneId ?? null)}
           >
             + Queue a page

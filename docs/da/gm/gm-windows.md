@@ -1,6 +1,6 @@
 ---
 source: gm/gm-windows.md
-sourceHash: 8864a4549f1e
+sourceHash: 2bfd69f14020
 title: GM-vinduerne
 description: Fem små vinduer i Foundry (Combat, Party, Session, Scene, Loot), der holder det, du ser mest på under spillet, ved siden af kortet, hvor de bor, og hvad hvert af dem er til.
 ---
@@ -45,7 +45,7 @@ trække i dem og ændre deres størrelse som alle andre Foundry-vinduer.
 
 ![Vinduet Combat](../../images/guides/gm-window-combat.png)
 
-Rækkefølgen i den igangværende combat: rounden, initiative, og for hver skabning hit
+Combat order i den igangværende combat: rounden, initiative, og for hver skabning hit
 points (en grøn bjælke, med temporary hit points i parentes), conditions, og mærker for **Defeated**
 og **Hidden** (en skjult skabning er skjult for spillerne, men du ser den stadig her).
 Den skabning, hvis turn det er, har en orange ramme.

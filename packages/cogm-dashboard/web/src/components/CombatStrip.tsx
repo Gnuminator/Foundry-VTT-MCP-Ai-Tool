@@ -660,7 +660,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
               live={live}
               off={liveOff}
               label="End combat"
-              hint="Damage, conditions and rolls on the combatants need live play."
+              hint="Damage, conditions and rolls on the combatants need GM Actions."
             />
           )}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
@@ -764,7 +764,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
         ? {
             bodyProps: {
               role: 'list',
-              'aria-label': 'Turn order',
+              'aria-label': 'Combat order',
               // The row scrolls sideways on a narrow screen; with nothing in it to Tab to, the
               // keyboard needs the list itself to scroll it.
               ...(hasControls ? {} : { tabIndex: 0 }),

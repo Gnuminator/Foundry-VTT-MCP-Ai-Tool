@@ -30,7 +30,7 @@ Claude does not watch the game on its own. It reads what it needs at the moment 
 - The Tarokka reading and the list of revealed handouts (GM only).
 
 It can also act: roll for NPCs, apply damage or healing, move tokens, set conditions, add NPCs from
-compendiums, write journals, send chat messages, and more. The dashboard's tool runner shows every
+compendiums, write journals, send chat messages, and more. The dashboard's Tool Runner shows every
 tool Claude has.
 
 ## Good requests

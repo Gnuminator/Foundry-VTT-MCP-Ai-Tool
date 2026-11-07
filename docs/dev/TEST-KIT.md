@@ -423,7 +423,7 @@ cast them all. The dashboard scenarios and `foundry-controls` are real-browser s
 named in the table and in the text after it.
 
 `dashboard-write-flows` and `dashboard-login-split` need a real browser (`t.browser`), so against the fake
-they skip themselves; so does `player-character-creation` (`t.joinFoundry`). The write flows click the real page (the tool runner form and its confirm window, Undo
+they skip themselves; so does `player-character-creation` (`t.joinFoundry`). The write flows click the real page (the Tool Runner form and its confirm window, Undo
 in Recent Changes and on the toast, the Tarokka, Party and Handouts drawers, a map note, the player links),
 read Foundry or the bridge to see the change is there, undo it and read again; they put everything back, also
 after a failure (the throwaway handout journal and the "Kit Party" group stay in the kit world). The Tarokka,
@@ -470,7 +470,7 @@ dashboard API request that answers 400 or more is recorded as `HTTP <status> <me
 <error>` (the tool's name and the server's error, never its arguments) in place of the browser's bare
 "Failed to load resource" line. A row whose drawer starts its own run on opening (Prep, Pre-flight) waits
 for that run to end (`idle`) before it clicks, because the run's redraw would undo the click. The
-tool runner's Pick button and the player page's name picker are required rows: every kit world has tools with
+Tool Runner's Pick button and the player page's name picker are required rows: every kit world has tools with
 a picker and the kit player user. The sweep turns GM Actions on for the run (put back afterwards) so the
 Everything tab's Undo opens its window, and walks that window read-only: Just this, Everything since and the
 rewind under Advanced only plan, Apply is never clicked. The sweep puts the page back after

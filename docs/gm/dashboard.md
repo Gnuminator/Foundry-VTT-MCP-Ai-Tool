@@ -22,7 +22,7 @@ follow your evening, and you can click any of them at any time.
 
 - **Before**: the Pre-flight check and the Prep panel, the **Pick your During layout** card
   (until you have picked a layout).
-- **During**: the turn-order strip, the Live Feed, and Handouts, Party and Recent Changes.
+- **During**: the Combat order strip, the Live Feed, and Handouts, Party and Recent Changes.
 - **After**: Tonight's stats and the Session notes, with Prep, Handouts and Recent Changes.
 
 The page picks a view for you: **During** while a session is open, **After** for 12 hours after
@@ -54,38 +54,38 @@ page and Obsidian follow it.
 Marks the start and the end of a play session. The tool uses these marks to write one Obsidian note
 per session and to group the play log.
 
-- **Start session** is the button in the header. It also turns on live play: GM Actions and every
-  **Turn on for tonight** switch (see "Live play on" below).
+- **Start session** is the button in the header. It also turns on GM Actions and every
+  **Turn on for tonight** switch (see "GM Actions on" below).
 - Click **Start session** when play begins. The text changes to "Session since 19:30".
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
   again what **Turn on for tonight** turned on (see below), and GM Actions.
-- Starting a session writes a line in the tool's own log and turns live play on, so tools that
+- Starting a session writes a line in the tool's own log and turns GM Actions on, so tools that
   change the game can run after you confirm.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The Obsidian button next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
 
-### Live play on
+### GM Actions on
 
-**Start session** is the only switch for live play. One click turns on GM Actions and every
-**Turn on for tonight** switch; **End session** turns them off again. The line in the header
-shows the state and opens the list of switches. When the page cannot read the switches, the line
+**Start session** is the only switch for GM Actions. One click turns on GM Actions and every
+**Turn on for tonight** switch; **End session** turns them off again. The button in the header
+shows the state and opens the list of switches. When the page cannot read the switches, the button
 says so (and still says if GM Actions is off).
 
-- **Live play on**: tools that change the game can run after you confirm, and Undo in
+- **GM Actions on**: tools that change the game can run after you confirm, and Undo in
   Recent Changes works.
-- **Something is off** (the button says "Live play off: Turn on"; hover it to see what is off): the controls that need it stay on
+- **Something is off** (the button says "GM Actions off: Turn on"; hover it to see what is off): the controls that need it stay on
   the screen, greyed out, with the reason and a **Turn on** button next to them. One click turns
   everything on, the same as Start session.
 - It only guards the dashboard. It does not stop Claude Desktop.
 - Restarting the dashboard turns GM Actions off again.
 
-The header has no off control. Start session turns live play on; **End session** or Pre-flight's
+The header has no off control. Start session turns GM Actions on; **End session** or Pre-flight's
 **Turn them off again** turns it off.
 
-### 🛠 Tools (Advanced)
+### 🛠 Tool Runner (Advanced)
 
-Under **Advanced ▾**, Tools. Opens the tool runner. See "The tool runner" below.
+Under **Advanced ▾**, **Tool Runner**. Opens the Tool Runner. See "The Tool Runner" below.
 
 ### ✈ Pre-flight
 
@@ -117,7 +117,7 @@ A refusal toast ("... is switched off") offers the same click as a button, "Turn
 rest for tonight": it turns on all of the above, not only the named switch.
 
 Only the dashboard can do this, from the GM's login. Claude has no tool for it, so Claude can never
-switch on its own writes. **Start the session log and live play** next to it is the same as **Start session** in
+switch on its own writes. **Start the session log and GM Actions** next to it is the same as **Start session** in
 the header.
 
 ### 📜 Handouts (Advanced)
@@ -173,12 +173,12 @@ The game happens in Foundry; the **During** screen sits next to it and keeps an 
 It comes in three layouts. Pick one with **Layout** at the top of the screen:
 
 - **Cards**: the Live Feed is the big column. Recent Changes, Handouts and Party
-  are cards at the side; open any of them, also together. The turn order shows only while a
+  are cards at the side; open any of them, also together. The Combat order shows only while a
   fight runs.
 - **Simple/Full**: Simple shows only the Live Feed, Recent Changes and Handouts. **Show
-  everything** switches to Full: the turn order and Party as well, all open. **Show less** goes
+  everything** switches to Full: the Combat order and Party as well, all open. **Show less** goes
   back.
-- **Auto** (the default): follows the game. Without a fight it looks like Cards. When combat starts, the turn
+- **Auto** (the default): follows the game. Without a fight it looks like Cards. When combat starts, the Combat
   order grows and Party opens in the big column; the Live Feed folds to the side.
 
 The **Try layouts** button next to **Layout** starts the trial any time, with a sample fight so
@@ -203,7 +203,7 @@ it is (highlighted), and each combatant's HP bar and numbers. Each row is tagged
 or **NPC**. The top line shows the round and the number of combatants. Turns, initiative and saves
 stay in Foundry's own combat tracker, and damage normally goes through dnd5e's chat cards there.
 
-Above the rows is the **initiative ribbon**: one strip in turn order, starting with whoever is up.
+Above the rows is the **initiative ribbon**: one strip in combat order, starting with whoever is up.
 That creature is large with their name; the next two are clear, and the rest fade out towards the
 right. Each has a ring in the colour of its side (PC, Enemy or NPC), its token portrait (its
 initials when it has none), its initiative, a small HP bar and its first two conditions, with
@@ -216,7 +216,7 @@ Defeated creatures are dimmed and never count as next. The ribbon never changes 
 only moves that screen's view.
 
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
-conditions on several combatants at once. While a fight runs and live play is on (**Start session**
+conditions on several combatants at once. While a fight runs and GM Actions is on (**Start session**
 turns it on), click combatant rows to select them (click again to unselect). With one or more selected:
 
 - **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
@@ -246,7 +246,7 @@ Changes. A switch that is off keeps the buttons grey and says which one (**Turn 
 it for the first two). Presets are saved by asking Claude to save the scene's look as a preset; if
 you switch scene while the panel is open, the next click reloads the list instead of applying.
 
-**Conditions** (a button on the During bar, with live play and GM Actions on; it works in a fight and
+**Conditions** (a button on the During bar, with GM Actions on; it works in a fight and
 out of one): tick tokens on the scene you are viewing, pick a condition, then **Add** or **Remove**.
 It applies at once, with **Undo**, and there is no confirm window. For Exhaustion, Add raises one
 level and Remove clears them all. A **rules** link by each condition opens dnd5e's own page for it
@@ -270,7 +270,7 @@ first boss fight. It shows:
 - **Legendary** and **Resist** pips on each boss row: filled for uses left this round, as dnd5e
   counts them (a creature in its lair can have one more). Spend them on the creature's sheet in
   Foundry; the pips follow within a few seconds.
-- **🏰 Lair action** reminder when the turn order passes initiative 20 (or the lair's own count),
+- **🏰 Lair action** reminder when initiative passes 20 (or the lair's own count),
   for a creature whose "in lair" box is ticked on its sheet.
 - **⚡ legendary actions left** for each boss that is not taking its own turn.
 - An **R** button on each boss that is still up: click it when that creature uses its reaction. The marks clear at
@@ -494,10 +494,10 @@ The confirm window opens first for:
   line with no tick, on both strips: Undo brings the fight back.
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Any plan made in the tool runner**, so you see which targets it hits before it applies. (The
+- **Any plan made in the Tool Runner**, so you see which targets it hits before it applies. (The
   strip's Damage / Heal form applies at once, with Undo; its Condition chips and End combat ask in
   one line.)
-- **Older tools without a plan** (from the tool runner), which have no Undo.
+- **Older tools without a plan** (from the Tool Runner), which have no Undo.
 
 In the confirm window:
 
@@ -509,7 +509,7 @@ In the confirm window:
   action**. The exception is **End combat** on the strips: it asks in one line with no tick, and
   Undo brings the fight back.
 
-## The tool runner (🛠 Tools)
+## The Tool Runner (🛠 Tool Runner)
 
 A drawer on the side with every tool the bridge has, the same tools Claude uses. Use it when you
 want to do one exact thing yourself, or to apply a plan Claude made.
@@ -544,7 +544,7 @@ one to fill the field. You can still type by hand.
 When Claude plans a change in Claude Desktop, you can apply it from the dashboard:
 
 1. Turn on **GM Actions**.
-2. Open **🛠 Tools**, search for `apply-planned-change`.
+2. Open **🛠 Tool Runner**, search for `apply-planned-change`.
 3. Click **Pick from list** next to `planId` and choose the plan.
 4. Click **Plan and confirm**. The confirm window shows the plan's summary and what will change.
 5. Confirm. The change appears in **Recent Changes** with **Undo**.
@@ -607,7 +607,7 @@ pages show here: a new journal (one Claude just made, say) is not listed until y
   Tick **Show it now** next to it to also pop the page up on the screens of the players it is for
   (everyone when it is for every player). It is off every time unless you tick it, and Undo cannot
   close the popup.
-- **+ Queue a page**: opens the tool runner on `plan-page-reveal` with `action` queue. Pick the page,
+- **+ Queue a page**: opens the Tool Runner on `plan-page-reveal` with `action` queue. Pick the page,
   optionally a scene and the players it is for, and run it.
 - **Revealed**: each handout, who it is for, and a tick for each player who has opened it on the
   player page (hover for the time).
@@ -687,7 +687,7 @@ card in Foundry's chat). Claude uses the same actions with `get-party` and `plan
 
 The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
 to check what they see. It follows the evening. While a session is open (or a fight runs) the live
-cards come first: Combat order, Session feed, then Handouts. Between sessions it leads with Last
+cards come first: Combat order, Live Feed, then Handouts. Between sessions it leads with Last
 recap, Handouts and Quests, and the live cards move down. Its parts:
 
 - **Who are you?** On a player's first visit, a list of names. The pick only decides which
@@ -702,7 +702,7 @@ recap, Handouts and Quests, and the live cards move down. Its parts:
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
   have no HP numbers and no band: players ask you who is hurt. (The rough band, healthy, bloodied, critical, down, is a switch for the host: `PLAYER_SHOW_ENEMY_HP_BANDS=true`.) Only standard conditions show. Hidden creatures are left out, and a creature
   whose name players cannot see is "Unknown creature".
-- **Session feed**: public rolls and what players could see happen, with creatures named the way
+- **Live Feed**: public rolls and what players could see happen, with creatures named the way
   players know them. Private, blind and GM rolls never show. Damage and healing amounts show for
   PCs only (others just "was hit").
 - **Last recap**: the newest revealed page whose title says "recap" (or "opsummering", "resume").

@@ -146,7 +146,7 @@ export function ribbonSummary(items: readonly RibbonItem[]): string {
   const creatures = items.filter((i): i is RibbonCreature => i.kind === 'creature');
   const current = creatures.find(c => c.role === 'current');
   const next = creatures.filter(c => c.role === 'next').map(c => c.name);
-  if (!current) return 'Turn order';
+  if (!current) return 'Combat order';
   if (next.length === 0) return `${current.name} is up`;
   return `${current.name} is up, then ${next.join(' and ')}`;
 }

@@ -59,7 +59,6 @@ export function HealthLine(): JSX.Element {
                 className="health-more"
                 aria-expanded={open === p.key}
                 aria-label={`Details about ${p.label}`}
-                data-track="dash.health.detail"
                 onClick={() => setOpen(open === p.key ? null : p.key)}
               >
                 ?

@@ -531,6 +531,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/App.tsx',
   },
   {
+    name: 'dash.health.detail',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/HealthLine.tsx',
+  },
+  {
     name: 'dash.help.during-layouts',
     kind: 'action',
     surface: 'dashboard',

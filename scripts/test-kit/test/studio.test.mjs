@@ -195,6 +195,27 @@ test('a new hero that cannot spend its spell slots or starts hurt is reported', 
     'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind'
   );
   assert.equal(con(17, 3, 145)?.kind, 'STUDIO');
+  // a sum of increase levels is explained (4 + 6 = 10), one level's hit points (7 to 10 missing) is not
+  const own =
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
+  const plain = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
+  assert.equal(con(17, 3, 147)?.id, own);
+  assert.equal(con(17, 3, 150)?.id, plain); // 7 missing
+  assert.equal(con(17, 3, 148)?.id, plain); // 9 missing
+  assert.equal(con(17, 1, 145)?.id, own); // two terms are allowed at modifier +1: 12 is one
+  assert.equal(con(17, 1, 128)?.id, plain); // 29 would need more terms than modifier +1 allows
+  assert.equal(con(4, 2, 153)?.id, own); // level 4, 4 missing
+  // a hit point effect keeps the SYSTEM finding whatever the shortfall looks like
+  const s = pair();
+  s.studio.actor.level = 17;
+  s.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  s.studio.actor.hp.max = 157;
+  s.studio.actor.hp.value = 145;
+  s.studio.actor.hp.sources = [{ item: 'Draconic Resilience', keys: [] }];
+  assert.equal(
+    compareHeroes(s).problems.find(p => p.category === 'current hit points')?.kind,
+    'SYSTEM'
+  );
   assert.equal(
     con(3, 3, 145)?.id,
     'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'

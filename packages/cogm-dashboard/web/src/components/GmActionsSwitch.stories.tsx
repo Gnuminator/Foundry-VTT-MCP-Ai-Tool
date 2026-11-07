@@ -11,10 +11,10 @@ import type { DashboardParameters } from '../storybook/withDashboard';
 
 import { LivePlayLine } from './GmActionsSwitch';
 
-// The live play line in the header: "Live play on" or what is off with a Turn on. Start
-// session is the only switch; the line shows the state and its list holds one Turn on.
+// The GM Actions button in the header: "GM Actions on" or what is off with a Turn on. Start
+// session is the only switch; the button shows the state and its list holds one Turn on.
 const meta = {
-  title: 'Components/Live play line',
+  title: 'Components/GM Actions switch',
   parameters: { layout: 'fullscreen' },
 } satisfies Meta;
 
@@ -58,7 +58,7 @@ const seed = (
   },
 });
 
-/** Live play is off: the line names what is off. */
+/** GM Actions is off: the button names what is off. */
 export const Off: Story = {
   parameters: seed(false, SWITCHES_READY),
   render,

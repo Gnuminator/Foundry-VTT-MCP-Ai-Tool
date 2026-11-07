@@ -8,7 +8,7 @@ import { Button, Popover } from '../ui';
 const GM_ACTIONS_NAME = 'GM Actions';
 
 /**
- * The live play line in the header: "Live play on", or "Live play off: Turn on" with what is off
+ * The GM Actions button in the header: "GM Actions on", or "GM Actions off: Turn on" with what is off
  * in the tooltip and the accessible name. Start session is the only switch (it turns on GM Actions and every Turn on for
  * tonight switch, End session turns them off); this line only shows the state and opens the list
  * of switches, with one Turn on for whatever is off. When the module's switches cannot be read it
@@ -38,11 +38,11 @@ export function LivePlayLine(): JSX.Element {
   const isOn = !live.unreadable && names.length === 0;
   const tip = live.unreadable
     ? gmActions
-      ? 'The GM Actions switches could not be read. Start session turns GM Actions on and End session turns them off.'
-      : `${offReason([GM_ACTIONS_NAME])}. Start session turns GM Actions on and End session turns them off.`
+      ? 'The GM Actions switches could not be read. Start session turns GM Actions on; End session turns the switches off.'
+      : `${offReason([GM_ACTIONS_NAME])}. Start session turns GM Actions on; End session turns the switches off.`
     : names.length === 0
-      ? 'GM Actions are on: everything is switched on. End session turns them off.'
-      : `${offReason(names)}. Start session turns GM Actions on and End session turns them off.`;
+      ? 'GM Actions is on: everything is switched on. End session turns the switches off.'
+      : `${offReason(names)}. Start session turns GM Actions on; End session turns the switches off.`;
   return (
     <Popover
       label="GM Actions switches"

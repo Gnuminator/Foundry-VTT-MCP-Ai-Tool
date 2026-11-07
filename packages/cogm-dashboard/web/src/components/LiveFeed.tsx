@@ -192,7 +192,7 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
       {...(face === 'ready' ? {} : { stateMessage: messageFor(face, log) })}
       bodyProps={{
         role: 'list',
-        'aria-label': 'Live feed events, newest first',
+        'aria-label': 'Live Feed events, newest first',
         ref: listRef,
         // Nothing in the list takes the Tab key, so once it scrolls the list itself is the tab stop
         // that lets the keyboard scroll it; a list that fits is not one.

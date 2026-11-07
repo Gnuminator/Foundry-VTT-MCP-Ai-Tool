@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
+import { userEvent, waitFor, within } from 'storybook/test';
 
 import { Opened } from '../storybook/Opened';
 import { bridgeDown, fail, gmActionsOff, pending, toolOk, type Reply } from '../storybook/fakeApi';
@@ -34,6 +35,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Loaded: Story = {};
+/** I-078: DC 12 typed, Perception picked: a chip per character with its passive score and a tick or cross. */
+export const WhoWouldNotice: Story = {
+  play: async () => {
+    const body = within(document.body);
+    const dc = await waitFor(() => body.getByLabelText('Notice DC'), { timeout: 10_000 });
+    await userEvent.clear(dc);
+    await userEvent.type(dc, '12');
+    await userEvent.selectOptions(body.getByLabelText('Notice skill'), 'perception');
+  },
+};
 export const OneCharacter: Story = { parameters: answer(toolOk(partyOf(1))) };
 export const EightCharacters: Story = { parameters: answer(toolOk(PARTY_OF_EIGHT)) };
 export const LongNames: Story = { parameters: answer(toolOk(PARTY_LONG_NAMES)) };

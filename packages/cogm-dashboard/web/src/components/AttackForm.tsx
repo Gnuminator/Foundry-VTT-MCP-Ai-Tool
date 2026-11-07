@@ -144,8 +144,18 @@ export function AttackForm({
         if (outcome.status === 'done') {
           // The form closes, so the line goes in a toast. The module only says the attack was
           // started (it does not wait for the roll), so the line claims no more than that.
+          // Item and targets as the module resolved them; the form's own names when it says none.
+          const result = outcome.result as { itemName?: unknown; targets?: unknown } | null;
+          const itemName =
+            typeof result?.itemName === 'string' && result.itemName
+              ? result.itemName
+              : (weapon?.name ?? 'the weapon');
+          const hit = Array.isArray(result?.targets)
+            ? result.targets.filter((t): t is string => typeof t === 'string')
+            : [];
+          const at = hit.length > 0 ? hit.join(', ') : targetName;
           toast(
-            `✓ Attack sent: ${attacker?.name ?? 'the attacker'} with ${weapon?.name ?? 'the weapon'} at ${targetName}. The roll shows in the feed.`,
+            `✓ Attack sent: ${attacker?.name ?? 'the attacker'} with ${itemName} at ${at}. The roll shows in the feed.`,
             'ok'
           );
           closed = true;

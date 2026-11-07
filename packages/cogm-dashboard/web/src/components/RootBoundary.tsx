@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { Button } from '../ui';
+
 /**
  * The last net under the whole page (item gm-health-line): a render error anywhere that has no
  * boundary of its own (GmPage, LiveStrip, the header) would blank the page and the GM would read a
@@ -26,13 +28,13 @@ export class RootBoundary extends Component<{ children: ReactNode }, { failed: b
           What was on screen may be out of date, and nothing here is live now. The game itself is
           not affected. Reload the page to get it back.
         </p>
-        <button
-          type="button"
+        <Button
+          variant="primary"
           data-track="dash.crash.reload"
           onClick={() => window.location.reload()}
         >
           Reload the page
-        </button>
+        </Button>
       </main>
     );
   }

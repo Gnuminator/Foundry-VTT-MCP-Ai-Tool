@@ -4,7 +4,7 @@
 // wide. The bridge and the stream are faked; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, type ToolCall } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, type ToolCall } from './support';
 
 interface Raw {
   id: string;
@@ -403,6 +403,36 @@ test('with no fight it says so and has no pick bar', async ({ page }) => {
   await load(page);
   await expect(page.locator('#live-strip')).toContainText('No fight.');
   await expect(pickBar(page)).toHaveCount(0);
+});
+
+const AWAY_BASE = {
+  lastError: null,
+  lastPollAt: null,
+  foundryDownSince: null,
+};
+
+test('with no fight and the bridge away it says "The bridge is away."', async ({ page }) => {
+  await setup(page, null);
+  await fakeStream(page, [
+    {
+      event: 'status',
+      data: { ...AWAY_BASE, controlChannel: 'disconnected', foundry: 'unknown' },
+    },
+  ]);
+  await load(page);
+  await expect(page.locator('#live-meta')).toHaveText('The bridge is away.');
+});
+
+test('with no fight and Foundry away it says "Foundry is away."', async ({ page }) => {
+  await setup(page, null);
+  await fakeStream(page, [
+    {
+      event: 'status',
+      data: { ...AWAY_BASE, controlChannel: 'connected', foundry: 'unreachable' },
+    },
+  ]);
+  await load(page);
+  await expect(page.locator('#live-meta')).toHaveText('Foundry is away.');
 });
 
 for (const width of [1440, 400]) {

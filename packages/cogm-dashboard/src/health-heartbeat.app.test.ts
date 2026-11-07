@@ -37,7 +37,7 @@ afterEach(async () => {
   await Promise.all(running.splice(0).map(h => h.close()));
 });
 
-async function start(statusHeartbeatMs: number): Promise<Harness> {
+async function start(statusHeartbeatMs: number, recordingHealthMs?: number): Promise<Harness> {
   const testConfig: Config = {
     ...config,
     host: '127.0.0.1',
@@ -50,6 +50,7 @@ async function start(statusHeartbeatMs: number): Promise<Harness> {
     logger: new Logger('error', 'health-heartbeat-test'),
     client: fakeBridge,
     statusHeartbeatMs,
+    ...(recordingHealthMs === undefined ? {} : { recordingHealthMs }),
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -110,5 +111,81 @@ describe('status heartbeat', () => {
     ctrl.abort();
     // One on connect, then at least two from the timer.
     expect((text.match(/event: status/g) ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+async function readStream(port: number, ms: number): Promise<string> {
+  const ctrl = new AbortController();
+  const res = await fetch(`http://127.0.0.1:${port}/api/stream`, {
+    headers: { 'x-cogm-token': GM_TOKEN },
+    signal: ctrl.signal,
+  });
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  const stop = setTimeout(() => ctrl.abort(), ms);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value);
+    }
+  } catch {
+    // aborted: the time is up
+  }
+  clearTimeout(stop);
+  return text;
+}
+
+describe('status clock', () => {
+  it("stamps every status event with the server's clock, for a page whose own clock is off", async () => {
+    const h = await start(40);
+    const text = await readStream(h.port, 300);
+    const data = [...text.matchAll(/event: status\ndata: (.*)\n/g)].map(m => m[1] ?? '');
+    expect(data.length).toBeGreaterThan(1);
+    for (const line of data) {
+      const now = (JSON.parse(line) as { now?: string }).now;
+      expect(Date.parse(now ?? '')).not.toBeNaN();
+    }
+  });
+});
+
+describe('recording-health event', () => {
+  it('replays on connect and is sent again only when it changes', async () => {
+    const h = await start(60_000, 30);
+    const text = await readStream(h.port, 500);
+    const sent = (text.match(/event: recording-health/g) ?? []).length;
+    // On connect, plus at most the first change; the ~15 timer ticks after that find the same
+    // dots and stay quiet.
+    expect(sent).toBeGreaterThanOrEqual(1);
+    expect(sent).toBeLessThanOrEqual(3);
+    expect(text).toContain('"playLog"');
+  });
+
+  it('starts its timers on start() and clears them on close()', async () => {
+    const realSet = global.setInterval;
+    const realClear = global.clearInterval;
+    const created = new Set<unknown>();
+    const cleared = new Set<unknown>();
+    global.setInterval = ((...args: Parameters<typeof setInterval>) => {
+      const t = realSet(...args);
+      created.add(t);
+      return t;
+    }) as typeof setInterval;
+    global.clearInterval = ((t: Parameters<typeof clearInterval>[0]) => {
+      cleared.add(t);
+      return realClear(t);
+    }) as typeof clearInterval;
+    try {
+      const h = await start(60_000, 30);
+      await h.close();
+      running.splice(running.indexOf(h), 1);
+    } finally {
+      global.setInterval = realSet;
+      global.clearInterval = realClear;
+    }
+    expect(created.size).toBeGreaterThanOrEqual(2);
+    // The heartbeat and the recording-health timer are among those cleared.
+    expect(cleared.size).toBeGreaterThanOrEqual(2);
   });
 });

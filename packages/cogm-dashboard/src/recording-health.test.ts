@@ -47,6 +47,17 @@ describe('playLogDot', () => {
     expect(playLogDot([{ ...OK, lastError: err }], NOW)?.tone).toBe('warn');
     // Only an error: no gap marker was written, so the dot does not mention one.
     expect(playLogDot([{ ...OK, lastError: err }], NOW)?.detail).not.toContain('gap marker');
+    // A pump error is "errors", not "gaps".
+    expect(playLogDot([{ ...OK, lastError: err }], NOW)?.text).toBe('errors');
+    // Times go out as ISO tokens for the page to show on the GM's clock, not in the Pi's.
+    expect(playLogDot([{ ...OK, lastError: err }], NOW)?.detail).toContain(
+      '[[time:2026-11-06T20:58:00.000Z]]'
+    );
+    const gap = { reason: 'ring-wrap', at: '2026-11-06T20:30:00.000Z', fromMs: 1, toMs: 2 };
+    expect(playLogDot([{ ...OK, gapCount: 1, lastGap: gap }], NOW)?.text).toBe('gaps');
+    expect(playLogDot([{ ...OK, gapCount: 1, lastGap: gap, lastError: err }], NOW)?.text).toBe(
+      'gaps and errors'
+    );
     expect(playLogDot(null, NOW)).toMatchObject({ tone: 'unknown', text: 'unknown' });
   });
 });

@@ -1,4 +1,4 @@
-// The React dashboard (D-109): built into dist/web and served by the dashboard at /next/.
+// The React dashboard (D-109): built into dist/web and served by the dashboard at / (the page), with its files under /next/ (Vite's base).
 // The page links the shared stylesheets, themes, fonts and usage.js from public/ at run time
 // (one copy of The Veil), so the build leaves
 // those URLs alone.

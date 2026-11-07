@@ -78,6 +78,8 @@ export class RecorderHealth {
     // Unmuting starts a fresh silence window instead of an instant report.
     if (m.muted && !muted) m.joinedAt = now;
     m.muted = muted;
+    // A muted speaker sends no packets, so a stream error would otherwise stay on the line.
+    if (muted) this.streamErrors.delete(userId);
   }
 
   /** A packet arrived for this speaker. */

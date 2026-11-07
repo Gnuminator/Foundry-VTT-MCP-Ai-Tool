@@ -21,6 +21,7 @@ import {
   streamTrouble,
   withKnownPortraits,
   type StreamLink,
+  STREAM_WATCHDOG_MS,
 } from './stream';
 import { readCombat } from './combat';
 
@@ -99,6 +100,17 @@ describe('startStream', () => {
     stop();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('closes and reopens a stream that has been silent for the watchdog time', () => {
+    last().onopen?.();
+    expect(FakeSource.all).toHaveLength(1);
+    vi.advanceTimersByTime(STREAM_WATCHDOG_MS - 6000);
+    expect(FakeSource.all).toHaveLength(1);
+    vi.advanceTimersByTime(12_000);
+    expect(FakeSource.all).toHaveLength(2);
+    expect(FakeSource.all[0]?.closed).toBe(true);
+    expect(FakeSource.all[1]?.closed).toBe(false);
   });
 
   it('waits 2, 4, 8, then 10 seconds between new connections', () => {

@@ -34,7 +34,7 @@ function Header(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">Co-GM dashboard</p>
+            <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
           </div>
         </div>
         <div className="controls">

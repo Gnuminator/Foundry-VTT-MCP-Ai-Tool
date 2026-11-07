@@ -2,6 +2,7 @@ import type { AddressInfo } from 'node:net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { DEFAULT_STATUS_HOST, parseStatusPort } from './config.js';
 import { RecorderHealth, SILENCE_MS } from './rec/health.js';
 import { startStatusServer } from './status-server.js';
 
@@ -47,7 +48,49 @@ describe('RecorderHealth.problems', () => {
   });
 });
 
+describe('RecorderHealth mute', () => {
+  it('drops a stream error when that speaker mutes', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    h.streamError('u1', 'Mara', 'boom', T);
+    expect(h.problems(T + 1)).toHaveLength(1);
+    h.setMuted('u1', true, T + 2);
+    expect(h.problems(T + 3)).toEqual([]);
+  });
+});
+
+describe('parseStatusPort', () => {
+  it('takes a port from 1 to 65535 and nothing else', () => {
+    expect(parseStatusPort('3110')).toBe(3110);
+    expect(parseStatusPort('65535')).toBe(65535);
+    for (const bad of [undefined, '', '0', '65536', '-1', 'abc', '31.5']) {
+      expect(parseStatusPort(bad)).toBeUndefined();
+    }
+  });
+
+  it('listens on this PC only unless told otherwise', () => {
+    expect(DEFAULT_STATUS_HOST).toBe('127.0.0.1');
+  });
+});
+
 describe('status endpoint', () => {
+  it('answers 500 and reports the error when reading the status throws', async () => {
+    const errors: Error[] = [];
+    const server = startStatusServer(
+      '127.0.0.1',
+      0,
+      () => {
+        throw new Error('broken');
+      },
+      err => errors.push(err)
+    );
+    servers.push(server);
+    await new Promise<void>(r => server.once('listening', r));
+    const port = (server.address() as AddressInfo).port;
+    expect((await fetch(`http://127.0.0.1:${port}/status`)).status).toBe(500);
+    expect(errors.map(e => e.message)).toEqual(['broken']);
+  });
+
   it('answers GET /status with the JSON and nothing else', async () => {
     const server = startStatusServer(
       '127.0.0.1',

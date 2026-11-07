@@ -191,7 +191,7 @@ describe('the asset files have their own rate limit bucket', () => {
 });
 
 describe('without a React build', () => {
-  it('says the dashboard is not built at / (and has nothing behind it)', async () => {
+  it('answers 503 with the build hint at / when dist/web has no index.html', async () => {
     const app = await start(null);
     try {
       const answer = await get(app.port, '/');

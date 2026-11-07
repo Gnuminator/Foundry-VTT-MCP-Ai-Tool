@@ -38,6 +38,8 @@ export interface BridgeStatus {
   lastError: string | null;
   lastPollAt: string | null;
   foundryDownSince: string | null;
+  /** The server's clock when it sent this status (ISO); absent from an older server. */
+  now?: string;
 }
 
 export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
@@ -266,6 +268,11 @@ export function streamRetryDelay(failures: number): number {
   return Math.min(STREAM_RETRY_MAX_MS, STREAM_RETRY_MIN_MS * 2 ** Math.max(0, failures - 1));
 }
 
+/** No event (the server repeats the status every ~17 s) for this long: the page calls itself not live. */
+export const STREAM_WATCHDOG_MS = 45_000;
+/** How often the watchdog looks. */
+const WATCHDOG_CHECK_MS = 5000;
+
 /** What startStream needs from the page; the tests give it fakes. */
 export interface StreamEnv {
   create: () => EventSource;
@@ -291,6 +298,9 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
   let cancelRetry: (() => void) | null = null;
   let stopped = false;
   let failures = 0;
+  let cancelWatch: (() => void) | null = null;
+  // Any message from the server counts: the status heartbeat, but also events.
+  let lastHeard = Date.now();
   const setLink = (state: StreamLink['state']): void => {
     queryClient.setQueryData<StreamLink>(STREAM_LINK_KEY, link =>
       // A second error while still down keeps the time the stream first went down.
@@ -299,6 +309,7 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
   };
   const connect = (): void => {
     cancelRetry = null;
+    lastHeard = Date.now();
     const current = env.create();
     source = current;
     current.onopen = (): void => {
@@ -320,6 +331,7 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
     };
     for (const [event, handle] of Object.entries(HANDLERS)) {
       current.addEventListener(event, e => {
+        if (source === current) lastHeard = Date.now();
         try {
           handle(queryClient, JSON.parse((e as MessageEvent<string>).data));
         } catch {
@@ -328,9 +340,23 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
       });
     }
   };
+  // A half-open stream (the laptop slept, a tunnel stalled) never fires onerror. After the
+  // watchdog's silence the source is closed and a new one opened, so the page recovers by itself.
+  const watch = (): void => {
+    cancelWatch = env.schedule(() => {
+      if (stopped) return;
+      if (cancelRetry === null && Date.now() - lastHeard > STREAM_WATCHDOG_MS) {
+        source?.close();
+        connect();
+      }
+      watch();
+    }, WATCHDOG_CHECK_MS);
+  };
   connect();
+  watch();
   return () => {
     stopped = true;
+    cancelWatch?.();
     cancelRetry?.();
     source?.close();
   };

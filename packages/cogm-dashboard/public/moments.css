@@ -63,11 +63,6 @@
   justify-content: flex-start;
   text-align: left;
 }
-.advanced-menu .control-label {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
 .menu-label {
   margin: 6px 4px 2px;
   color: var(--text-faint);
@@ -409,10 +404,7 @@
   animation: none;
   overflow: hidden;
 }
-.drawer.docked #prep-close,
-.drawer.docked #party-close,
-.drawer.docked #handouts-close,
-.drawer.docked #preflight-close {
+.drawer.docked #handouts-close {
   display: none;
 }
 

@@ -293,7 +293,7 @@ allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-
 `--recover`. For a test, point `--url` at the test server (`http://localhost:30001`) and stop it with
 `scripts/test-env/stop.ps1 -Only foundry`.
 
-The message includes the Foundry address (without any user name or password). A message that Discord
+The message includes the Foundry address (without any user name, password, query string or fragment). A message that Discord
 refuses is kept and tried again at every check, so a short Discord outage does not lose the "down"
 message; a late message says when the problem was noticed. With `--post` the watch first asks Discord
 whether the bot can see the channel and stops with an error if not. Foundry counts as up only when
@@ -306,8 +306,8 @@ down and back pair each time.
 alone never posts "down" (it takes `--fail` misses in a row), so to test posting use
 `--once --post --fail 1` against a stopped test server.
 
-The watch only works while this PC is on and can reach the Pi. A copy that runs on the Pi itself would be
-a stage script and needs your OK (not done).
+This PC copy only works while the PC is on and can reach the Pi. The same watch runs on the Pi itself as a
+service with more checks: see [Game-night watch on the Pi (stage 28)](#game-night-watch-on-the-pi-stage-28).
 
 ## Stale backup copies
 
@@ -1744,6 +1744,48 @@ the undo are in [MODULE-REHEARSAL.md](MODULE-REHEARSAL.md) ("Pi: install from th
 - Old and replaced folders stay in `/var/lib/foundry-import/prev-<time>-modules` and `failed-<time>-modules` until the user removes them.
 - Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE25_CONTAINER=1` the scenarios in a Debian 13 ARM64
   container, run by the ARM job in CI).
+
+## Game-night watch on the Pi (stage 28)
+
+`scripts/pi/remote/28-gamenight-watch.sh` (backlog `watch-on-pi`) installs the watch as the service
+`foundry-ai-tool-gamenight-watch` so the GM gets the `#gm-bot` alerts without the PC being on. It reuses the PC
+watch's state machine and posting (`scripts/gamenight-watch.mjs`) through `scripts/gamenight-watch-pi.mjs`.
+
+**When it runs:** the service is always on but idle. It asks the bridge every minute whether a play session is
+marked (`get-play-session`, the same marker `mark-play-session` writes). While one is open it checks, every minute:
+
+| Check          | How                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| Foundry        | `/api/status` on the Pi answers 200 with a running world, slow over 3 s                            |
+| Dashboard      | `/api/health` answers `ok` and `controlChannel: connected`                                         |
+| Bridge link    | the bridge's `link_status` says the Foundry module socket is connected                             |
+| Recorder       | the Discord bot's systemd unit is active, and (with stage 27) its status endpoint lists no problem |
+| Public address | `/api/status` on the public address, with a Cloudflare Access service token; off until configured  |
+
+It posts to `#gm-bot` when it starts ("Game-night watch started", with each check's first result), when a check
+is down for 2 probes in a row, slow for 3 in a row, or back after 2 good ones, and when the session is marked
+ended (2 closed readings in a row) or the service stops. A bridge that does not answer changes nothing about the
+session (watch on stays on, off stays off), but the bridge check itself then reports. Posts hold no address, no
+query string and no token; the log shows host names only.
+
+**Install (user OK and a `dietpi-backup` snapshot first; never on a game night):**
+
+```bash
+scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/
+cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
+```
+
+It needs stage 8 and 26 done (the bot token and `GAMENIGHT_WATCH_CHANNEL_ID` in `discord-bot.env`; it checks the names only).
+It restarts nothing but itself. `UNDO=1` removes the service and the files and keeps the settings file.
+
+**The public check:** on the first run the stage creates `/etc/foundry-ai-tool/gamenight-watch.env`
+(`root:foundry` 0640, every line commented out). To switch the public check on, the user (not Claude) adds
+`WATCH_PUBLIC_URL`, `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to it and restarts the service. The
+Access application must allow that service token (policy "Service Auth") for the public address. The stage never
+reads or prints the values. Other settings (ports, the recorder unit and status address, mention ids) are listed
+in the template.
 
 ## Where things live on the Pi
 

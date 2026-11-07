@@ -21,7 +21,7 @@ export const guardedChangesModule = defineToolModule({
   tools: {
     'get-planned-change': { set: 'core', title: 'Show planned change', kind: 'read' },
     'apply-planned-change': { set: 'core', title: 'Apply planned change', kind: 'destructive' },
-    'list-recent-changes': { set: 'core', title: 'List recent AI changes', kind: 'read' },
+    'list-recent-changes': { set: 'core', title: 'List applied plans', kind: 'read' },
     'undo-change': { set: 'core', title: 'Undo change', kind: 'destructive' },
     'open-in-foundry': { set: 'core', title: 'Open in Foundry', kind: 'read' },
   },

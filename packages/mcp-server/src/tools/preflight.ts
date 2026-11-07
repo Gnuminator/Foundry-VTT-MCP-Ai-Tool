@@ -15,7 +15,7 @@ import type { Logger } from '../logger.js';
 import { clockWithDay, type PumpHealthSnapshot } from '../pump-health.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
-import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-registry.js';
+import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-version.js';
 import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
 
 interface ToolDefinition {

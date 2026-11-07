@@ -25,9 +25,15 @@ describe('redactVoiceDebug other forms', () => {
     const line =
       '[NW] [WS] >> {"op":0,"d":{"session_id":"abc123sess","endpoint":"c-ams01-1.discord.media:443"}} wss://x/?token=tok123&v=8 secret_key=9,8,7';
     const out = redactVoiceDebug(line);
-    expect(out).not.toMatch(/abc123sess|discord\.media|tok123|9,8,7/);
+    expect(out).not.toMatch(/abc123sess|discord\.media|tok123|9,8,7|8,7/);
     expect(out).toContain('"op":0');
     expect(out).toContain('v=8');
+  });
+
+  it('removes the whole key when it is a list, with or without brackets and spaces', () => {
+    expect(redactVoiceDebug('secret_key=9,8,7 next')).toBe('secret_key=[redacted] next');
+    expect(redactVoiceDebug('secretKey=[9, 8, 7] next')).toBe('secretKey=[redacted] next');
+    expect(redactVoiceDebug('secret_key=9, 8, 7;')).toBe('secret_key=[redacted];');
   });
 });
 

@@ -30,7 +30,15 @@ export interface LinkNotifierOptions {
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /**
+   * Called when this notifier decides the link is lost (`'lost'`), is back (`'up'`) or was stopped
+   * on purpose after a "lost" (`'quiet'`), so other GM browsers can be told. Runs only where a toast
+   * would show (GM, "Show connection messages" on).
+   */
+  publish?: (state: LinkRelayStateName) => void;
 }
+
+export type LinkRelayStateName = 'lost' | 'up' | 'quiet';
 
 export interface LinkNotifier {
   /** The link opened. */
@@ -42,8 +50,11 @@ export interface LinkNotifier {
    * toast for when it does open, without a "lost" toast of its own.
    */
   markLost(): void;
-  /** The owner stopped the link on purpose: forget everything, say nothing. */
-  reset(): void;
+  /**
+   * The owner stopped the link on purpose: forget everything, say nothing here. Other GMs who were
+   * told "lost" are told it ended quietly, unless `silent` (a restart while the outage lasts).
+   */
+  reset(options?: { silent?: boolean }): void;
 }
 
 export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
@@ -74,6 +85,7 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
       lostShown = true;
       lastLostAt = now();
       options.notify(LINK_LOST_TOAST, 'warn');
+      options.publish?.('lost');
     }, ms);
   }
 
@@ -97,14 +109,86 @@ export function createLinkNotifier(options: LinkNotifierOptions): LinkNotifier {
       lostShown = false;
       if (!allowed()) return;
       options.notify(LINK_BACK_TOAST, 'info');
+      options.publish?.('up');
     },
     markLost(): void {
       cancelTimer();
       lostShown = true;
+      if (allowed()) options.publish?.('lost');
     },
-    reset(): void {
+    reset(resetOptions): void {
       cancelTimer();
+      const wasLost = lostShown;
       lostShown = false;
+      // Other GM browsers were told "lost": tell them it ended without a "back" toast.
+      if (wasLost && !resetOptions?.silent && allowed()) options.publish?.('quiet');
+    },
+  };
+}
+
+/** What the link holder stores in the `linkState` world setting. */
+export interface LinkRelayState {
+  state: LinkRelayStateName;
+  /** Milliseconds since the epoch; makes every write a real change so the hook fires. */
+  at: number;
+}
+
+/** Reads a stored value; anything unexpected counts as "up" (say nothing). */
+export function parseLinkRelayState(value: unknown): LinkRelayState {
+  const v = value as Partial<LinkRelayState> | null | undefined;
+  if (
+    v &&
+    (v.state === 'lost' || v.state === 'up' || v.state === 'quiet') &&
+    typeof v.at === 'number'
+  ) {
+    return { state: v.state, at: v.at };
+  }
+  return { state: 'up', at: 0 };
+}
+
+export interface LinkRelayReceiverOptions {
+  notify: (message: string, level: 'warn' | 'info') => void;
+  isGM: () => boolean;
+  /** The "Show connection messages" setting. */
+  enabled: () => boolean;
+  /** True in the browser that holds the link itself: its own notifier already speaks. */
+  holdsLink: () => boolean;
+  throttleMs?: number;
+  now?: () => number;
+}
+
+export interface LinkRelayReceiver {
+  /** A new stored state arrived (a change, or the current value when this GM joined). */
+  apply(state: LinkRelayState): void;
+}
+
+/**
+ * The other GMs' side of the relay. The link holder already waited out the grace period, so this
+ * shows at once; it keeps the same throttle, the same setting gate and no toast for players.
+ */
+export function createLinkRelayReceiver(options: LinkRelayReceiverOptions): LinkRelayReceiver {
+  const throttleMs = options.throttleMs ?? LINK_TOAST_THROTTLE_MS;
+  const now = options.now ?? ((): number => Date.now());
+  let lostShown = false;
+  let lastLostAt = -Infinity;
+  return {
+    apply(state): void {
+      if (state.state === 'quiet') {
+        lostShown = false;
+        return;
+      }
+      if (!options.isGM() || options.holdsLink()) return;
+      if (state.state === 'lost') {
+        if (lostShown || now() - lastLostAt < throttleMs) return;
+        if (!options.enabled()) return;
+        lostShown = true;
+        lastLostAt = now();
+        options.notify(LINK_LOST_TOAST, 'warn');
+        return;
+      }
+      if (!lostShown) return;
+      lostShown = false;
+      if (options.enabled()) options.notify(LINK_BACK_TOAST, 'info');
     },
   };
 }

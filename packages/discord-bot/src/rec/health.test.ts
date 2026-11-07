@@ -34,6 +34,25 @@ describe('RecorderHealth silence', () => {
     expect(out[0]).toContain('5 min');
   });
 
+  it('ignores a late packet from someone who left, until they join again', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    h.leave('u1');
+    h.packet('u1', 'Mara', T + MIN);
+    expect(h.speakerLines(T + 2 * MIN)).toEqual([]);
+    expect(h.silent(T + 20 * MIN)).toEqual([]);
+    h.join('u1', 'Mara', false, T + 30 * MIN);
+    h.packet('u1', 'Mara', T + 31 * MIN);
+    expect(h.speakerLines(T + 32 * MIN)).toHaveLength(1);
+  });
+
+  it('says nothing about silence while the voice connection is down', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    expect(h.silent(T + 20 * MIN, false)).toEqual([]);
+    expect(h.silent(T + 20 * MIN, true)).toHaveLength(1);
+  });
+
   it('gives a member who unmutes a fresh window', () => {
     const h = new RecorderHealth();
     h.join('u1', 'Mara', true, T);

@@ -770,6 +770,38 @@ describe('undo (Foundry ops)', () => {
     expect((await service.listRecentChanges())[0]).not.toHaveProperty('ownData');
   });
 
+  it('round-trips a nested prototypeToken.ring.enabled: snapshot, apply, conflict, undo', async () => {
+    foundry.add('Actor.hero', 'Actor', {
+      name: 'Hero',
+      prototypeToken: { name: 'Hero', ring: { enabled: false, colors: { ring: '#ffffff' } } },
+    });
+    const RING: GuardedOp = {
+      kind: 'update',
+      uuid: 'Actor.hero',
+      changes: { 'prototypeToken.ring.enabled': true },
+    };
+    const p = await plan([RING]);
+    expect(p.diff.map(d => d.text)).toEqual([
+      expect.stringContaining('prototypeToken.ring.enabled: false → true'),
+    ]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(foundry.docs.get('Actor.hero')!.source.prototypeToken.ring).toEqual({
+      enabled: true,
+      colors: { ring: '#ffffff' },
+    });
+
+    // Someone changes the ring by hand after the apply: the undo must not clobber that.
+    foundry.edit('Actor.hero', { path: 'prototypeToken.ring.enabled', present: true, value: 'x' });
+    await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(/Conflict/);
+
+    foundry.edit('Actor.hero', { path: 'prototypeToken.ring.enabled', present: true, value: true });
+    await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.hero')!.source.prototypeToken.ring).toEqual({
+      enabled: false,
+      colors: { ring: '#ffffff' },
+    });
+  });
+
   it('round-trips create and a big delete (snapshot kept in backups/)', async () => {
     foundry.add('JournalEntry.notes', 'JournalEntry', {
       _id: 'notes',

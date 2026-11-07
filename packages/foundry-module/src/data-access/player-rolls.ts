@@ -568,7 +568,7 @@ export class PlayerRollsDataAccess {
           ui.notifications?.warn(error.message);
         } else {
           trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
-          ui.notifications?.error(toGmMessage('run that roll', error));
+          ui.notifications?.error(toGmMessage('run that roll', error, 'player'));
         }
 
         // Re-enable button on error so user can try again

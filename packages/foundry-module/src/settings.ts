@@ -222,7 +222,7 @@ export class ModuleSettings {
     // Enhanced Creature Index submenu
     menus.registerMenu(this.moduleId, 'enhancedIndexMenu', {
       name: 'AI Tool: Creature index',
-      label: 'Configure',
+      label: 'Configure creature index',
       hint: 'Pre-computes creature statistics so the AI can find monsters by Challenge Rating, type and abilities quickly.',
       icon: 'fas fa-search-plus',
       type: createEnhancedIndexMenu(),

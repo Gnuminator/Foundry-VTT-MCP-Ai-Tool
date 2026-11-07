@@ -25,6 +25,21 @@ describe('toGmMessage', () => {
     expect(toGmMessage('save it', 'forbidden')).toContain('permission');
   });
 
+  it('does not pass id-shaped text through', () => {
+    const msg = toGmMessage('run that roll', new Error('ChatMessage a1B2c3D4e5F6g7H8 is gone'));
+    expect(msg).not.toContain('a1B2c3D4e5F6g7H8');
+    expect(
+      toGmMessage('x', new Error('Reveal JournalEntry.AAAAAAAAAAAAAAAA.JournalEntryPage.x failed'))
+    ).not.toContain('AAAAAAAAAAAAAAAA');
+    expect(toGmMessage('x', new Error('Select a token first'))).toContain('Select a token first');
+  });
+
+  it('tells a player to ask the GM instead of opening the console', () => {
+    const msg = toGmMessage('run that roll', new Error('x is undefined'), 'player');
+    expect(msg).toContain('tell your GM');
+    expect(msg).not.toContain('F12');
+  });
+
   it('copes with missing errors', () => {
     expect(toGmMessage('do it')).toContain('Try again');
   });

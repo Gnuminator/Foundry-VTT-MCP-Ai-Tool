@@ -243,14 +243,14 @@ export const FOUNDRY_CONTROLS = [
   {
     name: 'module.settings.enhanced-index-save',
     area: 'settings',
-    label: 'Enhanced Index: Save Settings (put back)',
+    label: 'Creature index: Save Settings (put back)',
     how: 'toggle',
     player: 'hidden',
   },
   {
     name: 'module.settings.enhanced-index-rebuild',
     area: 'settings',
-    label: 'Enhanced Index: Rebuild Creature Index',
+    label: 'Creature index: Rebuild Creature Index',
     how: 'click',
     player: 'hidden',
   },

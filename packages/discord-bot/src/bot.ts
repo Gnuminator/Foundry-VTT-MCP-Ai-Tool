@@ -159,10 +159,11 @@ export class RecorderBot {
   }
 
   async run(): Promise<void> {
-    this.crashNotice = claimRunMarker(markerPath(this.config.sessionsDir));
     this.client.on('error', err => log.error('Discord client error', err));
     this.client.once('clientReady', c => {
       log.info(`Logged in as ${c.user.tag}`);
+      // Claimed only now: a failed login (bad token) must not leave a marker that reads as a crash.
+      this.crashNotice = claimRunMarker(markerPath(this.config.sessionsDir));
       if (this.crashNotice) {
         const text = restartAfterCrashMessage(this.crashNotice);
         log.info(text);
@@ -456,7 +457,9 @@ export class RecorderBot {
       }
     }
     const healthTimer = setInterval(() => {
-      for (const line of health.silent(Date.now())) void this.alertGm(line, channel);
+      // `recorder` is assigned below, before the first tick.
+      const up = recorder.connectionStatus === 'ready';
+      for (const line of health.silent(Date.now(), up)) void this.alertGm(line, channel);
     }, HEALTH_CHECK_INTERVAL_MS);
     healthTimer.unref();
     const recorder = new VoiceRecorder({
@@ -524,7 +527,10 @@ export class RecorderBot {
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
     this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));
-    await this.client.destroy();
-    clearRunMarker(markerPath(this.config.sessionsDir));
+    try {
+      await this.client.destroy();
+    } finally {
+      clearRunMarker(markerPath(this.config.sessionsDir));
+    }
   }
 }

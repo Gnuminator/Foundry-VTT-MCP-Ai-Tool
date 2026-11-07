@@ -45,6 +45,8 @@ export interface RecorderProblem {
 export class RecorderHealth {
   private readonly members = new Map<string, Member>();
   private readonly lastAlertAt = new Map<string, number>();
+  /** Who left the channel and has not joined again (their late packets are ignored). */
+  private readonly left = new Set<string>();
   /** Speakers whose audio stream failed and who have not sent a packet since. */
   private readonly streamErrors = new Map<string, string>();
   /** The failed rejoin attempt number while the bot is out of the channel, else null. */
@@ -52,6 +54,7 @@ export class RecorderHealth {
 
   /** Someone is in the channel (a join, or already there when the recording started). */
   join(userId: string, name: string, muted: boolean, now: number): void {
+    this.left.delete(userId);
     const known = this.members.get(userId);
     if (known) {
       known.name = name;
@@ -70,6 +73,7 @@ export class RecorderHealth {
   /** Someone left the channel: no silence report for them any more (their packets stay listed). */
   leave(userId: string): void {
     this.members.delete(userId);
+    this.left.add(userId);
   }
 
   setMuted(userId: string, muted: boolean, now: number): void {
@@ -83,6 +87,8 @@ export class RecorderHealth {
   /** A packet arrived for this speaker. */
   packet(userId: string, name: string, now: number): void {
     let m = this.members.get(userId);
+    // A late packet from someone who already left must not bring them back as a silent member.
+    if (!m && this.left.has(userId)) return;
     if (!m) {
       m = { name, muted: false, joinedAt: now, lastPacket: null, silenceReported: false };
       this.members.set(userId, m);
@@ -94,10 +100,12 @@ export class RecorderHealth {
 
   /**
    * Members in the channel, not muted, with nothing recorded for {@link SILENCE_MS}: one message
-   * each, then quiet until their next packet.
+   * each, then quiet until their next packet. While the voice connection is down (`connected`
+   * false) nothing is reported: the rejoin alerts already say nothing is being recorded.
    */
-  silent(now: number): string[] {
+  silent(now: number, connected = true): string[] {
     const out: string[] = [];
+    if (!connected) return out;
     for (const m of this.members.values()) {
       if (m.muted || m.silenceReported) continue;
       const since = m.lastPacket ?? m.joinedAt;

@@ -826,7 +826,7 @@ Parameters:
 
 ### mark-play-session
 
-Direct write. Mark the start or end of a play session with a line in the bridge vault's session log (sessions/&lt;date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
+Direct write. GM ONLY. Mark the start or end of a play session with a line in the bridge vault's session log (sessions/&lt;date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
 
 Kind: changes something. Title: Mark play session start or end.
 
@@ -1464,7 +1464,7 @@ Parameters:
 
 ### plan-token-rings
 
-Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo is all-or-nothing (it reverts every actor of the plan or none), and disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
 
 Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
 

@@ -5,6 +5,7 @@
  * `discord-bot rehearse <folder>` tests the recorder with speaker bots (see `rehearse/rehearse.ts`).
  */
 
+import { createAlertLimit } from './alert-limit.js';
 import { RecorderBot } from './bot.js';
 import { loadConfig, loadRehearsalConfig } from './config.js';
 import { convertSession } from './convert/convert.js';
@@ -44,8 +45,11 @@ async function main(argv: string[]): Promise<number> {
       );
     };
     // A stray rejection should not take a running recording down: log it, tell the GM, carry on.
+    // At most one post every 5 minutes: a rejection in a loop must not flood #gm-bot (the log has all).
+    const allowRejectionAlert = createAlertLimit(5 * 60_000);
     process.on('unhandledRejection', (reason: unknown) => {
       log.error('Unhandled rejection', reason);
+      if (!allowRejectionAlert(Date.now())) return;
       void bot.alertGm(
         `Recorder bot: an unexpected error was caught and the bot keeps running (${reason instanceof Error ? reason.message : String(reason)}).`
       );

@@ -42,12 +42,20 @@ export function ciRunCommands(yamlText, job = 'build-test') {
 
 /**
  * Parts of a job that change what a `run:` command does and that ciRunCommands does not follow
- * (`working-directory`). The parity test fails while there are any, so a new one is noticed.
+ * (`working-directory` on a step, or `defaults.run.working-directory` on the job or the workflow). The parity test fails while there are any, so a new one is noticed.
  * @param {string} yamlText @param {string} [job]
  * @returns {string[]}
  */
 export function ciUnsupported(yamlText, job = 'build-test') {
   const found = [];
+  const doc = /** @type {any} */ (yaml.load(yamlText));
+  for (const [where, defaults] of [
+    ['workflow', doc?.defaults],
+    [`job ${job}`, doc?.jobs?.[job]?.defaults],
+  ]) {
+    const dir = defaults?.run?.['working-directory'];
+    if (typeof dir === 'string') found.push(`defaults.run.working-directory (${where}): ${dir}`);
+  }
   for (const step of jobSteps(yamlText, job)) {
     if (typeof step['working-directory'] === 'string') {
       found.push(`working-directory: ${step['working-directory']}`);

@@ -23,7 +23,7 @@ const { pageVerdict, pingPage } = await import(pathToFileURL(driver).href);
 
 describe('page ping decision', () => {
   test('restarts only after the grace period of silence; an answer resets it', () => {
-    const grace = 90_000;
+    const grace = 120_000;
     let v = pageVerdict(false, null, 1000, grace);
     assert.deepEqual(v, { restart: false, since: 1000 });
     v = pageVerdict(false, v.since, 1000 + grace - 1, grace);

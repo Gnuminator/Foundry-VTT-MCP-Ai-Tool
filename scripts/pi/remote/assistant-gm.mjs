@@ -61,7 +61,7 @@ const LINK_WINDOW_MS = 6 * 3_600_000;
 const envMs = (name, fallback) => (Number(process.env[name]) > 0 ? Number(process.env[name]) : fallback);
 const PAGE_POLL_MS = envMs('GM_PAGE_POLL_MS', 15_000);
 const PAGE_PING_TIMEOUT_MS = envMs('GM_PAGE_PING_TIMEOUT_MS', 10_000);
-const PAGE_GRACE_MS = envMs('GM_PAGE_GRACE_MS', 90_000);
+const PAGE_GRACE_MS = envMs('GM_PAGE_GRACE_MS', 120_000);
 const PAGE_CLOSE_WAIT_MS = envMs('GM_PAGE_CLOSE_WAIT_MS', 5_000);
 
 const log = msg => console.log(`[assistant-gm] ${msg}`);

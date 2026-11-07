@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stage 28: the Assistant GM hang watchdog (Backlog item assistant-gm-hang-watchdog, G1). The new driver pings its own
-# page every 15 s and restarts the browser when the page has not answered for 90 s, even while the module socket is up
+# page every 15 s and restarts the browser when the page has not answered for 120 s, even while the module socket is up
 # (a frozen page keeps its socket; the 2 minute no-socket check never sees it). The watchdog is on by default in the driver
 # (GM_PAGE_WATCH=0 turns it off), so this stage only has to put the new driver in place and restart the Assistant GM.
 #

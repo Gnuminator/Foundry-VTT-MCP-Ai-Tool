@@ -180,6 +180,33 @@ test('a new hero that cannot spend its spell slots or starts hurt is reported', 
     compareHeroes(x).problems.map(p => p.kind),
     ['SYSTEM']
   );
+  // A shortfall a Constitution increase explains (level 17, modifier +3, 12 missing) has its own id; a hero
+  // with no such room (level 3, or a shortfall bigger than level times modifier) stays a plain STUDIO finding.
+  const con = (level, mod, value) => {
+    const c = pair();
+    c.studio.actor.level = level;
+    c.studio.actor.abilities = { con: { value: 16, mod } };
+    c.studio.actor.hp.max = 157;
+    c.studio.actor.hp.value = value;
+    return compareHeroes(c).problems.find(p => p.category === 'current hit points');
+  };
+  assert.equal(
+    con(17, 3, 145)?.id,
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind'
+  );
+  assert.equal(con(17, 3, 145)?.kind, 'STUDIO');
+  assert.equal(
+    con(3, 3, 145)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
+  assert.equal(
+    con(17, 3, 100)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
+  assert.equal(
+    con(17, 0, 145)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
   // The raw twin may have been hurt by an earlier scenario: that is not a difference.
   const w = pair();
   w.raw.actor.hp.value = 10;
@@ -723,10 +750,11 @@ const FORK_FIXED = [
   'feature-problems:no-slot-to-spend',
   'console:gas.captureAdvancement',
   'console:black-parchment.webp',
-  // the STUDIO entry of the hit point finding (the SYSTEM entry of the same id stays in ALWAYS); fixed in aitool.6
-  'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
+  // a Constitution increase while levelling leaves the current hit points behind; fixed in aitool.6
+  'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind',
 ];
-const HP_STUDIO = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
+const HP_STUDIO =
+  'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
 // fixed one build later: 2.10.5-aitool.2 fills the slots on every level up; aitool.1 filled level 1 only
 const SLOTS = 'spell-slots-available:spell-slots-a-new-hero-can-spend';
 const ALWAYS = [

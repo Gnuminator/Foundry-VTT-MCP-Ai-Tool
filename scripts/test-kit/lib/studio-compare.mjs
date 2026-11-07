@@ -304,7 +304,21 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       `the Studio hero has ${emptySlots.join(' ')}`
     );
   tick('current hit points');
-  if (studio.actor.hp?.value !== studio.actor.hp?.max)
+  if (studio.actor.hp?.value !== studio.actor.hp?.max) {
+    const shortfall = (studio.actor.hp?.max ?? 0) - (studio.actor.hp?.value ?? 0);
+    const conMod = Number(studio.actor.abilities?.con?.mod ?? 0);
+    const level = Number(studio.actor.level ?? 0);
+    // A Constitution modifier that rose at an ability score increase raises the maximum for every level, the
+    // current value only by the level's own hit points, so each rise at level L leaves L hit points missing
+    // (the 2024 book, Gaining a Level; dnd5e). Only a hero that could have had such a rise (level 4 or more,
+    // a positive modifier) and whose shortfall fits it gets its own finding id; any other shortfall stays
+    // a plain STUDIO finding. Fixed in the fork build 2.10.5-aitool.6.
+    const conRise =
+      !(studio.actor.hp?.sources ?? []).length &&
+      level >= 4 &&
+      conMod > 0 &&
+      shortfall > 0 &&
+      shortfall <= level * conMod;
     // An effect that adds to the maximum (Draconic Resilience) raises the maximum, not the current value.
     bad(
       'current hit points',
@@ -313,8 +327,14 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       `the Studio hero has ${studio.actor.hp?.value}/${studio.actor.hp?.max}` +
         ((studio.actor.hp?.sources ?? []).length
           ? ` (the system raises the maximum for an effect, not the current value: ${studio.actor.hp.sources.map(x => x.item).join(', ')})`
-          : '')
+          : conRise
+            ? ` (${shortfall} short, Constitution modifier +${conMod} at level ${level}: a Constitution increase raises the maximum for every level, not the current value)`
+            : ''),
+      conRise
+        ? 'a Constitution increase while levelling leaves the current hit points behind'
+        : 'a new hero does not start at full hit points'
     );
+  }
   tick('hit dice spent');
   const spentDice = (studio.features.hd?.classes ?? []).filter(c => (c.spent ?? 0) > 0);
   if (spentDice.length)

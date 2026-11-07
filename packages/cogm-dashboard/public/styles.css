@@ -2345,6 +2345,16 @@ body {
 .party-body .pf-text {
   flex: 1;
 }
+.party-control {
+  min-height: 2.25rem;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 0.25rem 0.5rem;
+}
 .party-group {
   margin-left: auto;
   max-width: 14rem;

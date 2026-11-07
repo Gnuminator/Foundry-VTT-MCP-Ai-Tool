@@ -244,7 +244,7 @@ test('Who would notice: a DC gives a tick or cross per PC and skill, and the row
       },
     ],
   };
-  await fakeTools(page, () => ok(state));
+  const calls = await fakeTools(page, () => ok(state));
   const drawer = await openParty(page);
   // GM only: the drawer is the GM's, and with the switch off (no passives) there is no row.
   await expect(drawer.locator('.drawer-sub')).toContainText('GM only');
@@ -289,6 +289,40 @@ test('Who would notice: a DC gives a tick or cross per PC and skill, and the row
   await notice.getByLabel('Notice skill').selectOption('investigation');
   await expect(rows.nth(0).locator('.feature-pill')).toHaveText(['Investigation 9 ✗']);
   await expect(rows.nth(1).locator('.feature-pill')).toHaveText(['Investigation 12 ✓']);
+  // Still read only: picking a skill only ever read the party, nothing else went to the bridge.
+  expect(new Set(names(calls))).toEqual(new Set(['get-party']));
+
+  // The pick is remembered for the next visit in this browser.
+  await page.reload();
+  const again = await openParty(page);
+  await expect(again.getByLabel('Notice skill')).toHaveValue('investigation');
+});
+
+test('a junk remembered notice skill falls back to all three', async ({ page }) => {
+  await fakeStream(page, []);
+  await page.addInitScript(() => localStorage.setItem('cogm_party_notice_skill', 'junk'));
+  await fakeTools(page, () =>
+    ok({
+      ...STATE,
+      groups: [
+        {
+          ...GROUP,
+          members: [{ ...ILVARA, passives: { perception: 13, investigation: 9, insight: 8 } }],
+        },
+      ],
+    })
+  );
+  const drawer = await openParty(page);
+  const skill = drawer.getByLabel('Notice skill');
+  await expect(skill).toHaveValue('all');
+  await expect(
+    drawer
+      .locator('#party-notice')
+      .getByRole('list', { name: 'Who would notice' })
+      .locator('li')
+      .first()
+      .locator('.feature-pill')
+  ).toHaveCount(3);
 });
 
 test('the group picker shows with two groups and switches without a load', async ({ page }) => {

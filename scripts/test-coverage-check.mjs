@@ -8,7 +8,7 @@
  * A file counts as run when its path (or a glob that matches it) is written in a `run:` command of
  * .github/workflows/*.yml (comments do not count) or in a root package.json script that such a
  * command starts with `npm run`, or when it falls under a RUNNERS pattern: a tool that
- * finds its own files (vitest includes, the Playwright test dirs, pytest in tools/*). Each RUNNERS
+ * finds its own files (vitest includes, the Playwright test dirs, pytest in tools/*, which counts only `test_*.py`). Each RUNNERS
  * entry must still match a file, so a runner that is retired is noticed.
  *
  * Blind spots (a file can pass here without running): an inline `#` comment on a single-line

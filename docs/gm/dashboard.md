@@ -657,7 +657,8 @@ party" in the module settings. With more than one group, a list at the top picks
 - **Who would notice**: with the module setting **AI Tool: Who would notice** switched on, type a
   DC and each character shows chips for passive Perception, Investigation and Insight, with a
   tick for a score at or above the DC and a cross below it. The scores are dnd5e's own, so
-  conditions and exhaustion are already counted. Only you see it; nothing is rolled or sent to
+  conditions and exhaustion are already counted. **Skill** shows all three or just one of them.
+  Only you see it; nothing is rolled or sent to
   the players.
 - **Travel pace**: Slow, Normal or Fast. If a member is slowed, the drawer says the party moves
   at slow pace anyway.

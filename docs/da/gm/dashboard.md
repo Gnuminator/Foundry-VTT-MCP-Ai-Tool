@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 36302fe91935
+sourceHash: 5902c5d9deaa
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -674,7 +674,7 @@ characters to the party" fra i modulets indstillinger. Med mere end én Group-ac
 - **Who would notice**: med module-indstillingen **AI Tool: Who would notice** slået til, skriv en DC,
   og hver karakter viser chips for passive Perception, Investigation og Insight, med et flueben for en
   score på eller over DC'en og et kryds under. Scorerne er dnd5es egne, så conditions og exhaustion
-  allerede er talt med. Kun du ser det; intet bliver rullet eller sendt til spillerne.
+  allerede er talt med. **Skill** viser alle tre eller kun én af dem. Kun du ser det; intet bliver rullet eller sendt til spillerne.
 - **Travel pace**: Slow, Normal eller Fast. Hvis et medlem er slowed, siger skuffen, at gruppen
   alligevel bevæger sig i langsomt tempo.
 - **Combat**: tilføjer gruppens tokens på den aktuelle scene til encounteret, eller starter et

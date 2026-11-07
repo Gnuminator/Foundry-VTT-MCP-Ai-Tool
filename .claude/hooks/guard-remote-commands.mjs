@@ -398,12 +398,21 @@ const dockerDestroys = text =>
     tailAt(
       /(?:(?:rm|rmi|kill|stop)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop)\b)/y
     )
-  ) || followedInCommand(text, [{ re: /\bdocker(?:[ \t]+|-)compose\b/g }], /\b(?:down|rm|kill|stop)\b/g);
+  ) || followedInCommand(
+    text,
+    // docker's global options may sit between `docker` and `compose` (docker --context x compose down).
+    [
+      {
+        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
+      },
+    ],
+    /\b(?:down|rm|kill|stop)\b/g
+  );
 
 /** Rules that ask: allowed only with the user's explicit OK, every time. */
 const ASK = [
   [dockerDestroys, 'removing or killing containers (docker rm, kill, prune, compose down)'],
-  [/\bTEST_ALLOW_CUTOVER=["']?1\b/, 'forcing the stage 24 cutover test switch on a real host'],
+  [/\bTEST_ALLOW_CUTOVER=[^\s=]/, 'forcing the stage 24 cutover test switch on a real host'],
   [
     word(
       'useradd|adduser|userdel|deluser|usermod|groupadd|addgroup|groupdel|delgroup|groupmod|chpasswd|passwd'

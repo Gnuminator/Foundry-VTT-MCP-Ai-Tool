@@ -498,6 +498,7 @@ describe('the stages', () => {
       '7-vault': 'enable_unit foundry-ai-tool-bridge.service', // enable_unit calls require_quiet before a restart
       '8-recorder': 'require_no_recording',
       '27-bot-status': 'require_quiet',
+      '28-gm-watchdog': 'require_quiet_if_active',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
       '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first

@@ -50,6 +50,10 @@ export function AttackForm({
   const attackerId = list.some(c => c.id === pickedAttacker)
     ? pickedAttacker
     : defaultAttacker(combatants);
+  // Save the fallback, so the pick does not jump back when the departed attacker returns.
+  useEffect(() => {
+    if (attackerId !== pickedAttacker) setAttackerId(attackerId);
+  }, [attackerId, pickedAttacker]);
   const [weapons, setWeapons] = useState<Weapon[] | null>(null);
   const [weaponId, setWeaponId] = useState('');
   const [target, setTarget] = useState(() => defaultTarget(picked, defaultAttacker(combatants)));
@@ -138,10 +142,20 @@ export function AttackForm({
           { label: 'Attack' }
         );
         if (outcome.status === 'done') {
-          // The form closes, so the line goes in a toast; the module's own message rides along.
-          const said = (outcome.result as { message?: unknown } | null)?.message;
+          // The form closes, so the line goes in a toast. The module only says the attack was
+          // started (it does not wait for the roll), so the line claims no more than that.
+          // Item and targets as the module resolved them; the form's own names when it says none.
+          const result = outcome.result as { itemName?: unknown; targets?: unknown } | null;
+          const itemName =
+            typeof result?.itemName === 'string' && result.itemName
+              ? result.itemName
+              : (weapon?.name ?? 'the weapon');
+          const hit = Array.isArray(result?.targets)
+            ? result.targets.filter((t): t is string => typeof t === 'string')
+            : [];
+          const at = hit.length > 0 ? hit.join(', ') : targetName;
           toast(
-            `✓ ${attacker?.name ?? 'Attack'} attacked${typeof said === 'string' && said ? `: ${said}` : ''}`,
+            `✓ Attack sent: ${attacker?.name ?? 'the attacker'} with ${itemName} at ${at}. The roll shows in the feed.`,
             'ok'
           );
           closed = true;
@@ -272,7 +286,8 @@ export function AttackForm({
       </div>
       <p className={styles['note']}>
         Rolls the attack against the target in Foundry as soon as you press the button. The roll
-        shows in the feed. Ammunition the roll spends is not undone by Undo.
+        shows in the feed. Undo in Recent Changes gives back the ammunition it spent; the roll and
+        its chat card stay.
       </p>
     </div>
   );

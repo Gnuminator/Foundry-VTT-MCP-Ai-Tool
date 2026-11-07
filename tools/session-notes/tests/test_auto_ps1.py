@@ -81,6 +81,15 @@ def test_a_live_lock_stops_the_pass_and_stays(sessions: Path) -> None:
     assert lock.read_text(encoding="utf-8").strip() == str(os.getpid())
 
 
+def test_a_locked_pass_prints_no_voice_stack_notice(sessions: Path, tmp_path: Path) -> None:
+    make_lock(sessions, str(os.getpid()))
+    fake = tmp_path / "fake-voice-stack.ps1"
+    fake.write_text("exit 0\n", encoding="ascii")
+    code, out = run_pass(sessions, FVTT_VOICE_STACK=str(fake))
+    assert code == 0 and "Another pass is running" in out
+    assert "FVTT_VOICE_STACK" not in out
+
+
 def test_a_lock_of_a_dead_pass_is_removed_at_once(sessions: Path) -> None:
     lock = make_lock(sessions, str(dead_pid()), age_minutes=1)
     code, out = run_pass(sessions)

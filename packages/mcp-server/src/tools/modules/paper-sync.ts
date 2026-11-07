@@ -13,4 +13,7 @@ export const paperSyncModule = defineToolModule({
   routes: {
     'plan-paper-sync': (tools, args) => tools.handleToolCall('plan-paper-sync', args),
   },
+  tools: {
+    'plan-paper-sync': { set: 'play', title: 'Plan paper sheet sync', kind: 'read' },
+  },
 });

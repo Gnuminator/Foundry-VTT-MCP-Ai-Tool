@@ -9,4 +9,7 @@ export const dnd5eAddFeatureModule = defineToolModule({
   routes: {
     'dnd5e-add-feature': (tools, args) => tools.handleAddFeature(args),
   },
+  tools: {
+    'dnd5e-add-feature': { set: 'build', title: 'Add feature to actor', kind: 'write' },
+  },
 });

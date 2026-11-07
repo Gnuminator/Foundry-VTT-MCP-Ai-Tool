@@ -9,4 +9,11 @@ export const encounterModule = defineToolModule({
   routes: {
     'suggest-balanced-encounter': (tools, args) => tools.handleSuggestBalancedEncounter(args),
   },
+  tools: {
+    'suggest-balanced-encounter': {
+      set: 'prep',
+      title: 'Suggest balanced encounter',
+      kind: 'read',
+    },
+  },
 });

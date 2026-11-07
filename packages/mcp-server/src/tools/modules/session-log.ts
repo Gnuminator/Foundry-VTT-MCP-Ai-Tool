@@ -10,4 +10,8 @@ export const sessionLogModule = defineToolModule({
     'get-session-log': (tools, args) => tools.handleGetSessionLog(args),
     'get-recent-events': (tools, args) => tools.handleGetRecentEvents(args),
   },
+  tools: {
+    'get-session-log': { set: 'prep', title: 'Get session log', kind: 'read' },
+    'get-recent-events': { set: 'play', title: 'Get recent events', kind: 'read' },
+  },
 });

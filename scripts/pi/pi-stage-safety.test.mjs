@@ -888,6 +888,8 @@ if [ "\${CURL_FAILS:-0}" = 1 ] && [ ! -f "$LOG.started" ]; then exit 22; fi
 if [ "\${CRASH_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then exit 22; fi
 # SETUP_AFTER_START: Foundry answers after the restart, but from the setup screen (no world in the status).
 if [ "\${SETUP_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then echo '{"active":false,"version":"14.368"}'; exit 0; fi
+# SWITCHED_AFTER_START: the world was switched by hand during the day, so a different one launches.
+if [ "\${SWITCHED_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then echo '{"active":true,"world":"another-world","users":0}'; exit 0; fi
 echo "{\\"active\\":true,\\"world\\":\\"curse-of-strahd\\",\\"users\\":$(head -n 1 "$SEQ")}"`
     );
     // The fake date: today and yesterday come from two files; the first sleep may move the clock past midnight.
@@ -1063,7 +1065,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
     });
     assert.equal(r.status, 1, r.out);
-    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active and answering/);
+    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/);
     assert.equal(r.sleeps, 3);
     assert.doesNotMatch(r.calls, /restic forget/);
   });
@@ -1074,9 +1076,15 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
     });
     assert.equal(r.status, 1, r.out);
-    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active and answering/);
+    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/);
     assert.equal(r.sleeps, 3);
     assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  test('a world switched by hand during the day does not fail the night', () => {
+    const r = nightly({ users: [0], env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' } });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.sleeps, 0);
   });
 
   test('a backup after which Foundry is active again succeeds without waiting', () => {

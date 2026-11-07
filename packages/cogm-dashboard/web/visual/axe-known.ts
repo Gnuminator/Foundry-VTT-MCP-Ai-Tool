@@ -1,5 +1,5 @@
 // Serious and critical axe violations that were already on the React dashboard when the axe check
-// was added (UI-01). The CSS is shared with the old page and a fix would change pixels there too,
+// was added (UI-01). The CSS is shared across screens and a fix would change pixels in other places too,
 // so they are recorded here instead of fixed. axe.spec.ts fails on anything not in this list, and
 // on an entry here that no longer occurs on its screen and theme. Remove an entry when its cause
 // is fixed.

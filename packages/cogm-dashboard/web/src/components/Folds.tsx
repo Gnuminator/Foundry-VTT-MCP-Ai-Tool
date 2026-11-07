@@ -1,10 +1,10 @@
-// The folds of the During cards (D-092, I-107), ported from the old page: Live Feed, Recent
+// The folds of the During cards (D-092, I-107): Live Feed, Recent
 // Changes, Handouts and Party each have a fold button first in their head, and a folded card
 // shows only its head. The rules are in lib/duringFolds.ts; moments.css draws the button and hides
 // what is inside a card with `.is-folded`.
 //
-// What is new: a card the GM folded or opened keeps that choice for the same layout, fight and
-// width class (the old page started over at every fight and breakpoint), the button has a name
+// A card the GM folded or opened keeps that choice for the same layout, fight and
+// width class; the button has a name
 // ("Fold Party") and points at the card's body, and its usage names are literals so the usage
 // catalogue lists them.
 import {

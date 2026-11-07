@@ -1,6 +1,6 @@
-// The During layouts (D-092, I-107), ported from the old page: the bar with the layout switch
+// The During layouts (D-092, I-107): the bar with the layout switch
 // (Cards, Simple/Full, Auto), the quiet hint, the Before card and the guide of the layout trial,
-// and the two "During screen" entries of the Advanced menu. The old page's moments.css lays the
+// and the two "During screen" entries of the Advanced menu. The shared moments.css lays the
 // slots out per `data-layout`, `data-context` and `data-view` on #moment-during (Moments.tsx sets
 // them); the choice is kept per world on the server (lib/prefs.ts), so either page shows it.
 import { lazy, Suspense, useEffect, useRef, useState, type JSX } from 'react';
@@ -98,8 +98,7 @@ export interface DuringController {
 
 /**
  * The During layouts for the page: reads the saved choices and the fight, runs the trial, counts
- * the hint. `pinDuring` puts the page on During (the trial starts there and stays, as on the old
- * page).
+ * the hint. `pinDuring` puts the page on During (the trial starts there and stays).
  */
 export function useDuringLayout(moment: Moment | null, pinDuring: () => void): DuringController {
   const toast = useToast();
@@ -227,7 +226,7 @@ function LayoutButton({
 /**
  * The During bar (the first row of the During view): the layout switch and its help, the Simple/
  * Full switch, the note for Auto, and the quiet hint. The hint and the notes are in the page and
- * hidden when they do not apply, as on the old page.
+ * hidden when they do not apply.
  */
 export function DuringBar({ during }: { during: DuringController }): JSX.Element {
   const openHelp = useHelp();

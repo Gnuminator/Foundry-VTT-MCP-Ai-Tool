@@ -52,6 +52,7 @@ import {
   startTableWatch,
 } from './tarokka-table-window.js';
 import { logInfo } from './log.js';
+import { toGmMessage } from './gm-message.js';
 // Connection control now handled through settings menu
 
 /** How long the "MCP server not found" notice stays quiet after it was shown (per browser). */
@@ -350,7 +351,7 @@ class FoundryMCPBridge {
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to initialize:`, error);
       trackUsage('error', 'module.error.init', { code: 'init-failed' });
-      ui.notifications.error('Failed to initialize Foundry MCP Bridge');
+      ui.notifications.error(toGmMessage('start the AI Tool', error));
       throw error;
     }
   }
@@ -797,9 +798,7 @@ Hooks.once('ready', async () => {
               // Notify GM about the failure
               if (game.user?.isGM) {
                 trackUsage('error', 'module.error.roll-update', { code: 'update-failed' });
-                ui.notifications?.error(
-                  `Failed to update player roll message: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                ui.notifications?.error(toGmMessage("update a player's roll in chat", error));
               }
             }
           }
@@ -824,9 +823,7 @@ Hooks.once('ready', async () => {
               // Notify GM about the failure so they can take action
               if (game.user?.isGM) {
                 trackUsage('error', 'module.error.roll-state', { code: 'save-failed' });
-                ui.notifications?.error(
-                  `Failed to save player roll state: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                ui.notifications?.error(toGmMessage("remember a player's roll", error));
               }
             }
           }

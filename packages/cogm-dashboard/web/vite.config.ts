@@ -1,10 +1,10 @@
-// The React dashboard (D-109): built into dist/web and served by the dashboard at /next/, next to
-// the old pages in public/ until the switch. The page links the old stylesheets, themes, fonts and
-// usage.js from the server at run time (one copy of The Veil for both pages), so the build leaves
+// The React dashboard (D-109): built into dist/web and served by the dashboard at /next/.
+// The page links the shared stylesheets, themes, fonts and usage.js from public/ at run time
+// (one copy of The Veil), so the build leaves
 // those URLs alone.
 //
 //   npm run build -w @gnuminator/cogm-dashboard     tsc, the help pages, then this build
-//   npm run dev:web -w @gnuminator/cogm-dashboard   Vite on 5173, /api and the old assets
+//   npm run dev:web -w @gnuminator/cogm-dashboard   Vite on 5173, /api and the public/ assets
 //                                                   proxied to a dashboard on COGM_DEV_TARGET
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,7 @@ const SERVER_PATHS = [
 export default defineConfig({
   root: webDir,
   base: '/next/',
-  // public/ belongs to the old pages and the server serves it; nothing to copy.
+  // public/ holds the shared assets and the server serves it; nothing to copy.
   publicDir: false,
   plugins: [react()],
   // The tool version for the header (lib/appVersion.ts).

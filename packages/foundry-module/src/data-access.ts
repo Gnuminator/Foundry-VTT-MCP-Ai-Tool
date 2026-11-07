@@ -93,7 +93,7 @@ export class FoundryDataAccess {
       return {
         success: true,
         totalCreatures: creatures.length,
-        message: `Enhanced creature index rebuilt: ${creatures.length} creatures indexed from all packs`,
+        message: `Creature index rebuilt: ${creatures.length} creatures indexed from all packs`,
       };
     } catch (error) {
       console.error(`[${this.moduleId}] Failed to rebuild enhanced creature index:`, error);

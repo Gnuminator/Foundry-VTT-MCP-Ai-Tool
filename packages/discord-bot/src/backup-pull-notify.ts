@@ -139,8 +139,8 @@ export function backupPullMessage(
   return (
     `${headline}${again} (the limit is ${limit}).\n` +
     `${kindLine('restic', pullOf(reading, 'restic'))}\n${kindLine('snapshot', pullOf(reading, 'snapshot'))}\n${rewrite}` +
+    "The cause is either that the PC has not copied them, or that the Pi has made no new backup (the Pi's own backup report on the board tells which). " +
     'Turn the PC on, or run the two tasks "Foundry Pi restic copy" and "Foundry Pi snapshot pull" in Task Scheduler. ' +
-    "This means either the PC has not copied them, or the Pi has made no new backup (the Pi's own backup report on the board tells which). " +
     'Until then the only copies are on the Pi.'
   );
 }

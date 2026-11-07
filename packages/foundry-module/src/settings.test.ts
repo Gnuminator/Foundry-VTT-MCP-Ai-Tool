@@ -202,12 +202,9 @@ describe('ModuleSettings: bridge user (PB-02)', () => {
     expect(config.getHello?.()).toMatchObject({ userId: 'gm', isBridgeUser: true });
   });
 
-  it('keeps the deprecated state settings registered so old worlds load', () => {
+  it('no longer registers the old connection-state settings', () => {
     for (const key of ['lastConnectionState', 'lastActivity', 'lastMCPServerNotification']) {
-      expect(registered.get(`${MODULE_ID}.${key}`)).toMatchObject({
-        scope: 'world',
-        config: false,
-      });
+      expect(registered.has(`${MODULE_ID}.${key}`)).toBe(false);
     }
   });
 });

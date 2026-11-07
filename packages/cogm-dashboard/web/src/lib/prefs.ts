@@ -1,7 +1,7 @@
 // The GM's screen choices for a world (dashboard-prefs.ts on the server): the During layout,
 // whether the layout switch has a Full view, the combat buttons and how far the layout trial has
 // come. The server keeps them per world and sends them as the `prefs` stream event (GM only), so
-// the old page and this one show the same choice. A change goes to POST /api/control as
+// every open page shows the same choice. A change goes to POST /api/control as
 // `set-prefs`; the answer is the whole prefs object.
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';

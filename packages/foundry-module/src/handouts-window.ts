@@ -208,7 +208,12 @@ export function foundryHandoutsDeps(): HandoutsDeps {
     context: worldContext,
     confirmReveal: async (plan): Promise<boolean> => {
       const api = (foundry.applications as { api?: { DialogV2?: DialogV2Like } }).api;
-      if (!api?.DialogV2) return false;
+      if (!api?.DialogV2) {
+        ui.notifications?.warn(
+          'Foundry could not show the confirmation window, so nothing was changed. Reload the page and try again.'
+        );
+        return false;
+      }
       const answer = await api.DialogV2.confirm({
         window: { title: 'Reveal handout' },
         content: renderRevealConfirmHtml(plan),

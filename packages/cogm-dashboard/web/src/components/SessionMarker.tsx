@@ -7,7 +7,7 @@ import { useObsidianFileUrl } from '../lib/stream';
 import { Button } from '../ui';
 
 /**
- * The play session marker in the header (the old page's #session-control): the status, a button
+ * The play session marker in the header: the status, a button
  * that starts or ends the session, and a link to the campaign Home note in Obsidian when the
  * mirror is on. It writes only to the bridge vault's session log, never to the game, so it needs
  * no GM Actions switch and no confirm (tool-policy.ts LOG_ONLY_TOOLS on the server).

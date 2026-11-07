@@ -43,7 +43,7 @@
  * the state keeps `completeFrom`, the time of the oldest record the buffer still held;
  * `historyStart` moves up to it, so a rewind across the gap is refused instead of skipping
  * changes without a word. Known gaps it cannot see: a GM browser reload while the bridge was
- * down loses the old page's unread records with no trace (the new `clientId` is also what a
+ * down loses the page's unread records with no trace (the new `clientId` is also what a
  * plain reload looks like), and nothing is recorded while the journal is off.
  *
  * On by default; `FOUNDRY_AI_CHANGE_JOURNAL=off` disables it. The poll interval is

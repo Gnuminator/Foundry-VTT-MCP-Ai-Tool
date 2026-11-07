@@ -109,7 +109,8 @@ describe('the AI Tool scene-controls group', () => {
 
     expect(open).toHaveBeenCalledTimes(1);
     expect(world.notifications[0]).toMatchObject({ level: 'error' });
-    expect(world.notifications[0]?.message).toContain('boom');
+    expect(world.notifications[0]?.message).toMatch(/^Could not open "X"\. /);
+    expect(world.notifications[0]?.message).not.toContain('boom');
   });
 
   it('registerAiToolControls hooks getSceneControlButtons', () => {

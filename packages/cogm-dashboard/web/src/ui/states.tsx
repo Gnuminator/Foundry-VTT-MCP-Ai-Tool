@@ -1,5 +1,5 @@
 // The blocks a panel shows instead of its content: loading, nothing yet, an error, the bridge
-// being down, a switch being off. They render the old page's `.empty` block (styles.css), so a
+// being down, a switch being off. They render the `.empty` block (styles.css), so a
 // panel that already says "Loading…" or "Couldn't load ..." looks the same after the move.
 // Loading is a polite live region (role=status), and so are the two standing conditions (the
 // bridge being down, a switch being off); an error is an alert (role=alert). A screen reader hears

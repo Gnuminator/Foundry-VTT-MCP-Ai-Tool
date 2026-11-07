@@ -13,7 +13,7 @@ export interface TourStep {
 
 /**
  * The trial's steps. The Simple/Full text points at "Show everything", which the bar shows in
- * the trial (the old page hid it there, so the text pointed at nothing).
+ * the trial.
  */
 export const TOUR: readonly TourStep[] = [
   {

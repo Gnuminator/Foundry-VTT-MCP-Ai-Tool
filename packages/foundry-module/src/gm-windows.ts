@@ -13,6 +13,7 @@
  * Operations" must be on).
  */
 import { MODULE_ID } from './constants.js';
+import { toGmMessage } from './gm-message.js';
 import { replaceKeepingFocus } from './window-fields.js';
 
 /** The world setting that turns the windows on (the GM sees it in the module settings). */
@@ -131,9 +132,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       actions[name] = function (_event: Event, target: HTMLElement): void {
         void Promise.resolve(handler(target)).catch((error: unknown) => {
           console.error(`[${MODULE_ID}] ${spec.title}: ${name} failed:`, error);
-          ui.notifications.error(
-            `${spec.title}: ${error instanceof Error ? error.message : String(error)}`
-          );
+          ui.notifications.error(toGmMessage(`finish that in the ${spec.title} window`, error));
         });
       };
     }

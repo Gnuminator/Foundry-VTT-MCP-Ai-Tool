@@ -65,7 +65,7 @@ export function plainError(status: number): string {
 
 /**
  * Calls a dashboard route with the GM token and returns its JSON body. Errors carry the server's
- * `error` text, as the old page shows them.
+ * `error` text.
  */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { ...authHeaders() };

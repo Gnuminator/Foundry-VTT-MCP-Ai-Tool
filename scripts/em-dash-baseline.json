@@ -1,5 +1,5 @@
 {
-  "total": 1391,
+  "total": 1390,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -66,7 +66,6 @@
     "packages/foundry-module/src/data-access/chat.ts": 7,
     "packages/foundry-module/src/data-access/combat.ts": 4,
     "packages/foundry-module/src/data-access/compendium.ts": 4,
-    "packages/foundry-module/src/data-access/creature-index.ts": 1,
     "packages/foundry-module/src/data-access/dnd5e-tables.ts": 10,
     "packages/foundry-module/src/data-access/journals.ts": 3,
     "packages/foundry-module/src/data-access/modules.ts": 9,

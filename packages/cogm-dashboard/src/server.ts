@@ -45,7 +45,12 @@ dashboard.onFeed({ pollNow: () => feed.pollNow(), resync: () => feed.resync() })
 feed.start();
 dashboard.start();
 
-const server = dashboard.app.listen(config.port, config.host, () => {
+const server = dashboard.app.listen(config.port, config.host, (error?: Error) => {
+  // Express 5 hands a failed listen (a taken port) to this callback instead of throwing.
+  if (error) {
+    logger.error(`Dashboard could not listen on ${config.host}:${config.port}: ${error.message}`);
+    process.exit(1);
+  }
   logger.info(`Dashboard listening on http://${config.host}:${config.port}`, {
     mcp: `${config.mcpHost}:${config.mcpPort}`,
     playerGmSplit: config.auth.splitEnabled

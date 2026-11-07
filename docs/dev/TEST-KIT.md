@@ -369,7 +369,7 @@ Build time depends on the number of heroes, about five seconds each. Measured on
 | `licensed` | `full`  | 157    | about 12 minutes | about 13 minutes                |
 
 The `smoke` times were measured before `foundry-controls` joined `smoke`. That scenario launches a second Edge,
-rebuilds the Enhanced Creature Index (it waits up to 4 minutes) and polls the join page in a fresh Edge per
+rebuilds the creature index (it waits up to 4 minutes) and polls the join page in a fresh Edge per
 attempt, so a `smoke` run now takes several minutes longer than the table says. It has not been re-measured.
 
 The two feature scenarios add little: about 25 seconds to an `srd` `full` run (5 minutes in all) and about
@@ -450,8 +450,7 @@ a refusal, or on an open Foundry port, instead of copying over an open world. Th
 (`stop-decision.test.mjs`, through `pwsh`).
 
 `dashboard-controls` and `player-rendered` also need a real browser and skip themselves against the fake.
-The kit drives the React dashboard at `/` (a test, `legacy-dashboard.test.mjs`, keeps the retired
-page out of the kit); the browser is headless unless `--headed` is passed.
+The kit drives the React dashboard at `/`; the browser is headless unless `--headed` is passed.
 The element ids in `lib/dashboard-page.mjs` and the table come from `packages/cogm-dashboard/web/src`.
 
 The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
@@ -493,7 +492,7 @@ fails the test); the drivers are `lib/foundry-sweep.mjs` and `foundry-sweep-chan
 - **Handouts and Tarokka windows:** the reveals are done through the windows' own buttons, checked from the kit
   player's side and then undone.
 - **Settings:** the "Foundry AI Tool" section, a sample of the feature switches, the three settings menus (GM guide,
-  Enhanced Index, join page look), and the join page look: Apply The Veil and back to Foundry's look.
+  creature index, join page look), and the join page look: Apply The Veil and back to Foundry's look.
 - **Journal and chat:** the campaign status toggle on a journal (the GM cycles it, a player is refused) and the
   roll request card (the player rolls, the card says who did).
 - **A player:** cannot see the AI Tool group, the settings section or the windows, and cannot call the bridge

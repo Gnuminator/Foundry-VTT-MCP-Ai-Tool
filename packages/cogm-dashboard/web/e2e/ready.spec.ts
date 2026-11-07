@@ -1,5 +1,5 @@
 // Turn on for tonight inside Pre-flight: the switch chips (/api/session/switches, faked here except
-// in the last test), turning them on and off with the toasts the old page shows, GM Actions from
+// in the last test), turning them on and off with their toasts, GM Actions from
 // the stream's settings event, the pre-flight row following, and Start the session log. With no
 // session open the page shows Before, where Pre-flight (and Ready inside it) sits in the page.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';

@@ -60,7 +60,7 @@ function writeTicks(ticks: Ticks): void {
 }
 
 /**
- * The check this page makes itself, as the old page does: Tarokka's Show cards. It follows the
+ * The check this page makes itself: Tarokka's Show cards. It follows the
  * box live: the GM Actions gate can open this drawer over Tarokka with the cards shown.
  */
 function tarokkaCheck(shown: boolean): PreflightCheck {
@@ -186,7 +186,7 @@ export function PreflightDrawer({
   useEffect(() => {
     if (!open) return;
     usage().trackView('dash.preflight.view');
-    // Ticks may have changed on the old page since this one loaded.
+    // Ticks may have changed in another tab since this one loaded.
     setTicks(readTicks());
     void run();
     return (): void => usage().endView('dash.preflight.view');

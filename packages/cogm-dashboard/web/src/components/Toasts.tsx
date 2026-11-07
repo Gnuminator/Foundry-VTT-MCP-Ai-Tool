@@ -58,7 +58,7 @@ function handOnEscape(event: KeyboardEvent): void {
 
 /**
  * The toast stack (bottom right), styled by styles.css (.toast-stack, .toast.ok/.err/.warn, and
- * .toast-undo with its .toast-action button), with the old page's timings.
+ * .toast-undo with its .toast-action button).
  */
 export function ToastProvider({ children }: { children: ReactNode }): JSX.Element {
   const [items, setItems] = useState<ToastItem[]>([]);

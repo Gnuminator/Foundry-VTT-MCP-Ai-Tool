@@ -2,8 +2,7 @@
 // category, and one tool as a form built from its input schema, with picker lists for parameters
 // that name something. Reads run at once. A plan-* tool is planned and then applied after the
 // confirm window, always (a plan typed by hand is never a one-click change, and Enter in a field
-// submits the form); any other write goes through the same window. Port of the old page's tool
-// drawer (public/app.js openTool, buildForm, submitToolForm, showToolResult). GM only.
+// submits the form); any other write goes through the same window. GM only.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useCallback,
@@ -240,7 +239,7 @@ function ToolRunner({
   }, []);
 
   // A request from another panel: that tool, its form filled in fresh (it never runs by itself).
-  // The old page left the last form under the list when the tool was missing.
+  // A tool missing from the catalog gets a warning and no form.
   const handled = useRef(0);
   useEffect(() => {
     if (!request || !tools || handled.current === request.seq) return;
@@ -595,7 +594,7 @@ function ToolForm({
         <div className="field" key={key} data-key={key}>
           {label}
           <select {...common} value={text(key)} onChange={e => setField(key, e.target.value)}>
-            {/* Not sent: the bridge's default applies (the old page's "choose" row). */}
+            {/* Not sent: the bridge's default applies. */}
             <option value="">(not set)</option>
             {def.enum.map(v => (
               <option key={String(v)} value={String(v)}>

@@ -35,8 +35,8 @@ down until someone reloads.
   - The heartbeat no longer restarts the bridge (the socket bridge owns reconnecting) and never
     turns `autoReconnectEnabled` off.
   - Connection state and last activity live in memory only. Remove the `setSetting` calls for
-    `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` (keep the registrations so
-    old worlds load; mark them deprecated in a comment). The "MCP server not found" notice is
+    `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` (these settings were later
+    removed altogether; an old world's stored values are ignored). The "MCP server not found" notice is
     throttled in memory (once per 10 minutes per browser).
   - `autoReconnectEnabled` still means something: when off, the socket bridge does not reconnect
     after a drop (manual reconnect from the settings panel).
@@ -44,7 +44,7 @@ down until someone reloads.
 - **Telling the user:** the backend tracks `linkDownSince` (ISO time, null while connected) and logs
   one warning when the link has been down 5 minutes and one info line when it is back
   (`link-down` / `link-up`, the hook the Discord bot will use later). The dashboard status carries
-  `foundryDownSince`; `public/app.js` shows a banner above the panels when Foundry has been
+  `foundryDownSince`; the dashboard shows a banner above the panels when Foundry has been
   unreachable for 2 minutes or more: "Foundry is not connected to the bridge since HH:MM. Open
   Foundry in the bridge user's browser, or reload that tab."
 

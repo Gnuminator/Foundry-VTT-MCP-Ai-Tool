@@ -3,10 +3,8 @@
 // prompts, the hit point bar, when the action bar shows, and when the strip is out of date. No
 // React here, so the rules have unit tests; components/CombatStrip.tsx does the rest.
 //
-// Three things differ from the old page, on purpose: the reaction button shows only on a living
-// boss (the old page gave every combatant one once Boss prompts was on, with no way to switch it
-// off in a fight without a boss), a fight is marked old when the bridge is away (the old page
-// kept showing it as live), and a fight with nobody in it says so.
+// The reaction button shows only on a living boss, a fight is marked old when the bridge is away,
+// and a fight with nobody in it says so.
 
 export interface CombatantHp {
   value: number;

@@ -68,7 +68,7 @@ const OPEN = { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER', GAME
 // Both link spellings: Compendium.<pack>.<Type>.<id> (also without the type) and the old @Compendium[<pack>.<id>].
 const linkRe = packs =>
   new RegExp(
-    `(@Compendium\\[|Compendium\\.)(${packs.map(p => p.replace(/\./g, '\\.')).join('|')})\\.((?:[A-Za-z]+\\.)?)([A-Za-z0-9]{16})`,
+    `(@Compendium\\[|Compendium\\.)(${packs.map(p => p.replace(/[\\.]/g, '\\$&')).join('|')})\\.((?:[A-Za-z]+\\.)?)([A-Za-z0-9]{16})`,
     'g'
   );
 const done = [];

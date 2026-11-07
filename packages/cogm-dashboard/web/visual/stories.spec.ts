@@ -1,5 +1,5 @@
 // Story shots (UI-03): one screenshot of every story in the built Storybook (storybook-static/),
-// in the story's own theme and screen size, and an axe check of the same stories. Runs in the
+// in the story's own theme and screen size (Veil stories only in part, see `photographed`), and an axe check of the same stories. Runs in the
 // `stories` project of playwright.visual.config.ts, which serves the folder (scripts/serve-static.mjs).
 //
 //   npm run build-storybook -w @gnuminator/cogm-dashboard     once, on the host
@@ -17,6 +17,17 @@ import { contentClip, loadStories, showStory } from './stories';
 const FAILING = new Set(['serious', 'critical']);
 const stories = loadStories();
 
+// A Veil story is photographed only when it is a `ui-` primitive (they pin the Veil tokens), a
+// phone story (often the component's only phone shot) or the heal form (its only story). Every
+// story still gets its axe check, Veil ones included. Not covered by any shot after this trim:
+// page-level Veil rules (moment tab glow, mist background) and the Veil theme at 1080 and 390 wide.
+const KEEP_VEIL = new Set(['components-combat-strip--heal-form-veil']);
+const photographed = (story: (typeof stories)[number]): boolean =>
+  !story.tags.includes('veil') ||
+  story.tags.includes('phone') ||
+  story.id.startsWith('ui-') ||
+  KEEP_VEIL.has(story.id);
+
 test('the stories are built', () => {
   expect(
     stories.length,
@@ -25,14 +36,16 @@ test('the stories are built', () => {
 });
 
 for (const story of stories) {
-  test(`story: ${story.id}`, async ({ page }) => {
-    await showStory(page, story);
-    const clip = await contentClip(page);
-    await expect(page).toHaveScreenshot(`${story.id}.png`, {
-      fullPage: true,
-      ...(clip ? { clip } : {}),
+  if (photographed(story)) {
+    test(`story: ${story.id}`, async ({ page }) => {
+      await showStory(page, story);
+      const clip = await contentClip(page);
+      await expect(page).toHaveScreenshot(`${story.id}.png`, {
+        fullPage: true,
+        ...(clip ? { clip } : {}),
+      });
     });
-  });
+  }
 
   test(`axe: ${story.id}`, async ({ page }) => {
     await showStory(page, story);

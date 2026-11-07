@@ -232,7 +232,8 @@ export const BridgeDown: StoryObj<typeof meta> = {
 
 **Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and, for each
 story, takes one screenshot (cropped to the story's content and anything open over it) in the
-story's own theme and size, then runs axe on it. A new story gets a baseline the next time
+story's own theme and size, then runs axe on it. Veil stories get a screenshot only when they
+are `ui-` primitives, phone stories or the heal form; the rest only get axe. A new story gets a baseline the next time
 `npm run test:visual:update` runs; there is no list to edit. They run in the `stories` project of
 the same Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual`
 cover them; build the Storybook first (`npm run build-storybook`), and rebuild it after a
@@ -244,8 +245,8 @@ Serious and critical axe findings fail; the ones already there are listed with t
 
 `web/visual` photographs the React page with Playwright's `toHaveScreenshot`: the three moments
 (Before, During, After), every ported drawer and pane open over the page, the Advanced menu and
-the version banner, each in the neutral and the Veil theme (mist calm) at 1440, 1080 and 390 pixels
-wide. That is 78 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fakes are the e2e
+the version banner, each in the neutral theme at 1440, 1080 and 390 pixels wide (axe checks the Veil theme
+too, at 1440). That is 42 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fakes are the e2e
 helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
 fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
 screens also go through axe at 1440 (serious and critical violations fail; the ones already there

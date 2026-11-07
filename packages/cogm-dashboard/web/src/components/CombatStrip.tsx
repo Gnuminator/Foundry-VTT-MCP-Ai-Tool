@@ -1,4 +1,4 @@
-// The combat strip (D-092, I-070, I-095), ported from the old page: the turn order in the During
+// The combat strip (D-092, I-070, I-095): the turn order in the During
 // view's strip slot, one row per combatant in the bridge's order, with the Boss prompts switch and
 // reaction ticks, and (GM Actions on) rows to pick and an action bar. Condition opens a row of
 // condition chips (ConditionForm): a chip plans it with plan-actor-change, one confirm asks, the

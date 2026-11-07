@@ -224,7 +224,7 @@ function Dashboard(): JSX.Element {
     if (!open) setFloated(f => (f[name as DockName] ? { ...f, [name]: false } : f));
     setDrawers(d => ({ ...d, [name]: open }));
   };
-  // The Advanced menu opens a drawer, as on the old page; one already open comes to the top and
+  // The Advanced menu opens a drawer; one already open comes to the top and
   // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
   // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
@@ -270,7 +270,7 @@ function Dashboard(): JSX.Element {
   // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
   const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Turn on for tonight turns them
-  // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
+  // on (the Tool runner points at its own gate bar).
   // Already open under another drawer, it comes to the top.
   // Docked in Before, the drawers over the page close so it shows, and it takes the focus once
   // they are gone.

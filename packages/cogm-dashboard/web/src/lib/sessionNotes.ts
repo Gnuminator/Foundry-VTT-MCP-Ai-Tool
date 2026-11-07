@@ -1,7 +1,6 @@
 // Session notes (recap lane, D-087): the notes the session pipeline wrote from the recording. The
 // bridge puts them into a GM-only "Session notes" journal by itself (logged, with Undo) and queues
-// the Recap page for reveal; the After view's card says where they are. Port of the old page's
-// renderSessionNotes (public/app.js). Pure, so it is tested without a page. GM only: nothing here
+// the Recap page for reveal; the After view's card says where they are. Pure, so it is tested without a page. GM only: nothing here
 // reaches /player.
 
 /** The latest session's notes (GET /api/session-notes, session-notes-route.ts); fields used here. */
@@ -115,7 +114,7 @@ export function notesTime(iso: string | undefined): string {
     : '';
 }
 
-/** The card for these notes: its words and its buttons, as the old page's renderSessionNotes. */
+/** The card for these notes: its words and its buttons. */
 export function notesView(n: SessionNotes): NotesView {
   const waiting = Array.isArray(n.waitingFor) ? n.waitingFor : [];
   const actions: NotesAction[] = ['read'];

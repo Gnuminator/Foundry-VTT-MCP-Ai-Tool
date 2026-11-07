@@ -1,4 +1,4 @@
-// The After view's two cards (D-085, PB-16), ported from the old page: Tonight's stats (rolls, most
+// The After view's two cards (D-085, PB-16): Tonight's stats (rolls, most
 // damage, the highest roll and who went down, from get-play-stats for the latest session, with Copy
 // for Discord and the Open the session note link) and Session notes (recap lane, D-087: where the
 // notes the pipeline wrote are, with Read, Put in Foundry, Approve without revealing and Undo).
@@ -176,7 +176,7 @@ function AfterStats({ active }: { active: boolean }): JSX.Element {
   );
 }
 
-/** The notes' pages in a pane over the page (the old page used the guide pane). */
+/** The notes' pages in a pane over the page. */
 function NotesReader({
   notes,
   open,

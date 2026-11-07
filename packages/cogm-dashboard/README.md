@@ -82,7 +82,7 @@ built server), `npm run typecheck`, `npm run lint`.
 ## The React dashboard (the page at `/`)
 
 The dashboard pages moved to React + TypeScript (D-109), one panel at a time. The page lives in
-`web/` and is served at **`/`** (D-126). `/legacy/` and `/next/` (the preview address)
+`web/` and is served at **`/`** (D-126). The retired page addresses
 redirect to `/`, and the React build's own files still load from
 `/next/assets/`. `/?plan=<planId>` (the Obsidian plugin's plan link) opens the plan's confirm
 window. `/player`, `/me` and `/open` are separate pages and did not move.

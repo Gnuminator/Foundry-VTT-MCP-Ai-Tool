@@ -3,10 +3,9 @@
 // reads for an event, the pane's count, which face the pane shows and what a screen reader is
 // told. No React here, so the rules have unit tests; components/LiveFeed.tsx does the rest.
 //
-// Differences from the old page, on purpose: events are ordered by their time rather than by
-// when they arrived (a replay after a reconnect cannot put old events on top), "1 event" is
-// singular, the class an event gets is made safe, a feed shown while the bridge is away says so,
-// and a screen reader hears new events (the old list was silent).
+// Events are ordered by their time rather than by when they arrived (a replay after a reconnect
+// cannot put old events on top), "1 event" is singular, the class an event gets is made safe, a
+// feed shown while the bridge is away says so, and a screen reader hears new events.
 
 /** One session event as the live feed shows it: what to print and what sorts it. */
 export interface FeedEvent {
@@ -49,7 +48,7 @@ export interface FeedLog {
   seen: ReadonlySet<string>;
 }
 
-/** The old page keeps 120 entries on screen; the server keeps the newest 80 (COGM_MAX_EVENTS). */
+/** The feed keeps 120 entries on screen; the server keeps the newest 80 (COGM_MAX_EVENTS). */
 export const MAX_FEED_ENTRIES = 120;
 
 /** How many added ids are remembered; far more than the server ever replays. */
@@ -222,7 +221,7 @@ export function eventLabel(eventType: string, feature?: string): string {
   return eventType;
 }
 
-/** The time an event shows: the browser's own time format, as the old page did. */
+/** The time an event shows: the browser's own time format. */
 export function eventTime(timestampMs: number): string {
   return new Date(timestampMs).toLocaleTimeString();
 }

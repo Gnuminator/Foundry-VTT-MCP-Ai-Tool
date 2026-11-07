@@ -336,7 +336,7 @@ test('shows the empty state, and a failed load says why and keeps the last readi
   const body = drawer.locator('#tarokka-body');
   const sub = drawer.locator('.drawer-sub');
 
-  // A first load that fails: the reason, and the subtitle the old page shows before any load.
+  // A first load that fails: the reason, and the subtitle shown before any load.
   await expect(body).toHaveText("Couldn't load the reading: Bridge not connected");
   await expect(sub).toHaveText('GM only. Stored in the bridge vault.');
 
@@ -356,7 +356,7 @@ test('shows the empty state, and a failed load says why and keeps the last readi
   );
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
   await expect(sub).toHaveText('GM only · builtin-roll · 10/9/2026, 6:00:00 PM · 2 archived');
-  // Show cards repaints the rows but never hides the error (the old page lost it here).
+  // Show cards repaints the rows but never hides the error.
   await drawer.getByRole('checkbox', { name: 'Show cards' }).check();
   await expect(drawer.locator('.tarokka-card').first()).toHaveText('Three of Swords swords-3');
   await expect(body.locator('> p.empty')).toHaveText(
@@ -503,13 +503,13 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
     limit: 20,
   });
 
-  // A reload keeps the open form, what was typed and the results (the old page lost them).
+  // A reload keeps the open form, what was typed and the results.
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
   await expect.poll(() => loads(calls)).toBe(2);
   await expect(input).toHaveValue(' Val ');
   await expect(rows).toHaveCount(4);
 
-  // A whole journal goes under the journal page field, as on the old page.
+  // A whole journal goes under the journal page field.
   await rows.nth(1).getByRole('button', { name: 'Link' }).click();
   await expect(toast(page, '✓ Applied: Linked Tome')).toBeVisible();
   expect(plans(calls)).toEqual([

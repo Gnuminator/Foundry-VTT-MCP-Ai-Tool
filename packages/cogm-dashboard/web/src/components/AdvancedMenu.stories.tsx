@@ -7,7 +7,7 @@ import { Button } from '../ui';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './AdvancedMenu';
 
-// The Advanced ▾ menu of the header: a non-modal Radix dropdown whose entries are the old page's
+// The Advanced ▾ menu of the header: a non-modal Radix dropdown whose entries are
 // buttons. The play step opens it, as a click would.
 const meta = {
   title: 'Components/AdvancedMenu',

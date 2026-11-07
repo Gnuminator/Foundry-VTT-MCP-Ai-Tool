@@ -589,7 +589,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.combat.end',
     how: 'write',
-    // Only the After page (web/src) has it; the old page's files do not, so the data-track
+    // Only the After page (web/src) has it; the files under public/ do not, so the data-track
     // test cannot look it up there.
     selector: '[data-track="dash.combat.end"]',
     why: 'plans ending the fight, asks once, then ends it in Foundry (with Undo); the e2e spec and the live check cover it',

@@ -55,7 +55,7 @@ beforeAll(async () => {
   const app = express();
   // The dashboard mounts it behind the same kind of limiter (app.ts).
   const limit = rateLimit({ windowMs: 10_000, limit: 1000, validate: false });
-  // The old pages' stylesheets: css only, revalidated, headers hook still runs.
+  // The shared stylesheets: css only, revalidated, headers hook still runs.
   app.use(
     '/pub',
     limit,

@@ -1,4 +1,4 @@
-/* Only what the React markup needs on top of the old stylesheets (styles.css, moments.css and the
+/* Only what the React markup needs on top of the shared stylesheets (styles.css, moments.css and the
    themes, linked by index.html). The look itself stays in those files. */
 
 /* Radix renders the toast stack as a list. */
@@ -47,8 +47,8 @@ a.btn {
   z-index: var(--z-drawer-top);
 }
 
-/* The Advanced menu (AdvancedMenu.tsx): Radix places it under the button, so the old page's own
-   placement (moments.css .advanced-menu: absolute, right 0, below the button) is undone. */
+/* The Advanced menu (AdvancedMenu.tsx): Radix places it under the button, so the placement in moments.css
+   (.advanced-menu: absolute, right 0, below the button) is undone. */
 .advanced-menu[data-radix-menu-content] {
   position: relative;
   top: auto;
@@ -124,7 +124,7 @@ main.moment-views #moment-during.during-no-bar {
 /* ---- The combat strip (CombatStrip.tsx) ---- */
 
 /* Conditions show in every layout. moments.css hides them in the strip except in Auto during a
-   fight (the old page); a GM in Cards or Full could not see a condition. Same specificity, and
+   fight; a GM in Cards or Full could not see a condition. Same specificity, and
    this file loads after, so it wins on this page only. */
 .slot-strip #pane-combat .conditions {
   display: flex;
@@ -338,8 +338,7 @@ main.moment-views #moment-during.during-no-bar {
 }
 
 /* Tool runner form (design pass, I-149 trial): parameter names read as identifiers, the helper
-   text is readable, and Run stays in view under a long form. Tokens only; the old page is
-   untouched. */
+   text is readable, and Run stays in view under a long form. Tokens only. */
 .tool-runner-body .tool-detail {
   gap: var(--space-3);
   padding: var(--space-4) var(--space-4) 0;
@@ -369,7 +368,7 @@ main.moment-views #moment-during.during-no-bar {
 .tool-runner-body .tool-form input:not([type='checkbox']) {
   min-height: 2.25rem;
 }
-/* The textarea keeps the old page's floor: the rule above would lower it to 2.25rem. */
+/* The textarea keeps its taller floor: the rule above would lower it to 2.25rem. */
 .tool-runner-body .tool-form textarea.field-control {
   min-height: 3.2rem;
 }

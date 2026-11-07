@@ -1732,8 +1732,8 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   It rewrites every Compendium link that names a kept pack, in the copies and in the journal pages of
   `dnd-players-handbook.content` and `aitool-content.journals` (class text, spell lists), then hides the 11 old packs. Order: the six
   world packs are made hidden, all copies, then the journals, then a scan that no link still names an old pack, and only then the
-  world packs are opened and the old packs hidden; a failure before that changes nothing players see (stage 13 keeps the module
-  packs as Actor Studio's sources until then). Only copies the script marked itself (`baselineCopy`) are ever removed, and only
+  world packs are opened and the old packs hidden; a failure before the journal rewrite changes nothing players see (stage 13 keeps the module
+  packs as Actor Studio's sources until then); a failure after it leaves journal links pointing at hidden world packs until a rerun or the undo, and MODE=check reports HALF-FINISHED then. Only copies the script marked itself (`baselineCopy`) are ever removed, and only
   when their source pack is still in the world. A second run changes nothing (Foundry's own `_stats`, effect change ids and `<hr />` spelling are not
   differences); `REFRESH` in the dry run names a copy whose source changed. Links to `aitool-content.summons` and `tables`
   stay as they are (GM-only, the known open point). Module updates overwrite the journal pages: rerun the baseline (the check says when).

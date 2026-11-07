@@ -153,17 +153,6 @@ if (MODE === 'check' && existingTargets.length === 0) {
   log('baseline not applied in this world (no world.player-* packs): not checked');
   return { applied: false };
 }
-// Undone (the world packs are there but hidden): a check has nothing to compare.
-if (
-  MODE === 'check' &&
-  existingTargets.every(id => {
-    const own = ownershipOf(game.packs.get(id));
-    return own.PLAYER === 'NONE' && own.TRUSTED === 'NONE';
-  })
-) {
-  log('baseline undone (world packs hidden): not checked');
-  return { applied: false };
-}
 // The legacy pack is no requirement: MODE=delete removes it for good after the baseline.
 if (MODE !== 'undo' && !game.packs.get(LEGACY))
   log(`${LEGACY} is not in this world (the trim was not run here, or the legacy pack was deleted)`);
@@ -176,6 +165,30 @@ const journalEntries = async jp => {
   for (const d of await pick(game.packs.get(jp), ids)) out.push(d.toObject());
   return out;
 };
+
+// Undone (the world packs are there but hidden): a check has nothing to compare, but only when no journal page still
+// names a world pack. A run that stopped after the journal rewrite leaves exactly that: dead links for players.
+if (
+  MODE === 'check' &&
+  existingTargets.every(id => {
+    const own = ownershipOf(game.packs.get(id));
+    return own.PLAYER === 'NONE' && own.TRUSTED === 'NONE';
+  })
+) {
+  const reCheck = linkRe(targetIds);
+  for (const jp of journalPacks)
+    for (const entry of await journalEntries(jp))
+      for (const p of entry.pages ?? []) {
+        const hit = reCheck.test(JSON.stringify({ text: p.text, system: p.system }));
+        reCheck.lastIndex = 0;
+        if (hit)
+          throw new Error(
+            `HALF-FINISHED: journal pages point at hidden world packs; rerun MODE=baseline (dry run first) or MODE=baseline-undo\n${done.join('\n')}`
+          );
+      }
+  log('baseline undone (world packs hidden): not checked');
+  return { applied: false };
+}
 
 // ---------- undo ----------
 if (MODE === 'undo') {
@@ -413,6 +426,7 @@ if (args.dryRun) {
 }
 
 // ---------- real run ----------
+let journalStarted = false;
 const real = async () => {
   for (const name of Object.keys(TARGETS)) {
     const id = targetPackOf(name);
@@ -459,6 +473,7 @@ const real = async () => {
   }
   // The journal pages.
   let pagesDone = 0;
+  journalStarted = true;
   for (const jp of [...new Set(journalPlan.map(p => p[0]))]) {
     const pack = game.packs.get(jp);
     await unlocked(pack, async () => {
@@ -528,6 +543,11 @@ if (failure || relockFailures.length) {
   const head = failure
     ? failure.message
     : 'the baseline finished but module packs could not be locked';
-  throw new Error(`${head}\nDONE BEFORE THE FAILURE:\n${[...done, ...relockFailures].join('\n')}`);
+  const advice = journalStarted
+    ? '\nHALF-FINISHED: journal pages may already point at hidden world packs; rerun MODE=baseline (dry run first) or MODE=baseline-undo'
+    : '';
+  throw new Error(
+    `${head}${advice}\nDONE BEFORE THE FAILURE:\n${[...done, ...relockFailures].join('\n')}`
+  );
 }
 return result;

@@ -900,6 +900,20 @@ describe('seven-books-baseline.js', () => {
     assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');
     assert.deepEqual((await run(undo, makePristine(), true)).result, { undone: false });
   });
+  test('check reports a half-finished run (journals rewritten, world packs hidden) instead of undone', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    for (const n of ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'])
+      player(world, n).ownership = { ...HIDDEN };
+    for (const [pid, pack] of world.packs)
+      if (pid.startsWith('aitool-content.') || pid.startsWith('dnd-players-handbook.'))
+        pack.ownership = { ...OPEN };
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    await assert.rejects(run(check, world, true), /HALF-FINISHED/);
+    const undo = `const BASELINE_MODE = 'undo';\n${baselineSource}`;
+    await run(undo, world, false);
+    assert.deepEqual((await run(check, world, true)).result, { applied: false });
+  });
   const makePristine = () => worlds();
 
   test('the combined check file of stage 22 (trim check, then baseline check) parses and runs both', async () => {

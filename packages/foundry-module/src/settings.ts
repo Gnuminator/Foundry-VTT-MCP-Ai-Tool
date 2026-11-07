@@ -94,6 +94,7 @@ const INTERNAL_SETTING_KEYS = new Set([
   'lastConnectionState',
   'lastActivity',
   'lastMCPServerNotification',
+  'linkState',
 ]);
 
 /**
@@ -452,6 +453,15 @@ export class ModuleSettings {
       config: false,
       type: String,
       default: '',
+    });
+
+    // The link holder's browser writes here only when it shows a "lost" or "back" notice (a confirmed
+    // outage, never a reconnect attempt), so the other GMs' browsers can show the same notice.
+    game.settings.register(this.moduleId, 'linkState', {
+      scope: 'world',
+      config: false,
+      type: Object,
+      default: { state: 'up', at: 0 },
     });
 
     // DEPRECATED (see above): the notice throttle is in memory now.

@@ -6,6 +6,7 @@ import {
   ageText,
   healthParts,
   healthTrouble,
+  localTimes,
   type HealthInput,
   type HealthPart,
 } from './health';
@@ -71,6 +72,24 @@ describe('healthParts', () => {
       })
     );
     expect(healthTrouble(red)).toBe(true);
+  });
+
+  it('ages Last update from the server clock, so a skewed browser clock stays green', () => {
+    // The browser is an hour ahead: by its own clock the poll is an hour old.
+    const skewed = NOW + 3_600_000;
+    const status = { ...GOOD, now: new Date(NOW).toISOString() };
+    const parts = healthParts(input({ status, now: skewed + 5000, heardAt: skewed }));
+    expect(by(parts, 'update')).toMatchObject({ tone: 'ok', text: '9 s ago' });
+    // An older server sends no `now`: the browser clock stands in.
+    const old = healthParts(input({ now: skewed }));
+    expect(by(old, 'update').tone).toBe('warn');
+  });
+
+  it('shows the time of a detail on the local clock', () => {
+    const detail = localTimes('the log stopped at [[time:2026-11-06T20:41:00.000Z]].');
+    expect(detail).not.toContain('[[');
+    expect(detail).toMatch(/stopped at \d{1,2}[:.]\d{2}/);
+    expect(localTimes('x [[time:not a time]]')).toBe('x not a time');
   });
 
   it('turns the dashboard part red after the 45 s watchdog', () => {

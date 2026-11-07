@@ -368,8 +368,9 @@ the bot then answers `GET /status` with a small JSON document (is a recording ru
 wrong), no audio and no secrets. It listens on `127.0.0.1` unless `FOUNDRY_AI_BOT_STATUS_HOST` names
 another address; keep it on the Pi or the Pi network, never forwarded to the internet. In the
 dashboard's environment set `DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status`. With a URL set,
-a bot that does not answer shows "Recorder unknown" (grey), never OK; without one there is no
-Recorder dot. The Play log dot needs no setting.
+a bot that does not answer shows "Recorder unknown" (grey), never OK, even when no recording runs
+(a bot that is down is down); without a URL there is no Recorder dot. A port that is not a number
+from 1 to 65535, or one already in use, is named in the bot's log and leaves the endpoint off. The Play log dot needs no setting.
 
 Rolling it out (each step with your OK, snapshot first): run stage 6 again (it installs the helper
 and the folder, and runs one backup now: **Foundry stops for a minute or two, so never run it during

@@ -252,6 +252,7 @@ main.moment-views #moment-during.during-no-bar {
   align-items: center;
   gap: 0.35rem;
   white-space: nowrap;
+  flex-wrap: wrap;
 }
 /* The Recorder and Play log words can be a sentence: they wrap instead of running off a phone. */
 .health-part[data-part='recorder'],
@@ -265,6 +266,27 @@ main.moment-views #moment-during.during-no-bar {
 }
 .health-text {
   font-variant-numeric: tabular-nums;
+}
+.health-more {
+  all: unset;
+  cursor: pointer;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  text-align: center;
+  border-radius: 50%;
+  color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+  line-height: 1.4rem;
+  font-size: var(--fs-xs);
+}
+.health-more:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 2px;
+}
+.health-detail {
+  flex-basis: 100%;
+  white-space: normal;
+  color: var(--text-dim);
 }
 .health-part[data-tone='bad'] .health-text {
   color: var(--bad-text);

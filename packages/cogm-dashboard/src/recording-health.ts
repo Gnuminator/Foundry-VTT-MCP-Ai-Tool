@@ -39,11 +39,12 @@ export interface PumpSnapshot {
 /** A gap older than this no longer keeps the dot on (the same 3 h as the pre-flight check). */
 export const RECENT_GAP_MS = 3 * 60 * 60 * 1000;
 
+/**
+ * A time in a detail text goes out as `[[time:<ISO>]]`; the page turns it into the GM's own clock
+ * (web/src/lib/health.ts), because this server may run on the Pi, in another time zone.
+ */
 function clock(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `[[time:${iso}]]`;
 }
 
 /** The Play log dot from the pumps' snapshots; null reading = the bridge could not be asked. */
@@ -76,9 +77,10 @@ export function playLogDot(pumps: PumpSnapshot[] | null, now: number): HealthDot
     return { tone: 'bad', text: 'not recording', detail: `${[...down, ...lossy].join('; ')}.` };
   }
   if (lossy.length > 0) {
+    const hasError = pumps.some(p => p.lastError);
     return {
       tone: 'warn',
-      text: 'gaps',
+      text: recentGap ? (hasError ? 'gaps and errors' : 'gaps') : 'errors',
       detail: `${lossy.join('; ')}.${recentGap ? ' A gap marker is in the session log.' : ''}`,
     };
   }

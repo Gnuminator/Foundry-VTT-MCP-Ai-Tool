@@ -22,7 +22,7 @@ import {
 } from 'discord.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BotConfig } from './config.js';
+import { DEFAULT_STATUS_HOST, type BotConfig } from './config.js';
 import * as log from './log.js';
 import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
@@ -216,8 +216,15 @@ export class RecorderBot {
   /** The dashboard health line's read-only status endpoint (status-server.ts), when configured. */
   private startStatusEndpoint(): void {
     const port = this.config.statusPort;
-    if (port === undefined) return;
-    const host = this.config.statusHost ?? '127.0.0.1';
+    if (port === undefined) {
+      if (this.config.statusPortRaw) {
+        log.error(
+          `FOUNDRY_AI_BOT_STATUS_PORT is "${this.config.statusPortRaw}", not a port from 1 to 65535: the status endpoint stays off, and the Recorder dot will show unknown.`
+        );
+      }
+      return;
+    }
+    const host = this.config.statusHost ?? DEFAULT_STATUS_HOST;
     this.statusServer = startStatusServer(
       host,
       port,
@@ -225,7 +232,13 @@ export class RecorderBot {
         recording: this.active !== undefined,
         problems: this.active?.health.problems(Date.now()) ?? [],
       }),
-      err => log.error('Status endpoint error', err)
+      err =>
+        log.error(
+          (err as NodeJS.ErrnoException).code === 'EADDRINUSE'
+            ? `Status endpoint: port ${port} on ${host} is already in use, so the endpoint is NOT running and the Recorder dot will show unknown. Change FOUNDRY_AI_BOT_STATUS_PORT.`
+            : 'Status endpoint error',
+          err
+        )
     );
     log.info(`Status endpoint: http://${host}:${port}/status`);
   }

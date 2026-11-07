@@ -487,8 +487,8 @@ export function useGuardedTools(): GuardedTools {
       // The button clicked, read now: the panel disables it in the same click, and the confirm
       // window gives focus back to it (or to its panel) when it closes.
       const startedFrom = focusedElement();
-      // Asking first leaves no plan behind that apply would refuse. The server still checks
-      // (the 403 in send).
+      // With the GM Actions switch off, no plan is made that apply would refuse. The server still
+      // checks (the 403 in send).
       if (gmActionsOff) return refuse('apply-planned-change', 'gm-actions-off', options);
 
       let planned: Plan | null;

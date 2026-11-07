@@ -1808,7 +1808,7 @@ test.describe('when a write or a roll request fails', () => {
     await load(page);
     const ask = page.locator('#strip-roll-party');
     await expect(ask).toHaveAttribute('aria-disabled', 'true');
-    await expect(ask).toHaveAttribute('title', /Can't read the live play switches/);
+    await expect(ask).toHaveAttribute('title', /Can't read the GM Actions switches/);
     await ask.click({ force: true });
     await page.waitForTimeout(200);
     expect(calls.filter(c => c.name === 'request-player-rolls')).toEqual([]);

@@ -590,7 +590,7 @@ it talks to the backend's control channel directly and makes no Anthropic API ca
 
 - **A Node/Express server (`server.ts`).** It owns the control-channel client and the GM and
   player tokens. It serves the static browser UI and exposes a REST + **Server-Sent Events** API.
-- **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
+- **A pure browser client.** HTML/CSS/JS that renders the Live Feed, the combat tracker,
   and the GM-action surface. It only ever talks to its own server.
   The page is React + TypeScript + Vite (D-109, `web/`) and is served at `/`
   (D-126); the retired addresses redirect

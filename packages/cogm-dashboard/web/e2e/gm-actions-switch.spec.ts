@@ -1,4 +1,4 @@
-// The live play line in the header (it replaced the GM Actions button, #btn-gm): its state from the
+// The GM Actions line in the header (#btn-gm): its state from the
 // stream's `settings` event and the module's switches (/api/session/switches), the list it opens,
 // and the one Turn on that sets everything, the same call Start session makes.
 import { expect, test, type Page } from '@playwright/test';
@@ -41,13 +41,13 @@ async function fakeSwitches(page: Page, first: unknown): Promise<unknown[]> {
   return posts;
 }
 
-test('everything on reads "Live play on" and is lit', async ({ page }) => {
+test('everything on reads "GM Actions on" and is lit', async ({ page }) => {
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: true } }]);
   await fakeSwitches(page, read(true, true));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('Live play on');
+  await expect(button).toHaveText('GM Actions on');
   await expect(button).toHaveClass(/\bon\b/);
   await expect(button).toHaveAttribute('data-gm-actions', 'on');
 });
@@ -58,15 +58,15 @@ test('a switch that is off is named, and the list turns everything on', async ({
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('Live play off: Turn on');
+  await expect(button).toHaveText('GM Actions off: Turn on');
   await expect(button).toHaveAttribute('data-gm-actions', 'off');
   await expect(button).toHaveAttribute('title', /^GM Actions and Handouts are off./);
   await button.click();
-  const switches = page.getByRole('list', { name: 'Live play switches' });
+  const switches = page.getByRole('list', { name: 'GM Actions switches' });
   await expect(switches.getByRole('listitem')).toHaveCount(4);
   await expect(switches.locator('[data-switch="handouts"]')).toHaveAttribute('data-on', 'false');
   await page.getByRole('button', { name: 'Turn on', exact: true }).click();
-  await expect(button).toHaveText('Live play on');
+  await expect(button).toHaveText('GM Actions on');
   await expect(button).toHaveAttribute('data-gm-actions', 'on');
   expect(posts).toEqual([{ action: 'ready' }]);
 });
@@ -76,7 +76,7 @@ test('GM Actions off alone is named too', async ({ page }) => {
   await fakeSwitches(page, read(true, false));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
-  await expect(page.locator('#btn-gm')).toHaveText('Live play off: Turn on');
+  await expect(page.locator('#btn-gm')).toHaveText('GM Actions off: Turn on');
   await expect(page.locator('#btn-gm')).toHaveAttribute('title', /^GM Actions is off./);
   await expect(page.locator('#btn-gm')).toHaveAttribute('data-gm-actions', 'off');
 });
@@ -92,7 +92,7 @@ test('switches that could not be read do not read "on"', async ({ page }) => {
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const button = page.locator('#btn-gm');
-  await expect(button).toHaveText("Live play: can't read");
+  await expect(button).toHaveText("GM Actions: can't read");
   await expect(button).not.toHaveClass(/\bon\b/);
   await expect(button).toHaveAttribute('data-gm-actions', 'on');
 });
@@ -104,7 +104,7 @@ test('unreadable switches still say when GM Actions is off', async ({ page }) =>
   );
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
-  await expect(page.locator('#btn-gm')).toHaveText('Live play off: Turn on');
+  await expect(page.locator('#btn-gm')).toHaveText('GM Actions off: Turn on');
   await expect(page.locator('#btn-gm')).toHaveAttribute('title', /^GM Actions is off./);
   await expect(page.locator('#btn-gm')).toHaveAttribute('data-gm-actions', 'off');
 });

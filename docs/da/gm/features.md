@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 3a4400afdc43
+sourceHash: bb320cbc34e0
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -41,7 +41,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Hvad den gør:** damage, healing, temporary hit points, conditions og resources (spell slots,
   klasseressourcer, brug af items) på en eller flere skabninger, regnet ud af dnd5e med resistances.
   Dertil at flytte, ændre eller slette tokens og at klæde en scene på (area templates, mørke og lys,
-  map notes, loot til en karakter). Fra dashboardets turn-order strip eller ved at bede Claude.
+  map notes, loot til en karakter). Fra dashboardets Combat order strip eller ved at bede Claude.
   Hver ændring kan fortrydes i Recent Changes.
 - **Starter:** slået til. Indstillingen "AI Tool: Live play (writes)".
 - **Slå den til, når:** den er det allerede. Lad den stå.
@@ -164,7 +164,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 
 ## Boss prompts
 
-- **Hvad den gør:** i turn-order stripen vises pips for legendary actions og resistance, en
+- **Hvad den gør:** i Combat order-stripen vises pips for legendary actions og resistance, en
   påmindelse om lair actions og reaktionsmærker for skabningerne i combaten. Intet ændrer sig i
   Foundry.
 - **Starter:** slået fra. En knap i dashboardets Combat Tracker, som huskes i denne browser.
@@ -204,7 +204,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Starter:** slået fra hver gang dashboardet starter. Turn on for tonight slår den til, End
   session slår den fra.
 - **Slå den til, når:** du handler fra dashboardet. Turn on for tonight gør det for dig.
-- **Mere:** [GM Actions](dashboard.md#live-play-on).
+- **Mere:** [GM Actions](dashboard.md#gm-actions-on).
 
 ## De andre knapper
 

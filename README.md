@@ -27,7 +27,7 @@ currently shaped around a Curse of Strahd campaign.
 > **[documentation index](docs/README.md)**.
 
 <p align="center">
-  <img src="docs/images/brand/demo.gif" alt="Foundry AI Tool: the dashboard in action, with the live combat tracker, the GM tool runner, confirm-gated actions and the brand lockup" width="100%">
+  <img src="docs/images/brand/demo.gif" alt="Foundry AI Tool: the dashboard in action, with the live combat tracker, the GM Tool Runner, confirm-gated actions and the brand lockup" width="100%">
 </p>
 
 ## What it does
@@ -60,7 +60,7 @@ currently shaped around a Curse of Strahd campaign.
   and an optional mirror of the Foundry world (PCs, NPCs, scenes, journals, items) with links back
   into Foundry. Notes you edit are never overwritten. A quest note in your `Prep` folder can be
   imported back as a GM-only quest journal, after you confirm the plan.
-- **The dashboard.** Live combat tracker and event feed, combat controls, a tool runner for every
+- **The dashboard.** Live combat tracker and Live Feed, combat controls, a Tool Runner for every
   tool, Recent Changes with Undo, a Tarokka drawer and play session markers.
 
 ## The parts
@@ -85,7 +85,7 @@ currently shaped around a Curse of Strahd campaign.
 
 A live session control surface that runs in a browser tab on a second screen.
 
-![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip, the live feed and the party card](docs/images/cogm/overview.png)
+![The During screen: the combat tracker as an initiative ribbon with portraits and a combat order strip, the Live Feed and the party card](docs/images/cogm/overview.png)
 
 Before a session the page opens on Pre-flight and Prep; the same page runs the session and writes it up afterwards:
 
@@ -94,7 +94,7 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 - **Live combat tracker:** initiative order, current turn, HP bars, conditions and death saves, in
   real time, with a ribbon of portraits for who is up and who is next (click one to pan Foundry to
   its token).
-- **Live event feed:** damage, healing, deaths, conditions, spell slots and dice rolls with their
+- **Live Feed:** damage, healing, deaths, conditions, spell slots and dice rolls with their
   breakdown, as they happen.
 - **Recent Changes:** every guarded change, with Undo.
 - **Play sessions:** Start and End session in the header; Obsidian notes follow these markers.
@@ -103,17 +103,17 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
   Combat, Party, Session, Scene and Loot windows next to the map, and
   [the TV at the table](docs/gm/tv-table-viewer.md) shows the map to an in-person group.
 
-![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
+![The Combat order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
 
 **Damage and conditions from the dashboard:** with **GM Actions** on (Start session turns them on)
-(both off by default), select combatants in the turn-order strip and **Damage / Heal**
+(both off by default), select combatants in the combat order strip and **Damage / Heal**
 opens a small form that applies at once (with Undo) and **Condition** opens condition chips: pick
 one, confirm one plain question, and it applies (with Undo). The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
 ![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](docs/images/cogm/tool-runner.png)
 
-**Tool runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
+**Tool Runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
 something (an actor, a token, a journal page, a plan) has **Pick from list**, a list of what exists now.
 
 ![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](docs/images/cogm/confirm.png)
@@ -239,7 +239,7 @@ module or a bridge. Silent install: `/S /HOST=<name or IP>`. See
 npm run dev:cogm              # → http://localhost:3000 (the player page is /player)
 ```
 
-The dashboard needs no API key: live feed, combat tracker, tool runner, Recent Changes,
+The dashboard needs no API key: Live Feed, combat tracker, Tool Runner, Recent Changes,
 Tarokka and the player page all function. For the dashboard's Open in
 Obsidian links, set `OBSIDIAN_VAULT_NAME` (or `FOUNDRY_AI_OBSIDIAN_DIR`) in
 `packages/cogm-dashboard/.env`. To run it with Claude Desktop

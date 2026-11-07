@@ -30,22 +30,22 @@ export function LivePlayLine(): JSX.Element {
   // The button says it short; the list of what is off is in the tooltip and in the popover.
   const label = live.unreadable
     ? gmActions
-      ? "Live play: can't read"
-      : 'Live play off: Turn on'
+      ? "GM Actions: can't read"
+      : 'GM Actions off: Turn on'
     : names.length === 0
-      ? 'Live play on'
-      : 'Live play off: Turn on';
+      ? 'GM Actions on'
+      : 'GM Actions off: Turn on';
   const isOn = !live.unreadable && names.length === 0;
   const tip = live.unreadable
     ? gmActions
-      ? 'The live play switches could not be read. Start session turns live play on and End session turns it off.'
-      : `${offReason([GM_ACTIONS_NAME])}. Start session turns live play on and End session turns it off.`
+      ? 'The GM Actions switches could not be read. Start session turns GM Actions on and End session turns them off.'
+      : `${offReason([GM_ACTIONS_NAME])}. Start session turns GM Actions on and End session turns them off.`
     : names.length === 0
-      ? 'Live play is on: everything is switched on. End session turns it off.'
-      : `${offReason(names)}. Start session turns live play on and End session turns it off.`;
+      ? 'GM Actions are on: everything is switched on. End session turns them off.'
+      : `${offReason(names)}. Start session turns GM Actions on and End session turns them off.`;
   return (
     <Popover
-      label="Live play switches"
+      label="GM Actions switches"
       align="end"
       trigger={
         <Button
@@ -60,7 +60,7 @@ export function LivePlayLine(): JSX.Element {
         </Button>
       }
     >
-      <ul className="live-switches" aria-label="Live play switches">
+      <ul className="live-switches" aria-label="GM Actions switches">
         {rows.map(r => (
           <li key={r.id} data-switch={r.id} data-on={r.on}>
             {r.on ? '✓' : '✗'} {r.name}

@@ -308,7 +308,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         <LayoutButton
           layout="auto"
           during={during}
-          tip="Follows the game: combat brings the turn order and the party forward"
+          tip="Follows the game: combat brings the combat order and the party forward"
           data-track="dash.during.layout-auto"
         >
           Auto

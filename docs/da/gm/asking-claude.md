@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 2c9734de1cee
+sourceHash: 82552d5bef4d
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -30,7 +30,7 @@ Claude holder ikke selv øje med spillet. Den læser det, den skal bruge, i det 
 - Tarokka-læsningen og listen over afslørede handouts (kun GM).
 
 Claude kan også handle: slå for NPC'er, give damage eller healing, flytte tokens, sætte conditions,
-tilføje NPC'er fra compendiums, skrive journals, sende chatbeskeder og mere. Dashboardets tool runner
+tilføje NPC'er fra compendiums, skrive journals, sende chatbeskeder og mere. Dashboardets Tool Runner
 viser alle de værktøjer, Claude har.
 
 ## Gode forespørgsler

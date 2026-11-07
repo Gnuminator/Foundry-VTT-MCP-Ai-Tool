@@ -32,7 +32,7 @@ Players get their own page. It is built to leave out what only the GM should see
 | **The module**      | "Foundry AI Tool", an add-on module inside Foundry.                                | It lets the bridge read and change your world. You rarely touch it.   |
 | **The bridge**      | A small program on the home server (the Orange Pi).                                | It connects Foundry, Claude Desktop, the dashboard and Obsidian.      |
 | **Claude Desktop**  | Anthropic's Claude app on your computer. A small client reaches the bridge for it. | Asking Claude about the game, prep, rules and planned changes.        |
-| **The dashboard**   | A web page on your second screen.                                                  | Your control panel: live feed, combat, approving and undoing changes. |
+| **The dashboard**   | A web page on your second screen.                                                  | Your control panel: Live Feed, combat, approving and undoing changes. |
 | **The player page** | A read-only page of the dashboard at `/player`.                                    | What players may see: combat order, a safe feed, handouts, recaps.    |
 | **Obsidian**        | A note-taking app. The tool writes notes into an Obsidian vault.                   | Reading and prep: session notes, change history, stats, world notes.  |
 | **The Orange Pi**   | A small home server that is always on.                                             | Runs Foundry, the bridge and the dashboard all the time.              |
@@ -40,7 +40,7 @@ Players get their own page. It is built to leave out what only the GM should see
 ## How they fit together
 
 - **Foundry is where the game happens.** Maps, tokens, sheets, dice and chat all live there.
-- **The dashboard is your control panel.** Open it on a second screen. It shows the live feed and
+- **The dashboard is your control panel.** Open it on a second screen. It shows the Live Feed and
   combat. Before it changes anything it asks you to confirm; for a planned change it lists what
   will change. Every guarded change, whether it came from the dashboard or from Claude, is listed
   there with Undo.

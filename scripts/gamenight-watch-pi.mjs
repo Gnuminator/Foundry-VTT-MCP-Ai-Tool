@@ -123,10 +123,17 @@ export function controlCall(port, host, method, params = {}, timeoutMs = 5000, n
 /** Is a play session marked open? true, false, or null when the bridge cannot say. */
 export async function readSessionOpen(port, host = '127.0.0.1', call = controlCall) {
   try {
-    const result = await call(port, host, 'call_tool', { name: 'get-play-session', args: {} });
+    // requestedBy: the bridge counts a call without one as an old wrapper (get-preflight shows it).
+    const result = await call(port, host, 'call_tool', {
+      name: 'get-play-session',
+      args: {},
+      requestedBy: 'gamenight-watch',
+    });
     const text = result?.content?.[0]?.text;
     const parsed = typeof text === 'string' ? JSON.parse(text) : null;
-    return typeof parsed?.open === 'boolean' ? parsed.open : null;
+    if (typeof parsed?.open !== 'boolean') return null;
+    // A paper night has Foundry closed by design: nothing to watch. A bridge from before `mode` reads as live.
+    return parsed.open && parsed.mode !== 'paper';
   } catch {
     return null;
   }

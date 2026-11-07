@@ -44,6 +44,8 @@ test('controlCall, link_status and the session reading against a real loopback s
   const seen = [];
   let module = 'connected';
   let open = true;
+  let mode = 'live';
+  let callParams;
   const server = net.createServer(socket => {
     socket.on('data', chunk => {
       const msg = JSON.parse(chunk.toString('utf8'));
@@ -51,7 +53,8 @@ test('controlCall, link_status and the session reading against a real loopback s
       if (msg.method === 'link_status') {
         socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true, module } })}\n`);
       } else if (msg.method === 'call_tool' && msg.params.name === 'get-play-session') {
-        const text = JSON.stringify({ success: true, open });
+        callParams = msg.params;
+        const text = JSON.stringify({ success: true, open, ...(mode ? { mode } : {}) });
         socket.write(`${JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text }] } })}\n`);
       } else {
         socket.write(`${JSON.stringify({ id: msg.id, error: 'nope' })}\n`);
@@ -66,6 +69,11 @@ test('controlCall, link_status and the session reading against a real loopback s
     const down = await probeBridgeLink(port);
     assert.equal(down.ok, false);
     assert.match(down.error, /not connected/);
+    assert.equal(await readSessionOpen(port), true);
+    assert.deepEqual(callParams, { name: 'get-play-session', args: {}, requestedBy: 'gamenight-watch' });
+    mode = 'paper';
+    assert.equal(await readSessionOpen(port), false); // a paper night: Foundry is closed by design
+    mode = undefined; // a bridge from before `mode` reads as live
     assert.equal(await readSessionOpen(port), true);
     open = false;
     assert.equal(await readSessionOpen(port), false);

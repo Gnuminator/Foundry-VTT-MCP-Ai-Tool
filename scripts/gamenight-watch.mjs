@@ -70,15 +70,19 @@ export function step(state, probe, cfg = DEFAULTS) {
   return { state: next, alert: null };
 }
 
-/** The Discord text for an alert. @param {string} alert @param {string} url @param {{ms:number, error?:string}} probe */
-export function formatAlert(alert, url, probe, cfg = DEFAULTS, mentions = []) {
+/**
+ * The Discord text for an alert. It names no address (the channel is read by more people than the
+ * user): `_url` stays in the signature for the callers. @param {string} alert @param {string} _url
+ * @param {{ms:number, error?:string}} probe
+ */
+export function formatAlert(alert, _url, probe, cfg = DEFAULTS, mentions = []) {
   const ping = mentions.map(id => `<@${id}>`).join(' ');
   const body =
     alert === 'down'
-      ? `Foundry does not answer at ${url} (${probe.error ?? 'no answer'}).`
+      ? `Foundry does not answer (${probe.error ?? 'no answer'}).`
       : alert === 'slow' || alert === 'slow-after-down'
-        ? `Foundry ${alert === 'slow-after-down' ? 'answers again, but slowly' : 'answers slowly'} at ${url}: ${probe.ms} ms, the limit is ${cfg.slowMs} ms.`
-        : `Foundry answers again at ${url} (${probe.ms} ms).`;
+        ? `Foundry ${alert === 'slow-after-down' ? 'answers again, but slowly' : 'answers slowly'}: ${probe.ms} ms, the limit is ${cfg.slowMs} ms.`
+        : `Foundry answers again (${probe.ms} ms).`;
   return ping ? `${ping} ${body}` : body;
 }
 

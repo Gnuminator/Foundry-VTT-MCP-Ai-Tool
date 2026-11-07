@@ -21,7 +21,7 @@
 #   CHECK=1    run one round of the five checks as the foundry user, log only (no post); exit 1 when one fails; changes nothing
 #   UNDO=1     stop and remove the service and the installed files; the settings file is kept (it may hold the token)
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. These lines are bash:
-#   scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/
+#   scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/   (from a clean checkout of main at the merge commit)
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/28-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
@@ -80,6 +80,8 @@ EnvironmentFile=-$watch_env
 ExecStart=$NODE_DIR/bin/node $dest/gamenight-watch-pi.mjs --post
 Restart=always
 RestartSec=10
+# Exit 2 is a settings problem (no token, Discord refuses the channel): a restart every 10 s would only ask Discord again.
+RestartPreventExitStatus=2
 Nice=10
 MemoryMax=128M
 NoNewPrivileges=true
@@ -97,6 +99,8 @@ if [ "$check" = 1 ]; then
   [ -f "$dest/gamenight-watch-pi.mjs" ] || die "the watch is not installed ($dest): run this stage without CHECK first"
   [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
   command -v runuser >/dev/null 2>&1 || die "runuser not found"
+  say "installed files (compare with the repo at the merge commit)"
+  (cd "$dest" && sha256sum $files) | sed 's/^/    /'
   out="$(runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" "$dest/gamenight-watch-pi.mjs" --once --always --env-file "$bot_env,$watch_env" 2>&1)" || rc=$?
   printf '%s\n' "$out" | sed 's/^/    /'
   if have_systemd; then
@@ -161,6 +165,11 @@ else
   mark_changed "$dest/gamenight-watch.mjs" "$dest/gamenight-watch-pi.mjs"
   ok "installed $files in $dest"
 fi
+# The files come from the PC, not from the release build: SHA256SUMS lets the user compare them with the repo
+# (git show aitool/main:scripts/gamenight-watch.mjs | sha256sum) and CHECK shows them again.
+(cd "$dest" && sha256sum $files >SHA256SUMS)
+chmod 0644 "$dest/SHA256SUMS"
+sed 's/^/    /' "$dest/SHA256SUMS"
 
 say "the settings file"
 mkdir -p "$TOOL_ETC"

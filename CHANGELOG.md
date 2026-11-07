@@ -4,7 +4,7 @@
 
 ## v0.26.0 (released 2026-11-07): bridge logs that survive restarts, a Pi runner gate that counts players, token rings, Foundry setup tools, many review lows
 
-**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the tool `plan-token-rings` and the module write method `planTokenRings`; the module write gate now lists the methods that make no change-journal record.
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the tool `plan-token-rings` (options `tokens`, `scenes`) and the module query `foundry-mcp-bridge.planTokenRings` (a read; its plan applies through the guarded write); the module setting "AI Tool: Token rings (writes)", off by default; the areas `module`, `user` and `ownership` of `plan-foundry-setup`; `get-preflight` `action: "pumps"`; an optional build id in the connector's `hello`; the bot's opt-in status endpoint. The module write gate now lists the methods that make no change-journal record. **Changed:** the client-stored diagnostics key is now `foundry-mcp-bridge.diagnosticsWorld` (the old key is migrated; the namespace is the same); "AI Tool: Rules check" is on by default in a fresh world. **Removed:** the unused control call `wrapper_status`. Update the module and the bridge together: a v0.26.0 bridge refuses a placed-token plan and module or ownership reads from an older module.
 
 ### Test kit
 
@@ -20,8 +20,8 @@
 
 ### Pi and Plan B scripts (backup-truth, planb-honest-output)
 
-- **A backup that leaves Foundry down now fails:** the nightly restic script waits up to 30 seconds for
-  `foundry.service` to be active after its restart and ends with an ERROR line and exit 1 if it is not.
+- **A backup that leaves Foundry down now fails:** the nightly restic script waits for
+  `foundry.service` to be active and answering after its restart (about 120 seconds, see Pi below) and ends with an ERROR line and exit 1 if it is not.
   Needs a Pi run of stage 6 to take effect.
 - **The PC's pull scripts judge the backup by the snapshot's age:** a copy of a week-old snapshot no longer
   counts as fresh (it is not recorded on the Pi, so the stale-backup DM can fire), and an unplugged backup
@@ -162,8 +162,8 @@
   plain warning after about ten seconds without it, and one note when it is back. Short blips and
   flapping stay silent, players never see it, and the old "Connected" text in the module settings hint
   is gone because it went stale. The existing "Show connection messages" setting turns the toasts off.
-  (On the Pi the link is held by the Assistant GM's browser, so the toast shows there; relaying it to
-  the other GMs is a follow-up.)
+  (On the Pi the link is held by the Assistant GM's browser, so the toast shows there; the notice
+  reaches the other GMs through the relay described above.)
 - **Tarokka table, kept line:** a failed restore of the line you typed no longer reports a successful flip as failed. A kept line is dropped after about 2 seconds when its card never shows as flipped (an Undo), so a later reveal of the same card does not bring it back. A new flip clears the kept line of the same card and old or other-reading ones, not every one.
 - **Link toasts:** when the AI Tool server could not be reached at start, the "link is back" toast now follows once the link opens. More tests for the toast timing and the wiring in the module.
 - **The final Strahd module list:** the list, the module reference index and the all-modules kit profile now match Danni's picks: Monk's Player Settings, Health Estimate and Racooze Map Library are dropped; Item Piles (with its dnd5e companion), Find the Culprit, FXMaster, Polyglot and Monk's TokenBar are in.
@@ -196,7 +196,7 @@
 ### Pi
 
 - **Backup restart wait and seven-book trim lows:** the nightly backup now waits up to about 120 seconds for Foundry to come back (it was about 90), accepts any world after the restart (a world switched by hand during the day no longer fails the night; only the setup screen does) and its error says "not active, not answering, or not back on a world". The Discord DM about stale backup copies names the cause before the remedy. The seven-book trim keeps a refused relock from hiding the step's own error, opens a linked dnd5e pack that was already hidden (the dry run says "WILL OPEN"), and lists copied SRD entries that link to dnd5e packs themselves. Rerun stages 6 and 22 on the Pi at the next sitting; rebuild and restart the Discord bot for the DM text.
-- **Review lows of the module stage, the backup chain and the seven-book trim:** stage 25 no longer counts the bridge and content module zips in its disk check, says "NOT every old folder is back" after a failed UNDO, and moves folders with `mv -T`. Stage 6's restart wait now needs the same world back in `/api/status`, not only the setup screen. Stage 16 reads clock offsets in several parts (`2min 5.300s`) and in microseconds. The snapshot pull marks a stale copy in `last-success.txt`, the Plan B check says when the module link is unknown, and the bot's stale-backup DM names both causes.
+- **Review lows of the module stage, the backup chain and the seven-book trim:** stage 25 no longer counts the bridge and content module zips in its disk check, says "NOT every old folder is back" after a failed UNDO, and moves folders with `mv -T`. Stage 6's restart wait now needs a world back in `/api/status`, not only the setup screen. Stage 16 reads clock offsets in several parts (`2min 5.300s`) and in microseconds. The snapshot pull marks a stale copy in `last-success.txt`, the Plan B check says when the module link is unknown, and the bot's stale-backup DM names both causes.
 - **The GitHub runner gate sees players, not only a marked session:** on the Pi the runners now stay stopped
   while a non-GM player is connected (the play log's `user-join` without a later `user-leave`, a join
   younger than 14 hours), so an unmarked game night is covered too. The unknown-state ceiling is now 14 hours

@@ -159,18 +159,26 @@ if (MODE === 'check' && existingTargets.length === 0) {
   log('baseline not applied in this world (no world.player-* packs): not checked');
   return { applied: false };
 }
-// The legacy pack is no requirement: MODE=delete removes it for good after the baseline.
-// Without it and without any world pack the trim was never run here: a real run refuses (the baseline copies what the
-// trim has not moved out yet, and the orphan removal would have to catch up).
+// The legacy pack is missing once MODE=delete has removed it after the baseline: that is fine. Without it and without any
+// world pack the trim was never run here, so a run refuses (dry run too, so the dry run gate of gm-script.sh is not passed
+// for a real run that would stop): the baseline would copy books the trim has not moved out yet.
 if (MODE !== 'undo' && !game.packs.get(LEGACY)) {
   log(`${LEGACY} is not in this world (the trim was not run here, or the legacy pack was deleted)`);
-  if (MODE === 'run' && !args.dryRun && existingTargets.length === 0)
+  if (MODE === 'run' && existingTargets.length === 0)
     throw new Error(
       `${LEGACY} is missing and no world.player-* pack exists: run MODE=trim first. Nothing was changed`
     );
 }
 const journalPacks = JOURNALS.filter(id => game.packs.get(id));
 const idx = async (pack, fields) => [...(await game.packs.get(pack).getIndex({ fields }))];
+// "world pack|id" -> the old pack the copy came from: the links the undo can point back (the check counts the same ones).
+const backMap = async () => {
+  const back = new Map();
+  for (const t of existingTargets)
+    for (const e of await idx(t, ['flags']))
+      if (sourcePackOf(e)) back.set(`${t}|${e._id}`, sourcePackOf(e));
+  return back;
+};
 // The journal entries with their pages as plain data (the index does not reliably carry embedded pages).
 const journalEntries = async jp => {
   const out = [];
@@ -190,8 +198,7 @@ if (
 ) {
   // Only a link whose id sits in a world pack of this world counts: one the undo cannot map back (a copy removed as an
   // orphan, a page another world's baseline rewrote) is no half-finished run, and a rerun or an undo could not fix it.
-  const held = new Set();
-  for (const t of existingTargets) for (const e of await idx(t, [])) held.add(`${t}|${e._id}`);
+  const held = await backMap();
   for (const jp of journalPacks)
     for (const entry of await journalEntries(jp))
       for (const p of entry.pages ?? []) {
@@ -214,10 +221,7 @@ if (MODE === 'undo') {
     return { undone: false };
   }
   // The journals go back to the pack each copy came from.
-  const back = new Map(); // "world pack|id" -> old pack
-  for (const t of existingTargets)
-    for (const e of await idx(t, ['flags']))
-      if (sourcePackOf(e)) back.set(`${t}|${e._id}`, sourcePackOf(e));
+  const back = await backMap();
   const reRe = linkRe(targetIds);
   let pages = 0;
   const plan = [];

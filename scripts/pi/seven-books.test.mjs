@@ -853,7 +853,7 @@ describe('seven-books-baseline.js', () => {
     await assert.rejects(run(baselineSource, w2, true), /not the kept ones/);
   });
 
-  test('runs without the legacy pack (MODE=delete removes it after the baseline), with a log line only', async () => {
+  test('runs without the legacy pack after the baseline (MODE=delete removes it), but refuses before the trim', async () => {
     const world = worlds();
     await run(baselineSource, world, false);
     world.packs.delete('world.legacy-other-books');
@@ -866,7 +866,7 @@ describe('seven-books-baseline.js', () => {
     // no legacy pack and no world pack: the trim was never run here, a real run refuses (a dry run only says so)
     const fresh = worlds();
     fresh.packs.delete('world.legacy-other-books');
-    await run(baselineSource, fresh, true);
+    await assert.rejects(run(baselineSource, fresh, true), /run MODE=trim first/);
     await assert.rejects(run(baselineSource, fresh, false), /run MODE=trim first/);
     assert.ok(!fresh.packs.has('world.player-spells'));
   });
@@ -1063,6 +1063,11 @@ describe('seven-books-baseline.js', () => {
     fresh.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
       `@UUID[Compendium.world.player-spells.Item.${id(99)}]`;
     const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    assert.deepEqual((await run(check, fresh, true)).result, { applied: false });
+    // nor is a link to a hand-made entry in a world pack (it has no sourcePack, the undo cannot map it)
+    player(fresh, 'spells').docs.set(id(98), mk(98, 'GM homebrew', 'spell'));
+    fresh.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      `@UUID[Compendium.world.player-spells.Item.${id(98)}]`;
     assert.deepEqual((await run(check, fresh, true)).result, { applied: false });
   });
 

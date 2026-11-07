@@ -1744,7 +1744,9 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   them, and goes back to the module packs when they are hidden).
   - **Pi sitting:** snapshot (`/boot/dietpi/dietpi-backup 1`), the user's OK, `scp` the three scripts, trim if not done
     (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `ORPHANS`, `SOURCE PACK MISSING`,
-    `LINKS TO KEPT PACKS WITH NO ENTRY`; `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look),
+    `NAME-FORM LINKS`, `LINKS TO KEPT PACKS WITH NO ENTRY`; `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look and note
+    that the check fails on it; `NAME-FORM LINKS` are `@Compendium[pack.Name]` links, which are not rewritten and are only counted; the baseline refuses to run, dry run and real run, when the legacy pack is missing and no
+    `world.player-*` pack exists, i.e. before the trim),
     `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1` (the baseline rewrites the journal pages of the shared module packs
     `dnd-players-handbook.content` and `aitool-content.journals`, so in the other worlds, e.g. strahd-kit, class text and spell lists
     link to `world.player-*` packs that exist only in curse-of-strahd; hence `OTHER_WORLDS_OK=1`), stage 13, `MODE=check` (it now checks the baseline too once the six packs exist),
@@ -1754,7 +1756,9 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
     expected, not drift. Run the baseline after the trim: a baseline made before a trim copies dropped books, which the next
     baseline run removes again as orphans.
   - **Undo:** `MODE=baseline-undo APPLY=1 OTHER_WORLDS_OK=1`: the journals point at the old packs again, the old packs are visible, the six world
-    packs are hidden (nothing is deleted); run stage 13. Or restore the snapshot.
+    packs are hidden (nothing is deleted); run stage 13. Or restore the snapshot. The undo scans the journal pages after pointing them back and
+    stops before it shows or hides any pack if one still names a world pack by an id it can map; it logs `RESTORED` for each old pack it shows
+    and counts links to world packs with no copy (they stay as they are, and the check does not call them half-finished).
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
   Debian 13 ARM64 container, run by the ARM job in CI).
 

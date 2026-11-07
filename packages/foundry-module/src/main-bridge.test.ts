@@ -165,6 +165,18 @@ describe('main: no world writes for connection state (PB-03)', () => {
     expect(linkWrites.map(c => (c[2] as { state: string }).state)).toEqual(['lost']);
   });
 
+  it('with connection messages on, a start that connects after a lost one writes up', async () => {
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    fake.state.connectOk = true;
+    await bridge.start();
+    const states = setSpy.mock.calls
+      .filter(c => c[1] === 'linkState')
+      .map(c => (c[2] as { state: string }).state);
+    expect(states).toEqual(['lost', 'up']);
+  });
+
   it('with connection messages on, a stop after a lost link writes one quiet', async () => {
     world.setSetting(MODULE_ID, 'enableNotifications', true);
     fake.state.connectOk = false;

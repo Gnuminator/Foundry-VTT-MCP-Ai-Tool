@@ -500,6 +500,8 @@ class FoundryMCPBridge {
       );
 
       this.lastConnectionState = 'connected';
+      // A start() during an outage that connects: the other GMs were told "lost", so tell them it is back.
+      if (this.lastPublishedLinkState === 'lost') this.publishLinkState('up');
       this.updateLastActivity();
 
       // Start heartbeat monitoring if enabled

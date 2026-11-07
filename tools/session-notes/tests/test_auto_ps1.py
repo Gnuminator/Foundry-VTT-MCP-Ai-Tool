@@ -327,6 +327,7 @@ def test_a_failed_transcription_tells(tmp_path: Path, sessions: Path) -> None:
     sent = tells(calls)
     assert marker.exists() and "transcribe" in marker.read_text(encoding="ascii", errors="replace")
     assert code == 0 and "transcription failed" in out
+    assert "FVTT_VOICE_STACK is set (test only)" in out
     assert len(sent) == 1 and "transcription" in sent[0] and "2026-10-01-test" in sent[0]
 
 

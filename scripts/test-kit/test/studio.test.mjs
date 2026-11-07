@@ -730,6 +730,8 @@ const ALWAYS = [
   'advancement-values:advancement-value-of-size',
   'spells:the-raw-hero-has-no-class-spells',
   'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
+  // the same finding id twice: SYSTEM (an effect raises the maximum) and STUDIO (a Constitution increase while levelling)
+  'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
 ];
 
 test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed ones too', () => {

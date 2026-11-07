@@ -1,8 +1,8 @@
 # Actor Studio, AI Tool fork (`foundryvtt-actor-studio`)
 
-Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.10.5-aitool.4, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.10.5-aitool.5, 2026-11-07 (test server B). The tabs and settings below were clicked through on aitool.4 on 2026-10-28; the Select Spells window of aitool.5 on test server A on 2026-11-04; the test kit builds Fighters with aitool.5 on 2026-11-07. Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** The table builds its characters with it: players make their level-1 heroes with it at session 0. The test kit drives it too (decisions D-112 and D-113). We run our own fork, `2.10.5-aitool.4`, not the upstream release.
+**Verdict: keep.** The table builds its characters with it: players make their level-1 heroes with it at session 0. The test kit drives it too (decisions D-112 and D-113). We run our own fork, `2.10.5-aitool.5` (on the Pi since stage 13, 2026-11-04), not the upstream release.
 
 **For Danni's guides:** Actor Studio is the character builder: one window with tabs for abilities, species, background, class, equipment and spells, and a Create Character button at the end.
 
@@ -49,7 +49,7 @@ World permission: `core.permissions` must let Player and Trusted Player create a
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
-- Upstream 2.10.5 is not enough for us. The fork `2.10.5-aitool.1` to `.4` fixes (per TEST-KIT): the Subclass advancement, a selector error, a 404, a missing spell-slot spend, and filling spell slots again when a level up ends. Do not let Foundry's own Update replace the fork with upstream; the fork's manifest URL points at its own GitHub releases.
+- Upstream 2.10.5 is not enough for us. The fork `2.10.5-aitool.1` to `.5` fixes (per TEST-KIT): the Subclass advancement, a selector error, a 404, a missing spell-slot spend, filling spell slots again when a level up ends, species lineage names in the lists (`.4`), and (`.5`) a Select Spells window for feats that grant spells such as Magic Initiate, which upstream leaves empty. A hero levelled in Actor Studio can end below full hit points when a Constitution increase raises the modifier (Fighter 17: 145 of 157); that is how the system adds hit points, not an Actor Studio fault, and a level 1 hero is whole. Do not let Foundry's own Update replace the fork with upstream; the fork's manifest URL points at its own GitHub releases.
 - The Pi installs the fork from the release `module.zip` pinned by sha256 (stage 13). Stage 11 swaps in the PC's copy of the module and resets `strahd-kit`, so run stage 13 again after it. Never change a Pi setting outside a stage script (CLAUDE.md).
 - Settings are read when the page loads: tell players to press F5 after the GM changes sources.
 - The module logs usage when `usage-tracking` is on; keep it off for everyone (see above).

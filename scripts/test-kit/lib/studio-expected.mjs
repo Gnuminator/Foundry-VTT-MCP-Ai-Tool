@@ -93,8 +93,9 @@ export function loadExpected(file = FILE, version = installed) {
       throw new Error(`${file}: ${e.id} has no valid kind`);
     if (e.fixedIn !== undefined && !parseForkVersion(e.fixedIn))
       throw new Error(`${file}: ${e.id} has a fixedIn that is not a fork build (x.y.z-aitool.n)`);
-    if (ids.has(e.id)) throw new Error(`${file}: ${e.id} is listed twice`);
-    ids.add(e.id);
+    // one finding id can be listed once per kind (the matching key is id and kind, see splitExpected)
+    if (ids.has(`${e.id}|${e.kind}`)) throw new Error(`${file}: ${e.id} is listed twice`);
+    ids.add(`${e.id}|${e.kind}`);
   }
   return list.filter(e => !e.fixedIn || !isFixedIn(version, e.fixedIn));
 }

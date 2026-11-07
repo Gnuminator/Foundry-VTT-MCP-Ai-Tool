@@ -91,7 +91,7 @@ export class GuardedChangeTools {
       {
         name: 'list-recent-changes',
         description:
-          'AI changes only, newest first: summary, diff, when, still undoable. Use this to find an AI change to undo-change; for changes by players or the GM use list-changes. Read-only.',
+          'Applied plans only, newest first: summary, diff, when, still undoable. Use this to find one for undo-change; for direct writes and changes by players or the GM use list-changes. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -106,7 +106,7 @@ export class GuardedChangeTools {
       {
         name: 'undo-change',
         description:
-          'Use this to undo an AI change (changeId from list-recent-changes), restoring the previous values; for a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.',
+          'Use this to undo an applied plan (changeId from list-recent-changes), restoring the previous values; for a direct write or a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.',
         inputSchema: {
           type: 'object',
           properties: {

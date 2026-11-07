@@ -215,6 +215,8 @@ run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'live port(s) 30000 31414 31415 3000' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused on the live ports while a unit runs"; else fail "up live (rc $RC): $OUT"; fi
 run_stage MODE=up $reh
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused on rehearsal ports with the live data folders"; else fail "up data (rc $RC): $OUT"; fi
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/data/"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a trailing slash on the live tool data folder does not get past the refusal"; else fail "up data slash (rc $RC): $OUT"; fi
 mkdir -p "$SB/rfdata" "$SB/rdata"
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -qE 'compose.* up -d --no-build --wait .*foundry bridge dashboard$' && ! echo "$CALLS" | grep -qE 'compose.*--wait.*gm-browser' && ! echo "$CALLS" | grep -qE 'systemctl (disable|enable|stop|start)' && all_on $all_units; then

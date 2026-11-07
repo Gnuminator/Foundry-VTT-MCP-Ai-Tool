@@ -127,6 +127,9 @@ describe('24-compose.sh as text', () => {
 
   test('up never builds (stage 23 does) and refuses the live ports and data folders next to a running unit', () => {
     assert.match(s23, /up -d --no-build --wait --wait-timeout "\$wait_timeout"/);
+    // The live data folders are compared as canonical paths (a trailing slash must not get past), in both refusals.
+    assert.match(s23, /canon\(\) \{ realpath -m/);
+    assert.equal((s23.match(/on_live_data/g) ?? []).length, 3, 'defined once, used by conflict_guard and mode_up');
     assert.match(s23, /share their data folder/);
     assert.match(s23, /live port\(s\)/);
   });

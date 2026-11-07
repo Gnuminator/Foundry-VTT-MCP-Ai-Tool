@@ -77,6 +77,18 @@ effective() { # NAME DEFAULT
   if [ -z "$v" ] && [ -f "$env_file" ]; then v="$(sed -n "s/^$1=//p" "$env_file" | tail -n 1)"; fi
   printf '%s' "${v:-$2}"
 }
+# True when the stack's data folders are, or sit inside or around, the live ones. Paths are canonicalised first, so a
+# trailing slash, //, /./ or a symlink does not get past the refusal.
+canon() { realpath -m -- "$1" 2>/dev/null || printf '%s' "$1"; }
+overlaps() { # A B
+  local a b
+  a="$(canon "$1")/"
+  b="$(canon "$2")/"
+  case "$a" in "$b"*) return 0 ;; esac
+  case "$b" in "$a"*) return 0 ;; esac
+  return 1
+}
+on_live_data() { overlaps "$foundry_data" "$live_foundry_data" || overlaps "$tool_data" "$TOOL_DATA"; }
 http_port="$(effective FOUNDRY_HTTP_PORT 30000)"
 control_port="$(effective BRIDGE_CONTROL_PORT 31414)"
 link_port="$(effective BRIDGE_LINK_PORT 31415)"
@@ -237,7 +249,7 @@ conflict_guard() {
   if [ -n "$active" ]; then
     live="$(live_ports)"
     [ -z "$live" ] || die "systemd unit(s)$active run or are enabled and the stack would use the live port(s) $live. Two copies on one port fail. For a rehearsal set other ports (deploy/pi/test.env). Nothing was changed"
-    if [ "$foundry_data" = "$live_foundry_data" ] || [ "$tool_data" = "$TOOL_DATA" ]; then
+    if on_live_data; then
       die "systemd unit(s)$active run or are enabled and the stack would share their data folder ($foundry_data, $tool_data): two Foundrys on one data folder corrupt it. Set FOUNDRY_DATA_DIR and TOOL_DATA_DIR for the rehearsal. Nothing was changed"
     fi
   elif ! stack_running; then
@@ -402,7 +414,7 @@ mode_up() {
     die "MODE=up on the live ports (project $live_project) is the cutover, which is not supported yet (Backlog: pi-compose-cutover): the nightly backup and the other stages would run next to the containers. Use rehearsal ports (deploy/pi/test.env). Nothing was changed"
   fi
   # A rehearsal on the live data folders is the same corruption as a second Foundry there, whatever the units are doing.
-  if [ "$project" != "$live_project" ] && { [ "$foundry_data" = "$live_foundry_data" ] || [ "$tool_data" = "$TOOL_DATA" ]; }; then
+  if [ "$project" != "$live_project" ] && on_live_data; then
     die "the rehearsal would use a live data folder ($foundry_data, $tool_data): a second Foundry on it corrupts it, also with the units off. Set FOUNDRY_DATA_DIR and TOOL_DATA_DIR for the rehearsal. Nothing was changed"
   fi
   need_daemon "starting the stack"

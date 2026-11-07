@@ -72,8 +72,9 @@ running="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null |
 [ "$running" = "$WORLD" ] || die "world $running is running, not $WORLD: the trim must run in $WORLD (it holds the legacy pack). Nothing was changed"
 ok "world $WORLD is running"
 
-# The trim edits module packs (links re-pointed to world packs that exist only in $WORLD), and every world on this
-# Foundry shares those packs: the other worlds then show dead links in the PHB 2024 entries (hiding is per world too).
+# The trim edits module packs, and every world on this Foundry shares those packs: the moved entries are gone in the
+# other worlds (kept only in $WORLD's legacy pack), the re-pointed links reach world packs that exist only in $WORLD, and
+# the hiding of the dnd5e packs is per world, so the other worlds do not get the trimmed view.
 if [ "$MODE" = trim ]; then
   others="$(find "$FOUNDRY_DATA/Data/worlds" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null | tr ' ' '\n' | grep -vx "$WORLD" | tr '\n' ' ' || true)"
   if [ -n "${others// /}" ]; then

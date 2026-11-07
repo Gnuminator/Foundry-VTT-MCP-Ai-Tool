@@ -14,4 +14,12 @@ try {
   process.exit(1);
 }
 const r = spawnSync(process.execPath, [tsc, ...process.argv.slice(2)], { stdio: 'inherit' });
+if (r.error) {
+  console.error(`tsc7: could not start the compiler: ${r.error.message}`);
+  process.exit(1);
+}
+if (r.signal) {
+  console.error(`tsc7: the compiler was stopped by ${r.signal}`);
+  process.exit(1);
+}
 process.exit(r.status ?? 1);

@@ -32,9 +32,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
-import { normalizeCommand, ciRunCommands, ciUnsupported } from './ci-yaml.mjs';
 
-export { STEPS, HEAVY_STEPS, CI_ONLY, normalizeCommand, ciRunCommands, ciUnsupported };
+export { STEPS, HEAVY_STEPS, CI_ONLY };
 
 /**
  * @typedef {{ name: string, cmd: string, args: string[], env?: Record<string, string> }} Step

@@ -170,6 +170,7 @@ never in `ai-tool-test`. Start Foundry on one with `start.ps1 -World <id>`.
 | `ai-tool-kit-srd`      | srd profile (SRD content only)                                     |
 | `ai-tool-kit-licensed` | licensed profile (PHB 2024 and the other bought packs, local only) |
 | `strahd-kit`           | strahd profile: a throwaway copy of `curse-of-strahd`, made again  |
+| `ai-tool-kit-modules`  | modules profile: the third-party module scenarios                  |
 
 After a Foundry point update (14.369 to 14.370) Foundry logs "requested World ... is not available
 to auto-launch" for a world whose `compatibility.verified` names an older build (`coreVersion`

@@ -11,7 +11,7 @@ screens are in `foundry-core-ui`. Never the live bridge (31414-31416), never `mc
 
 ## Calling tools
 
-Through the test dashboard's REST API. In local mode (no `GM_DASHBOARD_TOKEN`) every caller is GM.
+Through the test dashboard's REST API. In local mode (neither `GM_DASHBOARD_TOKEN` nor `GM_EMAILS` set) every caller is GM.
 From the PowerShell tool (curl.exe quoting breaks JSON there):
 
 ```
@@ -28,7 +28,7 @@ The answer is `{ok, name, mutates, result}`; a tool error is HTTP 422 `{ok:false
 - Writes need `"confirm": true` in the body, destructive ones also `"confirmDestructive": true`
   (412 `confirm-required` / `confirm-destructive-required` otherwise). For `apply-planned-change`
   and `undo-change` the flags come from the body only, never from `args`.
-- With the player/GM split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard), send the GM
+- With the player/GM split on (`GM_DASHBOARD_TOKEN` or `GM_EMAILS` set when starting the dashboard), send the GM
   token as header `X-CoGM-Token`; without it `/api/tool` answers 403 `gm-required`. Don't put the
   token in a URL; to use the dashboard UI in the browser pane, run it in local mode.
 
@@ -81,7 +81,7 @@ backend's copy of the session events, written only when there are events) and
 
 ## Smoke checklist (M0 + M1)
 
-Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evidence.
+Last full pass: 2026-09-28, all green (see `docs/history/PROGRESS.md`). For each item record evidence.
 
 1. Bridge connects (notification "AI Tool connected"); `get-world-info` returns
    `ai-tool-test`.
@@ -177,7 +177,7 @@ The test bridge renders into the throwaway vault `C:\FoundryTest\obsidian` (`Obs
 3. Edit a generated note by hand, then run
    `FOUNDRY_AI_DATA_DIR=C:\FoundryTest\vault node packages/mcp-server/dist/obsidian-cli.js export ai-tool-test --vault C:\FoundryTest\obsidian`:
    the note is untouched and listed under "Skipped" in `AI Tool\_status.md`.
-4. With the split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard): `/api/state` and
+4. With the split on (`GM_DASHBOARD_TOKEN` or `GM_EMAILS` set when starting the dashboard): `/api/state` and
    `/api/stream` without the token carry no `obsidian` data and no world id; `mark-play-session`
    answers 403.
 5. No generated file contains a literal `<%` (Templater tags from game text are written `&lt;%`).

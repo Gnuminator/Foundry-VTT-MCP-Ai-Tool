@@ -9,7 +9,7 @@ The bridge has two halves that are deployed differently:
 
 ## 1. Foundry module — Manifest URL install (recommended)
 
-The module is published as a GitHub Release on the fork, so it installs like any other Foundry module.
+The module is published as a GitHub Release on the aitool repository, so it installs like any other Foundry module.
 
 **In Foundry:** Setup → **Add-on Modules** → **Install Module** → paste this in the _Manifest URL_
 field → Install:
@@ -137,5 +137,4 @@ Nothing is sent to foundryvtt.com: the package id belongs to the upstream projec
 ## Repository
 
 - Remote `aitool` → `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool` (canonical — push here).
-- Remote `fork` → `https://github.com/Gnuminator/Foundry-VTT-MCP` (old fork — retire/archive).
-- Push work with `git push aitool <branch>:main`.
+- Push a work branch with `git push -u aitool <branch>:<branch>`, open a PR, and merge it only through `scripts/lane-merge.mjs`. `main` is protected (PR, CI checks, no force-push), so never push to it directly.

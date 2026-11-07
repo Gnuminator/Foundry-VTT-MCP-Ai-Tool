@@ -355,7 +355,7 @@ in Task Scheduler. Change the limit with `FOUNDRY_AI_BACKUP_STALE_DAYS` in
 Session-over post (I-111, off by default): when a play session ends the bot posts a link to the
 player page in one channel. Turn it on in the same env file with `DISCORD_SESSION_POST_CHANNEL_ID`
 (the channel) and `FOUNDRY_AI_PLAYER_PAGE_URL` (the link players can open; without it the post stays
-off). `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`) is where the bot reads the session
+off). `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`; on the Pi the dashboard is on 3000, and stage 26 writes `http://127.0.0.1:3000` into the file) is where the bot reads the session
 flag and `FOUNDRY_AI_PLAYER_TOKEN` is the dashboard's player token if one is set. A session that
 ends while the bot is down is not announced. The bot posts the link to everyone who can read that
 channel, so if `FOUNDRY_AI_PLAYER_PAGE_URL` carries a `?token=` (the player token), post only to a

@@ -94,6 +94,13 @@ class BackendClient {
 
       const line = `[${new Date().toISOString()}] ${msg}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`;
 
+      // Keep the wrapper log from growing without bound: past 5 MB it rolls to wrapper.log.1.
+      try {
+        if (fs.statSync(this.logFile).size > 5 * 1024 * 1024) {
+          fs.renameSync(this.logFile, `${this.logFile}.1`);
+        }
+      } catch {}
+
       fs.appendFileSync(this.logFile, line);
     } catch {}
   }

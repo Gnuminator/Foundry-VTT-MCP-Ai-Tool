@@ -287,7 +287,8 @@ function Update-WorldVerified([string]$WorldDir, [string]$AppVersion) {
   # Write beside the world, then move over it: a crash never leaves a half-written world.json.
   $tmp = "$file.tmp-verified"
   [IO.File]::WriteAllText($tmp, $new)
-  Move-Item -LiteralPath $tmp -Destination $file -Force
+  # File.Replace swaps in one step (Move-Item may delete first), and works in Windows PowerShell too.
+  [IO.File]::Replace($tmp, $file, [NullString]::Value)
   return $AppVersion
 }
 

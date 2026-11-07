@@ -211,9 +211,9 @@ trap - EXIT
 
 say "folders"
 install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/vault" "$TOOL_DATA/dashboard" \
-  "$TOOL_DATA/gm-browser"
+  "$TOOL_DATA/gm-browser" "$TOOL_DATA/logs"
 install -d -m 0755 "$driver_dir"
-ok "$TOOL_DATA/{vault,dashboard,gm-browser}"
+ok "$TOOL_DATA/{vault,dashboard,gm-browser,logs}"
 
 say "the Assistant GM browser driver"
 if [ -f "$driver_src" ]; then
@@ -254,6 +254,10 @@ Wants=network-online.target
 [Service]
 $common
 Environment=FOUNDRY_LINK_HOST=127.0.0.1
+# Log at info into a rotated file that survives restarts (the default, under the private /tmp, is lost at
+# every restart). bridge.env can still override both.
+Environment=LOG_LEVEL=info
+Environment=LOG_FILE_PATH=$TOOL_DATA/logs/mcp-server.log
 EnvironmentFile=-$TOOL_ETC/bridge.env
 WorkingDirectory=$app
 ExecStart=$NODE_DIR/bin/node $app/packages/mcp-server/dist/standalone.js

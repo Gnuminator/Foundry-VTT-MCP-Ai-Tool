@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  claimOnReady,
   claimRunMarker,
   clearRunMarker,
+  destroyThenClear,
   markerPath,
   restartAfterCrashMessage,
 } from './run-marker.js';
@@ -43,5 +45,31 @@ describe('run marker', () => {
     const base = tmp();
     expect(claimRunMarker(join(base, 'deep', 'er', '.bot-running'))).toBeNull();
     expect(() => claimRunMarker(join(base, 'file\0bad'))).not.toThrow();
+  });
+
+  it('claims the marker only when the bot is ready, so a failed login leaves none', () => {
+    const path = markerPath(tmp());
+    let ready: () => void = () => {};
+    const seen: Array<string | null> = [];
+    claimOnReady(
+      cb => (ready = cb),
+      path,
+      previous => seen.push(previous)
+    );
+    // The login failed: the ready event never came.
+    expect(existsSync(path)).toBe(false);
+    expect(seen).toEqual([]);
+    ready();
+    expect(existsSync(path)).toBe(true);
+    expect(seen).toEqual([null]);
+  });
+
+  it('removes the marker on shutdown even when stopping the client throws', async () => {
+    const path = markerPath(tmp());
+    claimRunMarker(path);
+    await expect(
+      destroyThenClear(() => Promise.reject(new Error('socket stuck')), path)
+    ).rejects.toThrow('socket stuck');
+    expect(existsSync(path)).toBe(false);
   });
 });

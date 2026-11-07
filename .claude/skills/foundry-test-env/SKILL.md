@@ -65,7 +65,7 @@ separately with the GM. World data, users and test data are not shared between m
 though the scripts and skills are in git.
 
 Paths and ports come from `scripts/test-env/config.ps1` (`Get-NodeExe` there picks the newest
-portable Node 24 folder, `%LOCALAPPDATA%\node24\node-v24.*-win-x64`); `scripts/test-env/local.json`
+portable Node 24.22+ folder, `%LOCALAPPDATA%\node24\node-v24.*-win-x64`, and warns when it falls back to an older node on PATH); `scripts/test-env/local.json`
 (gitignored) overrides paths and ports. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
 Foundry runs on the Node its `app\package.json` requires (14.368 and 14.369: >=24.13.1 <25, the
 global Node 24; 14.370: >=24.22.1 <25, found in the portable `%LOCALAPPDATA%\node24` folders by

@@ -30,11 +30,22 @@ const FALLBACK_HINT = 'Try again. If it keeps happening, press F12 and look at t
 const TECHNICAL =
   /\b\w*Error\b|\bat \S+:\d+|\.m?[jt]s\b|undefined|\bnull\b|\[object|[{}<>]|[Ff]ailed to fetch|ECONN/;
 
+/** A Foundry id (16 letters and digits with a digit in them) or a uuid tail (`.Abc...`). */
+const ID_SHAPED = /\b(?=[A-Za-z0-9]{16}\b)[A-Za-z0-9]*\d[A-Za-z0-9]*\b|\.[A-Za-z0-9]{16}\b/;
+
+/** What to say when no reason is known and the reader is a player: the console is no use to them. */
+const PLAYER_FALLBACK_HINT = 'Try again. If it keeps happening, tell your GM.';
+
 /** True for a one-line sentence the tool wrote for people. */
 function readsAsPlainSentence(text: string): boolean {
   const t = text.trim();
   return (
-    t.length >= 8 && t.length <= 240 && !t.includes('\n') && /^[A-Z]/.test(t) && !TECHNICAL.test(t)
+    t.length >= 8 &&
+    t.length <= 240 &&
+    !t.includes('\n') &&
+    /^[A-Z]/.test(t) &&
+    !TECHNICAL.test(t) &&
+    !ID_SHAPED.test(t)
   );
 }
 
@@ -42,12 +53,18 @@ function readsAsPlainSentence(text: string): boolean {
  * A GM-facing sentence for something that failed. `what` is the thing the GM tried, as an action in
  * plain words ("open the live window", "save the campaign progress").
  */
-export function toGmMessage(what: string, error?: unknown): string {
+export function toGmMessage(
+  what: string,
+  error?: unknown,
+  audience: 'gm' | 'player' = 'gm'
+): string {
   const text = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   if (readsAsPlainSentence(text)) {
     const sentence = text.trim();
     return `Could not ${what}. ${/[.!?]$/.test(sentence) ? sentence : `${sentence}.`}`;
   }
-  const reason = KNOWN_REASONS.find(([pattern]) => pattern.test(text))?.[1] ?? FALLBACK_HINT;
+  const reason =
+    KNOWN_REASONS.find(([pattern]) => pattern.test(text))?.[1] ??
+    (audience === 'player' ? PLAYER_FALLBACK_HINT : FALLBACK_HINT);
   return `Could not ${what}. ${reason}`;
 }

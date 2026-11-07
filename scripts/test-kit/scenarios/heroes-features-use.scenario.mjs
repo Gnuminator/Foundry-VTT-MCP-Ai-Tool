@@ -12,7 +12,7 @@
  */
 import { FAILURE_KINDS, countByKind, problemText } from '../lib/advancement.mjs';
 import { judgePlan, judgeUse, planUses } from '../lib/features.mjs';
-import { builtHeroes } from '../lib/helpers.mjs';
+import { bridgeProbe, builtHeroes } from '../lib/helpers.mjs';
 import { knownAttachment, loadKnown, splitKnown } from '../lib/known.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
@@ -22,13 +22,14 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: ['heroes'],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: ['inspectFeatures', 'exerciseActor'],
   // Last: thousands of chat cards fill the play log, and a big log can overflow the control channel.
   order: 100,
   timeoutMs: 90 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     const heroes = builtHeroes(t.kit);
     /** @type {import('../lib/advancement.mjs').Problem[]} */
     const allProblems = [];

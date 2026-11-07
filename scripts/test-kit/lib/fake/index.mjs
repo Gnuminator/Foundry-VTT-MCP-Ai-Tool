@@ -55,7 +55,7 @@ function classify(name) {
 
 /**
  * @param {{world: string}} opts
- * @returns {Promise<{base: string, gm: {call: (action: string, args?: object) => Promise<any>}, close: () => Promise<void>, world: import('./state.mjs').World}>}
+ * @returns {Promise<{base: string, setBridgeDown: (value: boolean) => void, gm: {call: (action: string, args?: object) => Promise<any>}, close: () => Promise<void>, world: import('./state.mjs').World}>}
  */
 export async function startFake({ world: worldId }) {
   const catalog = await loadToolCatalog(repoRoot);
@@ -99,13 +99,48 @@ export async function startFake({ world: worldId }) {
     }
   }
 
+  let bridgeDown = false;
+  const EMPTY_PLAYER = {
+    status: 'foundry-offline',
+    world: null,
+    scene: null,
+    sceneEnvironment: null,
+    combat: null,
+    events: [],
+    session: null,
+    handouts: [],
+  };
+
   /** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res */
   async function handle(req, res) {
     const url = new URL(req.url ?? '/', 'http://fake');
     const get = req.method === 'GET';
+    // Bridge down (the negative control), as a real dashboard answers when the bridge runs but
+    // the Foundry module is not linked (seen live on test server C): health still says ok with
+    // the control channel connected and Foundry unreachable, the tool list is served, a tool
+    // call is a 422 "module not connected", and players get an empty offline screen.
+    const down = bridgeDown;
     if (get && url.pathname === '/api/health') {
-      const body = { ok: true, controlChannel: 'connected', splitEnabled: false };
+      const body = {
+        ok: true,
+        controlChannel: 'connected',
+        foundry: down ? 'unreachable' : 'reachable',
+        splitEnabled: false,
+      };
       return sendJson(res, 200, body);
+    }
+    if (down && req.method === 'POST' && url.pathname === '/api/tool') {
+      const body = await readBody(req);
+      return sendJson(res, 422, {
+        ok: false,
+        name: String(body.name ?? ''),
+        kind: 'tool',
+        error:
+          'Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.',
+      });
+    }
+    if (down && get && url.pathname === '/api/player/state') {
+      return sendJson(res, 200, EMPTY_PLAYER);
     }
     if (get && url.pathname === '/api/tools') {
       const tools = [...catalog.all].sort().map(name => ({
@@ -143,6 +178,10 @@ export async function startFake({ world: worldId }) {
     base: `http://127.0.0.1:${address.port}`,
     gm: createFakeGm(w),
     world: w,
+    /** @param {boolean} value */
+    setBridgeDown: value => {
+      bridgeDown = value;
+    },
     close: () =>
       new Promise(resolve => {
         server.closeAllConnections();

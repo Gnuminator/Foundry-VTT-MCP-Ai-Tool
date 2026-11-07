@@ -68,7 +68,7 @@ test('all --fake --size full: every class at four levels, every subclass at leve
       (/** @type {any} */ s) => s.id === 'heroes-advancement'
     );
     assert.equal(advancement.status, 'pass');
-    assert.equal(advancement.steps.length, 31);
+    assert.equal(advancement.steps.length, 32); // the bridge probe plus one step per hero
     assert.equal(advancement.attachments[0].data.heroesFailed, 0);
     assert.equal(report.summary.failed, 0);
   } finally {
@@ -129,7 +129,7 @@ test('heroes-advancement: a hero that misses a grant fails with a SYSTEM message
     /^\[SYSTEM\] 1 grant\(s\) missing: Fighter Mastery \(level 5\)/
   );
   // Every other hero still passed, and the coverage says what failed and how.
-  assert.equal(result.steps.filter(s => s.status === 'pass').length, 5);
+  assert.equal(result.steps.filter(s => s.status === 'pass').length, 6); // the bridge probe and five heroes
   const coverage = result.attachments.find(a => a.name === 'coverage');
   assert.deepEqual(/** @type {any} */ (coverage?.data).problemsByKind, {
     KIT: 0,

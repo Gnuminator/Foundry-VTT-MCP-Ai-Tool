@@ -38,7 +38,7 @@ export const RUNNERS = {
   'packages/foundry-module/src/**': 'vitest default include in packages/foundry-module',
   'tools/livekit/recorder/test/**': 'vitest default include in tools/livekit/recorder (the Livekit recorder tests step)',
   // vitest with an explicit include list
-  'shared/src/**/*.test.ts': 'vitest include in shared/vitest.config.ts (npm test --workspaces)',
+  'shared/src/**/*.test.ts': 'vitest include in shared/vitest.config.ts (the shared unit-test step in ci.yml: npm test -w @gnuminator/shared)',
   'packages/obsidian-plugin/src/**/*.test.ts': 'vitest include in packages/obsidian-plugin/vitest.config.ts',
   'packages/discord-bot/src/**/*.test.ts': 'vitest include in packages/discord-bot/vitest.config.ts',
   'packages/discord-bot/announce/**/*.test.mjs': 'vitest include in packages/discord-bot/vitest.config.ts',
@@ -48,7 +48,7 @@ export const RUNNERS = {
   'packages/cogm-dashboard/scripts/**/*.test.mjs': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
   'packages/cogm-dashboard/web/e2e/**': 'Playwright testDir in packages/cogm-dashboard/web/playwright.config.ts',
   'packages/cogm-dashboard/web/visual/**': 'Playwright testDir in playwright.visual.config.ts (dashboard-visual job)',
-  'tools/*/tests/**': 'pytest loop in the python-tests job (every tools/<name>/ with pyproject.toml and tests/)',
+  'tools/*/tests/**/test_*.py': 'pytest loop in the python-tests job (every tools/<name>/ with pyproject.toml and tests/)',
 };
 
 /**
@@ -57,7 +57,7 @@ export const RUNNERS = {
  * @type {Record<string, (file: string, tracked: Set<string>) => boolean>}
  */
 const RUNNER_NEEDS = {
-  'tools/*/tests/**': (f, tracked) => tracked.has(`${f.split('/').slice(0, 2).join('/')}/pyproject.toml`),
+  'tools/*/tests/**/test_*.py': (f, tracked) => tracked.has(`${f.split('/').slice(0, 2).join('/')}/pyproject.toml`),
 };
 
 /** @param {string} glob @returns {RegExp} */

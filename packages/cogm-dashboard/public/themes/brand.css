@@ -45,7 +45,7 @@
 
 /* ---- Design tokens for the React dashboard's components (web/src/ui, UI-02) ----
    Only additions: nothing here changes a value the old stylesheets read, and nothing reads these
-   yet on the old page. Spacing is a 4px grid in rem (the old page's 0.5rem gaps are --space-2);
+   yet in the shared stylesheets. Spacing is a 4px grid in rem (the stylesheets' 0.5rem gaps are --space-2);
    the type steps are the sizes the stylesheets already use most (--fs-* in styles.css); motion and
    layering take today's values. The Veil overrides a token below only where it differs. */
 :root {
@@ -69,7 +69,7 @@
   --text-lg: var(--fs-lg);
   --text-xl: 1.3rem;
 
-  /* Motion: the old page's drawer-in curve and its progress-bar curve. */
+  /* Motion: the drawer-in curve and the progress-bar curve of the shared stylesheets. */
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
@@ -88,7 +88,7 @@
   --z-tour: 65;
   --z-toast: 70;
 
-  /* The keyboard focus ring (.btn:focus-visible on the old page). */
+  /* The keyboard focus ring (.btn:focus-visible in the shared stylesheets). */
   --focus-ring: 2px solid var(--accent, #4ea1ff);
   --focus-ring-offset: 1px;
 }

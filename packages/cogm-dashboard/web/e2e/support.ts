@@ -108,7 +108,7 @@ export async function fakeTools(
 export const ok = (result: unknown): { json: unknown } => ({ json: { ok: true, result } });
 
 /**
- * Picks an entry of the Advanced ▾ menu (its old page id): a click on the menu, then on the
+ * Picks an entry of the Advanced ▾ menu (by its element id): a click on the menu, then on the
  * entry; or from the keyboard, which also works while a drawer's backdrop covers the header.
  */
 export async function fromMenu(page: Page, id: string, keyboard = false): Promise<void> {

@@ -1,6 +1,6 @@
 // The confirm window for a planned change that is not a one-click write (a reveal, a delete, ...).
-// Port of the old page's confirmAction (public/app.js) on its markup and styles (styles.css
-// .modal-backdrop, .modal, .change-diff, .modal-destructive), as a modal Radix dialog: the page
+// Styled by the shared stylesheet public/styles.css (.modal-backdrop, .modal, .change-diff,
+// .modal-destructive), as a modal Radix dialog: the page
 // behind waits until the GM answers. useGuardedChange (lib/guarded.ts) asks it through useConfirm.
 import { Dialog } from 'radix-ui';
 import {

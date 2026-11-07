@@ -1,6 +1,6 @@
 // Help (the GM guides inside the dashboard): a pane that shows one built guide page
 // (`GET /api/help/:page`, help-route.ts; the HTML is made from docs/ at build time) and scrolls to
-// a heading. Anything can open it with useHelp()("page#anchor"), as data-help does on the old page.
+// a heading. Anything can open it with useHelp()("page#anchor"), as data-help does.
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type JSX, type MouseEvent, type ReactNode } from 'react';
 
@@ -40,7 +40,7 @@ function HelpHtml({
     else body.current?.closest('.pane-body')?.scrollTo({ top: 0 });
   }, [html, anchor, seq]);
   // Built from the repo's own docs by scripts/build-help.mjs, not from anything a user typed.
-  // The guide's own links carry data-help="page#anchor" (the old page's click handler): they open
+  // The guide's own links carry data-help="page#anchor" (handled by `follow` below): they open
   // that page in this pane instead of following their href.
   const follow = (e: MouseEvent<HTMLDivElement>): void => {
     const link = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-help]') : null;

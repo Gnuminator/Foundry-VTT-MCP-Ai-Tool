@@ -14,7 +14,7 @@ const PARTS: MenuParts = { Item: DropdownMenu.Item, Label: DropdownMenu.Label };
 
 /**
  * The Advanced menu with its Radix dropdown (a lazy chunk, see AdvancedMenu.tsx). A Radix dropdown
- * menu, not modal, as on the old page: arrow keys move between the entries, Enter or a click
+ * menu, not modal: arrow keys move between the entries, Enter or a click
  * picks one and closes the menu, Escape or a click outside closes it.
  */
 export function AdvancedMenuImpl({ children, initialOpen, hadFocus }: MenuImplProps): JSX.Element {

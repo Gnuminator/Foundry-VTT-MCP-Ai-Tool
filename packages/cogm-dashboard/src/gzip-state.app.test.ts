@@ -1,5 +1,5 @@
 /**
- * /api/state and the old pages' stylesheets go out gzipped in the real app (I-098), and the page
+ * /api/state and the shared stylesheets go out gzipped in the real app (I-098), and the page
  * headers of the /open page's stylesheet survive it. Raw http: fetch would decompress on its own.
  */
 import * as http from 'http';

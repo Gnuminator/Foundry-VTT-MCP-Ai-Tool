@@ -371,6 +371,47 @@ describe('seven-books-trim.js', () => {
     assert.ok(world2.packs.get('aitool-content.spells').docs.has(id(3)));
   });
 
+  test('a step that fails while its relock is refused keeps both messages', async () => {
+    const world = standardWorld();
+    wire(world);
+    const spells = world.packs.get('aitool-content.spells');
+    spells.locked = true;
+    const configure = spells.configure.bind(spells);
+    spells.configure = async change => {
+      if (change.locked === true) throw new Error('refused');
+      return configure(change);
+    };
+    world.globals.Item.createDocuments = async () => [];
+    await assert.rejects(
+      run(trimSource, world, false),
+      /created 0 of[\s\S]*could not lock aitool-content\.spells again: refused/
+    );
+  });
+
+  test('a linked pack that is hidden already is named in the dry run and made visible by the real run', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd5e.classes',
+      id(800)
+    );
+    world.packs.get('dnd5e.classes').ownership = { ...HIDDEN };
+    const { lines } = await run(trimSource, world, true);
+    assert.match(lines.join('\n'), /WILL OPEN dnd5e\.classes: it is hidden from players/);
+    await run(trimSource, world, false);
+    assert.notDeepEqual(world.packs.get('dnd5e.classes').ownership, HIDDEN);
+  });
+
+  test('copied SRD entries that link to dnd5e packs themselves are listed', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('dnd5e.items').docs.get(id(900)).system = {
+      description: { value: link('dnd5e.classes', id(800)) },
+    };
+    const { lines } = await run(trimSource, world, true);
+    assert.match(lines.join('\n'), /COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES[^:]*: 1 \(/);
+  });
+
   test('a pack that kept entries link to stays visible and is named', async () => {
     const world = standardWorld();
     wire(world);

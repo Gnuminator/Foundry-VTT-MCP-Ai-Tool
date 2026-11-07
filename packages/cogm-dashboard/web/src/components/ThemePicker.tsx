@@ -13,7 +13,7 @@ const THEMES = [
 ] as const;
 
 /**
- * The theme picker in the header (the old page's #select-theme): the look for this world, which
+ * The theme picker in the header: the look for this world, which
  * the players' page follows. The choice is saved on the server (`set-theme`); the page changes
  * look when the new theme arrives (the answer here, the stream's `theme` event on every other
  * page; App's useWorldTheme applies it). A failed save toasts and the picker goes back to the

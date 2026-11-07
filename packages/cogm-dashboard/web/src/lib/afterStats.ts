@@ -1,6 +1,5 @@
 // Tonight's stats (the After view): rolls, most damage, the highest roll and who went down, for the
-// latest play session (get-play-stats). Port of the old page's summarizeSession, statsForDiscord
-// and helpers (public/app.js). Pure, so it is tested without a page.
+// latest play session (get-play-stats). Pure, so it is tested without a page.
 
 /** One fight in get-play-stats' latest session (stats/types.ts on the bridge; fields used here). */
 interface StatsCombat {

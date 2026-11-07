@@ -123,7 +123,7 @@ test('a link inside a guide opens that guide in the same pane, and the wiki link
     'href',
     'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/gm/getting-started/'
   );
-  // The clicked link is gone with the old page; focus stays in the pane, not on the body.
+  // The clicked link is gone from the guide; focus stays in the pane, not on the body.
   await expect(pane).toBeFocused();
 });
 

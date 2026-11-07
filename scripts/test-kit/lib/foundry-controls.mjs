@@ -236,7 +236,7 @@ export const FOUNDRY_CONTROLS = [
   {
     name: 'module.settings.enhanced-index-open',
     area: 'settings',
-    label: 'Settings menu: Configure Enhanced Index',
+    label: 'Settings menu: Configure creature index',
     how: 'open',
     player: 'hidden',
   },

@@ -1,8 +1,8 @@
 // The Pick from list button next to a Tool runner field that names something (x-foundry-ref): a list of
-// what exists now from list-ref-choices, with a filter box. Port of the old page's buildRefPicker
-// (public/app.js) on its markup and styles (.ref-picker, .ref-menu, .ref-item, ...). The field
+// what exists now from list-ref-choices, with a filter box. Styled by the shared
+// public/styles.css (.ref-picker, .ref-menu, .ref-item, ...). The field
 // still takes typed text; the hint under it names what the value points at, also for a prefilled
-// value (the old page showed the name only after a pick or typing).
+// value.
 import { useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 

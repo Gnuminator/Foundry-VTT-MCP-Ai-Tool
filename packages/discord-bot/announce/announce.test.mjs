@@ -84,7 +84,7 @@ describe('announce', () => {
     expect(prLine(683, 'Merge  the\nthing')).toBe(
       '[#683](<https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/pull/683>) Merge the thing'
     );
-    expect(deployLine('v0.24.0')).toBe('Serveren kører nu v0.24.0.');
+    expect(deployLine('v0.24.0')).toBe('The server now runs v0.24.0.');
   });
 
   it('sends silent, mention-free posts to the right channel', async () => {
@@ -147,9 +147,10 @@ describe('announce', () => {
     const log = vi.fn();
     expect(await runCli(['pr', '5', 'A', 'title'], { env, fetchImpl: f, log })).toBe(0);
     expect(await runCli(['deploy', 'v0.24.0'], { env, fetchImpl: f, log })).toBe(0);
-    expect(await runCli(['changelog', 'Nyt', 'i', 'spillet'], { env, fetchImpl: f, log })).toBe(0);
+    expect(await runCli(['changelog', 'New', 'in', 'the', 'game'], { env, fetchImpl: f, log })).toBe(0);
     expect(f.mock.calls.map(c => c[0].match(/channels\/(\d+)/)[1])).toEqual(['222', '111', '111']);
-    expect(JSON.parse(f.mock.calls[2][1].body).content).toBe('Nyt i spillet');
+    expect(JSON.parse(f.mock.calls[1][1].body).content).toBe('The server now runs v0.24.0.');
+    expect(JSON.parse(f.mock.calls[2][1].body).content).toBe('New in the game');
     // only #pr-log is silent
     expect(f.mock.calls.map(c => JSON.parse(c[1].body).flags)).toEqual([4096, undefined, undefined]);
   });
@@ -157,7 +158,7 @@ describe('announce', () => {
   it('posts dashboard text to the GM channel and may mention only the GM role', async () => {
     const f = fakeFetch();
     const log = vi.fn();
-    const text = '<@&444> Nyt i dashboardet (v0.26.0):\n• Ny knap';
+    const text = '<@&444> New in the dashboard (v0.26.0):\n• New button';
     expect(await runCli(['dashboard', text], { env, fetchImpl: f, log })).toBe(0);
     expect(f.mock.calls[0][0]).toContain('/channels/333/messages');
     const body = JSON.parse(f.mock.calls[0][1].body);
@@ -168,21 +169,21 @@ describe('announce', () => {
 
   it('keeps roles-only mentions when the text itself says @everyone or @here', async () => {
     const f = fakeFetch();
-    await runCli(['dashboard', '<@&444> @everyone @here hej'], { env, fetchImpl: f, log: vi.fn() });
+    await runCli(['dashboard', '<@&444> @everyone @here hi'], { env, fetchImpl: f, log: vi.fn() });
     expect(JSON.parse(f.mock.calls[0][1].body).allowed_mentions).toEqual({ parse: [], roles: ['444'] });
   });
 
   it('fills {gm} with the role mention, drops it without a role id, and trims the id', async () => {
     const f = fakeFetch();
     const log = vi.fn();
-    await runCli(['dashboard', '{gm} Nyt'], { env: { ...env, DISCORD_GM_ROLE_ID: '444 ' }, fetchImpl: f, log });
+    await runCli(['dashboard', '{gm} New'], { env: { ...env, DISCORD_GM_ROLE_ID: '444 ' }, fetchImpl: f, log });
     const withId = JSON.parse(f.mock.calls[0][1].body);
-    expect(withId.content).toBe('<@&444> Nyt');
+    expect(withId.content).toBe('<@&444> New');
     expect(withId.allowed_mentions).toEqual({ parse: [], roles: ['444'] });
     const noRole = { ...env };
     delete noRole.DISCORD_GM_ROLE_ID;
-    await runCli(['dashboard', '{gm} Nyt'], { env: noRole, fetchImpl: f, log });
-    expect(JSON.parse(f.mock.calls[1][1].body).content).toBe('Nyt');
+    await runCli(['dashboard', '{gm} New'], { env: noRole, fetchImpl: f, log });
+    expect(JSON.parse(f.mock.calls[1][1].body).content).toBe('New');
   });
 
   it('keeps the dashboard post mention-free without a GM role id, and #changelog never mentions', async () => {

@@ -15,19 +15,18 @@ dashboard's changes as well as Claude's.
 
 "AI Tool" names three things, so here is which is which. The **module** is the add-on inside
 Foundry (Module Management lists it as **Foundry AI Tool**); every switch on this page is one of
-its settings, and nearly all of them are named "AI Tool: ..." (Allow Write Operations is the
-exception). The **dashboard** is the web page next to Foundry that
+its settings, and nearly all of them are named "AI Tool: ...". The **dashboard** is the web page next to Foundry that
 you open in another tab. The **GM windows** are small windows inside Foundry; they have their own
 switch, "AI Tool: GM windows", which is on by default (see
 [The GM windows](gm-windows.md)). The module's switches are all in one place: scroll to the heading
 **Foundry AI Tool** in Game Settings.
 
 **Turn on for tonight** (the Pre-flight panel in the dashboard's Before view) turns on, in one click,
-what an evening at the table needs: Allow Write Operations, Handouts, Live play, Party, Tarokka and
+what an evening at the table needs: AI Tool: Allow Write Operations, Handouts, Live play, Party, Tarokka and
 GM Actions. **End session** turns off again what it turned on. See
 [Turn on for tonight](dashboard.md#turn-on-for-tonight).
 
-## Allow Write Operations
+## AI Tool: Allow Write Operations
 
 - **What it does:** the tool's master switch. Off, the tool only reads: nothing changes in
   Foundry, from Claude or from the dashboard, and there is no Undo.
@@ -40,7 +39,7 @@ GM Actions. **End session** turns off again what it turned on. See
 - **What it does:** damage, healing, temporary hit points, conditions and resources (spell slots,
   class resources, item uses) on one or several creatures, worked out by dnd5e with resistances;
   moving, changing or deleting tokens; and scene dressing (area templates, darkness and light, map
-  notes, loot for a character). From the dashboard's turn-order strip or by asking Claude. Every
+  notes, loot for a character). From the dashboard's Combat order strip or by asking Claude. Every
   change can be undone in Recent Changes.
 - **Starts:** on. Setting "AI Tool: Live play (writes)".
 - **Turn it on when:** it is on already. Leave it on.
@@ -158,7 +157,7 @@ GM Actions. **End session** turns off again what it turned on. See
 
 ## Boss prompts
 
-- **What it does:** in the turn-order strip, legendary action and resistance pips, a lair action
+- **What it does:** in the Combat order strip, legendary action and resistance pips, a lair action
   reminder and reaction marks for the creatures in the fight. Nothing changes in Foundry.
 - **Starts:** off. A switch in the dashboard's Combat Tracker, remembered in this browser.
 - **Turn it on when:** before the first boss fight.
@@ -196,7 +195,7 @@ GM Actions. **End session** turns off again what it turned on. See
 - **Starts:** off every time the dashboard starts. Turn on for tonight turns it on, End session turns
   it off.
 - **Turn it on when:** you act from the dashboard. Turn on for tonight does it for you.
-- **More:** [GM Actions](dashboard.md#live-play-on).
+- **More:** [GM Actions](dashboard.md#gm-actions-on).
 
 ## The other switches
 

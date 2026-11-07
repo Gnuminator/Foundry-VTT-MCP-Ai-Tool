@@ -27,10 +27,12 @@ way could send:
 - Email in `GM_EMAILS` list → **GM role** (full dashboard, write actions available).
 - Any other authenticated email → **player role** (read-only `/player` view).
 
-If the header is absent (e.g. a direct localhost request, or Access misconfigured), the
-dashboard falls back to its legacy behavior: if `GM_EMAILS` is empty and no
-`GM_DASHBOARD_TOKEN` is set, every request is treated as GM (local-only mode, safe
-because nothing external can reach it without the tunnel).
+Legacy local-only mode depends only on configuration, not on the token: when neither `GM_EMAILS`
+nor `GM_DASHBOARD_TOKEN` is set, every request is treated as GM, with or without a verified
+token (safe because nothing external can reach it without the tunnel). When either is set, a
+request without a verified token (e.g. a direct localhost request, or Access misconfigured) gets
+no GM email identity and falls to the GM token check, then the player role. The token is read
+from the `Cf-Access-Jwt-Assertion` header, else from the `CF_Authorization` cookie.
 
 ---
 
@@ -117,7 +119,7 @@ If set, presenting this value as:
 - Query param: `?token=<TOKEN>`
 - Cookie: `cogm_token=<TOKEN>`
 
-...also grants the GM role, regardless of the injected email. Useful for API clients or
+...also grants the GM role, whoever logged in through Cloudflare Access. Useful for API clients or
 scripts that call the dashboard outside a browser session. Keep it secret. Treat it like
 a password.
 
@@ -129,7 +131,9 @@ PLAYER_DASHBOARD_TOKEN=<ANOTHER_RANDOM_SECRET>
 
 If set, the player view (`/player`) requires this token. Leave unset to let any
 Cloudflare-Access-authenticated user (email on the allow-list) reach the player view
-without a separate token.
+without a separate token. It only takes effect when `GM_DASHBOARD_TOKEN` or `GM_EMAILS`
+is set too: with neither, the dashboard runs in single-user GM mode and everyone is the GM,
+token or not.
 
 ---
 
@@ -148,10 +152,10 @@ without a separate token.
 
 ## Security notes
 
-- The Cloudflare Access JWT is verified by the tunnel before the request ever reaches
-  your host. The injected email header is trustworthy only because it comes through the
-  tunnel (not from an external caller who can forge it). Do **not** trust this header on
-  direct-to-port requests that bypass the tunnel.
+- The dashboard verifies the `Cf-Access-Jwt-Assertion` token itself (signature, audience
+  and team domain; `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`) and takes the email only
+  from a verified token. The plain `Cf-Access-Authenticated-User-Email` header is ignored,
+  so a request that bypasses the tunnel and forges it gets nothing extra.
 - The `GM_DASHBOARD_TOKEN` must be rotated if compromised — update the env var and
   restart the dashboard.
 - The dashboard makes no Anthropic API calls, so no Anthropic API key is stored on the

@@ -152,7 +152,7 @@ export class CharacterTools {
             rollAttack: {
               type: 'boolean',
               description:
-                "D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.",
+                "D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.",
             },
           },
           required: ['actorIdentifier', 'itemIdentifier'],

@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: 9c621d480553
+sourceHash: 1f30256373f5
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---
@@ -161,8 +161,8 @@ andet set, siger det.
   og starter combaten i round 1 med en Undo. **End combat** vises, når en combat kører. Se
   [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** knapperne Damage / Heal og Condition på en combatant samt Start og End combat kræver alle,
-  at live play er tændt. Hvis en knap er grået ud, siger den hvorfor og har en **Turn on** ved siden af;
-  headeren skal sige "Live play on".
+  at GM Actions er tændt. Hvis en knap er grået ud, siger den hvorfor og har en **Turn on** ved siden af;
+  headeren skal sige "GM Actions on".
 
 ### Kør et bossfight
 
@@ -275,7 +275,7 @@ Det kræver, at **play**-settet er tændt.
 
 - **"Switch on the play set"** (eller et andet set): Claude mangler et værktøj, der er slukket. Tænd
   det i **+**-menuen, **Connectors**, og spørg igen.
-- **Claude vælger det forkerte token:** nævn det præcist ("Wolf 2") eller vælg det i tool runneren.
+- **Claude vælger det forkerte token:** nævn det præcist ("Wolf 2") eller vælg det i Tool Runner.
 - **En plan bliver afvist:** dens funktionskontakt er slukket, planen er mere end 15 minutter gammel,
   eller tingen er ændret i Foundry siden. Bed om en ny plan.
 - **Alt andet:** [Fejlfinding](troubleshooting.md).

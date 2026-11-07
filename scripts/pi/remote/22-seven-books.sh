@@ -6,6 +6,12 @@
 #                                ids; entries that kept ones link to stay), copies the SRD items and creatures that
 #                                kept entries link to into two player-visible world packs and re-points the links,
 #                                hides the dnd5e Item/Actor packs from Player and Trusted. A second run changes nothing.
+#   seven-books-baseline.js      (MODE=baseline, after the trim) copies the kept entries by item type into the six
+#                                player-visible world packs world.player-classes/species/backgrounds/feats/spells/items
+#                                (same ids), rewrites every Compendium link in the copies and in the journal pages of
+#                                dnd-players-handbook.content and aitool-content.journals, then hides the old kept packs.
+#                                MODE=baseline-undo points the journals back and swaps which packs players see; it
+#                                deletes nothing. Run stage 13 after either: it picks the Actor Studio sources.
 #   seven-books-delete-legacy.js deletes the legacy pack for good (MODE=delete, only with the user's OK, see below).
 # The compendium packs of the modules are shared by every world on this Foundry, so the trim runs in the one world
 # that holds the legacy pack (WORLD, curse-of-strahd): that world must be the one running. Actor Studio's sources are
@@ -14,10 +20,11 @@
 #
 # Copy the GM scripts first, then pipe the stage together with gm-script.sh (the stage only checks and sets GM_SCRIPT
 # and DRY_RUN for it; the order matters, lib.sh first):
-#   scp scripts/pi/remote/seven-books-trim.js scripts/pi/remote/seven-books-delete-legacy.js foundry-pi:/root/
+#   scp scripts/pi/remote/seven-books-trim.js scripts/pi/remote/seven-books-baseline.js scripts/pi/remote/seven-books-delete-legacy.js foundry-pi:/root/
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-seven-books.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'bash -s'
 # Env (in front of bash): WORLD (curse-of-strahd); MODE=trim (default), check (read-only: fails when the world no
-# longer matches the trim; run it after a stage 11 push or a content module update, no OK needed) or delete; APPLY=1 for a real run (without it
+# longer matches the trim and, once the baseline is applied, the baseline; run it after a stage 11 push or a content
+# module update, no OK needed), baseline, baseline-undo or delete; APPLY=1 for a real run (without it
 # the stage does a dry run, which counts and prints and changes nothing; any other APPLY value is refused); FORCE=1
 # overrides the players and recording checks (never the snapshot); OTHER_WORLDS_OK=1 for a real trim while other
 # worlds exist on this Foundry (they share the edited module packs: the moved entries are gone there, the re-pointed
@@ -25,6 +32,8 @@
 # MODE=delete also DELETE_LEGACY=with-the-users-ok (the legacy pack holds the only copy of about 1500 entries on the
 # Pi; the PC's content module and the snapshot are the way back). A GM_SCRIPT in the environment is ignored: the
 # script follows MODE.
+# Order of the Pi sitting: snapshot, MODE=trim (if not done yet), MODE=baseline dry run, MODE=baseline APPLY=1, stage 13,
+# MODE=check.
 # Take a snapshot first (/boot/dietpi/dietpi-backup 1) and get the user's OK before APPLY=1. Do the dry run first:
 # gm-script.sh refuses a real run of a file without a passed dry run of the same sha256.
 
@@ -42,6 +51,16 @@ case "${APPLY:-}" in "" | 1) ;; *) die "APPLY must be 1 or left out (got '${APPL
 unset GM_SCRIPT
 case "$MODE" in
   trim) GM_SCRIPT=/root/seven-books-trim.js ;;
+  baseline) GM_SCRIPT=/root/seven-books-baseline.js ;;
+  baseline-undo)
+    # The same file with BASELINE_MODE in front: points the journals back at the old packs and swaps which packs players see.
+    [ -f /root/seven-books-baseline.js ] && [ ! -L /root/seven-books-baseline.js ] ||
+      die "no /root/seven-books-baseline.js: scp the GM scripts to /root/ first (see the header). Nothing was changed"
+    GM_SCRIPT=/root/seven-books-baseline-undo.js
+    { printf "const BASELINE_MODE = 'undo';\n"; cat /root/seven-books-baseline.js; } >"$GM_SCRIPT.new" &&
+      mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" ||
+      die "could not write $GM_SCRIPT. Nothing was changed"
+    ;;
   delete)
     GM_SCRIPT=/root/seven-books-delete-legacy.js
     [ "${DELETE_LEGACY:-}" = with-the-users-ok ] || [ -z "${APPLY:-}" ] ||
@@ -54,11 +73,22 @@ case "$MODE" in
     [ -f /root/seven-books-trim.js ] && [ ! -L /root/seven-books-trim.js ] ||
       die "no /root/seven-books-trim.js: scp the GM scripts to /root/ first (see the header). Nothing was changed"
     GM_SCRIPT=/root/seven-books-check.js
-    { printf 'const CHECK_ONLY = true;\n'; cat /root/seven-books-trim.js; } >"$GM_SCRIPT.new" &&
+    # The trim check, then (when /root/seven-books-baseline.js is there) the baseline check, each in its own function.
+    [ ! -L /root/seven-books-baseline.js ] || die "/root/seven-books-baseline.js is a symlink. Nothing was changed"
+    {
+      printf 'const CHECK_ONLY = true;\nawait (async () => {\n'
+      cat /root/seven-books-trim.js
+      printf '\n})();\n'
+      if [ -f /root/seven-books-baseline.js ]; then
+        printf "await (async () => {\nconst BASELINE_MODE = 'check';\n"
+        cat /root/seven-books-baseline.js
+        printf '\n})();\n'
+      fi
+    } >"$GM_SCRIPT.new" &&
       mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" ||
       die "could not write $GM_SCRIPT. Nothing was changed"
     ;;
-  *) die "MODE must be trim, check or delete (got '$MODE'). Nothing was changed" ;;
+  *) die "MODE must be trim, check, baseline, baseline-undo or delete (got '$MODE'). Nothing was changed" ;;
 esac
 [ -f "$GM_SCRIPT" ] && [ ! -L "$GM_SCRIPT" ] || die "no $GM_SCRIPT: scp the GM scripts to /root/ first (see the header). Nothing was changed"
 have_systemd || die "needs systemd (the Pi, not a test container). Nothing was changed"
@@ -75,13 +105,22 @@ ok "world $WORLD is running"
 # The trim edits module packs, and every world on this Foundry shares those packs: the moved entries are gone in the
 # other worlds (kept only in $WORLD's legacy pack), the re-pointed links reach world packs that exist only in $WORLD, and
 # the hiding of the dnd5e packs is per world, so the other worlds do not get the trimmed view.
-if [ "$MODE" = trim ]; then
+if [ "$MODE" = trim ] || [ "$MODE" = baseline ] || [ "$MODE" = baseline-undo ]; then
   others="$(find "$FOUNDRY_DATA/Data/worlds" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null | tr ' ' '\n' | grep -vx "$WORLD" | tr '\n' ' ' || true)"
   if [ -n "${others// /}" ]; then
-    if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
-      die "other worlds (${others% }) share the module packs this trim edits: in them the moved entries are gone (kept only in $WORLD's legacy pack), the PHB 2024 links to SRD items and creatures point at world packs that exist only in $WORLD, and the dnd5e packs stay visible (so strahd-kit does not show the trimmed view). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+    if [ "$MODE" = trim ]; then
+      if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
+        die "other worlds (${others% }) share the module packs this trim edits: in them the moved entries are gone (kept only in $WORLD's legacy pack), the PHB 2024 links to SRD items and creatures point at world packs that exist only in $WORLD, and the dnd5e packs stay visible (so strahd-kit does not show the trimmed view). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+      fi
+      warn "other worlds (${others% }) share the edited module packs; the moved entries are gone there and the re-pointed links will not resolve"
+    else
+      # baseline and baseline-undo rewrite the journal pages of dnd-players-handbook.content and aitool-content.journals,
+      # which are module packs shared by every world on this Foundry.
+      if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
+        die "other worlds (${others% }) share the edited module packs: the baseline rewrites the journal pages of dnd-players-handbook.content and aitool-content.journals (shared module packs), so in the other worlds the class text and spell lists link to world packs (world.player-*) that exist only in $WORLD (baseline-undo points them back, and the other worlds then see the old packs again). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+      fi
+      warn "other worlds (${others% }) share the edited module packs; the journal pages of dnd-players-handbook.content and aitool-content.journals link to world packs that exist only in $WORLD"
     fi
-    warn "other worlds (${others% }) share the edited module packs; the moved entries are gone there and the re-pointed links will not resolve"
   fi
 fi
 

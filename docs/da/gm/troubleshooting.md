@@ -1,6 +1,6 @@
 ---
 source: gm/troubleshooting.md
-sourceHash: ad1e48e2d7bd
+sourceHash: 7682c7367942
 title: Fejlfinding
 description: Symptom, sandsynlig årsag og løsning på de problemer, en GM oftest møder med Foundry AI Tool.
 ---
@@ -61,7 +61,7 @@ fortryde. Ret det i hånden i Foundry.
 | En kort fejl med `host-not-allowed`.                                         | Du åbnede det under et andet navn. Brug den adresse, adminen gav dig.                                                                                             |
 | Siden indlæses, men Pre-flight og panelerne kan ikke læse spillet.           | Bridgen eller serverens Foundry-browser er nede. Fortæl det til værktøjets admin.                                                                                 |
 | Pre-flights linje "Foundry connected" er markeret som fejlet.                | Se "Bridgen får ikke forbindelse" ovenfor.                                                                                                                        |
-| Tool runner siger "Couldn't load tools".                                     | Bridgen er ikke forbundet, eller denne browser er ikke logget ind som GM (se næste række).                                                                        |
+| Tool Runner siger "Couldn't load tools".                                     | Bridgen er ikke forbundet, eller denne browser er ikke logget ind som GM (se næste række).                                                                        |
 | GM-knapper afvises, selvom alt er forbundet.                                 | Opsætningen bruger et GM-token. Åbn dashboardet én gang med den adresse, du fik (den ender på `?token=…`). Browseren husker det.                                  |
 | GM Actions slog sig selv fra.                                                | Dashboardet genstartede. Slå den til igen, når du har brug for den.                                                                                               |
 
@@ -85,7 +85,7 @@ fortryde. Ret det i hånden i Foundry.
 | En creature mangler i kamprækkefølgen.    | Dens token eller combatant er skjult, eller den er ikke på den scene, spillerne ser. Det er med vilje.                                                                                                                                   |
 | En creature vises som "Unknown creature". | Dens tokens **Display Name** skjuler navnet for spillerne (Foundrys standard). For at vise det: tokenets tandhjul (**Open Configuration**) eller actorens **Prototype Token**, **Identity** tab, **Display Name** **Hovered by Anyone**. |
 | Feedet viser lidt.                        | Kun offentlige rolls og det, spillerne kunne se ske, vises. Private, blind og GM-rolls samt hændelser om creatures, spillerne ikke kan navngive, er udeladt.                                                                             |
-| "Nothing revealed yet." under Handouts.   | Afsløringen blev ikke anvendt, eller spillerne kan ikke længere åbne siden eller dens journal. Kør `list-revealed-pages` i tool runner: den viser hver afsløret side og om spillerne stadig kan åbne den.                                |
+| "Nothing revealed yet." under Handouts.   | Afsløringen blev ikke anvendt, eller spillerne kan ikke længere åbne siden eller dens journal. Kør `list-revealed-pages` i Tool Runner: den viser hver afsløret side og om spillerne stadig kan åbne den.                                |
 | En spiller kan slet ikke åbne siden.      | Åbn først spillersiden selv på din egen enhed. Virker den for dig, så send spilleren [Kom med i spillet](../player/join.md). Fejler den også for dig, så fortæl det til værktøjets admin.                                                |
 
 ## Obsidian-noter opdateres ikke
@@ -94,7 +94,7 @@ fortryde. Ret det i hånden i Foundry.
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Ingen noter overhovedet.                                            | Bridgen kender ikke din vault-mappe (`FOUNDRY_AI_OBSIDIAN_DIR`). Den, der satte værktøjet op, tilføjer den. Genstart derefter Claude Desktop.                                                                                                                       |
 | Én note er holdt op med at opdatere.                                | Den blev redigeret i Obsidian, så værktøjet lader den være. Den står i `AI Tool/_status.md` (session notes) eller `AI Tool/Foundry/_status.md` (PCs, NPCs, scenes, journals). Flyt din tekst til din egen note, og slet den genererede for at få opdateringer igen. |
-| Ingen noter under `AI Tool/Foundry/` (PCs, NPCs, scenes, journals). | Foundry-mirroret er slået fra. Sæt kryds ved "AI Tool: Obsidian mirror (writes)", slå så mirroret til med `plan-obsidian-mirror` (bed Claude om det, eller brug tool runner) og anvend planen. `get-obsidian-mirror` viser dets tilstand.                           |
+| Ingen noter under `AI Tool/Foundry/` (PCs, NPCs, scenes, journals). | Foundry-mirroret er slået fra. Sæt kryds ved "AI Tool: Obsidian mirror (writes)", slå så mirroret til med `plan-obsidian-mirror` (bed Claude om det, eller brug Tool Runner) og anvend planen. `get-obsidian-mirror` viser dets tilstand.                           |
 | En note ligger stadig i en gammel mappe efter en opdatering.        | Du har redigeret den, så værktøjet flytter den ikke. `_status.md` nævner den som "kept at its old path because it was edited". Flyt din tekst til din egen note, og slet den gamle. Værktøjet skriver så en ny note i den rigtige mappe.                            |
 | En journals note har ingen sidetekst.                               | Kun journals eller journal-mapper, du har valgt til, får deres sidetekst.                                                                                                                                                                                           |
 | En note siger, at stat block, tekst eller billede er udeladt.       | Din vault ligger i et git-repository, der ikke ignorerer mirror-mappen, så værktøjet holder licenseret tekst ude af den. `AI Tool/Foundry/_status.md` siger, hvad du skal tilføje til `.gitignore`, eller flyt vaulten ud af repositoryet.                          |

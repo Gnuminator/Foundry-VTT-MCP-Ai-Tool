@@ -308,3 +308,148 @@ describe('PollingGameFeed pollNow', () => {
     expect(calls()).toBe(2);
   });
 });
+
+describe('PollingGameFeed resync races an in-flight poll', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('drops the answer of a poll that began before the resync and reads again', async () => {
+    const waiting: Array<(events: Array<{ id: string }>) => void> = [];
+    const args: Array<Record<string, unknown>> = [];
+    const client = new FakeClient();
+    client.callTool = (tool: string, a: Record<string, unknown> = {}): Promise<unknown> => {
+      if (tool !== 'get-recent-events') {
+        return Promise.resolve({ success: true, events: [], errors: [], active: false });
+      }
+      args.push(a);
+      return new Promise(resolve => {
+        waiting.push(events =>
+          resolve({
+            success: true,
+            events,
+            latestTimestamp: '2026-09-30T10:00:00.000Z',
+            serverTime: '2026-09-30T10:00:01.000Z',
+          })
+        );
+      });
+    };
+    const got: string[] = [];
+    const feed = new PollingGameFeed(
+      client as unknown as McpControlClient,
+      {
+        onEvents: (events): void => {
+          got.push(...events.map(e => e.id));
+        },
+        onCombat: (): void => {},
+        onErrors: (): void => {},
+        onStatus: (): void => {},
+      },
+      {
+        pollIntervalMs: 60_000,
+        combatPollIntervalMs: 60_000,
+        errorPollIntervalMs: 60_000,
+        logger: new Logger('error'),
+      }
+    );
+    feed.pollNow();
+    expect(args).toHaveLength(1);
+    feed.resync(); // the world switched while the first read was out
+    waiting.shift()?.([{ id: 'old-world' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    // The old answer is dropped (no event, no cursor), and a fresh read from the start follows.
+    expect(got).toEqual([]);
+    expect(args).toHaveLength(2);
+    expect(args[1]).not.toHaveProperty('sinceTimestamp');
+    waiting.shift()?.([{ id: 'new-world' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual(['new-world']);
+  });
+
+  it('reads the module errors again after a resync that came during a read', async () => {
+    const waiting: Array<(errors: Array<{ id: string; timestamp: string }>) => void> = [];
+    const client = new FakeClient();
+    client.callTool = (tool: string): Promise<unknown> => {
+      if (tool !== 'get-module-errors') {
+        return Promise.resolve({ success: true, events: [], errors: [], active: false });
+      }
+      return new Promise(resolve => {
+        waiting.push(errors => resolve({ success: true, errors }));
+      });
+    };
+    const got: string[] = [];
+    const feed = new PollingGameFeed(
+      client as unknown as McpControlClient,
+      {
+        onEvents: (): void => {},
+        onCombat: (): void => {},
+        onErrors: (errors): void => {
+          got.push(...errors.map(e => e.id));
+        },
+        onStatus: (): void => {},
+      },
+      {
+        pollIntervalMs: 60_000,
+        combatPollIntervalMs: 60_000,
+        errorPollIntervalMs: 60_000,
+        logger: new Logger('error'),
+      }
+    );
+    feed.resync(); // starts the first error read
+    feed.resync(); // a second world switch while it is out: its own read is dropped by the guard
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.([{ id: 'old', timestamp: '2026-09-30T10:00:00.000Z' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual([]);
+    expect(waiting).toHaveLength(1); // read again at once, not after the next tick
+    waiting.shift()?.([{ id: 'new', timestamp: '2026-09-30T10:00:01.000Z' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual(['new']);
+  });
+
+  it('reads the module errors again when the read that was out during a resync fails', async () => {
+    const waiting: Array<{
+      ok: (errors: Array<{ id: string; timestamp: string }>) => void;
+      fail: (e: Error) => void;
+    }> = [];
+    const client = new FakeClient();
+    client.callTool = (tool: string): Promise<unknown> => {
+      if (tool !== 'get-module-errors') {
+        return Promise.resolve({ success: true, events: [], errors: [], active: false });
+      }
+      return new Promise((resolve, reject) => {
+        waiting.push({ ok: errors => resolve({ success: true, errors }), fail: reject });
+      });
+    };
+    const got: string[] = [];
+    const feed = new PollingGameFeed(
+      client as unknown as McpControlClient,
+      {
+        onEvents: (): void => {},
+        onCombat: (): void => {},
+        onErrors: (errors): void => {
+          got.push(...errors.map(e => e.id));
+        },
+        onStatus: (): void => {},
+      },
+      {
+        pollIntervalMs: 60_000,
+        combatPollIntervalMs: 60_000,
+        errorPollIntervalMs: 60_000,
+        logger: new Logger('error'),
+      }
+    );
+    feed.resync(); // starts the first error read
+    feed.resync(); // the world switched while it is out
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.fail(new Error('timed out during the world switch'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(waiting).toHaveLength(1); // read again at once, not after the next tick
+    waiting.shift()?.ok([{ id: 'new', timestamp: '2026-09-30T10:00:01.000Z' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual(['new']);
+  });
+});

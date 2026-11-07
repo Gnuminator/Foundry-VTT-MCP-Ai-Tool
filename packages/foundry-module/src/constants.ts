@@ -131,5 +131,5 @@ export const ERROR_MESSAGES = {
   ACCESS_DENIED: 'Access denied - feature is disabled',
   QUERY_TIMEOUT: 'Query timeout',
   UNKNOWN_METHOD: 'Unknown method',
-  BRIDGE_NOT_RUNNING: 'MCP Bridge is not running',
+  BRIDGE_NOT_RUNNING: 'The AI Tool is not running',
 } as const;

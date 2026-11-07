@@ -108,7 +108,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs
 
       - name: Weekly usage report
         # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
@@ -117,6 +117,15 @@ jobs:
       - name: Game-night watch
         # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
         run: node --test scripts/gamenight-watch.test.mjs
+
+      - name: Game-night watch on the Pi
+        # scripts/gamenight-watch-pi.mjs (watch-on-pi): the session gate, the five probes and one round, no outside network.
+        run: node --test scripts/gamenight-watch-pi.test.mjs
+
+      - name: Pi stage 29 game-night watch
+        # 29-gamenight-watch.sh (backlog watch-on-pi) as text: snapshot before the write, guarded rm, no secret in the unit.
+        # The scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/gamenight-watch-stage.test.mjs
 
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
@@ -439,7 +448,7 @@ jobs:
           fi
 
   dashboard-visual-shard:
-    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, two themes)
+    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, neutral theme; axe checks both)
     # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
     # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
     # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
@@ -645,6 +654,14 @@ jobs:
           PI_STAGE25_CONTAINER: 1
         run: node --test scripts/pi/modules-stage.test.mjs
 
+      - name: Pi stage 28 (Assistant GM hang watchdog) in an ARM64 container
+        # scripts/pi/container-test/stage28-scenarios.sh: the driver against a page that stops answering (it must exit for a
+        # restart), then the stage that installs the new driver (dry run, apply, rerun, UNDO=1, a failed join putting the old
+        # driver back, the refusals).
+        env:
+          PI_GM_WATCHDOG_CONTAINER: 1
+        run: node --test scripts/pi/gm-watchdog.test.mjs
+
       - name: Pi kit session in an ARM64 container
         # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins
         # for systemd (the refusals, a failed driver putting everything back, a second run).
@@ -693,6 +710,13 @@ jobs:
         env:
           PI_STAGE26_CONTAINER: 1
         run: node --test scripts/pi/discord-game-server.test.mjs
+
+      - name: Pi stage 29 in an ARM64 container
+        # scripts/pi/container-test/stage29-scenarios.sh: stage 29 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, install,
+        # rerun, kept settings file, public check on or off, check, the snapshot rule, undo).
+        env:
+          PI_STAGE29_CONTAINER: 1
+        run: node --test scripts/pi/gamenight-watch-stage.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

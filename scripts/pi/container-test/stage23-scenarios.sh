@@ -126,7 +126,7 @@ run_stage() {
   } >"$f"
   OUT="$(
     for kv in "$@"; do export "${kv?}"; done
-    export PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" DASHBOARD_UNIT="$SB/etc/dashboard.service"
+    export PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" DASHBOARD_UNIT="$SB/etc/dashboard.service" DOCKER_DAEMON_JSON="$SB/etc/docker-daemon.json"
     bash "$f" 2>&1
   )"
   RC=$?
@@ -140,6 +140,7 @@ new_pi
 run_stage DRY_RUN=1
 if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run' && echo "$OUT" | grep -q 'docker.io' && [ ! -e "$(envf)" ] &&
   ! echo "$CALLS" | grep -qE 'apt-get (install|update)|compose.* build'; then pass "dry run prints the plan and changes nothing"; else fail "dry run (rc $RC): $OUT"; fi
+if echo "$OUT" | grep -q 'would write .*docker-daemon.json: live-restore true' && [ ! -e "$SB/etc/docker-daemon.json" ]; then pass "dry run names the daemon.json it would write"; else fail "dry run daemon.json line: $OUT"; fi
 
 # 2. refusals
 new_pi nocompose
@@ -170,6 +171,13 @@ fi
 if echo "$CALLS" | grep -q 'docker compose -f deploy/pi/compose.yml build' && ! echo "$CALLS" | grep -qE 'STARTED|compose.* (up|down|start)'; then pass "builds the images and starts nothing"; else fail "calls: $CALLS"; fi
 if echo "$CALLS" | grep -q 'systemctl enable docker.service' && ! echo "$CALLS" | grep -qE 'usermod|adduser|gpasswd|groupadd'; then pass "enables docker.service, changes no user"; else fail "calls: $CALLS"; fi
 if echo "$OUT" | grep -q 'image foundry-ai-tool-pi/app:local'; then pass "reports each built image"; else fail "images: $OUT"; fi
+
+if grep -q '"live-restore": true' "$SB/etc/docker-daemon.json" 2>/dev/null; then pass "a missing daemon.json gets live-restore"; else fail "daemon.json: $(cat "$SB/etc/docker-daemon.json" 2>&1)"; fi
+# an existing daemon.json is never rewritten: with live-restore it is accepted, without it only a warning
+new_pi
+printf '{"log-level": "warn"}\n' >"$SB/etc/docker-daemon.json"
+run_stage
+if [ "$RC" -eq 0 ] && [ "$(cat "$SB/etc/docker-daemon.json")" = '{"log-level": "warn"}' ] && echo "$OUT" | grep -q 'exists without "live-restore": true'; then pass "an existing daemon.json is kept and the missing live-restore is a warning"; else fail "daemon.json kept (rc $RC): $OUT"; fi
 
 # 4. second run: nothing to install, .env unchanged
 before="$(cat "$(envf)")"

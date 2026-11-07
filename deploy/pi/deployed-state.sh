@@ -11,6 +11,7 @@
 #   packages    libicu (the GitHub runner), chromium, git
 #   build       the deployed ref (stage 5's .tool-ref) against EXPECT_REF, the newest release tag, and the
 #               Assistant GM helper against EXPECT_ASSISTANT_GM_SHA256 (deployed-state.ps1 fills both from the repo)
+# EXPECT_ASSISTANT_GM_SOURCE says where that hash came from ("the v0.25.0 copy", "main's copy"), for the line.
 # Without EXPECT_* the build lines say what is deployed and nothing more.
 #
 # Paths and commands can be overridden by environment for the tests: TOOL_DIR, TOOL_ETC, COMPOSE_PROJECT, and
@@ -45,10 +46,29 @@ mode=systemd
 running_services=" "
 
 say "containers"
-if have "$DOCKER"; then
-  rows="$("$DOCKER" ps -a --filter "label=com.docker.compose.project=$COMPOSE_PROJECT" \
-    --format '{{.Names}}|{{.Label "com.docker.compose.service"}}' 2>/dev/null)" || rows=""
-  if [ -z "$rows" ]; then
+# Ask docker only while its service runs: with docker.socket enabled and docker.service stopped, `docker ps` would
+# socket-activate the daemon and `restart: unless-stopped` would bring containers back from a check that must not
+# change anything. Without systemctl there is nothing to ask first, so docker is queried directly.
+docker_up=yes
+if have "$DOCKER" && have "$SYSTEMCTL" && ! "$SYSTEMCTL" is-active --quiet docker.service 2>/dev/null; then
+  docker_up=no
+fi
+ps_failed=no
+if ! have "$DOCKER"; then
+  ok "no Docker on this host (the stack runs on systemd)"
+elif [ "$docker_up" = no ]; then
+  warn "docker is installed but not running (docker.service is not active): the containers were not checked"
+else
+  if rows="$("$DOCKER" ps -a --filter "label=com.docker.compose.project=$COMPOSE_PROJECT" \
+    --format '{{.Names}}|{{.Label "com.docker.compose.service"}}' 2>/dev/null)"; then
+    :
+  else
+    ps_failed=yes
+    rows=""
+  fi
+  if [ "$ps_failed" = yes ]; then
+    warn "docker ps failed: the containers were not checked"
+  elif [ -z "$rows" ]; then
     ok "no containers in project $COMPOSE_PROJECT (the stack runs on systemd)"
   else
     mode=containers
@@ -76,11 +96,9 @@ if have "$DOCKER"; then
     done <<<"$rows"
   fi
   # A rehearsal (stage 24 on other ports) is its own project and restarts with the daemon: never leave one behind.
-  if [ -n "$("$DOCKER" ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT-rehearsal" 2>/dev/null)" ]; then
+  if [ "$ps_failed" = no ] && [ -n "$("$DOCKER" ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT-rehearsal" 2>/dev/null)" ]; then
     warn "a rehearsal stack is present (project $COMPOSE_PROJECT-rehearsal): stage 24 MODE=down with the rehearsal ports stops it"
   fi
-else
-  ok "no Docker on this host (the stack runs on systemd)"
 fi
 
 # ---- units ---------------------------------------------------------------------------------------------------
@@ -131,9 +149,9 @@ else
 fi
 
 # ---- env names -----------------------------------------------------------------------------------------------
-# Names only. A line "NAME=" with nothing after it counts as missing.
+# Names only. A line "NAME=" or NAME="" (stage 7 writes quoted values) with nothing inside counts as missing.
 env_has() { # $1 file, $2 extended regex of the name(s)
-  [ -f "$1" ] && grep -Eq "^($2)=.+" "$1"
+  [ -f "$1" ] && grep -Eq "^($2)=[\"']?[^\"']" "$1"
 }
 need_env() { # $1 file, $2 name regex, $3 level (fail|warn), $4 what breaks without it
   if [ ! -f "$1" ]; then
@@ -199,9 +217,9 @@ if [ -f "$helper" ]; then
   if [ -z "${EXPECT_ASSISTANT_GM_SHA256:-}" ]; then
     ok "Assistant GM helper is $have_sha (no EXPECT_ASSISTANT_GM_SHA256 given)"
   elif [ "$have_sha" = "$EXPECT_ASSISTANT_GM_SHA256" ]; then
-    ok "Assistant GM helper matches the repo copy"
+    ok "Assistant GM helper matches ${EXPECT_ASSISTANT_GM_SOURCE:-the repo copy}"
   else
-    warn "Assistant GM helper differs from the repo copy: copy scripts/pi/remote/assistant-gm.mjs and run stage 5 again"
+    warn "Assistant GM helper differs from ${EXPECT_ASSISTANT_GM_SOURCE:-the repo copy}: copy scripts/pi/remote/assistant-gm.mjs and run stage 5 again"
   fi
 else
   warn "no Assistant GM helper at $helper"

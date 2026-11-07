@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 2c9734de1cee
+sourceHash: a18acc05b1fa
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -30,7 +30,7 @@ Claude holder ikke selv øje med spillet. Den læser det, den skal bruge, i det 
 - Tarokka-læsningen og listen over afslørede handouts (kun GM).
 
 Claude kan også handle: slå for NPC'er, give damage eller healing, flytte tokens, sætte conditions,
-tilføje NPC'er fra compendiums, skrive journals, sende chatbeskeder og mere. Dashboardets tool runner
+tilføje NPC'er fra compendiums, skrive journals, sende chatbeskeder og mere. Dashboardets Tool Runner
 viser alle de værktøjer, Claude har.
 
 ## Gode forespørgsler
@@ -142,7 +142,7 @@ lige så vel som Claudes.
 
 | Indstilling                                  | Standard | Lader Claude og dashboardet                                                                                                                                                                 |
 | -------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allow Write Operations                       | Til      | Ændre overhovedet noget. Slukket gør hele værktøjet skrivebeskyttet (se nedenfor).                                                                                                          |
+| AI Tool: Allow Write Operations              | Til      | Ændre overhovedet noget. Slukket gør hele værktøjet skrivebeskyttet (se nedenfor).                                                                                                          |
 | AI Tool: Live play (writes)                  | Til      | Give damage, healing, temporary hit points, conditions og resources; flytte, ændre eller slette tokens; placere templates, sætte mørke og lys, tilføje map notes, give loot.                |
 | AI Tool: Live play, apply without confirming | Fra      | Springe confirm-trinnet over for damage, healing, temporary hit points, conditions, resources, scene dressing og start af en kamp, som Claude planlægger. Ikke for tokens eller sletninger. |
 | AI Tool: Ownership (writes)                  | Til      | Ændre hvilke spillere der ejer eller kan se en actor.                                                                                                                                       |
@@ -184,7 +184,7 @@ retter du i hånden i Foundry. Så:
 - Når Claude bruger et item eller en spell, åbner Foundry brugsdialogen på din skærm, og du gør den
   færdig dér.
 
-Indstillingen "Allow Write Operations" (Game Settings, kategorien **Foundry AI Tool**; tændt som
+Indstillingen "AI Tool: Allow Write Operations" (Game Settings, kategorien **Foundry AI Tool**; tændt som
 standard) er værktøjets skrivebeskyttelse. Når den er slukket, ændrer værktøjet intet: ingen nye
 actors eller items, ingen ændringer af tokens, scener, combat, damage eller conditions, ingen
 ændringer af ejerskab, ingen journal-writes, ingen chat- eller roll-beskeder, ingen guarded changes

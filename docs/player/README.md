@@ -24,7 +24,7 @@ day and weather when the scene has them. It has these parts:
   bar. Monsters and NPCs show no HP numbers and no health word (the person who runs the tool can switch a rough
   one on: healthy, bloodied, critical or down), only standard conditions (like prone or frightened),
   and appear under the name you know them by, or as "Unknown creature".
-- **Session feed:** public rolls and what your characters could see happen, for example "Mira
+- **Live Feed:** public rolls and what your characters could see happen, for example "Mira
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither
   does anything about a creature whose name you cannot see.
 - **Handouts:** journal pages the GM revealed to you, such as a letter or a map note. A handout

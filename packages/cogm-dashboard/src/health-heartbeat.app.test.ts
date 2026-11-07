@@ -165,11 +165,11 @@ describe('recording-health event', () => {
   it('starts its timers on start() and clears them on close()', async () => {
     const realSet = global.setInterval;
     const realClear = global.clearInterval;
-    const created = new Set<unknown>();
+    const created = new Map<unknown, unknown>();
     const cleared = new Set<unknown>();
     global.setInterval = ((...args: Parameters<typeof setInterval>) => {
       const t = realSet(...args);
-      created.add(t);
+      created.set(t, args[1]);
       return t;
     }) as typeof setInterval;
     global.clearInterval = (t): void => {
@@ -184,8 +184,15 @@ describe('recording-health event', () => {
       global.setInterval = realSet;
       global.clearInterval = realClear;
     }
-    expect(created.size).toBeGreaterThanOrEqual(2);
-    // The heartbeat and the recording-health timer are among those cleared.
-    expect(cleared.size).toBeGreaterThanOrEqual(2);
+    const delays = [...created.values()];
+    // The heartbeat (60 s) and the recording-health timer (30 ms) were started ...
+    expect(delays).toContain(60_000);
+    expect(delays).toContain(30);
+    // ... and every one of those is cleared, none left running (other timers, such as the control
+    // client's 10 s heartbeat, belong to parts this harness does not close).
+    const left = [...created.entries()]
+      .filter(([t, ms]) => (ms === 60_000 || ms === 30) && !cleared.has(t))
+      .map(([, ms]) => ms);
+    expect(left).toEqual([]);
   });
 });

@@ -24,8 +24,8 @@ export async function waitForDashboard(page) {
 }
 
 /**
- * Whether GM Actions are on, from the header live play button's data-gm-actions attribute (its
- * text says only "Live play on" or "Live play off: Turn on", and other switches can be off).
+ * Whether GM Actions are on, from the header GM Actions button's data-gm-actions attribute (its
+ * text says only "GM Actions on" or "GM Actions off: Turn on", and other switches can be off).
  */
 export async function gmActionsOn(page) {
   return (await page.locator('#btn-gm').getAttribute('data-gm-actions')) === 'on';
@@ -33,7 +33,7 @@ export async function gmActionsOn(page) {
 
 /**
  * Turn GM Actions on or off. On is the header line's Turn on (the same click as Start session's;
- * it turns on every live play switch); off goes through the dashboard API, since the page has no
+ * it turns on every GM Actions switch); off goes through the dashboard API, since the page has no
  * off switch outside End session.
  */
 export async function setGmActions(page, on, { human = false } = {}) {
@@ -45,7 +45,7 @@ export async function setGmActions(page, on, { human = false } = {}) {
     // data-track (hidden, or below the fold when no fight runs).
     await click(
       page
-        .locator('[role="dialog"][aria-label="Live play switches"] [data-track="dash.live.turn-on"]')
+        .locator('[role="dialog"][aria-label="GM Actions switches"] [data-track="dash.live.turn-on"]')
         .first()
     );
   } else {

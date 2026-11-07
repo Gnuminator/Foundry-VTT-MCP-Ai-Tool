@@ -11,10 +11,10 @@ import type { DashboardParameters } from '../storybook/withDashboard';
 
 import { LivePlayLine } from './GmActionsSwitch';
 
-// The live play line in the header: "Live play on" or what is off with a Turn on. Start
-// session is the only switch; the line shows the state and its list holds one Turn on.
+// The GM Actions button in the header: "GM Actions on" or what is off with a Turn on. Start
+// session is the only switch; the button shows the state and its list holds one Turn on.
 const meta = {
-  title: 'Components/Live play line',
+  title: 'Components/GM Actions switch',
   parameters: { layout: 'fullscreen' },
 } satisfies Meta;
 
@@ -58,7 +58,7 @@ const seed = (
   },
 });
 
-/** Live play is off: the line names what is off. */
+/** GM Actions is off: the button names what is off. */
 export const Off: Story = {
   parameters: seed(false, SWITCHES_READY),
   render,
@@ -74,7 +74,7 @@ export const AllSet: Story = {
   render,
   play: async ({ canvasElement }) => {
     const button = await within(canvasElement).findByRole('button', {
-      name: 'Live play on',
+      name: 'GM Actions on',
     });
     await expect(button).toHaveClass('on');
   },
@@ -96,10 +96,12 @@ export const TurnsOn: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', { name: /GM Actions.*off/ }));
-    const list = await within(document.body).findByRole('list', { name: 'Live play switches' });
+    const list = await within(document.body).findByRole('list', { name: 'GM Actions switches' });
     await expect(list).toBeVisible();
     await userEvent.click(within(document.body).getByRole('button', { name: 'Turn on' }));
-    await waitFor(() => expect(canvas.getByRole('button', { name: 'Live play on' })).toBeVisible());
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: 'GM Actions on' })).toBeVisible()
+    );
   },
 };
 

@@ -1,6 +1,6 @@
 ---
 source: gm/before-session.md
-sourceHash: a5f437161466
+sourceHash: 9830b5294680
 title: Før hver session
 description: En kort tjekliste til GM'en, før en spilsession starter.
 ---
@@ -34,7 +34,7 @@ som fire trin med tider.
 
 ## Slå til, hvad aftenen kræver
 
-- [ ] Klik på **Turn on for tonight** i Pre-flight-panelet. Ét klik slår "Allow Write Operations",
+- [ ] Klik på **Turn on for tonight** i Pre-flight-panelet. Ét klik slår "AI Tool: Allow Write Operations",
       "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party (writes)",
       "AI Tool: Tarokka (writes)" og **GM Actions** til. Chipsene under knappen viser hver
       kontakt, og en besked siger, hvad der blev slået til. **End session** slår det fra igen, som
@@ -64,7 +64,7 @@ som fire trin med tider.
 - [ ] Skjul tokens, spillerne ikke skal vide om endnu: højreklik på tokenet, klik på øjeknappen
       (tooltip **Hide**).
 - [ ] Åbn spillersiden i en ny fane (dashboardets adresse med `/player` til sidst), og tjek, at
-      combat-rækkefølgen, feedet og handouts ikke viser noget, du vil holde hemmeligt.
+      Combat order, Live Feed og handouts ikke viser noget, du vil holde hemmeligt.
 - [ ] Handouts: tjek, at hver side i din handouts-journal står på **None**, medmindre du har
       vist den (åbn journalen, højreklik på en side, **Configure Ownership**). Trinene står i
       [Afslør et handout](dashboard.md#afslør-et-handout).
@@ -79,7 +79,7 @@ som fire trin med tider.
 
 ## Når spillet begynder
 
-- [ ] Klik på **Start the session log and live play** (i Pre-flight-panelet) eller **Start session** i
+- [ ] Klik på **Start the session log and GM Actions** (i Pre-flight-panelet) eller **Start session** i
       dashboardets header. Der skulle nu stå "Session since" og klokkeslættet.
 
 Næste: [efter hver session](after-session.md).

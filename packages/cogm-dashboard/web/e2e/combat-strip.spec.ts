@@ -1114,7 +1114,15 @@ test.describe('picking combatants', () => {
         return ok({ matches: [{ id: 'w-axe', name: 'Handaxe' }], totalMatches: 1 });
       }
       if (call.name === 'get-targets') return ok({ targets, selected: [] });
-      if (call.name === 'use-item') return ok({ success: true, message: 'rolled' });
+      if (call.name === 'use-item') {
+        return ok({
+          success: true,
+          status: 'initiated',
+          message: 'Item use initiated',
+          itemName: 'Handaxe',
+          targets: ['Wolf'],
+        });
+      }
       return undefined;
     };
 
@@ -1201,6 +1209,122 @@ test.describe('picking combatants', () => {
       'Nothing is targeted in Foundry. Target a token there or pick one in the list.'
     );
     expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
+  test('Attack: an item with no attack to roll keeps the form open and says why', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? failed('"Handaxe" has no attack to roll')
+          : attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(toastLike(page, /has no attack to roll/)).toBeVisible();
+    await expect(page.locator('#attack-form')).toBeVisible();
+    await expect(page.locator('#attack-note')).not.toHaveText(/may have landed/i);
+  });
+
+  test('Attack: no answer from the bridge says it may have landed', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? failed('The bridge did not answer', 'timeout')
+          : attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'It may have landed. Check the feed before you attack again.'
+    );
+    await expect(page.locator('#attack-form')).toBeVisible();
+  });
+
+  test('Attack: Cancel and Escape do nothing while the attack runs', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    // Registered last, so it sees the call first: use-item waits, everything else falls through.
+    await page.route('**/api/tool', async route => {
+      if ((route.request().postDataJSON() as { name: string }).name !== 'use-item') {
+        return route.fallback();
+      }
+      await held;
+      return route.fallback();
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-go')).toHaveAttribute('aria-busy', 'true');
+    // Cancel is aria-disabled while busy, which Playwright would wait on: force the click.
+    await page.getByRole('button', { name: 'Cancel' }).click({ force: true });
+    await page.locator('#attack-attacker').press('Escape');
+    await expect(page.locator('#attack-form')).toBeVisible();
+    await page.locator('#attack-go').click({ force: true });
+    release();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.filter(c => c.name === 'use-item')).toHaveLength(1);
+  });
+
+  test('Attack: a done attack says so in a toast', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(
+      toastLike(page, /Attack sent: Brannoc with Handaxe at Wolf\. The roll shows in the feed/)
+    ).toBeVisible();
+  });
+
+  test('Attack: an attacker who left the fight falls back to the one whose turn it is', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-attacker').selectOption('c1');
+    push([
+      fight(
+        ATTACKERS.filter(c => c.id !== 'c1'),
+        { turn: 0 }
+      ),
+    ]);
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+    await expect(page.locator('#attack-go')).toHaveText(
+      'Brannoc attacks the Foundry targets with Handaxe'
+    );
+    // The first attacker comes back: the pick stays on the fallback and does not jump back.
+    push([fight(ATTACKERS, { turn: 1 })]);
+    await expect(page.locator('.combatant[data-id="c1"]')).toBeVisible();
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+  });
+
+  test('Attack: a failed weapon read shows its error', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'search-character-items'
+          ? failed('The actor is gone')
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-note')).toContainText('The actor is gone');
   });
 
   test('Escape closes the Attack form without writing', async ({ page }) => {
@@ -1808,7 +1932,7 @@ test.describe('when a write or a roll request fails', () => {
     await load(page);
     const ask = page.locator('#strip-roll-party');
     await expect(ask).toHaveAttribute('aria-disabled', 'true');
-    await expect(ask).toHaveAttribute('title', /Can't read the live play switches/);
+    await expect(ask).toHaveAttribute('title', /Can't read the GM Actions switches/);
     await ask.click({ force: true });
     await page.waitForTimeout(200);
     expect(calls.filter(c => c.name === 'request-player-rolls')).toEqual([]);

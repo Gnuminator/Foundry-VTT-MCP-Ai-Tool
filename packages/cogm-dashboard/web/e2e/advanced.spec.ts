@@ -27,7 +27,7 @@ test('the menu lists the panels and tools in their set order', async ({ page }) 
     '📝 After a paper night',
     '🧛 2024 twin of a monster',
     '▦ Try the During layouts',
-    '🛠 Tools',
+    '🛠 Tool Runner',
     '🩺 Module diagnostics',
     '🔗 Player links',
     // The Versions panel itself shows only once this switch is on (I-127, off by default).

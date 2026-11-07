@@ -483,7 +483,13 @@ export function LiveStrip(): JSX.Element {
             aria-disabled={undoable && !off ? undefined : 'true'}
             busy={busyState === 'undo'}
             busyLabel="Undoing..."
-            title={changes.isPending || !undoable ? undefined : `Undo: ${undoable.summary.trim()}`}
+            title={
+              changes.isPending || !undoable
+                ? undefined
+                : undoable.summary.trim()
+                  ? `Undo: ${undoable.summary.trim()}`
+                  : 'Undo last change'
+            }
             onClick={() => {
               if (undoable && !off) void undo();
             }}
@@ -516,7 +522,7 @@ export function LiveStrip(): JSX.Element {
           </div>
         )
       ) : (
-        <ol className={styles['cards']} aria-label="Turn order" ref={cardsRef}>
+        <ol className={styles['cards']} aria-label="Combat order" ref={cardsRef}>
           {rows.map(c => (
             <Card
               key={c.id}

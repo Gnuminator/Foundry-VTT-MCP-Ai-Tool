@@ -385,8 +385,34 @@ const CRITICAL_ETC =
 // The boot files (dietpiEnv.txt, config.txt, cmdline.txt, the kernel and the firmware).
 const BOOT_FILES = /\/boot(?:\/|(?![\w.-]))/g;
 
+/**
+ * Docker commands that stop or delete containers and images on the host (the Pi runs the stack in containers): `docker rm`,
+ * `docker kill`, `docker system prune` (and the other prune/rm verbs), `docker compose ... down`. Read-only ones (ps, logs,
+ * inspect, compose ps/config) stay free.
+ */
+const dockerDestroys = text =>
+  scan(
+    text,
+    /\bdocker[ \t]+/g,
+    /(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+[ \t]+|-\S+[ \t]+)*/y,
+    tailAt(
+      /(?:(?:rm|rmi|kill|stop)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop)\b)/y
+    )
+  ) || followedInCommand(
+    text,
+    // docker's global options may sit between `docker` and `compose` (docker --context x compose down).
+    [
+      {
+        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
+      },
+    ],
+    /\b(?:down|rm|kill|stop)\b/g
+  );
+
 /** Rules that ask: allowed only with the user's explicit OK, every time. */
 const ASK = [
+  [dockerDestroys, 'removing or killing containers (docker rm, kill, prune, compose down)'],
+  [/\bTEST_ALLOW_CUTOVER=[^\s=]/, 'forcing the stage 24 cutover test switch on a real host'],
   [
     word(
       'useradd|adduser|userdel|deluser|usermod|groupadd|addgroup|groupdel|delgroup|groupmod|chpasswd|passwd'

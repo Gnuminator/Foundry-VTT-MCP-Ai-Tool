@@ -149,10 +149,10 @@ describe('what the During screen shows', () => {
 
   it('words the Auto note and the Full button', () => {
     expect(autoNote('calm')).toBe(
-      'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.'
+      'Auto is showing Cards now, because no fight is running. A fight brings the combat order and the party forward.'
     );
     expect(autoNote('combat')).toBe(
-      'Auto is showing Combat now: the turn order and the party come forward.'
+      'Auto is showing Combat now: the combat order and the party come forward.'
     );
     expect(fullButtonLabel('simple')).toBe('Show everything');
     expect(fullButtonLabel('full')).toBe('Show less');

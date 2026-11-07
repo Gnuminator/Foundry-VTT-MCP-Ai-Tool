@@ -457,6 +457,8 @@ describe('warn_dashboard_split (S3)', () => {
 });
 
 describe('the stages', () => {
+  // 29-gamenight-watch is left out on purpose too: DRY_RUN and CHECK need no snapshot, so it checks it after its mode check
+  // (scripts/pi/gamenight-watch-stage.test.mjs covers the order and the refusal).
   // 27-bot-status is left out on purpose too: DRY_RUN needs no snapshot, so it checks it right after its PORT check
   // (scripts/pi/bot-status-stage.test.mjs covers the refusal).
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
@@ -498,6 +500,7 @@ describe('the stages', () => {
       '7-vault': 'enable_unit foundry-ai-tool-bridge.service', // enable_unit calls require_quiet before a restart
       '8-recorder': 'require_no_recording',
       '27-bot-status': 'require_quiet',
+      '28-gm-watchdog': 'require_quiet_if_active',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
       '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first

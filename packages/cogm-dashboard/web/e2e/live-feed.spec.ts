@@ -465,7 +465,7 @@ test.describe('keyboard and screen reader', () => {
     await setup(page, { initial: [events(many(60), true)] });
     await load(page);
 
-    const list = page.getByRole('list', { name: 'Live feed events, newest first' });
+    const list = page.getByRole('list', { name: 'Live Feed events, newest first' });
     await expect(list).toBeVisible();
     await expect(list.getByRole('listitem')).toHaveCount(60);
     await expect(list).toHaveAttribute('tabindex', '0');
@@ -487,7 +487,7 @@ test.describe('keyboard and screen reader', () => {
   }) => {
     const { push } = await setup(page, { initial: [events(THREE, true)] });
     await load(page);
-    const list = page.getByRole('list', { name: 'Live feed events, newest first' });
+    const list = page.getByRole('list', { name: 'Live Feed events, newest first' });
     await expect(list.getByRole('listitem')).toHaveCount(3);
     expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(false);
     await expect(list).not.toHaveAttribute('tabindex', /.*/);

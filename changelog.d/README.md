@@ -16,6 +16,9 @@ Each pull request adds its CHANGELOG entry here as its own file instead of editi
     properties.
   ```
 
+- **Fold tidies headings:** when a heading is new in "Unreleased", the fold writes it without its trailing
+  `(...)` tag (the example above becomes `### Obsidian`), and Testing, Test kit and Test environment go under
+  `### Tests`. Headings already in "Unreleased" are left as they are.
 - **Check:** `npm run changelog:check` (CI runs it). **Fold:** `npm run changelog:fold` moves every
   fragment into CHANGELOG "Unreleased" and deletes the files; run it before a release, or whenever
   "Unreleased" should be current (`npm run changelog:fold -- --dry-run` shows the result first).

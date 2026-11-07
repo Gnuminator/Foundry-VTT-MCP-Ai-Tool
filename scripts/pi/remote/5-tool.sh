@@ -363,7 +363,7 @@ if have_systemd; then
   fi
 fi
 
-# A release tag the Pi did not run before was built and the dashboard answers: one Danish line in
+# A release tag the Pi did not run before was built and the dashboard answers: one English line in
 # #changelog (a normal post, rare). Off until the bot env on the Pi has DISCORD_CHANGELOG_CHANNEL_ID; a
 # failure is never fatal (announce.mjs prints one warning line). A run that dies before this point posts
 # nothing, and the rerun finds the build already there, so it posts nothing either (a courtesy post).

@@ -34,7 +34,7 @@ export function offSwitches(
 }
 
 /** The entry `offSwitches` adds when the module's switches could not be read. */
-export const UNREADABLE = "Can't read the live play switches";
+export const UNREADABLE = "Can't read the GM Actions switches";
 
 /** "Live play is off" or "Handouts and GM Actions are off", one line a disabled control shows. */
 export function offReason(names: string[], unreadable: string = UNREADABLE): string {

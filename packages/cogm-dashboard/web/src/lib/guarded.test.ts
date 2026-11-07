@@ -40,6 +40,12 @@ describe('rewordMayHaveApplied', () => {
     expect(out.match(/may have applied/g)).toHaveLength(1);
   });
 
+  it('keeps the text after the swapped sentence', () => {
+    expect(
+      rewordMayHaveApplied('Foo. It may have applied; check X. Bar', 'Look at the feed.')
+    ).toBe('Foo. Bar. Look at the feed.');
+  });
+
   it('adds a stop to a text that has none', () => {
     expect(rewordMayHaveApplied('Nothing came back', 'Check it.')).toBe(
       'Nothing came back. Check it.'

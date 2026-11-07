@@ -61,6 +61,29 @@ describe('Diagnostics.bindWorld', () => {
     expect(d.getErrors().map(e => e.id)).toEqual(['new']);
   });
 
+  it('a second call for the same world drops nothing more', () => {
+    store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
+    store.set('foundry-mcp-bridge.diagnosticsWorld', 'strahd');
+    const d = new Diagnostics();
+    d.install();
+    (d as unknown as { buffer: object[] }).buffer.push(entry('new', Date.now() + 1000));
+
+    expect(d.bindWorld('test-world')).toBe(1);
+    expect(d.bindWorld('test-world')).toBe(0);
+    expect(d.getErrors().map(e => e.id)).toEqual(['new']);
+    expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('test-world');
+  });
+
+  it('the first run (no stored world) drops what was restored and stores the world', () => {
+    store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
+    const d = new Diagnostics();
+    d.install();
+
+    expect(d.bindWorld('strahd')).toBe(1);
+    expect(d.getErrors()).toEqual([]);
+    expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('strahd');
+  });
+
   it('keeps the errors when the world is the same', () => {
     store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
     store.set('foundry-mcp-bridge.diagnosticsWorld', 'strahd');

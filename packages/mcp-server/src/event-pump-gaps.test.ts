@@ -354,6 +354,53 @@ describe('EventPump gaps and health', () => {
     expect(pump.health.snapshot().gapCount).toBe(0);
   });
 
+  it.each([
+    {
+      name: 'a longer later outage replaces a shorter unfiled one',
+      first: 60_000,
+      second: 130_000,
+    },
+    {
+      name: 'a shorter later outage does not replace a longer unfiled one',
+      first: 130_000,
+      second: 60_000,
+    },
+  ])('of two unfiled outages the longer is kept: $name', async ({ first, second }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    let failWorld = false;
+    const pump = makePump({
+      current: (): Promise<string> =>
+        failWorld ? Promise.reject(new Error('no world')) : Promise.resolve('w1'),
+    });
+    foundry.add(T0);
+    await pump.pollOnce();
+    // Outage one: back, but the world-id fetch fails, so it stays unfiled.
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + first);
+    foundry.connected = true;
+    failWorld = true;
+    await pump.pollOnce();
+    // Outage two, also unfiled.
+    const secondStart = T0 + first + 10_000;
+    vi.setSystemTime(secondStart);
+    foundry.connected = false;
+    await pump.pollOnce();
+    vi.setSystemTime(secondStart + second);
+    foundry.connected = true;
+    await pump.pollOnce();
+    // A good poll with an event files the longer one.
+    failWorld = false;
+    foundry.add(secondStart + second + 1000);
+    vi.setSystemTime(secondStart + second + 2000);
+    await pump.pollOnce();
+    const gap = pump.health.snapshot().lastGap;
+    expect(await gapMarkers()).toHaveLength(1);
+    if (first >= second) expect(gap?.toMs).toBe(T0 + first);
+    else expect(gap?.toMs).toBe(secondStart + second);
+  });
+
   it('clears "not recording" when the link returns even if the query then fails', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(T0);

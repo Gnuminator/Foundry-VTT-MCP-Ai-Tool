@@ -35,8 +35,8 @@ down until someone reloads.
   - The heartbeat no longer restarts the bridge (the socket bridge owns reconnecting) and never
     turns `autoReconnectEnabled` off.
   - Connection state and last activity live in memory only. Remove the `setSetting` calls for
-    `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` (keep the registrations so
-    old worlds load; mark them deprecated in a comment). The "MCP server not found" notice is
+    `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` (these settings were later
+    removed altogether; an old world's stored values are ignored). The "MCP server not found" notice is
     throttled in memory (once per 10 minutes per browser).
   - `autoReconnectEnabled` still means something: when off, the socket bridge does not reconnect
     after a drop (manual reconnect from the settings panel).

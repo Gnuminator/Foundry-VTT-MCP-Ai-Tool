@@ -279,6 +279,65 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.equal(dry(tv), 'state=idle decision=idle');
   });
 
+  test('a join older than the newest session-end is ignored; a join after it counts', () => {
+    const ended = fakePi({
+      logs: {
+        w: {
+          '2026-11-15.jsonl': [marker('session-end', NOW - hours(1))],
+          '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(3), 'p1')],
+        },
+      },
+    });
+    assert.equal(dry(ended), 'state=idle decision=idle');
+    const rejoined = fakePi({
+      logs: {
+        w: {
+          '2026-11-15.jsonl': [marker('session-end', NOW - hours(3))],
+          '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(1), 'p1')],
+        },
+      },
+    });
+    assert.equal(dry(rejoined), 'state=playing decision=playing players=connected');
+  });
+
+  test('a player in world b is playing while world a is idle', () => {
+    const d = fakePi({
+      logs: {
+        a: { '2026-11-15.jsonl': [marker('session-end', NOW - hours(1))] },
+        b: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] },
+      },
+    });
+    assert.equal(dry(d), 'state=playing decision=playing players=connected');
+  });
+
+  test('a play log untouched for 28 hours is skipped', () => {
+    const d = play([rec('user-join', NOW - hours(2), 'p1')]);
+    const f = path.join(d, 'vault', 'w', 'sessions', '2026-11-15.play.jsonl');
+    utimesSync(f, (NOW - hours(29)) / 1000, (NOW - hours(29)) / 1000);
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('only the 3 newest play logs are read (a join in the 4th is not seen)', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-12.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')],
+          '2026-11-13.play.jsonl': [],
+          '2026-11-14.play.jsonl': [],
+          '2026-11-15.play.jsonl': [],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('a join record without data.isGM counts as a player (the safe side)', () => {
+    const d = play([
+      JSON.stringify({ key: 'k', t: NOW - hours(1), kind: 'user-join', userId: 'p1', data: {} }),
+    ]);
+    assert.match(dry(d), /state=playing/);
+  });
+
   test('a join older than 14 hours with no leave is stale (idle)', () => {
     const d = play([rec('user-join', NOW - hours(15), 'p1')]);
     assert.equal(dry(d), 'state=idle decision=idle');

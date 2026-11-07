@@ -176,18 +176,26 @@ if (-not $ver.Ok) {
   if (-not $FoundryZip -or -not (Test-Path -LiteralPath $FoundryZip)) {
     throw "Foundry $want is needed in $($L.AppDir) and no FoundryVTT-Node-$want zip was found: download the Node.js build of $want from foundryvtt.com (your account, Purchased Licenses) and run restore.ps1 -FoundryZip <file>"
   }
+  # Unpack into app.new, check it, and only then put it in place: a failed or half finished unpack never leaves an app
+  # folder that the next run would accept as Foundry.
+  $newApp = "$($L.AppDir).new"
+  if (Test-Path -LiteralPath $newApp) { Remove-Item -LiteralPath $newApp -Recurse -Force }
+  Write-Step "installing Foundry from $FoundryZip"
+  New-Item -ItemType Directory -Force -Path $newApp | Out-Null
+  # Windows' own tar unpacks zips far faster than Expand-Archive (22,000 files).
+  $tar = if ($IsWindows) { Join-Path $env:SystemRoot 'System32\tar.exe' } else { 'tar' }
+  $unpack = Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $newApp)
+  if (-not $unpack.Ok) { throw "$($unpack.Message) ($FoundryZip); the unpacked part is left in $newApp, the app folder is as it was" }
+  if ($unpack.Skipped) { Write-Warning $unpack.Message }
+  if ($unpack.Warning) { Write-Warning $unpack.Warning }
+  $newVer = Test-WorldVersion (Get-PlanBAppBuild ([pscustomobject]@{ AppDir = $newApp })) $core
+  if (-not $newVer.Ok) { throw "after unpacking into ${newApp}: $($newVer.Message) (the app folder is as it was)" }
   if (Test-Path -LiteralPath $L.AppDir) {
     $old = '{0}-{1}' -f $L.AppDir, $(if ($appBuild) { $appBuild } else { 'old' })
     if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
     Move-Item -LiteralPath $L.AppDir -Destination $old
   }
-  Write-Step "installing Foundry from $FoundryZip"
-  New-Item -ItemType Directory -Force -Path $L.AppDir | Out-Null
-  # Windows' own tar unpacks zips far faster than Expand-Archive (22,000 files).
-  $tar = if ($IsWindows) { Join-Path $env:SystemRoot 'System32\tar.exe' } else { 'tar' }
-  $unpack = Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $L.AppDir)
-  if (-not $unpack.Ok) { throw "$($unpack.Message) ($FoundryZip)" }
-  if ($unpack.Skipped) { Write-Warning $unpack.Message }
+  Move-Item -LiteralPath $newApp -Destination $L.AppDir
   $ver = Test-WorldVersion (Get-PlanBAppBuild $L) $core
   if (-not $ver.Ok) { throw "after installing: $($ver.Message)" }
 }

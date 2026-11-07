@@ -1056,7 +1056,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a backup that leaves Foundry down fails with an ERROR line after waiting for it', () => {
     const r = nightly({
       users: [0],
-      env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active/);
@@ -1068,7 +1068,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a Foundry that is active but never answers (crashed on boot, Type=simple) fails the night', () => {
     const r = nightly({
       users: [0],
-      env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(
@@ -1082,7 +1082,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a Foundry that answers from the setup screen (its world did not open) fails the night', () => {
     const r = nightly({
       users: [0],
-      env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(
@@ -1096,7 +1096,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a world switched by hand during the day does not fail the night', () => {
     const r = nightly({
       users: [0],
-      env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 0, r.out);
     assert.equal(r.sleeps, 0);

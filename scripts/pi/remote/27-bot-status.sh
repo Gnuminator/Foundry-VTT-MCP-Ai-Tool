@@ -25,7 +25,10 @@
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. These lines are bash:
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/27-bot-status.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/27-bot-status.sh | ssh foundry-pi 'bash -s'
-# Tests only: TOOL_ETC, TOOL_DIR and DROPIN_DIR_BASE point at stand-in folders.
+# A rerun after a cut-off run finishes the job: a service that started before its file changed is restarted, and an UNDO
+# rerun restarts a dashboard whose process still carries DASHBOARD_BOT_STATUS_URL (read from /proc/<MainPID>/environ).
+# RESTART_UNITS=1 (in front of bash) forces both restarts. A dry run also reports a busy port.
+# Tests only: TOOL_ETC, TOOL_DIR, DROPIN_DIR_BASE and PROC_ROOT point at stand-in folders.
 
 dry="${DRY_RUN:-0}"
 undo="${UNDO:-0}"
@@ -84,16 +87,21 @@ else
   [ ! -f "$dropin" ] || [ "$(cat "$dropin")" != "$want_dropin" ] || plan_dropin="nothing to do"
 fi
 say "plan: bot env: $plan_env; dashboard drop-in: $plan_dropin"
+
+# The port must be free unless the bot already holds it (the bot listens only after a restart, so a changed port is checked
+# now). Checked in a dry run too, so the plan does not look fine on a busy port; without ss the check is skipped with a warning.
+if [ "$undo" != 1 ] && [ "$plan_env" != "nothing to do" ]; then
+  if command -v ss >/dev/null 2>&1; then
+    if ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$port\$"; then
+      die "port $port is already in use on this Pi (ss -ltn): pick another with PORT=<n>"
+    fi
+  else
+    warn "ss is not installed: whether port $port is free was not checked"
+  fi
+fi
 if [ "$dry" = 1 ]; then
   say "DRY_RUN=1: nothing changed"
   exit 0
-fi
-
-# The port must be free unless the bot already holds it (the bot listens only after a restart, so a changed port is checked now).
-if [ "$undo" != 1 ] && [ "$plan_env" != "nothing to do" ] && command -v ss >/dev/null 2>&1; then
-  if ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$port\$"; then
-    die "port $port is already in use on this Pi (ss -ltn): pick another with PORT=<n>"
-  fi
 fi
 
 if [ "$plan_env" = "nothing to do" ] && [ "$plan_dropin" = "nothing to do" ]; then
@@ -110,7 +118,14 @@ fi
     # from the old file (root:foundry 0640). Nothing of the file is printed.
     tmp="$(mktemp "$(dirname "$env_file")/.discord-bot.env.XXXXXX")"
     trap 'rm -f "${tmp:?}"' EXIT
-    { grep -vE '^FOUNDRY_AI_BOT_STATUS_PORT=' "$env_file" || true; } >"$tmp"
+    # grep exits 1 when no line is left (fine) and 2 on a read error: only 0 and 1 are accepted. A copy that lost the token
+    # line (a cut-off read) is never moved into place.
+    grep_rc=0
+    grep -vE '^FOUNDRY_AI_BOT_STATUS_PORT=' "$env_file" >"$tmp" || grep_rc=$?
+    [ "$grep_rc" -le 1 ] || die "reading $env_file failed (grep exit $grep_rc). Nothing was changed"
+    if grep -q '^DISCORD_TOKEN=' "$env_file" && ! grep -q '^DISCORD_TOKEN=' "$tmp"; then
+      die "the new copy of $env_file lost its DISCORD_TOKEN line, so it is not used. Nothing was changed"
+    fi
     if [ "$undo" != 1 ]; then printf '%s\n' "$want_line" >>"$tmp"; fi
     chown --reference="$env_file" "$tmp"
     chmod --reference="$env_file" "$tmp"
@@ -148,7 +163,26 @@ fi
       warn "$bot_unit is not running (no token yet?): the setting is read when it starts"
     fi
     if systemctl is-active --quiet "$dash_unit"; then
-      enable_unit "$dash_unit" "$dropin"
+      # After a cut-off UNDO the drop-in is gone, so no file says the running dashboard still has the old URL: ask the
+      # process itself (its environment) and restart it when it still carries the setting.
+      dash_stale=0
+      if [ "$undo" = 1 ]; then
+        dash_pid="$(systemctl show -p MainPID --value "$dash_unit" 2>/dev/null || true)"
+        case "$dash_pid" in
+          '' | 0 | *[!0-9]*) ;;
+          *)
+            # captured first, then matched: a `| grep -q` that stops early would SIGPIPE tr and read as "not set"
+            dash_env="$(tr '\0' '\n' <"${PROC_ROOT:-/proc}/$dash_pid/environ" 2>/dev/null || true)"
+            case "$dash_env" in DASHBOARD_BOT_STATUS_URL=* | *$'\n'DASHBOARD_BOT_STATUS_URL=*) dash_stale=1 ;; esac
+            ;;
+        esac
+      fi
+      if [ "$dash_stale" = 1 ]; then
+        say "the running dashboard still has DASHBOARD_BOT_STATUS_URL (an earlier UNDO was cut off): restarting it"
+        RESTART_UNITS=1 enable_unit "$dash_unit" "$dropin"
+      else
+        enable_unit "$dash_unit" "$dropin"
+      fi
     else
       warn "$dash_unit is not running: the setting is read when it starts"
     fi

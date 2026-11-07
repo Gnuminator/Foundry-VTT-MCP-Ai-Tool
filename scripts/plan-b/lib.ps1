@@ -202,27 +202,38 @@ function Test-WorldVersion([string]$AppBuild, [string]$WorldCoreVersion) {
 # never starts anything through them on Windows. So a non-zero exit is fine when every complaint
 # names a .bin path; any other complaint, or none, is a failure.
 function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
-  if ($ExitCode -eq 0) { return @{ Ok = $true; Skipped = 0; Message = 'unpacked' } }
   $lines = @($ErrorLines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
-  $binLines = @($lines | Where-Object { $_ -match '[\\/]\.bin([\\/]|[''"\s:]|$)' })
-  # bsdtar ends a run with per-entry errors with this summary line, which names no path.
-  $other = @($lines | Where-Object { $_ -notmatch '[\\/]\.bin([\\/]|[''"\s:]|$)' -and $_ -notmatch 'Error exit delayed from previous errors\.?$' })
-  if ($binLines.Count -eq 0 -or $other.Count -gt 0) {
-    $first = if ($other.Count) { $other[0] } else { 'no error text' }
-    return @{ Ok = $false; Skipped = 0; Message = "could not unpack the Foundry zip (tar exit ${ExitCode}): $first" }
+  if ($ExitCode -eq 0) {
+    # Exit 0 with output is unusual for tar -x (no -v): show it, do not fail on it.
+    $warn = if ($lines.Count) { "tar printed $($lines.Count) line(s) although it exited 0; the first: $($lines[0])" } else { $null }
+    return @{ Ok = $true; Skipped = 0; Message = 'unpacked'; Warning = $warn }
   }
-  return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)" }
+  # A .bin line is only tolerated when it is the known complaint: the link could not be created.
+  $isBin = { param($l) $l -match '[\\/]\.bin([\\/]|[''"\s:]|$)' -and $l -match "Can't create|Cannot create|Invalid argument" }
+  $binLines = @($lines | Where-Object { & $isBin $_ })
+  # bsdtar ends a run with per-entry errors with this summary line, which names no path.
+  $summary = 'Error exit delayed from previous errors\.?$'
+  $other = @($lines | Where-Object { -not (& $isBin $_) -and $_ -notmatch $summary })
+  if ($binLines.Count -eq 0 -or $other.Count -gt 0) {
+    $first = if ($other.Count) { $other[0] } elseif ($lines.Count) { $lines[0] } else { 'no error text' }
+    return @{ Ok = $false; Skipped = 0; Message = "could not unpack the Foundry zip (tar exit ${ExitCode}): $first"; Warning = $null }
+  }
+  return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)"; Warning = $null }
 }
 
 # Runs the unpack with native stderr captured and neither the error preference nor
-# $PSNativeCommandUseErrorActionPreference turning a non-zero exit into a throw (pwsh 7.0 to 7.5),
-# then judges it with Test-FoundryUnpack.
+# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
+# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
+# Test-FoundryUnpack.
+# $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
+# this run's; a run that leaves none (the program did not start) is a failure.
 function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
   $run = & {
     $ErrorActionPreference = 'Continue'
     $PSNativeCommandUseErrorActionPreference = $false
+    $global:LASTEXITCODE = $null
     $out = & $Tar @TarArgs 2>&1
-    @{ Code = $LASTEXITCODE; Lines = @($out | ForEach-Object { "$_" }) }
+    @{ Code = $(if ($null -eq $LASTEXITCODE) { -1 } else { [int]$LASTEXITCODE }); Lines = @($out | ForEach-Object { "$_" }) }
   }
   return Test-FoundryUnpack ([int]$run.Code) $run.Lines
 }

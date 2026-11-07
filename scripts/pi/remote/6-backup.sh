@@ -210,17 +210,17 @@ rm -f "$skip_marker"
 # active the moment the process starts, before Node has had time to crash on a world that will not open. So "active" is
 # not enough: Foundry must also answer /api/status, and when a world ran before the backup, the status must name some
 # world (Foundry answers on the setup screen too, which is what a world that will not open leaves; a world switched by hand
-# during the day is fine, Foundry launches the one in options.json). Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS (60)
+# during the day is fine, Foundry launches the one in options.json). Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES (60)
 # tries of about 2 s each, so about 120 s like the other world waits (a curl that hangs takes up to 5 s more per try,
 # so a dead Foundry can take several minutes), else exit 1 with an ERROR line (the hourly board report and the bot see
-# the failed unit). The clean-up below is left for the next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS.
+# the failed unit). The clean-up below is left for the next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES.
 foundry_answers() {
   local json
   json="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null)" || return 1
   [ -z "$world_before" ] || printf '%s' "$json" | grep -q '"world" *: *"[A-Za-z0-9_.-][A-Za-z0-9_.-]*"'
 }
 if [ "$we_stopped_foundry" = 1 ]; then
-  active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS:-60}"
+  active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES:-60}"
   active_tries=0
   until systemctl is-active --quiet foundry.service && foundry_answers; do
     if [ "$active_tries" -ge "$active_wait" ]; then

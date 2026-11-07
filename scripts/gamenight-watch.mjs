@@ -70,24 +70,29 @@ export function step(state, probe, cfg = DEFAULTS) {
   return { state: next, alert: null };
 }
 
-/** The Discord text for an alert. @param {string} alert @param {string} url @param {{ms:number, error?:string}} probe */
-export function formatAlert(alert, url, probe, cfg = DEFAULTS, mentions = []) {
+/**
+ * The Discord text for an alert. It names no address (the channel is read by more people than the
+ * user): `_url` stays in the signature for the callers. @param {string} alert @param {string} _url
+ * @param {{ms:number, error?:string}} probe
+ */
+export function formatAlert(alert, _url, probe, cfg = DEFAULTS, mentions = []) {
   const ping = mentions.map(id => `<@${id}>`).join(' ');
   const body =
     alert === 'down'
-      ? `Foundry does not answer at ${url} (${probe.error ?? 'no answer'}).`
+      ? `Foundry does not answer (${probe.error ?? 'no answer'}).`
       : alert === 'slow' || alert === 'slow-after-down'
-        ? `Foundry ${alert === 'slow-after-down' ? 'answers again, but slowly' : 'answers slowly'} at ${url}: ${probe.ms} ms, the limit is ${cfg.slowMs} ms.`
-        : `Foundry answers again at ${url} (${probe.ms} ms).`;
+        ? `Foundry ${alert === 'slow-after-down' ? 'answers again, but slowly' : 'answers slowly'}: ${probe.ms} ms, the limit is ${cfg.slowMs} ms.`
+        : `Foundry answers again (${probe.ms} ms).`;
   return ping ? `${ping} ${body}` : body;
 }
 
 /** One probe of `<url>/api/status`. Never throws. @returns {Promise<{ok:boolean, ms:number, error?:string}>} */
-export async function probeFoundry(url, timeoutMs, fetchImpl = fetch) {
+export async function probeFoundry(url, timeoutMs, fetchImpl = fetch, headers = {}) {
   const started = Date.now();
   try {
     // A redirect (for example a login page in front of Foundry) is a miss, not a healthy answer.
     const res = await fetchImpl(new URL('/api/status', url), {
+      headers,
       redirect: 'manual',
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -137,15 +142,15 @@ export async function postToChannel({ token, channelId }, content, fetchImpl = f
   const res = await fetchImpl(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: 'POST',
     headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, allowed_mentions: { parse: ['users'] } }),
+    body: JSON.stringify({ content: scrubUrls(content), allowed_mentions: { parse: ['users'] } }),
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(`Discord answered HTTP ${res.status}`);
 }
 
-const SWITCHES = new Set(['post', 'once']);
+const SWITCHES = new Set(['post', 'once', 'always']);
 
-/** `--post` and `--once` are switches (no value); every other flag takes a value. */
+/** `--post`, `--once` and `--always` (the Pi watch: no session needed) are switches (no value); every other flag takes a value. */
 export function parseArgs(argv) {
   /** @type {Record<string, string|boolean>} */
   const o = {};
@@ -167,14 +172,24 @@ export function parseArgs(argv) {
   return o;
 }
 
-/** The address to show and post: http or https only, without a user name or password. */
+/**
+ * The address to show and post: http or https only, without a user name, password, query string or
+ * fragment (an address pasted from a browser or a share link can carry a token there).
+ */
 export function safeUrl(raw) {
   const u = new URL(raw);
   if (u.protocol !== 'http:' && u.protocol !== 'https:')
     throw new Error('The address must start with http:// or https://.');
   u.username = '';
   u.password = '';
+  u.search = '';
+  u.hash = '';
   return u.toString().replace(/\/$/, '');
+}
+
+/** Cuts the query string and fragment off every http(s) address in a text: the last guard before a log line or a post. */
+export function scrubUrls(text) {
+  return String(text).replace(/(https?:\/\/[^\s?#<>)"']+)[?#][^\s<>)"']*/gi, '$1');
 }
 
 /**
@@ -281,7 +296,7 @@ async function main() {
     );
     if (result.alert) {
       const text = formatAlert(result.alert, url, probe, cfg, mentions);
-      console.log(`${stamp()} alert ${result.alert}: ${text}`);
+      console.log(`${stamp()} alert ${result.alert}: ${scrubUrls(text)}`);
       if (target) pending.push({ text, at: Date.now() });
     }
     if (target && pending.length > 0) {

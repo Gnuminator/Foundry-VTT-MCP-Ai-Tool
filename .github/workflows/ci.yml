@@ -118,6 +118,15 @@ jobs:
         # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
         run: node --test scripts/gamenight-watch.test.mjs
 
+      - name: Game-night watch on the Pi
+        # scripts/gamenight-watch-pi.mjs (watch-on-pi): the session gate, the five probes and one round, no outside network.
+        run: node --test scripts/gamenight-watch-pi.test.mjs
+
+      - name: Pi stage 29 game-night watch
+        # 29-gamenight-watch.sh (backlog watch-on-pi) as text: snapshot before the write, guarded rm, no secret in the unit.
+        # The scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/gamenight-watch-stage.test.mjs
+
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
         # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels
@@ -701,6 +710,13 @@ jobs:
         env:
           PI_STAGE26_CONTAINER: 1
         run: node --test scripts/pi/discord-game-server.test.mjs
+
+      - name: Pi stage 29 in an ARM64 container
+        # scripts/pi/container-test/stage29-scenarios.sh: stage 29 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, install,
+        # rerun, kept settings file, public check on or off, check, the snapshot rule, undo).
+        env:
+          PI_STAGE29_CONTAINER: 1
+        run: node --test scripts/pi/gamenight-watch-stage.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

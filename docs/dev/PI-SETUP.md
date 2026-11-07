@@ -293,7 +293,7 @@ allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-
 `--recover`. For a test, point `--url` at the test server (`http://localhost:30001`) and stop it with
 `scripts/test-env/stop.ps1 -Only foundry`.
 
-The message includes the Foundry address (without any user name or password). A message that Discord
+The message names no address (the log line shows it without user name, password, query string or fragment). A message that Discord
 refuses is kept and tried again at every check, so a short Discord outage does not lose the "down"
 message; a late message says when the problem was noticed. With `--post` the watch first asks Discord
 whether the bot can see the channel and stops with an error if not. Foundry counts as up only when
@@ -306,8 +306,8 @@ down and back pair each time.
 alone never posts "down" (it takes `--fail` misses in a row), so to test posting use
 `--once --post --fail 1` against a stopped test server.
 
-The watch only works while this PC is on and can reach the Pi. A copy that runs on the Pi itself would be
-a stage script and needs your OK (not done).
+This PC copy only works while the PC is on and can reach the Pi. The same watch runs on the Pi itself as a
+service with more checks: see [Game-night watch on the Pi (stage 29)](#game-night-watch-on-the-pi-stage-29).
 
 ## Stale backup copies
 
@@ -1799,26 +1799,75 @@ stage 14's dnd5e migration; the 120 s and the cap of three restarts bound a slow
   watch `journalctl -u foundry-ai-tool-gm-browser -f` for `the page has not answered a ping for 120 s; restarting the browser`
   and the rejoin (the unit restart kills the frozen processes; nothing needs `kill -CONT`); (5) `UNDO=1` only if the browser does not come back.
 
+## Game-night watch on the Pi (stage 29)
+
+`scripts/pi/remote/29-gamenight-watch.sh` (backlog `watch-on-pi`) installs the watch as the service
+`foundry-ai-tool-gamenight-watch` so the GM gets the `#gm-bot` alerts without the PC being on. It reuses the PC
+watch's state machine and posting (`scripts/gamenight-watch.mjs`) through `scripts/gamenight-watch-pi.mjs`.
+
+**When it runs:** the service is always on but idle. It asks the bridge every minute whether a play session is
+marked (`get-play-session`, the same marker `mark-play-session` writes). While one is open it checks, every minute:
+
+| Check          | How                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| Foundry        | `/api/status` on the Pi answers 200 with a running world, slow over 3 s                            |
+| Dashboard      | `/api/health` answers `ok` and `controlChannel: connected`                                         |
+| Bridge link    | the bridge's `link_status` says the Foundry module socket is connected                             |
+| Recorder       | the Discord bot's systemd unit is active, and (with stage 27) its status endpoint lists no problem |
+| Public address | `/api/status` on the public address, with a Cloudflare Access service token; off until configured  |
+
+It posts to `#gm-bot` when it starts ("Game-night watch started", with each check's first result), when a check
+is down for 2 probes in a row, slow for 3 in a row, or back after 2 good ones, and when the session is marked
+ended (2 closed readings in a row) or the service stops. A bridge that does not answer changes nothing about the
+session (watch on stays on, off stays off), but the bridge check itself then reports. Posts hold no address, no
+query string and no token; the log shows host names only.
+
+**Install (user OK and a `dietpi-backup` snapshot first; never on a game night):**
+
+```bash
+scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/
+cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
+```
+
+It needs stage 8 and 26 done (the bot token and `GAMENIGHT_WATCH_CHANNEL_ID` in `discord-bot.env`; it checks the names only).
+It restarts nothing but itself. `UNDO=1` removes the service and the files and keeps the settings file.
+
+The files come from the PC, not from the release build: copy them from a clean checkout of `main` at the merge commit. The stage
+writes `SHA256SUMS` next to them (and `CHECK=1` prints it) so the hashes can be compared with
+`git show aitool/main:scripts/gamenight-watch-pi.mjs | sha256sum`. A paper night (`mark-play-session` with `mode: "paper"`) is not
+watched, because Foundry is closed on those. That needs a bridge build whose `get-play-session` reports `mode`; on an older bridge
+a paper night would look like a live one and alarm, so run stage 5 with the release that has it before the first real session.
+
+**The public check:** on the first run the stage creates `/etc/foundry-ai-tool/gamenight-watch.env`
+(`root:foundry` 0640, every line commented out). To switch the public check on, the user (not Claude) adds
+`WATCH_PUBLIC_URL`, `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to it and restarts the service. The
+Access application must allow that service token (policy "Service Auth") for the public address. The stage never
+reads or prints the values. Other settings (ports, the recorder unit and status address, mention ids) are listed
+in the template.
+
 ## Where things live on the Pi
 
-| What                                                         | Where                                                                                                                      |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Foundry program                                              | `/opt/foundry`                                                                                                             |
-| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                         |
-| Node.js                                                      | `/opt/node24`                                                                                                              |
-| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                     |
-| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                        |
-| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                                 |
-| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                     |
-| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                 |
-| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                      |
-| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                     |
-| Player vaults (one folder per player, Send Only; stage 21)   | `/var/lib/foundry-ai-tool/obsidian/players/<Player name>`                                                                  |
-| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                               |
-| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`      |
-| GitHub runners for the PM board (stage 17): runners, gate    | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer` |
-| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                |
-| A dnd5e trial (the old version, world copies; stage 14)      | `/var/lib/foundry-import/system-trial`                                                                                     |
+| What                                                         | Where                                                                                                                         |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                                                                                |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                            |
+| Node.js                                                      | `/opt/node24`                                                                                                                 |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                        |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                           |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                                    |
+| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                        |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                    |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                         |
+| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                        |
+| Player vaults (one folder per player, Send Only; stage 21)   | `/var/lib/foundry-ai-tool/obsidian/players/<Player name>`                                                                     |
+| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                                  |
+| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`         |
+| GitHub runners for the PM board (stage 17): runners, gate    | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer`    |
+| Game-night watch (stage 29): files, settings, service        | `/opt/foundry-ai-tool/gamenight-watch`, `/etc/foundry-ai-tool/gamenight-watch.env`, `foundry-ai-tool-gamenight-watch.service` |
+| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                   |
+| A dnd5e trial (the old version, world copies; stage 14)      | `/var/lib/foundry-import/system-trial`                                                                                        |
 
 ## Sources
 

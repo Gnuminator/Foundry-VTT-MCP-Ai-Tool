@@ -96,10 +96,10 @@ test('thresholds come from the config', () => {
   assert.deepEqual(run([FAIL, { ok: true, ms: 10 }], cfg).alerts, ['down', 'recovered']);
 });
 
-test('formatAlert names the address and pings the given users', () => {
-  assert.match(
-    formatAlert('down', 'http://pi:30000', FAIL),
-    /does not answer at http:\/\/pi:30000 \(timed out\)/
+test('formatAlert names no address and pings the given users', () => {
+  assert.equal(
+    formatAlert('down', 'http://pi:30000/?token=SECRET', FAIL),
+    'Foundry does not answer (timed out).'
   );
   assert.match(formatAlert('slow', 'u', SLOW), /5000 ms, the limit is 3000 ms/);
   assert.match(formatAlert('recovered', 'u', GOOD), /answers again/);

@@ -158,6 +158,7 @@ export const CHECKS = [
   nodeTest('pi-board-status', 'pi', 'scripts/pi/board-status.test.mjs'),
   nodeTest('pi-pull-destination', 'pi', 'scripts/pi/pull-destination.test.mjs'),
   nodeTest('pi-gh-runner', 'pi', 'scripts/pi/gh-runner.test.mjs'),
+  nodeTest('pi-bot-status-stage', 'pi', 'scripts/pi/bot-status-stage.test.mjs'),
   nodeTest('pi-stage7-foundry-url', 'pi', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'pi', 'scripts/pi/time-sync.test.mjs'),
   nodeTest('pi-discord-game-server', 'pi', 'scripts/pi/discord-game-server.test.mjs'),

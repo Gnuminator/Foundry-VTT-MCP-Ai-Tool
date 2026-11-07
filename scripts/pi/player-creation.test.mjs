@@ -298,6 +298,13 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
     assert.equal(readState(ARGS).baselineReady, false);
     addPacks({ PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' });
+    // the world packs are open, but the old kept packs still are too (a baseline that stopped halfway): not ready
+    const modulePacks = [...globalThis.game.packs.keys()].filter(id => !id.startsWith('world.'));
+    for (const id of modulePacks)
+      globalThis.game.packs.set(id, { ownership: { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' } });
+    assert.equal(readState(ARGS).baselineReady, false);
+    for (const id of modulePacks)
+      globalThis.game.packs.set(id, { ownership: { PLAYER: 'NONE', TRUSTED: 'NONE' } });
     const start = readState({
       ...ARGS,
       targets: { ...SOURCE_TARGETS, extra: names.map(n => `world.player-${n}`) },

@@ -1730,16 +1730,21 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   players can open: `world.player-classes` (classes and subclasses), `-species`, `-backgrounds`, `-feats` (only real feats, subtype
   `feat`), `-spells` and `-items` (equipment, other items, and the class features and species traits that are feat-type entries).
   It rewrites every Compendium link that names a kept pack, in the copies and in the journal pages of
-  `dnd-players-handbook.content` and `aitool-content.journals` (class text, spell lists), then hides the 11 old packs. Order: all
-  copies, then the journals, then a scan that no link still names an old pack, and only then the hiding; a failure before that
-  hides nothing. A second run changes nothing (Foundry's own `_stats`, effect change ids and `<hr />` spelling are not
+  `dnd-players-handbook.content` and `aitool-content.journals` (class text, spell lists), then hides the 11 old packs. Order: the six
+  world packs are made hidden, all copies, then the journals, then a scan that no link still names an old pack, and only then the
+  world packs are opened and the old packs hidden; a failure before that changes nothing players see (stage 13 keeps the module
+  packs as Actor Studio's sources until then). Only copies the script marked itself (`baselineCopy`) are ever removed, and only
+  when their source pack is still in the world. A second run changes nothing (Foundry's own `_stats`, effect change ids and `<hr />` spelling are not
   differences); `REFRESH` in the dry run names a copy whose source changed. Links to `aitool-content.summons` and `tables`
   stay as they are (GM-only, the known open point). Module updates overwrite the journal pages: rerun the baseline (the check says when).
   Stage 13 then points Actor Studio at the six world packs (it does that on its own once the six packs exist and players can open
   them, and goes back to the module packs when they are hidden).
   - **Pi sitting:** snapshot (`/boot/dietpi/dietpi-backup 1`), the user's OK, `scp` the three scripts, trim if not done
-    (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `LINKS TO KEPT PACKS WITH NO ENTRY`),
-    `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1`, stage 13, `MODE=check` (it now checks the baseline too once the six packs exist),
+    (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `ORPHANS`, `SOURCE PACK MISSING`,
+    `LINKS TO KEPT PACKS WITH NO ENTRY`; `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look),
+    `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1` (the baseline rewrites the journal pages of the shared module packs
+    `dnd-players-handbook.content` and `aitool-content.journals`, so in the other worlds, e.g. strahd-kit, class text and spell lists
+    link to `world.player-*` packs that exist only in curse-of-strahd; hence `OTHER_WORLDS_OK=1`), stage 13, `MODE=check` (it now checks the baseline too once the six packs exist),
     then join as a Player and build a character (class advancement, a spell list, the Actor Studio steps). The dry run took about 30 s
     and the real run 2 to 3 minutes on the PC (the Pi will be slower; the stage has no timeout, the Assistant GM is stopped
     meanwhile like any GM script). Afterwards the trim check lists the 11 old packs under `LINKS INTO PACKS PLAYERS CANNOT OPEN`:

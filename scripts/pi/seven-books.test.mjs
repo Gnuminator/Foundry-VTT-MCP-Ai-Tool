@@ -784,7 +784,7 @@ describe('seven-books-baseline.js', () => {
     assert.match(lines.join('\n'), /no drift: the world matches the seven-book baseline/);
   });
 
-  test('stops on id collisions, on a world entry that is another entry, and without the trim', async () => {
+  test('stops on id collisions and on a world entry that is another entry', async () => {
     const world = worlds();
     world.packs.get('aitool-content.items').docs.set(id(1), mk(1, 'Twin', 'loot'));
     await assert.rejects(run(baselineSource, world, true), /id collision/);
@@ -794,9 +794,45 @@ describe('seven-books-baseline.js', () => {
       makePack('world.player-feats', 'Item', [mk(5, 'Not Alert', 'feat')])
     );
     await assert.rejects(run(baselineSource, w2, true), /not the kept ones/);
-    const w3 = worlds();
-    w3.packs.delete('world.legacy-other-books');
-    await assert.rejects(run(baselineSource, w3, true), /run the seven-book trim first/);
+  });
+
+  test('runs without the legacy pack (MODE=delete removes it after the baseline), with a log line only', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.delete('world.legacy-other-books');
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    const checked = await run(check, world, true);
+    assert.match(checked.lines.join('\n'), /legacy-other-books is not in this world/);
+    assert.match(checked.lines.join('\n'), /no drift/);
+    const again = await run(baselineSource, world, false);
+    assert.equal(again.result.copied, 0);
+    const fresh = worlds();
+    fresh.packs.delete('world.legacy-other-books');
+    await run(baselineSource, fresh, false);
+    assert.deepEqual(names(player(fresh, 'spells')), ['Fireball']);
+  });
+
+  test('a rerun with a whole source pack missing keeps its copies and says so', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.delete('dnd-players-handbook.origins'); // Elf and Sage have no source pack now
+    const dry = await run(baselineSource, world, true);
+    assert.match(
+      dry.lines.join('\n'),
+      /SOURCE PACK MISSING \(copies kept\): dnd-players-handbook\.origins 2/
+    );
+    assert.doesNotMatch(dry.lines.join('\n'), /ORPHANS/);
+    // an entry with only the trim's sourcePack tag (no baselineCopy) is not ours either
+    player(world, 'feats').docs.set(id(78), {
+      ...mk(78, 'Legacy-tagged', 'feat', '', 'feat'),
+      flags: { 'foundry-ai-tool': { sourcePack: 'aitool-content.feats' } },
+    });
+    const real = await run(baselineSource, world, false);
+    assert.doesNotMatch(real.lines.join('\n'), /REMOVED/);
+    assert.deepEqual(names(player(world, 'species')), ['Elf']);
+    assert.deepEqual(names(player(world, 'backgrounds')), ['Sage']);
+    assert.deepEqual(names(player(world, 'feats')), ['Alert', 'Legacy-tagged']);
+    assert.match(real.lines.join('\n'), /NOT OURS.*: 1/);
   });
 
   test('a failed copy hides nothing and still locks the module packs', async () => {
@@ -811,6 +847,9 @@ describe('seven-books-baseline.js', () => {
       /created 0 of 3.*DONE BEFORE THE FAILURE/s
     );
     assert.notDeepEqual(world.packs.get('aitool-content.spells').ownership, HIDDEN);
+    // the world packs the run made stay hidden from players until the last step
+    for (const n of ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'])
+      assert.deepEqual(player(world, n).ownership, HIDDEN, n);
     assert.equal(world.packs.get('aitool-content.spells').locked, true);
     const pages = world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages;
     assert.doesNotMatch(pages[0].text.content, /world\.player/);
@@ -851,6 +890,11 @@ describe('seven-books-baseline.js', () => {
     assert.deepEqual(player(world, 'spells').ownership, HIDDEN);
     assert.equal(player(world, 'spells').docs.size, 1);
     // a rerun of the baseline brings the world packs back
+    // an undone baseline is not checked (no false drift)
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    const undone = await run(check, world, true);
+    assert.deepEqual(undone.result, { applied: false });
+    assert.match(undone.lines.join('\n'), /baseline undone \(world packs hidden\): not checked/);
     await run(baselineSource, world, false);
     assert.deepEqual(player(world, 'spells').ownership, OPEN);
     assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');

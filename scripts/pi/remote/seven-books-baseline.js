@@ -9,13 +9,14 @@
 //      its item type: class and subclass -> player-classes, race -> player-species, background -> player-backgrounds,
 //      feat with subtype feat -> player-feats (other feat-type entries, class features and species traits, go to
 //      player-items), spell -> player-spells, everything else -> player-items. The copy carries
-//      flags.foundry-ai-tool.sourcePack. Every Compendium link in a copy that names one of the kept packs is rewritten to
+//      flags.foundry-ai-tool.sourcePack and baselineCopy: true (only copies with both are ever removed as orphans). Every Compendium link in a copy that names one of the kept packs is rewritten to
 //      the world pack that now holds the target (same id), in system and effects (advancement grants, descriptions).
 //   2. The journal pages of dnd-players-handbook.content and aitool-content.journals (class text, spell lists) are
 //      rewritten the same way. Those are module packs, so a module update overwrites the rewrite: run this again then
 //      (MODE=check of stage 22 says when).
-//   3. Only when 1 and 2 are done and nothing is left unmapped, the old kept packs are hidden from Player and Trusted.
-//      The six world packs are visible to them (Observer). Actor Studio's sources are set by stage 13.
+//   3. Only when 1 and 2 are done and nothing is left unmapped, the six world packs are opened to Player and Trusted
+//      (Observer) and the old kept packs are hidden from them. The world packs are made hidden and stay so until then.
+//      Actor Studio's sources are set by stage 13, which also waits for that last step.
 // The old entries stay where they are (hidden, never deleted). The undo (BASELINE_MODE 'undo', stage 22 MODE=baseline-undo)
 // writes the journal links back to the old packs, shows the old packs again and hides the six world packs; it deletes
 // nothing, and a rerun of the baseline shows the six packs again. A dry run counts and changes nothing. Module packs are
@@ -97,6 +98,8 @@ const content = d =>
   );
 const differs = (a, b) => content(a) !== content(b);
 const sourcePackOf = e => e.flags?.['foundry-ai-tool']?.sourcePack;
+// Written only by this script on its copies (the trim writes sourcePack on legacy entries too): the mark of "ours".
+const isBaselineCopy = e => e.flags?.['foundry-ai-tool']?.baselineCopy === true;
 const pick = async (pack, ids) => {
   const out = [];
   for (let i = 0; i < ids.length; i += 40)
@@ -150,10 +153,20 @@ if (MODE === 'check' && existingTargets.length === 0) {
   log('baseline not applied in this world (no world.player-* packs): not checked');
   return { applied: false };
 }
+// Undone (the world packs are there but hidden): a check has nothing to compare.
+if (
+  MODE === 'check' &&
+  existingTargets.every(id => {
+    const own = ownershipOf(game.packs.get(id));
+    return own.PLAYER === 'NONE' && own.TRUSTED === 'NONE';
+  })
+) {
+  log('baseline undone (world packs hidden): not checked');
+  return { applied: false };
+}
+// The legacy pack is no requirement: MODE=delete removes it for good after the baseline.
 if (MODE !== 'undo' && !game.packs.get(LEGACY))
-  throw new Error(
-    `${LEGACY} is missing: run the seven-book trim first (MODE=trim). Nothing changed`
-  );
+  log(`${LEGACY} is not in this world (the trim was not run here, or the legacy pack was deleted)`);
 const journalPacks = JOURNALS.filter(id => game.packs.get(id));
 const idx = async (pack, fields) => [...(await game.packs.get(pack).getIndex({ fields }))];
 // The journal entries with their pages as plain data (the index does not reliably carry embedded pages).
@@ -274,7 +287,10 @@ for (const t of targetIds) {
       name: o.name,
       system: o.system,
       effects: o.effects ?? [],
-      ours: Boolean(sourcePackOf(o)), // tagged by this script; an entry the GM added by hand is never removed
+      // A copy of ours carries baselineCopy and the pack it came from; an entry the GM added by hand, or one that has
+      // only the trim's sourcePack tag, is never removed.
+      ours: isBaselineCopy(o) && Boolean(sourcePackOf(o)),
+      source: sourcePackOf(o),
     });
   }
 }
@@ -299,7 +315,11 @@ for (const id of sourcePacks) {
         folder: null,
         flags: {
           ...o.flags,
-          'foundry-ai-tool': { ...o.flags?.['foundry-ai-tool'], sourcePack: id },
+          'foundry-ai-tool': {
+            ...o.flags?.['foundry-ai-tool'],
+            sourcePack: id,
+            baselineCopy: true,
+          },
         },
       },
     });
@@ -321,19 +341,26 @@ if (stale.length)
   throw new Error(
     `${stale.length} world pack entries are not the kept ones, nothing changed: ${stale.slice(0, 10).join(' | ')}`
   );
-// An orphan is a copy of ours that no kept pack has any more (a trim moved it out, or a module update dropped it): the
-// real run removes it, so the players' packs follow the kept packs; an untagged entry is only reported.
+// An orphan is a copy of ours (baselineCopy flag) whose source pack is in this world and no longer holds its id (a trim
+// moved it out, or a module update dropped it): the real run removes it, so the players' packs follow the kept packs. A
+// copy whose source pack is not in this world is kept (a renamed or missing module pack must not empty the players'
+// packs); an entry without our flag is only reported.
 const orphanIds = Object.fromEntries(targetIds.map(t => [t, []]));
 let foreign = 0;
+const missingSource = new Map(); // source pack -> copies kept
 for (const t of targetIds)
   for (const [docId, have] of targetIndex[t])
     if (!wantedCopy.has(docId) || wantedCopy.get(docId).target !== t) {
-      if (have.ours) {
+      if (!have.ours) foreign++;
+      else if (!sourcePacks.includes(have.source))
+        missingSource.set(have.source, (missingSource.get(have.source) ?? 0) + 1);
+      else {
         counts[t].orphan++;
         orphanIds[t].push(docId);
-      } else foreign++;
+      }
     }
-if (foreign) log(`NOT OURS in the world packs (no sourcePack tag, left alone): ${foreign}`);
+if (foreign) log(`NOT OURS in the world packs (no baselineCopy tag, left alone): ${foreign}`);
+for (const [pack, n] of missingSource) log(`SOURCE PACK MISSING (copies kept): ${pack} ${n}`);
 if (refreshNames.length)
   log(`REFRESH (copy differs from its source): ${refreshNames.slice(0, 20).join(' | ')}`);
 for (const t of targetIds) log(`COUNT ${t}: ${JSON.stringify(counts[t])}`);
@@ -389,16 +416,17 @@ if (args.dryRun) {
 const real = async () => {
   for (const name of Object.keys(TARGETS)) {
     const id = targetPackOf(name);
-    let pack = game.packs.get(id);
-    if (!pack) {
-      pack = await CompendiumCollection.createCompendium({
+    // A new world pack starts hidden; an existing one keeps what it has. Players get them in the last step, together
+    // with the hiding of the old packs, so a run that stops halfway never leaves them on two half-filled sets.
+    if (!game.packs.get(id)) {
+      const pack = await CompendiumCollection.createCompendium({
         type: 'Item',
         label: `${TARGETS[name]} (players)`,
         name: `player-${name}`,
         package: 'world',
       });
+      await setOwnership(pack, HIDDEN);
     }
-    await setOwnership(pack, OPEN);
   }
   // Copy, in chunks, create before anything else; a refresh replaces the old copy.
   for (const t of targetIds) {
@@ -468,6 +496,8 @@ const real = async () => {
     throw new Error(
       `${left.length} links still name an old kept pack; the old packs stay visible: ${left.slice(0, 10).join(' | ')}`
     );
+  for (const id of targetIds) await setOwnership(game.packs.get(id), OPEN);
+  log(`OPENED the ${targetIds.length} world packs for players`);
   for (const id of sourcePacks) await setOwnership(game.packs.get(id), HIDDEN);
   log(`HIDDEN ${sourcePacks.length} old kept packs`);
   return {

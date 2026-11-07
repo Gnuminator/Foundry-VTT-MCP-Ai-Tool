@@ -120,18 +120,39 @@ export function readState({ moduleId, pack, methods, targets }) {
     sourcePacks: Object.fromEntries(
       [...new Set(Object.values(targets).flat())].map(id => [id, game.packs.has(id)])
     ),
-    // The baseline is applied: all six world packs exist and Player can open them.
-    baselineReady: [
-      'world.player-classes',
-      'world.player-species',
-      'world.player-backgrounds',
-      'world.player-feats',
-      'world.player-spells',
-      'world.player-items',
-    ].every(id => {
-      const own = game.packs.get(id)?.ownership ?? game.packs.get(id)?.config?.ownership;
-      return game.packs.has(id) && own?.PLAYER !== undefined && own.PLAYER !== 'NONE';
-    }),
+    // The baseline is applied: all six world packs exist and Player can open them, and the kept module packs that exist
+    // in this world are hidden from Player (the baseline opens the world packs and hides the old ones in one last step, so
+    // a half-finished run, with the world packs hidden or the old packs still open, is not ready).
+    baselineReady:
+      [
+        'world.player-classes',
+        'world.player-species',
+        'world.player-backgrounds',
+        'world.player-feats',
+        'world.player-spells',
+        'world.player-items',
+      ].every(id => {
+        const own = game.packs.get(id)?.ownership ?? game.packs.get(id)?.config?.ownership;
+        return game.packs.has(id) && own?.PLAYER !== undefined && own.PLAYER !== 'NONE';
+      }) &&
+      [
+        'dnd-players-handbook.classes',
+        'dnd-players-handbook.origins',
+        'dnd-players-handbook.feats',
+        'dnd-players-handbook.spells',
+        'dnd-players-handbook.equipment',
+        'aitool-content.classes',
+        'aitool-content.species',
+        'aitool-content.backgrounds',
+        'aitool-content.feats',
+        'aitool-content.spells',
+        'aitool-content.items',
+      ]
+        .filter(id => game.packs.has(id))
+        .every(id => {
+          const own = game.packs.get(id)?.ownership ?? game.packs.get(id)?.config?.ownership;
+          return own?.PLAYER === 'NONE';
+        }),
     studioSettingsRegistered:
       registered('enableEquipmentSelection') &&
       registered('compendiumSources') &&

@@ -108,10 +108,19 @@ ok "world $WORLD is running"
 if [ "$MODE" = trim ] || [ "$MODE" = baseline ] || [ "$MODE" = baseline-undo ]; then
   others="$(find "$FOUNDRY_DATA/Data/worlds" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null | tr ' ' '\n' | grep -vx "$WORLD" | tr '\n' ' ' || true)"
   if [ -n "${others// /}" ]; then
-    if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
-      die "other worlds (${others% }) share the module packs this trim edits: in them the moved entries are gone (kept only in $WORLD's legacy pack), the PHB 2024 links to SRD items and creatures point at world packs that exist only in $WORLD, and the dnd5e packs stay visible (so strahd-kit does not show the trimmed view). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+    if [ "$MODE" = trim ]; then
+      if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
+        die "other worlds (${others% }) share the module packs this trim edits: in them the moved entries are gone (kept only in $WORLD's legacy pack), the PHB 2024 links to SRD items and creatures point at world packs that exist only in $WORLD, and the dnd5e packs stay visible (so strahd-kit does not show the trimmed view). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+      fi
+      warn "other worlds (${others% }) share the edited module packs; the moved entries are gone there and the re-pointed links will not resolve"
+    else
+      # baseline and baseline-undo rewrite the journal pages of dnd-players-handbook.content and aitool-content.journals,
+      # which are module packs shared by every world on this Foundry.
+      if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
+        die "other worlds (${others% }) share the edited module packs: the baseline rewrites the journal pages of dnd-players-handbook.content and aitool-content.journals (shared module packs), so in the other worlds the class text and spell lists link to world packs (world.player-*) that exist only in $WORLD (baseline-undo points them back, and the other worlds then see the old packs again). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+      fi
+      warn "other worlds (${others% }) share the edited module packs; the journal pages of dnd-players-handbook.content and aitool-content.journals link to world packs that exist only in $WORLD"
     fi
-    warn "other worlds (${others% }) share the edited module packs; the moved entries are gone there and the re-pointed links will not resolve"
   fi
 fi
 

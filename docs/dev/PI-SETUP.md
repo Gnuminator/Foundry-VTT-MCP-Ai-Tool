@@ -184,7 +184,7 @@ it never competes with Foundry's main thread. It reads its user name and passwor
 `5-check-world.sh` generates that password and creates the user, so nobody types it; Foundry
 launches that world by itself (`options.json`), so no admin password is needed. For the Strahd
 world the GM creates the user (role Assistant) and you paste its password into that file. Logs:
-`journalctl -u foundry-ai-tool-bridge` (and `-dashboard`, `-gm-browser`). A new build keeps the
+the bridge writes `/var/lib/foundry-ai-tool/logs/mcp-server.log` (info level, 5 files of 5 MB: `mcp-server1.log` to `mcp-server4.log` are the older ones); `journalctl -u foundry-ai-tool-bridge` shows only start and stop lines and start failures (and `-dashboard`, `-gm-browser` log there). A new build keeps the
 previous one in `/opt/foundry-ai-tool/app.prev` for a quick rollback.
 
 No firewall is set up on the Pi: nothing on it is reachable from the internet (no router ports are

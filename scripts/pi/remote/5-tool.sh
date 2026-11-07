@@ -211,9 +211,9 @@ trap - EXIT
 
 say "folders"
 install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/vault" "$TOOL_DATA/dashboard" \
-  "$TOOL_DATA/gm-browser"
+  "$TOOL_DATA/gm-browser" "$TOOL_DATA/logs"
 install -d -m 0755 "$driver_dir"
-ok "$TOOL_DATA/{vault,dashboard,gm-browser}"
+ok "$TOOL_DATA/{vault,dashboard,gm-browser,logs}"
 
 say "the Assistant GM browser driver"
 if [ -f "$driver_src" ]; then

@@ -74,21 +74,40 @@ fi
 # The value compose will use: the shell wins over deploy/pi/.env wins over the default in compose.yml.
 effective() { # NAME DEFAULT
   local v="${!1:-}"
-  if [ -z "$v" ] && [ -f "$env_file" ]; then v="$(sed -n "s/^$1=//p" "$env_file" | tail -n 1)"; fi
+  if [ -z "$v" ] && [ -f "$env_file" ]; then
+    v="$(sed -n "s/^$1=//p" "$env_file" | tail -n 1)"
+    # Compose unquotes a .env value; strip one pair of matching quotes the same way.
+    case "$v" in
+      \"*\") v="${v#\"}" v="${v%\"}" ;;
+      \'*\') v="${v#\'}" v="${v%\'}" ;;
+    esac
+  fi
   printf '%s' "${v:-$2}"
 }
 # True when the stack's data folders are, or sit inside or around, the live ones. Paths are canonicalised first, so a
-# trailing slash, //, /./ or a symlink does not get past the refusal.
-canon() { realpath -m -- "$1" 2>/dev/null || printf '%s' "$1"; }
+# trailing slash, //, /./ or a symlink does not get past the refusal. Fails closed: when realpath cannot canonicalise a
+# path the script stops, because a raw string compare would let those forms through.
+canon() { realpath -m -- "$1" 2>/dev/null; }
 overlaps() { # A B
   local a b
-  a="$(canon "$1")/"
-  b="$(canon "$2")/"
+  a="$(canon "$1")" || die "cannot check the data folders (realpath -m failed for '$1'). Nothing was changed"
+  b="$(canon "$2")" || die "cannot check the data folders (realpath -m failed for '$2'). Nothing was changed"
+  a="$a/" b="$b/"
   case "$a" in "$b"*) return 0 ;; esac
   case "$b" in "$a"*) return 0 ;; esac
   return 1
 }
-on_live_data() { overlaps "$foundry_data" "$live_foundry_data" || overlaps "$tool_data" "$TOOL_DATA"; }
+# Both stack folders against both live folders, so a rehearsal Foundry folder set to the live tool folder (or the other way
+# round) is caught too.
+on_live_data() {
+  local s l
+  for s in "$foundry_data" "$tool_data"; do
+    for l in "$live_foundry_data" "$TOOL_DATA"; do
+      ! overlaps "$s" "$l" || return 0
+    done
+  done
+  return 1
+}
 http_port="$(effective FOUNDRY_HTTP_PORT 30000)"
 control_port="$(effective BRIDGE_CONTROL_PORT 31414)"
 link_port="$(effective BRIDGE_LINK_PORT 31415)"
@@ -96,6 +115,11 @@ dash_port="$(effective DASHBOARD_PORT 3000)"
 foundry_data="$(effective FOUNDRY_DATA_DIR "$live_foundry_data")"
 tool_data="$(effective TOOL_DATA_DIR "$TOOL_DATA")"
 foundry_app="$(effective FOUNDRY_APP_DIR "$FOUNDRY_APP")"
+# Compose resolves a relative bind path against the compose file folder, this script against its own cwd: refuse both.
+if [ "$mode" != status ]; then
+  case "$foundry_data" in /*) ;; *) die "FOUNDRY_DATA_DIR must be an absolute path (got '$foundry_data'). Nothing was changed" ;; esac
+  case "$tool_data" in /*) ;; *) die "TOOL_DATA_DIR must be an absolute path (got '$tool_data'). Nothing was changed" ;; esac
+fi
 
 # The live stack and a rehearsal are separate compose projects, so a rehearsal can never recreate or remove the live
 # containers. A rehearsal is anything that does not use Foundry's live port.
@@ -194,10 +218,10 @@ gm_container_joined() {
 }
 
 # require_quiet for the stack: refuses while players are online (the Assistant GM container counts as one once it has
-# joined) or a recording runs. Only when the stack serves the live Foundry port; a rehearsal drops nobody.
+# joined) or a recording runs. Only for the live project (any live port makes it that); a rehearsal drops nobody.
 require_quiet_stack() { # $1 what
   local online joined=0
-  [ "$http_port" = 30000 ] || return 0
+  [ "$project" = "$live_project" ] || return 0
   if [ -n "$(svc_container foundry)" ]; then
     online="$(users_online)"
     if gm_container_joined; then joined=1; fi
@@ -543,7 +567,7 @@ mode_rollback() {
   fi
   # The way out must not be blocked by a missing snapshot: only a warning.
   ( require_recent_snapshot ) || warn "no snapshot from today; going on, a rollback restores the earlier state"
-  if [ "$http_port" = 30000 ] && [ -n "$(svc_container foundry)" ]; then
+  if [ "$project" = "$live_project" ] && [ -n "$(svc_container foundry)" ]; then
     online="$(users_online)"
     [ "$online" = 0 ] || warn "Foundry reports $online user(s) online: the rollback drops them (the Assistant GM counts as one)"
   fi

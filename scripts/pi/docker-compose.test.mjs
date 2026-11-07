@@ -84,6 +84,17 @@ describe('24-compose.sh as text', () => {
     const record = cut.indexOf('>"$state_file.new"');
     const stop = cut.indexOf('systemctl disable --now "$u"');
     assert.ok(snap > 0 && snap < quiet && quiet < record && record < stop);
+    // The record is renamed into place (mv) before the first stop, so an interrupted run never leaves a half record.
+    const mv = cut.indexOf('mv -f "$state_file.new" "$state_file"');
+    assert.ok(record < mv && mv < stop);
+    // The mode_up refusals (live project without the test switch, rehearsal on live data) come before the daemon check.
+    const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
+    const liveRefusal = up.indexOf('is the cutover, which is not supported yet');
+    const dataRefusal = up.indexOf('would use a live data folder');
+    assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
+    // The first start does not build (stage 23 does) and comes before the --wait start.
+    const first = s23.indexOf('dc up -d --no-build >/dev/null');
+    assert.ok(first > 0 && first < s23.indexOf('dc up -d --no-build --wait'));
     // The images are checked (preflight) before anything stops.
     assert.ok(cut.indexOf('preflight_stack') < snap);
   });

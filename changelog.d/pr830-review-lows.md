@@ -1,0 +1,3 @@
+### Fixes
+
+- **Pi compose and Docker stages, review lows:** stage 24 now fails closed when `realpath` cannot check the data folders, compares both stack folders against both live folders, strips quotes from `.env` values, refuses relative data folders, and asks for a quiet table whenever the project is the live one. Stage 23 creates `/etc/docker`, stops if `daemon.json` is missing after the write, reads `LiveRestoreEnabled` back after the reload and names the file in its dry run. The Pi command guard also catches docker's global options before `compose`, and any `TEST_ALLOW_CUTOVER` value. New tests pin the stage 16 docker.service gate, the cutover order and a dangling browser profile lock; the Cloudflare Access policy page now reads exactly as the dashboard behaves.

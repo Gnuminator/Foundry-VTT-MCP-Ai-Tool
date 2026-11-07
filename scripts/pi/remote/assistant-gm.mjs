@@ -18,7 +18,7 @@
 //
 // The next line tells the Pi stages what this driver can do (stage 11 checks it before it needs a feature).
 // Add a word when a stage must tell a new driver from an old one; never remove one.
-// assistant-gm features: extra-gm link-check
+// assistant-gm features: extra-gm link-check page-ping
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -54,6 +54,15 @@ const LINK_GRACE_MS = 120_000;
 // repeat every few minutes all night. At most LINK_MAX_RESTARTS in LINK_WINDOW_MS; after that the watcher only logs.
 const LINK_MAX_RESTARTS = 3;
 const LINK_WINDOW_MS = 6 * 3_600_000;
+// The page ping: a frozen page (renderer stuck, tab hung) keeps its module socket for a while and answers nothing, so the
+// link check above never sees it. The driver asks the page for a trivial value every PAGE_POLL_MS; no answer within
+// PAGE_PING_TIMEOUT_MS counts as silent, and PAGE_GRACE_MS of silence restarts the browser. GM_PAGE_WATCH=0 turns it off.
+// The GM_PAGE_*_MS variables exist for the tests (a frozen-page run in seconds); a stage never sets them.
+const envMs = (name, fallback) => (Number(process.env[name]) > 0 ? Number(process.env[name]) : fallback);
+const PAGE_POLL_MS = envMs('GM_PAGE_POLL_MS', 15_000);
+const PAGE_PING_TIMEOUT_MS = envMs('GM_PAGE_PING_TIMEOUT_MS', 10_000);
+const PAGE_GRACE_MS = envMs('GM_PAGE_GRACE_MS', 90_000);
+const PAGE_CLOSE_WAIT_MS = envMs('GM_PAGE_CLOSE_WAIT_MS', 5_000);
 
 const log = msg => console.log(`[assistant-gm] ${msg}`);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -145,6 +154,59 @@ async function watchLink(port, context, historyFile) {
       await context.close().catch(() => {});
       process.exit(1);
     }
+  }
+}
+
+/**
+ * Asks the page for a trivial value. Resolves true when it answers within timeoutMs, false when it does not (a frozen page
+ * never settles the evaluate, so the race is what ends the wait) or the call fails.
+ */
+export async function pingPage(page, timeoutMs = PAGE_PING_TIMEOUT_MS) {
+  let timer;
+  const silent = new Promise(resolve => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  try {
+    return await Promise.race([page.evaluate(() => 1).then(v => v === 1, () => false), silent]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The page ping's decision. `since` is when the page was first seen silent (null while it answers). Restart once it has
+ * been silent for graceMs.
+ */
+export function pageVerdict(answered, since, now, graceMs = PAGE_GRACE_MS) {
+  if (answered) return { restart: false, since: null };
+  const first = since ?? now;
+  return { restart: now - first >= graceMs, since: first };
+}
+
+async function watchPage(page, context, historyFile) {
+  let since = null;
+  for (;;) {
+    await sleep(PAGE_POLL_MS);
+    const verdict = pageVerdict(await pingPage(page), since, Date.now());
+    since = verdict.since;
+    if (!verdict.restart) continue;
+    const budget = linkRestartBudget(readRestartHistory(historyFile), Date.now());
+    if (!budget.allowed) {
+      log(
+        `the page has not answered for ${PAGE_GRACE_MS / 1000} s, but ${LINK_MAX_RESTARTS} restarts happened in the last ${LINK_WINDOW_MS / 3_600_000} h: not restarting again`
+      );
+      since = Date.now();
+      continue;
+    }
+    try {
+      writeFileSync(historyFile, JSON.stringify(budget.history));
+    } catch {
+      // the profile is not writable: restart anyway, the cap then cannot hold
+    }
+    log(`the page has not answered a ping for ${PAGE_GRACE_MS / 1000} s; restarting the browser`);
+    // A frozen browser may not close: give it a moment, then exit anyway (the service manager restarts the driver).
+    await Promise.race([context.close().catch(() => {}), sleep(PAGE_CLOSE_WAIT_MS)]);
+    process.exit(1);
   }
 }
 
@@ -326,13 +388,20 @@ async function run() {
   if (process.env.GM_LINK_WATCH === '1' && linkPort > 0 && info.module && info.bridgeUser) {
     watchLink(linkPort, context, join(env('GM_BROWSER_PROFILE'), 'link-restarts.json'));
   }
+  if (process.env.GM_PAGE_WATCH !== '0') {
+    watchPage(page, context, join(env('GM_BROWSER_PROFILE'), 'page-restarts.json'));
+  }
   // Stay. Foundry sends a client back to /join when the world stops or the user is kicked;
   // exit then and let systemd start a fresh browser.
   for (;;) {
     await sleep(CHECK_EVERY_MS);
-    const ok = await page
-      .evaluate(() => globalThis.game?.ready === true && location.pathname.endsWith('/game'))
-      .catch(() => false);
+    // A frozen page never settles this evaluate; the page ping (watchPage) restarts it, so a hang here is not an answer.
+    const ok = await Promise.race([
+      page
+        .evaluate(() => globalThis.game?.ready === true && location.pathname.endsWith('/game'))
+        .catch(() => false),
+      sleep(PAGE_PING_TIMEOUT_MS).then(() => true),
+    ]);
     if (!ok) {
       log('left the game (world stopped, kicked or the page broke); restarting');
       await context.close().catch(() => {});

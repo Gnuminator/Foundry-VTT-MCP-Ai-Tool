@@ -1114,7 +1114,15 @@ test.describe('picking combatants', () => {
         return ok({ matches: [{ id: 'w-axe', name: 'Handaxe' }], totalMatches: 1 });
       }
       if (call.name === 'get-targets') return ok({ targets, selected: [] });
-      if (call.name === 'use-item') return ok({ success: true, message: 'rolled' });
+      if (call.name === 'use-item') {
+        return ok({
+          success: true,
+          status: 'initiated',
+          message: 'Item use initiated',
+          itemName: 'Handaxe',
+          targets: ['Wolf'],
+        });
+      }
       return undefined;
     };
 
@@ -1275,7 +1283,9 @@ test.describe('picking combatants', () => {
     await load(page);
     await page.locator('#combat-actions [data-sel="attack"]').click();
     await page.locator('#attack-go').click();
-    await expect(toastLike(page, /Brannoc attacked: rolled/)).toBeVisible();
+    await expect(
+      toastLike(page, /Attack sent: Brannoc with Handaxe at Wolf\. The roll shows in the feed/)
+    ).toBeVisible();
   });
 
   test('Attack: an attacker who left the fight falls back to the one whose turn it is', async ({
@@ -1298,6 +1308,10 @@ test.describe('picking combatants', () => {
     await expect(page.locator('#attack-go')).toHaveText(
       'Brannoc attacks the Foundry targets with Handaxe'
     );
+    // The first attacker comes back: the pick stays on the fallback and does not jump back.
+    push([fight(ATTACKERS, { turn: 1 })]);
+    await expect(page.locator('.combatant[data-id="c1"]')).toBeVisible();
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
   });
 
   test('Attack: a failed weapon read shows its error', async ({ page }) => {

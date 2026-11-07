@@ -483,7 +483,13 @@ export function LiveStrip(): JSX.Element {
             aria-disabled={undoable && !off ? undefined : 'true'}
             busy={busyState === 'undo'}
             busyLabel="Undoing..."
-            title={changes.isPending || !undoable ? undefined : `Undo: ${undoable.summary.trim()}`}
+            title={
+              changes.isPending || !undoable
+                ? undefined
+                : undoable.summary.trim()
+                  ? `Undo: ${undoable.summary.trim()}`
+                  : 'Undo last change'
+            }
             onClick={() => {
               if (undoable && !off) void undo();
             }}

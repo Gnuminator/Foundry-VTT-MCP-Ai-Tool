@@ -145,7 +145,7 @@ export class EventPump {
   private inFlight: Promise<number> | null = null;
   private state: PumpMemState | null = null;
   private lastError: string | null = null;
-  /** Start of an outage whose link is back but not yet filed into the state (the world-id fetch or state load may still fail). */
+  /** The outage window (link down to link back) not yet filed into the state: the world-id fetch or state load may still fail. */
   private unfiledOutage: { start: number; end: number } | null = null;
   readonly health = new PumpHealth('session events');
 
@@ -204,7 +204,7 @@ export class EventPump {
       return 0;
     }
     // The link is up again: clear "not recording" before anything that can fail (the world-id
-    // fetch is the first round trip after a reconnect), and keep the outage start until the state
+    // fetch is the first round trip after a reconnect), and keep the outage window until the state
     // is loaded.
     const upAfter = this.health.linkUp();
     if (upAfter !== null) {

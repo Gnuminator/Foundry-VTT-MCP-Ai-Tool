@@ -740,6 +740,8 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
                 combatants={combat?.combatants ?? []}
                 picked={pickedRows.map(c => c.id)}
                 stale={stale}
+                locked={busy}
+                once={once}
                 onClose={() => {
                   setAttackOpen(false);
                   // The form's own button unmounts with it: put focus back on the one that opened it.

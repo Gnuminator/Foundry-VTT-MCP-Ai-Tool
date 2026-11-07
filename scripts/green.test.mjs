@@ -1676,6 +1676,9 @@ test('installIsFresh: node_modules newer than the lockfile skips a local npm ci'
     const lock = path.join(dir, 'package-lock.json');
     fs.writeFileSync(lock, '{}');
     fs.mkdirSync(path.join(dir, 'node_modules'));
+    // a bare node_modules folder (an aborted install) is not a finished install
+    assert.equal(installIsFresh(dir), false);
+    fs.writeFileSync(path.join(dir, 'node_modules', '.package-lock.json'), '{}');
     const old = new Date(Date.now() - 60_000);
     fs.utimesSync(lock, old, old);
     assert.equal(installIsFresh(dir), true);

@@ -27,11 +27,11 @@ test('read-only remote commands pass', () => {
   }
 });
 
-test('the real stage scripts pass, except stage 1 (the foundry user), stage 9 (SSH login keys), stage 15 (SSH settings) and stage 17 (the ghrunner user), which ask', () => {
+test('the real stage scripts pass, except stage 1 (the foundry user), stage 9 (SSH login keys), stage 15 (SSH settings), stage 17 (the ghrunner user) and stage 24 (docker rm, compose down), which ask', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   for (const name of readdirSync(dir).filter(n => /^\d+-.*\.sh$/.test(n))) {
     const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/${name} | ssh -o BatchMode=yes foundry-pi bash`;
-    const expected = /^(1|9|15|17)-/.test(name) ? 'ask' : 'allow';
+    const expected = /^(1|9|15|17|24)-/.test(name) ? 'ask' : 'allow';
     assert.equal(kind(command), expected, `${name}: ${JSON.stringify(decide(command, repo))}`);
   }
 });
@@ -166,8 +166,35 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'rm -rf /mnt/dietpi-backup/data_3'",
     "ssh foundry-pi 'dietpi-backup -1'",
     "ssh foundry-pi 'parted /dev/nvme0n1 mklabel gpt'",
+    "ssh foundry-pi 'docker compose -f /opt/foundry-ai-tool/app/deploy/pi/compose.yml -p foundry-ai-tool-pi down'",
+    "ssh foundry-pi 'docker-compose down'",
+    "ssh foundry-pi 'docker compose -p x rm -sf'",
+    "ssh foundry-pi 'docker compose -p x kill'",
+    "ssh foundry-pi 'docker compose -p x stop foundry'",
+    "ssh foundry-pi 'docker container kill x'",
+    "ssh foundry-pi 'docker container stop x'",
+    "ssh foundry-pi 'docker stop x'",
+    'ssh foundry-pi \'MODE=up TEST_ALLOW_CUTOVER="1" bash -s\' < stage.sh',
+    "ssh foundry-pi \"MODE=up TEST_ALLOW_CUTOVER='1' bash -s\" < stage.sh",
+    "ssh foundry-pi 'docker rm -f $(docker ps -aq)'",
+    "ssh foundry-pi 'docker system prune -af'",
+    "ssh foundry-pi 'docker kill foundry-ai-tool-pi-foundry-1'",
+    "ssh foundry-pi 'docker -H unix:///var/run/docker.sock container rm x'",
+    "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=1 bash -s' < stage.sh",
   ]) {
     assert.equal(kind(c), 'ask', c);
+  }
+});
+
+test('read-only docker commands over ssh are allowed', () => {
+  for (const c of [
+    "ssh foundry-pi 'docker ps -a'",
+    "ssh foundry-pi 'docker inspect foundry-ai-tool-pi-foundry-1'",
+    "ssh foundry-pi 'docker logs --tail 50 foundry-ai-tool-pi-bridge-1'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p ps'",
+    "ssh foundry-pi 'docker info'",
+  ]) {
+    assert.equal(kind(c), 'allow', c);
   }
 });
 

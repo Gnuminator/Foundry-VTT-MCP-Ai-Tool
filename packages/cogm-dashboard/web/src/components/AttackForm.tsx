@@ -21,6 +21,7 @@ import type { Combatant } from '../lib/combat';
 import { fetchFoundryTargets } from '../lib/foundryTargets';
 import { useGuardedTools } from '../lib/guarded';
 import { Button } from '../ui';
+import { useToast } from './Toasts';
 import styles from './AttackForm.module.css';
 
 export function AttackForm({
@@ -28,6 +29,7 @@ export function AttackForm({
   picked,
   stale,
   locked = false,
+  once,
   onClose,
 }: {
   combatants: ReadonlyArray<Combatant>;
@@ -36,16 +38,24 @@ export function AttackForm({
   stale: boolean;
   /** The strip runs another write; Attack waits. */
   locked?: boolean;
+  /** The strip's one-write-at-a-time lock. */
+  once?: (work: () => Promise<void>) => Promise<void>;
   onClose: () => void;
 }): JSX.Element {
   const { call } = useGuardedTools();
+  const toast = useToast();
   const list = attackers(combatants);
-  const [attackerId, setAttackerId] = useState(() => defaultAttacker(combatants));
+  const [pickedAttacker, setAttackerId] = useState(() => defaultAttacker(combatants));
+  // An attacker that left the fight (defeated, removed) falls back to the default one.
+  const attackerId = list.some(c => c.id === pickedAttacker)
+    ? pickedAttacker
+    : defaultAttacker(combatants);
   const [weapons, setWeapons] = useState<Weapon[] | null>(null);
   const [weaponId, setWeaponId] = useState('');
   const [target, setTarget] = useState(() => defaultTarget(picked, defaultAttacker(combatants)));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [weaponError, setWeaponError] = useState('');
   const ownLock = useRef(false);
   const attackerRef = useRef<HTMLSelectElement>(null);
 
@@ -65,7 +75,13 @@ export function AttackForm({
   useEffect(() => {
     setWeapons(null);
     setWeaponId('');
-    if (!attackerToken) return;
+    setWeaponError('');
+    if (!attackerToken) {
+      // Nobody left who can attack: say so instead of waiting for weapons that will not come.
+      setWeapons([]);
+      setWeaponError('No one in this fight can attack right now.');
+      return;
+    }
     let live = true;
     void callTool('search-character-items', {
       characterIdentifier: attackerToken,
@@ -78,8 +94,10 @@ export function AttackForm({
         setWeapons(found);
         setWeaponId(found[0]?.id ?? '');
       })
-      .catch(() => {
-        if (live) setWeapons([]);
+      .catch((e: unknown) => {
+        if (!live) return;
+        setWeapons([]);
+        setWeaponError(e instanceof Error ? errorText(e) : 'Could not read the weapons.');
       });
     return (): void => {
       live = false;
@@ -90,10 +108,13 @@ export function AttackForm({
 
   const submit = (): void => {
     if (!ready || ownLock.current || !attackerToken) return;
-    ownLock.current = true;
-    setBusy(true);
-    setNote('');
-    void (async (): Promise<void> => {
+    // The strip's lock when it has one, so Damage / Heal and Attack never run at once. The form's
+    // own flags are set inside the work: if the strip drops the call, nothing stays stuck.
+    const run = once ?? ((work: () => Promise<void>): Promise<void> => work());
+    void run(async (): Promise<void> => {
+      ownLock.current = true;
+      setBusy(true);
+      setNote('');
       let closed = false;
       try {
         let tokens: string[];
@@ -117,6 +138,12 @@ export function AttackForm({
           { label: 'Attack' }
         );
         if (outcome.status === 'done') {
+          // The form closes, so the line goes in a toast; the module's own message rides along.
+          const said = (outcome.result as { message?: unknown } | null)?.message;
+          toast(
+            `✓ ${attacker?.name ?? 'Attack'} attacked${typeof said === 'string' && said ? `: ${said}` : ''}`,
+            'ok'
+          );
           closed = true;
           onClose();
         } else if (outcome.status === 'failed' && outcome.mayHaveApplied) {
@@ -129,13 +156,14 @@ export function AttackForm({
         setBusy(false);
         if (!closed) attackerRef.current?.focus();
       }
-    })();
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Escape') {
       e.stopPropagation();
-      onClose();
+      // While the attack runs the form stays: closing it would let a second one start.
+      if (!busy) onClose();
     }
   };
 
@@ -214,7 +242,7 @@ export function AttackForm({
       </div>
       <p role="status" className={styles['note']} id="attack-note">
         {weapons !== null && weapons.length === 0
-          ? 'This one has no weapons to attack with.'
+          ? weaponError || 'This one has no weapons to attack with.'
           : note}
       </p>
       <div className={styles['row']}>
@@ -231,13 +259,20 @@ export function AttackForm({
         >
           {buttonText}
         </Button>
-        <Button type="button" data-track="dash.attack.cancel" onClick={onClose}>
+        <Button
+          type="button"
+          data-track="dash.attack.cancel"
+          aria-disabled={busy ? 'true' : undefined}
+          onClick={() => {
+            if (!busy) onClose();
+          }}
+        >
           Cancel
         </Button>
       </div>
       <p className={styles['note']}>
         Rolls the attack against the target in Foundry as soon as you press the button. The roll
-        shows in the feed.
+        shows in the feed. Ammunition the roll spends is not undone by Undo.
       </p>
     </div>
   );

@@ -46,8 +46,6 @@ function Say([string]$text) {
   Write-Host $line
   if (-not $DryRun) { Add-Content -Path $log -Value $line -Encoding utf8 }
 }
-if ($env:FVTT_VOICE_STACK) { Say "FVTT_VOICE_STACK is set (test only): using $voiceStack instead of scripts\voice-stack.ps1" }
-
 $lock = Join-Path $sessions '.auto.lock'
 if (Test-Path $lock) {
   $age = (Get-Date) - (Get-Item $lock).LastWriteTime
@@ -64,6 +62,7 @@ if (Test-Path $lock) {
   Say "Removing a stale lock ($([int]$age.TotalMinutes) min old, pass $lockPid $(if ($alive) { 'still listed' } else { 'gone' }))."
 }
 if (-not $DryRun) { Set-Content -Path $lock -Value $PID }
+if ($env:FVTT_VOICE_STACK) { Say "FVTT_VOICE_STACK is set (test only): using $voiceStack instead of scripts\voice-stack.ps1" }
 
 $passStart = Get-Date
 function Write-Status([string]$folder, [string]$state, [string]$message, [switch]$KeepFresh) {

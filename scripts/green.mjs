@@ -421,14 +421,14 @@ export function nodeNote(o = {}) {
 }
 
 /**
- * True when `dir/node_modules` was written after `dir/package-lock.json`, so a local `npm ci`
+ * True when `dir/node_modules/.package-lock.json` (npm writes it last, so an aborted install leaves it old) was written after `dir/package-lock.json`, so a local `npm ci`
  * would only repeat the same install (10 to 30 s and network). CI always installs.
  * @param {string} dir
  */
 export function installIsFresh(dir) {
   try {
     return (
-      fs.statSync(path.join(dir, 'node_modules')).mtimeMs >
+      fs.statSync(path.join(dir, 'node_modules', '.package-lock.json')).mtimeMs >
       fs.statSync(path.join(dir, 'package-lock.json')).mtimeMs
     );
   } catch {

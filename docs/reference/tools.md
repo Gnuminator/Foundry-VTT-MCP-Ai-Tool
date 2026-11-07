@@ -322,7 +322,7 @@ Parameters:
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
 - `spellLevel` (number): For spells: cast at a higher level than base (D&D 5e upcasting)
-- `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.
+- `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.
 
 ### request-player-rolls
 
@@ -1464,7 +1464,7 @@ Parameters:
 
 ### plan-token-rings
 
-Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo is all-or-nothing (it reverts every actor of the plan or none), and disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo reverts the whole plan (actors or tokens); if one write fails, the earlier ones are rolled back where possible. Disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
 
 Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
 

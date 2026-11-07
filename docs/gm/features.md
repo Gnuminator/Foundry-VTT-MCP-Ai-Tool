@@ -15,19 +15,18 @@ dashboard's changes as well as Claude's.
 
 "AI Tool" names three things, so here is which is which. The **module** is the add-on inside
 Foundry (Module Management lists it as **Foundry AI Tool**); every switch on this page is one of
-its settings, and nearly all of them are named "AI Tool: ..." (Allow Write Operations is the
-exception). The **dashboard** is the web page next to Foundry that
+its settings, and nearly all of them are named "AI Tool: ...". The **dashboard** is the web page next to Foundry that
 you open in another tab. The **GM windows** are small windows inside Foundry; they have their own
 switch, "AI Tool: GM windows", which is on by default (see
 [The GM windows](gm-windows.md)). The module's switches are all in one place: scroll to the heading
 **Foundry AI Tool** in Game Settings.
 
 **Turn on for tonight** (the Pre-flight panel in the dashboard's Before view) turns on, in one click,
-what an evening at the table needs: Allow Write Operations, Handouts, Live play, Party, Tarokka and
+what an evening at the table needs: AI Tool: Allow Write Operations, Handouts, Live play, Party, Tarokka and
 GM Actions. **End session** turns off again what it turned on. See
 [Turn on for tonight](dashboard.md#turn-on-for-tonight).
 
-## Allow Write Operations
+## AI Tool: Allow Write Operations
 
 - **What it does:** the tool's master switch. Off, the tool only reads: nothing changes in
   Foundry, from Claude or from the dashboard, and there is no Undo.

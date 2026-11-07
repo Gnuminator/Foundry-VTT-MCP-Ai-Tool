@@ -63,7 +63,7 @@ function dashboardPart({ link, heardAt, now }: HealthInput): HealthPart {
     return {
       ...base,
       tone: 'bad',
-      text: `not live, silent for ${Math.round((now - heardAt) / 1000)} s, reload the page`,
+      text: `not live, silent for ${Math.round((now - heardAt) / 1000)} s, reconnecting`,
     };
   }
   return {

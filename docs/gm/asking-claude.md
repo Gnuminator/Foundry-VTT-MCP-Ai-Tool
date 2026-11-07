@@ -142,7 +142,7 @@ as Claude's.
 
 | Setting                                      | Default | Lets Claude and the dashboard                                                                                                                                                    |
 | -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                                                                                                          |
+| AI Tool: Allow Write Operations              | On      | Change anything at all. Off makes the whole tool read-only (see below).                                                                                                          |
 | AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens; place templates, set darkness and light, add map notes, give loot.         |
 | AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, temporary hit points, conditions, resources, scene dressing and starting a fight that Claude plans. Not for token changes or deletes. |
 | AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                                                                                                    |
@@ -184,7 +184,7 @@ Foundry. So:
 - When Claude uses an item or a spell, Foundry opens the usage dialog on your screen, and you
   finish it there.
 
-The setting "Allow Write Operations" (Game Settings, category **Foundry AI Tool**; on by default)
+The setting "AI Tool: Allow Write Operations" (Game Settings, category **Foundry AI Tool**; on by default)
 is the tool's read-only switch. Turned off, the tool changes nothing: no new actors or items, no
 token, scene, combat, damage or condition changes, no ownership changes, no journal writes, no chat
 or roll messages, no guarded changes (also those that only touch the tool's own storage, such as a

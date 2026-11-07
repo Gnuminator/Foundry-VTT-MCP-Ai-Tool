@@ -439,7 +439,7 @@ jobs:
           fi
 
   dashboard-visual-shard:
-    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, two themes)
+    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, neutral theme; axe checks both)
     # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
     # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
     # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same

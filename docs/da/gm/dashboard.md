@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: efb128f2fb0a
+sourceHash: 36302fe91935
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -109,7 +109,7 @@ opdatere.
 
 Øverst i Pre-flight-panelet. Ét klik slår det til, som en aften ved bordet kræver:
 
-- i Foundrys module-indstillinger: "Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
+- i Foundrys module-indstillinger: "AI Tool: Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
   Live play (writes)", "AI Tool: Party (writes)" og "AI Tool: Tarokka (writes)";
 - på dashboardet: **GM Actions**.
 
@@ -245,7 +245,7 @@ Efter en ændring med Damage / Heal eller Condition viser en besked hvert måls 
 11 to 5") med **Undo** i nogle sekunder; ét klik sætter det tilbage. Senere bruger du **Undo** i
 Recent Changes.
 
-**Scene mood** (en knap på During-linjen, når GM Actions, Allow Write Operations og Foundrys
+**Scene mood** (en knap på During-linjen, når GM Actions, AI Tool: Allow Write Operations og Foundrys
 "AI Tool: Scene mood and music (writes)"-kontakt er slået til): én knap for hver mood-preset, der er
 gemt på den scene, du ser. Et klik spørger én gang med planens egen opsummering ("Apply mood ... on
 ..."), og sætter derefter mørke, lys, vejr og musik. **Undo** er på beskeden og i Recent Changes. En
@@ -319,7 +319,7 @@ sessionen). Værktøjet lægger dem i Foundry **af sig selv, uden at spørge**: 
 "Session notes" (navngivet med dato og titel), med siderne Recap, GM summary og Scenes, logget i Recent Changes med Undo. Kortet
 siger, hvor de er:
 
-- **Waiting**: de kommer ind af sig selv, så snart en GM er i Foundry, "Allow Write Operations" er
+- **Waiting**: de kommer ind af sig selv, så snart en GM er i Foundry, "AI Tool: Allow Write Operations" er
   slået til, og kontakten "AI Tool: Session notes (writes)" er slået til; kortet siger, hvilken der
   mangler. Efter en **Undo** bliver de ude, til du klikker på **Put in Foundry**.
 - **In Foundry**: Recap venter i Handouts-køen. Afslør den der, eller klik på **Approve without

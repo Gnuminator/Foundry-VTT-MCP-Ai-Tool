@@ -40,6 +40,22 @@ describe('toGmMessage', () => {
     expect(msg).not.toContain('F12');
   });
 
+  it('names the known reasons for a player in player words', () => {
+    expect(toGmMessage('x', new Error('request forbidden here'), 'player')).toContain(
+      'Ask your GM'
+    );
+    const dropped = toGmMessage('x', new Error('socket closed'), 'player');
+    expect(dropped).toContain('Ask your GM');
+    expect(dropped).not.toContain('Check that it is running');
+    expect(toGmMessage('x', new Error('socket closed'))).toContain('Check that it is running');
+  });
+
+  it('treats a 16-character id with no digit as an id', () => {
+    expect(toGmMessage('x', new Error('Reveal aBcdefghijklmnop failed badly today'))).not.toContain(
+      'aBcdefghijklmnop'
+    );
+  });
+
   it('copes with missing errors', () => {
     expect(toGmMessage('do it')).toContain('Try again');
   });

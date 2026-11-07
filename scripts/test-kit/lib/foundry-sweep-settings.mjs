@@ -54,7 +54,7 @@ export const FEATURE_SWITCHES = [
 /** The three menu buttons: key, button label, the window or dialog title they open (null: a link). */
 export const MENUS = [
   ['helpMenu', 'Open the GM guide', null],
-  ['enhancedIndexMenu', 'Configure creature index','Creature Index Settings'],
+  ['enhancedIndexMenu', 'Configure creature index', 'Creature Index Settings'],
   ['joinPageMenu', 'Choose join page look', 'Join page look'],
 ];
 

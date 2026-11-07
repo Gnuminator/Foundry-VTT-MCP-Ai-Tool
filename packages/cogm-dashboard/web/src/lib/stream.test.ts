@@ -65,7 +65,16 @@ class FakeSource {
   constructor() {
     FakeSource.all.push(this);
   }
-  addEventListener(): void {}
+  listeners = new Map<string, Array<(e: MessageEvent<string>) => void>>();
+  addEventListener(type: string, fn: (e: MessageEvent<string>) => void): void {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+  }
+  /** The server sent an event. */
+  emit(type: string, data: unknown = {}): void {
+    for (const fn of this.listeners.get(type) ?? []) {
+      fn({ data: JSON.stringify(data) } as MessageEvent<string>);
+    }
+  }
   close(): void {
     this.closed = true;
     this.readyState = FakeSource.CLOSED;
@@ -111,6 +120,36 @@ describe('startStream', () => {
     expect(FakeSource.all).toHaveLength(2);
     expect(FakeSource.all[0]?.closed).toBe(true);
     expect(FakeSource.all[1]?.closed).toBe(false);
+  });
+
+  it('leaves a stream alone while events keep coming in', () => {
+    last().onopen?.();
+    for (let i = 0; i < 7; i += 1) {
+      vi.advanceTimersByTime(17_000);
+      last().emit('status', { foundry: 'reachable' });
+    }
+    // Two minutes in, far past the watchdog time, but never silent for that long.
+    expect(FakeSource.all).toHaveLength(1);
+    expect(FakeSource.all[0]?.closed).toBe(false);
+  });
+
+  it('cancels the watchdog when stopped', () => {
+    last().onopen?.();
+    stop();
+    vi.advanceTimersByTime(STREAM_WATCHDOG_MS + 10_000);
+    expect(FakeSource.all).toHaveLength(1);
+  });
+
+  it('a world reset clears the old fight, and a fight read still out does not bring it back', async () => {
+    queryClient.setQueryData(COMBAT_KEY, { active: true });
+    let answer: (v: unknown) => void = () => {};
+    callTool.mockImplementationOnce(() => new Promise(resolve => (answer = resolve)));
+    const read = refreshCombat(queryClient);
+    last().emit('reset');
+    expect(queryClient.getQueryData(COMBAT_KEY)).toBeNull();
+    answer({ active: true, round: 3, turn: 0, combatants: [] });
+    await read;
+    expect(queryClient.getQueryData(COMBAT_KEY)).toBeNull();
   });
 
   it('waits 2, 4, 8, then 10 seconds between new connections', () => {

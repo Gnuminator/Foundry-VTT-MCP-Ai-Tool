@@ -319,7 +319,7 @@ export async function getOrCreateFolder(
     let description = '';
     if (type === 'Actor') {
       if (folderName === 'Foundry MCP Creatures') {
-        description = 'Creatures and monsters created via Foundry MCP Bridge';
+        description = 'Creatures and monsters created via Foundry AI Tool';
       } else {
         description = `NPCs and creatures related to: ${folderName}`;
       }

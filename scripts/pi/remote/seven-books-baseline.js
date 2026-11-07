@@ -71,6 +71,12 @@ const linkRe = packs =>
     `(@Compendium\\[|Compendium\\.)(${packs.map(p => p.replace(/[\\.]/g, '\\$&')).join('|')})\\.((?:[A-Za-z]+\\.)?)([A-Za-z0-9]{16})`,
     'g'
   );
+// The name form @Compendium[<pack>.<Name>] is not rewritten (no id to map): the dry run counts it.
+const nameLinkRe = packs =>
+  new RegExp(
+    `@Compendium\\[(${packs.map(p => p.replace(/[\\.]/g, '\\$&')).join('|')})\\.(?![A-Za-z0-9]{16}\\])[^\\]]+\\]`,
+    'g'
+  );
 const done = [];
 const log = t => {
   done.push(t);
@@ -153,11 +159,26 @@ if (MODE === 'check' && existingTargets.length === 0) {
   log('baseline not applied in this world (no world.player-* packs): not checked');
   return { applied: false };
 }
-// The legacy pack is no requirement: MODE=delete removes it for good after the baseline.
-if (MODE !== 'undo' && !game.packs.get(LEGACY))
+// The legacy pack is missing once MODE=delete has removed it after the baseline: that is fine. Without it and without any
+// world pack the trim was never run here, so a run refuses (dry run too, so the dry run gate of gm-script.sh is not passed
+// for a real run that would stop): the baseline would copy books the trim has not moved out yet.
+if (MODE !== 'undo' && !game.packs.get(LEGACY)) {
   log(`${LEGACY} is not in this world (the trim was not run here, or the legacy pack was deleted)`);
+  if (MODE === 'run' && existingTargets.length === 0)
+    throw new Error(
+      `${LEGACY} is missing and no world.player-* pack exists: run MODE=trim first. Nothing was changed`
+    );
+}
 const journalPacks = JOURNALS.filter(id => game.packs.get(id));
 const idx = async (pack, fields) => [...(await game.packs.get(pack).getIndex({ fields }))];
+// "world pack|id" -> the old pack the copy came from: the links the undo can point back (the check counts the same ones).
+const backMap = async () => {
+  const back = new Map();
+  for (const t of existingTargets)
+    for (const e of await idx(t, ['flags']))
+      if (sourcePackOf(e)) back.set(`${t}|${e._id}`, sourcePackOf(e));
+  return back;
+};
 // The journal entries with their pages as plain data (the index does not reliably carry embedded pages).
 const journalEntries = async jp => {
   const out = [];
@@ -175,12 +196,15 @@ if (
     return own.PLAYER === 'NONE' && own.TRUSTED === 'NONE';
   })
 ) {
-  const reCheck = linkRe(targetIds);
+  // Only a link whose id sits in a world pack of this world counts: one the undo cannot map back (a copy removed as an
+  // orphan, a page another world's baseline rewrote) is no half-finished run, and a rerun or an undo could not fix it.
+  const held = await backMap();
   for (const jp of journalPacks)
     for (const entry of await journalEntries(jp))
       for (const p of entry.pages ?? []) {
-        const hit = reCheck.test(JSON.stringify({ text: p.text, system: p.system }));
-        reCheck.lastIndex = 0;
+        const hit = [
+          ...JSON.stringify({ text: p.text, system: p.system }).matchAll(linkRe(targetIds)),
+        ].some(m => held.has(`${m[2]}|${m[4]}`));
         if (hit)
           throw new Error(
             `HALF-FINISHED: journal pages point at hidden world packs; rerun MODE=baseline (dry run first) or MODE=baseline-undo\n${done.join('\n')}`
@@ -197,10 +221,7 @@ if (MODE === 'undo') {
     return { undone: false };
   }
   // The journals go back to the pack each copy came from.
-  const back = new Map(); // "world pack|id" -> old pack
-  for (const t of existingTargets)
-    for (const e of await idx(t, ['flags']))
-      if (sourcePackOf(e)) back.set(`${t}|${e._id}`, sourcePackOf(e));
+  const back = await backMap();
   const reRe = linkRe(targetIds);
   let pages = 0;
   const plan = [];
@@ -241,7 +262,27 @@ if (MODE === 'undo') {
         }
       });
     }
-    for (const id of toOpen) await setOwnership(game.packs.get(id), OPEN);
+    // Scan before anything is shown or hidden: no journal page may still name a world pack by an id the undo maps back.
+    const stuck = [];
+    let unmapped = 0;
+    for (const jp of journalPacks)
+      for (const entry of await journalEntries(jp))
+        for (const p of entry.pages ?? [])
+          for (const m of JSON.stringify({ t: p.text, s: p.system }).matchAll(reRe)) {
+            if (back.has(`${m[2]}|${m[4]}`)) stuck.push(`${jp} ${entry.name} ${p.name ?? ''}`);
+            else unmapped++;
+          }
+    if (unmapped)
+      log(`links to world packs with no copy to map back (left as they are): ${unmapped}`);
+    if (stuck.length)
+      throw new Error(
+        `${stuck.length} journal pages still name a world pack after the undo; the old packs stay as they are: ${stuck.slice(0, 10).join(' | ')}`
+      );
+    for (const id of toOpen) {
+      const was = ownershipOf(game.packs.get(id));
+      await setOwnership(game.packs.get(id), OPEN);
+      log(`RESTORED ${id}: Player ${was.PLAYER ?? '-'} -> ${OPEN.PLAYER}`);
+    }
     for (const id of existingTargets) await setOwnership(game.packs.get(id), HIDDEN);
   } catch (e) {
     failure.push(e);
@@ -286,8 +327,10 @@ if (collisions.length)
     `${collisions.length} id collision(s) between the kept packs, nothing changed: ${collisions.slice(0, 10).join(' | ')}`
   );
 const miss = new Set();
+let nameLinks = 0;
 const sourceRe = sourcePacks;
 const wantedCopy = new Map(); // id -> { data (rewritten, plain), target }
+const sourceOf = new Map(); // id -> the kept pack it is read from
 const targetIndex = {};
 // The copies are read as documents, like the sources, so both sides have the same shape (an index entry may not).
 for (const t of targetIds) {
@@ -304,6 +347,7 @@ for (const t of targetIds) {
       // only the trim's sourcePack tag, is never removed.
       ours: isBaselineCopy(o) && Boolean(sourcePackOf(o)),
       source: sourcePackOf(o),
+      raw: o, // kept for the restore if a refresh cannot create the new copy
     });
   }
 }
@@ -318,7 +362,9 @@ for (const id of sourcePacks) {
       to,
       miss
     );
+    nameLinks += (text.match(nameLinkRe(sourceRe)) ?? []).length;
     const moved = JSON.parse(text);
+    sourceOf.set(o._id, id);
     wantedCopy.set(o._id, {
       target,
       data: {
@@ -338,14 +384,17 @@ for (const id of sourcePacks) {
     });
   }
 }
-const stale = []; // same id, other name: stops the run
+// A copy needs a refresh when its content or name differs from the source (a rename in a kept pack) or when it was made
+// before the baselineCopy flag existed (it never gets the flag otherwise and is never seen as ours).
+const needsRefresh = (have, w) => differs(have, w.data) || have.name !== w.data.name || !have.ours;
+const stale = []; // same id, other name, and not a copy of ours: stops the run
 const refreshNames = [];
 for (const [docId, w] of wantedCopy) {
   const have = targetIndex[w.target].get(docId);
   if (!have) counts[w.target].copy++;
-  else if (have.name !== w.data.name)
+  else if (have.name !== w.data.name && !(have.ours && have.source === sourceOf.get(docId)))
     stale.push(`${docId}: ${w.target} holds ${have.name}, source has ${w.data.name}`);
-  else if (differs(have, w.data)) {
+  else if (needsRefresh(have, w)) {
     refreshNames.push(`${w.target.slice(13)}:${w.data.name}`);
     counts[w.target].refresh++;
   } else counts[w.target].have++;
@@ -385,11 +434,15 @@ for (const jp of journalPacks) {
     for (const p of entry.pages ?? []) {
       const blob = JSON.stringify({ text: p.text, system: p.system });
       const next = rewrite(blob, sourceRe, to, miss);
+      nameLinks += (next.match(nameLinkRe(sourceRe)) ?? []).length;
       if (next !== blob) journalPlan.push([jp, entry._id, p._id]);
     }
   }
 }
 log(`JOURNAL PAGES to rewrite: ${journalPlan.length}`);
+log(
+  `NAME-FORM LINKS @Compendium[pack.Name] to kept packs (not rewritten, they stay as they are): ${nameLinks}`
+);
 log(
   `LINKS TO KEPT PACKS WITH NO ENTRY (already dead, left as they are): ${miss.size}${miss.size ? ` (${[...miss].slice(0, 20).join(', ')})` : ''}`
 );
@@ -415,7 +468,12 @@ const totals = {
 
 if (args.dryRun) {
   if (MODE === 'check') {
-    const drift = { ...totals, orphans, open: toOpen.length };
+    const drift = {
+      ...totals,
+      orphans,
+      open: toOpen.length,
+      missingSource: missingSource.size,
+    };
     if (Object.values(drift).some(n => n > 0))
       throw new Error(
         `DRIFT: the world no longer matches the seven-book baseline ${JSON.stringify(drift)}; run stage 22 MODE=baseline again (dry run first)\n${done.join('\n')}`
@@ -427,6 +485,7 @@ if (args.dryRun) {
 
 // ---------- real run ----------
 let journalStarted = false;
+let opened = false;
 const real = async () => {
   for (const name of Object.keys(TARGETS)) {
     const id = targetPackOf(name);
@@ -438,6 +497,7 @@ const real = async () => {
         label: `${TARGETS[name]} (players)`,
         name: `player-${name}`,
         package: 'world',
+        ownership: HIDDEN,
       });
       await setOwnership(pack, HIDDEN);
     }
@@ -447,20 +507,39 @@ const real = async () => {
     const entries = [...wantedCopy].filter(([, w]) => w.target === t);
     const need = entries.filter(([docId, w]) => {
       const have = targetIndex[t].get(docId);
-      return !have || differs(have, w.data);
+      return !have || needsRefresh(have, w);
     });
     for (let i = 0; i < need.length; i += 40) {
       const chunk = need.slice(i, i + 40);
       const replace = chunk.filter(([docId]) => targetIndex[t].has(docId)).map(([docId]) => docId);
+      // A refresh has to delete before it creates (same id), so the old copies are put back if the create fails.
       if (replace.length) await Item.deleteDocuments(replace, { pack: t });
-      const made = await Item.createDocuments(
-        chunk.map(([, w]) => w.data),
-        { pack: t, keepId: true }
-      );
-      if (made.length !== chunk.length)
-        throw new Error(
-          `${t}: created ${made.length} of ${chunk.length} (${replace.length} of them replaced a copy that is now missing: run again); the old packs are not hidden yet`
+      let made = [];
+      let createError = null;
+      try {
+        made = await Item.createDocuments(
+          chunk.map(([, w]) => w.data),
+          { pack: t, keepId: true }
         );
+      } catch (e) {
+        createError = e;
+      }
+      if (createError || made.length !== chunk.length) {
+        let restored = 'nothing to restore';
+        if (replace.length) {
+          const index = game.packs.get(t).index;
+          const back = replace.filter(x => !index.has(x)).map(x => targetIndex[t].get(x).raw);
+          try {
+            if (back.length) await Item.createDocuments(back, { pack: t, keepId: true });
+            restored = `${back.length} replaced copies put back`;
+          } catch (r) {
+            restored = `COULD NOT put the replaced copies back (${r.message}); run again`;
+          }
+        }
+        throw new Error(
+          `${t}: created ${made.length} of ${chunk.length}${createError ? ` (${createError.message})` : ''}; ${restored}; the old packs are not hidden yet`
+        );
+      }
     }
     log(`COPIED into ${t}: ${need.length} (now ${game.packs.get(t).index.size})`);
   }
@@ -512,6 +591,7 @@ const real = async () => {
       `${left.length} links still name an old kept pack; the old packs stay visible: ${left.slice(0, 10).join(' | ')}`
     );
   for (const id of targetIds) await setOwnership(game.packs.get(id), OPEN);
+  opened = true;
   log(`OPENED the ${targetIds.length} world packs for players`);
   for (const id of sourcePacks) await setOwnership(game.packs.get(id), HIDDEN);
   log(`HIDDEN ${sourcePacks.length} old kept packs`);
@@ -543,9 +623,10 @@ if (failure || relockFailures.length) {
   const head = failure
     ? failure.message
     : 'the baseline finished but module packs could not be locked';
-  const advice = journalStarted
-    ? '\nHALF-FINISHED: journal pages may already point at hidden world packs; rerun MODE=baseline (dry run first) or MODE=baseline-undo'
-    : '';
+  const advice =
+    journalStarted && !opened
+      ? '\nHALF-FINISHED: journal pages may already point at hidden world packs; rerun MODE=baseline (dry run first) or MODE=baseline-undo'
+      : '';
   throw new Error(
     `${head}${advice}\nDONE BEFORE THE FAILURE:\n${[...done, ...relockFailures].join('\n')}`
   );

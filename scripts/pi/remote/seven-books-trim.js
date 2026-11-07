@@ -289,7 +289,16 @@ const deadForPlayers = [...linkedPacks.keys()].filter(pid => {
   const p = game.packs.get(pid);
   return p && ownershipOf(p).PLAYER === 'NONE';
 });
-const unexpectedDead = deadForPlayers.filter(pid => !KNOWN_GM_ONLY.includes(pid));
+// Once the baseline is applied (the six world.player-* packs exist and players can open them) the kept packs are hidden
+// on purpose, so they are known too.
+const baselineApplied = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].every(
+  n => {
+    const p = game.packs.get(`world.player-${n}`);
+    return p && ownershipOf(p).PLAYER !== 'NONE';
+  }
+);
+const knownDead = baselineApplied ? [...KNOWN_GM_ONLY, ...SCAN] : KNOWN_GM_ONLY;
+const unexpectedDead = deadForPlayers.filter(pid => !knownDead.includes(pid));
 log(
   `LINKS INTO PACKS PLAYERS CANNOT OPEN: ${deadForPlayers.length}${deadForPlayers.length ? ` (${deadForPlayers.map(id => `${id} ${linkedPacks.get(id)}`).join(', ')})` : ''}, unexpected: ${unexpectedDead.length}`
 );

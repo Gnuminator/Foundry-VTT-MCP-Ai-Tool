@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ABILITY_METHODS,
   applyState,
+  BASELINE_TARGETS,
   blockers,
   mismatches,
   readState,
@@ -286,6 +287,36 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     assert.match(problems, /ACTOR_CREATE lost role 3/);
     assert.match(problems, /compendiumSources\.races is \[\]/);
     assert.match(problems, /another compendium source changed/);
+  });
+
+  test('baseline: with the six player packs open, every kind lists its one world pack; hidden packs keep the old lists', async () => {
+    const names = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'];
+    globalThis.game = fakeGame();
+    const addPacks = own => {
+      for (const n of names) globalThis.game.packs.set(`world.player-${n}`, { ownership: own });
+    };
+    addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
+    assert.equal(readState(ARGS).baselineReady, false);
+    addPacks({ PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' });
+    const start = readState({
+      ...ARGS,
+      targets: { ...SOURCE_TARGETS, extra: names.map(n => `world.player-${n}`) },
+    });
+    assert.equal(start.baselineReady, true);
+    const targets = BASELINE_TARGETS;
+    await applyState({ ...ARGS, targets });
+    const end = readState({ ...ARGS, targets });
+    assert.deepEqual(end.compendiumSources.races, ['world.player-species']);
+    assert.deepEqual(end.compendiumSources.classes, ['world.player-classes']);
+    assert.deepEqual(end.compendiumSources.subclasses, ['world.player-classes']);
+    assert.deepEqual(end.compendiumSources.equipment, ['world.player-items']);
+    assert.deepEqual(mismatches(start, end, targets), []);
+    assert.deepEqual(await applyState({ ...ARGS, targets }), []);
+    // undo hides the packs: the old lists come back on the next run
+    addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
+    assert.equal(readState(ARGS).baselineReady, false);
+    await applyState(ARGS);
+    assert.deepEqual(readState(ARGS).compendiumSources.races, SOURCE_TARGETS.races);
   });
 
   test('sources: dnd5e packs come out of every list, kinds that are not ours keep their value, a missing aitool pack is skipped', async () => {

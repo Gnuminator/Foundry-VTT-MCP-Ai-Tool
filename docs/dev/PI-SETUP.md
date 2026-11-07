@@ -1725,6 +1725,25 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   the run like any GM script. Run it after a stage 11 push, a module update and stage 25; `no drift` is the pass line.
 - **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
   about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).
+- **Baseline (one player-facing pack per type):** `seven-books-baseline.js` (`MODE=baseline`, after the trim) copies the kept
+  entries of `aitool-content` and the Player's Handbook packs (about 3850) with the same ids into six world packs that
+  players can open: `world.player-classes` (classes and subclasses), `-species`, `-backgrounds`, `-feats` (only real feats, subtype
+  `feat`), `-spells` and `-items` (equipment, other items, and the class features and species traits that are feat-type entries).
+  It rewrites every Compendium link that names a kept pack, in the copies and in the journal pages of
+  `dnd-players-handbook.content` and `aitool-content.journals` (class text, spell lists), then hides the 11 old packs. Order: all
+  copies, then the journals, then a scan that no link still names an old pack, and only then the hiding; a failure before that
+  hides nothing. A second run changes nothing (Foundry's own `_stats`, effect change ids and `<hr />` spelling are not
+  differences); `REFRESH` in the dry run names a copy whose source changed. Links to `aitool-content.summons` and `tables`
+  stay as they are (GM-only, the known open point). Module updates overwrite the journal pages: rerun the baseline (the check says when).
+  Stage 13 then points Actor Studio at the six world packs (it does that on its own once the six packs exist and players can open
+  them, and goes back to the module packs when they are hidden).
+  - **Pi sitting:** snapshot (`/boot/dietpi/dietpi-backup 1`), the user's OK, `scp` the three scripts, trim if not done
+    (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `LINKS TO KEPT PACKS WITH NO ENTRY`),
+    `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1`, stage 13, `MODE=check` (it now checks the baseline too once the six packs exist),
+    then join as a Player and build a character (class advancement, a spell list, the Actor Studio steps). About 20 to 60 s on a PC;
+    the Assistant GM is stopped meanwhile like any GM script.
+  - **Undo:** `MODE=baseline-undo APPLY=1`: the journals point at the old packs again, the old packs are visible, the six world
+    packs are hidden (nothing is deleted); run stage 13. Or restore the snapshot.
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
   Debian 13 ARM64 container, run by the ARM job in CI).
 

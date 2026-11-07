@@ -1120,7 +1120,7 @@ describe('seven-books-baseline.js', () => {
     // the partly-pointed-back state: only the first page of the entry is rewritten; the error counts pages, not links, and names the next step
     const part = worlds();
     await run(baselineSource, part, false);
-    wrapJournal(part, async (update, d, a) => update.apply(d, [a[0], a[1].slice(0, 1)]));
+    wrapJournal(part, async (update, d, a) => update.apply(d, [a[0], a[1].slice(1)]));
     await assert.rejects(run(undo, part, false), e => {
       assert.match(e.message, /^1 journal pages still name a world pack/);
       assert.match(e.message, /Rerun MODE=baseline-undo \(dry run first\) or MODE=baseline/);

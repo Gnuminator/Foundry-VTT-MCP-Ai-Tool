@@ -166,7 +166,7 @@ if (MODE !== 'undo' && !game.packs.get(LEGACY)) {
   log(`${LEGACY} is not in this world (the trim was not run here, or the legacy pack was deleted)`);
   if (MODE === 'run' && existingTargets.length === 0)
     throw new Error(
-      `${LEGACY} is missing and no world.player-* pack exists: either the trim was not run here (run MODE=trim first) or MODE=delete already removed the legacy pack before the baseline (restore it from a dietpi-backup snapshot or rerun the trim). Nothing was changed`
+      `${LEGACY} is missing and no world.player-* pack exists: either the trim was not run here (run MODE=trim first) or MODE=delete already removed the legacy pack before the baseline (rerun MODE=trim, dry run first, which makes an empty legacy pack and lets the baseline run). Nothing was changed`
     );
 }
 const journalPacks = JOURNALS.filter(id => game.packs.get(id));
@@ -263,20 +263,21 @@ if (MODE === 'undo') {
       });
     }
     // Scan before anything is shown or hidden: no journal page may still name a world pack by an id the undo maps back.
-    const stuck = new Set(); // one entry per page, not per link
+    const stuck = new Map(); // one entry per page (keyed by ids), not per link
     let unmapped = 0;
     for (const jp of journalPacks)
       for (const entry of await journalEntries(jp))
         for (const p of entry.pages ?? [])
           for (const m of JSON.stringify({ t: p.text, s: p.system }).matchAll(reRe)) {
-            if (back.has(`${m[2]}|${m[4]}`)) stuck.add(`${jp} ${entry.name} ${p.name ?? ''}`);
+            if (back.has(`${m[2]}|${m[4]}`))
+              stuck.set(`${jp}|${entry._id}|${p._id}`, `${jp} ${entry.name} ${p.name ?? ''}`);
             else unmapped++;
           }
     if (unmapped)
       log(`links to world packs with no copy to map back (left as they are): ${unmapped}`);
     if (stuck.size)
       throw new Error(
-        `${stuck.size} journal pages still name a world pack after the undo; the old packs stay hidden and the world packs stay open, so some pages may already point back and others not. Rerun MODE=baseline-undo (dry run first) or MODE=baseline: ${[...stuck].slice(0, 10).join(' | ')}`
+        `${stuck.size} journal pages still name a world pack after the undo; the old packs stay hidden and the world packs stay open, so some pages may already point back and others not. Rerun MODE=baseline-undo (dry run first) or MODE=baseline: ${[...stuck.values()].slice(0, 10).join(' | ')}`
       );
     for (const id of toOpen) {
       const was = ownershipOf(game.packs.get(id));

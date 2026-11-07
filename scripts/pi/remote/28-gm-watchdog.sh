@@ -35,6 +35,7 @@ case "$UNDO" in "" | 1) ;; *) die "UNDO must be 1 or left out (got '$UNDO'). Not
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first. Nothing was changed"
 [ -f "$driver" ] || die "no Assistant GM driver at $driver: run stage 5 first. Nothing was changed"
 systemctl cat "$GM_UNIT" >/dev/null 2>&1 || die "$GM_UNIT does not exist (the Assistant GM may run as a container: rebuild the gm-browser image instead). Nothing was changed"
+systemctl is-enabled --quiet "$GM_UNIT" 2>/dev/null || die "$GM_UNIT is disabled (the stack may be cut over to containers: rebuild the gm-browser image instead). Nothing was changed"
 refuse_during_system_trial "stage 28 (gm watchdog)"
 install -d -m 700 /var/lib/foundry-import
 exec 9>/var/lib/foundry-import/gm-watchdog.lock
@@ -43,7 +44,7 @@ trap '' HUP PIPE
 
 hash_of() { sha256sum "$1" | cut -d' ' -f1; }
 was_active=0
-systemctl is-active --quiet "$GM_UNIT" && was_active=1
+case "$(systemctl is-active "$GM_UNIT" 2>/dev/null || true)" in active | activating) was_active=1 ;; esac
 
 restart_and_read_back() { # restarts the unit when it ran before, then waits up to 150 s for the join; 0 when it joined
   [ "$was_active" = 1 ] || {
@@ -68,6 +69,7 @@ if [ -n "$UNDO" ]; then
   [ -n "$prev" ] || die "no assistant-gm.mjs.prev-* to put back. Nothing was changed"
   ok "UNDO: putting $prev back"
   require_recent_snapshot
+  require_quiet_if_active "$GM_UNIT" "restarting the Assistant GM browser (the bridge link drops for about a minute)"
   cp -p -- "$driver" "$driver.undone-$stamp"
   put_back "$prev"
   restart_and_read_back || die "the old driver is back but the Assistant GM did not join: journalctl -u foundry-ai-tool-gm-browser -n 30"
@@ -97,6 +99,7 @@ fi
 
 # ---- the real run ----------------------------------------------------------------------------------------------
 require_recent_snapshot
+require_quiet_if_active "$GM_UNIT" "restarting the Assistant GM browser (the bridge link drops for about a minute)"
 backup="$driver.prev-$stamp"
 cp -p -- "$driver" "$backup"
 ok "old driver kept as $backup"
@@ -106,7 +109,11 @@ put_back "$driver_src"
   die "the installed driver does not match the new one; the old one is back"
 }
 if restart_and_read_back; then
-  ok "installed $driver ($(hash_of "$driver")); the Assistant GM joined the world again with the page watchdog on"
+  if [ "$was_active" = 1 ]; then
+    ok "installed $driver ($(hash_of "$driver")); the Assistant GM joined the world again with the page watchdog on"
+  else
+    ok "installed $driver ($(hash_of "$driver")); the Assistant GM is stopped, so the watchdog starts with its next start (no read-back)"
+  fi
 else
   warn "the Assistant GM did not rejoin with the new driver: putting the old one back"
   put_back "$backup"

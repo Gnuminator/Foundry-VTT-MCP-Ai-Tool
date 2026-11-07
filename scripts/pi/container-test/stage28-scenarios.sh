@@ -53,6 +53,8 @@ fresh_pi() {
   echo '// old driver' >"$DRIVER"
   printf '%s\n' '// assistant-gm features: extra-gm link-check page-ping' 'console.log("new driver");' >"$NEW"
   echo fake-invocation-1 >/tmp/gm-invocation
+  printf '{"active":true,"world":"curse-of-strahd","users":0}' >/tmp/status
+  echo 0 >/tmp/status_rc
   : >/tmp/calls
 }
 
@@ -123,6 +125,30 @@ if want stopped-unit; then
   check stopped 'was not running: left stopped' "$out"
   check stopped 'exit 0' "$out"
   absent stopped 'restart foundry-ai-tool-gm-browser' "$(cat /tmp/calls)"
+  absent stopped 'joined the world again' "$out"
+  check stopped 'the Assistant GM is stopped, so the watchdog starts with its next start' "$out"
+fi
+
+if want players-online; then
+  fresh_pi
+  printf '{"active":true,"world":"curse-of-strahd","users":3}' >/tmp/status
+  out="$(run_stage 'APPLY=1')"
+  check players 'player\(s\) are online' "$out"
+  check players 'exit 1' "$out"
+  absent players 'restart foundry-ai-tool-gm-browser' "$(cat /tmp/calls)"
+  grep -q 'old driver' "$DRIVER" && echo "PASS players: driver unchanged" || {
+    echo "FAIL players: driver changed"
+    fail=1
+  }
+fi
+
+if want cut-over; then
+  fresh_pi
+  touch /tmp/disabled-foundry-ai-tool-gm-browser.service
+  out="$(run_stage 'APPLY=1')"
+  check cut-over 'is disabled' "$out"
+  check cut-over 'exit 1' "$out"
+  absent cut-over 'restart' "$(cat /tmp/calls)"
 fi
 
 if want failed-join; then

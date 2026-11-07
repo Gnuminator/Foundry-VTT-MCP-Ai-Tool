@@ -51,7 +51,7 @@ describe('ModuleSettings — access defaults', () => {
   });
 });
 
-describe('ModuleSettings — linkState relay', () => {
+describe('ModuleSettings: linkState relay', () => {
   it('writing linkState calls the linkStateChanged hook in every client', () => {
     const config = registered.get(`${MODULE_ID}.linkState`);
     expect(config).toMatchObject({ scope: 'world', config: false });

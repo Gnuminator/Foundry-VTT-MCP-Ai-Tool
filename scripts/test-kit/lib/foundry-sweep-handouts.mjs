@@ -397,6 +397,7 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
     return 'five cards hidden; Show cards names them; unticking hides them again';
   });
 
+  // An empty text is a warning notification (not a console error), so the row names no expected error.
   await sweep.row(
     'foundry.tarokka.reveal-form',
     'gm',
@@ -413,8 +414,7 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
         'the form to close'
       );
       return 'the form opens; an empty text is refused with a message; Cancel closes it';
-    },
-    { expectErrors: [/Write the text the players will read first/] }
+    }
   );
 
   await sweep.row('foundry.tarokka.reveal', 'gm', async () => {

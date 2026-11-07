@@ -20,7 +20,8 @@
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is older than Node 24.22 (Node 24.15 crashes natively
  * in the socket tests), every step runs with the portable Node 24 first on PATH (see
- * portableNodeDir). scripts/green.test.mjs compares the list below with ci.yml: a CI command that is
+ * portableNodeDir). The steps come from scripts/checks.mjs, the one list of checks.
+ * scripts/green.test.mjs compares that list with ci.yml: a CI command that is
  * neither covered by a step nor in CI_ONLY (with a reason) fails the test, which keeps green and CI
  * in step.
  */
@@ -30,243 +31,20 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
+import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
+import { normalizeCommand, ciRunCommands, ciUnsupported } from './ci-yaml.mjs';
 
-/**
- * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
- * run). A run takes the heavy-check lock once, at its first heavy step, and keeps it until its last
- * one, so parallel greens and the gate's drift check take turns per run instead
- * of queueing again for every step (see scripts/heavy-lock.mjs).
- */
-export const HEAVY_STEPS = new Set([
-  'typecheck',
-  'lint-ratchet',
-  'build',
-  'kit-test',
-  'test-shared',
-  'test-foundry-module',
-  'test-mcp-server',
-  'test-cogm-dashboard',
-  'test-discord-bot',
-  'e2e',
-]);
-
-/** The unit-test steps run with CI=true, as on the runner (vitest then runs once, not in watch mode). */
-const CI = { CI: 'true' };
+export { STEPS, HEAVY_STEPS, CI_ONLY, normalizeCommand, ciRunCommands, ciUnsupported };
 
 /**
  * @typedef {{ name: string, cmd: string, args: string[], env?: Record<string, string> }} Step
  */
 
-/** A step that runs `node --test <file>`. @param {string} name @param {string} file @returns {Step} */
-const nodeTest = (name, ...files) => ({ name, cmd: 'node', args: ['--test', ...files], env: CI });
-
-/** A step that runs `npm test -w <workspace>`. @param {string} name @param {string} ws @returns {Step} */
-const workspaceTest = (name, ws) => ({
-  name,
-  cmd: 'npm',
-  args: ['test', '-w', `@gnuminator/${ws}`],
-  env: CI,
-});
-
-/**
- * The steps of the CI job `build-test`, in CI order. A chained CI command (`a && b`) is one step per
- * part, so a failure names the part that broke.
- * @type {Step[]}
- */
-export const STEPS = [
-  { name: 'typecheck', cmd: 'npm', args: ['run', 'typecheck'] },
-  { name: 'lint-ratchet', cmd: 'npm', args: ['run', 'lint:ratchet'] },
-  { name: 'emdash-ratchet', cmd: 'npm', args: ['run', 'emdash:ratchet'] },
-  { name: 'version-check', cmd: 'npm', args: ['run', 'version:check'] },
-  { name: 'usage-catalog', cmd: 'npm', args: ['run', 'usage:catalog:check'] },
-  { name: 'docs-lint', cmd: 'npm', args: ['run', 'docs:lint'] },
-  { name: 'docs-links', cmd: 'npm', args: ['run', 'docs:links'] },
-  { name: 'docs-ui', cmd: 'npm', args: ['run', 'docs:ui'] },
-  { name: 'docs-kit', cmd: 'npm', args: ['run', 'docs:kit:check'] },
-  nodeTest('docs-ui-test', 'scripts/docs-ui-check.test.mjs'),
-  nodeTest('hook-remote-guard', '.claude/hooks/guard-remote-commands.test.mjs'),
-  nodeTest('hook-start-alerts', '.claude/hooks/start-alerts.test.mjs'),
-  nodeTest('drift-check-test', 'scripts/drift-check.test.mjs'),
-  nodeTest('test-env-frame-proxy', 'scripts/test-env/foundry-frame-proxy.test.mjs'),
-  nodeTest(
-    'hook-context-alert',
-    '.claude/hooks/context-alert.test.mjs',
-    '.claude/hooks/context-stop.test.mjs'
-  ),
-  nodeTest(
-    'hook-edit-guard',
-    '.claude/hooks/guard-shell-edits.test.mjs',
-    '.claude/hooks/warn-control-bytes.test.mjs',
-    '.claude/hooks/guard-model.test.mjs',
-    '.claude/hooks/format-on-edit.test.mjs'
-  ),
-  nodeTest(
-    'gate-scripts',
-    'scripts/green.test.mjs',
-    'scripts/lane-merge.test.mjs',
-    'scripts/visual-baselines.test.mjs',
-    'scripts/review-runner/lib.test.mjs',
-    'scripts/heavy-lock.test.mjs',
-    'scripts/test-coverage-check.test.mjs',
-    'scripts/planner-wake.test.mjs'
-  ),
-  { name: 'usage-week', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
-  nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
-  nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
-  nodeTest('pi-backup-record', 'scripts/pi/backup-pull-record.test.mjs'),
-  nodeTest('pi-world-refs', 'scripts/pi/world-refs.test.mjs'),
-  nodeTest('pi-assistant-gm', 'scripts/pi/assistant-gm.test.mjs'),
-  nodeTest('pi-gm-passwords', 'scripts/pi/gm-passwords.test.mjs'),
-  nodeTest('pi-system-trial-guard', 'scripts/pi/system-trial-guard.test.mjs'),
-  nodeTest('pi-player-creation', 'scripts/pi/player-creation.test.mjs'),
-  nodeTest('pi-world-switches', 'scripts/pi/world-switches.test.mjs'),
-  nodeTest('pi-kit-session', 'scripts/pi/kit-session.test.mjs'),
-  nodeTest('pi-fetch-kit-login', 'scripts/pi/fetch-kit-login.test.mjs'),
-  nodeTest('pi-health-kit-line', 'scripts/pi/health-kit-line.test.mjs'),
-  nodeTest('pi-runtime-imports', 'scripts/pi/runtime-imports.test.mjs'),
-  nodeTest('pi-runuser-helper', 'scripts/pi/runuser-helper.test.mjs'),
-  nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
-  nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
-  nodeTest('pi-board-status', 'scripts/pi/board-status.test.mjs'),
-  nodeTest('pi-pull-destination', 'scripts/pi/pull-destination.test.mjs'),
-  nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
-  nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
-  nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
-  nodeTest('pi-discord-game-server', 'scripts/pi/discord-game-server.test.mjs'),
-  nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
-  nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
-  nodeTest('pi-player-vault', 'scripts/pi/player-vault.test.mjs'),
-  nodeTest('pi-seven-books', 'scripts/pi/seven-books.test.mjs'),
-  nodeTest('pi-world-switch', 'scripts/pi/switch-world.test.mjs'),
-  nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
-  nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
-  nodeTest('pi-deployed-state', 'deploy/pi/deployed-state.test.mjs'),
-  nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
-  nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
-  nodeTest('tv-table-viewer', 'scripts/tv/start-table-viewer.test.mjs'),
-  { name: 'wiki-scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
-  nodeTest('dnd-helper-test', 'tools/dnd-helper/build.test.mjs'),
-  { name: 'livekit-recorder-install', cmd: 'npm', args: ['ci', '--prefix', 'tools/livekit/recorder'] },
-  { name: 'livekit-recorder-test', cmd: 'npm', args: ['test', '--prefix', 'tools/livekit/recorder'], env: CI },
-  { name: 'coverage-check', cmd: 'node', args: ['scripts/test-coverage-check.mjs'] },
-  { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },
-  nodeTest('gm-coach-test', 'tools/gm-coach/build.test.mjs'),
-  { name: 'gm-coach-build', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },
-  { name: 'build', cmd: 'npm', args: ['run', 'build'] },
-  {
-    // CI runs this on Node 24 only; green is run on Node 24.
-    name: 'bundle-budget',
-    cmd: 'npm',
-    args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'],
-  },
-  { name: 'kit-test', cmd: 'npm', args: ['run', 'kit:test'], env: CI },
-  { name: 'kit-check', cmd: 'node', args: ['scripts/test-kit/kit.mjs', 'check'] },
-  {
-    name: 'kit-fake',
-    cmd: 'node',
-    args: ['scripts/test-kit/kit.mjs', 'all', '--fake'],
-    env: { TEST_KIT_HOME: path.join(os.tmpdir(), 'green-test-kit') },
-  },
-  workspaceTest('test-shared', 'shared'),
-  workspaceTest('test-foundry-module', 'foundry-module'),
-  workspaceTest('test-mcp-server', 'mcp-server'),
-  workspaceTest('test-cogm-dashboard', 'cogm-dashboard'),
-  workspaceTest('test-discord-bot', 'discord-bot'),
-  { name: 'mcp-schema-smoke', cmd: 'node', args: ['scripts/mcp-schema-smoke-test.mjs'] },
-  { name: 'standalone-smoke', cmd: 'node', args: ['scripts/standalone-smoke-test.mjs'] },
-  { name: 'split-smoke', cmd: 'node', args: ['scripts/cogm-split-smoke-test.mjs'] },
-  {
-    // Needs Chromium for Playwright (`npx playwright install chromium`, once on this PC).
-    name: 'e2e',
-    cmd: 'npm',
-    args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard'],
-    env: CI,
-  },
-  { name: 'validate-manifest', cmd: 'node', args: ['scripts/validate-manifest.js'] },
-];
-
-/**
- * CI commands of `build-test` that green does not run, each with the reason. The key is the command
- * with its whitespace collapsed. The parity test accepts a CI command that a step covers or that is
- * listed here.
- * @type {Record<string, string>}
- */
-export const CI_ONLY = {
-  'npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium':
-    'Installs Chromium and its system packages on the CI runner; on a PC it is a one-time `npx playwright install chromium`.',
-};
+/** The quick-run unit-test steps run with CI=true too, as on the runner. */
+const CI = { CI: 'true' };
 
 /** Lines of the failed step's log that are printed. */
 const TAIL_LINES = 30;
-
-/** Collapse whitespace so a command compares the same however the YAML wrapped it. @param {string} s */
-export function normalizeCommand(s) {
-  return s.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Every `run:` command of one job in a workflow file, in order: single-line `run: cmd` and
- * `run: |` blocks (one entry per non-empty, non-comment line), without `npm ci`. Simple line
- * parsing, no YAML dependency: it relies on the layout of this repo's workflow (jobs at two
- * spaces, steps at six).
- * @param {string} yamlText @param {string} [job]
- * @returns {string[]}
- */
-export function ciRunCommands(yamlText, job = 'build-test') {
-  const lines = yamlText.split(/\r?\n/);
-  const start = lines.findIndex(l => l.trimEnd() === `  ${job}:`);
-  if (start < 0) return [];
-  const commands = [];
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i];
-    // The next job (a two-space key) or a top-level key ends this job.
-    if (/^ {0,2}[A-Za-z_][\w-]*:/.test(line)) break;
-    const m = /^(\s*)(- )?run:\s*(.*)$/.exec(line);
-    if (!m) continue;
-    const indent = m[1].length + (m[2] ? 2 : 0);
-    const rest = m[3].trim();
-    if (/^[|>][+-]?$/.test(rest)) {
-      for (let j = i + 1; j < lines.length; j++) {
-        const body = lines[j];
-        if (body.trim() === '') continue;
-        if (body.length - body.trimStart().length <= indent) break;
-        const text = body.trim();
-        if (!text.startsWith('#')) commands.push(text);
-        i = j;
-      }
-    } else if (rest) {
-      // A plain (or quoted) scalar can go on over more lines, indented deeper than `run:`; YAML
-      // folds them into one line with spaces.
-      let text = rest;
-      for (let j = i + 1; j < lines.length; j++) {
-        const body = lines[j];
-        if (body.trim() === '' || body.length - body.trimStart().length <= indent) break;
-        text += ` ${body.trim()}`;
-        i = j;
-      }
-      commands.push(text.replace(/^(['"])(.*)\1$/, '$2'));
-    }
-  }
-  return commands.filter(c => normalizeCommand(c) !== 'npm ci');
-}
-
-/**
- * Parts of a job that change what a `run:` command does and that ciRunCommands does not follow
- * (`working-directory`). The parity test fails while there are any, so a new one is noticed.
- * @param {string} yamlText @param {string} [job]
- * @returns {string[]}
- */
-export function ciUnsupported(yamlText, job = 'build-test') {
-  const lines = yamlText.split(/\r?\n/);
-  const start = lines.findIndex(l => l.trimEnd() === `  ${job}:`);
-  if (start < 0) return [];
-  const found = [];
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^ {0,2}[A-Za-z_][\w-]*:/.test(lines[i])) break;
-    if (/^\s*(- )?working-directory:/.test(lines[i])) found.push(lines[i].trim());
-  }
-  return found;
-}
 
 /**
  * @param {string[]} argv
@@ -565,7 +343,7 @@ function isSafeNode(version) {
 }
 
 /**
- * The folder of the newest portable Node 24 (`%LOCALAPPDATA%\node24\node-v24.*`, the toolchain the
+ * The folder of the newest portable Node 24.22+ (`%LOCALAPPDATA%\node24\node-v24.*`, the toolchain the
  * project uses on Windows), or null. Node 24.15 on Windows crashes natively (exit code 0xC0000409,
  * no message) in 20 to 40 percent of the co-GM dashboard socket test runs, which showed up as
  * vitest "Channel closed" on the fork pool; Node 24.22.2 passed 15 of 15 runs. The pin is skipped
@@ -573,7 +351,7 @@ function isSafeNode(version) {
  * @param {{ platform?: string, localAppData?: string, version?: string,
  *   readdir?: (dir: string) => string[], exists?: (file: string) => boolean }} [o]
  * @returns {string | null} the folder to put first on PATH, or null (not Windows, already Node 24.22+,
- *   or no portable Node 24 found)
+ *   or no portable Node 24.22+ found)
  */
 export function portableNodeDir(o = {}) {
   const {
@@ -594,6 +372,8 @@ export function portableNodeDir(o = {}) {
   const version = (/** @type {string} */ n) => n.split('-')[1]?.split('.').map(Number) ?? [];
   const newest = names
     .filter(n => /^node-v24\.\d+\.\d+-win-x64$/.test(n))
+    // A folder older than 24.22 has the native crash this pin exists to avoid.
+    .filter(n => isSafeNode(n.split('-')[1]?.slice(1) ?? ''))
     .sort((a, b) => {
       const [x, y] = [version(a), version(b)];
       return (y[1] ?? 0) - (x[1] ?? 0) || (y[2] ?? 0) - (x[2] ?? 0);
@@ -638,7 +418,7 @@ export function nodeNote(o = {}) {
   if (dir) return `green: steps on Node 24 (${dir})`;
   return isSafeNode(version)
     ? `green: steps on Node ${version}`
-    : `green: no portable Node 24 found; steps run on Node ${version}`;
+    : `green: no portable Node 24.22+ found; steps run on Node ${version}`;
 }
 
 /**

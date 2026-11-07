@@ -179,8 +179,20 @@ test('lightFirst: light steps run before the first heavy one, the post-build ste
   const firstHeavy = names.findIndex(n => HEAVY_STEPS.has(n));
   const lastLight = names.findLastIndex(n => LIGHT_FIRST.has(n));
   assert.ok(lastLight < firstHeavy, 'every light step is ahead of the first heavy step');
-  assert.ok(LIGHT_FIRST.has('pi-stage-safety') && LIGHT_FIRST.has('docs-lint') && LIGHT_FIRST.has('changelog'));
-  for (const n of ['typecheck', 'build', 'e2e', 'bundle-budget', 'mcp-schema-smoke', 'standalone-smoke', 'validate-manifest']) {
+  assert.ok(
+    LIGHT_FIRST.has('pi-stage-safety') &&
+      LIGHT_FIRST.has('docs-lint') &&
+      LIGHT_FIRST.has('changelog')
+  );
+  for (const n of [
+    'typecheck',
+    'build',
+    'e2e',
+    'bundle-budget',
+    'mcp-schema-smoke',
+    'standalone-smoke',
+    'validate-manifest',
+  ]) {
     assert.ok(!LIGHT_FIRST.has(n), n);
   }
   const build = names.indexOf('build');
@@ -204,22 +216,50 @@ test('lightFirst: --from a light step still runs typecheck and the other heavy s
   const lastLight = full.findLast(n => LIGHT_FIRST.has(n));
   const late = selectSteps(STEPS, parseArgs(['--from', lastLight])).steps.map(s => s.name);
   assert.equal(late[0], lastLight);
-  assert.ok(late.includes('typecheck') && late.includes('e2e'), 'heavy steps survive a --from at the last light step');
+  assert.ok(
+    late.includes('typecheck') && late.includes('e2e'),
+    'heavy steps survive a --from at the last light step'
+  );
 });
 
 test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY_STEPS fails here, not unlocked', () => {
-  const lightNpm = new Set(['emdash:ratchet', 'version:check', 'usage:catalog:check', 'docs:lint', 'docs:links', 'docs:ui', 'docs:kit:check', 'changelog:check', 'dev:test', 'wiki:test']);
+  const lightNpm = new Set([
+    'emdash:ratchet',
+    'version:check',
+    'usage:catalog:check',
+    'docs:lint',
+    'docs:links',
+    'docs:ui',
+    'docs:kit:check',
+    'changelog:check',
+    'dev:test',
+    'wiki:test',
+  ]);
   for (const s of STEPS.filter(s => LIGHT_FIRST.has(s.name))) {
     const line = commandLine(s);
-    const ok = /^node --test /.test(line) || line === 'node tools/gm-coach/build.mjs' || line === 'node scripts/test-coverage-check.mjs' || line === 'npm test --prefix tools/livekit/recorder' || line === 'npm ci --prefix tools/livekit/recorder' || (/^npm run (\S+)$/.exec(line) && lightNpm.has(/^npm run (\S+)$/.exec(line)[1]));
-    assert.ok(ok, `${s.name} (${line}) is not a known light command: add it to HEAVY_STEPS or to this list`);
+    const ok =
+      /^node --test /.test(line) ||
+      line === 'node tools/gm-coach/build.mjs' ||
+      line === 'node scripts/test-coverage-check.mjs' ||
+      line === 'npm test --prefix tools/livekit/recorder' ||
+      line === 'npm ci --prefix tools/livekit/recorder' ||
+      (/^npm run (\S+)$/.exec(line) && lightNpm.has(/^npm run (\S+)$/.exec(line)[1]));
+    assert.ok(
+      ok,
+      `${s.name} (${line}) is not a known light command: add it to HEAVY_STEPS or to this list`
+    );
   }
 });
 
 test('runLock over the default order: the hold starts after every light step', () => {
   const steps = selectSteps(STEPS, parseArgs([])).steps;
   const taken = [];
-  const lock = runLock(steps, label => (taken.push(label), { held: true, waitedMs: 0, beat() {}, release() {} }), 'g', {});
+  const lock = runLock(
+    steps,
+    label => (taken.push(label), { held: true, waitedMs: 0, beat() {}, release() {} }),
+    'g',
+    {}
+  );
   steps.forEach((s, i) => {
     lock.before(i, s);
     if (LIGHT_FIRST.has(s.name)) assert.equal(taken.length, 0, `${s.name} runs before the lock`);
@@ -271,7 +311,10 @@ test('main: the log goes under green-<stamp>-<pid>/<nn>-<step>.log', () => {
   const m = /FAILED at two \((.+)\)/.exec(r.lines[0]);
   assert.ok(m);
   assert.match(path.basename(m[1]), /^02-two\.log$/);
-  assert.equal(path.basename(path.dirname(m[1])), `${/^green-\d{8}-\d{6}/.exec(path.basename(path.dirname(m[1])))?.[0]}-${process.pid}`);
+  assert.equal(
+    path.basename(path.dirname(m[1])),
+    `${/^green-\d{8}-\d{6}/.exec(path.basename(path.dirname(m[1])))?.[0]}-${process.pid}`
+  );
   assert.equal(path.dirname(path.dirname(m[1])), r.tmp);
 });
 
@@ -455,6 +498,11 @@ test('portableNodeDir: on Windows under Node older than 24.22 the newest portabl
   assert.equal(portableNodeDir({ ...base, version: '25.0.0' }), null, 'newer major');
   assert.ok(portableNodeDir({ ...base, version: '24.21.9' }), 'just below 24.22 still pins');
   assert.ok(portableNodeDir({ ...base, version: '22.22.2' }), 'Node 22 gets the pin');
+  assert.equal(
+    portableNodeDir({ ...base, readdir: () => ['node-v24.15.0-win-x64'] }),
+    null,
+    'a folder holding only node-v24.15.0 is not a safe pin'
+  );
   assert.equal(portableNodeDir({ ...base, platform: 'linux' }), null, 'not Windows');
   assert.equal(portableNodeDir({ ...base, localAppData: '' }), null, 'no LOCALAPPDATA');
   assert.equal(portableNodeDir({ ...base, exists: () => false }), null, 'no node.exe in it');
@@ -495,7 +543,7 @@ test('nodeNote: Windows says which Node the steps run on, other systems say noth
   );
   assert.equal(
     nodeNote({ platform: 'win32', version: '24.15.0', dir: null }),
-    'green: no portable Node 24 found; steps run on Node 24.15.0'
+    'green: no portable Node 24.22+ found; steps run on Node 24.15.0'
   );
   assert.equal(
     nodeNote({ platform: 'win32', version: '24.22.2', dir: null }),
@@ -584,7 +632,11 @@ test('worktreeTreeHash: uncommitted and untracked edits give the tree their comm
   fs.writeFileSync(path.join(dir, '.gitignore'), 'ignored.txt\n');
   const dirty = worktreeTreeHash(dir);
   assert.match(dirty, /^[0-9a-f]{40}$/);
-  assert.equal(git('diff', '--cached', '--name-only').stdout, '', 'nothing staged in the real index');
+  assert.equal(
+    git('diff', '--cached', '--name-only').stdout,
+    '',
+    'nothing staged in the real index'
+  );
   fs.writeFileSync(path.join(dir, 'ignored.txt'), 'x\n');
   assert.equal(worktreeTreeHash(dir), dirty, 'an ignored file does not count');
   git('add', '-A');
@@ -598,7 +650,8 @@ test('worktreeTreeHash: a same-size edit in the second of the last git command i
   // mtime, so the copy has to carry the real index's, or a second boundary between two hashes turns
   // the entry into a trusted stale one. Here the second is pinned: file and index both ten seconds ago.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-racy-'));
-  const git = (/** @type {string[]} */ ...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  const git = (/** @type {string[]} */ ...args) =>
+    spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('config', 'core.trustctime', 'false');
   const old = Math.floor(Date.now() / 1000) - 10;
@@ -628,7 +681,11 @@ test('green stamp with pushed commits: every pushed commit must have the green t
   const second = git('rev-parse', 'HEAD').stdout.trim();
   assert.equal(greenPassedOnThisTree(dir, [second]), false);
   assert.equal(greenPassedOnThisTree(dir, [first, second]), false, 'every commit must match');
-  assert.equal(greenPassedOnThisTree(dir, ['0123456789012345678901234567890123456789']), false, 'unknown commit');
+  assert.equal(
+    greenPassedOnThisTree(dir, ['0123456789012345678901234567890123456789']),
+    false,
+    'unknown commit'
+  );
 });
 
 test('main: a full green run stamps a dirty tree with the tree its commit will have', () => {
@@ -649,7 +706,10 @@ test('main: a full green run stamps a dirty tree with the tree its commit will h
   assert.equal(code, 0);
   git('add', '-A');
   git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'dirty');
-  assert.equal(fs.readFileSync(greenStampPath(dir), 'utf8').trim(), git('rev-parse', 'HEAD^{tree}').stdout.trim());
+  assert.equal(
+    fs.readFileSync(greenStampPath(dir), 'utf8').trim(),
+    git('rev-parse', 'HEAD^{tree}').stdout.trim()
+  );
   assert.equal(greenPassedOnThisTree(dir, [git('rev-parse', 'HEAD').stdout.trim()]), true);
   const run = fs.readdirSync(logs).find(n => n.startsWith('green-'));
   const timings = JSON.parse(fs.readFileSync(path.join(logs, run, 'timings.json'), 'utf8'));
@@ -658,13 +718,22 @@ test('main: a full green run stamps a dirty tree with the tree its commit will h
 });
 
 test('runLock: taken once at the first heavy step, beaten before each later step, released after the last heavy one', () => {
-  const steps = ['docs', 'typecheck', 'light', 'build', 'tail'].map(name => ({ name, cmd: 'x', args: [] }));
+  const steps = ['docs', 'typecheck', 'light', 'build', 'tail'].map(name => ({
+    name,
+    cmd: 'x',
+    args: [],
+  }));
   assert.ok(HEAVY_STEPS.has('typecheck') && HEAVY_STEPS.has('build'));
   const events = [];
   const env = {};
   const take = label => {
     events.push(`take ${label}`);
-    return { held: true, waitedMs: 4000, beat: s => events.push(`beat ${s}`), release: () => events.push('release') };
+    return {
+      held: true,
+      waitedMs: 4000,
+      beat: s => events.push(`beat ${s}`),
+      release: () => events.push('release'),
+    };
   };
   const lock = runLock(steps, take, 'green wt', env);
   steps.forEach((s, i) => {
@@ -713,7 +782,10 @@ test('solo steps (never two greens at once) are real heavy steps', () => {
   assert.ok(SOLO_STEPS.has('e2e'));
   for (const name of SOLO_STEPS) {
     assert.ok(HEAVY_STEPS.has(name), `${name} is heavy`);
-    assert.ok(STEPS.some(s => s.name === name), `${name} is a step`);
+    assert.ok(
+      STEPS.some(s => s.name === name),
+      `${name} is a step`
+    );
   }
 });
 
@@ -780,7 +852,10 @@ test('pre-push: refuses a failing guard, skips after green or by hand', () => {
 
 // ---- green --quick: what a branch touched, no heavy lock ----
 
-const quickNames = files => quickSteps(files, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')).map(s => s.name);
+const quickNames = files =>
+  quickSteps(files, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')).map(
+    s => s.name
+  );
 
 test('quickSteps: typecheck and unit tests of each touched package only', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/a.ts', 'packages/discord-bot/src/b.ts']), [
@@ -807,20 +882,41 @@ test('quickSteps: a dashboard web or test-kit change builds the mcp-server and r
   const web = quickNames(['packages/cogm-dashboard/web/src/App.tsx']);
   assert.ok(web.includes('build-mcp-server') && web.includes('kit-check'), web.join(','));
   assert.ok(web.indexOf('build-mcp-server') < web.indexOf('kit-check'));
-  assert.deepEqual(quickNames(['scripts/test-kit/scenarios/a.json']), ['docs-kit-quick', 'kit-controls', 'build-mcp-server', 'kit-check']);
+  assert.deepEqual(quickNames(['scripts/test-kit/scenarios/a.json']), [
+    'docs-kit-quick',
+    'kit-controls',
+    'build-mcp-server',
+    'kit-check',
+  ]);
   // a module or catalogue input runs the control tests (a new control needs its skip row), not the scenario check
-  assert.deepEqual(quickNames(['packages/foundry-module/src/ui/x.ts']).filter(n => n.startsWith('kit')), ['kit-controls']);
-  assert.deepEqual(quickNames(['shared/src/usage-catalog.generated.ts']).filter(n => n.startsWith('kit')), ['kit-controls']);
+  assert.deepEqual(
+    quickNames(['packages/foundry-module/src/ui/x.ts']).filter(n => n.startsWith('kit')),
+    ['kit-controls']
+  );
+  assert.deepEqual(
+    quickNames(['shared/src/usage-catalog.generated.ts']).filter(n => n.startsWith('kit')),
+    ['kit-controls']
+  );
   assert.ok(!quickNames(['packages/mcp-server/src/a.ts']).includes('kit-check'));
 });
 
 test('quickSteps: a shared change typechecks every package and tests shared', () => {
-  assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'lint-changed', 'unit-shared']);
+  assert.deepEqual(quickNames(['shared/src/types.ts']), [
+    'build-shared',
+    'typecheck-all',
+    'lint-changed',
+    'unit-shared',
+  ]);
 });
 
 test('quickSteps: a changed script runs its test, a changed test runs itself, a missing test is left out', () => {
   const steps = quickSteps(
-    ['scripts/green.mjs', 'scripts/pre-push.mjs', 'scripts/no-such-thing.mjs', '.claude/hooks/guard-model.test.mjs'],
+    [
+      'scripts/green.mjs',
+      'scripts/pre-push.mjs',
+      'scripts/no-such-thing.mjs',
+      '.claude/hooks/guard-model.test.mjs',
+    ],
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   );
   const t = steps.find(s => s.name === 'node-tests');
@@ -864,12 +960,23 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'kit-check',
   ]);
   // A touched spec as well: still one build, the budget before e2e.
-  const both = quickNames(['packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/cogm-dashboard/web/src/App.tsx']);
+  const both = quickNames([
+    'packages/cogm-dashboard/web/e2e/help.spec.ts',
+    'packages/cogm-dashboard/web/src/App.tsx',
+  ]);
   assert.equal(both.filter(n => n === 'build-dashboard').length, 1);
   assert.ok(both.indexOf('bundle-budget') < both.indexOf('e2e-specs'));
   const steps = quickSteps(['packages/cogm-dashboard/web/src/App.tsx']);
-  assert.deepEqual(steps.find(s => s.name === 'bundle-budget').args, ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard']);
-  assert.deepEqual(steps.find(s => s.name === 'catalog-check').args, ['run', 'usage:catalog:check']);
+  assert.deepEqual(steps.find(s => s.name === 'bundle-budget').args, [
+    'run',
+    'bundle:budget',
+    '-w',
+    '@gnuminator/cogm-dashboard',
+  ]);
+  assert.deepEqual(steps.find(s => s.name === 'catalog-check').args, [
+    'run',
+    'usage:catalog:check',
+  ]);
 });
 
 test('quickSteps: the catalogue check follows what usage-catalog.mjs scans', () => {
@@ -883,7 +990,10 @@ test('quickSteps: the catalogue check follows what usage-catalog.mjs scans', () 
   }
   assert.ok(!quickNames(['packages/mcp-server/src/a.ts']).includes('catalog-check'));
   const pub = quickNames(['packages/cogm-dashboard/public/app.js']);
-  assert.ok(!pub.includes('build-dashboard') && !pub.includes('bundle-budget'), 'no web file, no build or budget');
+  assert.ok(
+    !pub.includes('build-dashboard') && !pub.includes('bundle-budget'),
+    'no web file, no build or budget'
+  );
 });
 
 test('main --quick: dashboard web changes end with the screenshot note, others do not', () => {
@@ -898,18 +1008,33 @@ test('main --quick: dashboard web changes end with the screenshot note, others d
     runStep: () => 0,
   };
   assert.equal(main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'] }), 0);
-  assert.equal(lines.at(-1), 'Screenshots are not checked locally; CI dashboard-visual will run them.');
+  assert.equal(
+    lines.at(-1),
+    'Screenshots are not checked locally; CI dashboard-visual will run them.'
+  );
   lines.length = 0;
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
   assert.ok(!lines.some(l => l.includes('Screenshots')));
   lines.length = 0;
-  assert.equal(main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'], runStep: () => 1 }), 1);
-  assert.equal(lines.at(-1), 'Screenshots are not checked locally; CI dashboard-visual will run them.');
+  assert.equal(
+    main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'], runStep: () => 1 }),
+    1
+  );
+  assert.equal(
+    lines.at(-1),
+    'Screenshots are not checked locally; CI dashboard-visual will run them.'
+  );
 });
 
 test('quickSteps: no step name takes the heavy lock', () => {
   const all = quickSteps(
-    ['shared/src/a.ts', 'packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/cogm-dashboard/web/src/a.tsx','packages/foundry-module/src/a.ts', 'scripts/green.mjs'],
+    [
+      'shared/src/a.ts',
+      'packages/cogm-dashboard/web/e2e/help.spec.ts',
+      'packages/cogm-dashboard/web/src/a.tsx',
+      'packages/foundry-module/src/a.ts',
+      'scripts/green.mjs',
+    ],
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   );
   for (const s of all) {
@@ -936,7 +1061,12 @@ test('main --quick: no base ref is an error, not "nothing to check"', () => {
 
 test('main --quick --list: lists the quick steps, and no base is an error too', () => {
   const lines = [];
-  const base = { argv: ['--quick', '--list'], cwd: os.tmpdir(), note: null, log: l => lines.push(l) };
+  const base = {
+    argv: ['--quick', '--list'],
+    cwd: os.tmpdir(),
+    note: null,
+    log: l => lines.push(l),
+  };
   assert.equal(main({ ...base, changed: ['shared/src/a.ts'] }), 0);
   assert.deepEqual(lines, ['build-shared', 'typecheck-all', 'unit-shared']);
   lines.length = 0;
@@ -951,7 +1081,15 @@ test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Mark
     fs.mkdirSync(path.dirname(path.join(cwd, f)), { recursive: true });
     fs.writeFileSync(path.join(cwd, f), '');
   };
-  for (const f of ['packages/a/src/b.ts', 'packages/a/src/c.tsx', 'packages/a/src/types.d.ts', 'docs/gm/x.md', 'changelog.d/y.md', 'scripts/z.mjs']) touch(f);
+  for (const f of [
+    'packages/a/src/b.ts',
+    'packages/a/src/c.tsx',
+    'packages/a/src/types.d.ts',
+    'docs/gm/x.md',
+    'changelog.d/y.md',
+    'scripts/z.mjs',
+  ])
+    touch(f);
   const files = [
     'packages/a/src/c.tsx',
     'packages/a/src/b.ts',
@@ -963,30 +1101,64 @@ test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Mark
     'scripts/z.mjs',
   ];
   const steps = quickLintSteps(files, cwd);
-  assert.deepEqual(steps.map(s => s.name), ['lint-changed', 'docs-lint-changed', 'docs-links-quick']);
+  assert.deepEqual(
+    steps.map(s => s.name),
+    ['lint-changed', 'docs-lint-changed', 'docs-links-quick']
+  );
   // present files only, sorted; no .d.ts (ESLint ignores it), no deleted file (ESLint fails on it)
-  assert.deepEqual(steps[0].args, ['--no-install', 'eslint', '--no-warn-ignored', '--max-warnings', '0', 'packages/a/src/b.ts', 'packages/a/src/c.tsx']);
+  assert.deepEqual(steps[0].args, [
+    '--no-install',
+    'eslint',
+    '--no-warn-ignored',
+    '--max-warnings',
+    '0',
+    'packages/a/src/b.ts',
+    'packages/a/src/c.tsx',
+  ]);
   assert.equal(steps[0].cmd, 'npx');
   // --no-globs: only the named files, not the config's "**/*.md"
-  assert.deepEqual(steps[1].args, ['run', 'docs:lint', '--', '--no-globs', 'changelog.d/y.md', 'docs/gm/x.md']);
+  assert.deepEqual(steps[1].args, [
+    'run',
+    'docs:lint',
+    '--',
+    '--no-globs',
+    'changelog.d/y.md',
+    'docs/gm/x.md',
+  ]);
   assert.deepEqual(steps[2].args, ['run', 'docs:links']);
   for (const s of steps) assert.doesNotThrow(() => commandLine(s));
 
   // A deleted Markdown file alone: nothing to lint, but a link to it may now be broken.
-  assert.deepEqual(quickLintSteps(['docs/gm/gone.md'], cwd).map(s => s.name), ['docs-links-quick']);
+  assert.deepEqual(
+    quickLintSteps(['docs/gm/gone.md'], cwd).map(s => s.name),
+    ['docs-links-quick']
+  );
   // No TypeScript or Markdown: no lint step.
   assert.deepEqual(quickLintSteps(['scripts/z.mjs', 'packages/a/package.json'], cwd), []);
   // A name that would need quoting is left out rather than breaking the command line.
   touch('docs/gm/with space.md');
-  assert.deepEqual(quickLintSteps(['docs/gm/with space.md'], cwd).map(s => s.name), ['docs-links-quick']);
+  assert.deepEqual(
+    quickLintSteps(['docs/gm/with space.md'], cwd).map(s => s.name),
+    ['docs-links-quick']
+  );
 });
 
 test('quickLintSteps: a changed lint config or a very long list lints everything', t => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'quick-lint-'));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
-  const lintAll = { name: 'lint-changed', cmd: 'npm', args: ['run', 'lint', '--', '--max-warnings', '0'] };
+  const lintAll = {
+    name: 'lint-changed',
+    cmd: 'npm',
+    args: ['run', 'lint', '--', '--max-warnings', '0'],
+  };
   // ESLint's own inputs: its config, Prettier's (eslint-plugin-prettier), the type-aware tsconfig, the lockfile.
-  for (const f of ['eslint.config.mjs', '.prettierrc', '.prettierignore', 'tsconfig.eslint.json', 'package-lock.json']) {
+  for (const f of [
+    'eslint.config.mjs',
+    '.prettierrc',
+    '.prettierignore',
+    'tsconfig.eslint.json',
+    'package-lock.json',
+  ]) {
     assert.deepEqual(quickLintSteps([f], cwd), [lintAll], f);
   }
   assert.deepEqual(
@@ -1029,7 +1201,10 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
     'docs-links-quick',
     'unit-mcp-server',
   ]);
-  for (const s of quickSteps(['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md'], root)) {
+  for (const s of quickSteps(
+    ['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md'],
+    root
+  )) {
     assert.ok(!HEAVY_STEPS.has(s.name), `${s.name} would take a heavy slot`);
     assert.ok(!LIGHT_FIRST.has(s.name), `${s.name} would be reordered by lightFirst`);
   }
@@ -1096,28 +1271,50 @@ function fakeGit(over = {}) {
   };
   return args => {
     const v = answers[args.join(' ')];
-    return v === undefined ? { status: 1, stdout: '', stderr: 'no' } : { status: 0, stdout: v, stderr: '' };
+    return v === undefined
+      ? { status: 1, stdout: '', stderr: 'no' }
+      : { status: 0, stdout: v, stderr: '' };
   };
 }
 
 /** A fake gh over scripted runs; records every call. */
-function fakeGh({ existing = [], laterExisting = null, dispatched = [], views = [], dispatchStatus = 0, openPr = false, listFails = false, viewFails = false }) {
+function fakeGh({
+  existing = [],
+  laterExisting = null,
+  dispatched = [],
+  views = [],
+  dispatchStatus = 0,
+  openPr = false,
+  listFails = false,
+  viewFails = false,
+}) {
   const calls = [];
   let viewNo = 0;
   let commitLists = 0;
   const gh = args => {
     calls.push(args.join(' '));
-    if (args[0] === 'pr') return { status: 0, stdout: JSON.stringify(openPr ? [{ number: 1 }] : []), stderr: '' };
+    if (args[0] === 'pr')
+      return { status: 0, stdout: JSON.stringify(openPr ? [{ number: 1 }] : []), stderr: '' };
     if (args[0] === 'run' && args[1] === 'list') {
       if (listFails) return { status: 1, stdout: '', stderr: 'gh: not logged in' };
       const isCommit = args.includes('--commit');
-      const rows = isCommit ? (commitLists++ > 0 && laterExisting ? laterExisting : existing) : args.includes('workflow_dispatch') ? dispatched : [];
+      const rows = isCommit
+        ? commitLists++ > 0 && laterExisting
+          ? laterExisting
+          : existing
+        : args.includes('workflow_dispatch')
+          ? dispatched
+          : [];
       return { status: 0, stdout: JSON.stringify(rows), stderr: '' };
     }
     if (args[0] === 'workflow') return { status: dispatchStatus, stdout: '', stderr: 'HTTP 403' };
     if (args[0] === 'run' && args[1] === 'view') {
       if (viewFails) return { status: 1, stdout: '', stderr: 'HTTP 401' };
-      return { status: 0, stdout: JSON.stringify(views[Math.min(viewNo++, views.length - 1)]), stderr: '' };
+      return {
+        status: 0,
+        stdout: JSON.stringify(views[Math.min(viewNo++, views.length - 1)]),
+        stderr: '',
+      };
     }
     return { status: 1, stdout: '', stderr: 'unexpected' };
   };
@@ -1144,7 +1341,12 @@ function cloud(git, gh, extra = {}) {
   return { code, lines };
 }
 
-const doneView = (conclusion, jobs = []) => ({ status: 'completed', conclusion, url: 'https://gh/run/7', jobs });
+const doneView = (conclusion, jobs = []) => ({
+  status: 'completed',
+  conclusion,
+  url: 'https://gh/run/7',
+  jobs,
+});
 
 test('parseArgs: --cloud is a flag that cannot be mixed with step selection', () => {
   assert.equal(parseArgs(['--cloud']).cloud, true);
@@ -1168,7 +1370,15 @@ test('main --cloud with a step flag is a usage error and never touches the lock 
 test('main --cloud runs CI through gh: no heavy lock, no local step, no green stamp', () => {
   const lines = [];
   const { gh } = fakeGh({
-    existing: [{ databaseId: 7, status: 'completed', conclusion: 'success', headSha: SHA, event: 'pull_request' }],
+    existing: [
+      {
+        databaseId: 7,
+        status: 'completed',
+        conclusion: 'success',
+        headSha: SHA,
+        event: 'pull_request',
+      },
+    ],
     views: [doneView('success')],
   });
   const code = main({
@@ -1184,8 +1394,14 @@ test('main --cloud runs CI through gh: no heavy lock, no local step, no green st
 });
 
 test('repoFromUrl reads https and ssh remotes', () => {
-  assert.equal(repoFromUrl('https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
-  assert.equal(repoFromUrl('git@github.com:Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
+  assert.equal(
+    repoFromUrl('https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'),
+    'Gnuminator/Foundry-VTT-MCP-Ai-Tool'
+  );
+  assert.equal(
+    repoFromUrl('git@github.com:Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'),
+    'Gnuminator/Foundry-VTT-MCP-Ai-Tool'
+  );
   assert.equal(repoFromUrl('https://example.com/x/y'), null);
 });
 
@@ -1199,7 +1415,9 @@ test('cloud: refuses a dirty tree', () => {
 
 test('cloud: refuses a HEAD that is not pushed', () => {
   const { gh, calls } = fakeGh({});
-  const git = fakeGit({ 'ls-remote aitool refs/heads/claude/topic': `${'b'.repeat(40)}\trefs/heads/claude/topic` });
+  const git = fakeGit({
+    'ls-remote aitool refs/heads/claude/topic': `${'b'.repeat(40)}\trefs/heads/claude/topic`,
+  });
   const { code, lines } = cloud(git, gh);
   assert.equal(code, 1);
   assert.match(lines[0], /not pushed to aitool\/claude\/topic/);
@@ -1210,7 +1428,9 @@ test('cloud: refuses a HEAD that is not pushed', () => {
 
 test('cloud: reuses the CI run already started for the head and prints one OK line', () => {
   const { gh, calls } = fakeGh({
-    existing: [{ databaseId: 7, status: 'in_progress', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    existing: [
+      { databaseId: 7, status: 'in_progress', conclusion: '', headSha: SHA, event: 'pull_request' },
+    ],
     views: [{ status: 'in_progress', conclusion: '', url: 'u', jobs: [] }, doneView('success')],
   });
   const { code, lines } = cloud(fakeGit(), gh);
@@ -1222,25 +1442,51 @@ test('cloud: reuses the CI run already started for the head and prints one OK li
 
 test('cloud: a cancelled run does not count, ci.yml is dispatched on the branch and its run is found', () => {
   const { gh, calls } = fakeGh({
-    existing: [{ databaseId: 5, status: 'completed', conclusion: 'cancelled', headSha: SHA, event: 'push' }],
+    existing: [
+      { databaseId: 5, status: 'completed', conclusion: 'cancelled', headSha: SHA, event: 'push' },
+    ],
     dispatched: [
-      { databaseId: 6, status: 'completed', conclusion: 'success', headSha: 'c'.repeat(40), event: 'workflow_dispatch' },
+      {
+        databaseId: 6,
+        status: 'completed',
+        conclusion: 'success',
+        headSha: 'c'.repeat(40),
+        event: 'workflow_dispatch',
+      },
       { databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' },
     ],
     views: [doneView('success')],
   });
   const { code } = cloud(fakeGit(), gh);
   assert.equal(code, 0);
-  assert.ok(calls.includes('workflow run ci.yml -R Gnuminator/Foundry-VTT-MCP-Ai-Tool --ref claude/topic'));
+  assert.ok(
+    calls.includes('workflow run ci.yml -R Gnuminator/Foundry-VTT-MCP-Ai-Tool --ref claude/topic')
+  );
   assert.ok(calls.some(c => c.startsWith('run view 7 ')));
 });
 
 test('cloud: a failed run names the failed job, step and URL', () => {
   const { gh } = fakeGh({
-    existing: [{ databaseId: 7, status: 'completed', conclusion: 'failure', headSha: SHA, event: 'pull_request' }],
+    existing: [
+      {
+        databaseId: 7,
+        status: 'completed',
+        conclusion: 'failure',
+        headSha: SHA,
+        event: 'pull_request',
+      },
+    ],
     views: [
       doneView('failure', [
-        { name: 'build-test (Node 22)', conclusion: 'failure', url: 'https://gh/job/1', steps: [{ name: 'Setup', conclusion: 'success' }, { name: 'Run e2e', conclusion: 'failure' }] },
+        {
+          name: 'build-test (Node 22)',
+          conclusion: 'failure',
+          url: 'https://gh/job/1',
+          steps: [
+            { name: 'Setup', conclusion: 'success' },
+            { name: 'Run e2e', conclusion: 'failure' },
+          ],
+        },
         { name: 'build-test (Node 24)', conclusion: 'success', url: 'https://gh/job/2', steps: [] },
       ]),
     ],
@@ -1258,7 +1504,9 @@ test('cloud: a branch with an open PR waits for the pull_request run instead of 
   const { gh, calls } = fakeGh({
     openPr: true,
     existing: [],
-    laterExisting: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    laterExisting: [
+      { databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'pull_request' },
+    ],
     views: [doneView('success')],
   });
   const { code } = cloud(fakeGit(), gh);
@@ -1270,7 +1518,9 @@ test('cloud: an open PR whose run never shows up still gets a dispatch with its 
   const { gh, calls } = fakeGh({
     openPr: true,
     existing: [],
-    dispatched: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' }],
+    dispatched: [
+      { databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' },
+    ],
     views: [doneView('success')],
   });
   const { code } = cloud(fakeGit(), gh);
@@ -1284,11 +1534,17 @@ test('cloud: gh and git errors are reported, not turned into a dispatch or a wro
   assert.equal(a.code, 1);
   assert.match(a.lines[0], /could not list CI runs \(gh: gh: not logged in\)/);
   assert.ok(!list.calls.some(c => c.startsWith('workflow run')));
-  const view = fakeGh({ existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }], viewFails: true });
+  const view = fakeGh({
+    existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
+    viewFails: true,
+  });
   const b = cloud(fakeGit(), view.gh);
   assert.equal(b.code, 1);
   assert.match(b.lines[0], /gh failed 5 times in a row while waiting for run 7: HTTP 401/);
-  const ls = (args) => (args[0] === 'ls-remote' ? { status: 128, stdout: '', stderr: 'fatal: unable to access' } : fakeGit()(args));
+  const ls = args =>
+    args[0] === 'ls-remote'
+      ? { status: 128, stdout: '', stderr: 'fatal: unable to access' }
+      : fakeGit()(args);
   const c = cloud(ls, fakeGh({}).gh);
   assert.match(c.lines[0], /could not reach aitool: fatal: unable to access/);
 });
@@ -1296,24 +1552,35 @@ test('cloud: gh and git errors are reported, not turned into a dispatch or a wro
 test('cloud: a run cancelled while waiting is called cancelled, and main is refused', () => {
   const { gh } = fakeGh({
     existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
-    views: [doneView('cancelled', [{ name: 'build-test', conclusion: 'cancelled', url: 'j', steps: [] }])],
+    views: [
+      doneView('cancelled', [{ name: 'build-test', conclusion: 'cancelled', url: 'j', steps: [] }]),
+    ],
   });
   const a = cloud(fakeGit(), gh);
   assert.equal(a.code, 1);
-  assert.match(a.lines[0], /^green: FAILED \(cloud, cancelled\) CI run https:\/\/gh\/run\/7 was cancelled/);
+  assert.match(
+    a.lines[0],
+    /^green: FAILED \(cloud, cancelled\) CI run https:\/\/gh\/run\/7 was cancelled/
+  );
   const b = cloud(fakeGit({ 'rev-parse --abbrev-ref HEAD': 'main' }), fakeGh({}).gh);
   assert.equal(b.code, 1);
   assert.match(b.lines[0], /CI on main runs on push/);
 });
 
 test('ci.yml keeps what --cloud relies on: workflow_dispatch and a per-ref concurrency group', () => {
-  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  const yml = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'),
+    'utf8'
+  );
   assert.match(yml, /^ {2}workflow_dispatch:/m);
   assert.match(yml, /^ {2}group: .*github\.ref/m);
 });
 
 test('ci.yml: every job name carries the dispatch suffix, so a --cloud run never shares a check key with the PR run', () => {
-  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  const yml = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'),
+    'utf8'
+  );
   const lines = yml.split(/\r?\n/);
   const jobsAt = lines.indexOf('jobs:');
   assert.ok(jobsAt > 0, 'a jobs: section');
@@ -1325,8 +1592,15 @@ test('ci.yml: every job name carries the dispatch suffix, so a --cloud run never
   }
   assert.ok(blocks.length >= 6, 'the jobs were found');
   for (const b of blocks) {
-    assert.equal(b.names.length, 1, `${b.id} has exactly one name: line (a job without one shares its key)`);
-    assert.ok(b.names[0].endsWith("${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}"), b.id);
+    assert.equal(
+      b.names.length,
+      1,
+      `${b.id} has exactly one name: line (a job without one shares its key)`
+    );
+    assert.ok(
+      b.names[0].endsWith("${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}"),
+      b.id
+    );
   }
   // --cloud on a branch without a PR still has what it needs: the dispatch trigger to start a run
   assert.match(yml, /^ {2}workflow_dispatch:/m);
@@ -1349,4 +1623,24 @@ test('cloud: gives up when the run is still going at the timeout', () => {
   const { code, lines } = cloud(fakeGit(), gh, { timeoutMs: 5000 });
   assert.equal(code, 1);
   assert.match(lines[0], /still going after 0m5s/);
+});
+
+// ---- scripts/checks.mjs: the one list of checks ----
+
+test('checks.mjs: drift-check.mjs holds exactly the guards checks.mjs marks as drift', async () => {
+  const { driftChecks } = await import('./checks.mjs');
+  const { CHECKS: driftLiteral } = await import('./drift-check.mjs');
+  assert.deepEqual(driftLiteral, driftChecks());
+});
+
+test('checks.mjs: names are unique, every entry has a group, and green gets the step view', async () => {
+  const { CHECKS: all, STEPS: steps, HEAVY_STEPS: heavy } = await import('./checks.mjs');
+  const names = all.map(c => c.name);
+  assert.equal(new Set(names).size, names.length);
+  for (const c of all) assert.ok(c.group, `${c.name} needs a group`);
+  assert.deepEqual(
+    steps.map(s => s.name),
+    all.filter(c => c.steps !== false).map(c => c.name)
+  );
+  for (const h of heavy) assert.ok(names.includes(h), `HEAVY_STEPS names unknown step ${h}`);
 });

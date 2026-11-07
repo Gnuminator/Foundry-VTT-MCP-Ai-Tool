@@ -4,6 +4,9 @@
 // (just this, everything since, the rewind and its second question) and apply-planned-change, a
 // reveal's plain undo-change (#330), and the refusals (GM Actions off, a failed plan, a failed
 // list).
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
@@ -167,6 +170,24 @@ async function openEveryone(page: Page): Promise<Locator> {
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
+});
+
+// The fake bridge above must not invent fields: every key it sends for an Everyone row is one the
+// real bridge sends (shared/fixtures/bridge/change-list.json, written from the real ChangeHistory).
+test('the fake Everyone rows use only keys the real bridge sends', () => {
+  const real = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL('../../../../shared/fixtures/bridge/change-list.json', import.meta.url)
+      ),
+      'utf8'
+    )
+  ) as { changes: Record<string, unknown>[] };
+  const sent = new Set(real.changes.flatMap(c => Object.keys(c)));
+  const fake = new Set(
+    EVERYONE_LIST.changes.flatMap((c: Record<string, unknown>) => Object.keys(c))
+  );
+  expect([...fake].filter(k => !sent.has(k))).toEqual([]);
 });
 
 test('the Tool tab loads the changes with their state, details and Undo where it can be', async ({

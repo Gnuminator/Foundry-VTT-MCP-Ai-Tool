@@ -87,14 +87,21 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "husky": "^9.1.7",
+    "js-yaml": "^4.3.2",
     "knip": "^5.64.1",
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
     "prettier": "^3.0.0",
-    "typescript": "^5.0.0",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
+    "typescript7": "npm:typescript@^7.0.2",
     "vitest": "^3.2.6"
+  },
+  "overrides": {
+    "madge": {
+      "typescript": "$typescript"
+    }
   },
   "engines": {
     "node": ">=24",

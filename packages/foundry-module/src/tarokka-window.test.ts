@@ -63,6 +63,7 @@ function makeDeps(over: Partial<TarokkaDeps> = {}): TarokkaDeps & {
   openDocument: ReturnType<typeof vi.fn>;
   notifyInfo: ReturnType<typeof vi.fn>;
   notifyError: ReturnType<typeof vi.fn>;
+  notifyWarn: ReturnType<typeof vi.fn>;
 } {
   return {
     request: vi.fn(async (tool: string) => {
@@ -74,6 +75,7 @@ function makeDeps(over: Partial<TarokkaDeps> = {}): TarokkaDeps & {
     openDocument: vi.fn().mockResolvedValue({ opened: true }),
     notifyInfo: vi.fn(),
     notifyError: vi.fn(),
+    notifyWarn: vi.fn(),
     ...over,
   } as any;
 }
@@ -315,7 +317,8 @@ describe('TarokkaController', () => {
       await c.revealPosition('a');
       expect(deps.request).not.toHaveBeenCalled();
       expect(c.view.actionError).toMatch(/Write the text/);
-      expect(deps.notifyError).toHaveBeenCalled();
+      expect(deps.notifyWarn).toHaveBeenCalled();
+      expect(deps.notifyError).not.toHaveBeenCalled();
       expect(c.view.forms.a).toBeDefined();
     });
 

@@ -20,7 +20,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
       "@shared/*": ["./shared/*"],
       "@foundry-module/*": ["./packages/foundry-module/*"],

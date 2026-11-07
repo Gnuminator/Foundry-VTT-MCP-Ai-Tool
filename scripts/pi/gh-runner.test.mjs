@@ -233,6 +233,91 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.equal(dry(d), 'state=idle decision=idle');
   });
 
+  // Presence: an unmarked night. Records are PlayRecords in <date>.play.jsonl (kind, t, userId, data.isGM).
+  const rec = (kind, ms, userId, data = { isGM: false }) =>
+    JSON.stringify({ key: `${kind}:${userId}:${ms}`, t: ms, kind, userId, data });
+  const play = lines => fakePi({ logs: { w: { '2026-11-15.play.jsonl': lines } } });
+
+  test('a connected player without any session marker is playing, and the runners stop', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } },
+      active: UNITS.split(' '),
+    });
+    assert.equal(dry(d), 'state=playing decision=playing players=connected');
+    const r = runGate(d);
+    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(r.out, /playing \(players connected, no session marker\): stopped/);
+  });
+
+  test('a player who joined and left is idle; a rejoin counts again', () => {
+    const left = play([
+      rec('user-join', NOW - hours(3), 'p1'),
+      rec('user-leave', NOW - hours(1), 'p1'),
+    ]);
+    assert.equal(dry(left), 'state=idle decision=idle');
+    const back = play([
+      rec('user-join', NOW - hours(3), 'p1'),
+      rec('user-leave', NOW - hours(2), 'p1'),
+      rec('user-join', NOW - hours(1), 'p1'),
+    ]);
+    assert.match(dry(back), /state=playing/);
+  });
+
+  test('one player gone and another still connected is playing', () => {
+    const d = play([
+      rec('user-join', NOW - hours(3), 'p1'),
+      rec('user-join', NOW - hours(3), 'p2'),
+      rec('user-leave', NOW - hours(1), 'p1'),
+    ]);
+    assert.match(dry(d), /state=playing/);
+  });
+
+  test('a GM or the table viewer joining does not count', () => {
+    const gm = play([rec('user-join', NOW - hours(1), 'gm', { isGM: true })]);
+    assert.equal(dry(gm), 'state=idle decision=idle');
+    const tv = play([rec('user-join', NOW - hours(1), 'tv', { isGM: false, tableViewer: true })]);
+    assert.equal(dry(tv), 'state=idle decision=idle');
+  });
+
+  test('a join older than 14 hours with no leave is stale (idle)', () => {
+    const d = play([rec('user-join', NOW - hours(15), 'p1')]);
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('a player who joined before midnight and left after is idle (two files)', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-14.play.jsonl': [rec('user-join', NOW - hours(6), 'p1')],
+          '2026-11-15.play.jsonl': [rec('user-leave', NOW - hours(1), 'p1')],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('a marked session is not reported as players, and garbage play lines do not decide', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-15.jsonl': [marker('session-start', NOW - hours(1))],
+          '2026-11-15.play.jsonl': [
+            rec('user-join', NOW - hours(1), 'p1'),
+            '{"kind":"user-jo',
+            'nope',
+          ],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=playing decision=playing');
+    const junk = play([
+      '{"kind":"user-join"}',
+      'nope',
+      '{"kind":"user-join","userId":"p","t":"x"}',
+    ]);
+    assert.equal(dry(junk), 'state=idle decision=idle');
+  });
+
   test('a half-written last line does not decide', () => {
     const d = fakePi({
       logs: {
@@ -263,11 +348,11 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
   test('unknown for longer than the ceiling lets the runners run again, and says so', () => {
     const d = fakePi({ vault: false });
     assert.equal(dry(d), 'state=unknown decision=unknown');
-    const later = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(7)) });
+    const later = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(15)) });
     assert.match(later.out, /state=unknown decision=idle/);
-    assert.match(later.out, /unknown for over 6 hours/);
+    assert.match(later.out, /unknown for over 14 hours/);
     assert.match(
-      runGate(d, { GATE_NOW_MS: String(NOW + hours(7)) }).calls,
+      runGate(d, { GATE_NOW_MS: String(NOW + hours(15)) }).calls,
       /start foundry-ai-tool-gh-runner-vault\.service/
     );
   });
@@ -278,7 +363,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     mkdirSync(path.join(d, 'vault'));
     assert.equal(dry(d), 'state=idle decision=idle');
     rmSync(path.join(d, 'vault'), { recursive: true });
-    const again = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(7)) });
+    const again = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(15)) });
     assert.match(again.out, /state=unknown decision=unknown/);
   });
 });
@@ -303,43 +388,60 @@ describe('the stage as text', () => {
     return spawnSync('bash', [posix(file)], { encoding: 'utf8' });
   };
 
-  test('the allow list is the router plus the IPv4 nameservers of resolv.conf, without duplicates', { skip: !hasBash }, () => {
-    assert.ok(allowBlock, 'ALLOW block found');
-    const r = allowFor('nameserver 192.168.1.1\nnameserver 1.1.1.1\nnameserver 2606:4700::1111\n');
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /^ALLOW=192\.168\.1\.1\/32 1\.1\.1\.1\/32$/m);
-  });
+  test(
+    'the allow list is the router plus the IPv4 nameservers of resolv.conf, without duplicates',
+    { skip: !hasBash },
+    () => {
+      assert.ok(allowBlock, 'ALLOW block found');
+      const r = allowFor(
+        'nameserver 192.168.1.1\nnameserver 1.1.1.1\nnameserver 2606:4700::1111\n'
+      );
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /^ALLOW=192\.168\.1\.1\/32 1\.1\.1\.1\/32$/m);
+    }
+  );
 
-  test('a loopback nameserver stops the stage, names the address and is never allowed', { skip: !hasBash }, () => {
-    for (const ns of ['127.0.0.53', '127.0.0.1', '127.1.2.3']) {
-      const r = allowFor(`nameserver 1.1.1.1\nnameserver ${ns}\n`);
-      assert.notEqual(r.status, 0, ns);
-      assert.ok(r.stderr.includes(`loopback nameserver (${ns})`), r.stderr);
-      assert.ok(!r.stdout.includes('127.'), `${ns} left the allow list: ${r.stdout}`);
+  test(
+    'a loopback nameserver stops the stage, names the address and is never allowed',
+    { skip: !hasBash },
+    () => {
+      for (const ns of ['127.0.0.53', '127.0.0.1', '127.1.2.3']) {
+        const r = allowFor(`nameserver 1.1.1.1\nnameserver ${ns}\n`);
+        assert.notEqual(r.status, 0, ns);
+        assert.ok(r.stderr.includes(`loopback nameserver (${ns})`), r.stderr);
+        assert.ok(!r.stdout.includes('127.'), `${ns} left the allow list: ${r.stdout}`);
+      }
+      // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
+      assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
     }
-    // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
-    assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
-  });
+  );
 
-  test('a Tailscale nameserver or one of the Pi’s own addresses stops the stage too', { skip: !hasBash }, () => {
-    for (const ns of ['100.100.100.100', '100.64.0.1', '100.127.255.254']) {
-      const r = allowFor(`nameserver ${ns}\n`);
-      assert.notEqual(r.status, 0, ns);
-      assert.ok(r.stderr.includes(`Tailscale nameserver (${ns})`), r.stderr);
+  test(
+    'a Tailscale nameserver or one of the Pi’s own addresses stops the stage too',
+    { skip: !hasBash },
+    () => {
+      for (const ns of ['100.100.100.100', '100.64.0.1', '100.127.255.254']) {
+        const r = allowFor(`nameserver ${ns}\n`);
+        assert.notEqual(r.status, 0, ns);
+        assert.ok(r.stderr.includes(`Tailscale nameserver (${ns})`), r.stderr);
+      }
+      const own = allowFor('nameserver 192.168.1.50\n');
+      assert.notEqual(own.status, 0);
+      assert.ok(own.stderr.includes('own address as nameserver (192.168.1.50)'), own.stderr);
+      // Just outside 100.64.0.0/10, and another LAN host: allowed.
+      for (const ns of ['100.63.0.1', '100.128.0.1', '192.168.1.60']) {
+        const r = allowFor(`nameserver ${ns}\n`);
+        assert.equal(r.status, 0, `${ns}: ${r.stderr}`);
+        assert.ok(r.stdout.includes(`${ns}/32`), r.stdout);
+      }
     }
-    const own = allowFor('nameserver 192.168.1.50\n');
-    assert.notEqual(own.status, 0);
-    assert.ok(own.stderr.includes('own address as nameserver (192.168.1.50)'), own.stderr);
-    // Just outside 100.64.0.0/10, and another LAN host: allowed.
-    for (const ns of ['100.63.0.1', '100.128.0.1', '192.168.1.60']) {
-      const r = allowFor(`nameserver ${ns}\n`);
-      assert.equal(r.status, 0, `${ns}: ${r.stderr}`);
-      assert.ok(r.stdout.includes(`${ns}/32`), r.stdout);
-    }
-  });
+  );
 
   test('config.sh starts inside the runner folder (it runs `ldd ./bin/...`, relative to the cwd)', () => {
-    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env -C "\$dir" [^\n]*\.\/config\.sh --unattended/);
+    assert.match(
+      stage,
+      /runuser -u "\$RUNNER_USER" -- env -C "\$dir" [^\n]*\.\/config\.sh --unattended/
+    );
     assert.ok(!stage.includes('"$dir/config.sh"'));
   });
 
@@ -422,24 +524,28 @@ describe('the stage as text', () => {
 
 // With PI_STAGE17_CONTAINER=1 (needs Docker): the registration step in a Debian 13 ARM64 container, started from a
 // folder the runner user cannot enter.
-describe('stage 17 registration in the ARM64 container', { skip: process.env.PI_STAGE17_CONTAINER !== '1' }, () => {
-  test('scenarios', () => {
-    const r = spawnSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--platform',
-        'linux/arm64',
-        '-v',
-        `${repo}:/repo:ro`,
-        'debian:13-slim',
-        'bash',
-        '/repo/scripts/pi/container-test/stage17-scenarios.sh',
-      ],
-      { encoding: 'utf8', timeout: 600000 }
-    );
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-  });
-});
+describe(
+  'stage 17 registration in the ARM64 container',
+  { skip: process.env.PI_STAGE17_CONTAINER !== '1' },
+  () => {
+    test('scenarios', () => {
+      const r = spawnSync(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '--platform',
+          'linux/arm64',
+          '-v',
+          `${repo}:/repo:ro`,
+          'debian:13-slim',
+          'bash',
+          '/repo/scripts/pi/container-test/stage17-scenarios.sh',
+        ],
+        { encoding: 'utf8', timeout: 600000 }
+      );
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+    });
+  }
+);

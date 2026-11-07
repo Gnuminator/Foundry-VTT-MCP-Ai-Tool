@@ -1,4 +1,4 @@
-// The Live Feed (D-092), ported from the old page: the session events as they happen, newest
+// The Live Feed (D-092): the session events as they happen, newest
 // first, in the During view's feed slot. It only reads: the events come from the stream (the
 // server replays its recent ones on every connect), the newest 120 stay on screen, and the head
 // counts every event since the page loaded ("120 of 340 events" once the cap has pushed some out).
@@ -9,7 +9,7 @@
 // The old pane has no controls (no filter, clear or pause), and none was added. What is new: the
 // list is a real list that can be scrolled with the keyboard, new events are announced (one short
 // message per batch, see below), a feed shown while the bridge is away says so, and the card has
-// the "?" the old page had.
+// the "?" help.
 import { memo, useState, type JSX } from 'react';
 
 import { foldBodyId } from '../lib/duringFolds';

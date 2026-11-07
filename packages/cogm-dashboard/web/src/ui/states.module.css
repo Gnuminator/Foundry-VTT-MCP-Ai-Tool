@@ -1,5 +1,5 @@
 /* The loading bars (Skeleton) and the text kept for screen readers next to them. Everything else
-   in states.tsx is the old page's .empty block. */
+   in states.tsx is the shared .empty block of styles.css. */
 .skeleton {
   display: flex;
   flex-direction: column;

@@ -5,7 +5,7 @@
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
@@ -117,9 +117,18 @@ async function start(
     lastPollAt: null,
     foundryDownSince: null,
   });
-  await new Promise(resolve => setTimeout(resolve, 200));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  // The world is fetched in the background once Foundry is reachable: wait until the GM state has it.
+  await vi.waitFor(
+    async () => {
+      const res = await fetch(`${base}/api/state`, { headers: { 'X-CoGM-Token': GM_TOKEN } });
+      const state = (await res.json()) as { world: { id: string } | null };
+      expect(state.world?.id).toBe('world-me');
+    },
+    { timeout: 5000 }
+  );
   return {
-    base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    base,
     asked,
     rolled,
     portraits,

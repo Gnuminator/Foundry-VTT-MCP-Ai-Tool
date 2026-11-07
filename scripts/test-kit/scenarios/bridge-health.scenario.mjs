@@ -33,6 +33,7 @@ export default {
       t.equal(status, 200, 'GET /api/health status');
       t.check(data && data.ok === true, '/api/health says ok', data);
       t.equal(data.controlChannel, 'connected', 'control channel');
+      t.equal(data.foundry, 'reachable', 'the bridge reaches Foundry');
     });
 
     await t.step('get-world-info names the kit world', async () => {

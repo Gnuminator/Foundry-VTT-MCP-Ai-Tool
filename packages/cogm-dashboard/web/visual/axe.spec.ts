@@ -1,6 +1,6 @@
 // Accessibility check (UI-01): axe on every screen at 1440 wide (the other projects skip this file),
 // in both themes. Serious and critical violations fail the test, except the ones listed in
-// axe-known.ts (found when this check was added; the old page shares the CSS, so they are not
+// axe-known.ts (found when this check was added; the CSS is shared, so they are not
 // restyled here). A new violation fails, and so does a known entry that no longer occurs on its
 // screen and theme (its cause is fixed: remove the entry).
 import AxeBuilder from '@axe-core/playwright';

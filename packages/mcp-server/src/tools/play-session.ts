@@ -177,7 +177,7 @@ export class PlaySessionTools {
       {
         name: 'mark-play-session',
         description:
-          'Direct write. Mark the start or end of a play session with a line in the bridge vault\'s session log (sessions/<date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.',
+          'Direct write. GM ONLY. Mark the start or end of a play session with a line in the bridge vault\'s session log (sessions/<date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.',
         inputSchema: {
           type: 'object',
           properties: {

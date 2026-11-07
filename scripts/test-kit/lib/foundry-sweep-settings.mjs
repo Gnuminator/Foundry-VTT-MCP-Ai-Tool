@@ -1,7 +1,7 @@
 /**
  * The settings rows of the `foundry-controls` sweep: the "Foundry AI Tool" section of Configure
- * Settings, a sample of its feature switches, its three menus (the GM guide link, the Enhanced Creature
- * Index window, the join page look dialog), and the same screen as a player sees it (no section at
+ * Settings, a sample of its feature switches, its three menus (the GM guide link, the creature
+ * index window, the join page look dialog), and the same screen as a player sees it (no section at
  * all: the module's settings are world settings, which players do not get).
  */
 import { launchBrowser } from './gm.mjs';
@@ -24,7 +24,7 @@ const SETUP_401 = /Failed to load resource.*status of 401/;
 // A failed rebuild is announced by an error notification, which Foundry also logs as a console error;
 // the row throws on that notification itself, so the console line only repeats it. A healthy rebuild
 // logs no error (a pack that cannot be indexed is a warning, not an error).
-const REBUILD_FAILED = /^Failed to build enhanced creature index/;
+const REBUILD_FAILED = /^Could not build the creature index/;
 
 /** The visible settings, by label, as the module registers them. */
 export const SETTING_LABELS = [
@@ -54,7 +54,7 @@ export const FEATURE_SWITCHES = [
 /** The three menu buttons: key, button label, the window or dialog title they open (null: a link). */
 export const MENUS = [
   ['helpMenu', 'Open the GM guide', null],
-  ['enhancedIndexMenu', 'Configure Enhanced Index', 'Enhanced Creature Index Settings'],
+  ['enhancedIndexMenu', 'Configure creature index','Creature Index Settings'],
   ['joinPageMenu', 'Choose join page look', 'Join page look'],
 ];
 
@@ -339,9 +339,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
 
   await sweep.row('module.settings.enhanced-index-open', 'gm', async () => {
     await openMenu('enhancedIndexMenu');
-    const title = gm
-      .locator('.application', { hasText: 'Enhanced Creature Index Settings' })
-      .last();
+    const title = gm.locator('.application', { hasText: 'Creature Index Settings' }).last();
     await title.waitFor({ state: 'visible', timeout: 10000 });
     const controls = await title.evaluate(el => ({
       checks: [...el.querySelectorAll('input[type="checkbox"]')].map(
@@ -360,14 +358,14 @@ export async function settingsRows(sweep, { t, gm, player }) {
   await sweep.row('module.settings.enhanced-index-save', 'gm', async () => {
     const key = 'autoRebuildIndex';
     const before = await read(key);
-    const win = gm.locator('.application', { hasText: 'Enhanced Creature Index Settings' }).last();
+    const win = gm.locator('.application', { hasText: 'Creature Index Settings' }).last();
     if (!(await win.count())) await openMenu('enhancedIndexMenu');
     const box = win.locator(`input[name="${key}"]`);
     try {
       if (before) await box.uncheck();
       else await box.check();
       await win.locator('button[type="submit"]').click();
-      await waitNotification(gm, /Enhanced Creature Index settings saved/);
+      await waitNotification(gm, /Creature index settings saved/);
       if ((await read(key)) === before) throw new Error(`${key} did not change`);
     } finally {
       if ((await read(key)) !== before) {
@@ -381,20 +379,21 @@ export async function settingsRows(sweep, { t, gm, player }) {
     'module.settings.enhanced-index-rebuild',
     'gm',
     async () => {
-      const win = gm
-        .locator('.application', { hasText: 'Enhanced Creature Index Settings' })
-        .last();
+      const win = gm.locator('.application', { hasText: 'Creature Index Settings' }).last();
       if (!(await win.count())) await openMenu('enhancedIndexMenu');
       const started = Date.now();
       await win.locator('button[data-action="rebuild"]').click();
-      await waitNotification(gm, /Rebuilding enhanced creature index/);
+      await waitNotification(gm, /Rebuilding the creature index/);
       await waitNotification(
         gm,
-        /Enhanced creature index complete|Failed to build enhanced creature index/,
+        /The creature index is ready|Could not build the creature index/,
         240000
       );
-      const done = (await notifications(gm)).find(n => /complete|Failed to build/.test(n)) ?? '';
-      if (/Failed to build/.test(done)) throw new Error(done);
+      // The failure first: an old "is ready" notice still on screen must not mask it.
+      const seen = await notifications(gm);
+      const failed = seen.find(n => /^Could not build the creature index/.test(n));
+      if (failed) throw new Error(failed);
+      const done = seen.find(n => /The creature index is ready/.test(n)) ?? '';
       return { note: done.slice(0, 120), timings: { rebuildMs: Date.now() - started } };
     },
     { expectErrors: [REBUILD_FAILED] }

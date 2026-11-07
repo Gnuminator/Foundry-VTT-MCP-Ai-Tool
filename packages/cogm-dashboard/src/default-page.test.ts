@@ -90,7 +90,7 @@ describe('the default page', () => {
     }
   });
 
-  it('sends the retired old page /legacy/ to /, keeping the query, and serves none of its files', async () => {
+  it('sends the retired /legacy/ address to /, keeping the query, and serves none of its files', async () => {
     for (const [from, to] of [
       ['/legacy/', '/'],
       ['/legacy', '/'],
@@ -191,7 +191,7 @@ describe('the asset files have their own rate limit bucket', () => {
 });
 
 describe('without a React build', () => {
-  it('says the dashboard is not built at / (and has no old page behind it)', async () => {
+  it('answers 503 with the build hint at / when dist/web has no index.html', async () => {
     const app = await start(null);
     try {
       const answer = await get(app.port, '/');

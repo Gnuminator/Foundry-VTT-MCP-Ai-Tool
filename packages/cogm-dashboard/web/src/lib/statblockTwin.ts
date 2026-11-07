@@ -145,11 +145,10 @@ export interface StatBlock {
   creatureType: string;
   cr: number | null;
   ac: number | null;
-  /** The rules version the entry says it is ("2014", "2024"), or empty when not known. */
-  rules: string;
   hp: number | null;
   speed: string;
-  abilities: { key: string; value: number }[];
+  /** A score the answer did not carry is null (shown as "?"), never a made-up 10. */
+  abilities: { key: string; value: number | null }[];
   /** Names of traits, actions and other features. The full text is read in Foundry. */
   features: string[];
 }
@@ -204,13 +203,12 @@ export function statBlockFromCompendium(raw: unknown): StatBlock | null {
       (Array.isArray(ac['calcs']) && ac['calcs'].length === 1 && ac['calcs'][0] === 'natural'
         ? num(ac['flat'])
         : null),
-    rules: str(rec(rec(r['system'])['source'])['rules']) || str(rec(system['source'])['rules']),
     hp: num(hp['max']) ?? num(hp['value']),
     speed: Object.entries(speeds)
       .filter(([, v]) => v !== null && v !== '' && v !== '0' && v !== 0)
       .map(([k, v]) => `${k} ${String(v)}`)
       .join(', '),
-    abilities: ABILITY_KEYS.map(key => ({ key, value: num(rec(abilities[key])['value']) ?? 10 })),
+    abilities: ABILITY_KEYS.map(key => ({ key, value: num(rec(abilities[key])['value']) })),
     features: items.map(i => str(rec(i)['name'])).filter(Boolean),
   };
 }
@@ -229,10 +227,9 @@ export function statBlockFromActor(raw: unknown): StatBlock | null {
     creatureType: str(stats['creatureType']),
     cr: num(stats['challengeRating']),
     ac: num(stats['armorClass']),
-    rules: '',
     hp: num(hp['max']),
     speed: '',
-    abilities: ABILITY_KEYS.map(key => ({ key, value: num(rec(abilities[key])['value']) ?? 10 })),
+    abilities: ABILITY_KEYS.map(key => ({ key, value: num(rec(abilities[key])['value']) })),
     features: items.map(i => str(rec(i)['name'])).filter(Boolean),
   };
 }

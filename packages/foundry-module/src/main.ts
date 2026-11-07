@@ -4,10 +4,20 @@ import { registerAiToolControls } from './ai-tool-controls.js';
 import { registerLatestRecapButton } from './latest-recap.js';
 import { setBridgeLink } from './bridge-link.js';
 import { GM_GUIDE_URL } from './help-menu.js';
-import { createLinkNotifier } from './link-notice.js';
+import {
+  createLinkNotifier,
+  createLinkRelayReceiver,
+  parseLinkRelayState,
+  type LinkRelayStateName,
+} from './link-notice.js';
 import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
-import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
+import {
+  LINK_STATE_CHANGED_HOOK,
+  ModuleSettings,
+  isBridgeUser,
+  registerSettingsUsageHooks,
+} from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { eventTracker } from './session-events.js';
 import { spentLedger } from './spent-actions.js';
@@ -42,6 +52,7 @@ import {
   startTableWatch,
 } from './tarokka-table-window.js';
 import { logInfo } from './log.js';
+import { toGmMessage } from './gm-message.js';
 // Connection control now handled through settings menu
 
 /** How long the "MCP server not found" notice stays quiet after it was shown (per browser). */
@@ -104,7 +115,45 @@ class FoundryMCPBridge {
     },
     isGM: () => this.isGMUser(),
     enabled: () => this.settings.getSetting('enableNotifications') !== false,
+    publish: state => this.publishLinkState(state),
   });
+  /** The other GMs' side: shows the holder's notices in a browser that does not hold the link. */
+  private linkRelay = createLinkRelayReceiver({
+    notify: (message, level) => {
+      if (level === 'warn') ui.notifications?.warn(message);
+      else ui.notifications?.info(message);
+    },
+    isGM: () => this.isGMUser(),
+    enabled: () => this.settings.getSetting('enableNotifications') !== false,
+    holdsLink: () => this.socketBridge !== null,
+  });
+
+  /** In memory only: what this browser last wrote to `linkState`. */
+  private lastPublishedLinkState: LinkRelayStateName | null = null;
+
+  /** Writes the holder's notice state to the world so every other GM browser can show it. */
+  private publishLinkState(state: LinkRelayStateName): void {
+    // One write per change of notice: a repeated "lost" (a failed start() while the outage lasts) writes nothing.
+    if (state === this.lastPublishedLinkState) return;
+    this.lastPublishedLinkState = state;
+    try {
+      const result = game.settings.set(MODULE_ID, 'linkState', { state, at: Date.now() });
+      void Promise.resolve(result).catch(error => {
+        console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+      });
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+    }
+  }
+
+  /** The stored link state changed (or was read when this GM joined): show it unless this browser holds the link. */
+  applyStoredLinkState(): void {
+    try {
+      this.linkRelay.apply(parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')));
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Could not read the shared link state:`, error);
+    }
+  }
 
   constructor() {
     this.settings = new ModuleSettings();
@@ -302,7 +351,7 @@ class FoundryMCPBridge {
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to initialize:`, error);
       trackUsage('error', 'module.error.init', { code: 'init-failed' });
-      ui.notifications.error('Failed to initialize Foundry MCP Bridge');
+      ui.notifications.error(toGmMessage('start the AI Tool', error));
       throw error;
     }
   }
@@ -409,7 +458,17 @@ class FoundryMCPBridge {
 
     // A new bridge starts with a clean notifier: a "lost" left by the old one must not turn the
     // first link of this one (which already shows "AI Tool connected") into "link is back".
-    this.linkNotifier.reset();
+    // Silent: a start() during an outage must not tell the other GMs the outage ended.
+    this.linkNotifier.reset({ silent: true });
+    // A "lost" left in the world by an earlier holder (browser killed mid-outage) must not stay on other GMs' screens.
+    if (
+      this.isGMUser() &&
+      this.settings.getSetting('enableNotifications') !== false &&
+      this.lastPublishedLinkState !== 'lost' &&
+      parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')).state === 'lost'
+    ) {
+      this.publishLinkState('quiet');
+    }
 
     this.isConnecting = true;
     let dialled = false;
@@ -442,6 +501,8 @@ class FoundryMCPBridge {
       );
 
       this.lastConnectionState = 'connected';
+      // A start() during an outage that connects: the other GMs were told "lost", so tell them it is back.
+      if (this.lastPublishedLinkState === 'lost') this.publishLinkState('up');
       this.updateLastActivity();
 
       // Start heartbeat monitoring if enabled
@@ -691,6 +752,12 @@ Hooks.once('ready', async () => {
 
     await foundryMCPBridge.onReady();
 
+    // The link holder (the Assistant GM's browser) shares its lost/back notices through a world
+    // setting; a GM browser that does not hold the link shows them too, also when it joins mid-outage.
+    // (The setting's onChange fires for the first write, a create, as well as for later updates.)
+    Hooks.on(LINK_STATE_CHANGED_HOOK, () => foundryMCPBridge.applyStoredLinkState());
+    foundryMCPBridge.applyStoredLinkState();
+
     // Live screen B: the pinned button, and the live window if it was open before the reload.
     restoreLiveWindow();
 
@@ -731,9 +798,7 @@ Hooks.once('ready', async () => {
               // Notify GM about the failure
               if (game.user?.isGM) {
                 trackUsage('error', 'module.error.roll-update', { code: 'update-failed' });
-                ui.notifications?.error(
-                  `Failed to update player roll message: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                ui.notifications?.error(toGmMessage("update a player's roll in chat", error));
               }
             }
           }
@@ -758,9 +823,7 @@ Hooks.once('ready', async () => {
               // Notify GM about the failure so they can take action
               if (game.user?.isGM) {
                 trackUsage('error', 'module.error.roll-state', { code: 'save-failed' });
-                ui.notifications?.error(
-                  `Failed to save player roll state: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                ui.notifications?.error(toGmMessage("remember a player's roll", error));
               }
             }
           }

@@ -1,4 +1,4 @@
-// Panel: the old page's class names, and which face each state shows. Rendered to a string.
+// Panel: its class names, and which face each state shows. Rendered to a string.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 

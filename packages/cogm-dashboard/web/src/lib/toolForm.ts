@@ -1,6 +1,5 @@
 // The Tool runner's form logic, without React: the catalog's categories, the form a tool's input
-// schema gives, and the args a filled form sends. Port of the old page's categoryOf, buildControl,
-// pickerRef and collectArgs (public/app.js), with numbers checked before they are sent.
+// schema gives, and the args a filled form sends, with numbers checked before they are sent.
 import { CONFIRM_FORWARDED_TOOLS } from '../../../src/tool-policy';
 
 /** One bridge tool as GET /api/tools lists it (app.ts ToolInfo). */
@@ -45,7 +44,7 @@ export interface RefChoice {
 export type FieldValue = string | boolean;
 export type Draft = Record<string, FieldValue>;
 
-/** First match wins, in this order (the old page's CATEGORY_RULES). */
+/** First match wins, in this order. */
 const CATEGORY_RULES: [RegExp, string][] = [
   [/(planned-change|recent-changes|undo-change|open-in-foundry)/, 'Guarded changes'],
   [/(initiative|combat|turn)/, 'Combat'],

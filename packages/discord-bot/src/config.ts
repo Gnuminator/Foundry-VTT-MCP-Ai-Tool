@@ -49,6 +49,8 @@ export interface BotConfig {
   dashboardUrl?: string | undefined;
   /** Port of the small status endpoint the dashboard's health line reads; unset means it is off. */
   statusPort?: number | undefined;
+  /** The setting as written, so the bot can warn when it is set but not a usable port. */
+  statusPortRaw?: string | undefined;
   /** Address the status endpoint listens on; default 127.0.0.1 (set the Pi-network address to share it). */
   statusHost?: string | undefined;
   /** The player page link in the post; without it the post stays off (127.0.0.1 is no link for players). */
@@ -68,6 +70,9 @@ export interface RehearsalConfig {
   channelId: string;
   dir: string;
 }
+
+/** Where the status endpoint listens unless `FOUNDRY_AI_BOT_STATUS_HOST` says otherwise: this PC only. */
+export const DEFAULT_STATUS_HOST = '127.0.0.1';
 
 /** A usable TCP port, or undefined (the status endpoint stays off). */
 export function parseStatusPort(value: string | undefined): number | undefined {
@@ -120,6 +125,7 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     sessionPostChannelId: get('DISCORD_SESSION_POST_CHANNEL_ID'),
     dashboardUrl: get('FOUNDRY_AI_DASHBOARD_URL'),
     statusPort: parseStatusPort(get('FOUNDRY_AI_BOT_STATUS_PORT')),
+    statusPortRaw: get('FOUNDRY_AI_BOT_STATUS_PORT'),
     statusHost: get('FOUNDRY_AI_BOT_STATUS_HOST'),
     playerPageUrl: get('FOUNDRY_AI_PLAYER_PAGE_URL'),
     playerToken: get('FOUNDRY_AI_PLAYER_TOKEN'),

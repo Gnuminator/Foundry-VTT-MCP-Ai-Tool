@@ -66,17 +66,6 @@ interface BridgeSettingValues {
 }
 type BridgeSettingKey = keyof BridgeSettingValues;
 
-/** One registered setting as Foundry keeps it in `game.settings.settings`. */
-interface RegisteredSetting {
-  hint: string;
-  default?: unknown;
-}
-
-/** Foundry's registry of registered settings (not part of the public typings). */
-function settingsRegistry(): Map<string, RegisteredSetting> {
-  return (game.settings as unknown as { settings: Map<string, RegisteredSetting> }).settings;
-}
-
 /** The few user fields the Bridge User choices read. */
 interface GmUserLike {
   id?: string;
@@ -84,17 +73,14 @@ interface GmUserLike {
   isGM?: boolean;
 }
 
+/** Called (Hooks.callAll) in every client when the shared `linkState` setting changes. */
+export const LINK_STATE_CHANGED_HOOK = 'foundry-mcp-bridge.linkStateChanged';
+
 /**
- * Settings the module writes itself (roll state, connection notes): not a person
+ * Settings the module writes itself (roll state): not a person
  * saving the settings window, so they never count as `module.settings.save`.
  */
-const INTERNAL_SETTING_KEYS = new Set([
-  'rollStates',
-  'buttonMessageMap',
-  'lastConnectionState',
-  'lastActivity',
-  'lastMCPServerNotification',
-]);
+const INTERNAL_SETTING_KEYS = new Set(['rollStates', 'buttonMessageMap', 'linkState']);
 
 /**
  * Usage log (I-084): count "settings saved" once per closed settings window, and
@@ -156,7 +142,7 @@ export async function saveEnhancedIndexSettings(
     formData.object.enableEnhancedCreatureIndex === true
   );
   await game.settings.set(MODULE_ID, 'autoRebuildIndex', formData.object.autoRebuildIndex === true);
-  ui.notifications?.info('Enhanced Creature Index settings saved');
+  ui.notifications?.info('Creature index settings saved');
 }
 
 /** "Rebuild Creature Index" in the Enhanced Index window (`data-action="rebuild"`). */
@@ -168,7 +154,7 @@ export function rebuildEnhancedIndex(): void {
     }
   ).foundryMCPBridge;
   if (bridge?.dataAccess?.rebuildEnhancedCreatureIndex) {
-    ui.notifications?.info('Rebuilding enhanced creature index...');
+    ui.notifications?.info('Rebuilding the creature index...');
     void bridge.dataAccess.rebuildEnhancedCreatureIndex();
   }
 }
@@ -187,7 +173,7 @@ export function createEnhancedIndexMenu(): new () => object {
     static DEFAULT_OPTIONS = {
       tag: 'form',
       window: {
-        title: 'Enhanced Creature Index Settings',
+        title: 'Creature Index Settings',
         icon: 'fas fa-search-plus',
         resizable: false,
       },
@@ -239,7 +225,7 @@ export class ModuleSettings {
     // Enhanced Creature Index submenu
     menus.registerMenu(this.moduleId, 'enhancedIndexMenu', {
       name: 'AI Tool: Creature index',
-      label: 'Configure Enhanced Index',
+      label: 'Configure creature index',
       hint: 'Pre-computes creature statistics so the AI can find monsters by Challenge Rating, type and abilities quickly.',
       icon: 'fas fa-search-plus',
       type: createEnhancedIndexMenu(),
@@ -436,30 +422,17 @@ export class ModuleSettings {
       },
     });
 
-    // Non-configurable settings, kept registered so old worlds still load.
-    // DEPRECATED (lane 1, PB-03): nothing writes or reads these any more. The
-    // connection state, last activity and notice throttle live in memory only,
-    // because a world-setting write from every reconnect is a write to the world.
-    game.settings.register(this.moduleId, 'lastConnectionState', {
+    // The link holder's browser writes here only when it shows a "lost" or "back" notice (a confirmed
+    // outage, never a reconnect attempt), so the other GMs' browsers can show the same notice.
+    game.settings.register(this.moduleId, 'linkState', {
       scope: 'world',
       config: false,
-      type: String,
-      default: 'disconnected',
-    });
-
-    game.settings.register(this.moduleId, 'lastActivity', {
-      scope: 'world',
-      config: false,
-      type: String,
-      default: '',
-    });
-
-    // DEPRECATED (see above): the notice throttle is in memory now.
-    game.settings.register(this.moduleId, 'lastMCPServerNotification', {
-      scope: 'world',
-      config: false,
-      type: String,
-      default: '',
+      type: Object,
+      default: { state: 'up', at: 0 },
+      // Not `updateSetting`: the first write in a world creates the document and fires `createSetting`.
+      onChange: () => {
+        Hooks.callAll(LINK_STATE_CHANGED_HOOK);
+      },
     });
 
     // Roll state storage for persistent roll button states
@@ -644,9 +617,6 @@ export class ModuleSettings {
   }
 
   /**
-   * Create settings migration for version updates
-   */
-  /**
    * Get write operation permissions
    */
   getWritePermissions(): {
@@ -665,44 +635,5 @@ export class ModuleSettings {
   isWriteOperationAllowed(_operation?: string): boolean {
     // Simplified - single permission covers all write operations
     return this.getSetting('allowWriteOperations');
-  }
-
-  migrateSettings(_fromVersion: string, _toVersion: string): void {
-    // Add migration logic here for future versions
-    // For now, no migrations needed as this is initial version
-  }
-
-  /**
-   * Reset all settings to defaults
-   */
-  async resetToDefaults(): Promise<void> {
-    const settingKeys: BridgeSettingKey[] = [
-      // Basic Settings
-      'enabled',
-      'serverHost',
-      'serverPort',
-      // Permissions
-      'allowWriteOperations',
-      // Safety Controls
-      'maxActorsPerRequest',
-      // Enhanced Creature Index
-      'enableEnhancedCreatureIndex',
-      'autoRebuildIndex',
-      // Connection Behavior
-      'bridgeUserId',
-      'enableNotifications',
-      'autoReconnectEnabled',
-      'heartbeatInterval',
-    ];
-
-    for (const key of settingKeys) {
-      // Get the default value from the setting registration
-      const setting = settingsRegistry().get(`${this.moduleId}.${key}`);
-      if (setting && 'default' in setting) {
-        await this.setSetting(key, setting.default);
-      }
-    }
-
-    ui.notifications.info('MCP Bridge settings have been reset to defaults');
   }
 }

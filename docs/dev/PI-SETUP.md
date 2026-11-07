@@ -184,7 +184,7 @@ it never competes with Foundry's main thread. It reads its user name and passwor
 `5-check-world.sh` generates that password and creates the user, so nobody types it; Foundry
 launches that world by itself (`options.json`), so no admin password is needed. For the Strahd
 world the GM creates the user (role Assistant) and you paste its password into that file. Logs:
-`journalctl -u foundry-ai-tool-bridge` (and `-dashboard`, `-gm-browser`). A new build keeps the
+the bridge writes `/var/lib/foundry-ai-tool/logs/mcp-server.log` (info level, 5 files of 5 MB: `mcp-server1.log` to `mcp-server4.log` are the older ones); `journalctl -u foundry-ai-tool-bridge` shows only start and stop lines and start failures (and `-dashboard`, `-gm-browser` log there). A new build keeps the
 previous one in `/opt/foundry-ai-tool/app.prev` for a quick rollback.
 
 No firewall is set up on the Pi: nothing on it is reachable from the internet (no router ports are
@@ -355,7 +355,7 @@ in Task Scheduler. Change the limit with `FOUNDRY_AI_BACKUP_STALE_DAYS` in
 Session-over post (I-111, off by default): when a play session ends the bot posts a link to the
 player page in one channel. Turn it on in the same env file with `DISCORD_SESSION_POST_CHANNEL_ID`
 (the channel) and `FOUNDRY_AI_PLAYER_PAGE_URL` (the link players can open; without it the post stays
-off). `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`) is where the bot reads the session
+off). `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`; on the Pi the dashboard is on 3000, and stage 26 writes `http://127.0.0.1:3000` into the file when you give it `PLAYER_PAGE_URL`) is where the bot reads the session
 flag and `FOUNDRY_AI_PLAYER_TOKEN` is the dashboard's player token if one is set. A session that
 ends while the bot is down is not announced. The bot posts the link to everyone who can read that
 channel, so if `FOUNDRY_AI_PLAYER_PAGE_URL` carries a `?token=` (the player token), post only to a
@@ -368,8 +368,9 @@ the bot then answers `GET /status` with a small JSON document (is a recording ru
 wrong), no audio and no secrets. It listens on `127.0.0.1` unless `FOUNDRY_AI_BOT_STATUS_HOST` names
 another address; keep it on the Pi or the Pi network, never forwarded to the internet. In the
 dashboard's environment set `DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status`. With a URL set,
-a bot that does not answer shows "Recorder unknown" (grey), never OK; without one there is no
-Recorder dot. The Play log dot needs no setting.
+a bot that does not answer shows "Recorder unknown" (grey), never OK, even when no recording runs
+(a bot that is down is down); without a URL there is no Recorder dot. A port that is not a number
+from 1 to 65535, or one already in use, is named in the bot's log and leaves the endpoint off. The Play log dot needs no setting.
 
 Rolling it out (each step with your OK, snapshot first): run stage 6 again (it installs the helper
 and the folder, and runs one backup now: **Foundry stops for a minute or two, so never run it during
@@ -1485,11 +1486,14 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   on any branch of these repos runs on the Pi, so both repos must stay private (checked 2026-10-28: both are).
 - **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
   session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a
-  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) it stops the
+  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) **or a non-GM
+  player is connected** (an unmarked night: the newest `user-join`/`user-leave` per user in the 3 newest
+  `sessions/<date>.play.jsonl`; a join younger than 14 hours with no later leave counts; the GM and the TV table
+  viewer do not) it stops the
   runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
   is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
   Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
-  be read, the runners stay stopped for up to 6 hours in a row, then the gate lets them run and logs it. The runners are
+  be read, the runners stay stopped for up to 14 hours in a row, then the gate lets them run and logs it. The runners are
   not enabled at boot: the gate starts them (within a minute) when no session is marked. A rerun that changes a unit
   file does not touch a running runner: stop it (`systemctl stop`) and the gate starts it with the new file.
 - **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
@@ -1527,6 +1531,24 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Check later:** `... | ssh foundry-pi 'CHECK=1 bash -s'` or `timedatectl`.
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
+
+## Recorder status endpoint (stage 27)
+
+Stage 27 (`scripts/pi/remote/27-bot-status.sh`) switches on the health line's Recorder dot on the Pi: it sets
+`FOUNDRY_AI_BOT_STATUS_PORT=3110` in `/etc/foundry-ai-tool/discord-bot.env` (one line; the rest of the file, with
+the Discord token, is never printed) and writes a systemd drop-in for the dashboard,
+`foundry-ai-tool-dashboard.service.d/bot-status.conf`, with `DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status`
+(a drop-in because stage 7 rewrites `dashboard.env` whole and stage 5 rewrites the unit). It refuses unless the
+deployed bot and dashboard builds know the settings (stage 5, then 8, with a release that has them), restarts the
+bot and then the dashboard only when something changed (`require_quiet`: not while players are online or a
+recording runs, so never on a game night), and checks that `GET /status` answers JSON.
+
+- **Look first:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/27-bot-status.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `bash -s`. Then look at the GM
+  health line with a recording running: the Recorder dot shows only when something is wrong, grey "unknown" means
+  the dashboard cannot reach the bot.
+- **Undo:** the same pipe with `UNDO=1`. `PORT=<n>` picks another port.
+- Tests: `scripts/pi/bot-status-stage.test.mjs`.
 
 ## Discord bot on the game server (stage 26)
 

@@ -1,4 +1,4 @@
-/* Card and Section are new: nothing on the old page has these classes. */
+/* Card and Section have classes of their own, on the tokens. */
 .card {
   display: flex;
   flex-direction: column;

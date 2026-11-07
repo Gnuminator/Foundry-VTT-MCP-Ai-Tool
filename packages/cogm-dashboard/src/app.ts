@@ -265,6 +265,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
+  /** The status as the stream sends it, with the server's clock (`now`), so a page whose own clock is off can still age "Last update". */
+  const stamped = <S extends object>(s: S): S & { now: string } => ({
+    ...s,
+    now: new Date().toISOString(),
+  });
 
   // --- Recorder and Play log dots (item health-line-dots) -----------------------
   let recordingHealth: RecordingHealth = { recorder: null, playLog: null };
@@ -517,7 +522,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       const wasReachable = currentStatus.foundry === 'reachable';
       const becameReachable = status.foundry === 'reachable' && !wasReachable;
       currentStatus = status;
-      sse.broadcast('status', status, gmOnly);
+      sse.broadcast('status', stamped(status), gmOnly);
       schedulePlayerBroadcast();
       if (becameReachable) {
         void refreshWorld();
@@ -632,6 +637,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // the same token. Its files are served under /next/ (Vite's base), where the old name of the
   // page also redirects, keeping the query (a saved link with ?token=).
   const reactIndex = path.join(config.webDir, 'index.html');
+  // sendFile takes a root so a folder such as .claude/worktrees above the build does not count as
+  // a dotfile.
+  const reactIndexName = path.basename(reactIndex);
+  const reactIndexRoot = path.dirname(reactIndex);
   if (!fs.existsSync(reactIndex)) {
     logger.warn('The React dashboard is not built: / has no page', {
       webDir: config.webDir,
@@ -654,16 +663,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // the dashboard itself.
   app.use(liveFrameMiddleware(config.foundryUrl));
   app.get('/', pageLimit, (_req: Request, res: Response) => {
-    // No old page to fall back to: say what is missing instead of a bare "Cannot GET /".
+    // Nothing else to fall back to: say what is missing instead of a bare "Cannot GET /".
     if (!fs.existsSync(reactIndex)) {
       res.status(503).type('text/plain').send('The dashboard is not built: run npm run build.');
       return;
     }
     res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(reactIndex);
+    res.sendFile(reactIndexName, { root: reactIndexRoot });
   });
   // The GM page (item gm-page-wrapper): Foundry and the live strip on one page.
-  mountGmPage(app, { reactIndex, foundryUrl: config.foundryUrl, pageLimit, requireGm });
+  mountGmPage(app, {
+    sendIndex: (res: Response): boolean => {
+      if (!fs.existsSync(reactIndex)) return false;
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(reactIndexName, { root: reactIndexRoot });
+      return true;
+    },
+    foundryUrl: config.foundryUrl,
+    pageLimit,
+    requireGm,
+  });
   // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
   // dropped, and the target is always "/" plus that, so it can never leave this origin.
   app.get(['/next', '/next/', '/legacy', '/legacy/'], pageLimit, (req: Request, res: Response) => {
@@ -672,7 +691,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       : '';
     res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
   });
-  // The old dashboard page (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
+  // The retired page address (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
   // /next/ above, so a saved link still lands on the dashboard. Its files are not served.
   const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
   // The pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
@@ -826,7 +845,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }
     sse.add(res, role);
     sse.send(res, 'role', { role });
-    sse.send(res, 'status', currentStatus);
+    sse.send(res, 'status', stamped(currentStatus));
     sse.send(res, 'recording-health', recordingHealth);
     if (world) sse.send(res, 'world', world);
     sse.send(res, 'settings', settingsPayload());
@@ -1233,7 +1252,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       // can tell "quiet" from "the stream died without telling it" (its watchdog is 45 s).
       if (heartbeatTimer === null) {
         heartbeatTimer = setInterval(() => {
-          sse.broadcast('status', currentStatus, gmOnly);
+          sse.broadcast('status', stamped(currentStatus), gmOnly);
         }, deps.statusHeartbeatMs ?? STATUS_HEARTBEAT_MS);
         heartbeatTimer.unref();
       }

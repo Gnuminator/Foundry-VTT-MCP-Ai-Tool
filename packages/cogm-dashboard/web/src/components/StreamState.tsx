@@ -1,6 +1,6 @@
 // The one mark in the header for the live stream itself (the EventSource, lib/stream.ts): shown
 // when the page has lost its link to the dashboard server, once for every panel, so no panel needs
-// its own. The old page turned a status dot red for this. Not the same as the bridge being away
+// its own. Not the same as the bridge being away
 // (lib/combat.ts bridgeAway): that is the server losing Foundry, and each panel says it for itself.
 import type { JSX } from 'react';
 

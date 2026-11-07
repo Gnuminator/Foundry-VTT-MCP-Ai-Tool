@@ -27,6 +27,19 @@ export async function waitFor(fn, { label, timeoutMs = 20000, intervalMs = 1000 
 }
 
 /**
+ * A first step for scenarios that read Foundry through the GM page and would otherwise pass with
+ * the bridge stopped (the negative control, `kit run --fake --stopped-bridge`): the bridge must
+ * be linked to the kit world. The scenario declares `tools: ['get-world-info']`.
+ * @param {import('./contract.mjs').ScenarioContext} t
+ */
+export async function bridgeProbe(t) {
+  await t.step('the bridge is linked to the kit world', async () => {
+    const info = await t.tool('get-world-info', {});
+    t.equal(info.id, t.kit.world, 'world id through the bridge');
+  });
+}
+
+/**
  * dnd5e's short size codes, by the long names the compendium listing uses.
  * @type {Record<string, string>}
  */

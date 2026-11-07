@@ -65,7 +65,7 @@ separately with the GM. World data, users and test data are not shared between m
 though the scripts and skills are in git.
 
 Paths and ports come from `scripts/test-env/config.ps1` (`Get-NodeExe` there picks the newest
-portable Node 24 folder, `%LOCALAPPDATA%\node24\node-v24.*-win-x64`); `scripts/test-env/local.json`
+portable Node 24.22+ folder, `%LOCALAPPDATA%\node24\node-v24.*-win-x64`, and warns when it falls back to an older node on PATH); `scripts/test-env/local.json`
 (gitignored) overrides paths and ports. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
 Foundry runs on the Node its `app\package.json` requires (14.368 and 14.369: >=24.13.1 <25, the
 global Node 24; 14.370: >=24.22.1 <25, found in the portable `%LOCALAPPDATA%\node24` folders by
@@ -170,6 +170,7 @@ never in `ai-tool-test`. Start Foundry on one with `start.ps1 -World <id>`.
 | `ai-tool-kit-srd`      | srd profile (SRD content only)                                     |
 | `ai-tool-kit-licensed` | licensed profile (PHB 2024 and the other bought packs, local only) |
 | `strahd-kit`           | strahd profile: a throwaway copy of `curse-of-strahd`, made again  |
+| `ai-tool-kit-modules`  | modules-all profile: the third-party module scenarios              |
 
 After a Foundry point update (14.369 to 14.370) Foundry logs "requested World ... is not available
 to auto-launch" for a world whose `compatibility.verified` names an older build (`coreVersion`

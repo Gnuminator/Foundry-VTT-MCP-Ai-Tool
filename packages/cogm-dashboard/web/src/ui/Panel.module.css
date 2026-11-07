@@ -1,4 +1,4 @@
-/* Only the foot is new; the rest of a panel is the old page's .pane / .drawer rules. */
+/* The foot only; the rest of a panel is styled by the shared .pane / .drawer rules. */
 .foot {
   display: flex;
   flex-wrap: wrap;

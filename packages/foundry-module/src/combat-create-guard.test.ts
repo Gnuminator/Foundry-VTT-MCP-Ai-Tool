@@ -76,6 +76,27 @@ describe('guardCombatCreate', () => {
     expect(guardCombatCreate(undefined)).toBe(false);
   });
 
+  it('keeps the captured _onCreate of a class that has its own', () => {
+    class Base {
+      round = 0;
+      previous: unknown = undefined;
+      _onCreate(): string {
+        return 'base';
+      }
+    }
+    class Child extends Base {
+      override _onCreate(): string {
+        return 'own';
+      }
+    }
+    expect(guardCombatCreate(Child)).toBe(true);
+    const c = new Child();
+    expect(c._onCreate()).toBe('own');
+    // Patching the parent does not replace a class's own _onCreate.
+    (Base.prototype as unknown as { _onCreate: () => string })._onCreate = (): string => 'patched';
+    expect(c._onCreate()).toBe('own');
+  });
+
   it('looks up an inherited _onCreate on the parent prototype on every call', () => {
     class Base {
       round = 0;

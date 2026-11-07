@@ -40,6 +40,31 @@ export function clearRunMarker(path: string): void {
   }
 }
 
+/**
+ * Claim the marker only once the bot is ready (`whenReady` registers the callback with the
+ * client's ready event): a login that fails (bad token) never gets there, so it leaves no marker
+ * that the next start would report as a crash. `done` gets what `claimRunMarker` returned.
+ */
+export function claimOnReady(
+  whenReady: (callback: () => void) => void,
+  path: string,
+  done: (previousStart: string | null) => void
+): void {
+  whenReady(() => done(claimRunMarker(path)));
+}
+
+/** Stop the client, then remove the marker even when stopping it throws. */
+export async function destroyThenClear(
+  destroy: () => Promise<unknown>,
+  path: string
+): Promise<void> {
+  try {
+    await destroy();
+  } finally {
+    clearRunMarker(path);
+  }
+}
+
 /** The #gm-bot line for a start that found the previous run's marker. */
 export function restartAfterCrashMessage(previousStart: string): string {
   return `Recorder bot restarted after an unclean stop (the previous run started ${previousStart} and never shut down cleanly). If a recording was running, it was not resumed: check the session folder and start /record again.`;

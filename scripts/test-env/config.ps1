@@ -178,8 +178,8 @@ function Assert-SafePorts {
   if (($ports | Select-Object -Unique).Count -ne $ports.Count) { throw 'Test ports must all be different.' }
 }
 
-# The repo's Node: the newest portable Node 24 in %LOCALAPPDATA%\node24\node-v24.x.y-win-x64
-# (the version differs per PC), else the node on PATH.
+# The repo's Node: the newest portable Node 24.22+ in %LOCALAPPDATA%\node24\node-v24.x.y-win-x64
+# (the version differs per PC), else the node on PATH (with a warning when that one is older than 24.22).
 function Get-NodeExe {
   $portableRoot = [IO.Path]::Combine("$env:LOCALAPPDATA", 'node24')
   if ($IsWindows -and (Test-Path $portableRoot)) {
@@ -191,6 +191,10 @@ function Get-NodeExe {
   }
   $node = Get-Command node -ErrorAction SilentlyContinue
   if (-not $node) { throw 'Node.js not found (need 24+; install portable Node 24.22 or newer in %LOCALAPPDATA%\node24).' }
+  $found = Get-NodeVersion $node.Source
+  if ($found -and $found -lt [version]'24.22.0') {
+    Write-Warning "The node on PATH is $found, older than 24.22 (the repo's floor). Install portable Node 24.22 or newer in %LOCALAPPDATA%\node24."
+  }
   return $node.Source
 }
 

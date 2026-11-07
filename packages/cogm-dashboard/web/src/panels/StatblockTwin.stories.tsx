@@ -94,4 +94,4 @@ type Story = StoryObj<typeof meta>;
 export const NothingPicked: Story = {};
 export const HasATwin: Story = { parameters: { uuid: OLD } };
 export const NoClearTwin: Story = { parameters: { uuid: NAMED } };
-export const Phone: Story = { parameters: { uuid: OLD, ...PHONE_VIEW } };
+export const Phone: Story = { tags: ['phone'], globals: PHONE_VIEW, parameters: { uuid: OLD } };

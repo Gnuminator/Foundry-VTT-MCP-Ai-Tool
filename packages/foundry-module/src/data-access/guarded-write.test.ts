@@ -553,7 +553,7 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
   });
 
   it('undoes a role lowering with the switch off in both real request shapes', async () => {
-    // as main.ts registers it: the Changes list sends change-undo in mode apply, so it is gated
+    // as main.ts registers it: the Changes list sends change-undo in mode apply
     registerGuardedFeature({ id: 'change-undo', name: 'Undo', hint: 'Test.' });
     world.setSetting(MODULE_ID, 'feature.change-undo.enabled', true);
     const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
@@ -615,6 +615,32 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
     await expect(del(person.uuid, 'change-undo', 'undo')).rejects.toThrow(/cannot be deleted/);
     await expect(del(table.uuid, 'foundry-setup', 'apply')).rejects.toThrow(/cannot be deleted/);
     await expect(del(table.uuid, 'change-undo', 'undo')).resolves.toBeDefined();
+  });
+});
+
+describe('applyGuardedOps: a token ring on the prototype token (token-rings)', () => {
+  const RING = 'prototypeToken.ring.enabled';
+
+  it('snapshots, applies, refuses a stale plan and undoes the nested ring switch', async () => {
+    const actor = addActor({
+      prototypeToken: { name: 'Ilvara', ring: { enabled: false, colors: { ring: '#fff' } } },
+    });
+    const op: GuardedOp = { kind: 'update', uuid: actor.uuid, changes: { [RING]: true } };
+
+    // Stale: someone changed the ring after the snapshot, nothing is written.
+    const stale = await request([op]);
+    actor.source.prototypeToken.ring.enabled = 'changed';
+    await expect(applyGuardedOps(stale)).rejects.toThrow(/Conflict/);
+    expect(actor.source.prototypeToken.ring.enabled).toBe('changed');
+    actor.source.prototypeToken.ring.enabled = false;
+
+    const applied = await applyGuardedOps(await request([op]));
+    expect(actor.source.prototypeToken.ring).toEqual({ enabled: true, colors: { ring: '#fff' } });
+    expect(applied.results[0].before?.[0]).toEqual({ path: RING, present: true, value: false });
+    expect(applied.results[0].after?.[0]).toEqual({ path: RING, present: true, value: true });
+
+    await applyGuardedOps(undoRequest(applied));
+    expect(actor.source.prototypeToken.ring).toEqual({ enabled: false, colors: { ring: '#fff' } });
   });
 });
 

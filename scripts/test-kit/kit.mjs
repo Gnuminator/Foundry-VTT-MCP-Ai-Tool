@@ -68,6 +68,9 @@ Options
   --world <id>             the kit world, only to check it matches the profile: ${KIT_WORLDS.join(', ')}
   --report-dir <dir>       where the report goes (default <kit home>/reports/<time>-<size>)
   --fake                   run against the in-process fake instead of Foundry (CI)
+  --stopped-bridge         with run --fake: build in the fake, then run every scenario with the
+                           dashboard answering as if the module were not linked and the GM page and browser
+                           dead (the negative control: a scenario that still passes tests nothing)
   --headed                 show the GM browser window
   --target local|pi        where to run (default local: this PC's test server). pi is opt-in and
                            tools-only: only "run", only scenarios tagged tools-only, through the
@@ -89,7 +92,7 @@ Example (the Pi's tools-only canvas probe):
 
 /**
  * @param {string[]} argv
- * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], coverage: boolean, coverageCap: number, reportDir: string | null, fake: boolean, headed: boolean, target: 'local' | 'pi', notGameNight: boolean, help: boolean}}
+ * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], coverage: boolean, coverageCap: number, reportDir: string | null, fake: boolean, stoppedBridge: boolean, headed: boolean, target: 'local' | 'pi', notGameNight: boolean, help: boolean}}
  */
 export function parseArgs(argv) {
   const o = {
@@ -104,6 +107,7 @@ export function parseArgs(argv) {
     coverageCap: DEFAULT_COVERAGE_CAP,
     reportDir: null,
     fake: false,
+    stoppedBridge: false,
     headed: false,
     target: /** @type {'local' | 'pi'} */ ('local'),
     notGameNight: false,
@@ -119,6 +123,7 @@ export function parseArgs(argv) {
     const a = /** @type {string} */ (args.shift());
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--fake') o.fake = true;
+    else if (a === '--stopped-bridge') o.stoppedBridge = true;
     else if (a === '--headed') o.headed = true;
     else if (a === '--not-game-night') o.notGameNight = true;
     else if (a === '--target') {
@@ -465,13 +470,45 @@ async function cmdTarget(command, o) {
       say(`no scenarios for size ${o.size}; nothing to run`);
       return EXIT.PASS;
     }
+    // Negative control: the manifest came from the fake, now every call goes nowhere.
+    let runDashboard = dashboard;
+    let runGm = gm;
+    /** @type {any} */
+    let stoppedBrowserFactory = null;
+    if (o.stoppedBridge) {
+      if (!fake || command !== 'run') {
+        throw new EnvError('--stopped-bridge needs "run" together with --fake');
+      }
+      const down = () => {
+        throw new Error('negative control: the bridge is stopped');
+      };
+      // The dashboard and Foundry keep answering; only the bridge's link to Foundry is gone
+      // (health says disconnected, tool calls fail with 502, the player screen is empty).
+      /** @type {any} */ (fake).setBridgeDown(true);
+      // The browser pages are not simulated: every call on them throws (`then` stays undefined so an await is safe).
+      const dead = () =>
+        new Proxy(
+          {},
+          { get: (_target, key) => (key === 'then' || typeof key === 'symbol' ? undefined : down) }
+        );
+      runGm = /** @type {any} */ ({ call: fake.gm.call, joinAs: down, page: dead() });
+      // Scenarios that need a real browser get dead pages too, so they cannot skip their way to a non-fail.
+      stoppedBrowserFactory = () => ({
+        browser: /** @type {any} */ ({
+          dashboardUrl: 'http://127.0.0.1:1',
+          open: down,
+          consoleErrors: () => [],
+        }),
+        close: async () => {},
+      });
+    }
     say(`running ${list.length} scenarios (${o.size}) in ${o.world}`);
     // The report folder is decided before the scenarios run, so t.attachFile can write into it.
     const dir = o.reportDir || newRunDir(kitHome(), o.size);
     mkdirSync(dir, { recursive: true });
     // Dashboard pages in the GM's Edge for the scenarios (not against the fake, which has no Edge).
     /** @type {any} */
-    let browserFactory;
+    let browserFactory = stoppedBrowserFactory;
     if (!fake && gmSession?.page) {
       const { createKitBrowser } = await importLib('lib/dashboard-browser.mjs');
       const context = gmSession.page.context();
@@ -486,11 +523,11 @@ async function cmdTarget(command, o) {
     let envProblem = null;
     try {
       ({ results, consoleErrors } = await runScenariosDetailed(list, {
-        dashboard,
-        gm,
+        dashboard: runDashboard,
+        gm: runGm,
         manifest,
         knownConsoleErrors: o.profileData.knownConsoleErrors,
-        fake: o.fake,
+        fake: o.fake && !o.stoppedBridge, // the control takes the live code paths, which then hit the dead bridge
         size: /** @type {'smoke'|'full'|'long'} */ (o.size),
         log: say,
         ...(browserFactory ? { browserFactory, filesDir: path.join(dir, 'files') } : {}),
@@ -687,6 +724,11 @@ export async function main(argv) {
       return EXIT.ENV;
     }
     checkPiOptions(o);
+    if (o.stoppedBridge && !(o.command === 'run' && o.fake && o.target === 'local')) {
+      throw new EnvError(
+        'REFUSED: --stopped-bridge needs "run" together with --fake (local target)'
+      );
+    }
     if (o.command === 'check') return await cmdCheck(o);
     if (o.target === 'pi') return await piRun(o);
     resolveProfile(o);

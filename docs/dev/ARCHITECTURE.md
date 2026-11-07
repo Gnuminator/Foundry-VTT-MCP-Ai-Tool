@@ -113,9 +113,11 @@ The module hooks Foundry's lifecycle:
   activity — see §7's feed). Diagnostics error-capture is installed even earlier, at module
   evaluation time, so it catches the earliest console/uncaught errors from _other_ modules.
 - **`ready`** — **the GM gate.** If the current user is not a GM (and the
-  `allowNonGmAccess` world setting, default off, is not on), the module returns
-  immediately and silently: no connection, no notifications, nothing. Only for a GM does it
-  read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
+  `allowNonGmAccess` world setting, default off, is not on), the bridge start
+  (`onReady()`) returns immediately and silently: no connection, no notifications. The same
+  `ready` hook has already started the usage recorder and the Tarokka table watch on every
+  client, and it goes on to register the roll socket listener, so those run for players too. Only
+  for a GM does the bridge read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
   if needed, and begin heartbeat monitoring + reconnect.
 
 The connection is **outbound**: the module dials the backend, not the other way around. This
@@ -189,7 +191,10 @@ run as a `call_tool`.
 {"id":"<same id>","error":{"message":"..."}}
 ```
 
-The verbs both clients speak (`CONTROL_METHODS` in `shared/src/protocol.ts`):
+The five core verbs (`CONTROL_METHODS` in `shared/src/protocol.ts`). The backend also dispatches
+dashboard control methods outside that list: `record_handout_seen`, `live_sweep`,
+`session_switches`, `feature_switches`, `character_sheet`, `player_roll` and `session_notes`
+(see `backend.ts`).
 
 | Method         | `params`                                                                                     | `result`                                                                     |
 | -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -256,7 +261,8 @@ once when the link opens, so the backend knows which Foundry user holds it: lane
 the backend to run one tool for a GM's "Changes", "Handouts" or "Tarokka" window inside Foundry
 (I-108). Only the tools in `MODULE_REQUEST_TOOLS` (`list-recent-changes`, `undo-change`,
 `list-revealed-pages`, `plan-page-reveal`, `apply-planned-change`, `get-tarokka-reading`,
-`plan-tarokka-reveal`, `list-changes`, `plan-undo-changes`; later lanes add more) are
+`plan-tarokka-reveal`, `list-changes`, `plan-undo-changes`, `get-play-session`,
+`mark-play-session`) are
 accepted, and only from the currently active module socket; anything else gets a
 `module-reply` with `success: false` (a socket that is not the active link gets the shared
 `MODULE_NOT_ACTIVE_LINK_ERROR`, and the module treats that like "not connected": it asks the next
@@ -264,7 +270,7 @@ GM client instead of giving up). The `args` object may not exceed 20 kB as UTF-8
 runs the tool through the same in-process dispatch table as the control channel's `call_tool`
 (the connector gets it as a callback, so it never imports the tool router) and answers on the same
 socket with the same `id`. The module times a request out after 30 seconds (120 seconds for an
-undo) and rejects it when the link closes. A GM whose own browser does not hold the link reaches
+undo or an apply) and rejects it when the link closes. A GM whose own browser does not hold the link reaches
 it through Foundry's GM-only `user.query` to the browser that does, which forwards the request
 (`gm-helper-queries.ts`, the `aiToolRequest` helper query); with "Any GM" a browser whose link is
 not the active one takes the same route. An undo from the window carries the GM's name into the
@@ -405,7 +411,8 @@ confirmation → `list-recent-changes` / `undo-change`. The **backend** owns pla
 anything) and the **audit ring** (`gm/audit.json`, 500 entries, big deleted-document
 snapshots in `backups/`). The **module** only snapshots targets (`snapshotGuardedOps`) and
 executes (`applyGuardedOps`), re-checking on its own: a GM client, "Allow Write Operations",
-the feature's own switch (`feature.<id>.enabled`, default off; not needed for undo), and that
+the feature's own switch (`feature.<id>.enabled`, off unless the feature registers `defaultEnabled`; live play, ownership,
+player portrait, table viewer, rules check and change undo start on; not needed for undo), and that
 every target still matches the plan-time snapshot — otherwise nothing is written. Actors and
 Items it touches get the 2014/2024 rules tag; a failing op rolls back the ones before it;
 success is logged as a GM-only `gm-change` session event. Undo sends the inverse ops
@@ -469,7 +476,7 @@ exact catalog names, and rules. The rules carry the safety model:
   once per character, shows each plan with a CHECK mark on changes that rest on an unsure reading,
   lists every unsure or unreadable field before asking which plans to apply, and applies only
   the plans the GM said yes to.
-- The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (play stats, session
+- The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (the play session, play stats, session
   log, revealed page titles, `check-secret-terms`). It follows the `/player` page projection
   (§7): every line is written fresh from the event type and the `visibility` block, an event's
   `description`, `details` and `actorName` are never copied (only a player character's public roll
@@ -542,9 +549,11 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 
 **Defense in depth, in layers:**
 
-1. **The `ready`-hook gate (module).** On `ready`, a non-GM user causes the module to return
-   immediately — no socket bridge, no query handlers doing work, no UI. This is silent by
-   design: a player gets no error, no hint the bridge exists.
+1. **The `ready`-hook gate (module).** On `ready`, a non-GM user makes the bridge start (`onReady()`)
+   return immediately: no socket bridge, no query handlers doing work, no bridge UI. This is
+   silent by design: a player gets no error, no hint the bridge exists. Only `onReady()` returns
+   early. The usage recorder, the Tarokka table watch and the roll listener start in the same
+   `ready` hook and still run on player clients.
 2. **Per-handler GM validation (module).** Every query handler calls `validateGMAccess()`,
    which returns a silent failure unless `game.user.isGM` (or the opt-in `allowNonGmAccess`,
    default off). So even if a handler were reachable some other way, it does nothing for a
@@ -584,7 +593,7 @@ it talks to the backend's control channel directly and makes no Anthropic API ca
 - **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
   and the GM-action surface. It only ever talks to its own server.
   The page is React + TypeScript + Vite (D-109, `web/`) and is served at `/`
-  (D-126); `/legacy/` and `/next/` redirect
+  (D-126); the retired addresses redirect
   to `/` (package README, "The React dashboard").
 
 **The live feed (`feed/`).** `McpControlClient` is a hardened, **read-only, never-spawning**
@@ -655,10 +664,10 @@ correlating its own id.
 
 ```text
 Browser → POST /api/tool {name:"advance-combat-turn", confirm:true}
-        → server.ts classifyTool() → "write" → checks gmActionsEnabled ✓ and confirm ✓
+        → app.ts classifyTool() (defined in tool-policy.ts) → "write" → checks gmActionsEnabled ✓ and confirm ✓
         → McpControlClient.callTool("advance-combat-turn", args)
         → (control 31414: call_tool) → backend → CombatTools.handleAdvanceCombatTurn
-        → foundryClient.query("foundry-mcp-bridge.<advanceTurn>") → module → Foundry combat API
+        → foundryClient.query("foundry-mcp-bridge.advanceCombatTurn") → module → Foundry combat API
         → response climbs back → server replies {ok:true, ...}
         ── meanwhile ──
         PollingGameFeed's get-combat-state poll picks up the new turn
@@ -694,12 +703,14 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 
 ## Appendix — package map
 
-| Package                   | Role                                                                              | Runs in           |
-| ------------------------- | --------------------------------------------------------------------------------- | ----------------- |
-| `packages/mcp-server`     | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
-| `packages/foundry-module` | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
-| `packages/cogm-dashboard` | standalone dashboard (Node SSE server + browser client)                           | Node.js + browser |
-| `shared`                  | shared types/vocabulary                                                           | both              |
+| Package                    | Role                                                                              | Runs in           |
+| -------------------------- | --------------------------------------------------------------------------------- | ----------------- |
+| `packages/mcp-server`      | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
+| `packages/foundry-module`  | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
+| `packages/cogm-dashboard`  | standalone dashboard (Node SSE server + browser client)                           | Node.js + browser |
+| `packages/discord-bot`     | Discord bot (voice recording, session-over post)                                  | Node.js           |
+| `packages/obsidian-plugin` | Obsidian plugin (open notes in Foundry)                                           | Obsidian          |
+| `shared`                   | shared types/vocabulary                                                           | both              |
 
 The end-to-end test kit (a known world, scenarios, a report, and a fake for CI) is described in
 [TEST-KIT.md](TEST-KIT.md).

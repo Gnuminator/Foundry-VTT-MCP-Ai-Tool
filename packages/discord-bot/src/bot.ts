@@ -22,7 +22,7 @@ import {
 } from 'discord.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BotConfig } from './config.js';
+import { DEFAULT_STATUS_HOST, type BotConfig } from './config.js';
 import * as log from './log.js';
 import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
@@ -31,8 +31,8 @@ import { RecorderHealth } from './rec/health.js';
 import { startStatusServer } from './status-server.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
 import {
-  claimRunMarker,
-  clearRunMarker,
+  claimOnReady,
+  destroyThenClear,
   markerPath,
   restartAfterCrashMessage,
 } from './run-marker.js';
@@ -159,8 +159,13 @@ export class RecorderBot {
   }
 
   async run(): Promise<void> {
-    this.crashNotice = claimRunMarker(markerPath(this.config.sessionsDir));
     this.client.on('error', err => log.error('Discord client error', err));
+    // Registered before the handler below, so the notice is set when it reads it.
+    claimOnReady(
+      cb => this.client.once('clientReady', () => cb()),
+      markerPath(this.config.sessionsDir),
+      previous => (this.crashNotice = previous)
+    );
     this.client.once('clientReady', c => {
       log.info(`Logged in as ${c.user.tag}`);
       if (this.crashNotice) {
@@ -211,8 +216,15 @@ export class RecorderBot {
   /** The dashboard health line's read-only status endpoint (status-server.ts), when configured. */
   private startStatusEndpoint(): void {
     const port = this.config.statusPort;
-    if (port === undefined) return;
-    const host = this.config.statusHost ?? '127.0.0.1';
+    if (port === undefined) {
+      if (this.config.statusPortRaw) {
+        log.error(
+          `FOUNDRY_AI_BOT_STATUS_PORT is "${this.config.statusPortRaw}", not a port from 1 to 65535: the status endpoint stays off, and the Recorder dot will show unknown.`
+        );
+      }
+      return;
+    }
+    const host = this.config.statusHost ?? DEFAULT_STATUS_HOST;
     this.statusServer = startStatusServer(
       host,
       port,
@@ -220,7 +232,13 @@ export class RecorderBot {
         recording: this.active !== undefined,
         problems: this.active?.health.problems(Date.now()) ?? [],
       }),
-      err => log.error('Status endpoint error', err)
+      err =>
+        log.error(
+          (err as NodeJS.ErrnoException).code === 'EADDRINUSE'
+            ? `Status endpoint: port ${port} on ${host} is already in use, so the endpoint is NOT running and the Recorder dot will show unknown. Change FOUNDRY_AI_BOT_STATUS_PORT.`
+            : 'Status endpoint error',
+          err
+        )
     );
     log.info(`Status endpoint: http://${host}:${port}/status`);
   }
@@ -456,7 +474,9 @@ export class RecorderBot {
       }
     }
     const healthTimer = setInterval(() => {
-      for (const line of health.silent(Date.now())) void this.alertGm(line, channel);
+      // `recorder` is assigned below, before the first tick.
+      const up = recorder.connectionStatus === 'ready';
+      for (const line of health.silent(Date.now(), up)) void this.alertGm(line, channel);
     }, HEALTH_CHECK_INTERVAL_MS);
     healthTimer.unref();
     const recorder = new VoiceRecorder({
@@ -524,7 +544,6 @@ export class RecorderBot {
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
     this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));
-    await this.client.destroy();
-    clearRunMarker(markerPath(this.config.sessionsDir));
+    await destroyThenClear(() => this.client.destroy(), markerPath(this.config.sessionsDir));
   }
 }

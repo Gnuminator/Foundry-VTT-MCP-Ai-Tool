@@ -198,7 +198,6 @@ test('the header has the permanent Undo, Live play, Theme, How do I and the way 
   await expect(header.locator('#btn-gm')).toBeVisible();
   await expect(header.locator('#live-how-do-i')).toHaveText('How do I...');
   await expect(header.locator('#select-theme')).toBeVisible();
-  await expect(header.getByRole('link', { name: 'Old dashboard' })).toHaveCount(0);
   await expect(header.getByRole('link', { name: 'Back to the During view' })).toBeVisible();
 });
 

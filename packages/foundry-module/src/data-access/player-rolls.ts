@@ -2,6 +2,7 @@ import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import { resolveCombat } from '../combat-resolve.js';
 import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
+import { toGmMessage } from '../gm-message.js';
 import { logDebug, logInfo } from '../log.js';
 import { dig, rec, type Rec } from '../doc-read.js';
 import { eventTracker } from '../session-events.js';
@@ -567,7 +568,9 @@ export class PlayerRollsDataAccess {
           ui.notifications?.warn(error.message);
         } else {
           trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
-          ui.notifications?.error('Failed to execute roll');
+          ui.notifications?.error(
+            toGmMessage('run that roll', error, game.user?.isGM ? 'gm' : 'player')
+          );
         }
 
         // Re-enable button on error so user can try again

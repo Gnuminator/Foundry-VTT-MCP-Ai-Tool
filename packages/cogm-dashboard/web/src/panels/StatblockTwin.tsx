@@ -157,7 +157,7 @@ function Column({
         {block.abilities.map(a => (
           <div key={a.key}>
             <dt>{a.key}</dt>
-            <dd>{a.value}</dd>
+            <dd>{a.value ?? '?'}</dd>
           </div>
         ))}
       </dl>

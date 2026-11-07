@@ -41,11 +41,8 @@ test('/ is the React dashboard', async ({ page }) => {
   await fakeBridge(page);
   await page.goto(`/?token=${GM_TOKEN}`);
   await expect(page.getByRole('tablist', { name: 'Moment of the evening' })).toBeVisible();
-  // Nothing on the page points to the retired old page.
-  await expect(page.getByRole('link', { name: 'Old dashboard' })).toHaveCount(0);
+  // Nothing on the page links to /legacy or carries preview wording.
   await expect(page.locator('a[href^="/legacy"]')).toHaveCount(0);
-  // The preview wording is gone.
-  await expect(page.getByText('New dashboard (preview)')).toHaveCount(0);
   await expect(page.getByText('still being built')).toHaveCount(0);
 });
 

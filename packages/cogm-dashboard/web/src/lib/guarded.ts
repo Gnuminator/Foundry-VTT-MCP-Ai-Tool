@@ -1,7 +1,6 @@
 // Guarded changes from the dashboard's own buttons (D-077): a plan-* tool turns one click into a
 // plan, apply-planned-change carries it out, and the toast that says so has an Undo button
-// (undo-change). Recent Changes keeps the full history. Port of the old page's planThenApply,
-// runTool, confirmAction and undoToast (public/app.js): an ordinary write plan applies in the same
+// (undo-change). Recent Changes keeps the full history. An ordinary write plan applies in the same
 // click, any other plan (a reveal, a delete) opens the confirm window first.
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
@@ -52,7 +51,7 @@ interface Plan {
 }
 
 /**
- * What a plan says it will change, one line each, as the old page shows it: a live-play plan's
+ * What a plan says it will change, one line each: a live-play plan's
  * per-target lines, else its diff. Null when the answer lists neither.
  */
 function planLines(plan: Plan): string[] | null {
@@ -77,7 +76,7 @@ interface Applied {
 
 export { toolWords };
 
-/** The toast text of a change, as the old page's doneText words it. */
+/** The toast text of a change. */
 function doneText(name: string, result: Applied | null): string {
   const summary = typeof result?.summary === 'string' ? result.summary : '';
   if (name === 'apply-planned-change' && summary) {
@@ -91,11 +90,21 @@ function doneText(name: string, result: Applied | null): string {
 }
 
 /**
- * The usage code of a failed call, as the old page logs it: the server's kind (tool, timeout,
+ * The usage code of a failed call: the server's kind (tool, timeout,
  * channel), else the HTTP status, else a network error.
  */
 export const failCode = (err: unknown): string =>
   err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
+
+/**
+ * A failure text with its own "It may have applied; check ..." sentence (the plan-gone tail after
+ * plainText) swapped for this call's hint, so the toast names one place to look, once.
+ */
+export function rewordMayHaveApplied(error: string, checkHint: string): string {
+  const text = error.replace(/\s*It may have applied; check [^.]*\./, '').trim();
+  const stop = /[.!?]$/.test(text) ? '' : '.';
+  return `${text}${stop} ${checkHint}`;
+}
 
 /** The tool's own words when a plan is gone but its change may have gone in (see api.ts). */
 const PLAN_GONE = /It may have been applied already/i;
@@ -228,7 +237,7 @@ export function useGuardedTools(): GuardedTools {
   const openGate = useContext(GmActionsGateContext);
   const gateText = useContext(GateTextContext);
   const askConfirm = useConfirm();
-  // Off until the stream says otherwise, as on the old page: a click before the first settings
+  // Off until the stream says otherwise: a click before the first settings
   // event would plan and then be refused at apply, leaving the plan behind.
   const gmActionsOff = settings?.gmActionsEnabled !== true;
 
@@ -355,9 +364,7 @@ export function useGuardedTools(): GuardedTools {
             error = 'The answer did not come back.';
           }
           // The plan-gone sentence already says it; word it with this call's own place to look.
-          const text = error.replace(/s*It may have applied; check [^.]*./, '').trim();
-          const stop = /[.!?]$/.test(text) ? '' : '.';
-          error = `${text}${stop} ${checkHint}`;
+          error = rewordMayHaveApplied(error, checkHint);
         }
         toast(
           timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`,
@@ -376,7 +383,7 @@ export function useGuardedTools(): GuardedTools {
       }
     };
 
-    // The click on Undo is the confirmation, as on the old page. A refusal says what the run
+    // The click on Undo is the confirmation. A refusal says what the run
     // that made the toast would have said (its gate text), and opens the same gate.
     const undo = async (changeId: string, options: GuardedOptions): Promise<void> => {
       const sent = await send(
@@ -393,7 +400,7 @@ export function useGuardedTools(): GuardedTools {
     /**
      * The confirm window for a plan: the flags to apply it with, or how it ended when the GM
      * cancelled or the plan did not load. A plan answer without its summary and lines is read
-     * again with get-planned-change, as the old page's apply path does.
+     * again with get-planned-change.
      */
     const confirmPlan = async (
       plan: Plan,
@@ -441,7 +448,7 @@ export function useGuardedTools(): GuardedTools {
         returnTo,
       });
       if (!ok) {
-        // The plan stays on the bridge until it expires, as on the old page.
+        // The plan stays on the bridge until it expires.
         usage().trackTool('apply-planned-change', 'cancelled');
         return { outcome: CANCELLED };
       }
@@ -480,8 +487,8 @@ export function useGuardedTools(): GuardedTools {
       // The button clicked, read now: the panel disables it in the same click, and the confirm
       // window gives focus back to it (or to its panel) when it closes.
       const startedFrom = focusedElement();
-      // The old page plans first and is refused at apply, leaving a plan behind; asking first
-      // leaves none. The server still checks (the 403 in send).
+      // With the GM Actions switch off, no plan is made that apply would refuse. The server still
+      // checks (the 403 in send).
       if (gmActionsOff) return refuse('apply-planned-change', 'gm-actions-off', options);
 
       let planned: Plan | null;
@@ -516,7 +523,7 @@ export function useGuardedTools(): GuardedTools {
       const startedFrom = focusedElement();
       if (gmActionsOff) return refuse(name, 'gm-actions-off', options);
       if (name === 'apply-planned-change') {
-        // A plan Claude made: the window shows what it changes, as on the old page.
+        // A plan Claude made: the window shows what it changes.
         const planId = typeof args['planId'] === 'string' ? args['planId'] : '';
         const asked = await confirmPlan({}, planId, startedFrom);
         if ('outcome' in asked) return asked.outcome;

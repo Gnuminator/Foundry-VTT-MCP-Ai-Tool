@@ -1,5 +1,5 @@
-// The live stream (/api/stream, sse.ts on the server): one EventSource for the whole page, as the
-// old page has. Each event the new page uses lands in the TanStack Query cache under its own key,
+// The live stream (/api/stream, sse.ts on the server): one EventSource for the whole page.
+// Each event the page uses lands in the TanStack Query cache under its own key,
 // so a panel reads it like any other query and re-renders when it changes. EventSource reconnects
 // by itself; the server replays what a new connection needs (status, recent errors, ...).
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -38,6 +38,8 @@ export interface BridgeStatus {
   lastError: string | null;
   lastPollAt: string | null;
   foundryDownSince: string | null;
+  /** The server's clock when it sent this status (ISO); absent from an older server. */
+  now?: string;
 }
 
 export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
@@ -109,7 +111,7 @@ export interface StreamLink {
 
 export const STREAM_LINK_KEY = ['stream', 'link'] as const;
 
-/** The old page keeps 150 entries on screen; the server keeps the newest 100. */
+/** The page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
 export const MODULE_ERRORS_KEY = ['stream', 'errors'] as const;
@@ -156,7 +158,7 @@ export const TAROKKA_KEY = ['game', 'tarokka'] as const;
  */
 export const CHANGES_KEY = ['game', 'changes'] as const;
 
-/** How long a burst of gm-change events waits before Recent Changes reloads once (as the old page). */
+/** How long a burst of gm-change events waits before Recent Changes reloads once. */
 export const CHANGES_RELOAD_MS = 400;
 let changesReload: ReturnType<typeof setTimeout> | null = null;
 
@@ -184,7 +186,7 @@ export function onEvents(queryClient: QueryClient, data: unknown): void {
 
 /**
  * The bridge link status. Foundry turning reachable again (a restart, a dropped link) reloads
- * Recent Changes as the old page did: a change made while the link was down sent no `gm-change`,
+ * Recent Changes: a change made while the link was down sent no `gm-change`,
  * and a load that failed meanwhile would stay failed.
  */
 export function onStatus(queryClient: QueryClient, data: unknown): void {
@@ -266,6 +268,11 @@ export function streamRetryDelay(failures: number): number {
   return Math.min(STREAM_RETRY_MAX_MS, STREAM_RETRY_MIN_MS * 2 ** Math.max(0, failures - 1));
 }
 
+/** No event (the server repeats the status every ~17 s) for this long: the page calls itself not live. */
+export const STREAM_WATCHDOG_MS = 45_000;
+/** How often the watchdog looks. */
+const WATCHDOG_CHECK_MS = 5000;
+
 /** What startStream needs from the page; the tests give it fakes. */
 export interface StreamEnv {
   create: () => EventSource;
@@ -291,6 +298,9 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
   let cancelRetry: (() => void) | null = null;
   let stopped = false;
   let failures = 0;
+  let cancelWatch: (() => void) | null = null;
+  // Any message from the server counts: the status heartbeat, but also events.
+  let lastHeard = Date.now();
   const setLink = (state: StreamLink['state']): void => {
     queryClient.setQueryData<StreamLink>(STREAM_LINK_KEY, link =>
       // A second error while still down keeps the time the stream first went down.
@@ -299,6 +309,7 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
   };
   const connect = (): void => {
     cancelRetry = null;
+    lastHeard = Date.now();
     const current = env.create();
     source = current;
     current.onopen = (): void => {
@@ -320,6 +331,7 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
     };
     for (const [event, handle] of Object.entries(HANDLERS)) {
       current.addEventListener(event, e => {
+        if (source === current) lastHeard = Date.now();
         try {
           handle(queryClient, JSON.parse((e as MessageEvent<string>).data));
         } catch {
@@ -328,9 +340,23 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
       });
     }
   };
+  // A half-open stream (the laptop slept, a tunnel stalled) never fires onerror. After the
+  // watchdog's silence the source is closed and a new one opened, so the page recovers by itself.
+  const watch = (): void => {
+    cancelWatch = env.schedule(() => {
+      if (stopped) return;
+      if (cancelRetry === null && Date.now() - lastHeard > STREAM_WATCHDOG_MS) {
+        source?.close();
+        connect();
+      }
+      watch();
+    }, WATCHDOG_CHECK_MS);
+  };
   connect();
+  watch();
   return () => {
     stopped = true;
+    cancelWatch?.();
     cancelRetry?.();
     source?.close();
   };
@@ -586,8 +612,8 @@ export function useBridgeAway(): boolean {
 }
 
 /**
- * An obsidian:// link to a note in this world's folder of the vault (the old page's
- * obsidianFileUrl), or null until both the vault name and the world id are known.
+ * An obsidian:// link to a note in this world's folder of the vault,
+ * or null until both the vault name and the world id are known.
  */
 export function useObsidianFileUrl(relativePath: string): string | null {
   const vault = useDashboardSettings()?.obsidian?.vault;

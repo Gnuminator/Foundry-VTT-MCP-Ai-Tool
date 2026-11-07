@@ -2,14 +2,14 @@
 // the page already knows about the stream and the bridge. Pure, so the words are tested without a page.
 import {
   STREAM_DROP_GRACE_MS,
+  STREAM_WATCHDOG_MS,
   type BridgeStatus,
   type RecordingDot,
   type RecordingHealth,
   type StreamLink,
 } from './stream';
 
-/** No status event (the server repeats it every ~17 s) for this long: the page calls itself not live. */
-export const STREAM_WATCHDOG_MS = 45_000;
+export { STREAM_WATCHDOG_MS };
 /** A last good poll older than this is amber. */
 export const UPDATE_STALE_MS = 30_000;
 
@@ -92,11 +92,16 @@ function foundryPart({ status }: HealthInput): HealthPart {
   return { ...base, tone: 'warn', text: 'not sure' };
 }
 
-function updatePart({ status, now }: HealthInput): HealthPart {
+function updatePart({ status, heardAt, now }: HealthInput): HealthPart {
   const base = { key: 'update', label: 'Last update' } as const;
   const at = status?.lastPollAt ? Date.parse(status.lastPollAt) : NaN;
   if (Number.isNaN(at)) return { ...base, tone: 'unknown', text: 'none yet' };
-  const age = now - at;
+  // Both stamps come from the server, so this browser's clock cannot skew the age: the server's
+  // `now` minus its poll time, plus the time since this page received that status. Without a
+  // server `now` (an older server) or a receipt time, the browser clock stands in.
+  const serverNow = status?.now ? Date.parse(status.now) : NaN;
+  const age =
+    !Number.isNaN(serverNow) && heardAt !== null ? serverNow - at + (now - heardAt) : now - at;
   return { ...base, tone: age > UPDATE_STALE_MS ? 'warn' : 'ok', text: ageText(age) };
 }
 
@@ -105,7 +110,14 @@ function extraPart(
   label: string,
   dot: RecordingDot | null | undefined
 ): HealthPart[] {
-  return dot ? [{ key, label, tone: dot.tone, text: dot.text, detail: dot.detail }] : [];
+  return dot
+    ? [{ key, label, tone: dot.tone, text: dot.text, detail: localTimes(dot.detail) }]
+    : [];
+}
+
+/** The server sends times as `[[time:<ISO>]]` (src/recording-health.ts); show them on this clock. */
+export function localTimes(text: string): string {
+  return text.replace(/\[\[time:([^\]]*)\]\]/g, (_all, iso: string) => clock(iso) ?? iso);
 }
 
 /**

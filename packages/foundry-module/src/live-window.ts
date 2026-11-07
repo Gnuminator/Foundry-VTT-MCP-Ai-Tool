@@ -15,6 +15,7 @@
  *   strip picks the same creatures. The message carries ids only and goes to the frame's own origin.
  */
 import { MODULE_ID } from './constants.js';
+import { toGmMessage } from './gm-message.js';
 
 export const LIVE_WINDOW_SETTING = 'liveWindow';
 export const LIVE_WINDOW_URL_SETTING = 'liveWindowUrl';
@@ -583,9 +584,7 @@ export function refreshLiveWindowButtons(): void {
   pin.addEventListener('click', () => {
     void toggleLiveWindow().catch((error: unknown) => {
       console.error(`[${MODULE_ID}] Could not open the live window:`, error);
-      ui.notifications.error(
-        `Could not open the live window: ${error instanceof Error ? error.message : String(error)}`
-      );
+      ui.notifications.error(toGmMessage('open the live window', error));
     });
   });
   document.body.appendChild(pin);

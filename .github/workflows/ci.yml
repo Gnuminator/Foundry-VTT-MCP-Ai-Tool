@@ -193,6 +193,9 @@ jobs:
         # build with a missing runtime package fails it, this repository's own build passes it.
         run: node --test scripts/pi/stage5-load-check.test.mjs
 
+      - name: Pi bridge unit logging
+        run: node --test scripts/pi/bridge-logging.test.mjs
+
       - name: Pi stage 15 static checks
         # 15-ssh-keys-only.sh (D-123): valid bash, reload and never restart, the three values in a drop-in, the main sshd_config
         # only read, the checks before the first write. The stage itself runs in a container on the ARM runner (build-test-arm).
@@ -211,6 +214,11 @@ jobs:
         # 17-gh-runner.sh: the play-session gate against fake vaults (open, ended, past midnight, unknown, a running job) and the
         # stage as text (pinned runner, token handling, the fence in the units).
         run: node --test scripts/pi/gh-runner.test.mjs
+
+      - name: Pi stage 27 bot status endpoint
+        # 27-bot-status.sh (backlog pi-bot-status-endpoint): the port line and the dashboard drop-in, guards, undo, with stand-in
+        # systemctl, curl, ss and Node.
+        run: node --test scripts/pi/bot-status-stage.test.mjs
 
       - name: Pi stage 7 dashboard address
         # 7-vault.sh: DASHBOARD_FOUNDRY_URL (the ribbon's portraits) as text, and Plan B's dashboard block. The stage's

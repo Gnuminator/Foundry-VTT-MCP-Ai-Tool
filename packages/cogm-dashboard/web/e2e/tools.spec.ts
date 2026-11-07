@@ -708,7 +708,7 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     },
   ]);
 
-  // apply-planned-change by hand shows the plan it applies, as the old page does.
+  // apply-planned-change by hand shows the plan it applies.
   await drawer.locator('#tool-back').click();
   await openTool(drawer, 'apply-planned-change');
   await drawer.locator('#tool-field-planId-pick').click();

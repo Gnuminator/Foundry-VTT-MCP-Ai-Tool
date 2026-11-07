@@ -180,13 +180,6 @@ body {
   color: var(--warn);
   font-size: 0.92rem;
 }
-
-.link-banner.space-banner.is-critical {
-  background: var(--bad-soft);
-  border-bottom-color: var(--bad);
-  color: var(--bad-text);
-  font-weight: 600;
-}
 .diag-note {
   margin: 0;
   padding: 0.5rem 1.1rem;
@@ -257,12 +250,6 @@ body {
 }
 
 /* ---- Status pills ---- */
-.status-cluster {
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -383,17 +370,6 @@ body {
   display: block;
   line-height: 1.2;
 }
-.control-label {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.12rem;
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-faint);
-}
 
 .select,
 .btn {
@@ -467,23 +443,10 @@ body {
   color: var(--on-accent);
   border-color: var(--accent-bright);
 }
-.btn.toggle-off {
-  opacity: 0.55;
-  color: var(--text-dim);
-}
 
 /* =============================================================================
    PANES (the grid)
    ============================================================================= */
-.panes {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr) minmax(340px, 1.15fr);
-  grid-template-rows: minmax(0, 1.45fr) minmax(0, 1fr);
-  gap: 0.9rem;
-  padding: 0.9rem;
-  min-height: 0;
-}
 #pane-diagnostics {
   grid-column: 1 / 3;
 }
@@ -1075,12 +1038,6 @@ body {
     min-height: 100vh;
     overflow-y: auto;
   }
-  .panes {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: none;
-    grid-auto-rows: auto;
-    align-items: start;
-  }
   .pane-body {
     max-height: 56vh;
   }
@@ -1114,11 +1071,6 @@ body {
   .topbar {
     gap: 1rem;
   }
-  .panes {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    padding: 0.75rem;
-  }
   .subtitle {
     max-width: none;
     white-space: normal;
@@ -1137,9 +1089,6 @@ body {
     padding: 0.7rem 0.8rem;
     gap: 0.7rem;
   }
-  .status-cluster {
-    width: 100%;
-  }
   .status-pill {
     flex: 1 1 auto;
     justify-content: center;
@@ -1147,17 +1096,8 @@ body {
   .controls {
     gap: 0.45rem;
   }
-  .controls .btn,
-  .control-label {
+  .controls .btn {
     flex: 1 1 auto;
-  }
-  .control-label .select {
-    width: 100%;
-  }
-
-  .panes {
-    padding: 0.6rem;
-    gap: 0.6rem;
   }
   .pane-body {
     max-height: none;

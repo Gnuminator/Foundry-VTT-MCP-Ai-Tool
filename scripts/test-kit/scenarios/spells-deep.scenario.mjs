@@ -9,7 +9,7 @@
  * The caster is put back after every call by the GM action (exerciseSpell).
  */
 import { FAILURE_KINDS, problemText } from '../lib/advancement.mjs';
-import { builtHeroes } from '../lib/helpers.mjs';
+import { bridgeProbe, builtHeroes } from '../lib/helpers.mjs';
 import { loadProfile } from '../lib/profiles.mjs';
 import { CASTER_CLASSES, casterCandidates, casterFor, selectSpells } from '../lib/spells.mjs';
 import { DEEP_SPELL_CHECKS, runSpellCheck } from '../lib/spells-deep.mjs';
@@ -22,12 +22,13 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: ['heroes', 'scene'],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: ['listSpells', 'inspectFeatures', 'exerciseSpell'],
   order: 90,
   timeoutMs: 60 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     const profile = loadProfile(t.kit.profile);
     const heroes = builtHeroes(t.kit);
     /** @type {Map<string, import('../lib/spells.mjs').SpellEntry>} */

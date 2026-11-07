@@ -63,7 +63,7 @@ const LINK_LABELS: Record<string, string> = {
 
 /**
  * The link field for a found document. The bridge has no field of its own for a whole journal,
- * so a JournalEntry goes under journalPageUuid with the pages, as on the old page; it opens the
+ * so a JournalEntry goes under journalPageUuid with the pages; it opens the
  * same way.
  */
 function linkField(documentName: string): string {
@@ -386,7 +386,7 @@ function PositionCard({
   openDocument: (uuid: string) => void;
 }): JSX.Element {
   const toast = useToast();
-  // One form at a time per position, as on the old page. Both drafts live here, so switching
+  // One form at a time per position. Both drafts live here, so switching
   // forms, a reload or a failed or cancelled change keeps what was typed; Add a link or Reveal to players again
   // closes the form. A reveal that went in closes it and clears the draft.
   const [form, setForm] = useState<'link' | 'reveal' | null>(null);
@@ -488,7 +488,7 @@ function PositionCard({
             {p.cardName} <code>{p.cardId}</code>
           </span>
         ) : (
-          // The same look as the old page's blurred name, but a fixed placeholder: neither the
+          // The look of a blurred name, but a fixed placeholder: neither the
           // name nor its length is on the page while the cards are hidden.
           <span className="tarokka-card veiled" title="Tick “Show cards” to see it">
             Hidden card <code>·····</code>

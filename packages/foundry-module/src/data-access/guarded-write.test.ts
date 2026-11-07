@@ -618,6 +618,32 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
   });
 });
 
+describe('applyGuardedOps: a token ring on the prototype token (token-rings)', () => {
+  const RING = 'prototypeToken.ring.enabled';
+
+  it('snapshots, applies, refuses a stale plan and undoes the nested ring switch', async () => {
+    const actor = addActor({
+      prototypeToken: { name: 'Ilvara', ring: { enabled: false, colors: { ring: '#fff' } } },
+    });
+    const op: GuardedOp = { kind: 'update', uuid: actor.uuid, changes: { [RING]: true } };
+
+    // Stale: someone changed the ring after the snapshot, nothing is written.
+    const stale = await request([op]);
+    actor.source.prototypeToken.ring.enabled = 'changed';
+    await expect(applyGuardedOps(stale)).rejects.toThrow(/Conflict/);
+    expect(actor.source.prototypeToken.ring.enabled).toBe('changed');
+    actor.source.prototypeToken.ring.enabled = false;
+
+    const applied = await applyGuardedOps(await request([op]));
+    expect(actor.source.prototypeToken.ring).toEqual({ enabled: true, colors: { ring: '#fff' } });
+    expect(applied.results[0].before?.[0]).toEqual({ path: RING, present: true, value: false });
+    expect(applied.results[0].after?.[0]).toEqual({ path: RING, present: true, value: true });
+
+    await applyGuardedOps(undoRequest(applied));
+    expect(actor.source.prototypeToken.ring).toEqual({ enabled: false, colors: { ring: '#fff' } });
+  });
+});
+
 describe('applyGuardedOps: apply', () => {
   it('applies an update, records before/after with the rules tag, and logs gm-change', async () => {
     const actor = addActor();

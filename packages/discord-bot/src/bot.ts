@@ -31,8 +31,8 @@ import { RecorderHealth } from './rec/health.js';
 import { startStatusServer } from './status-server.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
 import {
-  claimRunMarker,
-  clearRunMarker,
+  claimOnReady,
+  destroyThenClear,
   markerPath,
   restartAfterCrashMessage,
 } from './run-marker.js';
@@ -160,10 +160,14 @@ export class RecorderBot {
 
   async run(): Promise<void> {
     this.client.on('error', err => log.error('Discord client error', err));
+    // Registered before the handler below, so the notice is set when it reads it.
+    claimOnReady(
+      cb => this.client.once('clientReady', () => cb()),
+      markerPath(this.config.sessionsDir),
+      previous => (this.crashNotice = previous)
+    );
     this.client.once('clientReady', c => {
       log.info(`Logged in as ${c.user.tag}`);
-      // Claimed only now: a failed login (bad token) must not leave a marker that reads as a crash.
-      this.crashNotice = claimRunMarker(markerPath(this.config.sessionsDir));
       if (this.crashNotice) {
         const text = restartAfterCrashMessage(this.crashNotice);
         log.info(text);
@@ -527,10 +531,6 @@ export class RecorderBot {
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
     this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));
-    try {
-      await this.client.destroy();
-    } finally {
-      clearRunMarker(markerPath(this.config.sessionsDir));
-    }
+    await destroyThenClear(() => this.client.destroy(), markerPath(this.config.sessionsDir));
   }
 }

@@ -119,7 +119,11 @@ if [ "$MODE" = trim ] || [ "$MODE" = baseline ] || [ "$MODE" = baseline-undo ]; 
       if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
         die "other worlds (${others% }) share the edited module packs: the baseline rewrites the journal pages of dnd-players-handbook.content and aitool-content.journals (shared module packs), so in the other worlds the class text and spell lists link to world packs (world.player-*) that exist only in $WORLD (baseline-undo points them back, and the other worlds then see the old packs again). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
       fi
-      warn "other worlds (${others% }) share the edited module packs; the journal pages of dnd-players-handbook.content and aitool-content.journals link to world packs that exist only in $WORLD"
+      if [ "$MODE" = baseline-undo ]; then
+        warn "other worlds (${others% }) share the module packs: the undo points the journal pages of dnd-players-handbook.content and aitool-content.journals back at the old packs, so after it those worlds link to the old packs again; a link whose copy is gone from $WORLD's world packs stays as it is"
+      else
+        warn "other worlds (${others% }) share the edited module packs; the journal pages of dnd-players-handbook.content and aitool-content.journals link to world packs that exist only in $WORLD"
+      fi
     fi
   fi
 fi

@@ -42,6 +42,15 @@ function fakePi({
   ntp = 'yes',
   offset = '-2.331ms',
   snapshotEpoch = 1792200000,
+  icu = true,
+  containers = null,
+  envFiles = {
+    'dashboard.env': 'DASHBOARD_FOUNDRY_URL=https://p.example\nOBSIDIAN_VAULT_NAME="v"\n',
+    'bridge.env': 'FOUNDRY_AI_OBSIDIAN_DIR=/x\nFOUNDRY_AI_OPEN_BASE=http://pi\n',
+    'dashboard-access.env': 'GM_EMAILS=a@b.c\n',
+    'assistant-gm.env': 'ASSISTANT_GM_PASSWORD="pw"\n',
+  },
+  ref = 'v0.25.0',
 } = {}) {
   const d = tmp();
   const bin = path.join(d, 'bin');
@@ -60,6 +69,18 @@ function fakePi({
     'timedatectl',
     `case "$*" in show*) echo "${ntp}" ;; timesync-status) ${offset ? `echo "       Offset: ${offset}"` : 'exit 1'} ;; esac`,
   );
+  for (const [f, text] of Object.entries(envFiles)) writeFileSync(path.join(d, 'etc', f), text);
+  mkdirSync(path.join(d, 'tool', 'app'), { recursive: true });
+  if (ref !== null) writeFileSync(path.join(d, 'tool', 'app', '.tool-ref'), `${ref}\n`);
+  stub('ldconfig', icu ? 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"' : 'true');
+  // docker: the compose containers as {service, state, restarts, health}; null = no docker on the host at all.
+  if (containers !== null) {
+    const names = containers.map(c => `p-${c.service}-1|${c.service}`).join('\\n');
+    const cases = containers.map(c => `p-${c.service}-1) echo '${c.state}|${c.restarts}|${c.health}' ;;`).join('\n');
+    stub('docker', `case "$1" in ps) printf '${names}\\n' ;; inspect) case "$4" in\n${cases}\nesac ;; esac`);
+  }
+  // A CI runner has a real docker on PATH: "no docker" is a docker that answers nothing, which the script reports as null too.
+  else stub('docker', 'exit 1');
   const stats = path.join(d, 'dietpi-backup_stats');
   if (snapshotEpoch !== null) {
     writeFileSync(stats, 'x');
@@ -100,6 +121,7 @@ function run(pi, { args = [], env = {}, api = 'http://127.0.0.1:1/api/status', u
         FOUNDRY_STATUS_NODE: posix(process.execPath),
         FOUNDRY_STATUS_DF_PATH: posix(pi.d),
         FOUNDRY_STATUS_SNAPSHOT_STATS: posix(pi.stats),
+        FOUNDRY_STATUS_TOOL_DIR: posix(path.join(pi.d, 'tool')),
         FOUNDRY_STATUS_API: api,
         FOUNDRY_STATUS_URL: url,
         ...env,
@@ -147,9 +169,37 @@ describe('status script', () => {
     assert.deepEqual(p.clock, { ntpSynced: true, offsetMs: -2.331 });
     assert.ok(Number.isFinite(Date.parse(p.sentAt)));
     assert.equal(typeof p.disk.freePercent, 'number');
-    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
+    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'deployed', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
     // No world name, user count or anything else Foundry said.
     assert.ok(!r.stdout.includes('curse'));
+  });
+
+  test('dry run: the deployed state carries names and states only', async () => {
+    const good = await run(fakePi({ containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }] }), {
+      args: ['--dry-run'],
+    });
+    assert.deepEqual(JSON.parse(good.stdout).deployed, {
+      ref: 'v0.25.0',
+      missingEnv: [],
+      libicu: true,
+      containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
+    });
+    const bad = await run(
+      fakePi({ icu: false, ref: null, envFiles: { 'dashboard.env': 'DASHBOARD_FOUNDRY_URL=""\nOBSIDIAN_VAULT_NAME="hunter2"\n' } }),
+      { args: ['--dry-run'] },
+    );
+    const d = JSON.parse(bad.stdout).deployed;
+    assert.equal(d.ref, null);
+    assert.equal(d.libicu, false);
+    assert.equal(d.containers, null, 'no docker on the host');
+    assert.deepEqual(d.missingEnv, [
+      'dashboard.env:DASHBOARD_FOUNDRY_URL',
+      'bridge.env:FOUNDRY_AI_OBSIDIAN_DIR',
+      'bridge.env:FOUNDRY_AI_OPEN_BASE',
+      'dashboard-access.env:GM_DASHBOARD_TOKEN|GM_EMAILS',
+      'assistant-gm.env:ASSISTANT_GM_PASSWORD',
+    ]);
+    assert.ok(!bad.stdout.includes('hunter2'));
   });
 
   test('dry run: Foundry down and a failed backup are reported, not errors', async () => {

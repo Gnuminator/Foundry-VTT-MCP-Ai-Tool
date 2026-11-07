@@ -25,7 +25,9 @@ import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  clearProfileLocks,
   dryRunFrame,
+  isBridgeUser,
   extraGm,
   installDryRunGuard,
   isReadEvent,
@@ -517,6 +519,27 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
       /WITHOUT a dry run: the castle import broke the session/
     );
     assert.equal(runs().split('\n').length, 2);
+  });
+});
+
+describe('bridge user and stale profile locks (compose container)', () => {
+  test('isBridgeUser mirrors the module rule: empty or non-string means every GM', () => {
+    assert.equal(isBridgeUser('', 'u1'), true);
+    assert.equal(isBridgeUser(undefined, 'u1'), true);
+    assert.equal(isBridgeUser('u1', 'u1'), true);
+    assert.equal(isBridgeUser('u2', 'u1'), false);
+  });
+
+  test('clearProfileLocks removes the Singleton files and nothing else', () => {
+    const profile = abs('profile-locks');
+    mkdirSync(profile, { recursive: true });
+    for (const n of ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Preferences']) {
+      writeFileSync(path.join(profile, n), 'x');
+    }
+    assert.deepEqual(clearProfileLocks(profile).sort(), ['SingletonCookie', 'SingletonLock', 'SingletonSocket']);
+    assert.deepEqual(readdirSync(profile), ['Preferences']);
+    assert.deepEqual(clearProfileLocks(profile), []);
+    assert.deepEqual(clearProfileLocks(undefined), []);
   });
 });
 

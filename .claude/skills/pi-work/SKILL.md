@@ -31,6 +31,8 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
   installed (for example `/opt/foundry-ai-tool/gm-browser/assistant-gm.mjs` from stage 5). If the
   run relies on a new feature, compare the deployed helper with the repo copy (sha256, or grep for
   the new env var) first. Container tests install the repo's stand-in and cannot catch this.
+- Look at what is deployed first with `deploy/pi/deployed-state.ps1` (read-only: units, containers, env
+  names, libicu, the deployed build against the newest release and the helper hash). It needs no snapshot.
 - After the run, read the output for the expected result (for example the `users:` line), not
   just the exit code.
 - Stage scripts: `${var:?}` in every `rm -rf`; `node --test .claude/hooks/guard-remote-commands.test.mjs`

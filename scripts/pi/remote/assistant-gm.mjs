@@ -148,7 +148,48 @@ async function watchLink(port, context, historyFile) {
   }
 }
 
+/**
+ * Whether the signed-in user is the module's bridge user, by the module's own rule (isBridgeUser in
+ * packages/foundry-module/src/settings.ts): an empty setting ("Any GM", the default) or a non-string means every GM
+ * connects, otherwise only the user it names.
+ */
+export function isBridgeUser(bridgeUserId, userId) {
+  return typeof bridgeUserId !== 'string' || bridgeUserId === '' || bridgeUserId === userId;
+}
+
+const PROFILE_LOCKS = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+
+/**
+ * Chromium leaves SingletonLock, SingletonCookie and SingletonSocket (symbolic links tied to the host name and the process
+ * id) in the profile; a container killed mid-run keeps them in the persistent profile, and a restarted container (new
+ * host name, same fixed process ids under tini) can then refuse to start the browser. Only one browser ever uses the
+ * profile, so removing them before the launch is safe. Returns the names it removed.
+ */
+export function clearProfileLocks(profile) {
+  const removed = [];
+  if (!profile) return removed;
+  for (const name of PROFILE_LOCKS) {
+    const file = join(profile, name);
+    try {
+      lstatSync(file);
+    } catch {
+      continue; // not there
+    }
+    try {
+      rmSync(file, { force: true });
+      removed.push(name);
+    } catch {
+      // not removable: the launch then fails and says so
+    }
+  }
+  return removed;
+}
+
 async function launch(profile, extra = {}) {
+  if (process.env.GM_CLEAR_PROFILE_LOCKS === '1') {
+    const removed = clearProfileLocks(profile);
+    if (removed.length) log(`removed the stale browser profile lock(s): ${removed.join(', ')}`);
+  }
   const context = await browserType().launchPersistentContext(profile, {
     executablePath: env('CHROMIUM', '/usr/bin/chromium'),
     headless: true,
@@ -266,11 +307,13 @@ async function run() {
       user: game.user.name,
       isGM: game.user.isGM,
       module: game.modules.get(id)?.active ?? false,
-      // The module dials the bridge only from the browser of the user in its bridgeUserId setting.
-      bridgeUser: game.modules.get(id)?.active ? game.settings.get(id, 'bridgeUserId') === game.user.id : false,
+      userId: game.user.id,
+      // The module dials the bridge only from the browser of the user in its bridgeUserId setting (empty: any GM).
+      bridgeUserSetting: game.modules.get(id)?.active ? game.settings.get(id, 'bridgeUserId') : undefined,
     }),
     MODULE_ID
   );
+  info.bridgeUser = info.module && isBridgeUser(info.bridgeUserSetting, info.userId);
   log(
     `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module}, bridge user: ${info.bridgeUser})`
   );

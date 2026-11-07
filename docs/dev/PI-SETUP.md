@@ -200,6 +200,9 @@ Safety rules (you, 2026-10-04), so a mistake can never leave the Pi unusable:
 
 - **Read-only commands freely; changes only from the stage scripts** in `scripts/pi/remote/`, each
   after your OK. Any other change is shown to you first and runs only after your OK.
+- **Before a run, look at what is deployed:** `deploy/pi/deployed-state.ps1` is the read-only check
+  (units, containers, env names, libicu, deployed build against the newest release). It changes
+  nothing, so it needs no snapshot and no OK.
 - **These need your explicit OK every time, never bundled:** deleting outside the tool's own folders,
   users and groups, disks and partitions, the bootloader, removing packages, firewall, SSH and network
   settings, reboots.

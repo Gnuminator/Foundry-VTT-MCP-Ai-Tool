@@ -363,6 +363,10 @@ jobs:
         # Recorder file format, Ogg writer and the silence-padding timeline.
         run: npm test -w @gnuminator/discord-bot
 
+      - name: Unit tests (obsidian plugin)
+        # Note writing for the Obsidian plugin; before this step only a release tag ran them.
+        run: npm test -w @gnuminator/obsidian-plugin
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 

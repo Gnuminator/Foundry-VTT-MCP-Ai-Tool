@@ -44,6 +44,7 @@ export const HEAVY_STEPS = new Set([
   'test-mcp-server',
   'test-cogm-dashboard',
   'test-discord-bot',
+  'test-obsidian-plugin',
   'e2e',
 ]);
 
@@ -222,6 +223,7 @@ export const CHECKS = [
   workspaceTest('test-mcp-server', 'mcp-server'),
   workspaceTest('test-cogm-dashboard', 'cogm-dashboard'),
   workspaceTest('test-discord-bot', 'discord-bot'),
+  workspaceTest('test-obsidian-plugin', 'obsidian-plugin'),
   {
     name: 'mcp-schema-smoke',
     group: 'smoke',

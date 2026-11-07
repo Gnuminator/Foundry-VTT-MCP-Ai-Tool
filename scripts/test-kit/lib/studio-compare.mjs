@@ -57,6 +57,31 @@ const slug = text =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
 
+/** The levels at which a class can raise an ability score (the most any class has: fighter and rogue add 6, 14, 19). */
+const ASI_LEVELS = [4, 6, 8, 12, 14, 16, 19];
+
+/**
+ * Whether Constitution rises at ability score increases can explain a hit point shortfall: each rise of the
+ * modifier at level L leaves L hit points missing (the maximum grows for every level, the current value only by
+ * the level's own hit points), so the shortfall must be a sum of distinct increase levels up to the hero's
+ * level, with at most one more term than the modifier is high (a hero can start at -1).
+ * @param {number} shortfall
+ * @param {number} level
+ * @param {number} conMod
+ */
+export function conRiseExplains(shortfall, level, conMod) {
+  if (!(shortfall > 0) || !(conMod > 0) || level < 4) return false;
+  const levels = ASI_LEVELS.filter(l => l <= level);
+  const maxTerms = conMod + 1;
+  /** @param {number} i @param {number} left @param {number} terms */
+  const fits = (i, left, terms) => {
+    if (left === 0) return true;
+    if (left < 0 || i >= levels.length || terms >= maxTerms) return false;
+    return fits(i + 1, left - levels[i], terms + 1) || fits(i + 1, left, terms);
+  };
+  return fits(0, shortfall, 0);
+}
+
 /**
  * The name of a finding, the same for every class: its category and what it says.
  * @param {string} category
@@ -304,7 +329,20 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       `the Studio hero has ${emptySlots.join(' ')}`
     );
   tick('current hit points');
-  if (studio.actor.hp?.value !== studio.actor.hp?.max)
+  if (studio.actor.hp?.value !== studio.actor.hp?.max) {
+    const shortfall = (studio.actor.hp?.max ?? 0) - (studio.actor.hp?.value ?? 0);
+    const conMod = Number(studio.actor.abilities?.con?.mod ?? 0);
+    const level = Number(studio.actor.level ?? 0);
+    // A Constitution modifier that rose at an ability score increase raises the maximum for every level, the
+    // current value only by the level's own hit points, so each rise at level L leaves L hit points missing
+    // (the 2024 book, Gaining a Level; dnd5e). Only a shortfall that is a sum of ability score increase levels
+    // (see conRiseExplains) gets its own finding id; any other shortfall stays a plain STUDIO finding.
+    // Fixed in the fork build 2.10.5-aitool.6.
+    const conRise =
+      !(studio.actor.hp?.sources ?? []).length &&
+      level >= 4 &&
+      conMod > 0 &&
+      conRiseExplains(shortfall, level, conMod);
     // An effect that adds to the maximum (Draconic Resilience) raises the maximum, not the current value.
     bad(
       'current hit points',
@@ -313,8 +351,14 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       `the Studio hero has ${studio.actor.hp?.value}/${studio.actor.hp?.max}` +
         ((studio.actor.hp?.sources ?? []).length
           ? ` (the system raises the maximum for an effect, not the current value: ${studio.actor.hp.sources.map(x => x.item).join(', ')})`
-          : '')
+          : conRise
+            ? ` (${shortfall} short, Constitution modifier +${conMod} at level ${level}: a Constitution increase raises the maximum for every level, not the current value)`
+            : ''),
+      conRise
+        ? 'a Constitution increase while levelling leaves the current hit points behind'
+        : 'a new hero does not start at full hit points'
     );
+  }
   tick('hit dice spent');
   const spentDice = (studio.features.hd?.classes ?? []).filter(c => (c.spent ?? 0) > 0);
   if (spentDice.length)

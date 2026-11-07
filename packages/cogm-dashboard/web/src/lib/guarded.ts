@@ -96,6 +96,16 @@ function doneText(name: string, result: Applied | null): string {
 export const failCode = (err: unknown): string =>
   err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
 
+/**
+ * A failure text with its own "It may have applied; check ..." sentence (the plan-gone tail after
+ * plainText) swapped for this call's hint, so the toast names one place to look, once.
+ */
+export function rewordMayHaveApplied(error: string, checkHint: string): string {
+  const text = error.replace(/\s*It may have applied; check [^.]*\./, '').trim();
+  const stop = /[.!?]$/.test(text) ? '' : '.';
+  return `${text}${stop} ${checkHint}`;
+}
+
 /** The tool's own words when a plan is gone but its change may have gone in (see api.ts). */
 const PLAN_GONE = /It may have been applied already/i;
 
@@ -354,9 +364,7 @@ export function useGuardedTools(): GuardedTools {
             error = 'The answer did not come back.';
           }
           // The plan-gone sentence already says it; word it with this call's own place to look.
-          const text = error.replace(/s*It may have applied; check [^.]*./, '').trim();
-          const stop = /[.!?]$/.test(text) ? '' : '.';
-          error = `${text}${stop} ${checkHint}`;
+          error = rewordMayHaveApplied(error, checkHint);
         }
         toast(
           timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`,

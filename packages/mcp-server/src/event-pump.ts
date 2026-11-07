@@ -146,7 +146,7 @@ export class EventPump {
   private state: PumpMemState | null = null;
   private lastError: string | null = null;
   /** Start of an outage whose link is back but not yet filed into the state (the world-id fetch or state load may still fail). */
-  private unfiledOutageStart: number | null = null;
+  private unfiledOutage: { start: number; end: number } | null = null;
   readonly health = new PumpHealth('session events');
 
   constructor(options: EventPumpOptions) {
@@ -207,13 +207,19 @@ export class EventPump {
     // fetch is the first round trip after a reconnect), and keep the outage start until the state
     // is loaded.
     const upAfter = this.health.linkUp();
-    if (upAfter !== null && this.unfiledOutageStart === null) this.unfiledOutageStart = upAfter;
+    if (upAfter !== null) {
+      // The window ends when the link came back, not when it is filed (failed world-id fetches
+      // would stretch it); of two unfiled outages the longer one is kept.
+      const outage = { start: upAfter, end: Date.now() };
+      const held = this.unfiledOutage;
+      if (!held || outage.end - outage.start > held.end - held.start) this.unfiledOutage = outage;
+    }
     const worldId = await this.worldIds.current();
     const state = await this.loadState(worldId);
 
     // File the outage before the query, so a query that fails right after the reconnect keeps it. The outage is kept until a poll with
     // events shows whether a reload explains it.
-    this.takeOutage(state, Date.now());
+    this.takeOutage(state);
 
     const args: Record<string, unknown> = { limit: FETCH_LIMIT };
     if (state.cursorMs !== null) {
@@ -298,14 +304,14 @@ export class EventPump {
    * writes a second line for one reload. Its length is the length of the outage itself, not the
    * wait for the next event.
    */
-  private takeOutage(state: PumpMemState, now: number): void {
-    const outageStart = this.unfiledOutageStart;
-    if (outageStart === null) return;
-    this.unfiledOutageStart = null;
+  private takeOutage(state: PumpMemState): void {
+    const outage = this.unfiledOutage;
+    if (outage === null) return;
+    this.unfiledOutage = null;
     // Several outages before the next event: the longest one counts, blips do not add up.
     const held = state.pendingOutage;
-    if (!held || now - outageStart > held.end - held.start) {
-      state.pendingOutage = { start: outageStart, end: now };
+    if (!held || outage.end - outage.start > held.end - held.start) {
+      state.pendingOutage = outage;
     }
   }
 

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from './api';
-import { failCode, mayHaveApplied } from './guarded';
+import { PLAN_GONE_TAIL } from '@gnuminator/shared';
+
+import { ApiError, errorText } from './api';
+import { failCode, mayHaveApplied, rewordMayHaveApplied } from './guarded';
 
 // The page reads its token from the URL at load; there is no page here.
 vi.mock('./auth', () => ({ authHeaders: (): Record<string, string> => ({}) }));
@@ -24,12 +26,24 @@ describe('mayHaveApplied', () => {
   });
 
   it('is true when the plan is gone but the change may have gone in', () => {
-    const gone = new ApiError(
-      'The plan is gone. It may have been applied already: check list-recent-changes first, then make a new plan.',
-      422,
-      'tool'
-    );
+    const gone = new ApiError(`The plan is gone. ${PLAN_GONE_TAIL}`, 422, 'tool');
     expect(mayHaveApplied(gone)).toBe(true);
+  });
+});
+
+describe('rewordMayHaveApplied', () => {
+  it("swaps the plan-gone sentence for this call's own place to look, once", () => {
+    const text = errorText(new Error(`That plan is gone. ${PLAN_GONE_TAIL}`));
+    const hint = 'It may have applied; check the Tarokka drawer.';
+    const out = rewordMayHaveApplied(text, hint);
+    expect(out).toBe(`That plan is gone. ${hint}`);
+    expect(out.match(/may have applied/g)).toHaveLength(1);
+  });
+
+  it('adds a stop to a text that has none', () => {
+    expect(rewordMayHaveApplied('Nothing came back', 'Check it.')).toBe(
+      'Nothing came back. Check it.'
+    );
   });
 });
 

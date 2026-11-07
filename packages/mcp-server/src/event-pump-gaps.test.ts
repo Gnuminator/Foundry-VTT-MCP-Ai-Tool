@@ -399,6 +399,8 @@ describe('EventPump gaps and health', () => {
     const markers = await gapMarkers();
     expect(markers).toHaveLength(1);
     expect(markers[0]).toMatchObject({ details: { reason: 'link-down' } });
+    // The window ends when the link came back, not when the failed fetch was retried.
+    expect(pump.health.snapshot().lastGap?.toMs).toBe(T0 + 60_000);
   });
 
   it('writes only the ring-wrap marker when an outage also overflowed the buffer', async () => {

@@ -136,12 +136,13 @@ describe('stat block readers', () => {
       statBlockFromCompendium(make({}, { calcs: ['unarmored', 'armored'], flat: 12 }))?.ac
     ).toBeNull();
   });
-  it('reads the rules version', () => {
-    const sb = statBlockFromCompendium({
-      system: { source: { rules: '2024' } },
-      fullData: { name: 'X', system: { attributes: {}, details: {} } },
+  it('leaves a missing ability score null instead of making one up', () => {
+    const sb = statBlockFromActor({
+      name: 'Wolf',
+      stats: { armorClass: 12, abilities: { str: { value: 14 } } },
     });
-    expect(sb?.rules).toBe('2024');
+    expect(sb?.abilities.find(a => a.key === 'str')?.value).toBe(14);
+    expect(sb?.abilities.find(a => a.key === 'dex')?.value).toBeNull();
   });
   it('reads a world actor', () => {
     const sb = statBlockFromActor({

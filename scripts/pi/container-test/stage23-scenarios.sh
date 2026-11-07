@@ -94,7 +94,13 @@ exit 0'
 echo "docker $*" >>"$F/calls"
 case "$1" in
   --version) echo "Docker version 26.1.5, build 1234" ;;
-  info) [ ! -f "$F/daemon-down" ] ;;
+  info)
+    [ ! -f "$F/daemon-down" ] || exit 1
+    # docker info -f ...LiveRestoreEnabled: "true" from the Nth ask on when live-restore-after holds N, else nothing
+    if [ "$2" = -f ] && [ -f "$F/live-restore-after" ]; then
+      c=$(($(cat "$F/live-restore-count" 2>/dev/null || echo 0) + 1)); echo "$c" >"$F/live-restore-count"
+      if [ "$c" -ge "$(cat "$F/live-restore-after")" ]; then echo true; else echo false; fi
+    fi ;;
   image) [ "$2" = inspect ] && [ -f "$F/images/$3" ] ;;
   compose)
     shift
@@ -173,6 +179,24 @@ if echo "$CALLS" | grep -q 'systemctl enable docker.service' && ! echo "$CALLS" 
 if echo "$OUT" | grep -q 'image foundry-ai-tool-pi/app:local'; then pass "reports each built image"; else fail "images: $OUT"; fi
 
 if grep -q '"live-restore": true' "$SB/etc/docker-daemon.json" 2>/dev/null; then pass "a missing daemon.json gets live-restore"; else fail "daemon.json: $(cat "$SB/etc/docker-daemon.json" 2>&1)"; fi
+# the file goes in through a .new file, so no .new is left behind
+if [ ! -e "$SB/etc/docker-daemon.json.new" ]; then pass "no daemon.json.new is left after the write"; else fail "daemon.json.new left"; fi
+# a move that leaves a broken file: the stage removes it and stops, so dockerd is not left with a file it cannot parse
+new_pi
+printf '#!/usr/bin/env bash\nlast="${@: -1}"\nrm -f "${@: -2:1}"\nprintf "{\\n" >"$last"\nexit 0\n' >"$BIN/mv"
+chmod +x "$BIN/mv"
+run_stage
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'incomplete after the move' && [ ! -e "$SB/etc/docker-daemon.json" ] && [ ! -e "$SB/etc/docker-daemon.json.new" ]; then pass "a daemon.json that is broken after the move is removed and the stage stops"; else fail "daemon.json broken (rc $RC): $OUT"; fi
+# a .new file that cannot be written completely: the stage stops before anything is moved
+new_pi
+mkdir -p "$SB/etc/docker-daemon.json.new"
+run_stage
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'could not be written completely' && [ ! -e "$SB/etc/docker-daemon.json" ]; then pass "a daemon.json.new that cannot be written stops the stage with no daemon.json"; else fail "daemon.json.new blocked (rc $RC): $OUT"; fi
+# the reload is read back a few times: LiveRestoreEnabled turns true on the third ask
+new_pi
+echo 3 >"$FAKE/live-restore-after"
+run_stage
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'live-restore is on (docker info)' && [ "$(cat "$FAKE/live-restore-count")" = 3 ]; then pass "docker info is asked again until live-restore reads true"; else fail "live-restore retry (rc $RC, asks $(cat "$FAKE/live-restore-count" 2>/dev/null)): $OUT"; fi
 # an existing daemon.json is never rewritten: with live-restore it is accepted, without it only a warning
 new_pi
 printf '{"log-level": "warn"}\n' >"$SB/etc/docker-daemon.json"

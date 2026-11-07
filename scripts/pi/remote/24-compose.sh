@@ -76,9 +76,9 @@ fi
 # The value compose will use: the shell wins (even set but empty, which compose then replaces with the default) over
 # deploy/pi/.env wins over the default in compose.yml. A .env value is read like compose does: leading and trailing
 # whitespace dropped, an unquoted value ends at a ` #` comment, one pair of matching quotes removed.
-effective() { # NAME DEFAULT
-  local v="${!1:-}"
-  if [ -z "${!1+set}" ] && [ -f "$env_file" ]; then
+env_file_value() { # NAME: the value deploy/pi/.env gives it, read like compose does ("" when absent)
+  local v=""
+  if [ -f "$env_file" ]; then
     v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$env_file" | tail -n 1)"
     v="${v#"${v%%[![:space:]]*}"}"
     case "$v" in
@@ -87,7 +87,24 @@ effective() { # NAME DEFAULT
       *) v="$(printf '%s' "$v" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
     esac
   fi
+  printf '%s' "$v"
+}
+effective() { # NAME DEFAULT
+  local v="${!1:-}"
+  if [ -z "${!1+set}" ]; then v="$(env_file_value "$1")"; fi
   printf '%s' "${v:-$2}"
+}
+# Compose interpolates $VAR and ${VAR} and reads \" escapes in a .env value; effective() reads them literally. A value of the
+# seven names with a $ or a backslash would mean one folder or port to compose and another to the live-folder check, so it
+# is refused (key only, never the value). Only a value read from .env counts: a shell value reaches compose as it is.
+check_env_file_literals() {
+  local name
+  for name in FOUNDRY_HTTP_PORT BRIDGE_CONTROL_PORT BRIDGE_LINK_PORT DASHBOARD_PORT FOUNDRY_DATA_DIR TOOL_DATA_DIR FOUNDRY_APP_DIR; do
+    [ -z "${!name+set}" ] || continue
+    case "$(env_file_value "$name")" in
+      *'$'* | *'\'*) die "$env_file sets $name with a \$ or a backslash: compose would read it differently from this script's live-folder check. Write the plain value. Nothing was changed" ;;
+    esac
+  done
 }
 # True when the stack's data folders are, or sit inside or around, the live ones. Paths are canonicalised first, so a
 # trailing slash, //, /./ or a symlink does not get past the refusal. Fails closed: when realpath cannot canonicalise a
@@ -123,6 +140,7 @@ foundry_app="$(effective FOUNDRY_APP_DIR "$FOUNDRY_APP")"
 # Compose resolves a relative bind path against the compose file folder, this script against its own cwd: refuse both.
 # Only for up and cutover, the modes that mount the data folders; down, rollback and status must never be blocked by it.
 if [ "$mode" = up ] || [ "$mode" = cutover ]; then
+  check_env_file_literals
   case "$foundry_data" in /*) ;; *) die "FOUNDRY_DATA_DIR must be an absolute path (got '$foundry_data'). Nothing was changed" ;; esac
   case "$tool_data" in /*) ;; *) die "TOOL_DATA_DIR must be an absolute path (got '$tool_data'). Nothing was changed" ;; esac
 fi

@@ -45,7 +45,12 @@ describe('23-docker.sh as text', () => {
     const code = s22.replace(/^\s*#.*$/gm, '');
     assert.doesNotMatch(code, /usermod|adduser|gpasswd|groupadd/);
     assert.doesNotMatch(code, /compose[^\n]* (up|start|down|rm)\b/);
-    assert.doesNotMatch(code, /\brm\b|\bmv\b|prune|reboot|shutdown/);
+    // The one file the stage creates, daemon.json, goes in through a .new file; only its own .new, move and cleanup are allowed.
+    const rest = code
+      .replaceAll('rm -f -- "$daemon_new"', '')
+      .replaceAll('rm -f -- "$daemon_json"', '')
+      .replaceAll('mv -- "$daemon_new" "$daemon_json"', '');
+    assert.doesNotMatch(rest, /\brm\b|\bmv\b|prune|reboot|shutdown/);
   });
 
   test('keeps the .env lines it does not own and writes only the four managed names', () => {

@@ -74,7 +74,7 @@ const linkRe = packs =>
 // The name form @Compendium[<pack>.<Name>] is not rewritten (no id to map): the dry run counts it.
 const nameLinkRe = packs =>
   new RegExp(
-    `@Compendium\\[(${packs.map(p => p.replace(/[\\.]/g, '\\$&')).join('|')})\\.(?![A-Za-z0-9]{16}\\])[^\\]]+\\]`,
+    `@Compendium\\[(${packs.map(p => p.replace(/[\\.]/g, '\\$&')).join('|')})\\.(?!(?:[A-Za-z]+\\.)?[A-Za-z0-9]{16}\\])[^\\]]+\\]`,
     'g'
   );
 const done = [];
@@ -166,7 +166,7 @@ if (MODE !== 'undo' && !game.packs.get(LEGACY)) {
   log(`${LEGACY} is not in this world (the trim was not run here, or the legacy pack was deleted)`);
   if (MODE === 'run' && existingTargets.length === 0)
     throw new Error(
-      `${LEGACY} is missing and no world.player-* pack exists: run MODE=trim first. Nothing was changed`
+      `${LEGACY} is missing and no world.player-* pack exists: either the trim was not run here (run MODE=trim first) or MODE=delete already removed the legacy pack before the baseline (rerun MODE=trim, dry run first, which makes an empty legacy pack and lets the baseline run). Nothing was changed`
     );
 }
 const journalPacks = JOURNALS.filter(id => game.packs.get(id));
@@ -263,20 +263,21 @@ if (MODE === 'undo') {
       });
     }
     // Scan before anything is shown or hidden: no journal page may still name a world pack by an id the undo maps back.
-    const stuck = [];
+    const stuck = new Map(); // one entry per page (keyed by ids), not per link
     let unmapped = 0;
     for (const jp of journalPacks)
       for (const entry of await journalEntries(jp))
         for (const p of entry.pages ?? [])
           for (const m of JSON.stringify({ t: p.text, s: p.system }).matchAll(reRe)) {
-            if (back.has(`${m[2]}|${m[4]}`)) stuck.push(`${jp} ${entry.name} ${p.name ?? ''}`);
+            if (back.has(`${m[2]}|${m[4]}`))
+              stuck.set(`${jp}|${entry._id}|${p._id}`, `${jp} ${entry.name} ${p.name ?? ''}`);
             else unmapped++;
           }
     if (unmapped)
       log(`links to world packs with no copy to map back (left as they are): ${unmapped}`);
-    if (stuck.length)
+    if (stuck.size)
       throw new Error(
-        `${stuck.length} journal pages still name a world pack after the undo; the old packs stay as they are: ${stuck.slice(0, 10).join(' | ')}`
+        `${stuck.size} journal pages still name a world pack after the undo; the old packs stay hidden and the world packs stay open, so some pages may already point back and others not. Rerun MODE=baseline-undo (dry run first) or MODE=baseline: ${[...stuck.values()].slice(0, 10).join(' | ')}`
       );
     for (const id of toOpen) {
       const was = ownershipOf(game.packs.get(id));
@@ -386,13 +387,19 @@ for (const id of sourcePacks) {
 }
 // A copy needs a refresh when its content or name differs from the source (a rename in a kept pack) or when it was made
 // before the baselineCopy flag existed (it never gets the flag otherwise and is never seen as ours).
-const needsRefresh = (have, w) => differs(have, w.data) || have.name !== w.data.name || !have.ours;
+// It also needs one when the copy names another kept pack than the one it is read from now (the id moved between kept
+// packs without a rename): the undo maps links back by that tag.
+const needsRefresh = (have, w) =>
+  differs(have, w.data) ||
+  have.name !== w.data.name ||
+  !have.ours ||
+  have.source !== w.data.flags['foundry-ai-tool'].sourcePack;
 const stale = []; // same id, other name, and not a copy of ours: stops the run
 const refreshNames = [];
 for (const [docId, w] of wantedCopy) {
   const have = targetIndex[w.target].get(docId);
   if (!have) counts[w.target].copy++;
-  else if (have.name !== w.data.name && !(have.ours && have.source === sourceOf.get(docId)))
+  else if (have.name !== w.data.name && have.source !== sourceOf.get(docId))
     stale.push(`${docId}: ${w.target} holds ${have.name}, source has ${w.data.name}`);
   else if (needsRefresh(have, w)) {
     refreshNames.push(`${w.target.slice(13)}:${w.data.name}`);

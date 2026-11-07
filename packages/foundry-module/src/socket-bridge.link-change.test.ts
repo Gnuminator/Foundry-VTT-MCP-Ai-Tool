@@ -72,6 +72,32 @@ describe('onLinkChange', () => {
     bridge.disconnect();
   });
 
+  it('writes one console line per link change even with debug logging off', async () => {
+    const log = vi.mocked(globalThis.console['log']);
+    const bridge = new SocketBridge(makeConfig({ debugLogging: false }));
+    const ws = await open(bridge);
+    ws.onerror(new Error('x'));
+    ws.onclose({ wasClean: false, reason: 'gone' });
+    ws.onclose({ wasClean: false, reason: 'gone' });
+    const lines = log.mock.calls.map(c => String(c[0]));
+    expect(lines.filter(l => l.includes('Connected to the MCP server'))).toHaveLength(1);
+    expect(lines.filter(l => l.includes('Lost the MCP server link: gone'))).toHaveLength(1);
+    bridge.disconnect();
+  });
+
+  it('logs no lost-link line for a connect that never opened', async () => {
+    const log = vi.mocked(globalThis.console['log']);
+    const bridge = new SocketBridge(makeConfig());
+    const p = bridge.connect();
+    sockets[0].onerror(new Error('refused'));
+    sockets[0].onclose({ wasClean: false, reason: '' });
+    await expect(p).rejects.toThrow();
+    expect(
+      log.mock.calls.map(c => String(c[0])).some(l => l.includes('Lost the MCP server link'))
+    ).toBe(false);
+    bridge.disconnect();
+  });
+
   it('says nothing for a deliberate disconnect', async () => {
     const calls: boolean[] = [];
     const bridge = new SocketBridge(makeConfig({ onLinkChange: up => calls.push(up) }));

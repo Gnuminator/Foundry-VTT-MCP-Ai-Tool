@@ -91,6 +91,8 @@ export class SocketBridge {
   private stopped = false;
   /** True from a successful open until the link is lost or closed on purpose. */
   private linkUp = false;
+  /** Last link state written to the console by logLinkChange (null before the first change). */
+  private lastLoggedLinkUp: boolean | null = null;
   private activeConnectionType: 'websocket' | null = null;
   /** Module-initiated requests waiting for their `module-reply` (I-108). */
   private pendingRequests = new Map<string, PendingModuleRequest>();
@@ -160,6 +162,7 @@ export class SocketBridge {
           this.linkUp = true;
           this.notifyLinkChange(true);
           this.log('Connected to MCP server via WebSocket');
+          this.logLinkChange(true, 'Connected to the MCP server');
           this.setupEventHandlers();
           this.sendHello();
           resolve();
@@ -182,6 +185,10 @@ export class SocketBridge {
           clearTimeout(connectTimeout);
           if (!isCurrent()) return;
           this.log(`Disconnected: ${event.reason || 'Connection closed'}`);
+          this.logLinkChange(
+            false,
+            `Lost the MCP server link: ${event.reason || 'connection closed'}`
+          );
           // Error and close both fire for one failed connect: linkDown() keeps to a
           // single timer and a single count. A close we did not start (even a clean
           // one, such as the backend shutting down) is retried.
@@ -514,6 +521,17 @@ export class SocketBridge {
         namespace: this.config.namespace,
       },
     };
+  }
+
+  /**
+   * Link up and down changes always reach the browser console, whatever the debug switch says, so a
+   * dropped link can be read back afterwards. One line per change, not one per retry.
+   */
+  private logLinkChange(up: boolean, message: string): void {
+    // A first connect that never opened is not a "lost" link: only up->down and down->up are changes.
+    if (this.lastLoggedLinkUp === up || (!up && this.lastLoggedLinkUp === null)) return;
+    this.lastLoggedLinkUp = up;
+    logInfo(`[${MODULE_ID}] Socket Bridge: ${message}`);
   }
 
   private log(message: string): void {

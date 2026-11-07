@@ -254,6 +254,10 @@ Wants=network-online.target
 [Service]
 $common
 Environment=FOUNDRY_LINK_HOST=127.0.0.1
+# Log at info into a rotated file that survives restarts (the default, under the private /tmp, is lost at
+# every restart). bridge.env can still override both.
+Environment=LOG_LEVEL=info
+Environment=LOG_FILE_PATH=$TOOL_DATA/logs/mcp-server.log
 EnvironmentFile=-$TOOL_ETC/bridge.env
 WorkingDirectory=$app
 ExecStart=$NODE_DIR/bin/node $app/packages/mcp-server/dist/standalone.js

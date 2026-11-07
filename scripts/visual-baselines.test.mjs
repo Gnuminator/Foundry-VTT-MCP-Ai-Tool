@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { collectProblem, pickRun, renderProblem, safeTarget, SCREENSHOTS, validBranch } from './visual-baselines.mjs';
+import {
+  artifactProblem,
+  collectProblem,
+  logPathFor,
+  pickRun,
+  renderProblem,
+  runProblem,
+  safeTarget,
+  SCREENSHOTS,
+  validBranch
+} from './visual-baselines.mjs';
 
 test('validBranch accepts normal branches only', () => {
   assert.ok(validBranch('claude/dnd-levelup'));
@@ -26,6 +36,26 @@ test('pickRun matches only the run carrying its own nonce', () => {
   ];
   assert.equal(pickRun(runs, 'nBBB')?.databaseId, 2);
   assert.equal(pickRun(runs, 'nCCC'), undefined);
+});
+
+test('two concurrent runs: each lane takes only its own branch, sha and log', () => {
+  const runs = [
+    { databaseId: 1, displayTitle: 'visual-baselines claude/a nAAA', headBranch: 'claude/a', headSha: 'a'.repeat(40) },
+    { databaseId: 2, displayTitle: 'visual-baselines claude/b nBBB', headBranch: 'claude/b', headSha: 'b'.repeat(40) }
+  ];
+  const a = pickRun(runs, 'nAAA', 'claude/a');
+  const b = pickRun(runs, 'nBBB', 'claude/b');
+  assert.equal(a?.databaseId, 1);
+  assert.equal(b?.databaseId, 2);
+  assert.equal(pickRun(runs, 'nAAA', 'claude/b'), undefined);
+  assert.equal(runProblem(a, 'claude/a', 'a'.repeat(40)), '');
+  assert.match(runProblem(b, 'claude/a', ''), /is for branch claude\/b, not claude\/a/);
+  assert.match(runProblem(a, 'claude/a', 'c'.repeat(40)), /was at cccccccc/);
+  assert.equal(artifactProblem(`${'a'.repeat(40)}\n`, a.headSha), '');
+  assert.match(artifactProblem('b'.repeat(40), a.headSha), /another run's output/);
+  assert.equal(artifactProblem('', a.headSha), '');
+  assert.notEqual(logPathFor('claude/a'), logPathFor('claude/b'));
+  assert.ok(!logPathFor('claude/a').includes('claude/a'));
 });
 
 test('renderProblem refuses a failed render with nothing changed', () => {

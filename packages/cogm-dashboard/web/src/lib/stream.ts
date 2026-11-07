@@ -221,6 +221,8 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   // A different world opened (GM only, no payload): the old world's events, errors and fight go,
   // and everything read from the game (handouts, changes, ...) is read again.
   reset: queryClient => {
+    // A direct fight read still out is about the old world: it must not put the old fight back.
+    combatSeq += 1;
     queryClient.setQueryData<FeedLog>(FEED_KEY, EMPTY_FEED);
     queryClient.setQueryData<ModuleErrorLog>(MODULE_ERRORS_KEY, EMPTY_LOG);
     queryClient.setQueryData<CombatState | null>(COMBAT_KEY, null);

@@ -384,6 +384,13 @@ test('Undo offers only the newest change and asks first', async ({ page }) => {
     .toMatchObject({ args: { changeId: 'c2' }, confirm: true });
 });
 
+test('a change with no summary still has a button label and title', async ({ page }) => {
+  await setup(page, FIGHT, { changes: [{ changeId: 'c9', summary: '  ', canUndo: true }] });
+  await load(page);
+  await expect(page.locator('#live-undo')).toHaveText('Undo last change');
+  await expect(page.locator('#live-undo')).toHaveAttribute('title', 'Undo last change');
+});
+
 test('after an undo the button says there is nothing to undo', async ({ page }) => {
   const undone = { changeId: 'u1', summary: 'Undid x', mode: 'undo', canUndo: false };
   const older = { changeId: 'c1', summary: 'End combat', canUndo: true, undoneBy: 'u1' };

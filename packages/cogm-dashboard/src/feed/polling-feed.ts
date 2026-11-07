@@ -91,6 +91,11 @@ export class PollingGameFeed implements GameFeed {
   private firstEventPoll = true;
   private pollsSinceResync = 0;
   private readonly delivered = new Set<string>();
+  /**
+   * Bumped by every reconnect and resync. A poll that began before the bump answers about the old
+   * world or cursor: it must not write cursors or hand events on.
+   */
+  private generation = 0;
   private eventPollInFlight = false;
   private eventPollQueued = false;
   private combatPollInFlight = false;
@@ -126,6 +131,7 @@ export class PollingGameFeed implements GameFeed {
       // A reconnect may mean a restarted/cleared backend event buffer — re-seed
       // so a stale cursor can't suppress live events, and re-backfill history.
       this.foundry = 'unknown';
+      this.generation += 1;
       this.cursor = null;
       this.firstEventPoll = true;
       this.pollsSinceResync = 0;
@@ -181,6 +187,7 @@ export class PollingGameFeed implements GameFeed {
    * before it did.
    */
   resync(): void {
+    this.generation += 1;
     this.delivered.clear();
     this.cursor = null;
     this.firstEventPoll = true;
@@ -194,6 +201,7 @@ export class PollingGameFeed implements GameFeed {
   private async pollEvents(): Promise<void> {
     if (!this.client.isConnected || this.eventPollInFlight) return;
     this.eventPollInFlight = true;
+    const generation = this.generation;
     try {
       const resync = this.cursor !== null && this.pollsSinceResync >= RESYNC_EVERY_POLLS;
       const args: Record<string, unknown> =
@@ -203,6 +211,12 @@ export class PollingGameFeed implements GameFeed {
       this.pollsSinceResync = resync ? 0 : this.pollsSinceResync + 1;
 
       const response = await this.client.callTool<RecentEventsResponse>('get-recent-events', args);
+      if (generation !== this.generation) {
+        // A resync or reconnect came while this read was out: its answer is about the old
+        // cursor, so drop it and read again from the start.
+        this.eventPollQueued = true;
+        return;
+      }
       const read = Array.isArray(response.events) ? response.events : [];
       const events = read.filter(e => !this.delivered.has(e.id));
 
@@ -263,6 +277,7 @@ export class PollingGameFeed implements GameFeed {
   private async pollErrors(): Promise<void> {
     if (!this.client.isConnected || this.errorPollInFlight) return;
     this.errorPollInFlight = true;
+    const generation = this.generation;
     try {
       const args: Record<string, unknown> =
         this.errorCursor !== null
@@ -273,6 +288,7 @@ export class PollingGameFeed implements GameFeed {
         'get-module-errors',
         args
       );
+      if (generation !== this.generation) return; // see pollEvents; the resync started its own read
       const errors = Array.isArray(response.errors) ? response.errors : [];
 
       this.onPollSuccess();

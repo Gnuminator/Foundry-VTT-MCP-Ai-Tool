@@ -1203,6 +1203,54 @@ test.describe('picking combatants', () => {
     expect(calls.some(c => c.name === 'use-item')).toBe(false);
   });
 
+  test('Attack: an item with no attack to roll keeps the form open and says why', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? failed('"Handaxe" has no attack to roll')
+          : attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(toastLike(page, /has no attack to roll/)).toBeVisible();
+    await expect(page.locator('#attack-form')).toBeVisible();
+    await expect(page.locator('#attack-note')).not.toHaveText(/may have landed/i);
+  });
+
+  test('Attack: no answer from the bridge says it may have landed', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? failed('The bridge did not answer', 'timeout')
+          : attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'It may have landed. Check the feed before you attack again.'
+    );
+    await expect(page.locator('#attack-form')).toBeVisible();
+  });
+
+  test('Attack: a failed weapon read shows its error', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'search-character-items'
+          ? failed('The actor is gone')
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-note')).toContainText('The actor is gone');
+  });
+
   test('Escape closes the Attack form without writing', async ({ page }) => {
     const { calls } = await setup(page, {
       initial: [fight(ATTACKERS, { turn: 1 })],

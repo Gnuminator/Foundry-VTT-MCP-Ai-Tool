@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 59264be0cbbb
+sourceHash: 556304b008f8
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---

@@ -22,7 +22,7 @@ test('the log settings come before bridge.env, so bridge.env can override them',
 });
 
 test('the log folder is inside the unit ReadWritePaths and is made by the stage', () => {
-  const rw = stage5.match(/^ReadWritePaths=(\S+)$/m);
+  const rw = stage5.match(/^ReadWritePaths=([^\s"]+)"?$/m);
   const logPath = bridgeUnit.match(/^Environment=LOG_FILE_PATH=(\S+)$/m);
   assert.ok(rw && logPath);
   assert.ok(logPath[1].startsWith(`${rw[1]}/`));

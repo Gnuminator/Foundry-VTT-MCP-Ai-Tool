@@ -99,7 +99,9 @@ export const TurnsOn: Story = {
     const list = await within(document.body).findByRole('list', { name: 'GM Actions switches' });
     await expect(list).toBeVisible();
     await userEvent.click(within(document.body).getByRole('button', { name: 'Turn on' }));
-    await waitFor(() => expect(canvas.getByRole('button', { name: 'GM Actions on' })).toBeVisible());
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: 'GM Actions on' })).toBeVisible()
+    );
   },
 };
 

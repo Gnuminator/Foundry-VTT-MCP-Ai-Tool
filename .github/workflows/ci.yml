@@ -217,6 +217,11 @@ jobs:
         # dashboard.env step runs in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/stage7-foundry-url.test.mjs
 
+      - name: Pi stage 27 bot status endpoint
+        # 27-bot-status.sh (backlog pi-bot-status-endpoint): the port line and the dashboard drop-in, guards, undo, with stand-in
+        # systemctl, curl, ss and Node.
+        run: node --test scripts/pi/bot-status-stage.test.mjs
+
       - name: Pi stage 18 time sync
         # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
         # systemctl, timedatectl and dietpi-set_software.

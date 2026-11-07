@@ -1485,11 +1485,14 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   on any branch of these repos runs on the Pi, so both repos must stay private (checked 2026-10-28: both are).
 - **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
   session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a
-  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) it stops the
+  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) **or a non-GM
+  player is connected** (an unmarked night: the newest `user-join`/`user-leave` per user in the 3 newest
+  `sessions/<date>.play.jsonl`; a join younger than 14 hours with no later leave counts; the GM and the TV table
+  viewer do not) it stops the
   runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
   is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
   Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
-  be read, the runners stay stopped for up to 6 hours in a row, then the gate lets them run and logs it. The runners are
+  be read, the runners stay stopped for up to 14 hours in a row, then the gate lets them run and logs it. The runners are
   not enabled at boot: the gate starts them (within a minute) when no session is marked. A rerun that changes a unit
   file does not touch a running runner: stop it (`systemctl stop`) and the gate starts it with the new file.
 - **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
@@ -1527,6 +1530,24 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Check later:** `... | ssh foundry-pi 'CHECK=1 bash -s'` or `timedatectl`.
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
+
+## Recorder status endpoint (stage 27)
+
+Stage 27 (`scripts/pi/remote/27-bot-status.sh`) switches on the health line's Recorder dot on the Pi: it sets
+`FOUNDRY_AI_BOT_STATUS_PORT=3110` in `/etc/foundry-ai-tool/discord-bot.env` (one line; the rest of the file, with
+the Discord token, is never printed) and writes a systemd drop-in for the dashboard,
+`foundry-ai-tool-dashboard.service.d/bot-status.conf`, with `DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status`
+(a drop-in because stage 7 rewrites `dashboard.env` whole and stage 5 rewrites the unit). It refuses unless the
+deployed bot and dashboard builds know the settings (stage 5, then 8, with a release that has them), restarts the
+bot and then the dashboard only when something changed (`require_quiet`: not while players are online or a
+recording runs, so never on a game night), and checks that `GET /status` answers JSON.
+
+- **Look first:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/27-bot-status.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `bash -s`. Then look at the GM
+  health line with a recording running: the Recorder dot shows only when something is wrong, grey "unknown" means
+  the dashboard cannot reach the bot.
+- **Undo:** the same pipe with `UNDO=1`. `PORT=<n>` picks another port.
+- Tests: `scripts/pi/bot-status-stage.test.mjs`.
 
 ## Discord bot on the game server (stage 26)
 

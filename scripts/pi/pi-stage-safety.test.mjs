@@ -457,6 +457,8 @@ describe('warn_dashboard_split (S3)', () => {
 });
 
 describe('the stages', () => {
+  // 27-bot-status is left out on purpose too: DRY_RUN needs no snapshot, so it checks it right after its PORT check
+  // (scripts/pi/bot-status-stage.test.mjs covers the refusal).
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
   // (scripts/pi/time-sync.test.mjs covers the refusal). 20-vault-sync is read-only and asks for a snapshot only with
   // SET_TIMEZONE=1 (scripts/pi/vault-sync.test.mjs). 21-player-vault is read-only in its report mode and asks for the snapshot in
@@ -495,6 +497,7 @@ describe('the stages', () => {
       '6-backup': 'require_quiet',
       '7-vault': 'enable_unit foundry-ai-tool-bridge.service', // enable_unit calls require_quiet before a restart
       '8-recorder': 'require_no_recording',
+      '27-bot-status': 'require_quiet',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
       '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first
@@ -1065,7 +1068,10 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
     });
     assert.equal(r.status, 1, r.out);
-    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/);
+    assert.match(
+      r.out,
+      /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/
+    );
     assert.equal(r.sleeps, 3);
     assert.doesNotMatch(r.calls, /restic forget/);
   });
@@ -1076,13 +1082,19 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
     });
     assert.equal(r.status, 1, r.out);
-    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/);
+    assert.match(
+      r.out,
+      /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/
+    );
     assert.equal(r.sleeps, 3);
     assert.doesNotMatch(r.calls, /restic forget/);
   });
 
   test('a world switched by hand during the day does not fail the night', () => {
-    const r = nightly({ users: [0], env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' } });
+    const r = nightly({
+      users: [0],
+      env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+    });
     assert.equal(r.status, 0, r.out);
     assert.equal(r.sleeps, 0);
   });

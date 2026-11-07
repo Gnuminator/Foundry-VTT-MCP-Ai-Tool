@@ -15,9 +15,9 @@
 # runner release, sha256 checked); one hardened systemd unit per runner (no write outside its folder, the loopback and
 # Tailscale addresses unreachable, so a job cannot talk to the bridge, the dashboard or the Tailscale ports, 2 GB, low CPU weight);
 # and a gate timer (every minute) that keeps the runners STOPPED while a play session is marked (the same signal the Cast worker
-# uses: the newest session-start/session-end marker in the world vaults' sessions/<date>.jsonl). A job waits on GitHub's
+# uses: the newest session-start/session-end marker in the world vaults' sessions/<date>.jsonl, OR a connected non-GM player: the newest user-join/user-leave per user in sessions/<date>.play.jsonl, a join younger than 14 h counts, so an unmarked night is covered). A job waits on GitHub's
 # side while the runners are stopped. A job already running is never killed by the gate. Unknown state (the vault folder
-# cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS in a row, then the gate lets the runners run again
+# cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS (14) hours in a row, then the gate lets the runners run again
 # and logs it (a broken signal must not freeze the board for good). The runners are not enabled at boot: the gate starts them.
 
 require_root
@@ -183,7 +183,7 @@ units="${GATE_UNITS:-foundry-ai-tool-gh-runner-vault.service foundry-ai-tool-gh-
 state_dir="${GATE_STATE_DIR:-/run/foundry-gh-runner-gate}"
 node="${GATE_NODE:-/opt/node24/bin/node}"
 now_ms="${GATE_NOW_MS:-$(($(date +%s) * 1000))}"
-ceiling_hours="${GATE_UNKNOWN_CEILING_HOURS:-6}"
+ceiling_hours="${GATE_UNKNOWN_CEILING_HOURS:-14}"
 cgroup_root="${GATE_CGROUP_ROOT:-/sys/fs/cgroup}"
 proc_root="${GATE_PROC_ROOT:-/proc}"
 mkdir -p "$state_dir"
@@ -198,7 +198,7 @@ const H = 3600000, MAX = 14 * H;
 let worlds;
 try { worlds = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name); }
 catch { console.log("unknown"); process.exit(0); }
-let playing = false, unknown = false;
+let playing = false, unknown = false, markerPlaying = false, byPlayers = false;
 for (const w of worlds) {
   const dir = path.join(root, w, "sessions");
   let files;
@@ -222,12 +222,47 @@ for (const w of worlds) {
       }
     } catch { unknown = true; }
   }
-  if (last && last.type === "session-start" && nowMs - last.ms <= MAX) playing = true;
+  if (last && last.type === "session-start" && nowMs - last.ms <= MAX) { playing = true; markerPlaying = true; }
+  // Presence (an unmarked night): the play log (<date>.play.jsonl, same 3 newest files) says who is connected. The newest
+  // user-join or user-leave per user decides; a join of a player (not a GM, not the TV table viewer) younger than 14 hours
+  // with no later leave means someone is playing. A log untouched for 28 hours is skipped, as above.
+  let pfiles = [];
+  try { pfiles = fs.readdirSync(dir).filter(f => /^\d{4}-\d{2}-\d{2}\.play\.jsonl$/.test(f)).sort().reverse().slice(0, 3); }
+  catch (e) { if (e && e.code !== "ENOENT") unknown = true; }
+  const users = new Map();
+  for (const f of pfiles) {
+    try {
+      const full = path.join(dir, f);
+      if (nowMs - fs.statSync(full).mtimeMs > 2 * MAX) continue;
+      for (const line of fs.readFileSync(full, "utf8").split(/\r?\n/)) {
+        // The play log holds every record: parse only the join and leave lines.
+        if (!line.includes("\"user-join\"") && !line.includes("\"user-leave\"")) continue;
+        try {
+          const e = JSON.parse(line);
+          if (e.kind !== "user-join" && e.kind !== "user-leave") continue;
+          const ms = e.t;
+          const uid = typeof e.userId === "string" ? e.userId : "";
+          if (!uid || typeof ms !== "number" || !Number.isFinite(ms)) continue;
+          const d = e.data && typeof e.data === "object" ? e.data : {};
+          const prev = users.get(uid);
+          if (!prev || ms >= prev.ms) users.set(uid, { type: e.kind, ms, player: d.isGM !== true && d.tableViewer !== true });
+        } catch {}
+      }
+    } catch { unknown = true; }
+  }
+  for (const u of users.values()) {
+    if (u.type === "user-join" && u.player && nowMs - u.ms <= MAX) { playing = true; byPlayers = true; }
+  }
 }
 console.log(playing ? "playing" : unknown ? "unknown" : "idle");
+if (playing && byPlayers && !markerPlaying) console.log("players");
 ' "$vault_root" "$now_ms" 2>/dev/null
 )" || state=unknown
-case "$state" in playing | idle | unknown) ;; *) state=unknown ;; esac
+# Second line "players": playing by connected players alone (no session marker); named in the log lines.
+reason=""
+case "$state" in *$'\n'players) reason=" (players connected, no session marker)" ;; esac
+state="${state%%$'\n'*}"
+case "$state" in playing | idle | unknown) ;; *) state=unknown; reason="" ;; esac
 
 # Unknown holds the runners, but only for a ceiling in a row.
 since_file="$state_dir/unknown-since-ms"
@@ -245,7 +280,7 @@ else
 fi
 
 if [ "${GATE_DRY:-0}" = 1 ]; then
-  echo "state=$state decision=$decision"
+  echo "state=$state decision=$decision${reason:+ players=connected}"
   exit 0
 fi
 
@@ -280,9 +315,9 @@ for unit in $units; do
     inactive | failed | "") ;;
     *)
       if has_job "$unit"; then
-        echo "gh-runner-gate: $state: $unit runs a job, left alone"
+        echo "gh-runner-gate: $state$reason: $unit runs a job, left alone"
       elif systemctl stop "$unit"; then
-        echo "gh-runner-gate: $state: stopped $unit"
+        echo "gh-runner-gate: $state$reason: stopped $unit"
       else
         echo "gh-runner-gate: could not stop $unit" >&2
         rc=1

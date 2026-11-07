@@ -172,10 +172,10 @@ describe('recording-health event', () => {
       created.add(t);
       return t;
     }) as typeof setInterval;
-    global.clearInterval = (t => {
+    global.clearInterval = t => {
       cleared.add(t);
-      return realClear(t);
-    }) as typeof clearInterval;
+      realClear(t);
+    };
     try {
       const h = await start(60_000, 30);
       await h.close();

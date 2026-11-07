@@ -189,6 +189,10 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'docker --tlscacert /c compose -p x down'",
     "ssh foundry-pi 'docker --tlscert /c --tlskey /k compose -p x down'",
     "ssh foundry-pi 'docker --tlscacert /c rm x'",
+    "ssh foundry-pi 'docker restart foundry-ai-tool-pi-foundry-1'",
+    "ssh foundry-pi 'docker container restart x'",
+    "ssh foundry-pi 'docker compose -p x restart foundry'",
+    "ssh foundry-pi 'docker compose -p x up -d --force-recreate'",
   ]) {
     assert.equal(kind(c), 'ask', c);
   }
@@ -200,6 +204,7 @@ test('read-only docker commands over ssh are allowed', () => {
     "ssh foundry-pi 'docker inspect foundry-ai-tool-pi-foundry-1'",
     "ssh foundry-pi 'docker logs --tail 50 foundry-ai-tool-pi-bridge-1'",
     "ssh foundry-pi 'docker compose -f x.yml -p p ps'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p up -d'",
     "ssh foundry-pi 'docker info'",
     "ssh foundry-pi 'docker compose -f x.yml -p p logs --tail 50 foundry'",
     "ssh foundry-pi 'docker compose -f x.yml -p p config'",

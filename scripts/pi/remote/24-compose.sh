@@ -82,9 +82,9 @@ effective() { # NAME DEFAULT
     v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$env_file" | tail -n 1)"
     v="${v#"${v%%[![:space:]]*}"}"
     case "$v" in
-      \"*\") v="${v#\"}" v="${v%\"}" ;;
-      \'*\') v="${v#\'}" v="${v%\'}" ;;
-      *) v="$(printf '%s' "$v" | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
+      \"*) v="${v#\"}" v="${v%%\"*}" ;;
+      \'*) v="${v#\'}" v="${v%%\'*}" ;;
+      *) v="$(printf '%s' "$v" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
     esac
   fi
   printf '%s' "${v:-$2}"

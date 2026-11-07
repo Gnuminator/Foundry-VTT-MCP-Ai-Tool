@@ -79,7 +79,7 @@ function fakePi({
     `echo "systemctl $*" >>"$S/calls"
 case "$1" in
   is-active) [ "\${2:-}" = --quiet ] && u="$3" || u="$2"; [ -f "$S/active-$u" ]; exit $? ;;
-  show) echo "" ;;
+  show) cat "$S/show-ts" 2>/dev/null || echo "" ;;
 esac
 exit 0`
   );
@@ -193,8 +193,23 @@ describe('27-bot-status.sh', { skip: !hasBash && 'no bash here' }, () => {
     rmSync(path.join(d, 'state', 'calls'));
     const r = run(d);
     assert.equal(r.status, 0, r.out);
-    assert.match(r.out, /already set; nothing changed, no restart/);
+    assert.match(r.out, /already set; nothing to write/);
     assert.doesNotMatch(r.calls, /restart/);
+  });
+
+  test('a rerun after a partial run (files written, services started earlier) still restarts both', () => {
+    const d = fakePi();
+    run(d);
+    const ts = path.join(d, 'state', 'show-ts');
+    writeFileSync(ts, '2000-01-01 00:00:00 UTC\n'); // the services started before the files were written
+    rmSync(path.join(d, 'state', 'calls'));
+    const r = run(d);
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.calls, new RegExp(`restart ${BOT}`));
+    assert.match(r.calls, new RegExp(`restart ${DASH}`));
+    writeFileSync(ts, '2099-01-01 00:00:00 UTC\n'); // started after the files: nothing to do
+    rmSync(path.join(d, 'state', 'calls'));
+    assert.doesNotMatch(run(d).calls, /restart/);
   });
 
   test('DRY_RUN changes nothing and needs no snapshot', () => {

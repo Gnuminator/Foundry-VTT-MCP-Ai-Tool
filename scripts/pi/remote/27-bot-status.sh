@@ -96,10 +96,12 @@ if [ "$undo" != 1 ] && [ "$plan_env" != "nothing to do" ] && command -v ss >/dev
   fi
 fi
 
-if [ "$plan_env" = "nothing to do" ] && [ "$plan_dropin" = "nothing to do" ] && [ "${RESTART_UNITS:-0}" != 1 ]; then
-  ok "already set; nothing changed, no restart"
-else
-  # Both restarts are guarded before the first write: a refusal leaves everything as it was.
+if [ "$plan_env" = "nothing to do" ] && [ "$plan_dropin" = "nothing to do" ]; then
+  ok "already set; nothing to write (a service that started before the files changed is still restarted below)"
+fi
+{
+  # Both restarts are guarded before the first write: a refusal leaves everything as it was. A rerun after a partial run
+  # (files written, restart refused or cut off) still restarts: enable_unit compares each file with the service start.
   require_quiet "restarting the recorder bot and the dashboard for the status endpoint"
 
   say "the bot's settings file"
@@ -153,7 +155,7 @@ else
   else
     warn "no systemd here (a test container?): files written, nothing restarted"
   fi
-fi
+}
 
 if [ "$undo" != 1 ]; then
   say "the check: GET $want_url"

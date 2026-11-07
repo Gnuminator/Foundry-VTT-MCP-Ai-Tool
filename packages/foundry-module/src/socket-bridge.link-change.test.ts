@@ -85,6 +85,17 @@ describe('onLinkChange', () => {
     bridge.disconnect();
   });
 
+  it('writes the connected line again after a deliberate disconnect and reconnect', async () => {
+    const log = vi.mocked(globalThis.console['log']);
+    const bridge = new SocketBridge(makeConfig());
+    await open(bridge);
+    bridge.disconnect();
+    await open(bridge);
+    const lines = log.mock.calls.map(c => String(c[0]));
+    expect(lines.filter(l => l.includes('Connected to the MCP server'))).toHaveLength(2);
+    bridge.disconnect();
+  });
+
   it('logs no lost-link line for a connect that never opened', async () => {
     const log = vi.mocked(globalThis.console['log']);
     const bridge = new SocketBridge(makeConfig());

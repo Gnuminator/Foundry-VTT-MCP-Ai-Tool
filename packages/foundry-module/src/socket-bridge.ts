@@ -224,6 +224,8 @@ export class SocketBridge {
     this.bridgeCapabilities = null;
     this.releaseBridgeHelloWaiters();
     this.log('Disconnected from MCP server');
+    // A deliberate disconnect resets the console log, so the next connect writes its line again.
+    this.lastLoggedLinkUp = null;
   }
 
   private setupEventHandlers(): void {

@@ -7,13 +7,13 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "build": "node ../scripts/tsc7.mjs",
+    "dev": "node ../node_modules/typescript/bin/tsc --watch",
+    "typecheck": "node ../scripts/tsc7.mjs --noEmit",
     "test": "vitest run"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
+    "typescript": "^6.0.3",
     "vitest": "^3.2.4"
   },
   "dependencies": {

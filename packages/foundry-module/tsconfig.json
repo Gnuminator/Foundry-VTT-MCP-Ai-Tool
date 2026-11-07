@@ -10,10 +10,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["jquery"],
-    "paths": {
-      "@gnuminator/shared": ["../../shared/src"]
-    }
+    "types": ["jquery"]
   },
   "include": ["src/**/*", "types/**/*"],
   "exclude": ["dist", "**/*.test.*", "**/*.spec.*", "src/test-support/**"]

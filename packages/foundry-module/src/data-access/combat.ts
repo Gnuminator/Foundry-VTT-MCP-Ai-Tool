@@ -241,7 +241,7 @@ export class CombatDataAccess {
 
   /** The live combat, else the most recently registered encounter, else null. */
   private resolveActiveOrRecentCombat(): TrackerCombat | null {
-    return (resolveCombat() ?? null) as TrackerCombat | null;
+    return resolveCombat() ?? null;
   }
 
   /**

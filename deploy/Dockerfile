@@ -58,6 +58,7 @@ COPY docs/foundry/            ./docs/foundry/
 # The Danish twins of the GM guides, which the help shows when the browser language is Danish.
 COPY docs/da/gm/              ./docs/da/gm/
 COPY scripts/check-links.mjs  ./scripts/
+COPY scripts/tsc7.mjs         ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.
 # The cogm-dashboard build also puts the React dashboard (web/, Vite) in its dist/web.

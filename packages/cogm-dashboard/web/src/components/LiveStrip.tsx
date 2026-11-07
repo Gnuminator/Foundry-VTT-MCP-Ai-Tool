@@ -522,7 +522,7 @@ export function LiveStrip(): JSX.Element {
           </div>
         )
       ) : (
-        <ol className={styles['cards']} aria-label="Turn order" ref={cardsRef}>
+        <ol className={styles['cards']} aria-label="Combat order" ref={cardsRef}>
           {rows.map(c => (
             <Card
               key={c.id}

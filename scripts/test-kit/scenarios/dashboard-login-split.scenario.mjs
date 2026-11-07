@@ -201,8 +201,8 @@ export default {
         );
         t.check(seen.apiStatus === 401, `the page's own /api/state call answers ${seen.apiStatus}`);
         t.check(
-          !/Pre-flight: ready|Live play on|No session|events? coming/i.test(seen.subtitle),
-          'the page shows no live data without a token (no pre-flight result, no live play line)'
+          !/Pre-flight: ready|GM Actions on|No session|events? coming/i.test(seen.subtitle),
+          'the page shows no live data without a token (no pre-flight result, no GM Actions line)'
         );
         t.equal(seen.dataRows, 0, 'rows of live data on the page without a token');
         t.check(
@@ -327,8 +327,8 @@ export default {
         const url = new URL(page.url());
         await shot(page, 'gm-page-gm-token.png');
         t.check(
-          /Live play|GM Actions/.test(seen.gm),
-          `the GM header shows the live play line ("${seen.gm}")`
+          /GM Actions/.test(seen.gm),
+          `the GM header shows the GM Actions line ("${seen.gm}")`
         );
         t.check(seen.controls > 10, `the GM page has its controls (${seen.controls} found)`);
         t.check(

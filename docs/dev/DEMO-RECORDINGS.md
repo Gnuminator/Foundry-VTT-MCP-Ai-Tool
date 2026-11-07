@@ -347,7 +347,7 @@ Foundry's own UI (vault idea I-095):
 - `prep`: the Prep drawer shows the last session, the open quest, the "Next session"
   notes and what is ready, and opens the notes in Foundry.
 - `damage-undo`: the During view. Setup starts a fight with Wolf 1, Wolf 2 and the Vampire
-  (off camera). The GM selects the three in the turn-order strip, clicks **Damage / Heal**,
+  (off camera). The GM selects the three in the Combat order strip, clicks **Damage / Heal**,
   types 14 necrotic and clicks once: it applies at once with an Undo message (D-086), and
   the Live Feed shows the Vampire's resistance worked out ("Vampire took 7 damage"). Then the
   HP drop in Foundry, Undo from Recent Changes (`undo-change`), and all three back to full HP.
@@ -366,7 +366,7 @@ Two more takes were made for the table demo (vault note "30-second table demo"):
   at the table, and the dashboard's Live Feed shows the breakdown. The windows are laid out
   so the sheet, the tokens, the roll dialogs and the chat cards never overlap.
 - `table-phone`: the players' `/player` page at a phone size (430x932 CSS pixels at 2x, in
-  the top-left corner of the recording): the turn order with HP as words, then a Danish
+  the top-left corner of the recording): the Combat order with HP as words, then a Danish
   handout (invented text) that the GM reveals.
 
 Foundry turns a random value r into `ceil((1 - r) * faces)`, so a seed of 0.17 rolls 17 on

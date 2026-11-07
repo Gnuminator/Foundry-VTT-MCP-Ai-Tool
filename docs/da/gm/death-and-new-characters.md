@@ -1,6 +1,6 @@
 ---
 source: gm/death-and-new-characters.md
-sourceHash: dafd85413e87
+sourceHash: af2b4f08ed9e
 title: Når en karakter dør
 description: Hvad du gør, når en spillerkarakter dør, hvordan du fører optegnelser over de faldne, og hvordan du får en ny karakter ind, med hvad værktøjet kan og ikke kan hjælpe med i hvert trin.
 ---
@@ -37,7 +37,7 @@ Værktøjet følger hit points, ikke liv og død:
   death saves begin" (en NPC: "Goblin Archer is down (0 HP)"). Spillernes side formulerer det til
   spillerne: "Kasimir dropped to 0 HP." for en karakter, "went down" for en NPC. At komme op over 0
   igen bliver også logget: "recovered above 0 HP" i din Live Feed, "is back up" på spillernes side.
-- **Death saving throws** vises i Foundrys Combat Tracker, i dashboardets turn-order strip og i
+- **Death saving throws** vises i Foundrys Combat Tracker, i dashboardets Combat order strip og i
   **🛡 Party**-skuffen, mens en karakter er på 0 HP ("Death saves: 1 saved, 2 failed"). De bliver
   skrevet i play log.
 - **Selve døden bliver ikke opdaget.** Tre mislykkede death saves, massive damage eller en

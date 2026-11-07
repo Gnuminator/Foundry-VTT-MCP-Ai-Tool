@@ -43,7 +43,7 @@ drag and resize them like any Foundry window.
 
 ![The Combat window](../images/guides/gm-window-combat.png)
 
-The turn order of the running combat: the round, the initiative, and for each creature the hit
+The combat order of the running combat: the round, the initiative, and for each creature the hit
 points (a green bar, with temporary hit points in brackets), conditions, and marks for **Defeated**
 and **Hidden** (a hidden creature is hidden from the players, you still see it here).
 The creature whose turn it is has an orange frame.

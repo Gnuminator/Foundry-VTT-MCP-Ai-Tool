@@ -74,7 +74,7 @@ export const AllSet: Story = {
   render,
   play: async ({ canvasElement }) => {
     const button = await within(canvasElement).findByRole('button', {
-      name: 'Live play on',
+      name: 'GM Actions on',
     });
     await expect(button).toHaveClass('on');
   },
@@ -96,10 +96,10 @@ export const TurnsOn: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', { name: /GM Actions.*off/ }));
-    const list = await within(document.body).findByRole('list', { name: 'Live play switches' });
+    const list = await within(document.body).findByRole('list', { name: 'GM Actions switches' });
     await expect(list).toBeVisible();
     await userEvent.click(within(document.body).getByRole('button', { name: 'Turn on' }));
-    await waitFor(() => expect(canvas.getByRole('button', { name: 'Live play on' })).toBeVisible());
+    await waitFor(() => expect(canvas.getByRole('button', { name: 'GM Actions on' })).toBeVisible());
   },
 };
 

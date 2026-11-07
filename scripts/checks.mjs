@@ -44,6 +44,7 @@ export const HEAVY_STEPS = new Set([
   'test-mcp-server',
   'test-cogm-dashboard',
   'test-discord-bot',
+  'test-obsidian-plugin',
   'e2e',
 ]);
 
@@ -138,7 +139,7 @@ export const CHECKS = [
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs'
   ),
-  { name: 'usage-week', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
+  { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('pi-space-check', 'pi', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'pi', 'scripts/pi/backup-pull-record.test.mjs'),
@@ -223,6 +224,7 @@ export const CHECKS = [
   workspaceTest('test-mcp-server', 'mcp-server'),
   workspaceTest('test-cogm-dashboard', 'cogm-dashboard'),
   workspaceTest('test-discord-bot', 'discord-bot'),
+  workspaceTest('test-obsidian-plugin', 'obsidian-plugin'),
   {
     name: 'mcp-schema-smoke',
     group: 'smoke',

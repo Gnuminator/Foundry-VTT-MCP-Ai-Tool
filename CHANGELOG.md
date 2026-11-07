@@ -100,8 +100,8 @@
   `typescript` is held at `~6.0.3` (typescript-eslint caps below 6.1) and the `typescript7` alias is
   pinned to exactly 7.0.2; the CI checks list flags `defaults.run.working-directory` too, and the
   gate's drift-check copy is guarded by a test; the screenshot README matches the `#status` mask and
-  the private-handout locator is scoped; the CodeQL cache cleanup rechecks for a few seconds before
-  failing on a cache that is still being deleted.
+  the private-handout locator is scoped; the CodeQL cache cleanup rechecks up to six times, 10 seconds
+  apart, before failing on a cache that is still being deleted.
 
 ### Dashboard
 
@@ -346,7 +346,7 @@
 
 - **Weekly usage report:** the lane line changes at the merge time of the lines PR, not at midnight; the
   lane columns read "reached line" and "peak after line"; a session's first response is not counted as
-  confirmed (as in the hook).
+  confirmed (stricter than the context hook, which counts a single response).
 - **Release gate:** the version fields in `package-lock.json` are compared by package key, so a version that
   moves between entries is refused.
 - **Lane skill and hook tests:** the skill says a lane must be started in its worktree; the context hook

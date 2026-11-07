@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { HealthPart } from '../lib/health';
 import {
   BRIDGE_STATUS_KEY,
   RECORDING_HEALTH_KEY,
@@ -77,12 +78,10 @@ describe('HealthLine', () => {
 
 describe('troubleAnnouncement', () => {
   it('lists the red parts only, and changes only when the red parts change', () => {
-    const part = (key: 'bridge' | 'foundry' | 'update', tone: 'ok' | 'bad' | 'warn') => ({
-      key,
-      label: key,
-      tone,
-      text: 'x',
-    });
+    const part = (
+      key: 'bridge' | 'foundry' | 'update',
+      tone: 'ok' | 'bad' | 'warn'
+    ): HealthPart => ({ key, label: key, tone, text: 'x' });
     expect(troubleAnnouncement([part('bridge', 'ok'), part('update', 'warn')])).toBe('');
     expect(troubleAnnouncement([part('bridge', 'bad'), part('foundry', 'bad')])).toBe(
       'Needs attention: bridge, foundry.'

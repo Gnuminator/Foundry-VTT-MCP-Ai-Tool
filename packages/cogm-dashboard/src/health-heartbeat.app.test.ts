@@ -172,7 +172,7 @@ describe('recording-health event', () => {
       created.add(t);
       return t;
     }) as typeof setInterval;
-    global.clearInterval = ((t: Parameters<typeof clearInterval>[0]) => {
+    global.clearInterval = (t => {
       cleared.add(t);
       return realClear(t);
     }) as typeof clearInterval;

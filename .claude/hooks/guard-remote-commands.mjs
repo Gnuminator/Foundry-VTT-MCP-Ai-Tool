@@ -386,8 +386,9 @@ const CRITICAL_ETC =
 const BOOT_FILES = /\/boot(?:\/|(?![\w.-]))/g;
 
 /**
- * Docker commands that stop or delete containers and images on the host (the Pi runs the stack in containers): `docker rm`,
- * `docker kill`, `docker system prune` (and the other prune/rm verbs), `docker compose ... down`. Read-only ones (ps, logs,
+ * Docker commands that stop, restart or delete containers and images on the host (the Pi runs the stack in containers):
+ * `docker rm`, `docker kill`, `docker stop`, `docker restart`, `docker system prune` (and the other prune/rm/stop/restart
+ * verbs), `docker compose ... down|rm|kill|stop|restart` and `compose up --force-recreate`. Read-only ones (ps, logs,
  * inspect, compose ps/config) stay free.
  */
 const dockerDestroys = text =>
@@ -416,7 +417,10 @@ const dockerDestroys = text =>
  * the stage 24 quiet-table check, so the guard is the only place that asks. Plain `compose up -d` and `ps` stay free.
  */
 const ASK = [
-  [dockerDestroys, 'removing or killing containers (docker rm, kill, prune, compose down)'],
+  [
+    dockerDestroys,
+    'stopping, restarting or removing containers (docker rm, kill, stop, restart, prune, compose down, compose up --force-recreate)',
+  ],
   [/\bTEST_ALLOW_CUTOVER=[^\s=]/, 'forcing the stage 24 cutover test switch on a real host'],
   [
     word(

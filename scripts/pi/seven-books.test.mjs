@@ -863,11 +863,17 @@ describe('seven-books-baseline.js', () => {
     assert.match(checked.lines.join('\n'), /no drift/);
     const again = await run(baselineSource, world, false);
     assert.equal(again.result.copied, 0);
-    // no legacy pack and no world pack: the trim was never run here, a real run refuses (a dry run only says so)
+    // no legacy pack and no world pack: the trim was never run here (or MODE=delete ran first): a dry run and a real run both refuse
     const fresh = worlds();
     fresh.packs.delete('world.legacy-other-books');
-    await assert.rejects(run(baselineSource, fresh, true), /run MODE=trim first/);
-    await assert.rejects(run(baselineSource, fresh, false), /run MODE=trim first/);
+    await assert.rejects(
+      run(baselineSource, fresh, true),
+      /run MODE=trim first.*MODE=delete already removed/s
+    );
+    await assert.rejects(
+      run(baselineSource, fresh, false),
+      /run MODE=trim first.*MODE=delete already removed/s
+    );
     assert.ok(!fresh.packs.has('world.player-spells'));
   });
 
@@ -996,6 +1002,62 @@ describe('seven-books-baseline.js', () => {
     assert.equal(player(world, 'feats').docs.get(id(5)).system.description.value, 'new text');
   });
 
+  test('a refresh whose create is short, or whose put-back fails, says so', async () => {
+    const shortWorld = worlds();
+    await run(baselineSource, shortWorld, false);
+    shortWorld.packs.get('aitool-content.feats').docs.get(id(5)).system.description.value =
+      'new text';
+    const real = shortWorld.globals.Item.createDocuments;
+    let first = true;
+    shortWorld.globals.Item.createDocuments = async (data, opts) => {
+      if (first && opts.pack === 'world.player-feats') {
+        first = false;
+        return []; // created nothing, no error
+      }
+      return real(data, opts);
+    };
+    await assert.rejects(
+      run(baselineSource, shortWorld, false),
+      /created 0 of 1; 1 replaced copies put back/
+    );
+    assert.deepEqual(names(player(shortWorld, 'feats')), ['Alert']);
+    const failWorld = worlds();
+    await run(baselineSource, failWorld, false);
+    failWorld.packs.get('aitool-content.feats').docs.get(id(5)).system.description.value =
+      'new text';
+    const realFail = failWorld.globals.Item.createDocuments;
+    failWorld.globals.Item.createDocuments = async (data, opts) => {
+      if (opts.pack === 'world.player-feats') throw new Error('create failed');
+      return realFail(data, opts);
+    };
+    await assert.rejects(
+      run(baselineSource, failWorld, false),
+      /create failed.*COULD NOT put the replaced copies back \(create failed\); run again/s
+    );
+  });
+
+  test('a copy that names another kept pack than its source is a refresh; the rename exemption needs the same source', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    const tag = () => player(world, 'feats').docs.get(id(5)).flags['foundry-ai-tool'];
+    tag().sourcePack = 'aitool-content.items';
+    assert.equal((await run(baselineSource, world, true)).result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.equal(tag().sourcePack, 'aitool-content.feats');
+    // renamed source, copy names another source pack: not the rename exemption
+    world.packs.get('aitool-content.feats').docs.get(id(5)).name = 'Alert II';
+    tag().sourcePack = 'aitool-content.items';
+    await assert.rejects(run(baselineSource, world, true), /not the kept ones/);
+  });
+
+  test('a typed link to an id no kept pack maps is no name-form link', async () => {
+    const world = worlds();
+    world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      '@Compendium[dnd-players-handbook.classes.Item.zzzzzzzzzzzzzzzz]{Gone}';
+    const dry = await run(baselineSource, world, true);
+    assert.match(dry.lines.join('\n'), /NAME-FORM LINKS.*: 0\b/);
+  });
+
   test('a rename in a kept pack is a refresh; a copy made before the baselineCopy flag gets the flag', async () => {
     const world = worlds();
     await run(baselineSource, world, false);
@@ -1055,10 +1117,29 @@ describe('seven-books-baseline.js', () => {
     await assert.rejects(run(undo, world, false), /journal pages still name a world pack/);
     assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');
     assert.deepEqual(player(world, 'spells').ownership, OPEN);
+    // the partly-pointed-back state: only the first page of the entry is rewritten; the error counts pages, not links, and names the next step
+    const part = worlds();
+    await run(baselineSource, part, false);
+    wrapJournal(part, async (update, d, a) => update.apply(d, [a[0], a[1].slice(0, 1)]));
+    await assert.rejects(run(undo, part, false), e => {
+      assert.match(e.message, /^1 journal pages still name a world pack/);
+      assert.match(e.message, /Rerun MODE=baseline-undo \(dry run first\) or MODE=baseline/);
+      return true;
+    });
     const fresh = worlds();
     await run(baselineSource, fresh, false);
     const done = await run(undo, fresh, false);
     assert.match(done.lines.join('\n'), /RESTORED aitool-content\.spells: Player NONE -> OBSERVER/);
+    // an undo leaves a link to a world pack id with no copy alone and says so
+    const orphanLink = worlds();
+    await run(baselineSource, orphanLink, false);
+    orphanLink.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      `@UUID[Compendium.world.player-spells.Item.${id(99)}]`;
+    const undone = await run(undo, orphanLink, false);
+    assert.match(
+      undone.lines.join('\n'),
+      /links to world packs with no copy to map back \(left as they are\): 1/
+    );
     // a link to a world pack id with no copy is no half-finished run
     fresh.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
       `@UUID[Compendium.world.player-spells.Item.${id(99)}]`;
@@ -1151,6 +1232,10 @@ describe('seven-books-baseline.js', () => {
     assert.match(stage, /BASELINE_MODE = 'check'/);
     assert.match(stage, /\[ "\$MODE" = baseline \]/);
     assert.match(stage, /MODE must be trim, check, baseline, baseline-undo or delete/);
+    assert.match(
+      stage,
+      /the undo points the journal pages of dnd-players-handbook\.content and aitool-content\.journals back at the old packs/
+    );
   });
 });
 

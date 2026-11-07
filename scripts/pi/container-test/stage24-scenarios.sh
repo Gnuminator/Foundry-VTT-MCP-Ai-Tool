@@ -243,14 +243,24 @@ if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data fol
 cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
 printf 'TOOL_DATA_DIR=%s\n' "$SB/rdata" >>"$SB/tool/app/deploy/pi/.env"
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR=
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder'; then pass "a set-but-empty shell value does not fall through to .env"; else fail "up empty shell (rc $RC): $OUT"; fi
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a set-but-empty shell value does not fall through to .env"; else fail "up empty shell (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+# Compose interpolates $VAR / ${VAR} and reads backslashes in a .env value; the live-folder check does not, so a .env value of
+# the seven names with either is refused (key only). A shell value with a $ is no .env value and is not refused here.
+printf 'TOOL_DATA_DIR=%s${X}\n' "$SB/data" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'sets TOOL_DATA_DIR with a \$ or a backslash' && ! echo "$OUT" | grep -q '{X}' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a \$ is refused by key"; else fail "up env dollar (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+printf 'FOUNDRY_APP_DIR="%s\\x"\n' "$SB/foundry-app" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'sets FOUNDRY_APP_DIR with a \$ or a backslash' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a backslash is refused"; else fail "up env backslash (rc $RC): $OUT"; fi
 cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
 # A relative data folder in .env must not block the way out: rollback and down ignore the absolute-path rule.
 printf 'TOOL_DATA_DIR=rel/data\n' >>"$SB/tool/app/deploy/pi/.env"
 run_stage MODE=rollback
 if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'rolled back' && ! echo "$OUT" | grep -q 'must be an absolute path'; then pass "rollback is not blocked by a relative .env data folder"; else fail "rollback relative env (rc $RC): $OUT"; fi
 run_stage MODE=down $reh
-if ! echo "$OUT" | grep -q 'must be an absolute path'; then pass "down is not blocked by a relative .env data folder"; else fail "down relative env (rc $RC): $OUT"; fi
+if [ "$RC" -eq 0 ] && ! echo "$OUT" | grep -q 'must be an absolute path' && ! echo "$CALLS" | grep -q 'compose.* up' && stack_gone; then pass "down is not blocked by a relative .env data folder"; else fail "down relative env (rc $RC): $OUT"; fi
 new_pi # rollback changed the units: start the next scenarios from a fresh Pi
 # realpath that fails: the check fails closed instead of comparing raw strings.
 mkdir -p "$SB/nort"

@@ -179,18 +179,29 @@ say "live-restore"
 # when there is no daemon.json yet; an existing file is never rewritten, only checked.
 if [ ! -e "$daemon_json" ]; then
   install -d -m 0755 "$(dirname "$daemon_json")" || die "cannot create $(dirname "$daemon_json")"
-  write_file "$daemon_json" 0644 '{
-  "live-restore": true
-}' || true
-  # A short write leaves a partial file that a plain existence check would pass: check the content.
-  grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json" 2>/dev/null || die "$daemon_json is missing or incomplete after the write: live-restore is not set"
+  # Written to a .new file, checked and moved into place: a short write never leaves a daemon.json that dockerd cannot
+  # parse (it refuses to start on one), and a rerun finds no file and writes it again.
+  daemon_new="$daemon_json.new"
+  if ! printf '{\n  "live-restore": true\n}\n' >"$daemon_new" 2>/dev/null || ! chmod 0644 "$daemon_new" ||
+    ! grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_new" 2>/dev/null || ! grep -q '}' "$daemon_new"; then
+    rm -f -- "$daemon_new" || true
+    die "$daemon_new could not be written completely: live-restore is not set. Nothing else was changed"
+  fi
+  mv -- "$daemon_new" "$daemon_json" || { rm -f -- "$daemon_new"; die "cannot move $daemon_new to $daemon_json"; }
+  LIB_CHANGED="$LIB_CHANGED$daemon_json "
+  ok "wrote $daemon_json"
+  # Read the moved file back: if it is not what was checked, remove it so dockerd is not left with a broken file.
+  if ! grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json" 2>/dev/null || ! grep -q '}' "$daemon_json"; then
+    rm -f -- "$daemon_json"
+    die "$daemon_json is missing or incomplete after the move: removed it; live-restore is not set"
+  fi
   if have_systemd && systemctl is-active --quiet docker.service 2>/dev/null; then
     systemctl reload docker.service >/dev/null 2>&1 || warn "systemctl reload docker.service failed: live-restore applies at the next daemon restart"
     # Read it back: a reload that did not take leaves containers to restart with the daemon. The daemon applies the
     # reload asynchronously, so ask a few times before giving up.
     live_restore=""
     for _ in 1 2 3 4 5; do
-      live_restore="$(docker info -f '{{.LiveRestoreEnabled}}' 2>/dev/null || true)"
+      live_restore="$(timeout 10 docker info -f '{{.LiveRestoreEnabled}}' 2>/dev/null || true)"
       [ "$live_restore" = true ] && break
       sleep 1
     done

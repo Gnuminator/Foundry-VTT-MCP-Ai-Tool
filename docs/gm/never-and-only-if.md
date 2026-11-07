@@ -34,7 +34,7 @@ Short rules. Each has its reason on the next line.
 ## Only do this if
 
 - **Click Start session only when play begins, and End session when it ends.**
-  Start session is the only switch for GM Actions: it turns on GM Actions and the five switches a
+  Start session is the only switch for the night: it turns on GM Actions and the five switches a
   night needs (Allow Write Operations, Handouts, Live play, Party and Tarokka). The rest, such as the
   Obsidian mirror and import, session notes, scene mood and room setup, stay off until you turn them on. With GM Actions off, a misclick cannot change
   anything. End session (or Pre-flight's "Turn them off again") turns it all off again.

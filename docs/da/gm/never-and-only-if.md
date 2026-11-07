@@ -1,6 +1,6 @@
 ---
 source: gm/never-and-only-if.md
-sourceHash: ee200124d22e
+sourceHash: c0c0374f11bd
 title: Gør aldrig det her, gør kun det her hvis
 description: Korte regler til GM'en, hver med sin begrundelse på én linje.
 ---
@@ -36,7 +36,7 @@ Korte regler. Hver har sin begrundelse på linjen under.
 ## Gør kun det her hvis
 
 - **Klik kun på Start session, når spillet begynder, og på End session, når det slutter.**
-  Start session er den eneste knap til GM Actions: den slår GM Actions og de fem kontakter, en
+  Start session er den eneste knap til aftenen: den slår GM Actions og de fem kontakter, en
   aften skal bruge, til (Allow Write Operations, Handouts, Live play, Party og Tarokka). Resten, for
   eksempel Obsidian-spejlet og -importen, session notes, scene mood og room setup, forbliver slået fra,
   til du slår dem til. Med GM Actions slået fra kan et fejlklik ikke ændre

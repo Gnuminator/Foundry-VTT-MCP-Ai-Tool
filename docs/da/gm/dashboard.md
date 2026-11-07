@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 84d8ef15f40c
+sourceHash: efb128f2fb0a
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -88,7 +88,7 @@ Headeren har ingen fra-knap. Start session slår GM Actions til; **End session**
 
 ### 🛠 Tool Runner (Advanced)
 
-Under **Advanced ▾**, Tools. Åbner Tool Runner. Se "Tool Runner" nedenfor.
+Under **Advanced ▾**, **Tool Runner**. Åbner Tool Runner. Se "Tool Runner" nedenfor.
 
 ### ✈ Pre-flight
 

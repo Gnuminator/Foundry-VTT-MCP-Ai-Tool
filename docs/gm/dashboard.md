@@ -85,7 +85,7 @@ The header has no off control. Start session turns GM Actions on; **End session*
 
 ### 🛠 Tool Runner (Advanced)
 
-Under **Advanced ▾**, Tools. Opens the Tool Runner. See "The Tool Runner" below.
+Under **Advanced ▾**, **Tool Runner**. Opens the Tool Runner. See "The Tool Runner" below.
 
 ### ✈ Pre-flight
 

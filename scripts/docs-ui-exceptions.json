@@ -38,6 +38,11 @@
     { "name": "Actor Studio", "reason": "Actor Studio module name (character builder in Foundry)" },
     { "name": "Don't show this message again", "reason": "Actor Studio welcome window checkbox" },
     { "name": "Create Character", "reason": "Actor Studio button" },
+    { "name": "Resume", "reason": "Actor Studio fork resume dialog button" },
+    {
+      "name": "Resume in Actor Studio",
+      "reason": "Actor Studio fork resume bar on the character sheet"
+    },
     { "name": "Advancements", "reason": "Actor Studio step" },
     { "name": "Add Selected", "reason": "Actor Studio button" },
     { "name": "Amulet", "reason": "dnd5e holy symbol item name" },

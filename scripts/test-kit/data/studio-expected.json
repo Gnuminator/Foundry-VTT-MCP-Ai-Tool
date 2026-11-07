@@ -29,7 +29,8 @@
   {
     "id": "current-hit-points:a-new-hero-does-not-start-at-full-hit-points",
     "kind": "STUDIO",
-    "why": "a hero levelled in Actor Studio whose Constitution modifier rises on an ability score increase ends below the maximum: the system adds each level's hit points with the modifier the hero has at that moment, does not raise the current value when the modifier later rises, and takes the hit points of a level before its increase. Fighter 17 with Constitution 14 up to level 11 and 16 from level 12 ends at 145 of 157 (11 levels of +1, plus the level 12 gain taken at the old modifier). Actor Studio does not touch hit points; a hero made at level 1 is whole"
+    "why": "a hero levelled in Actor Studio whose Constitution modifier rises on an ability score increase ends below the maximum: the 2024 book raises the maximum by one per level, the system adds only each level's own hit points to the current value, and takes a level's hit points before its increase. Fighter 17 with a Constitution modifier of +2 up to level 11 and +3 from level 12 ends at 145 of 157 (12 more in the maximum than in the current value); fixed in the fork: a hero that was at full hit points before a level up ends it at full",
+    "fixedIn": "2.10.5-aitool.6"
   },
   {
     "id": "feature-problems:no-slot-to-spend",

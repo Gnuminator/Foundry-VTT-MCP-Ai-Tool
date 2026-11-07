@@ -723,14 +723,15 @@ const FORK_FIXED = [
   'feature-problems:no-slot-to-spend',
   'console:gas.captureAdvancement',
   'console:black-parchment.webp',
+  // the STUDIO entry of the hit point finding (the SYSTEM entry of the same id stays in ALWAYS); fixed in aitool.6
+  'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
 ];
+const HP_STUDIO = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
 // fixed one build later: 2.10.5-aitool.2 fills the slots on every level up; aitool.1 filled level 1 only
 const SLOTS = 'spell-slots-available:spell-slots-a-new-hero-can-spend';
 const ALWAYS = [
   'advancement-values:advancement-value-of-size',
   'spells:the-raw-hero-has-no-class-spells',
-  'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
-  // the same finding id twice: SYSTEM (an effect raises the maximum) and STUDIO (a Constitution increase while levelling)
   'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
 ];
 
@@ -752,8 +753,13 @@ test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed 
 test('the expected list for the fork build drops what the fork fixed', () => {
   // aitool.1 still expects the slot finding (it fills level 1 only), aitool.2 and later do not
   const first = loadExpected(undefined, '2.10.5-aitool.1').map(e => e.id);
-  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS].sort(), '2.10.5-aitool.1');
-  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.6-aitool.1']) {
+  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS, HP_STUDIO].sort(), '2.10.5-aitool.1');
+  // the hit points of a levelled hero are filled from aitool.6 on
+  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.5-aitool.5']) {
+    const ids = loadExpected(undefined, version).map(e => e.id);
+    assert.deepEqual(ids.sort(), [...ALWAYS, HP_STUDIO].sort(), version);
+  }
+  for (const version of ['2.10.5-aitool.6', '2.10.6-aitool.1']) {
     const ids = loadExpected(undefined, version).map(e => e.id);
     assert.deepEqual(ids.sort(), [...ALWAYS].sort(), version);
   }
@@ -787,10 +793,12 @@ test('a fork build older than the fix does not get the entry dropped', () => {
 
 test('the installed version set by the scenario picks the list loadExpected() returns', () => {
   try {
-    setStudioVersion('2.10.5-aitool.2');
+    setStudioVersion('2.10.5-aitool.6');
     assert.equal(loadExpected().length, ALWAYS.length);
-    setStudioVersion('2.10.5-aitool.1');
+    setStudioVersion('2.10.5-aitool.2');
     assert.equal(loadExpected().length, ALWAYS.length + 1);
+    setStudioVersion('2.10.5-aitool.1');
+    assert.equal(loadExpected().length, ALWAYS.length + 2);
     setStudioVersion('2.10.5');
     assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length + 1);
     setStudioVersion(null);

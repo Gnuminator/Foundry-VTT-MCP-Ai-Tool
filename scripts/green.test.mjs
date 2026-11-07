@@ -38,6 +38,7 @@ import {
   quickSteps,
   quickLintSteps,
   QUICK_LINT_MAX_CHARS,
+  installIsFresh,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -1666,4 +1667,22 @@ test('checks.mjs: names are unique, every entry has a group, and green gets the 
     all.filter(c => c.steps !== false).map(c => c.name)
   );
   for (const h of heavy) assert.ok(names.includes(h), `HEAVY_STEPS names unknown step ${h}`);
+});
+
+test('installIsFresh: node_modules newer than the lockfile skips a local npm ci', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-'));
+  try {
+    assert.equal(installIsFresh(dir), false);
+    const lock = path.join(dir, 'package-lock.json');
+    fs.writeFileSync(lock, '{}');
+    fs.mkdirSync(path.join(dir, 'node_modules'));
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(lock, old, old);
+    assert.equal(installIsFresh(dir), true);
+    const newer = new Date(Date.now() + 60_000);
+    fs.utimesSync(lock, newer, newer);
+    assert.equal(installIsFresh(dir), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

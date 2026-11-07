@@ -285,7 +285,7 @@ jobs:
         run: node --test scripts/tv/start-table-viewer.test.mjs
 
       - name: Wiki staging scripts
-        # scripts/wiki (stage.mjs and the Danish page check), every *.test.mjs in the folder (wiki.yml does not run them).
+        # scripts/wiki (stage.mjs and the Danish page check), every *.test.mjs in the folder (wiki.yml runs only stage.test.mjs).
         run: npm run wiki:test
 
       - name: Dnd helper skill build

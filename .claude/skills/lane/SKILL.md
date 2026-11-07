@@ -77,7 +77,10 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (about 15
   minutes on GitHub; a branch cut before the workflow merged needs `git merge aitool/main` first),
   look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
-  them, push, and only then open the PR. If it writes nothing, read the run log. Never copy
+  them, push, and only then open the PR. The helper takes only its own run (branch, nonce and the
+  branch head sha at dispatch) and refuses an artifact from another sha; it logs to
+  `%TEMP%\visual-baselines-<branch>.log` (slashes become `_`; printed on the first line), so lanes running it at once do
+  not share a log. If it writes nothing, read that log and the run log. Never copy
   baselines from a failed PR run; re-run after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives,
   audio, `.env` or downloads.

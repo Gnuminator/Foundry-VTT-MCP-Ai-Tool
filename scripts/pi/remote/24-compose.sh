@@ -17,7 +17,7 @@
 #                      DASHBOARD_PORT=3300 FOUNDRY_DATA_DIR=/var/lib/foundry-rehearsal TOOL_DATA_DIR=/var/lib/foundry-ai-tool-rehearsal bash -s'
 #                  (Under TEST_ALLOW_CUTOVER=1, tests only, the live project can start and then asks for a quiet table.)
 #   MODE=down      stop and remove the containers (the data folders are bind mounts and stay). Asks for a quiet table first
-#                  when the stack serves the live Foundry port. Use the same ports as the `up` (the project name follows them).
+#                  when the stack uses a live port. Use the same ports as the `up` (the project name follows them).
 #   MODE=cutover   REFUSED for now. The switch to containers needs follow-ups first: a compose-aware nightly backup
 #                  (6-backup.sh stops and copies foundry.service's world) and guards in every stage that starts or restarts
 #                  foundry.service (3, 5, 7, 11, 12, 13, 14, 19, 21, switch-world, kit-session, set-dashboard-access). Backlog:
@@ -27,6 +27,8 @@
 #                  one. Needs no quiet table (it is the way out) and only warns without a snapshot from today. Containers are
 #                  found by label, so a missing compose file or .env does not hide them; with the Docker daemon down it
 #                  refuses (the containers come back with the daemon) unless FORCE=1, which first disables docker.service.
+# FOUNDRY_DATA_DIR and TOOL_DATA_DIR must be absolute paths for up and cutover (compose and this script would resolve a
+# relative one against different folders); down, rollback and status ignore the rule so the way out is never blocked.
 # Without MODE it is status. DRY_RUN=1 with any other mode checks everything and prints the plan.
 #
 # Not touched in any mode: Syncthing, cloudflared, Tailscale (serve), the Discord bot, the GitHub runner, the env files,
@@ -71,15 +73,18 @@ if [ "$mode" != status ] && [ "$dry" != 1 ]; then
 fi
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
-# The value compose will use: the shell wins over deploy/pi/.env wins over the default in compose.yml.
+# The value compose will use: the shell wins (even set but empty, which compose then replaces with the default) over
+# deploy/pi/.env wins over the default in compose.yml. A .env value is read like compose does: leading and trailing
+# whitespace dropped, an unquoted value ends at a ` #` comment, one pair of matching quotes removed.
 effective() { # NAME DEFAULT
   local v="${!1:-}"
-  if [ -z "$v" ] && [ -f "$env_file" ]; then
-    v="$(sed -n "s/^$1=//p" "$env_file" | tail -n 1)"
-    # Compose unquotes a .env value; strip one pair of matching quotes the same way.
+  if [ -z "${!1+set}" ] && [ -f "$env_file" ]; then
+    v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$env_file" | tail -n 1)"
+    v="${v#"${v%%[![:space:]]*}"}"
     case "$v" in
       \"*\") v="${v#\"}" v="${v%\"}" ;;
       \'*\') v="${v#\'}" v="${v%\'}" ;;
+      *) v="$(printf '%s' "$v" | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
     esac
   fi
   printf '%s' "${v:-$2}"
@@ -116,13 +121,14 @@ foundry_data="$(effective FOUNDRY_DATA_DIR "$live_foundry_data")"
 tool_data="$(effective TOOL_DATA_DIR "$TOOL_DATA")"
 foundry_app="$(effective FOUNDRY_APP_DIR "$FOUNDRY_APP")"
 # Compose resolves a relative bind path against the compose file folder, this script against its own cwd: refuse both.
-if [ "$mode" != status ]; then
+# Only for up and cutover, the modes that mount the data folders; down, rollback and status must never be blocked by it.
+if [ "$mode" = up ] || [ "$mode" = cutover ]; then
   case "$foundry_data" in /*) ;; *) die "FOUNDRY_DATA_DIR must be an absolute path (got '$foundry_data'). Nothing was changed" ;; esac
   case "$tool_data" in /*) ;; *) die "TOOL_DATA_DIR must be an absolute path (got '$tool_data'). Nothing was changed" ;; esac
 fi
 
 # The live stack and a rehearsal are separate compose projects, so a rehearsal can never recreate or remove the live
-# containers. A rehearsal is anything that does not use Foundry's live port.
+# containers. A rehearsal is anything that uses none of the live ports.
 live_project=foundry-ai-tool-pi
 project="$live_project-rehearsal"
 # Any one live port makes it the live project (a rehearsal that kept the live dashboard port still clashes with it).

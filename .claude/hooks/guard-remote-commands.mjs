@@ -394,7 +394,7 @@ const dockerDestroys = text =>
   scan(
     text,
     /\bdocker[ \t]+/g,
-    /(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+[ \t]+|-\S+[ \t]+)*/y,
+    /(?:(?:-H|--host|--context|-c|--config|-l|--log-level|--tlscacert|--tlscert|--tlskey)[ \t]+(?!-)\S+[ \t]+|-\S+[ \t]+)*/y,
     tailAt(
       /(?:(?:rm|rmi|kill|stop)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop)\b)/y
     )
@@ -403,13 +403,18 @@ const dockerDestroys = text =>
     // docker's global options may sit between `docker` and `compose` (docker --context x compose down).
     [
       {
-        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
+        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level|--tlscacert|--tlscert|--tlskey)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
       },
     ],
     /\b(?:down|rm|kill|stop)\b/g
   );
 
-/** Rules that ask: allowed only with the user's explicit OK, every time. */
+/**
+ * Rules that ask: allowed only with the user's explicit OK, every time.
+ * Decision (L113, 2026-11-07): `docker restart` and `compose up --force-recreate` stay free. They keep the containers,
+ * their volumes and bind mounts (the data is untouched), and the stage 24 modes already ask for a quiet table before
+ * they act on the live project; the rule above covers what removes or kills.
+ */
 const ASK = [
   [dockerDestroys, 'removing or killing containers (docker rm, kill, prune, compose down)'],
   [/\bTEST_ALLOW_CUTOVER=[^\s=]/, 'forcing the stage 24 cutover test switch on a real host'],

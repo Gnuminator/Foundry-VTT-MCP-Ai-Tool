@@ -40,7 +40,9 @@ An env file must not set the ports or the folder variables above: `environment:`
 ## Rehearse beside the live stack
 
 Use other ports and your own data folders, never the live `FOUNDRY_DATA_DIR` (two Foundrys on one data folder
-corrupt it). `test.env` holds the rehearsal ports 30100, 31614, 31615 and 3300 (D-119).
+corrupt it). `test.env` holds the rehearsal ports 30100, 31614, 31615 and 3300 (D-119). Both data folders must be
+absolute paths for `up` and `cutover` (compose and the stage script would resolve a relative one against different
+folders); `down` and `rollback` ignore that rule so the way out is never blocked.
 
 On the Pi use stage 24, never a raw `docker compose up`: it asks for the snapshot, refuses a clash with the units, runs the
 rehearsal as its own project (`foundry-ai-tool-pi-rehearsal`) and checks the result. Same variables as in `test.env`:

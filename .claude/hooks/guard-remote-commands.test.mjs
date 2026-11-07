@@ -186,6 +186,9 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'docker --context x compose down'",
     "ssh foundry-pi 'docker -H unix:///var/run/docker.sock compose -p x down'",
     "ssh foundry-pi 'docker --config /root/.d compose -p x rm -sf'",
+    "ssh foundry-pi 'docker --tlscacert /c compose -p x down'",
+    "ssh foundry-pi 'docker --tlscert /c --tlskey /k compose -p x down'",
+    "ssh foundry-pi 'docker --tlscacert /c rm x'",
   ]) {
     assert.equal(kind(c), 'ask', c);
   }

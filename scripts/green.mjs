@@ -423,8 +423,9 @@ export function nodeNote(o = {}) {
 /**
  * True when `dir/node_modules/.package-lock.json` was written after `dir/package-lock.json`, so a
  * local `npm ci` would only repeat the same install (10 to 30 s and network). npm writes that file
- * last and `npm ci` deletes node_modules first, so an aborted install usually leaves none (a
- * leftover one from an older install is older than the lockfile). CI always installs.
+ * last and `npm ci` deletes node_modules first, so an aborted install usually leaves none. A
+ * leftover one from an older install is caught only when the lockfile changed since then; with an
+ * unchanged lockfile an old file beside a damaged node_modules still reads as fresh. CI always installs.
  * @param {string} dir
  */
 export function installIsFresh(dir) {

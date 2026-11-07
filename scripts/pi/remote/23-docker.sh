@@ -182,11 +182,18 @@ if [ ! -e "$daemon_json" ]; then
   write_file "$daemon_json" 0644 '{
   "live-restore": true
 }' || true
-  [ -f "$daemon_json" ] || die "$daemon_json is missing after the write: live-restore is not set"
+  # A short write leaves a partial file that a plain existence check would pass: check the content.
+  grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json" 2>/dev/null || die "$daemon_json is missing or incomplete after the write: live-restore is not set"
   if have_systemd && systemctl is-active --quiet docker.service 2>/dev/null; then
     systemctl reload docker.service >/dev/null 2>&1 || warn "systemctl reload docker.service failed: live-restore applies at the next daemon restart"
-    # Read it back: a reload that did not take leaves containers to restart with the daemon.
-    live_restore="$(docker info -f '{{.LiveRestoreEnabled}}' 2>/dev/null || true)"
+    # Read it back: a reload that did not take leaves containers to restart with the daemon. The daemon applies the
+    # reload asynchronously, so ask a few times before giving up.
+    live_restore=""
+    for _ in 1 2 3 4 5; do
+      live_restore="$(docker info -f '{{.LiveRestoreEnabled}}' 2>/dev/null || true)"
+      [ "$live_restore" = true ] && break
+      sleep 1
+    done
     if [ "$live_restore" = true ]; then
       ok "live-restore is on (docker info)"
     else

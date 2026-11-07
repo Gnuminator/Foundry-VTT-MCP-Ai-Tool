@@ -84,7 +84,7 @@ describe('announce', () => {
     expect(prLine(683, 'Merge  the\nthing')).toBe(
       '[#683](<https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/pull/683>) Merge the thing'
     );
-    expect(deployLine('v0.24.0')).toBe('Serveren kører nu v0.24.0.');
+    expect(deployLine('v0.24.0')).toBe('The server now runs v0.24.0.');
   });
 
   it('sends silent, mention-free posts to the right channel', async () => {

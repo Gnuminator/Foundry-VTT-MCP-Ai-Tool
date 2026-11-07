@@ -34,8 +34,8 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    builds and publishes the GitHub release (assets and checks: [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
 
 6. **Verify the release** (the `curl` in DEPLOYMENT), then deploy to the Pi if wanted.
-7. **Tell the players in #changelog and the GM in #dashboard-changelog.** Write 2 to 5 short Danish lines per post
-   from the new CHANGELOG section: game terms in English, no em dashes, nothing purely internal (tooling,
+7. **Tell the players in #changelog and the GM in #dashboard-changelog.** Write 2 to 5 short English lines per post
+   from the new CHANGELOG section: game terms as in the game, no em dashes, nothing purely internal (tooling,
    tests, CI). Sort each line by who notices it:
    - **Players' lines** (the player page, Foundry, the Discord bot, the character guides) go to #changelog,
      a normal post that never mentions anyone.
@@ -55,14 +55,14 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
 
    ```bash
    node packages/discord-bot/announce/announce.mjs changelog "**v0.26.0**
-   - Spillersiden viser nu kampen live
+   - The player page now shows the combat live
    - ..."
-   node packages/discord-bot/announce/announce.mjs dashboard "{gm} Nyt i dashboardet (v0.26.0):
-   • Ny Conditions-knap til flere tokens ad gangen
+   node packages/discord-bot/announce/announce.mjs dashboard "{gm} New in the dashboard (v0.26.0):
+   • New Conditions button for several tokens at once
    • ..."
    ```
 
-   A Pi stage 5 build of a new release tag posts "Serveren kører nu vX.Y.Z." by itself once the Pi's bot env
+   A Pi stage 5 build of a new release tag posts "The server now runs vX.Y.Z." by itself once the Pi's bot env
    has `DISCORD_CHANGELOG_CHANNEL_ID`. Posting is optional and never blocks a release; it prints one warning
    if Discord cannot be reached. The two channel ids and the GM role id belong in the PC's
    `%APPDATA%\foundry-ai-tool\discord-bot.env` (template: `packages/discord-bot/deploy/discord-bot.env.example`).

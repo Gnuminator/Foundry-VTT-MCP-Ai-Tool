@@ -108,7 +108,7 @@ Parameters:
 
 ### get-token-positions
 
-List all tokens on a scene with their positions and status. For each token: name, actor ID, token ID, grid coordinates (x/y and grid cell), elevation, category (player character / npc / enemy), visibility (hidden or visible), current HP, and conditions. Defaults to the active scene.
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
 
 Kind: read-only. Title: Get token positions.
 
@@ -183,7 +183,7 @@ Parameters:
 
 ### get-compendium-item
 
-Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.
+Use this to read one compendium item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full. Compact mode is lighter.
 
 Kind: read-only. Title: Get compendium item.
 
@@ -227,7 +227,7 @@ Parameters:
 
 ### list-recent-changes
 
-List recently applied guarded changes for the current world (newest first): summary, diff, when, and whether each can still be undone. Read-only.
+Applied plans only, newest first: summary, diff, when, still undoable. Use this to find one for undo-change; for direct writes and changes by players or the GM use list-changes. Read-only.
 
 Kind: read-only. Title: List recent AI changes.
 
@@ -237,7 +237,7 @@ Parameters:
 
 ### list-changes
 
-List everyone's recent changes in Foundry (players, the GM and the AI) from the last 7 days, newest first: who, what and when, as readable lines such as "Ilvara: HP 10 -> 5". Filter by person, by thing (a document uuid) and by AI or human. Read-only. Each change has an id; undo it with plan-undo-changes (anyone's change) or, for an AI change, undo-change.
+Use this to see what anyone changed (players, GM, AI) in the last 7 days, newest first: who, what, when, e.g. "Ilvara: HP 10 -> 5". Filter by person, thing (document uuid) or AI/human. Read-only. Undo with plan-undo-changes, or undo-change for an AI change.
 
 Kind: read-only. Title: List all recent changes.
 
@@ -251,7 +251,7 @@ Parameters:
 
 ### plan-undo-changes
 
-Plan undoing one change from list-changes (by anyone: a player, the GM or the AI), or everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.
+Use this to undo a change by anyone (id from list-changes); for an AI change undo-change is simpler. Can also undo everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.
 
 Kind: read-only. Title: Plan undoing changes.
 
@@ -263,7 +263,7 @@ Parameters:
 
 ### undo-change
 
-Undo an applied change (by changeId from list-recent-changes), restoring the previous values. Requires confirm: true. Refuses instead of overwriting if the documents were edited since the change.
+Use this to undo an applied plan (changeId from list-recent-changes), restoring the previous values; for a direct write or a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.
 
 Kind: changes something and can delete or overwrite. Title: Undo change.
 
@@ -386,7 +386,7 @@ Parameters:
 
 ### get-token-details
 
-Get detailed information about a specific token including all properties and linked actor data
+Use this for the full properties of one token and linked actor data; for positions of all tokens on a scene use get-token-positions.
 
 Kind: read-only. Title: Get token details.
 
@@ -404,7 +404,7 @@ No parameters.
 
 ### get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use it to follow what happened.
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.
 
 Kind: read-only. Title: Get chat log.
 
@@ -417,7 +417,7 @@ Parameters:
 
 ### get-combat-play-by-play
 
-Summary of the current or most recent combat, rebuilt from the chat-log buffer and the turn timeline: each round by turn (who acted, with roll and damage results), key events (downed, dead, stabilized, conditions applied or removed), and totals for rounds and damage dealt per actor.
+Use this for a recap of the current or most recent combat (for raw chat use get-chat-log), rebuilt from the chat-log buffer and the turn timeline: each round by turn (who acted, with roll and damage results), key events (downed, dead, stabilized, conditions applied or removed), and totals for rounds and damage dealt per actor.
 
 Kind: read-only. Title: Get combat play-by-play.
 
@@ -510,7 +510,7 @@ No parameters.
 
 ### get-recent-events
 
-Low-latency "what happened since timestamp X" delta of session events, for situational awareness during play. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
 
 Kind: read-only. Title: Get recent events.
 
@@ -1072,7 +1072,7 @@ Parameters:
 
 ### get-session-log
 
-Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this as a session memory layer to recap what has happened.
+The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events, and for chat text use get-chat-log.
 
 Kind: read-only. Title: Get session log.
 
@@ -1142,7 +1142,7 @@ Parameters:
 
 ### get-compendium-entry-full
 
-Retrieve complete stat block data including items, spells, and abilities for actor creation
+Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.
 
 Kind: read-only. Title: Get full compendium entry.
 

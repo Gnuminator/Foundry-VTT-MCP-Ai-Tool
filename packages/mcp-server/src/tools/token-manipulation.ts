@@ -39,7 +39,7 @@ export class TokenManipulationTools {
       {
         name: 'get-token-details',
         description:
-          'Get detailed information about a specific token including all properties and linked actor data',
+          'Use this for the full properties of one token and linked actor data; for positions of all tokens on a scene use get-token-positions.',
         inputSchema: {
           type: 'object',
           properties: {

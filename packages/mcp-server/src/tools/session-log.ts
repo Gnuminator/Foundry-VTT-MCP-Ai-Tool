@@ -29,7 +29,7 @@ export class SessionLogTools {
       {
         name: 'get-session-log',
         description:
-          'Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this as a session memory layer to recap what has happened.',
+          'The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events, and for chat text use get-chat-log.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -59,7 +59,7 @@ export class SessionLogTools {
       {
         name: 'get-recent-events',
         description:
-          'Low-latency "what happened since timestamp X" delta of session events, for situational awareness during play. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
+          'Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
         inputSchema: {
           type: 'object',
           properties: {

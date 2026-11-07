@@ -1275,7 +1275,12 @@ test.describe('picking combatants', () => {
     await load(page);
     await page.locator('#combat-actions [data-sel="attack"]').click();
     await page.locator('#attack-go').click();
-    await expect(toastLike(page, /Brannoc attacked: rolled/)).toBeVisible();
+    await expect(
+      toastLike(
+        page,
+        /Attack sent: Brannoc with .+ at the Foundry targets\. The roll shows in the feed/
+      )
+    ).toBeVisible();
   });
 
   test('Attack: an attacker who left the fight falls back to the one whose turn it is', async ({

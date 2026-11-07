@@ -196,7 +196,9 @@ export class PollingGameFeed implements GameFeed {
     this.errorCursor = null;
     this.firstErrorPoll = true;
     this.pollNow();
-    void this.pollErrors();
+    // Like pollNow: a read already out may answer (or fail) about the old world, so one follows it.
+    if (this.errorPollInFlight) this.errorPollQueued = true;
+    else void this.pollErrors();
   }
 
   private async pollEvents(): Promise<void> {

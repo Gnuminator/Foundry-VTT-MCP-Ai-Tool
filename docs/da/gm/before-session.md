@@ -34,7 +34,7 @@ som fire trin med tider.
 
 ## Slå til, hvad aftenen kræver
 
-- [ ] Klik på **Turn on for tonight** i Pre-flight-panelet. Ét klik slår "Allow Write Operations",
+- [ ] Klik på **Turn on for tonight** i Pre-flight-panelet. Ét klik slår "AI Tool: Allow Write Operations",
       "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party (writes)",
       "AI Tool: Tarokka (writes)" og **GM Actions** til. Chipsene under knappen viser hver
       kontakt, og en besked siger, hvad der blev slået til. **End session** slår det fra igen, som

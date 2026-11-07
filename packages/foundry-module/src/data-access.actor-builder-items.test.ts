@@ -65,6 +65,18 @@ function stubCanvas(sceneId: string): ReturnType<typeof vi.fn> {
   return setTargets;
 }
 
+/** An active scene with one goblin token and a ready canvas on it; returns setTargets. */
+function goblinScene(): ReturnType<typeof vi.fn> {
+  const scene = world.addScene({
+    id: 'scene1',
+    name: 'Field',
+    active: true,
+    tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+  });
+  world.setActiveScene(scene.id);
+  return stubCanvas(scene.id);
+}
+
 /** A short tick so a fire-and-forget `.use()/.toMessage()` promise resolves. */
 const flush = (): Promise<unknown> => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -152,10 +164,12 @@ describe('FoundryDataAccess — useItem', () => {
       activities: [{ type: 'save' }, { type: 'attack', use, rollAttack }],
     };
     world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    goblinScene();
 
     const result = await da.useItem({
       actorIdentifier: 'Bandit',
       itemIdentifier: 'Scimitar',
+      targets: ['Goblin'],
       options: { rollAttack: true },
     });
     await flush();
@@ -179,16 +193,84 @@ describe('FoundryDataAccess — useItem', () => {
     (item as any).use = vi.fn();
     (item as any).system = { activities: [{ type: 'attack', use, rollAttack }] };
     world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    goblinScene();
 
     await da.useItem({
       actorIdentifier: 'Bandit',
       itemIdentifier: 'Scimitar',
+      targets: ['Goblin'],
       options: { rollAttack: true },
     });
     await flush();
 
     expect(use).toHaveBeenCalledTimes(1);
     expect(rollAttack).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses with no targets, before anything is used', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('needs at least one target');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: an unresolved target stops before setTargets is called', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const setTargets = goblinScene();
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin', 'tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(setTargets).not.toHaveBeenCalled();
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: skips an attack activity that cannot be used', async () => {
+    const dead = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const live = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = {
+      activities: [
+        { type: 'attack', canUse: false, use: dead, rollAttack },
+        { type: 'attack', canUse: true, use: live, rollAttack },
+      ],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    goblinScene();
+
+    await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      targets: ['Goblin'],
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    expect(dead).not.toHaveBeenCalled();
+    expect(live).toHaveBeenCalledTimes(1);
   });
 
   it('rollAttack: refuses when a named target is not on the active scene', async () => {

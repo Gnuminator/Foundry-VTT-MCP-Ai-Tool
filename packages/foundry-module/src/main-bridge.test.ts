@@ -90,6 +90,7 @@ beforeEach(async () => {
     return Promise.resolve(value);
   });
   g.game.settings.set = setSpy;
+  g.game.user.can = (permission: string): boolean => permission === 'SETTINGS_MODIFY';
   vi.resetModules();
   g.window.foundryMCPBridge = undefined;
   const main = await import('./main.js');
@@ -157,6 +158,7 @@ describe('main: no world writes for connection state (PB-03)', () => {
 
   it('with connection messages on, repeated failed starts write the link state once', async () => {
     world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
     fake.state.connectOk = false;
     await expect(bridge.start()).rejects.toThrow();
     await expect(bridge.start()).rejects.toThrow();
@@ -165,8 +167,52 @@ describe('main: no world writes for connection state (PB-03)', () => {
     expect(linkWrites.map(c => (c[2] as { state: string }).state)).toEqual(['lost']);
   });
 
+  it('in Any GM mode (no bridge user chosen) the holder writes no link state', async () => {
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    expect(setSpy.mock.calls.filter(c => c[1] === 'linkState')).toHaveLength(0);
+  });
+
+  it('a user who cannot change world settings writes no link state', async () => {
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
+    g.game.user.can = (): boolean => false;
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    expect(setSpy.mock.calls.filter(c => c[1] === 'linkState')).toHaveLength(0);
+  });
+
+  it('a failed link state write is not remembered as published, so the next start tries again', async () => {
+    world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
+    setSpy.mockImplementation(() => Promise.reject(new Error('denied')));
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await expect(bridge.start()).rejects.toThrow();
+    expect(setSpy.mock.calls.filter(c => c[1] === 'linkState')).toHaveLength(2);
+  });
+
+  it('a stored link state change reaches the hook and applyStoredLinkState', async () => {
+    const hooks = (globalThis as any).Hooks;
+    const handlers: Array<() => void> = [];
+    const onSpy = vi.spyOn(hooks, 'on').mockImplementation((name: string, cb: () => void) => {
+      if (name === 'foundry-mcp-bridge.linkStateChanged') handlers.push(cb);
+      return 1;
+    });
+    const apply = vi.spyOn(bridge, 'applyStoredLinkState').mockImplementation(() => undefined);
+    bridge.watchLinkState();
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(handlers).toHaveLength(1);
+    handlers[0]();
+    expect(apply).toHaveBeenCalledTimes(2);
+    onSpy.mockRestore();
+  });
+
   it('with connection messages on, a start that connects after a lost one writes up', async () => {
     world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
     fake.state.connectOk = false;
     await expect(bridge.start()).rejects.toThrow();
     fake.state.connectOk = true;
@@ -179,6 +225,7 @@ describe('main: no world writes for connection state (PB-03)', () => {
 
   it('with connection messages on, a stop after a lost link writes one quiet', async () => {
     world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
     fake.state.connectOk = false;
     await expect(bridge.start()).rejects.toThrow();
     await bridge.stop();
@@ -267,6 +314,7 @@ describe('main: link toasts', () => {
 
   beforeEach(() => {
     world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
   });
 
   it('wires onLinkChange in start(): a lasting drop shows lost, then back', async () => {
@@ -326,6 +374,7 @@ describe('main: link toasts', () => {
   it('a start that could not connect still owes the back toast once the link opens', async () => {
     vi.useFakeTimers();
     world.setSetting(MODULE_ID, 'enableNotifications', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
     fake.state.connectOk = false;
     await expect(bridge.start()).rejects.toThrow();
     expect(messages().some(m => m.includes('Cannot reach the AI Tool server'))).toBe(true);

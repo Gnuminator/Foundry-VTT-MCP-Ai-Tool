@@ -77,7 +77,7 @@ fill the row. A bare typed dice roll by that character, such as `/r 1d20`, does 
 players to click the card. The requests are logged like any other roll request, so the recap and stats
 see them.
 
-The buttons are grey, with the reason, while "Allow Write Operations" is off.
+The buttons are grey, with the reason, while "AI Tool: Allow Write Operations" is off.
 
 When to use it: when you plan a fight or an ambush and want to know what the party can take, and when
 somebody asks "what is my passive Perception again".

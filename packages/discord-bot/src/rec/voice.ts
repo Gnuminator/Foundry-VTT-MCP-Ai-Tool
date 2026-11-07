@@ -58,7 +58,10 @@ export function redactVoiceDebug(message: string): string {
       // Other shapes: key=value in a URL or a plain log line.
       .replace(/\b(token|session_?id)=[^\s&,;"']+/gi, '$1=[redacted]')
       // The key written as a list (`secret_key=9,8,7` or `=[9, 8, 7]`) must not stop at the first comma.
-      .replace(/\b(secret_?key)=(?:\[[^\]]*\]|\d+(?:\s*,\s*\d+)*|[^\s&,;"']+)/gi, '$1=[redacted]')
+      .replace(
+        /\b(secret_?key)=(?:\[[^\]]*\]|[^\s&,;"'\]]+(?:\s*,\s*[^\s&,;"'\]]+)*)/gi,
+        '$1=[redacted]'
+      )
   );
 }
 

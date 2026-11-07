@@ -104,7 +104,7 @@ length. If the module and bridge versions differ, a banner at the top says which
 
 At the top of the Pre-flight panel. One click turns on what an evening at the table needs:
 
-- in Foundry's module settings: "Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
+- in Foundry's module settings: "AI Tool: Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
   Live play (writes)", "AI Tool: Party (writes)" and "AI Tool: Tarokka (writes)";
 - on the dashboard: **GM Actions**.
 
@@ -238,7 +238,7 @@ After a Damage / Heal or Condition change, a message lists each target's result 
 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
 Changes.
 
-**Scene mood** (a button on the During bar, with GM Actions, Allow Write Operations and Foundry's
+**Scene mood** (a button on the During bar, with GM Actions, AI Tool: Allow Write Operations and Foundry's
 "AI Tool: Scene mood and music (writes)" switch on): one button for each mood preset saved on the
 scene you are viewing. A click asks once, with the plan's own summary ("Apply mood ... on ..."),
 then sets the darkness, light, weather and music. **Undo** is on the message and in Recent
@@ -312,7 +312,7 @@ after the session). The tool puts them into Foundry **by itself, without asking*
 journal in the folder "Session notes" (named with the date and title) with the pages Recap, GM summary and Scenes, logged in Recent Changes with
 Undo. The card says where they are:
 
-- **Waiting**: they go in by themselves as soon as a GM is in Foundry, "Allow Write Operations" is
+- **Waiting**: they go in by themselves as soon as a GM is in Foundry, "AI Tool: Allow Write Operations" is
   on and the switch "AI Tool: Session notes (writes)" is on; the card says which one is missing.
   After an **Undo** they stay out until you click **Put in Foundry**.
 - **In Foundry**: the Recap waits in the Handouts queue. Reveal it there, or click **Approve without

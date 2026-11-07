@@ -7,15 +7,17 @@
  */
 
 /** The reasons that are worth naming. Matched against the error text, first hit wins. */
-const KNOWN_REASONS: ReadonlyArray<readonly [RegExp, string]> = [
+const KNOWN_REASONS: ReadonlyArray<readonly [RegExp, string, string?]> = [
   [
     /permission|not allowed|unauthori[sz]ed|forbidden|only (?:a )?gm/i,
     'You may not have permission for this.',
+    'You may not have permission for this. Ask your GM.',
   ],
   [/timed? ?out|timeout/i, 'It took too long to answer. Try again in a moment.'],
   [
     /not connected|disconnect|socket|network|fetch|econn|offline/i,
     'The AI Tool is not connected right now. Check that it is running, then try again.',
+    'The AI Tool is not connected right now. Ask your GM.',
   ],
   [
     /no longer exists|not found|missing|unknown (?:actor|scene|journal|item)/i,
@@ -30,8 +32,9 @@ const FALLBACK_HINT = 'Try again. If it keeps happening, press F12 and look at t
 const TECHNICAL =
   /\b\w*Error\b|\bat \S+:\d+|\.m?[jt]s\b|undefined|\bnull\b|\[object|[{}<>]|[Ff]ailed to fetch|ECONN/;
 
-/** A Foundry id (16 letters and digits with a digit in them) or a uuid tail (`.Abc...`). */
-const ID_SHAPED = /\b(?=[A-Za-z0-9]{16}\b)[A-Za-z0-9]*\d[A-Za-z0-9]*\b|\.[A-Za-z0-9]{16}\b/;
+/** A Foundry id (16 letters and digits with a digit or a capital after the first character) or a uuid tail (`.Abc...`). */
+const ID_SHAPED =
+  /\b(?=[A-Za-z0-9]{16}\b)(?:[A-Za-z0-9]*\d[A-Za-z0-9]*|[A-Za-z0-9][a-z0-9]*[A-Z][A-Za-z0-9]*)\b|\.[A-Za-z0-9]{16}\b/;
 
 /** What to say when no reason is known and the reader is a player: the console is no use to them. */
 const PLAYER_FALLBACK_HINT = 'Try again. If it keeps happening, tell your GM.';
@@ -63,8 +66,13 @@ export function toGmMessage(
     const sentence = text.trim();
     return `Could not ${what}. ${/[.!?]$/.test(sentence) ? sentence : `${sentence}.`}`;
   }
-  const reason =
-    KNOWN_REASONS.find(([pattern]) => pattern.test(text))?.[1] ??
-    (audience === 'player' ? PLAYER_FALLBACK_HINT : FALLBACK_HINT);
+  const known = KNOWN_REASONS.find(([pattern]) => pattern.test(text));
+  const reason = known
+    ? audience === 'player'
+      ? (known[2] ?? known[1])
+      : known[1]
+    : audience === 'player'
+      ? PLAYER_FALLBACK_HINT
+      : FALLBACK_HINT;
   return `Could not ${what}. ${reason}`;
 }

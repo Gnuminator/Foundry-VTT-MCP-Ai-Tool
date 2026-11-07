@@ -51,6 +51,17 @@ describe('ModuleSettings — access defaults', () => {
   });
 });
 
+describe('ModuleSettings — linkState relay', () => {
+  it('writing linkState calls the linkStateChanged hook in every client', () => {
+    const config = registered.get(`${MODULE_ID}.linkState`);
+    expect(config).toMatchObject({ scope: 'world', config: false });
+    const seen = vi.fn();
+    g.Hooks.on('foundry-mcp-bridge.linkStateChanged', seen);
+    config?.onChange();
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('ModuleSettings — bridge port default', () => {
   it('defaults to 31415 without a manifest flag', () => {
     expect(registered.get(`${MODULE_ID}.serverPort`)).toMatchObject({

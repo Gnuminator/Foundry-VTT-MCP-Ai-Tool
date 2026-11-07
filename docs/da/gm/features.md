@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 3a4400afdc43
+sourceHash: 7b1be96e73ad
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -17,18 +17,18 @@ stopper dashboardets ændringer lige så vel som Claudes.
 
 "AI Tool" kan betyde tre ting, så her er forskellen. **Modulet** er tilføjelsen inde i Foundry
 (Module Management viser det som **Foundry AI Tool**). Alle knapperne på siden her er indstillinger
-i det, og næsten alle hedder "AI Tool: ..." (Allow Write Operations er undtagelsen). **Dashboardet**
+i det, og næsten alle hedder "AI Tool: ...". **Dashboardet**
 er websiden ved siden af Foundry, som du åbner i en anden fane. **GM-vinduerne** er små vinduer inde
 i Foundry. De har deres egen knap, "AI Tool: GM windows", som er slået til som standard (se
 [GM-vinduerne](gm-windows.md)). Modulets knapper ligger alle samme sted: scroll til overskriften
 **Foundry AI Tool** i Game Settings.
 
 **Turn on for tonight** (Pre-flight-panelet i dashboardets Before-visning) slår med ét klik til,
-hvad en aften ved bordet kræver: Allow Write Operations, Handouts, Live play, Party, Tarokka og
+hvad en aften ved bordet kræver: AI Tool: Allow Write Operations, Handouts, Live play, Party, Tarokka og
 GM Actions. **End session** slår det fra igen, som den slog til. Se
 [Turn on for tonight](dashboard.md#turn-on-for-tonight).
 
-## Allow Write Operations
+## AI Tool: Allow Write Operations
 
 - **Hvad den gør:** værktøjets hovedkontakt. Er den slået fra, kan værktøjet kun læse: intet ændrer
   sig i Foundry, hverken fra Claude eller fra dashboardet, og der er ingen Undo.

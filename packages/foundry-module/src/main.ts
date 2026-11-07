@@ -128,22 +128,50 @@ class FoundryMCPBridge {
     holdsLink: () => this.socketBridge !== null,
   });
 
-  /** In memory only: what this browser last wrote to `linkState`. */
+  /** In memory only: what this browser last wrote to `linkState` (set once the write succeeded). */
   private lastPublishedLinkState: LinkRelayStateName | null = null;
+  /** The state whose write is under way, so a repeat before it finishes writes nothing. */
+  private publishingLinkState: LinkRelayStateName | null = null;
+
+  /**
+   * Only a browser that is the chosen bridge user may write the notice: with "Any GM" (no user
+   * chosen) every GM browser holds a link and each would write, and a user without the right to
+   * change world settings cannot write at all.
+   */
+  private canPublishLinkState(): boolean {
+    const bridgeUserId = this.settings.getSetting('bridgeUserId');
+    if (typeof bridgeUserId !== 'string' || bridgeUserId === '') return false;
+    if (!isBridgeUser(bridgeUserId, game.user?.id)) return false;
+    const user = game.user as unknown as { can?: (permission: string) => boolean } | undefined;
+    return user?.can?.('SETTINGS_MODIFY') === true;
+  }
 
   /** Writes the holder's notice state to the world so every other GM browser can show it. */
   private publishLinkState(state: LinkRelayStateName): void {
     // One write per change of notice: a repeated "lost" (a failed start() while the outage lasts) writes nothing.
-    if (state === this.lastPublishedLinkState) return;
-    this.lastPublishedLinkState = state;
+    if (state === this.lastPublishedLinkState || state === this.publishingLinkState) return;
+    if (!this.canPublishLinkState()) return;
+    this.publishingLinkState = state;
+    const done = (error?: unknown): void => {
+      if (this.publishingLinkState === state) this.publishingLinkState = null;
+      if (error === undefined) this.lastPublishedLinkState = state;
+      else console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+    };
     try {
       const result = game.settings.set(MODULE_ID, 'linkState', { state, at: Date.now() });
-      void Promise.resolve(result).catch(error => {
-        console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
-      });
+      void Promise.resolve(result).then(
+        () => done(),
+        error => done(error ?? new Error('write failed'))
+      );
     } catch (error) {
-      console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+      done(error ?? new Error('write failed'));
     }
+  }
+
+  /** Shows the holder's notices in this GM browser: on every stored change, and once for the value present now. */
+  watchLinkState(): void {
+    Hooks.on(LINK_STATE_CHANGED_HOOK, () => this.applyStoredLinkState());
+    this.applyStoredLinkState();
   }
 
   /** The stored link state changed (or was read when this GM joined): show it unless this browser holds the link. */
@@ -183,7 +211,7 @@ class FoundryMCPBridge {
    */
   async initialize(): Promise<void> {
     try {
-      logInfo(`[${MODULE_ID}] Initializing Foundry MCP Bridge...`);
+      logInfo(`[${MODULE_ID}] Initializing Foundry AI Tool...`);
 
       // Register module settings
       this.settings.registerSettings();
@@ -465,6 +493,7 @@ class FoundryMCPBridge {
       this.isGMUser() &&
       this.settings.getSetting('enableNotifications') !== false &&
       this.lastPublishedLinkState !== 'lost' &&
+      this.publishingLinkState !== 'lost' &&
       parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')).state === 'lost'
     ) {
       this.publishLinkState('quiet');
@@ -755,8 +784,7 @@ Hooks.once('ready', async () => {
     // The link holder (the Assistant GM's browser) shares its lost/back notices through a world
     // setting; a GM browser that does not hold the link shows them too, also when it joins mid-outage.
     // (The setting's onChange fires for the first write, a create, as well as for later updates.)
-    Hooks.on(LINK_STATE_CHANGED_HOOK, () => foundryMCPBridge.applyStoredLinkState());
-    foundryMCPBridge.applyStoredLinkState();
+    foundryMCPBridge.watchLinkState();
 
     // Live screen B: the pinned button, and the live window if it was open before the reload.
     restoreLiveWindow();

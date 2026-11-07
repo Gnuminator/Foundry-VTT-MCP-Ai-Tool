@@ -49,7 +49,7 @@ export class ErrorHandler {
         details: errorMessage,
         suggestions: [
           'Ensure Foundry VTT is running',
-          'Check that the MCP Bridge module is enabled',
+          'Check that the Foundry AI Tool module is enabled',
           'Verify connection settings in module configuration',
         ],
         recoverable: true,
@@ -251,11 +251,11 @@ export class ErrorHandler {
   createPermissionError(operation: string, setting?: string): MCPError {
     const suggestions = [
       'Ask a GM to enable this feature in Foundry VTT',
-      'Check the MCP Bridge module settings',
+      'Check the Foundry AI Tool module settings',
     ];
 
     if (setting) {
-      suggestions.unshift(`Enable the "${setting}" setting in the MCP Bridge module`);
+      suggestions.unshift(`Enable the "${setting}" setting in the Foundry AI Tool module`);
     }
 
     return {

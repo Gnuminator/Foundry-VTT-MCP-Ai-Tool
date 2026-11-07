@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 36302fe91935
+sourceHash: 5902c5d9deaa
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -25,7 +25,7 @@ aften, og du kan klikke på hver af dem når som helst.
 
 - **Before**: Pre-flight-tjekket og Prep-panelet, kortet **Pick your During layout** (indtil du
   har valgt et layout).
-- **During**: Combat order-strimlen, Live Feed og Handouts, Party og Recent Changes.
+- **During**: turn-order-strimlen, Live Feed og Handouts, Party og Recent Changes.
 - **After**: Tonight's stats og Session notes, med Prep, Handouts og Recent Changes.
 
 Siden vælger en visning for dig: **During**, mens en session er åben, **After** i 12 timer efter
@@ -57,38 +57,38 @@ Spillernes side og Obsidian følger med.
 Markerer start og slut på en spilsession. Værktøjet bruger markeringerne til at skrive én
 Obsidian-note pr. session og til at gruppere play log.
 
-- **Start session** er knappen i headeren. Den slår også GM Actions og alle
-  **Turn on for tonight**-kontakter til (se "GM Actions on" nedenfor).
+- **Start session** er knappen i headeren. Den slår også live play til: GM Actions og alle
+  **Turn on for tonight**-kontakter (se "Live play on" nedenfor).
 - Klik på **Start session**, når spillet begynder. Teksten skifter til "Session since 19:30".
 - Klik på **End session**, når spillet er slut. Teksten skifter tilbage til "No session". Den slår
   også det fra igen, som **Turn on for tonight** slog til (se nedenfor), og GM Actions.
-- Når en session starter, skrives en linje i værktøjets egen log, og GM Actions slås til, så
+- Når en session starter, skrives en linje i værktøjets egen log, og live play slås til, så
   værktøjer, der ændrer spillet, kan køre, når du har bekræftet.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
 
 Obsidian-knappen ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
 
-### GM Actions on
+### Live play on
 
-**Start session** er den eneste kontakt til GM Actions. Ét klik slår GM Actions og alle
-**Turn on for tonight**-kontakter til; **End session** slår dem fra igen. Knappen i headeren
+**Start session** er den eneste kontakt til live play. Ét klik slår GM Actions og alle
+**Turn on for tonight**-kontakter til; **End session** slår dem fra igen. Linjen i headeren
 viser tilstanden og åbner listen over kontakter. Når siden ikke kan læse kontakterne, siger
-knappen det (og siger stadig til, hvis GM Actions er slået fra).
+linjen det (og siger stadig til, hvis GM Actions er slået fra).
 
-- **GM Actions on**: værktøjer, der ændrer spillet, kan køre, når du har bekræftet, og Undo
+- **Live play on**: værktøjer, der ændrer spillet, kan køre, når du har bekræftet, og Undo
   i Recent Changes virker.
-- **Something is off** (knappen siger "GM Actions off: Turn on"; hold musen over den for at se, hvad der er slået fra): de knapper, der skal bruge det,
+- **Something is off** (knappen siger "Live play off: Turn on"; hold musen over den for at se, hvad der er slået fra): de knapper, der skal bruge det,
   bliver stående på skærmen, nedtonede, med årsagen og en **Turn on**-knap ved siden af. Ét klik
   slår alt til, det samme som Start session.
 - Det beskytter kun dashboardet. Det stopper ikke Claude Desktop.
 - Når dashboardet genstarter, bliver GM Actions slået fra igen.
 
-Headeren har ingen fra-knap. Start session slår GM Actions til; **End session** eller Pre-flights
+Headeren har ingen fra-knap. Start session slår live play til; **End session** eller Pre-flights
 **Turn them off again** slår det fra.
 
-### 🛠 Tool Runner (Advanced)
+### 🛠 Tools (Advanced)
 
-Under **Advanced ▾**, **Tool Runner**. Åbner Tool Runner. Se "Tool Runner" nedenfor.
+Under **Advanced ▾**, Tools. Åbner tool runneren. Se "Tool runneren" nedenfor.
 
 ### ✈ Pre-flight
 
@@ -123,7 +123,7 @@ En afvisnings-toast ("... is switched off") tilbyder det samme klik som en knap,
 name) and the rest for tonight": den slår alt ovenstående til, ikke kun den nævnte kontakt.
 
 Kun dashboardet kan gøre det, fra GM'ens login. Claude har intet værktøj til det, så Claude kan
-aldrig selv slå sine skrivninger til. **Start the session log and GM Actions** ved siden af er det
+aldrig selv slå sine skrivninger til. **Start the session log and live play** ved siden af er det
 samme som **Start session** i headeren.
 
 ### 📜 Handouts (Advanced)
@@ -180,11 +180,11 @@ Spillet foregår i Foundry; **During**-skærmen står ved siden af og holder øj
 findes i tre layouts. Vælg et med **Layout** øverst på skærmen:
 
 - **Cards**: Live Feed er den store kolonne. Recent Changes, Handouts og Party er kort i siden;
-  åbn dem, som du vil, også flere ad gangen. Combat order vises kun, mens en combat kører.
+  åbn dem, som du vil, også flere ad gangen. Turordenen vises kun, mens en combat kører.
 - **Simple/Full**: Simple viser kun Live Feed, Recent Changes og Handouts. **Show everything**
-  skifter til Full: Combat order og Party også, alt åbent. **Show less** går tilbage.
+  skifter til Full: turordenen og Party også, alt åbent. **Show less** går tilbage.
 - **Auto** (standard): følger spillet. Uden combat ser det ud som Cards. Når combat starter, vokser
-  Combat order, og Party åbner i den store kolonne; Live Feed foldes ind i siden.
+  turordenen, og Party åbner i den store kolonne; Live Feed foldes ind i siden.
 
 Knappen **Try layouts** ved siden af **Layout** starter prøven når som helst, med en eksempelkamp, så
 du kan se, hvad Auto gør. Indtil en combat starter, ser Auto ud som Cards, og linjen ved siden af
@@ -208,7 +208,7 @@ det er (fremhævet), og hver deltagers HP-bar og tal. Hver række er mærket **P
 **NPC**. Den øverste linje viser rounden og antallet af deltagere. Turns, initiative og saves bliver i
 Foundrys eget combat tracker, og damage går normalt gennem dnd5e-chatkortene der.
 
-Over rækkerne er **initiative ribbon**: én strimmel i combat order, der starter med den, der er i gang.
+Over rækkerne er **initiative ribbon**: én strimmel i turorden, der starter med den, der er i gang.
 Det væsen står stort med sit navn; de næste to er tydelige, og resten toner ud mod højre. Hver har
 en ring i sin sides farve (PC, Enemy eller NPC), sit token-portræt (initialer, hvis det ikke har
 noget), sin initiative, en lille HP-bar og sine to første conditions, med **Concentrating** først.
@@ -222,7 +222,7 @@ viser, hvor en lair action falder, når en boss i combaten har en. Besejrede væ
 tæller aldrig som næste. Ribbonen ændrer aldrig spillet; klikket flytter kun visningen på den skærm.
 
 Combat i dashboardet er valgfri. Hvis du vil bruge den, kan strimlen give damage, healing og
-conditions til flere deltagere på én gang. Mens en combat kører, og GM Actions er slået til (**Start
+conditions til flere deltagere på én gang. Mens en combat kører, og live play er slået til (**Start
 session** slår det til), klik på deltagernes rækker for at vælge dem (klik igen for at fravælge).
 Med en eller flere valgt:
 
@@ -253,7 +253,7 @@ kontakt, der er slået fra, holder knapperne grå og siger hvilken (**Turn on** 
 de to første). Presets gemmer du ved at bede Claude gemme scenens udseende som en preset; skifter du
 scene, mens panelet er åbent, genindlæser næste klik listen i stedet for at anvende noget.
 
-**Conditions** (en knap på During-linjen, når GM Actions er slået til; den virker både i
+**Conditions** (en knap på During-linjen, når live play og GM Actions er slået til; den virker både i
 en combat og udenfor): afkryds tokens på den scene, du ser, vælg en condition, og klik **Add** eller
 **Remove**. Det sker med det samme, med **Undo**, og der er intet confirm-vindue. For Exhaustion
 hæver Add med ét niveau, og Remove fjerner dem alle. Et **rules**-link ved hver condition åbner
@@ -277,7 +277,7 @@ første bosskamp. Det viser:
 - **Legendary**- og **Resist**-pips på hver boss-række: fyldte for brug tilbage i denne round, som
   dnd5e tæller dem (et væsen i sin lair kan have en mere). Brug dem på væsenets sheet i Foundry;
   pipsene følger med inden for få sekunder.
-- En **🏰 Lair action**-påmindelse, når initiative passerer 20 (eller lairens egen
+- En **🏰 Lair action**-påmindelse, når turordenen passerer initiative 20 (eller lairens egen
   værdi), for et væsen hvis "in lair"-felt er afkrydset på dets sheet.
 - **⚡ legendary actions left** for hver boss, der ikke har sin egen turn.
 - En **R**-knap på hver boss, der stadig er i live: klik på den, når væsenet bruger sin reaction.
@@ -507,10 +507,10 @@ Confirm-vinduet åbner først ved:
   spørger i én linje uden kryds, på begge strips: Undo bringer kampen tilbage.
 - **Planer, du ikke lavede på dashboardet**: en plan, Claude lavede. Plan, confirm og undo gælder for
   hver AI-ændring.
-- **Enhver plan lavet i Tool Runner**, så du ser, hvilke mål den rammer, før den anvendes.
+- **Enhver plan lavet i tool runneren**, så du ser, hvilke mål den rammer, før den anvendes.
   (Strimlens formular Damage / Heal anvendes med det samme, med Undo; dens Condition-chips og End
   combat spørger i én linje.)
-- **Ældre værktøjer uden plan** (fra Tool Runner), som ikke har nogen Undo.
+- **Ældre værktøjer uden plan** (fra tool runneren), som ikke har nogen Undo.
 
 I confirm-vinduet:
 
@@ -522,7 +522,7 @@ I confirm-vinduet:
   **Run destructive action**. Undtagelsen er **End combat** på strips: den spørger i én linje uden
   kryds, og Undo bringer kampen tilbage.
 
-## Tool Runner (🛠 Tool Runner)
+## Tool runneren (🛠 Tools)
 
 En skuffe i siden med hvert værktøj, bridgen har, de samme værktøjer som Claude bruger. Brug den, når
 du selv vil gøre én helt bestemt ting, eller for at anvende en plan, Claude lavede.
@@ -558,7 +558,7 @@ på en for at udfylde feltet. Du kan stadig skrive i hånden.
 Når Claude planlægger en ændring i Claude Desktop, kan du anvende den fra dashboardet:
 
 1. Slå **GM Actions** til.
-2. Åbn **🛠 Tool Runner**, søg efter `apply-planned-change`.
+2. Åbn **🛠 Tools**, søg efter `apply-planned-change`.
 3. Klik på **Pick from list** ved siden af `planId` og vælg planen.
 4. Klik på **Plan and confirm**. Confirm-vinduet viser planens opsummering og hvad der ændres.
 5. Bekræft. Ændringen dukker op i **Recent Changes** med **Undo**.
@@ -622,7 +622,7 @@ listen, før du trykker på **+ Queue a page** for den. Skuffen viser:
   længde. Sæt kryds ved **Show it now** ved siden af for også at få siden til at poppe op på skærmene
   hos de spillere, den er til (alle, når den er til alle spillere). Det er fra hver gang, med mindre
   du sætter kryds, og Undo kan ikke lukke popuppen.
-- **+ Queue a page**: åbner Tool Runner på `plan-page-reveal` med `action` queue. Vælg siden,
+- **+ Queue a page**: åbner tool runneren på `plan-page-reveal` med `action` queue. Vælg siden,
   eventuelt en scene og de spillere, den er til, og kør den.
 - **Revealed**: hvert handout, hvem det er til, og et flueben for hver spiller, der har åbnet det på
   spillersiden (hold musen over for tidspunktet).
@@ -674,7 +674,7 @@ characters to the party" fra i modulets indstillinger. Med mere end én Group-ac
 - **Who would notice**: med module-indstillingen **AI Tool: Who would notice** slået til, skriv en DC,
   og hver karakter viser chips for passive Perception, Investigation og Insight, med et flueben for en
   score på eller over DC'en og et kryds under. Scorerne er dnd5es egne, så conditions og exhaustion
-  allerede er talt med. Kun du ser det; intet bliver rullet eller sendt til spillerne.
+  allerede er talt med. **Skill** viser alle tre eller kun én af dem. Kun du ser det; intet bliver rullet eller sendt til spillerne.
 - **Travel pace**: Slow, Normal eller Fast. Hvis et medlem er slowed, siger skuffen, at gruppen
   alligevel bevæger sig i langsomt tempo.
 - **Combat**: tilføjer gruppens tokens på den aktuelle scene til encounteret, eller starter et
@@ -703,7 +703,7 @@ det (derefter skal du slette kortet i Foundrys chat). Claude bruger de samme han
 
 Den side, spillerne kigger på: dashboardets adresse med `/player` til sidst. Åbn den selv før en
 session for at tjekke, hvad de ser. Den følger aftenen. Mens en session er åben (eller en combat
-kører), kommer de levende kort først: Combat order, Live Feed og derefter Handouts. Mellem
+kører), kommer de levende kort først: Combat order, Session feed og derefter Handouts. Mellem
 sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort rykker ned. Dens dele:
 
 - **Who are you?** Ved en spillers første besøg en liste med navne. Valget afgør kun, hvilke
@@ -720,7 +720,7 @@ sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort ry
   bloodied, critical, down, er en kontakt for værten: `PLAYER_SHOW_ENEMY_HP_BANDS=true`.) Kun
   almindelige conditions vises. Skjulte væsener udelades, og et væsen, hvis navn spillerne ikke kan se,
   er "Unknown creature".
-- **Live Feed**: offentlige rolls og det, spillerne kunne se ske, med væsener navngivet, som
+- **Session feed**: offentlige rolls og det, spillerne kunne se ske, med væsener navngivet, som
   spillerne kender dem. Private, blinde og GM-rolls vises aldrig. Damage- og healing-beløb vises kun
   for PC'er (andre er bare "was hit").
 - **Last recap**: den nyeste afslørede side, hvis titel siger "recap" (eller "opsummering",

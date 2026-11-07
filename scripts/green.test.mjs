@@ -1682,6 +1682,13 @@ test('installIsFresh: node_modules newer than the lockfile skips a local npm ci'
     const old = new Date(Date.now() - 60_000);
     fs.utimesSync(lock, old, old);
     assert.equal(installIsFresh(dir), true);
+    // an old .package-lock.json inside a newer node_modules folder (a leftover install) is not fresh
+    const inner = path.join(dir, 'node_modules', '.package-lock.json');
+    const older = new Date(Date.now() - 120_000);
+    fs.utimesSync(inner, older, older);
+    assert.equal(installIsFresh(dir), false);
+    fs.utimesSync(inner, new Date(), new Date());
+    assert.equal(installIsFresh(dir), true);
     const newer = new Date(Date.now() + 60_000);
     fs.utimesSync(lock, newer, newer);
     assert.equal(installIsFresh(dir), false);

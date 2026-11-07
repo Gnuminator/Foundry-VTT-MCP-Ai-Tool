@@ -108,7 +108,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs
 
       - name: Weekly usage report
         # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
@@ -644,6 +644,14 @@ jobs:
         env:
           PI_STAGE25_CONTAINER: 1
         run: node --test scripts/pi/modules-stage.test.mjs
+
+      - name: Pi stage 28 (Assistant GM hang watchdog) in an ARM64 container
+        # scripts/pi/container-test/stage28-scenarios.sh: the driver against a page that stops answering (it must exit for a
+        # restart), then the stage that installs the new driver (dry run, apply, rerun, UNDO=1, a failed join putting the old
+        # driver back, the refusals).
+        env:
+          PI_GM_WATCHDOG_CONTAINER: 1
+        run: node --test scripts/pi/gm-watchdog.test.mjs
 
       - name: Pi kit session in an ARM64 container
         # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins

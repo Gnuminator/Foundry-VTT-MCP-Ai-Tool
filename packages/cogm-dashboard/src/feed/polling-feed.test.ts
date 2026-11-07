@@ -409,4 +409,47 @@ describe('PollingGameFeed resync races an in-flight poll', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(got).toEqual(['new']);
   });
+
+  it('reads the module errors again when the read that was out during a resync fails', async () => {
+    const waiting: Array<{
+      ok: (errors: Array<{ id: string; timestamp: string }>) => void;
+      fail: (e: Error) => void;
+    }> = [];
+    const client = new FakeClient();
+    client.callTool = (tool: string): Promise<unknown> => {
+      if (tool !== 'get-module-errors') {
+        return Promise.resolve({ success: true, events: [], errors: [], active: false });
+      }
+      return new Promise((resolve, reject) => {
+        waiting.push({ ok: errors => resolve({ success: true, errors }), fail: reject });
+      });
+    };
+    const got: string[] = [];
+    const feed = new PollingGameFeed(
+      client as unknown as McpControlClient,
+      {
+        onEvents: (): void => {},
+        onCombat: (): void => {},
+        onErrors: (errors): void => {
+          got.push(...errors.map(e => e.id));
+        },
+        onStatus: (): void => {},
+      },
+      {
+        pollIntervalMs: 60_000,
+        combatPollIntervalMs: 60_000,
+        errorPollIntervalMs: 60_000,
+        logger: new Logger('error'),
+      }
+    );
+    feed.resync(); // starts the first error read
+    feed.resync(); // the world switched while it is out
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.fail(new Error('timed out during the world switch'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(waiting).toHaveLength(1); // read again at once, not after the next tick
+    waiting.shift()?.ok([{ id: 'new', timestamp: '2026-09-30T10:00:01.000Z' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual(['new']);
+  });
 });

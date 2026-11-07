@@ -134,6 +134,7 @@ export const CHECKS = [
     'scripts/green.test.mjs',
     'scripts/lane-merge.test.mjs',
     'scripts/visual-baselines.test.mjs',
+    'scripts/changelog-fold.test.mjs',
     'scripts/review-runner/lib.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',

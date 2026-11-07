@@ -743,6 +743,13 @@ export const DASHBOARD_CONTROLS = [
     why: 'only shown when the world has more than one party',
   },
   {
+    name: 'dash.party.notice-skill',
+    how: 'toggle',
+    reach: PARTY,
+    optional: true,
+    why: 'only shown with the AI Tool: Who would notice switch on',
+  },
+  {
     name: 'dash.party.open-actor',
     how: 'external',
     reach: PARTY,

@@ -1745,6 +1745,33 @@ the undo are in [MODULE-REHEARSAL.md](MODULE-REHEARSAL.md) ("Pi: install from th
 - Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE25_CONTAINER=1` the scenarios in a Debian 13 ARM64
   container, run by the ARM job in CI).
 
+## Assistant GM hang watchdog (stage 28)
+
+A frozen Assistant GM page keeps its module socket for a while, so the 2 minute no-socket restart never sees it. The driver
+(`scripts/pi/remote/assistant-gm.mjs`) now asks its own page for a trivial value every 15 s; a page that has not answered
+within 10 s counts as silent, and 120 s of silence restarts the browser (the driver exits 1 and systemd, the Kit GM unit's `Restart=always`, Plan B's loop or Docker's
+`restart: unless-stopped` starts it again). It is on for every caller of the driver, including the Kit GM and the Assistant GM during
+stage 14's dnd5e migration; the 120 s and the cap of three restarts bound a slow migration, and stage 28 should not be applied during a trial. It shares the link check's cap of three restarts in six hours
+(`page-restarts.json` in the browser profile). It is on by default; `GM_PAGE_WATCH=0` turns it off. No module change.
+
+- **Run it (a Pi sitting):** `scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/`, then
+  `cat lib.sh 28-gm-watchdog.sh | ssh foundry-pi 'bash -s'` (a dry run), a snapshot, the user's OK, the same with `APPLY=1`. The stage
+  checks the new driver names `page-ping` and parses, keeps the old one as `assistant-gm.mjs.prev-<time>`, installs the new one,
+  restarts the Assistant GM browser and reads back that it joined; a failed join puts the old driver back. `UNDO=1` puts the
+  newest `.prev-*` back. The bridge link is down for the minute the browser takes to rejoin; Foundry is not restarted.
+- **Compose:** the driver is baked into the `gm-browser` image, so the stage refuses there (no systemd unit, "rebuild the image");
+  after a cutover the image rebuild (`pi-images.yml`) carries the watchdog.
+- Tests: `scripts/pi/gm-watchdog.test.mjs` (the ping decision, the real driver against a stand-in `playwright-core` whose page freezes,
+  the stage as text; with `PI_GM_WATCHDOG_CONTAINER=1` the same plus the stage's scenarios in a Debian 13 ARM64 container, run by the
+  ARM job in CI).
+- **Pi run plan (not run yet):** (1) `deploy/pi/deployed-state.ps1` for the deployed driver's hash; (2) snapshot, the user's OK;
+  (3) the dry run, then `APPLY=1`; the pass line is `joined the world again with the page watchdog on`; (4) the real-Chromium check
+  (the container test uses a stand-in browser), only with the user's OK because it is a change outside a stage script: freeze
+  the Assistant GM's Chromium processes but not the driver, by pid from the unit's cgroup:
+  `ssh foundry-pi 'main=$(systemctl show -p MainPID --value foundry-ai-tool-gm-browser.service); for p in $(cat /sys/fs/cgroup/system.slice/foundry-ai-tool-gm-browser.service/cgroup.procs); do [ "$p" = "$main" ] || kill -STOP "$p"; done'`;
+  watch `journalctl -u foundry-ai-tool-gm-browser -f` for `the page has not answered a ping for 120 s; restarting the browser`
+  and the rejoin (the unit restart kills the frozen processes; nothing needs `kill -CONT`); (5) `UNDO=1` only if the browser does not come back.
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

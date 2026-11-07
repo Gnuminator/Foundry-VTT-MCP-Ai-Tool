@@ -8,6 +8,10 @@
 // The stories are found in storybook-static/index.json, so a new story gets a baseline the next
 // time `npm run test:visual:update` runs, with no list to edit. Baselines live in
 // visual/__screenshots__/stories/<story id>.png (Linux only, like the app shots).
+import { readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
@@ -33,6 +37,20 @@ test('the stories are built', () => {
     stories.length,
     'storybook-static/index.json has no stories. Run: npm run build-storybook -w @gnuminator/cogm-dashboard'
   ).toBeGreaterThan(0);
+});
+
+// A baseline no story produces any more (a renamed, removed or no longer photographed story) would
+// sit in the repo for ever, so list them. Uses the same `photographed` filter as the shots below.
+test('no story baseline is an orphan', () => {
+  // Not while baselines are being written, and not when Storybook is unbuilt (the test above says so).
+  test.skip(test.info().config.updateSnapshots !== 'none' || stories.length === 0);
+  const expected = new Set(stories.filter(photographed).map(story => `${story.id}.png`));
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__screenshots__', 'stories');
+  const orphans = readdirSync(dir).filter(name => name.endsWith('.png') && !expected.has(name));
+  expect(
+    orphans,
+    'baselines no story produces: delete them from visual/__screenshots__/stories/'
+  ).toEqual([]);
 });
 
 for (const story of stories) {

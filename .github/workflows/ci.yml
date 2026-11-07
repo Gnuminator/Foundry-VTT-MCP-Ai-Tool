@@ -193,6 +193,9 @@ jobs:
         # build with a missing runtime package fails it, this repository's own build passes it.
         run: node --test scripts/pi/stage5-load-check.test.mjs
 
+      - name: Pi bridge unit logging
+        run: node --test scripts/pi/bridge-logging.test.mjs
+
       - name: Pi stage 15 static checks
         # 15-ssh-keys-only.sh (D-123): valid bash, reload and never restart, the three values in a drop-in, the main sshd_config
         # only read, the checks before the first write. The stage itself runs in a container on the ARM runner (build-test-arm).

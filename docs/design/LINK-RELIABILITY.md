@@ -46,7 +46,7 @@ or per `start()`.)
     after a drop (manual reconnect from the settings panel).
 - **Cost:** a reconnect is one local TCP attempt at most every 30 s. No AI, no API, no world writes.
 - **Telling the user:** the backend tracks `linkDownSince` (ISO time, null while connected) and logs
-  one warning when the link has been down 5 minutes and one info line when it is back
+  one warning when the link has been down 30 seconds and one warning when it is back, with the outage length (`downMs`)
   (`link-down` / `link-up`, the hook the Discord bot will use later). The dashboard status carries
   `foundryDownSince`; the dashboard shows a banner above the panels when Foundry has been
   unreachable for 2 minutes or more: "Foundry is not connected to the bridge since HH:MM. Open

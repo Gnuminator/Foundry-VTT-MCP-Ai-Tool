@@ -1238,6 +1238,68 @@ test.describe('picking combatants', () => {
     await expect(page.locator('#attack-form')).toBeVisible();
   });
 
+  test('Attack: Cancel and Escape do nothing while the attack runs', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    // Registered last, so it sees the call first: use-item waits, everything else falls through.
+    await page.route('**/api/tool', async route => {
+      if ((route.request().postDataJSON() as { name: string }).name !== 'use-item') {
+        return route.fallback();
+      }
+      await held;
+      return route.fallback();
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-go')).toHaveAttribute('aria-busy', 'true');
+    // Cancel is aria-disabled while busy, which Playwright would wait on: force the click.
+    await page.getByRole('button', { name: 'Cancel' }).click({ force: true });
+    await page.locator('#attack-attacker').press('Escape');
+    await expect(page.locator('#attack-form')).toBeVisible();
+    await page.locator('#attack-go').click({ force: true });
+    release();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.filter(c => c.name === 'use-item')).toHaveLength(1);
+  });
+
+  test('Attack: a done attack says so in a toast', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(toastLike(page, /Brannoc attacked: rolled/)).toBeVisible();
+  });
+
+  test('Attack: an attacker who left the fight falls back to the one whose turn it is', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-attacker').selectOption('c1');
+    push([
+      fight(
+        ATTACKERS.filter(c => c.id !== 'c1'),
+        { turn: 0 }
+      ),
+    ]);
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+    await expect(page.locator('#attack-go')).toHaveText(
+      'Brannoc attacks the Foundry targets with Handaxe'
+    );
+  });
+
   test('Attack: a failed weapon read shows its error', async ({ page }) => {
     await setup(page, {
       initial: [fight(ATTACKERS, { turn: 1 })],

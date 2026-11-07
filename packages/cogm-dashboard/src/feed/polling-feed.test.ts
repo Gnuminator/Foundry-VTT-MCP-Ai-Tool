@@ -368,4 +368,45 @@ describe('PollingGameFeed resync races an in-flight poll', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(got).toEqual(['new-world']);
   });
+
+  it('reads the module errors again after a resync that came during a read', async () => {
+    const waiting: Array<(errors: Array<{ id: string; timestamp: string }>) => void> = [];
+    const client = new FakeClient();
+    client.callTool = (tool: string): Promise<unknown> => {
+      if (tool !== 'get-module-errors') {
+        return Promise.resolve({ success: true, events: [], errors: [], active: false });
+      }
+      return new Promise(resolve => {
+        waiting.push(errors => resolve({ success: true, errors }));
+      });
+    };
+    const got: string[] = [];
+    const feed = new PollingGameFeed(
+      client as unknown as McpControlClient,
+      {
+        onEvents: (): void => {},
+        onCombat: (): void => {},
+        onErrors: (errors): void => {
+          got.push(...errors.map(e => e.id));
+        },
+        onStatus: (): void => {},
+      },
+      {
+        pollIntervalMs: 60_000,
+        combatPollIntervalMs: 60_000,
+        errorPollIntervalMs: 60_000,
+        logger: new Logger('error'),
+      }
+    );
+    feed.resync(); // starts the first error read
+    feed.resync(); // a second world switch while it is out: its own read is dropped by the guard
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.([{ id: 'old', timestamp: '2026-09-30T10:00:00.000Z' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual([]);
+    expect(waiting).toHaveLength(1); // read again at once, not after the next tick
+    waiting.shift()?.([{ id: 'new', timestamp: '2026-09-30T10:00:01.000Z' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual(['new']);
+  });
 });

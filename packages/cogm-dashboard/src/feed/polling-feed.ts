@@ -102,6 +102,7 @@ export class PollingGameFeed implements GameFeed {
   private errorCursor: string | null = null;
   private firstErrorPoll = true;
   private errorPollInFlight = false;
+  private errorPollQueued = false;
   private eventTimer: NodeJS.Timeout | null = null;
   private combatTimer: NodeJS.Timeout | null = null;
   private errorTimer: NodeJS.Timeout | null = null;
@@ -288,7 +289,11 @@ export class PollingGameFeed implements GameFeed {
         'get-module-errors',
         args
       );
-      if (generation !== this.generation) return; // see pollEvents; the resync started its own read
+      if (generation !== this.generation) {
+        // See pollEvents: the resync's own call was dropped by the in-flight guard, so read again.
+        this.errorPollQueued = true;
+        return;
+      }
       const errors = Array.isArray(response.errors) ? response.errors : [];
 
       this.onPollSuccess();
@@ -305,6 +310,10 @@ export class PollingGameFeed implements GameFeed {
       this.handlePollError('get-module-errors', error);
     } finally {
       this.errorPollInFlight = false;
+      if (this.errorPollQueued) {
+        this.errorPollQueued = false;
+        void this.pollErrors();
+      }
     }
   }
 

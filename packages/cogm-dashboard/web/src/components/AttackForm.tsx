@@ -21,6 +21,7 @@ import type { Combatant } from '../lib/combat';
 import { fetchFoundryTargets } from '../lib/foundryTargets';
 import { useGuardedTools } from '../lib/guarded';
 import { Button } from '../ui';
+import { useToast } from './Toasts';
 import styles from './AttackForm.module.css';
 
 export function AttackForm({
@@ -42,6 +43,7 @@ export function AttackForm({
   onClose: () => void;
 }): JSX.Element {
   const { call } = useGuardedTools();
+  const toast = useToast();
   const list = attackers(combatants);
   const [pickedAttacker, setAttackerId] = useState(() => defaultAttacker(combatants));
   // An attacker that left the fight (defeated, removed) falls back to the default one.
@@ -74,7 +76,12 @@ export function AttackForm({
     setWeapons(null);
     setWeaponId('');
     setWeaponError('');
-    if (!attackerToken) return;
+    if (!attackerToken) {
+      // Nobody left who can attack: say so instead of waiting for weapons that will not come.
+      setWeapons([]);
+      setWeaponError('No one in this fight can attack right now.');
+      return;
+    }
     let live = true;
     void callTool('search-character-items', {
       characterIdentifier: attackerToken,
@@ -131,6 +138,12 @@ export function AttackForm({
           { label: 'Attack' }
         );
         if (outcome.status === 'done') {
+          // The form closes, so the line goes in a toast; the module's own message rides along.
+          const said = (outcome.result as { message?: unknown } | null)?.message;
+          toast(
+            `✓ ${attacker?.name ?? 'Attack'} attacked${typeof said === 'string' && said ? `: ${said}` : ''}`,
+            'ok'
+          );
           closed = true;
           onClose();
         } else if (outcome.status === 'failed' && outcome.mayHaveApplied) {

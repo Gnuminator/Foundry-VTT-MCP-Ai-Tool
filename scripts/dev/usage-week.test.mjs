@@ -240,19 +240,31 @@ test('lanes: the line is 200k before the 2026-11-03 22:59Z merge and 250k from i
   const old = {
     file,
     turns: [
-      turn(100_000, new Date(2026, 10, 3, 9)),
-      turn(220_000, new Date(2026, 10, 3, 10)),
-      turn(225_000, new Date(2026, 10, 3, 11)),
+      turn(100_000, new Date(Date.UTC(2026, 10, 3, 9))),
+      turn(220_000, new Date(Date.UTC(2026, 10, 3, 10))),
+      turn(225_000, new Date(Date.UTC(2026, 10, 3, 11))),
     ],
   };
   const fresh = {
     file,
     turns: [
-      turn(100_000, new Date(2026, 10, 4, 9)),
-      turn(220_000, new Date(2026, 10, 4, 10)),
-      turn(225_000, new Date(2026, 10, 4, 11)),
+      turn(100_000, new Date(Date.UTC(2026, 10, 4, 9))),
+      turn(220_000, new Date(Date.UTC(2026, 10, 4, 10))),
+      turn(225_000, new Date(Date.UTC(2026, 10, 4, 11))),
     ],
   };
+  // the line changes at 22:59:54Z: a session starting one second before is on the old 200k line
+  // (220k reached it), one starting at that second is on the new 250k line (220k did not)
+  const startingAt = sec => ({
+    file,
+    turns: [
+      turn(100_000, new Date(Date.UTC(2026, 10, 3, 22, 59, sec))),
+      turn(220_000, new Date(Date.UTC(2026, 10, 3, 23, 30))),
+      turn(225_000, new Date(Date.UTC(2026, 10, 3, 23, 40))),
+    ],
+  });
+  assert.equal(laneStats([startingAt(53)], 1).handovers, 1);
+  assert.equal(laneStats([startingAt(54)], 1).handovers, 0);
   assert.equal(laneStats([old], 1).handovers, 1);
   assert.equal(laneStats([fresh], 1).handovers, 0);
   assert.ok(isLaneFile(file));

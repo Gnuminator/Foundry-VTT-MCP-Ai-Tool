@@ -58,7 +58,7 @@ interface SocketEntry {
 /** Default query timeout in ms. Writers pass a longer one. */
 export const DEFAULT_QUERY_TIMEOUT_MS = 10000;
 /** How long the link may stay down before one `link-down` warning is logged. */
-export const LINK_DOWN_WARN_MS = 5 * 60 * 1000;
+export const LINK_DOWN_WARN_MS = 30 * 1000;
 /** How often the link state is re-checked. */
 const LINK_WATCH_INTERVAL_MS = 5000;
 
@@ -410,7 +410,7 @@ export class FoundryConnector {
       this.clearLinkDownTimer();
       if (this.linkDownLogged) {
         this.linkDownLogged = false;
-        this.logger.info('link-up', { event: 'link-up', downMs });
+        this.logger.warn('link-up', { event: 'link-up', downMs });
       }
       return;
     }

@@ -10,6 +10,10 @@
  * command starts with `npm run`, or when it falls under a RUNNERS pattern: a tool that
  * finds its own files (vitest includes, the Playwright test dirs, pytest in tools/*). Each RUNNERS
  * entry must still match a file, so a runner that is retired is noticed.
+ *
+ * Blind spots (a file can pass here without running): an inline `#` comment on a single-line
+ * `run:` still counts as command text, a path only in `echo` text counts, a workflow that runs
+ * only on workflow_dispatch counts, and a step behind an `if:` counts although it may be skipped.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -29,19 +33,31 @@ export const isTestFile = p =>
  * @type {Record<string, string>}
  */
 export const RUNNERS = {
-  'shared/src/**': 'vitest run in shared (npm test --workspaces)',
-  'packages/mcp-server/src/**': 'vitest include in packages/mcp-server',
-  'packages/foundry-module/src/**': 'vitest include in packages/foundry-module',
-  'packages/obsidian-plugin/src/**': 'vitest include in packages/obsidian-plugin',
-  'packages/discord-bot/src/**': 'vitest include in packages/discord-bot/vitest.config.ts',
-  'packages/discord-bot/announce/**': 'vitest include in packages/discord-bot/vitest.config.ts',
-  'packages/cogm-dashboard/src/**': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
-  'packages/cogm-dashboard/web/src/**': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
-  'packages/cogm-dashboard/scripts/**': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  // vitest with its default include (any *.test or *.spec file outside node_modules and dist)
+  'packages/mcp-server/src/**': 'vitest default include in packages/mcp-server',
+  'packages/foundry-module/src/**': 'vitest default include in packages/foundry-module',
+  'tools/livekit/recorder/test/**': 'vitest default include in tools/livekit/recorder (the Livekit recorder tests step)',
+  // vitest with an explicit include list
+  'shared/src/**/*.test.ts': 'vitest include in shared/vitest.config.ts (npm test --workspaces)',
+  'packages/obsidian-plugin/src/**/*.test.ts': 'vitest include in packages/obsidian-plugin/vitest.config.ts',
+  'packages/discord-bot/src/**/*.test.ts': 'vitest include in packages/discord-bot/vitest.config.ts',
+  'packages/discord-bot/announce/**/*.test.mjs': 'vitest include in packages/discord-bot/vitest.config.ts',
+  'packages/cogm-dashboard/src/**/*.test.ts': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/web/src/**/*.test.ts': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/web/src/**/*.test.tsx': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/scripts/**/*.test.mjs': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
   'packages/cogm-dashboard/web/e2e/**': 'Playwright testDir in packages/cogm-dashboard/web/playwright.config.ts',
   'packages/cogm-dashboard/web/visual/**': 'Playwright testDir in playwright.visual.config.ts (dashboard-visual job)',
-  'tools/livekit/recorder/test/**': 'vitest run in tools/livekit/recorder (the Livekit recorder tests step)',
-  'tools/*/tests/**': 'pytest loop in the python-tests job (every tools/<name>/ with tests/)',
+  'tools/*/tests/**': 'pytest loop in the python-tests job (every tools/<name>/ with pyproject.toml and tests/)',
+};
+
+/**
+ * Extra conditions a runner needs before it picks a file up: the python-tests job skips a tool
+ * folder without a pyproject.toml. Gets the file and the set of all tracked paths.
+ * @type {Record<string, (file: string, tracked: Set<string>) => boolean>}
+ */
+const RUNNER_NEEDS = {
+  'tools/*/tests/**': (f, tracked) => tracked.has(`${f.split('/').slice(0, 2).join('/')}/pyproject.toml`),
 };
 
 /** @param {string} glob @returns {RegExp} */
@@ -71,18 +87,20 @@ export function pathsIn(text) {
 /**
  * @param {string[]} files tracked test files
  * @param {string} commandText workflows and package scripts, joined
+ * @param {Set<string>} [tracked] every tracked path, for runners that need a file beside the tests
  * @returns {{ unrun: string[], staleRunners: string[] }}
  */
-export function checkCoverage(files, commandText) {
+export function checkCoverage(files, commandText, tracked = new Set(files)) {
   const written = pathsIn(commandText);
-  const runnerRes = Object.keys(RUNNERS).map(g => [g, globToRegExp(g)]);
+  const runnerRes = Object.keys(RUNNERS).map(g => [g, globToRegExp(g), RUNNER_NEEDS[g]]);
+  const picks = ([, re, needs], f) => re.test(f) && (!needs || needs(f, tracked));
   const writtenRes = written.map(w => (w.includes('*') ? globToRegExp(w) : null));
   const unrun = files.filter(f => {
     if (written.includes(f)) return false;
     if (writtenRes.some(re => re && re.test(f))) return false;
-    return !runnerRes.some(([, re]) => re.test(f));
+    return !runnerRes.some(r => picks(r, f));
   });
-  const staleRunners = runnerRes.filter(([, re]) => !files.some(f => re.test(f))).map(([g]) => g);
+  const staleRunners = runnerRes.filter(r => !files.some(f => picks(r, f))).map(([g]) => g);
   return { unrun, staleRunners };
 }
 
@@ -123,8 +141,8 @@ export function expandCommands(commands, scripts) {
 }
 
 function main() {
-  const tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 })
-    .split(/\r?\n/)
+  const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 })
+    .split('\0')
     .filter(Boolean);
   const files = tracked.filter(isTestFile);
   const wfDir = path.join(ROOT, '.github', 'workflows');
@@ -134,7 +152,7 @@ function main() {
     .map(n => fs.readFileSync(path.join(wfDir, n), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const text = expandCommands(workflows.flatMap(workflowCommands), pkg.scripts ?? {}).join('\n');
-  const { unrun, staleRunners } = checkCoverage(files, text);
+  const { unrun, staleRunners } = checkCoverage(files, text, new Set(tracked));
   if (unrun.length === 0 && staleRunners.length === 0) {
     console.log(`test-coverage: OK, ${files.length} test files all run somewhere`);
     return 0;

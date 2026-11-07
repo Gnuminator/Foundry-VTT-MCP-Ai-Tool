@@ -32,7 +32,7 @@ Pinned versions (checked 2026-09-30, all have amd64 and arm64 images):
 | `redis`                         | `7-alpine`                                                                   |
 | `caddy` (optional local TLS)    | `2.11.4-alpine`                                                              |
 | `livekit-server-sdk` (recorder) | `2.19.1`                                                                     |
-| Recorder runtime                | Node 22 (`node:22-alpine`)                                                   |
+| Recorder runtime                | Node 24 (`node:24-alpine`)                                                   |
 | Foundry module                  | LiveKit AVClient (`bekriebel/fvtt-module-avclient-livekit`), `0.6.6` to test |
 
 ## Local proof of concept (PC, Docker Desktop)

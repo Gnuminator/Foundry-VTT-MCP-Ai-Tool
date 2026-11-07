@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   HandoutsController,
+  foundryHandoutsDeps,
   openHandoutsWindow,
   resetHandoutsWindowForTests,
   type HandoutsDeps,
@@ -515,5 +516,27 @@ describe('the window class on a fake ApplicationV2', () => {
     announceAiChangesUpdated();
     await vi.advanceTimersByTimeAsync(500);
     expect(link.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('foundryHandoutsDeps: Foundry without DialogV2', () => {
+  it('warns in plain words and answers no, so nothing is revealed', async () => {
+    const world = createTestWorld({ foundryVersion: '14.368' });
+    const restore = world.install();
+    try {
+      g.foundry.applications = { api: {} };
+      const answer = await foundryHandoutsDeps().confirmReveal(plan as any);
+      expect(answer).toBe(false);
+      expect(world.notifications).toEqual([
+        {
+          level: 'warn',
+          message:
+            'Foundry could not show the confirmation window, so nothing was changed. Reload the page and try again.',
+        },
+      ]);
+    } finally {
+      delete g.foundry.applications;
+      restore();
+    }
   });
 });

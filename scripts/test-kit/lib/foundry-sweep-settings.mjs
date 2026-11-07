@@ -1,7 +1,7 @@
 /**
  * The settings rows of the `foundry-controls` sweep: the "Foundry AI Tool" section of Configure
- * Settings, a sample of its feature switches, its three menus (the GM guide link, the Enhanced Creature
- * Index window, the join page look dialog), and the same screen as a player sees it (no section at
+ * Settings, a sample of its feature switches, its three menus (the GM guide link, the creature
+ * index window, the join page look dialog), and the same screen as a player sees it (no section at
  * all: the module's settings are world settings, which players do not get).
  */
 import { launchBrowser } from './gm.mjs';
@@ -54,7 +54,7 @@ export const FEATURE_SWITCHES = [
 /** The three menu buttons: key, button label, the window or dialog title they open (null: a link). */
 export const MENUS = [
   ['helpMenu', 'Open the GM guide', null],
-  ['enhancedIndexMenu', 'Configure', 'Creature Index Settings'],
+  ['enhancedIndexMenu', 'Configure creature index','Creature Index Settings'],
   ['joinPageMenu', 'Choose join page look', 'Join page look'],
 ];
 
@@ -389,11 +389,11 @@ export async function settingsRows(sweep, { t, gm, player }) {
         /The creature index is ready|Could not build the creature index/,
         240000
       );
-      const done =
-        (await notifications(gm)).find(n =>
-          /The creature index is ready|Could not build the creature index/.test(n)
-        ) ?? '';
-      if (/^Could not build the creature index/.test(done)) throw new Error(done);
+      // The failure first: an old "is ready" notice still on screen must not mask it.
+      const seen = await notifications(gm);
+      const failed = seen.find(n => /^Could not build the creature index/.test(n));
+      if (failed) throw new Error(failed);
+      const done = seen.find(n => /The creature index is ready/.test(n)) ?? '';
       return { note: done.slice(0, 120), timings: { rebuildMs: Date.now() - started } };
     },
     { expectErrors: [REBUILD_FAILED] }

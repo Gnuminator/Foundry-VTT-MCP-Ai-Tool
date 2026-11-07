@@ -277,7 +277,7 @@ describe('seven-books-trim.js', () => {
       [...world.packs].map(([k, p]) => [k, [...p.docs.keys()], p.ownership])
     );
     const { result, lines } = await run(trimSource, world, true);
-    assert.deepEqual(result, { move: 0, comeBack: 0, repoint: 0, hide: 0 });
+    assert.deepEqual(result, { move: 0, comeBack: 0, repoint: 0, hide: 0, open: 0 });
     const again = await run(trimSource, world, false);
     assert.equal(again.result.moved, 0);
     assert.equal(
@@ -398,6 +398,11 @@ describe('seven-books-trim.js', () => {
     world.packs.get('dnd5e.classes').ownership = { ...HIDDEN };
     const { lines } = await run(trimSource, world, true);
     assert.match(lines.join('\n'), /WILL OPEN dnd5e\.classes: it is hidden from players/);
+    // the check mode counts it as drift (the real run changes it), and the world is clean again after the real run
+    const check = `const CHECK_ONLY = true;\n${trimSource}`;
+    await run(trimSource, world, false);
+    world.packs.get('dnd5e.classes').ownership = { ...HIDDEN };
+    await assert.rejects(run(check, world, true), /DRIFT.*"open":1/);
     await run(trimSource, world, false);
     assert.notDeepEqual(world.packs.get('dnd5e.classes').ownership, HIDDEN);
   });
@@ -410,6 +415,26 @@ describe('seven-books-trim.js', () => {
     };
     const { lines } = await run(trimSource, world, true);
     assert.match(lines.join('\n'), /COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES[^:]*: 1 \(/);
+    assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.classes/);
+  });
+
+  test('copied SRD creatures: links inside embedded features are found too', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('dnd5e.monsters').docs.set(id(901), {
+      _id: id(901),
+      name: 'Ghoul',
+      type: 'npc',
+      system: {},
+      items: [{ system: { description: { value: link('dnd5e.classes', id(800)) } } }],
+    });
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd5e.monsters',
+      id(901),
+      'Actor'
+    );
+    const { lines } = await run(trimSource, world, true);
+    assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.classes/);
   });
 
   test('a pack that kept entries link to stays visible and is named', async () => {

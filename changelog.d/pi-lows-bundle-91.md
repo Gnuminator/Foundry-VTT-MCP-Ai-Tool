@@ -1,0 +1,6 @@
+### Orange Pi and Plan B
+
+- **Seven-book check counts a hidden linked pack as drift:** `MODE=check` of stage 22 reports a hidden dnd5e pack that kept entries link to (`open`), the copied-SRD link line names the packs the real run hides and scans creature features, and PI-SETUP matches. The backup restart wait variable is now `FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES`.
+- **Runner gate and stage 27:** a player join older than the world's newest session end no longer holds the GitHub runners. Stage 27 accepts only grep exit 0 or 1 and checks the token line survived, reports a busy port in a dry run, and an UNDO rerun restarts a dashboard that still carries the status URL.
+- **Stage 26 UNDO only rewrites its own keys:** the saved copy goes through a temp file, UNDO puts back only the six keys the stage set (a token changed since stays), a clean rerun is not refused while players are online, a restart on rerun checks `/record` again, and the stage warns when the dashboard address is not port 3000.
+- **Plan B unpack:** Foundry is unpacked into `app.new`, checked, then renamed, so a failed unpack never leaves a half app; tar output on exit 0 is shown as a warning, and a `.bin` complaint only counts when the link could not be created.

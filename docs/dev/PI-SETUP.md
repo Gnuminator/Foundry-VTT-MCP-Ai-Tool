@@ -173,7 +173,7 @@ The bridge's control port has no login of its own (vault idea I-023), so the bri
 dashboard listen on loopback only, and `tailscale serve` shares port 31414 and the dashboard
 (`http://<the Pi's Tailscale name>:3000`) with the tailnet, never with the home network or the
 internet. The GM reaches the dashboard through Part C (Cloudflare Access), not Tailscale. The
-Foundry module's "bridge user" setting names the Assistant GM user, so the GM's own browser never
+Foundry module's "AI Tool: Which GM connects" setting names the Assistant GM user, so the GM's own browser never
 tries to run the bridge.
 
 The Assistant GM browser (`assistant-gm.mjs`, service `foundry-ai-tool-gm-browser`) runs as the
@@ -1716,9 +1716,12 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
 - **Check for drift (read-only):** `MODE=check` (same `scp` and pipe as the dry run, no `APPLY`, no snapshot needed) runs the trim
   as a dry run and fails with `DRIFT: ...` when the world no longer matches what the trim leaves: an entry of a dropped book is
   back in `aitool-content` (`move`), a kept entry links to something only the legacy pack has (`comeBack`) or to the SRD packs
-  (`repoint`), a dnd5e pack is visible again (`hide`, `srdVisible`), or a kept entry links into a pack players cannot open
-  (`srdVisible`). Kept entries that link into a pack players cannot open are listed (`LINKS INTO PACKS PLAYERS CANNOT OPEN`, the
-  known GM-only `summons` and `tables` among them) but are not drift: a trim rerun cannot fix them. It stops the Assistant GM for the length of
+  (`repoint`), a dnd5e pack is visible again (`hide`, `srdVisible`), or a dnd5e pack that kept entries link to is hidden from
+  players (`open`; the real run makes it visible, the dry run prints `WILL OPEN`). Kept entries that link into an `aitool-content`
+  pack players cannot open are listed (`LINKS INTO PACKS PLAYERS CANNOT OPEN`, the known GM-only `summons` and `tables` among
+  them) but are not drift: a trim rerun cannot fix them. The `COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES` line
+  names the copied items and creatures (features included) that link to other dnd5e packs, and which of those packs the real run
+  hides; those links are not re-pointed. It stops the Assistant GM for the length of
   the run like any GM script. Run it after a stage 11 push, a module update and stage 25; `no drift` is the pass line.
 - **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
   about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).

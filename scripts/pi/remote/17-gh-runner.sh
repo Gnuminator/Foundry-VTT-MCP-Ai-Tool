@@ -169,13 +169,13 @@ for pair in $RUNNERS; do
   fi
 done
 
-say "the gate (stops the runners while a play session is marked)"
+say "the gate (stops the runners while a play session is marked or a player is connected)"
 # Quoted heredoc: nothing in it is expanded here; it runs every minute from a timer. Environment, for tests only:
 # GATE_VAULT_ROOT, GATE_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
 script_body="$(
   cat <<'GATE_SCRIPT_BODY'
 #!/usr/bin/env bash
-# Keeps the GitHub runners off the Pi while a play session is marked (written by scripts/pi/remote/17-gh-runner.sh; edit it there).
+# Keeps the GitHub runners off the Pi while a play session is marked or a player is connected (written by scripts/pi/remote/17-gh-runner.sh; edit it there).
 # Idle: start the runners that are stopped. Playing, or unknown: stop the runners that run no job.
 set -euo pipefail
 vault_root="${GATE_VAULT_ROOT:-/var/lib/foundry-ai-tool/vault}"
@@ -225,7 +225,8 @@ for (const w of worlds) {
   if (last && last.type === "session-start" && nowMs - last.ms <= MAX) { playing = true; markerPlaying = true; }
   // Presence (an unmarked night): the play log (<date>.play.jsonl, same 3 newest files) says who is connected. The newest
   // user-join or user-leave per user decides; a join of a player (not a GM, not the TV table viewer) younger than 14 hours
-  // with no later leave means someone is playing. A log untouched for 28 hours is skipped, as above.
+  // with no later leave and no later session-end means someone is playing. A log untouched for 28 hours is skipped, as
+  // above. A record without data.isGM counts as a player (the safe side: the runners stay stopped).
   let pfiles = [];
   try { pfiles = fs.readdirSync(dir).filter(f => /^\d{4}-\d{2}-\d{2}\.play\.jsonl$/.test(f)).sort().reverse().slice(0, 3); }
   catch (e) { if (e && e.code !== "ENOENT") unknown = true; }
@@ -250,8 +251,11 @@ for (const w of worlds) {
       }
     } catch { unknown = true; }
   }
+  // A join older than the world newest session-end is ignored: a Foundry stop, a world switch or an Assistant GM restart
+  // can end the session without a user-leave, and the join would otherwise hold the runners for up to 14 hours.
+  const endMs = last && last.type === "session-end" ? last.ms : 0;
   for (const u of users.values()) {
-    if (u.type === "user-join" && u.player && nowMs - u.ms <= MAX) { playing = true; byPlayers = true; }
+    if (u.type === "user-join" && u.player && nowMs - u.ms <= MAX && u.ms > endMs) { playing = true; byPlayers = true; }
   }
 }
 console.log(playing ? "playing" : unknown ? "unknown" : "idle");

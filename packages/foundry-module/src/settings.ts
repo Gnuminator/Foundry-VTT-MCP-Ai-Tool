@@ -73,11 +73,14 @@ interface GmUserLike {
   isGM?: boolean;
 }
 
+/** Called (Hooks.callAll) in every client when the shared `linkState` setting changes. */
+export const LINK_STATE_CHANGED_HOOK = 'foundry-mcp-bridge.linkStateChanged';
+
 /**
  * Settings the module writes itself (roll state): not a person
  * saving the settings window, so they never count as `module.settings.save`.
  */
-const INTERNAL_SETTING_KEYS = new Set(['rollStates', 'buttonMessageMap']);
+const INTERNAL_SETTING_KEYS = new Set(['rollStates', 'buttonMessageMap', 'linkState']);
 
 /**
  * Usage log (I-084): count "settings saved" once per closed settings window, and
@@ -416,6 +419,19 @@ export class ModuleSettings {
         min: 10,
         max: 120,
         step: 5,
+      },
+    });
+
+    // The link holder's browser writes here only when it shows a "lost" or "back" notice (a confirmed
+    // outage, never a reconnect attempt), so the other GMs' browsers can show the same notice.
+    game.settings.register(this.moduleId, 'linkState', {
+      scope: 'world',
+      config: false,
+      type: Object,
+      default: { state: 'up', at: 0 },
+      // Not `updateSetting`: the first write in a world creates the document and fires `createSetting`.
+      onChange: () => {
+        Hooks.callAll(LINK_STATE_CHANGED_HOOK);
       },
     });
 

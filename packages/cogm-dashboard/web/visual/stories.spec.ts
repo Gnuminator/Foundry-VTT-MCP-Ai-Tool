@@ -42,6 +42,8 @@ test('the stories are built', () => {
 // A baseline no story produces any more (a renamed, removed or no longer photographed story) would
 // sit in the repo for ever, so list them. Uses the same `photographed` filter as the shots below.
 test('no story baseline is an orphan', () => {
+  // Not while baselines are being written, and not when Storybook is unbuilt (the test above says so).
+  test.skip(test.info().config.updateSnapshots !== 'none' || stories.length === 0);
   const expected = new Set(stories.filter(photographed).map(story => `${story.id}.png`));
   const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__screenshots__', 'stories');
   const orphans = readdirSync(dir).filter(name => name.endsWith('.png') && !expected.has(name));

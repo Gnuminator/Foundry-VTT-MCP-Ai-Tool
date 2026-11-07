@@ -12,8 +12,9 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    `## Unreleased` heading to `## vX.Y.Z (released YYYY-MM-DD): <short summary>` and add a fresh empty
    `## Unreleased` above it. Start the section with a line on whether the wire contracts changed (say so when only
    additive fields changed, for example new fields in the dashboard `/api/health` response). Write the
-   headline in words the previous release's headline did not use. The fold files repeated headings under one base
-   heading (`### Tooling (...)` tags are dropped; Testing, Test kit and Test environment go under `### Tests`).
+   headline in words the previous release's headline did not use. Repeated headings in the fragments fold under one
+   base heading (a trailing `(...)` tag is dropped for new sections; Testing, Test kit and Test environment go
+   under `### Tests`). Duplicates already in Unreleased are left as they are: tidy them by hand.
 2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`.
 3. **Check.** `npm run green`.
 4. **Land it.** Commit on a branch (`Release vX.Y.Z`), open a PR, merge through the normal gate (the `lane` skill).

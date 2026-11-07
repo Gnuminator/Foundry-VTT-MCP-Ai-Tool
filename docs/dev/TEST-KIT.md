@@ -40,22 +40,22 @@ node scripts/test-kit/kit.mjs <command> [options]
 | `all`   | `build`, then `run`.                                                                                                    |
 | `check` | Loads and validates every scenario against the tool catalog. Needs no Foundry.                                          |
 
-| Option                     | Meaning                                                                                                                                              |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--size smoke\|full\|long` | How big the kit is and which scenarios run. Default `smoke`. See "Sizes".                                                                            |
-| `--profile <id>`           | The content profile. Default `srd`. It also picks the kit world.                                                                                     |
-| `--classes a,b`            | Build only these classes (identifier or name). A development filter.                                                                                 |
-| `--no-coverage`            | Skip the coverage pass (see "Pick coverage").                                                                                                        |
-| `--coverage-cap <n>`       | The most coverage heroes one run builds. Default 40.                                                                                                 |
-| `--only a,b`               | Run only these scenario ids.                                                                                                                         |
-| `--scenarios <dir>`        | An extra scenario folder (repeatable). The repo's own folder is always on.                                                                           |
-| `--world <id>`             | Only a check: it must match the profile's world, or the run stops.                                                                                   |
-| `--report-dir <dir>`       | Where the report goes. Default `<kit home>/reports/<time>-<size>`.                                                                                   |
-| `--fake`                   | Use the in-process fake instead of Foundry (this is what CI does).                                                                                   |
-| `--stopped-bridge`         | `run --fake` only: the negative control. Every scenario runs against a dead dashboard, GM page and browser and must fail (CI runs it for all sizes). |
-| `--headed`                 | Show the GM browser window instead of running it hidden.                                                                                             |
-| `--target local\|pi`       | Where to run. Default `local` (this PC's test server). `pi`: see "Running it on the Pi".                                                             |
-| `--not-game-night`         | Pi target only: you confirm today is not a game night. Required.                                                                                     |
+| Option                     | Meaning                                                                                                                                                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--size smoke\|full\|long` | How big the kit is and which scenarios run. Default `smoke`. See "Sizes".                                                                                                                                                                          |
+| `--profile <id>`           | The content profile. Default `srd`. It also picks the kit world.                                                                                                                                                                                   |
+| `--classes a,b`            | Build only these classes (identifier or name). A development filter.                                                                                                                                                                               |
+| `--no-coverage`            | Skip the coverage pass (see "Pick coverage").                                                                                                                                                                                                      |
+| `--coverage-cap <n>`       | The most coverage heroes one run builds. Default 40.                                                                                                                                                                                               |
+| `--only a,b`               | Run only these scenario ids.                                                                                                                                                                                                                       |
+| `--scenarios <dir>`        | An extra scenario folder (repeatable). The repo's own folder is always on.                                                                                                                                                                         |
+| `--world <id>`             | Only a check: it must match the profile's world, or the run stops.                                                                                                                                                                                 |
+| `--report-dir <dir>`       | Where the report goes. Default `<kit home>/reports/<time>-<size>`.                                                                                                                                                                                 |
+| `--fake`                   | Use the in-process fake instead of Foundry (this is what CI does).                                                                                                                                                                                 |
+| `--stopped-bridge`         | `run --fake` only: the negative control. Every scenario runs with the dashboard answering as if the module were not linked (GM actions still run; the GM page and browser are dead) and must fail. CI runs sizes full and long; smoke is a subset. |
+| `--headed`                 | Show the GM browser window instead of running it hidden.                                                                                                                                                                                           |
+| `--target local\|pi`       | Where to run. Default `local` (this PC's test server). `pi`: see "Running it on the Pi".                                                                                                                                                           |
+| `--not-game-night`         | Pi target only: you confirm today is not a game night. Required.                                                                                                                                                                                   |
 
 `npm run kit` is a short way to start it. `npm run kit:test` runs the kit's own unit tests.
 

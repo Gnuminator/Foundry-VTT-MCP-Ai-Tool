@@ -68,8 +68,9 @@ Options
   --world <id>             the kit world, only to check it matches the profile: ${KIT_WORLDS.join(', ')}
   --report-dir <dir>       where the report goes (default <kit home>/reports/<time>-<size>)
   --fake                   run against the in-process fake instead of Foundry (CI)
-  --stopped-bridge         with run --fake: build in the fake, then run every scenario against a dashboard
-                           and GM that are down (the negative control: a scenario that still passes tests nothing)
+  --stopped-bridge         with run --fake: build in the fake, then run every scenario with the
+                           dashboard answering as if the module were not linked and the GM page and browser
+                           dead (the negative control: a scenario that still passes tests nothing)
   --headed                 show the GM browser window
   --target local|pi        where to run (default local: this PC's test server). pi is opt-in and
                            tools-only: only "run", only scenarios tagged tools-only, through the
@@ -723,6 +724,11 @@ export async function main(argv) {
       return EXIT.ENV;
     }
     checkPiOptions(o);
+    if (o.stoppedBridge && !(o.command === 'run' && o.fake && o.target === 'local')) {
+      throw new EnvError(
+        'REFUSED: --stopped-bridge needs "run" together with --fake (local target)'
+      );
+    }
     if (o.command === 'check') return await cmdCheck(o);
     if (o.target === 'pi') return await piRun(o);
     resolveProfile(o);

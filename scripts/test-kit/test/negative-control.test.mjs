@@ -29,7 +29,13 @@ for (const size of ['full', 'long']) {
         ],
         { encoding: 'utf8', timeout: 150000, env: { ...process.env, TEST_KIT_HOME: dir } }
       );
-      const report = JSON.parse(readFileSync(path.join(dir, 'report', 'report.json'), 'utf8'));
+      /** @type {any} */
+      let report;
+      try {
+        report = JSON.parse(readFileSync(path.join(dir, 'report', 'report.json'), 'utf8'));
+      } catch {
+        assert.fail(`no report was written\n${run.stdout}\n${run.stderr}`);
+      }
       assert.ok(report.scenarios.length > 0, `no scenarios ran\n${run.stdout}\n${run.stderr}`);
       const notFailed = report.scenarios
         .filter((/** @type {any} */ s) => s.status !== 'fail' && s.status !== 'error')

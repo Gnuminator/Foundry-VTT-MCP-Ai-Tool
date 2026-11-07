@@ -104,14 +104,12 @@ describe('assertUserUpdate', () => {
     ).not.toThrow();
   });
 
-  it('lets an undo raise a role only while the setup switch is on', () => {
+  it('lets an undo raise a role whether or not the setup switch is on (one rule on both routes)', () => {
     setupSwitch = false;
-    expect(() => assertUserUpdate(player, ['role'], [], { role: 2 }, 'change-undo')).toThrow(
-      /switch on/
-    );
-    // lowering, and a rollback of a write that already passed the switch, stay possible
-    expect(() => assertUserUpdate(player, ['role'], [], { role: 0 }, 'change-undo')).not.toThrow();
-    expect(() => assertUserUpdate(player, ['role'], [], { role: 2 }, 'rollback')).not.toThrow();
+    for (const feature of ['change-undo', 'rollback']) {
+      expect(() => assertUserUpdate(player, ['role'], [], { role: 2 }, feature)).not.toThrow();
+      expect(() => assertUserUpdate(player, ['role'], [], { role: 0 }, feature)).not.toThrow();
+    }
     setupSwitch = true;
     expect(() => assertUserUpdate(player, ['role'], [], { role: 2 }, 'change-undo')).not.toThrow();
   });

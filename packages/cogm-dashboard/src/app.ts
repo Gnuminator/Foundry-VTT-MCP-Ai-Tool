@@ -724,6 +724,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     links: playerLinks,
     directory: playerDirectory,
     requireGm,
+    logger,
     worldId: () => world?.id ?? null,
     events: () => state.recentEvents,
     onRolled: () => pollEventsNow(),

@@ -33,7 +33,7 @@ export class ChatLogTools {
       {
         name: 'get-chat-log',
         description:
-          "Retrieve recent Foundry chat messages from the module's in-memory buffer. This is where dice rolls, ability uses, damage events, and combat narration live. Each message includes the speaker, message type, content, flavor text, and, for rolls, the formula, total, individual die results, critical/fumble status, advantage/disadvantage, and any damage total and types. Use this to follow what happened in the game.",
+          "Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use it to follow what happened.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -63,7 +63,7 @@ export class ChatLogTools {
       {
         name: 'get-combat-play-by-play',
         description:
-          'Return a structured, human-readable summary of the current or most recent combat encounter, reconstructed from the chat-log buffer and the recorded turn timeline. Includes each round broken into turns (who acted and what they did with roll/damage results), significant events (downed/dead/stabilized combatants, conditions applied/removed), and a final summary with total rounds and total damage dealt by each actor.',
+          'Summary of the current or most recent combat, rebuilt from the chat-log buffer and the turn timeline: each round by turn (who acted, with roll and damage results), key events (downed, dead, stabilized, conditions applied or removed), and totals for rounds and damage dealt per actor.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -72,7 +72,7 @@ export class ChatLogTools {
       {
         name: 'send-chat-message',
         description:
-          'Direct write. Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.',
+          'Direct write. Post a chat message as a character or as the GM. Types: in-character (ic), out-of-character (ooc), emote, whisper.',
         inputSchema: {
           type: 'object',
           properties: {

@@ -57,6 +57,7 @@ export function playLogDot(pumps: PumpSnapshot[] | null, now: number): HealthDot
   }
   const down: string[] = [];
   const lossy: string[] = [];
+  let recentGap = false;
   for (const p of pumps) {
     if (p.notRecordingSince) {
       down.push(`the ${p.pump} log has not been recording since ${clock(p.notRecordingSince)}`);
@@ -67,6 +68,7 @@ export function playLogDot(pumps: PumpSnapshot[] | null, now: number): HealthDot
     }
     if (p.lastGap && now - Date.parse(p.lastGap.at) < RECENT_GAP_MS) {
       const lost = p.lostCount > 0 ? `, ${p.lostCount} lost` : '';
+      recentGap = true;
       lossy.push(`the ${p.pump} log has a gap at ${clock(p.lastGap.at)}${lost}`);
     }
   }
@@ -77,7 +79,7 @@ export function playLogDot(pumps: PumpSnapshot[] | null, now: number): HealthDot
     return {
       tone: 'warn',
       text: 'gaps',
-      detail: `${lossy.join('; ')}. A gap marker is in the session log.`,
+      detail: `${lossy.join('; ')}.${recentGap ? ' A gap marker is in the session log.' : ''}`,
     };
   }
   return null;

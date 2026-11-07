@@ -1,0 +1,28 @@
+{
+  "kind": "JournalEntry",
+  "foundry": "14.370",
+  "system": "dnd5e 6.0.6",
+  "samples": 6,
+  "paths": {
+    "_id": "string:6",
+    "_stats": "object:6",
+    "_stats.compendiumSource": "null:6",
+    "_stats.coreVersion": "string:6",
+    "_stats.createdTime": "number:6",
+    "_stats.duplicateSource": "null:6",
+    "_stats.exportSource": "null:6",
+    "_stats.lastModifiedBy": "string:6",
+    "_stats.modifiedTime": "number:6",
+    "_stats.systemId": "string:6",
+    "_stats.systemVersion": "string:6",
+    "categories": "array:6",
+    "flags": "object:6",
+    "folder": "null|string:6",
+    "name": "string:6",
+    "ownership": "object:6",
+    "ownership.<id>": "number:6",
+    "ownership.default": "number:6",
+    "pages": "array:6",
+    "sort": "number:6"
+  }
+}

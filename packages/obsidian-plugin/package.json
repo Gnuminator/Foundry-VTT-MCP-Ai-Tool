@@ -8,12 +8,12 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
     "lint": "eslint src"
   },
   "devDependencies": {
     "esbuild": "^0.27.7",
     "obsidian": "1.13.1",
-    "typescript": "^5.0.0"
+    "typescript": "^6.0.3"
   }
 }

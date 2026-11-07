@@ -318,7 +318,12 @@
         cursor: wait;
       }
       .mine-portrait .portrait-token {
-        color: var(--muted);
+        /* On the page's own panel colour: the browser's white box under grey text failed contrast. */
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 4px 6px;
         font-size: 0.9em;
       }
       .mine-char a {

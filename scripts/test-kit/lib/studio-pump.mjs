@@ -352,7 +352,7 @@ export async function studioPump(args) {
       const type = adv?.constructor?.typeName;
       try {
         if (answers[type])
-          await answers[type](flow, adv, flow.level, `${flow.item.name}: ${adv.title}`);
+          await answers[type](flow, adv, flow.level, `${flow.item.name}: ${adv.name || adv.title}`);
         (
           mgr.element?.querySelector('[data-action="next"],[data-action="complete"]') ?? button
         ).click();

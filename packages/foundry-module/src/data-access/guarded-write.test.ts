@@ -536,7 +536,7 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
     expect(user.source.role).toBe(1);
   });
 
-  it('refuses an apply of a role change with the setup switch off, and an undo that raises one', async () => {
+  it('refuses an apply of a role change with the setup switch off, but still undoes a lowering', async () => {
     const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
     const applied = await applyGuardedOps(
       await request([roleOp(user.uuid, 0)], { feature: 'foundry-setup' })
@@ -545,11 +545,44 @@ describe('applyGuardedOps: setup writes to users and ownership', () => {
     await expect(
       applyGuardedOps(await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' }))
     ).rejects.toThrow(/switched off/);
-    // the undo of the lowering would raise the role again: it needs the switch
-    await expect(
-      applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' })
-    ).rejects.toThrow(/switch on/);
+    // the undo of the lowering raises the role again: an undo is always allowed (mode apply is
+    // the shape the Changes list sends; undo-change sends the original feature in mode undo)
     expect(user.source.role).toBe(0);
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(user.source.role).toBe(1);
+  });
+
+  it('undoes a role lowering with the switch off in both real request shapes', async () => {
+    // as main.ts registers it: the Changes list sends change-undo in mode apply, so it is gated
+    registerGuardedFeature({ id: 'change-undo', name: 'Undo', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.change-undo.enabled', true);
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const lower = async (): Promise<GuardedApplyResult> => {
+      world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', true);
+      const applied = await applyGuardedOps(
+        await request([roleOp(user.uuid, 0)], { feature: 'foundry-setup' })
+      );
+      world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', false);
+      return applied;
+    };
+    // the Changes list: feature change-undo in mode apply
+    let applied = await lower();
+    await applyGuardedOps({
+      ...undoRequest(applied),
+      feature: 'change-undo',
+      mode: 'apply',
+      changeId: 'undo-list-1',
+    });
+    expect(user.source.role).toBe(1);
+    // undo-change: the original feature in mode undo
+    applied = await lower();
+    await applyGuardedOps({
+      ...undoRequest(applied),
+      feature: 'foundry-setup',
+      mode: 'undo',
+      changeId: 'undo-tool-1',
+    });
+    expect(user.source.role).toBe(1);
   });
 
   it('applies and then undoes a new ownership key on a journal', async () => {

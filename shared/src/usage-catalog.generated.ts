@@ -519,6 +519,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/App.tsx',
   },
   {
+    name: 'dash.header.twin',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/App.tsx',
+  },
+  {
     name: 'dash.header.version-tracker',
     kind: 'action',
     surface: 'dashboard',
@@ -1255,6 +1261,18 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'view',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/During.tsx',
+  },
+  {
+    name: 'dash.twin.close',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/StatblockTwin.tsx',
+  },
+  {
+    name: 'dash.twin.open',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/StatblockTwin.tsx',
   },
   {
     name: 'dash.undo.advanced',

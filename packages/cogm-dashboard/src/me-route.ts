@@ -24,6 +24,7 @@ import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
 import type { SessionEvent } from './feed/types.js';
+import type { Logger } from './logger.js';
 import type { PlayerLinkStore } from './player-links.js';
 import { privateRollsFor } from './private-rolls.js';
 import type { PlayerDirectory } from './usage-route.js';
@@ -44,6 +45,8 @@ export interface MeRouteOptions {
   links: PlayerLinkStore;
   directory: PlayerDirectory;
   requireGm: (req: Request, res: Response, next: () => void) => void;
+  /** For a failed link save or removal (the reply to the GM is a fixed sentence). */
+  logger?: Pick<Logger, 'warn'>;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
@@ -322,9 +325,12 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     links
       .create(world, userId)
       .then(link => res.json({ userId, link: `/me?k=${link.key}`, createdAt: link.createdAt }))
-      .catch(() =>
-        res.status(500).json({ error: 'Could not save the link. Ask the person running the tool.' })
-      );
+      .catch((error: unknown) => {
+        options.logger?.warn('Player link save failed', { userId, error: String(error) });
+        res
+          .status(500)
+          .json({ error: 'Could not save the link. Ask the person running the tool.' });
+      });
   });
 
   app.delete('/api/player-links/:userId', requireGm, (req: Request, res: Response) => {
@@ -337,10 +343,11 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     links
       .remove(world, userId)
       .then(removed => res.json({ removed }))
-      .catch(() =>
+      .catch((error: unknown) => {
+        options.logger?.warn('Player link removal failed', { userId, error: String(error) });
         res
           .status(500)
-          .json({ error: 'Could not remove the link. Ask the person running the tool.' })
-      );
+          .json({ error: 'Could not remove the link. Ask the person running the tool.' });
+      });
   });
 }

@@ -90,6 +90,9 @@ const versionsChunk = panelChunk(() =>
 const partyChunk = panelChunk(() =>
   import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
 );
+const twinChunk = panelChunk(() =>
+  import('./panels/StatblockTwin').then(m => ({ default: m.StatblockTwinDrawer }))
+);
 const paperChunk = panelChunk(() =>
   import('./panels/PaperSync').then(m => ({ default: m.PaperSyncDrawer }))
 );
@@ -103,6 +106,7 @@ const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk, prefl
 const FLOATING_CHUNKS = [
   afterChunk,
   paperChunk,
+  twinChunk,
   tarokkaChunk,
   toolsChunk,
   linksChunk,
@@ -147,13 +151,22 @@ const OptInScreen = lazy(() =>
 );
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'paper' | 'tarokka' | 'tools';
+type DrawerName =
+  | 'preflight'
+  | 'prep'
+  | 'party'
+  | 'handouts'
+  | 'paper'
+  | 'twin'
+  | 'tarokka'
+  | 'tools';
 const NO_DRAWERS: Record<DrawerName, boolean> = {
   preflight: false,
   prep: false,
   party: false,
   handouts: false,
   paper: false,
+  twin: false,
   tarokka: false,
   tools: false,
 };
@@ -165,6 +178,7 @@ const DRAWER_IDS: Record<DrawerName, string> = {
   party: 'party-drawer',
   handouts: 'handouts-drawer',
   paper: 'paper-drawer',
+  twin: 'twin-drawer',
   tarokka: 'tarokka-drawer',
   tools: 'tools-drawer',
 };
@@ -201,7 +215,11 @@ function Dashboard(): JSX.Element {
   }
   useFocusAfterMoment(moment);
   const docked = (name: DrawerName): boolean =>
-    name !== 'tarokka' && name !== 'tools' && name !== 'paper' && dockOf(name) !== null;
+    name !== 'tarokka' &&
+    name !== 'tools' &&
+    name !== 'paper' &&
+    name !== 'twin' &&
+    dockOf(name) !== null;
   const setDrawer = (name: DrawerName, open: boolean): void => {
     if (!open) setFloated(f => (f[name as DockName] ? { ...f, [name]: false } : f));
     setDrawers(d => ({ ...d, [name]: open }));
@@ -210,7 +228,10 @@ function Dashboard(): JSX.Element {
   // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
   // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
-    const slot = name === 'tarokka' || name === 'tools' || name === 'paper' ? null : dockOf(name);
+    const slot =
+      name === 'tarokka' || name === 'tools' || name === 'paper' || name === 'twin'
+        ? null
+        : dockOf(name);
     if (slot?.getClientRects().length === 0) {
       setFloated(f => ({ ...f, [name]: true }));
       setDrawers(d => ({ ...d, [name]: true }));
@@ -362,6 +383,15 @@ function Dashboard(): JSX.Element {
                 title="After a paper night: type the numbers from the paper sheets back into Foundry (GM only)"
               >
                 📝 After a paper night
+              </Button>
+            </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('twin')}>
+              <Button
+                id="btn-twin"
+                data-track="dash.header.twin"
+                title="See the 2024 SRD version of a monster beside the 2014 one, and pick which to run (GM only)"
+              >
+                🧛 2024 twin of a monster
               </Button>
             </AdvancedItem>
             <DuringMenuItems during={during} />
@@ -546,6 +576,13 @@ function Dashboard(): JSX.Element {
         show={drawers.paper}
         open={drawers.paper}
         onOpenChange={open => setDrawer('paper', open)}
+      />
+      <LazyPanel
+        chunk={twinChunk}
+        shell={{ id: 'twin-drawer', title: '🧛 2024 twin' }}
+        show={drawers.twin}
+        open={drawers.twin}
+        onOpenChange={open => setDrawer('twin', open)}
       />
       <LazyPanel
         chunk={tarokkaChunk}

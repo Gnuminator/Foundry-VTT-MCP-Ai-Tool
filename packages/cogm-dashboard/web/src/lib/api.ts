@@ -4,7 +4,8 @@ import { toolWords } from './toolWords';
 /**
  * A failed dashboard route: the server's own message when it sent one, else a plain sentence for
  * the status (`plainError`, never `HTTP <status>`).
- * `kind` is what failed when POST /api/tool reached the bridge: `tool`, `timeout` or `channel`.
+ * `kind` is what failed when POST /api/tool reached the bridge: `tool`, `timeout` or `channel`, or
+ * `internal` when the dashboard itself threw before anything went to Foundry (nothing was sent).
  */
 export class ApiError extends Error {
   constructor(

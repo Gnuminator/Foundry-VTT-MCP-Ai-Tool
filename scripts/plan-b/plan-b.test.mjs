@@ -224,19 +224,40 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
   test('restore.ps1 unpacks Foundry into app.new, checks it, then renames', () => {
     const text = readFileSync(path.join(here, 'restore.ps1'), 'utf8');
     const unpack = text.indexOf("Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $newApp)");
-    const move = text.indexOf('Move-Item -LiteralPath $newApp -Destination $L.AppDir');
-    const aside = text.indexOf('Move-Item -LiteralPath $L.AppDir -Destination $old');
-    assert.ok(unpack > 0 && aside > unpack && move > aside, 'unpack, then move the old app aside, then rename');
+    const swap = text.indexOf('Install-AppFolder $newApp $L.AppDir $old');
+    assert.ok(unpack > 0 && swap > unpack, 'unpack, then swap (old app aside, then rename) through Install-AppFolder');
     assert.doesNotMatch(text, /'-C', \$L\.AppDir/);
   });
 
-  test('restore.ps1 retries the final app rename and puts the old app folder back when it fails', () => {
-    const text = readFileSync(path.join(here, 'restore.ps1'), 'utf8');
-    const retry = text.indexOf('for ($try = 1; $try -le 3');
-    const back = text.indexOf('Move-Item -LiteralPath $old -Destination $L.AppDir');
-    const fail = text.indexOf('could not move the new app folder into place');
-    assert.ok(retry > 0 && back > retry && fail > back, 'retry, then roll back, then say where the new folder is');
-    assert.match(text, /the unpacked new one is in \$newApp/);
+  test('Install-AppFolder: a failing final rename says which folder is where, per case', () => {
+    const root = path.join(tmp, `swap-${++n}`).replace(/\\/g, '/');
+    const r = ps(`
+      $root = '${root}'
+      function Case($name, [bool]$hadApp, [bool]$newExists, [bool]$oldExists) {
+        $d = Join-Path $root $name
+        New-Item -ItemType Directory -Force -Path $d | Out-Null
+        $app = Join-Path $d 'app'; $new = Join-Path $d 'app.new'; $old = Join-Path $d 'app-old'
+        if ($hadApp) { New-Item -ItemType Directory -Force -Path $app | Out-Null }
+        if ($newExists) { New-Item -ItemType Directory -Force -Path $new | Out-Null }
+        if ($oldExists) { New-Item -ItemType Directory -Force -Path $old | Out-Null }
+        try { Install-AppFolder $new $app $old 0; 'ok' } catch { $_.Exception.Message }
+      }
+      @{
+        ok = Case 'ok' $true $true $false
+        nothing_before = Case 'nothing' $false $false $false
+        back = Case 'back' $true $false $false
+      }`);
+    assert.equal(r.ok, 'ok');
+    assert.match(r.nothing_before, /there was no app folder before, so .*app does not exist/);
+    assert.match(r.back, /could not move the new app folder into place.*the old app folder is back/);
+    assert.match(r.back, /the unpacked new one is in .*app\.new/);
+  });
+
+  test('restore.ps1 swaps the app through Install-AppFolder, which retries and names every folder', () => {
+    const lib = readFileSync(path.join(here, 'lib.ps1'), 'utf8');
+    assert.match(lib, /function Move-WithRetry/);
+    assert.match(lib, /something is in \$AppDir now and the old app folder is in \$Old/);
+    assert.match(lib, /the unpacked new one is in \$NewApp/);
   });
 
   test('module port flag: set for a rehearsal, removed for game night, other flags kept', () => {

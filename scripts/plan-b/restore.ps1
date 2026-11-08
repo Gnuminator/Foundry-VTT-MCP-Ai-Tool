@@ -190,28 +190,11 @@ if (-not $ver.Ok) {
   if ($unpack.Warning) { Write-Warning $unpack.Warning }
   $newVer = Test-WorldVersion (Get-PlanBAppBuild ([pscustomobject]@{ AppDir = $newApp })) $core
   if (-not $newVer.Ok) { throw "after unpacking into ${newApp}: $($newVer.Message) (the app folder is as it was)" }
-  $old = $null
-  if (Test-Path -LiteralPath $L.AppDir) {
-    $old = '{0}-{1}' -f $L.AppDir, $(if ($appBuild) { $appBuild } else { 'old' })
-    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
-    Move-Item -LiteralPath $L.AppDir -Destination $old
-  }
-  # The final rename can fail on a lock (antivirus, an indexer) right after the big unpack: try three times, then put the old
-  # app folder back so Plan B is not left without one, and name where the new one is.
-  $renamed = $false
-  $renameError = $null
-  for ($try = 1; $try -le 3 -and -not $renamed; $try++) {
-    try { Move-Item -LiteralPath $newApp -Destination $L.AppDir -ErrorAction Stop; $renamed = $true }
-    catch { $renameError = $_.Exception.Message; Start-Sleep -Seconds 2 }
-  }
-  if (-not $renamed) {
-    $back = 'the app folder is gone'
-    if ($old -and (Test-Path -LiteralPath $old) -and -not (Test-Path -LiteralPath $L.AppDir)) {
-      try { Move-Item -LiteralPath $old -Destination $L.AppDir -ErrorAction Stop; $back = 'the old app folder is back' }
-      catch { $back = "the old app folder could not be moved back and is in $old" }
-    }
-    throw "could not move the new app folder into place ($renameError); $back; the unpacked new one is in $newApp"
-  }
+  $old = '{0}-{1}' -f $L.AppDir, $(if ($appBuild) { $appBuild } else { 'old' })
+  if ((Test-Path -LiteralPath $L.AppDir) -and (Test-Path -LiteralPath $old)) { Remove-Item -LiteralPath $old -Recurse -Force }
+  # Both renames can fail on a lock (antivirus, an indexer) right after the big unpack: Install-AppFolder (lib.ps1) tries each
+  # three times, puts the old app folder back when the final one fails, and says where every folder is.
+  Install-AppFolder $newApp $L.AppDir $old
   $ver = Test-WorldVersion (Get-PlanBAppBuild $L) $core
   if (-not $ver.Ok) { throw "after installing: $($ver.Message)" }
 }

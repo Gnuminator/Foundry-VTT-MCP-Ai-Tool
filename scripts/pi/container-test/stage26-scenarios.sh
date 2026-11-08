@@ -14,6 +14,9 @@
 #  10 a run cut off before the restart: a rerun restarts a bot older than the file and checks /record again
 #  11 UNDO rewrites only the keys the stage set: a token changed since stays; the saved copy comes through a temp file
 #     (no temp file is left behind)
+#  12 (inside scenario 10's fake systemd) players online: a clean rerun is not refused (it restarts nothing); a rerun that
+#     needs the restart is refused with "player(s) are online" and leaves the bot alone
+#  UNDO branches on grep's own exit status (0 restore, 1 drop, else stop); an unreadable copy is not testable as root
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage26-scenarios.sh
 # (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE26_CONTAINER=1.) STAGE=<file> runs the scenarios against

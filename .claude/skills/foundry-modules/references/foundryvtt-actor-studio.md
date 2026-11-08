@@ -1,8 +1,8 @@
 # Actor Studio, AI Tool fork (`foundryvtt-actor-studio`)
 
-Verified on Foundry 14.370 / dnd5e 6.0.6, module 2.10.5-aitool.5, 2026-11-07 (test server B, test kit). The tabs and settings below were clicked through on aitool.4 on 2026-10-28; the Select Spells window of aitool.5 on test server A on 2026-11-04; the test kit builds Fighters with aitool.5 on 2026-11-07. Parts not clicked through are marked "(not verified)".
+Verified on Foundry 14.370 / dnd5e 6.0.6, module 2.10.5-aitool.5, 2026-11-07 (test server B, test kit). The Pi runs `2.10.5-aitool.10` since 2026-11-08 (stage 13 ran; module.json read back, the live Actor Studio checks of `.8` to `.10` not done yet). The tabs and settings below were clicked through on aitool.4 on 2026-10-28; the Select Spells window of aitool.5 on test server A on 2026-11-04; the test kit builds Fighters with aitool.5 on 2026-11-07. Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** The table builds its characters with it: players make their level-1 heroes with it at session 0. The test kit drives it too (decisions D-112 and D-113). We run our own fork, `2.10.5-aitool.5` (on the Pi since stage 13, 2026-11-04), not the upstream release.
+**Verdict: keep.** The table builds its characters with it: players make their level-1 heroes with it at session 0. The test kit drives it too (decisions D-112 and D-113). We run our own fork, `2.10.5-aitool.10` (on the Pi since stage 13, 2026-11-08; the Pi had `aitool.5` from 2026-11-04), not the upstream release.
 
 **For Danni's guides:** Actor Studio is the character builder: one window with tabs for abilities, species, background, class, equipment and spells, and a Create Character button at the end.
 

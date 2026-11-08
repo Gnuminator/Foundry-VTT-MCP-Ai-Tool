@@ -1010,7 +1010,7 @@ nothing and does not fail the stage. Without the extra file the stage warns that
   `ALLOW_DOWNGRADE=1`. Otherwise the services
   stop, the old module folder moves to `/var/lib/foundry-import/prev-<time>/modules/` (never deleted;
   put back by itself if the swap fails) and the new one takes its place, owned by `foundry`.
-  The pinned build is the fork's `2.10.5-aitool.10` release (`aitool.9` plus the Equipment tab fix; its zip uses forward-slash paths, which the stage requires); its `module.zip` checksum is in the
+  The pinned build is the fork's `2.10.5-aitool.10` release (`aitool.9` plus the Equipment tab fix, and with it the `aitool.8` review fixes: one native event for Take Average, a tidier spell ability carry-over, a leftover debug log removed; its zip uses forward-slash paths, which the stage requires); its `module.zip` checksum is in the
   script. A pinned checksum of `PENDING-RELEASE` (for a newer build whose release does not exist
   yet) makes the stage refuse to run unless it is given `STUDIO_ZIP` (a `.zip` under `/var/lib/foundry-import/`) and
   `STUDIO_SHA256` (and `STUDIO_VERSION` when the zip is not the pinned version). `STUDIO_VERSION` and

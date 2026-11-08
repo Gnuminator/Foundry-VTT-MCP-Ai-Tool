@@ -339,15 +339,17 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
     // (see conRiseExplains) gets its own finding id; any other shortfall stays a plain STUDIO finding.
     // Fixed in the fork build 2.10.5-aitool.6.
     // A hero that also carries a hit point effect: when every source is a per-level bonus (hp.bonuses.level,
-    // one hit point per level, like Draconic Resilience or Tough), take those hit points off first, so a
-    // Constitution shortfall on top of them still gets its own finding. A source of unknown shape explains the
-    // whole shortfall (SYSTEM), as before.
+    // only changes hp.bonuses.level, like Draconic Resilience (one per level) or Tough (two per level)), take
+    // the worked-out bonus (hp.bonuses.level times the level) off first, so a Constitution shortfall on top of
+    // it still gets its own finding. A source of any other shape, or an overall bonus, explains the whole
+    // shortfall (SYSTEM), as before.
     const sources = studio.actor.hp?.sources ?? [];
-    const perLevel = sources.filter(s =>
-      (s.keys ?? []).includes('system.attributes.hp.bonuses.level')
-    );
-    const effectsKnown = sources.length === perLevel.length;
-    const effectShare = effectsKnown ? perLevel.length * level : 0;
+    const levelKey = 'system.attributes.hp.bonuses.level';
+    const effectsKnown =
+      sources.every(s => (s.keys ?? []).length > 0 && (s.keys ?? []).every(k => k === levelKey)) &&
+      !Number(studio.actor.hp?.bonuses?.overall ?? 0);
+    const perLevelBonus = Number(studio.actor.hp?.bonuses?.level ?? sources.length);
+    const effectShare = effectsKnown ? perLevelBonus * level : 0;
     const conRise =
       effectsKnown &&
       level >= 4 &&

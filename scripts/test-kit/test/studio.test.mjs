@@ -185,6 +185,24 @@ test('a Constitution shortfall on top of a per-level hit point effect keeps its 
   assert.equal(hero(level, 140)?.kind, 'SYSTEM');
   // a source of unknown shape explains any shortfall
   assert.equal(hero([], 145)?.kind, 'SYSTEM');
+  // Tough gives two per level: at level 12 its 24 are the effect's, not a Constitution increase (12 would fit)
+  const tough = pair();
+  tough.studio.actor.level = 12;
+  tough.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  tough.studio.actor.hp.max = 157;
+  tough.studio.actor.hp.value = 157 - 24;
+  tough.studio.actor.hp.bonuses = { level: 2, overall: 0 };
+  tough.studio.actor.hp.sources = [{ item: 'Tough', keys: level }];
+  const t = compareHeroes(tough).problems.find(p => p.category === 'current hit points');
+  assert.equal(t?.id, plain);
+  assert.equal(t?.kind, 'SYSTEM');
+  // an overall bonus as well: the share is unknown, SYSTEM
+  tough.studio.actor.hp.bonuses = { level: 1, overall: 5 };
+  tough.studio.actor.hp.value = 157 - 12 - 12;
+  assert.equal(
+    compareHeroes(tough).problems.find(p => p.category === 'current hit points')?.kind,
+    'SYSTEM'
+  );
 });
 
 test('a different class level, hit point total or granted item is a STUDIO difference', () => {

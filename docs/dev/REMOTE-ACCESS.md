@@ -238,6 +238,16 @@ scripts, and the two that touch secrets are run by you.
    open in another tab, build the GM-only image proxy on the dashboard instead (a route that
    fetches the path from `FOUNDRY_AI_FOUNDRY_URL` and returns it to a GM caller only).
 
+### The player connector's Access application
+
+The player connector (`/mcp/player`) has its own Access application, separate from `Foundry players`
+and `Foundry dashboard`. Its policy allows **Service Auth only** (the players' service tokens, one
+per player), never an email login: a person's login must not reach this route. The dashboard checks
+the same thing again: a token that carries an email is refused, and the token's Client ID must be in
+`player-connector.json`. The application's AUD tag goes into that file as `audience`. If the player
+hostname ever serves anything but `/mcp/player`, narrow the tunnel's ingress path to
+`^/mcp/player$` (the Pi side of this is in the Pi stage script, not here).
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete

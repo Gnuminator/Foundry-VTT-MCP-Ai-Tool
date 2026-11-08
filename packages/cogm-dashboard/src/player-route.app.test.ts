@@ -4,7 +4,7 @@
  * player only their own Client ID and Secret.
  */
 import crypto from 'crypto';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -22,7 +22,7 @@ const GM_AUD = 'gm-app-aud';
 const PLAYER_AUD = 'player-app-aud';
 const ALICE = 'alice00000000001';
 const BOB = 'bob0000000000002';
-const DANNI_GM = 'danni00000000003';
+const GM_USER = 'gamemaster000003';
 const WORLD = 'world-player-route';
 const GM_TOKEN = 'gm-token-player-route';
 
@@ -57,7 +57,7 @@ function configFile(extra: Record<string, unknown> = {}): string {
       players: [
         { clientId: ID_A, clientSecret: SECRET_A, userId: ALICE },
         { clientId: ID_B, clientSecret: SECRET_B, userId: BOB },
-        { clientId: 'gmtyp.access', clientSecret: 'x-secret-x', userId: DANNI_GM },
+        { clientId: 'gmtyp.access', clientSecret: 'x-secret-x', userId: GM_USER },
         { clientId: 'orphan.access', clientSecret: 'y-secret-y', userId: 'ghost00000000009' },
       ],
       ...extra,
@@ -87,6 +87,10 @@ async function start(
     host?: string;
     /** The bridge lists no users (the table is off or Foundry has not answered yet). */
     noUsers?: boolean;
+    /** Replaces parts of the fake bridge client (a method set to undefined is removed). */
+    client?: Record<string, unknown>;
+    /** CF_ACCESS_TEAM_DOMAIN as set, parsed or not. */
+    teamDomainRaw?: string;
   } = {}
 ): Promise<{ base: string; calls: Call[]; warns: string[] }> {
   const calls: Call[] = [];
@@ -106,7 +110,7 @@ async function start(
     allowedHosts: parseAllowedHosts(''),
     auth,
   };
-  const client = {
+  const baseClient = {
     isConnected: true,
     listTools: (): Promise<unknown[]> => Promise.resolve([]),
     callTool: <T>(name: string): Promise<T> =>
@@ -120,7 +124,7 @@ async function start(
               : [
                   { id: ALICE, name: 'Alice', isGM: false },
                   { id: BOB, name: 'Bob', isGM: false },
-                  { id: DANNI_GM, name: 'Danni', isGM: true },
+                  { id: GM_USER, name: 'Gamemaster', isGM: true },
                 ],
           } as T)
         : Promise.reject(new Error('no tool')),
@@ -137,6 +141,7 @@ async function start(
       return Promise.resolve({ content: [{ type: 'text', text: `{"for":"${userId}"}` }] });
     },
   };
+  const client = { ...baseClient, ...options.client };
   const file = options.file === undefined ? configFile() : options.file;
   const dashboard = createDashboard({
     config: testConfig,
@@ -151,6 +156,7 @@ async function start(
       store: new ConnectorStore(file, m => warns.push(m)),
       teamDomain: options.teamDomain ?? TEAM,
       devUser: options.devUser ?? '',
+      teamDomainRaw: options.teamDomainRaw ?? options.teamDomain ?? TEAM,
     },
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
@@ -212,6 +218,52 @@ describe('parseConnectorFile', () => {
     expect(parsed.endpoint).toBeNull(); // plain http to a real host is not an endpoint
     expect(parsed.audiences).toEqual([PLAYER_AUD]);
     expect(parsed.players.map(p => p.clientId)).toEqual(['a']);
+  });
+
+  it('reports what it drops and a user id two entries share', () => {
+    const problems: string[] = [];
+    parseConnectorFile(
+      {
+        audience: PLAYER_AUD,
+        players: [
+          { clientId: 'a', clientSecret: 's', userId: ALICE },
+          { clientId: 'b', clientSecret: 's', userId: ALICE },
+          { clientId: 'c', clientSecret: '', userId: BOB },
+          { clientId: 'dup', clientSecret: 's', userId: BOB },
+          { clientId: 'dup', clientSecret: 's', userId: BOB },
+        ],
+      },
+      m => problems.push(m)
+    );
+    expect(problems.some(m => m.includes('players[2]'))).toBe(true);
+    expect(problems.some(m => m.includes('twice'))).toBe(true);
+    expect(problems.some(m => m.includes('share one Foundry user id'))).toBe(true);
+  });
+});
+
+describe('ConnectorStore logging', () => {
+  it('logs dropped entries once per change and warns again after the file comes back', () => {
+    const file = configFile({
+      players: [
+        { clientId: 'a', clientSecret: 's', userId: ALICE },
+        { clientId: 'b', clientSecret: 's', userId: 'short' },
+      ],
+    });
+    const warns: string[] = [];
+    const store = new ConnectorStore(file, m => warns.push(m));
+    store.read();
+    store.read();
+    expect(warns.filter(m => m.includes('dropped'))).toHaveLength(1);
+    // Unreadable, then fine again, then unreadable again: each breakage is one line.
+    writeFileSync(file, '{ not json');
+    store.read();
+    store.read();
+    expect(warns.filter(m => m.includes('cannot be read'))).toHaveLength(1);
+    writeFileSync(file, JSON.stringify({ audience: PLAYER_AUD, players: [] }));
+    store.read();
+    writeFileSync(file, '{ not json');
+    store.read();
+    expect(warns.filter(m => m.includes('cannot be read'))).toHaveLength(2);
   });
 });
 
@@ -336,6 +388,27 @@ describe('/mcp/player: who gets in', () => {
     expect((await rpc(noKeys.base, call('get-my-character'), asA)).status).toBe(503);
   });
 
+  it('refuses a Client ID that appears twice in the file (403), both entries dropped', async () => {
+    const file = configFile({
+      players: [
+        { clientId: ID_A, clientSecret: SECRET_A, userId: ALICE },
+        { clientId: ID_A, clientSecret: SECRET_B, userId: BOB },
+      ],
+    });
+    const { base, calls } = await start({ file });
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('says try again (503) when the bridge is not connected', async () => {
+    const { base, calls } = await start({
+      client: { isConnected: false },
+      noUsers: true,
+    });
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(503);
+    expect(calls).toHaveLength(0);
+  });
+
   it('only answers POST', async () => {
     const { base } = await start();
     const res = await fetch(`${base}/mcp/player`, { headers: asA });
@@ -363,6 +436,52 @@ describe('/mcp/player: what it runs', () => {
       await rpc(base, { jsonrpc: '2.0', id: 3, method: 'tools/list' }, asA)
     ).json()) as { result: { tools: Array<{ name: string }> } };
     expect(list.result.tools.map(t => t.name)).toEqual(['get-my-character']);
+  });
+
+  it('answers a bridge failure with a plain error, never the bridge text', async () => {
+    const boom = (): Promise<never> => Promise.reject(new Error('secret bridge detail'));
+    const { base } = await start({ client: { listPlayerTools: boom, playerTool: boom } });
+    const list = await rpc(base, { jsonrpc: '2.0', id: 3, method: 'tools/list' }, asA);
+    const listBody = (await list.json()) as { error?: { code: number; message: string } };
+    expect(listBody.error?.code).toBe(-32000);
+    expect(JSON.stringify(listBody)).not.toContain('secret bridge detail');
+    const run = (await (await rpc(base, call('get-my-character'), asA)).json()) as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    expect(run.result.isError).toBe(true);
+    expect(JSON.stringify(run)).not.toContain('secret bridge detail');
+  });
+
+  it('answers 503 when the bridge client has no player methods', async () => {
+    const { base } = await start({
+      client: { listPlayerTools: undefined, playerTool: undefined },
+    });
+    expect((await rpc(base, { jsonrpc: '2.0', id: 3, method: 'tools/list' }, asA)).status).toBe(
+      503
+    );
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(503);
+  });
+
+  it('offers the newest protocol, reports the dashboard version and rejects a request with no method', async () => {
+    const { base } = await start();
+    const init = (await (
+      await rpc(
+        base,
+        { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } },
+        asA
+      )
+    ).json()) as { result: { protocolVersion: string; serverInfo: { version: string } } };
+    expect(init.result.protocolVersion).toBe('2025-11-25');
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      version: string;
+    };
+    expect(init.result.serverInfo.version).toBe(pkg.version);
+    const noMethod = (await (await rpc(base, { jsonrpc: '2.0', id: 4 }, asA)).json()) as {
+      id: number;
+      error: { code: number };
+    };
+    expect(noMethod.id).toBe(4);
+    expect(noMethod.error.code).toBe(-32600);
   });
 
   it('refuses every method and tool that is not a player tool', async () => {
@@ -427,6 +546,35 @@ describe('dev mode', () => {
       (await rpc(base, call('get-my-character'), { 'cf-connecting-ip': '1.2.3.4' })).status
     ).toBe(403);
     expect((await rpc(base, call('get-my-character'), { 'cf-ray': 'abc' })).status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('serves the wrapper, which always sends its service-token pair, but not through the tunnel', async () => {
+    const { base, calls } = await start({
+      devUser: ALICE,
+      teamDomain: '',
+      file: configFile({ audience: '' }),
+    });
+    const pair = { 'cf-access-client-id': 'x.access', 'cf-access-client-secret': 'secret' };
+    expect((await rpc(base, call('get-my-character'), pair)).status).toBe(200);
+    expect(calls[0]?.userId).toBe(ALICE);
+    expect(
+      (await rpc(base, call('get-my-character'), { ...pair, 'cf-connecting-ip': '1.2.3.4' })).status
+    ).toBe(403);
+    expect((await rpc(base, call('get-my-character'), { ...pair, 'cf-ray': 'abc' })).status).toBe(
+      403
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it('is ignored when CF_ACCESS_TEAM_DOMAIN is set but malformed', async () => {
+    const { base, calls } = await start({
+      devUser: ALICE,
+      teamDomain: '',
+      teamDomainRaw: 'not a domain!',
+      file: configFile({ audience: '' }),
+    });
+    expect((await rpc(base, call('get-my-character'))).status).toBe(401);
     expect(calls).toHaveLength(0);
   });
 

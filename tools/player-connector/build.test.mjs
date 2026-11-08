@@ -653,14 +653,24 @@ test('a closed stdout pipe makes the process exit 0 without noise', async () => 
 test('answers initialize when loaded with require() by a launcher, not run as the entry file', async () => {
   // Claude Desktop may start extension servers through its own launcher: require.main is then not
   // this file. The process must still start and answer (it used to idle until Desktop gave up).
+  // A minimal environment: nothing inherited (a FOUNDRY_PLAYER_* or NO_MAIN from the caller's
+  // shell could change what the child does).
+  const env = { PATH: process.env.PATH, FOUNDRY_PLAYER_ENDPOINT: '' };
+  if (process.env.SystemRoot) env.SystemRoot = process.env.SystemRoot;
   const child = spawn(process.execPath, ['-e', 'require(process.argv[1])', SERVER], {
-    env: { ...process.env, FOUNDRY_PLAYER_ENDPOINT: '', FOUNDRY_PLAYER_NO_MAIN: '' },
+    env,
     stdio: ['pipe', 'pipe', 'ignore'],
   });
   let out = '';
   child.stdout.on('data', d => {
     out += d;
   });
+  const closed = new Promise((resolve, reject) => {
+    child.on('error', reject);
+    child.on('close', resolve);
+  });
+  // The child may exit before the write lands; that must not crash the test run.
+  child.stdin.on('error', () => undefined);
   child.stdin.write(
     JSON.stringify({
       jsonrpc: '2.0',
@@ -673,6 +683,7 @@ test('answers initialize when loaded with require() by a launcher, not run as th
   while (!out.includes('\n') && Date.now() < deadline) await new Promise(r => setTimeout(r, 50));
   child.stdin.end();
   child.kill();
+  await closed;
   const reply = JSON.parse(out.split('\n')[0] || 'null');
   assert.equal(reply?.id, 0);
   assert.equal(reply?.result?.serverInfo?.name, 'foundry-player');

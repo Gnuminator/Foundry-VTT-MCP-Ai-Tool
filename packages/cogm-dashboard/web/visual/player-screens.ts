@@ -311,6 +311,20 @@ export const PLAYER_SCREENS: PlayerScreen[] = [
       await expect(page.locator('#me-updated')).toContainText('Updated');
     },
   },
+  {
+    // The "Your Claude connector" card, opened (made-up values, never a real pair).
+    name: 'me-connector',
+    path: '/me',
+    who: null,
+    key: true,
+    stream: 'quiet',
+    ready: async (page): Promise<void> => {
+      await expect(page.locator('#me-name')).toHaveText('Brenna Quill');
+      await expect(page.locator('#me-connector')).toBeVisible();
+      await page.locator('#me-connector summary').click();
+      await expect(page.locator('#mc-id')).toHaveValue('visual-client.access');
+    },
+  },
 ];
 
 /** The stream the player page reads: one answer with the frames, and no reconnect. */
@@ -378,6 +392,19 @@ export async function showPlayerScreen(page: Page, screen: PlayerScreen): Promis
         theme: 'neutral',
         privateRolls: [],
       },
+    })
+  );
+  await page.route('**/api/me/connector', route =>
+    route.fulfill({
+      json:
+        screen.name === 'me-connector'
+          ? {
+              enabled: true,
+              endpoint: 'https://player-ai.example.com/mcp/player',
+              clientId: 'visual-client.access',
+              clientSecret: 'visual-secret-not-real',
+            }
+          : { enabled: false },
     })
   );
   await fakePlayerStream(page, screen);

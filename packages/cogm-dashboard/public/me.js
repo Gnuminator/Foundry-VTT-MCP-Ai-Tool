@@ -217,34 +217,87 @@ async function load() {
   }
 }
 
+let connectorLoaded = false;
+let connectorLoading = false;
+
+function setConnectorError(text) {
+  const box = $('mc-error');
+  $('mc-error-text').textContent = text;
+  box.hidden = !text;
+  $('mc-fields').hidden = !!text;
+}
+
 /** "Your Claude connector" (D-136): the player's own pair, read once; hidden when not set up. */
 async function loadConnector() {
-  if (!key) return;
+  if (!key || connectorLoaded || connectorLoading) return;
+  connectorLoading = true;
   try {
     const res = await fetch('/api/me/connector', { headers: { 'X-CoGM-Me': key } });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body.enabled) return;
+    if (res.ok && !body.enabled) {
+      connectorLoaded = true; // not set up for this player: the card stays hidden
+      return;
+    }
+    if (!res.ok) throw new Error('bad status');
     $('mc-endpoint').value = body.endpoint || '';
     $('mc-id').value = body.clientId || '';
     $('mc-secret').value = body.clientSecret || '';
+    $('mc-hint').hidden = !!body.endpoint;
+    setConnectorError('');
+    connectorLoaded = true;
     $('me-connector').hidden = false;
   } catch {
-    /* the card stays hidden */
+    // The card is shown with a retry, so a player is not left with nothing to try.
+    setConnectorError('Could not load your connector values. Check your connection and try again.');
+    $('me-connector').hidden = false;
+  } finally {
+    connectorLoading = false;
   }
+}
+
+/** Copy `input`'s value; plain http has no clipboard API, so fall back to a selected copy command. */
+async function copyValue(input) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(input.value);
+      return true;
+    }
+  } catch {
+    /* fall through to the old way */
+  }
+  const wasType = input.type;
+  if (wasType === 'password') input.type = 'text'; // a hidden field cannot be selected for copy
+  input.focus();
+  input.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  if (wasType === 'password') input.type = 'password';
+  return ok;
+}
+
+let copiedTimer = null;
+function announce(text) {
+  const live = $('mc-live');
+  live.textContent = text;
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => (live.textContent = ''), 1500);
 }
 
 document.addEventListener('click', e => {
   const copy = e.target.closest('[data-copy]');
   if (copy) {
     const input = $(copy.dataset.copy);
-    void navigator.clipboard
-      ?.writeText(input.value)
-      .then(() => {
-        copy.textContent = 'Copied';
-        setTimeout(() => (copy.textContent = 'Copy'), 1500);
-      })
-      .catch(() => input.select());
+    void copyValue(input).then(ok => {
+      copy.textContent = ok ? 'Copied' : 'Copy';
+      announce(ok ? 'Copied' : 'Could not copy. The value is selected: press Ctrl+C.');
+      setTimeout(() => (copy.textContent = 'Copy'), 1500);
+    });
   }
+  if (e.target.closest('#mc-retry')) void loadConnector();
   if (e.target.closest('#mc-show')) {
     const secret = $('mc-secret');
     const show = secret.type === 'password';
@@ -267,7 +320,10 @@ document.addEventListener('click', e => {
 });
 $('me-print').addEventListener('click', () => window.print());
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) void load();
+  if (!document.hidden) {
+    void load();
+    void loadConnector();
+  }
 });
 setInterval(() => {
   if (!document.hidden) void load();

@@ -61,7 +61,7 @@ function looksSigned(token: string): boolean {
   const parts = token.split('.');
   if (parts.length !== 3) return false;
   try {
-    const head = JSON.parse(Buffer.from(parts[0] as string, 'base64url').toString('utf8')) as {
+    const head = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')) as {
       alg?: unknown;
       kid?: unknown;
     };

@@ -1074,7 +1074,7 @@ function gmChangeText(mode: unknown, summary: unknown): string {
 }
 
 /**
- * Put a GM-only `gm-change` event in the Live Feed for a change the backend
+ * Put a GM-only `gm-change` event in the session feed for a change the backend
  * applied itself (vault-only plans), so the dashboard feed shows it too.
  */
 export function logGmChange(data: unknown): { logged: true } {

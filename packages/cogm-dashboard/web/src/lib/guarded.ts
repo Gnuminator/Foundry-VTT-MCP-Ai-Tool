@@ -124,7 +124,7 @@ export function mayHaveApplied(err: unknown): boolean {
   return err.kind === undefined && err.status >= 500;
 }
 
-/** How a guarded change ended; the Tool Runner shows done and failed under its form. */
+/** How a guarded change ended; the Tool runner shows done and failed under its form. */
 export type GuardedOutcome =
   /** The change went in (result: the apply answer), or the plan changed nothing (the plan). */
   | { status: 'done'; result: unknown }
@@ -175,7 +175,7 @@ export interface GuardedTools {
     options?: GuardedOptions
   ) => Promise<GuardedOutcome>;
   /**
-   * Runs a write tool that is not a plan (the Tool Runner): the gate, then the confirm window,
+   * Runs a write tool that is not a plan (the Tool runner): the gate, then the confirm window,
    * then the call with its confirm flags. apply-planned-change shows the plan it applies and has
    * the Undo toast.
    */
@@ -312,8 +312,8 @@ export function useGuardedTools(): GuardedTools {
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
           // The server says GM Actions are off, whatever the page last heard: the gates show
-          // (the Tool Runner's bar too) until the stream says otherwise. Before the stream's first
-          // settings there is nothing else to keep: GM Actions stand in alone, as the Tool Runner's
+          // (the Tool runner's bar too) until the stream says otherwise. Before the stream's first
+          // settings there is nothing else to keep: GM Actions stand in alone, as the Tool runner's
           // catalog and Turn on for tonight do (the Obsidian link waits for the stream).
           if (err.code === 'gm-actions-disabled') {
             queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old =>

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import http from 'node:http';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
@@ -20,6 +21,8 @@ let fake;
 let base;
 let mode = 'ok';
 const seen = [];
+const sessions = new Set();
+let sessionCount = 0;
 
 before(async () => {
   fake = http.createServer((req, res) => {
@@ -28,6 +31,24 @@ before(async () => {
     req.on('end', () => {
       seen.push({ method: req.method, headers: req.headers, body });
       const rpc = JSON.parse(body || '{}');
+      if (mode === 'session') {
+        const sid = req.headers['mcp-session-id'];
+        if (rpc.method === 'test/reset') sessions.clear();
+        else if (rpc.method === 'initialize') {
+          const fresh = `s${++sessionCount}`;
+          sessions.add(fresh);
+          res.writeHead(200, { 'content-type': 'application/json', 'mcp-session-id': fresh });
+          return res.end(
+            JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { session: fresh } })
+          );
+        } else if (!sessions.has(sid)) {
+          return res.writeHead(404).end();
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(
+          JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { sid: sid ?? null } })
+        );
+      }
       if (mode === 'status403') {
         res.writeHead(403).end(`denied ${ID} ${SECRET}`);
       } else if (mode === 'status401') {
@@ -140,6 +161,41 @@ test('trims spaces and newlines around the pasted values', async () => {
   assert.equal(replies[0].result.method, 'tools/call');
   assert.equal(seen[0].headers['cf-access-client-id'], ID);
   assert.equal(seen[0].headers['cf-access-client-secret'], SECRET);
+});
+
+test('a forgotten session (404) starts a new one and retries once', async () => {
+  mode = 'session';
+  sessions.clear();
+  sessionCount = 0;
+  seen.length = 0;
+  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const fwd = createForwarder(
+    {
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+    (...a) => fetch(...a)
+  );
+  const ask = (id, method, params) => handleMessage({ jsonrpc: '2.0', id, method, params }, fwd);
+  assert.equal((await ask(1, 'initialize', {})).result.session, 's1');
+  assert.equal((await ask(2, 'tools/list')).result.sid, 's1');
+  await ask(3, 'test/reset'); // the server forgets every session
+  const healed = await ask(4, 'tools/list');
+  assert.equal(healed.result.sid, 's2', 'a new session was started and the call retried');
+  assert.equal(sessionCount, 2);
+  // A second 404 with no session to heal is reported, not looped.
+  sessions.clear();
+  const fresh = createForwarder(
+    {
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+    (...a) => fetch(...a)
+  );
+  const r = await handleMessage({ jsonrpc: '2.0', id: 9, method: 'tools/list' }, fresh);
+  assert.match(r.error.message, /HTTP 404/);
 });
 
 test('answers ping locally', async () => {

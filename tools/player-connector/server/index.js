@@ -108,8 +108,10 @@ function createForwarder(env, fetchImpl) {
   const missing = !clientId || !clientSecret;
   let sessionId = null;
 
-  /** Returns {message} (a JSON-RPC response object) or {failure: text}. */
-  async function forward(request) {
+  let initRequest = null;
+
+  /** One POST. Returns {message} (a JSON-RPC response object) or {failure: text, status?}. */
+  async function send(request) {
     if (endpoint.error) return { failure: endpoint.error };
     if (missing) {
       return {
@@ -135,14 +137,17 @@ function createForwarder(env, fetchImpl) {
         redirect: 'manual',
         signal: ctl.signal,
       });
-      const sid = res.headers.get('mcp-session-id');
-      if (sid) sessionId = sid;
-      if (res.status >= 300 && res.status < 400)
-        return { failure: describeFailure({ kind: 'redirect' }) };
+      if (res.status >= 300 && res.status < 400) {
+        sessionId = null;
+        return { failure: describeFailure({ kind: 'redirect' }), status: res.status };
+      }
       if (res.status < 200 || res.status >= 300) {
         await res.arrayBuffer().catch(() => undefined); // never echo a body that could hold detail
-        return { failure: describeFailure({ status: res.status }) };
+        if (res.status === 401 || res.status === 403) sessionId = null;
+        return { failure: describeFailure({ status: res.status }), status: res.status };
       }
+      const sid = res.headers.get('mcp-session-id');
+      if (sid) sessionId = sid;
       const text = await res.text();
       const type = (res.headers.get('content-type') || '').toLowerCase();
       let message = null;
@@ -165,6 +170,26 @@ function createForwarder(env, fetchImpl) {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * Send a request. If the server forgot our session (404 while we hold a session id, for
+   * example after a restart), start a new one with the stored initialize and retry once.
+   */
+  async function forward(request) {
+    if (request.method === 'initialize') {
+      initRequest = request;
+      sessionId = null;
+    }
+    const had = sessionId;
+    const first = await send(request);
+    if (!(first.status === 404 && had && initRequest && request.method !== 'initialize'))
+      return first;
+    sessionId = null;
+    const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+    if (re.failure) return re;
+    await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
+    return send(request);
   }
 
   return { forward, secrets };

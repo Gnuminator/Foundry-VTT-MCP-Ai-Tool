@@ -9,8 +9,13 @@
 // writes player-connector.json for the Pi. The token secrets go from Cloudflare into that file and
 // nowhere else: not to the screen, not to a log, not into the repo. Default is a plan that only
 // reads; --apply writes.
+//
+// The API token (My Profile, API Tokens, custom; 1 hour TTL; typed into the hidden prompt) needs
+// these permissions, and a plan (without --apply) fails with "found 0" accounts without the first two:
+//   Account: Account Settings: Read, Zone: Zone: Read, Account: Access: Apps and Policies: Edit,
+//   Account: Access: Service Tokens: Edit, Account: Cloudflare Tunnel: Edit, Zone: DNS: Edit (on the zone).
 import { spawn as nodeSpawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +67,10 @@ export function parseArgs(argv) {
     } else throw new UsageError(`unknown argument ${arg}`);
   }
   if (!opts.users) throw new UsageError('--users <file> is required');
+  // The DNS record and the Access application are made for --host inside --zone; a host outside the zone would fail late.
+  if (!opts.host.toLowerCase().endsWith(`.${opts.zone.toLowerCase()}`)) {
+    throw new UsageError(`--host ${opts.host} must be a name inside --zone ${opts.zone}`);
+  }
   if (opts.sendTo && opts.out) throw new UsageError('use either --send-to or --out, not both');
   if (opts.sendTo && opts.sendTo.startsWith('-')) throw new UsageError('--send-to is not a host');
   if (opts.apply && !opts.sendTo && !opts.out) {
@@ -240,18 +249,38 @@ function ssh(spawn, host, content) {
   });
 }
 
+/**
+ * True when `file` sits in this repo or in any folder tree that holds a `.git` (a checkout, a worktree,
+ * the Obsidian vault): the login table holds secrets and must never land where git could pick it up.
+ */
 function insideRepo(file, repoRoot) {
-  const rel = path.relative(repoRoot, path.resolve(file));
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  const abs = path.resolve(file);
+  const rel = path.relative(repoRoot, abs);
+  if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) return true;
+  for (let dir = path.dirname(abs); ; dir = path.dirname(dir)) {
+    if (existsSync(path.join(dir, '.git'))) return true;
+    if (path.dirname(dir) === dir) return false;
+  }
 }
+
+/** " (mode 600)" where the file mode means something; on Windows the home folder's own access rules apply. */
+const MODE_NOTE = process.platform === 'win32' ? '' : ' (mode 600)';
 
 /** Hands the file content to the Pi over ssh, or to a 0600 file as the fallback or on request. */
 export async function deliver({ content, opts, spawn, log, fallbackDir }) {
   if (opts.out) {
     const target = path.resolve(opts.out);
-    writeFileSync(target, content, { mode: 0o600 });
+    try {
+      // wx: never overwrite (an existing file keeps its old mode and may be someone else's).
+      writeFileSync(target, content, { mode: 0o600, flag: 'wx' });
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new UsageError(`${target} exists already: delete it or pick another --out path`);
+      }
+      throw error;
+    }
     log.out(
-      `ok: wrote ${target} (mode 600). Copy it to the Pi as ${REMOTE_FILE}, then delete it here.`
+      `ok: wrote ${target}${MODE_NOTE}. Copy it to the Pi as ${REMOTE_FILE}, then delete it here.`
     );
     return;
   }
@@ -262,9 +291,11 @@ export async function deliver({ content, opts, spawn, log, fallbackDir }) {
   }
   const target = path.join(fallbackDir, 'player-connector.json.new');
   mkdirSync(fallbackDir, { recursive: true });
-  writeFileSync(target, content, { mode: 0o600 });
+  // An old fallback file may carry an older mode; remove it so the new one is created 0600.
+  rmSync(target, { force: true });
+  writeFileSync(target, content, { mode: 0o600, flag: 'wx' });
   log.err(`ssh to ${opts.sendTo} failed (exit ${code}).`);
-  log.out(`ok: wrote the fallback file ${target} (mode 600).`);
+  log.out(`ok: wrote the fallback file ${target}${MODE_NOTE}.`);
   log.out(`Copy it to the Pi as ${REMOTE_FILE} (scp), then delete it from this PC.`);
 }
 
@@ -277,7 +308,7 @@ export async function run({ opts, users, call, log, spawn, fallbackDir, repoRoot
   const { apply, rotate, host, zone, tunnel, origin } = opts;
   const verb = (done, would) => (apply ? done : would);
   if (apply && opts.out && insideRepo(opts.out, repoRoot)) {
-    throw new UsageError('--out is inside the git repo: pick a path outside it');
+    throw new UsageError('--out is inside a git folder: pick a path outside it');
   }
   log.out(
     apply
@@ -546,7 +577,13 @@ export async function main(argv, deps = {}) {
     const opts = parseArgs(argv);
     const users = parseUsers(readFile(opts.users));
     if (opts.out && insideRepo(opts.out, repoRoot)) {
-      throw new UsageError('--out is inside the git repo: pick a path outside it');
+      throw new UsageError('--out is inside a git folder: pick a path outside it');
+    }
+    // Before any token is made: the secrets exist only once, so the write at the end must not fail.
+    if (opts.out && existsSync(path.resolve(opts.out))) {
+      throw new UsageError(
+        `${path.resolve(opts.out)} exists already: delete it or pick another --out path`
+      );
     }
     token = env.CLOUDFLARE_API_TOKEN || (await prompt());
     token = String(token ?? '').trim();

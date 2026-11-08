@@ -10,6 +10,8 @@
 #   5 CHECK exits 0 on a good install and 1 once the table's mode is wrong; it prints no secret
 #   6 the snapshot rule: a stale snapshot refuses a real run; DRY_RUN and CHECK need none
 #   7 UNDO removes the drop-ins and the env file, takes the host out, keeps the table
+#   8 with a fake systemd: players online refuse before any write, both services restart once, a failed check exits 1, a rerun and an
+#     UNDO with nothing to undo restart nothing, UNDO takes out the exact host only, a missing allowed hosts line is refused
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage30-scenarios.sh
 # (scripts/pi/player-connector-stage.test.mjs runs it with PI_STAGE30_CONTAINER=1.) STAGE=<file> runs another copy of the script.
@@ -216,5 +218,120 @@ if [ "$rc" -eq 0 ] && [ ! -e "$envf" ] && [ ! -e "$unit_dir/$dash.d" ] && [ ! -e
   grep -qx 'DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,cogm.example.org' "$access" && grep -q 'GM_DASHBOARD_TOKEN=GMTOKENabcdef012345' "$access"; then
   pass "UNDO removes the drop-ins and the env file, takes the host out and keeps the table"; else fail "undo: rc=$rc $OUT"; fi
 no_secret "undo" && pass "UNDO prints no secret or id"
+
+# 8. With a fake systemd (stub systemctl and curl, a fake bridge answering the ping): the refusal comes before any write, the restarts
+#    and the checks run, a failed check ends the run with exit 1, a rerun and an UNDO with nothing to undo restart nothing, and the
+#    dots of the host are not wildcards in UNDO. The units live in /etc/systemd/system here because enable_unit looks there.
+stubs=/tmp/stubs
+sdunits=/etc/systemd/system
+mkdir -p "$stubs" /run/systemd/system "$sdunits"
+cat >"$stubs/systemctl" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >>/tmp/stubs/sc.log
+case "$1" in
+  is-active)
+    shift
+    [ "$1" = "--quiet" ] && shift
+    grep -qx "$1" /tmp/stubs/active
+    exit $?
+    ;;
+esac
+exit 0
+STUB
+cat >"$stubs/curl" <<'STUB'
+#!/usr/bin/env bash
+args="$*"
+case "$args" in
+  *:30000/api/status*) printf '{"users":%s}' "$(cat /tmp/stubs/users)" ;;
+  *not-listed.example*) cat /tmp/stubs/code421 ;;
+  *) cat /tmp/stubs/code401 ;;
+esac
+STUB
+cat >"$stubs/journalctl" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$stubs/systemctl" "$stubs/curl" "$stubs/journalctl"
+node -e 'require("net").createServer(s=>{s.on("error",()=>{});s.on("data",()=>s.end("{\"id\":\"ping\",\"result\":{\"ok\":true}}\n"))}).listen(31414,"127.0.0.1")' &
+fake_bridge=$!
+sleep 1
+sd_state() { # users code401 code421
+  printf '%s' "$1" >"$stubs/users"
+  printf '%s' "$2" >"$stubs/code401"
+  printf '%s' "$3" >"$stubs/code421"
+  printf '%s\n' foundry.service "$dash" "$bridge" >"$stubs/active"
+  : >"$stubs/sc.log"
+}
+sd_fresh() {
+  fresh
+  rm -rf "$sdunits/$dash" "$sdunits/$bridge" "$sdunits/$dash.d" "$sdunits/$bridge.d"
+  cp "$unit_dir/$dash" "$unit_dir/$bridge" "$sdunits/"
+}
+sd_run() {
+  local code
+  OUT="$(cat "$LIB" "$STAGE" | env PATH="$stubs:$PATH" SRC_FILE="$src" UNIT_DIR="$sdunits" NO_SNAPSHOT=1 "$@" bash -s 2>&1)"
+  code=$?
+  return "$code"
+}
+restarted() { grep -c "^restart $1\$" "$stubs/sc.log"; }
+
+sd_fresh
+sd_state 3 401 421
+before="$(sha256sum "$access" "$src" | sha256sum)"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'player(s) are online' && [ ! -e "$cfg" ] && [ ! -e "$envf" ] && [ ! -e "$sdunits/$dash.d" ] &&
+  [ "$before" = "$(sha256sum "$access" "$src" | sha256sum)" ]; then pass "players online: refused before the first write, the table stays where it was"; else fail "players online: rc=$rc $OUT"; fi
+
+sd_state 0 401 421
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(restarted "$dash")" = 1 ] && [ "$(restarted "$bridge")" = 1 ] && echo "$OUT" | grep -q 'no token: 401' &&
+  echo "$OUT" | grep -q 'the bridge control port answers on loopback' && [ -f "$cfg" ]; then
+  pass "nobody online: both services restart once and the checks pass"; else fail "restart run: rc=$rc restarts=$(restarted "$dash")/$(restarted "$bridge") $OUT"; fi
+no_secret "systemd run" && pass "the systemd run prints no secret or id"
+
+sd_state 0 401 421
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(restarted "$dash")" = 0 ] && [ "$(restarted "$bridge")" = 0 ]; then pass "a rerun with nothing new restarts nothing"; else fail "rerun: rc=$rc $(cat "$stubs/sc.log") $OUT"; fi
+
+table
+sd_state 0 200 421
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "expected 401" && echo "$OUT" | grep -q '1 check(s) failed'; then pass "a failed check ends the run with exit 1"; else fail "failed check: rc=$rc $OUT"; fi
+
+sd_state 0 401 421
+grep -v '^DASHBOARD_ALLOWED_HOSTS=' "$access" >"$access.rest" || true
+printf 'DASHBOARD_ALLOWED_HOSTS=%s,player-aiXexample.org\n' "pi.tail1234.ts.net,$host" >>"$access.rest"
+cat "$access.rest" >"$access"
+rm -f "$access.rest"
+sd_run UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && grep -qx 'DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,player-aiXexample.org' "$access" && [ "$(restarted "$dash")" = 1 ] && [ "$(restarted "$bridge")" = 1 ]; then
+  pass "UNDO takes out the exact host only (dots are not wildcards) and restarts both services"; else fail "undo dots: rc=$rc $(grep ALLOWED "$access") $OUT"; fi
+
+sd_state 0 401 421
+sd_run UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(restarted "$dash")" = 0 ] && [ "$(restarted "$bridge")" = 0 ]; then pass "UNDO with nothing left to undo restarts nothing"; else fail "undo twice: rc=$rc $(cat "$stubs/sc.log") $OUT"; fi
+
+sd_state 3 401 421
+sd_run UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(restarted "$dash")" = 0 ]; then pass "UNDO with nothing to undo is not refused for players online"; else fail "undo online: rc=$rc $OUT"; fi
+
+sd_fresh
+sd_state 0 401 421
+grep -v '^DASHBOARD_ALLOWED_HOSTS=' "$access" >"$access.rest"
+cat "$access.rest" >"$access"
+rm -f "$access.rest"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'no DASHBOARD_ALLOWED_HOSTS line' && [ ! -e "$cfg" ] && [ -f "$src" ]; then pass "no allowed hosts line: refused, nothing changed"; else fail "no hosts line: rc=$rc $OUT"; fi
+
+kill "$fake_bridge" 2>/dev/null
+rm -rf /run/systemd/system "$sdunits/$dash" "$sdunits/$bridge" "$sdunits/$dash.d" "$sdunits/$bridge.d"
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

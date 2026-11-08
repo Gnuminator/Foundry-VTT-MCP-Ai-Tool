@@ -205,6 +205,39 @@ jobs:
           path: foundry-mcp-server-${{ env.TAG }}.zip
           retention-days: 30
 
+  player-files:
+    name: player extension and player skill
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      # Both builds use only node built-ins (the shared zip writer), so no npm ci. The endpoint address is
+      # not a secret but stays out of the repo: set the Actions variable FOUNDRY_PLAYER_ENDPOINT
+      # (Settings, Secrets and variables, Variables) to pre-fill the extension's address field; unset, the
+      # player pastes it.
+      - name: Build foundry-player.mcpb and foundry-dnd-helper-player.zip
+        env:
+          FOUNDRY_PLAYER_ENDPOINT: ${{ vars.FOUNDRY_PLAYER_ENDPOINT }}
+        run: |
+          set -e
+          mkdir -p player-out
+          node tools/player-connector/build.mjs --out player-out
+          node tools/dnd-helper/build.mjs --out player-out
+          ls -lh player-out/foundry-player.mcpb player-out/foundry-dnd-helper-player.zip
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-player
+          path: |
+            player-out/foundry-player.mcpb
+            player-out/foundry-dnd-helper-player.zip
+          retention-days: 30
+
   installer:
     name: Windows installer
     needs: verify
@@ -269,7 +302,7 @@ jobs:
 
   publish:
     name: publish GitHub release
-    needs: [module, bridge, installer]
+    needs: [module, bridge, installer, player-files]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
@@ -300,7 +333,8 @@ jobs:
           set -e
           cd release-files
           sha256sum module.json foundry-mcp-bridge.zip foundry-ai-tool-obsidian.zip \
-            "foundry-mcp-server-${TAG}.zip" "FoundryMCPServer-Setup-${TAG}.exe" > SHA256SUMS.txt
+            "foundry-mcp-server-${TAG}.zip" "FoundryMCPServer-Setup-${TAG}.exe" \
+            foundry-player.mcpb foundry-dnd-helper-player.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create the GitHub release
@@ -318,6 +352,8 @@ jobs:
             release-files/foundry-ai-tool-obsidian.zip
             release-files/foundry-mcp-server-${{ github.ref_name }}.zip
             release-files/FoundryMCPServer-Setup-${{ github.ref_name }}.exe
+            release-files/foundry-player.mcpb
+            release-files/foundry-dnd-helper-player.zip
             release-files/SHA256SUMS.txt
           body: |
             ## Foundry AI Tool ${{ github.ref_name }}

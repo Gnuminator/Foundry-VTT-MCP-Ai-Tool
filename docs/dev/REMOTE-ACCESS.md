@@ -292,7 +292,7 @@ address with `MCP_NO_SPAWN=1`.
 mcp.<domain> --url 127.0.0.1:31914` asks for a browser login and gives nothing to a script; with a
 wrong token it is refused; `https://mcp.<domain>/` shows the Access page, never the bridge;
 `foundry.<domain>:31414`, `cogm.<domain>:31414` and the Pi's public address on 31414 do not answer.
-Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it.
+Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it (the Pi's own tailscale interface does not count).
 
 **Rotation and removing a GM.** Rotate: create a new token, add it to `MCP client`, run the installer
 again (or `tunnel-client.ps1 -Action Install`) and paste the new Client ID and secret: a new token

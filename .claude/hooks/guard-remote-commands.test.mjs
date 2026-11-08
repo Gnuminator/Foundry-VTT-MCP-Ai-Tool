@@ -175,7 +175,7 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'docker container stop x'",
     "ssh foundry-pi 'docker stop x'",
     'ssh foundry-pi \'MODE=up TEST_ALLOW_CUTOVER="1" bash -s\' < stage.sh',
-    "ssh foundry-pi \"MODE=up TEST_ALLOW_CUTOVER='1' bash -s\" < stage.sh",
+    'ssh foundry-pi "MODE=up TEST_ALLOW_CUTOVER=\'1\' bash -s" < stage.sh',
     "ssh foundry-pi 'docker rm -f $(docker ps -aq)'",
     "ssh foundry-pi 'docker system prune -af'",
     "ssh foundry-pi 'docker kill foundry-ai-tool-pi-foundry-1'",
@@ -508,4 +508,39 @@ test('the older gaps from the PR #146 review are closed', () => {
   ]) {
     assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
   }
+});
+
+test('the player connector Cloudflare script asks with --apply (it runs ssh itself) and is free as a plan', () => {
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi',
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com --apply',
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --rotate --send-to foundry-pi',
+    'CLOUDFLARE_API_TOKEN=x node ./scripts/pi/player-connector-cloudflare.mjs --apply',
+  ]) {
+    assert.equal(kind(c), 'ask', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs',
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com',
+    'node --test scripts/pi/player-connector-cloudflare.test.mjs',
+  ]) {
+    assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+});
+
+test('a Cloudflare --apply chained with a denied remote command still denies; a continued line still asks', () => {
+  const chained =
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi && ssh foundry-pi wipefs -a /dev/sda';
+  assert.equal(kind(chained), 'deny', JSON.stringify(decide(chained, repo)));
+  const continued = 'node scripts/pi/player-connector-cloudflare.mjs \\\n  --apply --send-to foundry-pi';
+  assert.equal(kind(continued), 'ask', JSON.stringify(decide(continued, repo)));
+  const mixed = decide(
+    'node scripts/pi/player-connector-cloudflare.mjs --apply && ssh foundry-pi systemctl restart foo',
+    repo,
+  );
+  assert.equal(mixed?.decision, 'ask');
+  assert.ok(
+    mixed.reasons.some(r => r.includes('Cloudflare')),
+    JSON.stringify(mixed),
+  );
 });

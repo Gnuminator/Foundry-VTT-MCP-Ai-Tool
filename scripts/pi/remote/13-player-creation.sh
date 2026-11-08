@@ -45,7 +45,7 @@ require_arm64
 # module.zip. For a newer build, set PINNED_SHA256=PENDING-RELEASE until its release exists: the stage then
 # refuses to run unless the environment gives it a zip and a checksum (STUDIO_ZIP and STUDIO_SHA256).
 PINNED_VERSION=2.10.5-aitool.9
-PINNED_SHA256=eefa7733499bef8501735191618eb6972ce9f0de64738c585923f3c3ecc2db8e
+PINNED_SHA256=d0906a326758b9f6ea300947c131a7bd88a76f8aa8cc62f792dd6d36b98a93eb
 MODULE_ID=foundryvtt-actor-studio
 RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/download
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)

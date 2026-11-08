@@ -2,8 +2,7 @@
 // Run with Foundry on the copy stopped:
 //   node scripts/test-env/campaign-copy-users.mjs <foundry app folder> <world data folder>
 // For example: <app>=C:\FoundryTest\app-14.370-official, <world>=C:\FoundryCampaign\data\Data\worlds\curse-of-strahd
-// It reads and writes only the world's `users` LevelDB inside the copy. Prints user names and roles,
-// never password values.
+// It reads and writes only the world's `users` and `settings` LevelDBs inside the copy. Prints counts only.
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -26,20 +25,24 @@ const EMPTY_PASSWORD = {
   passwordSalt: '0402a6847ee45a113e586ec100be6c0e322eea5ea3c84146aa30a54a29fc3723',
 };
 let changed = 0;
+let seen = 0;
 for await (const [key, value] of db.iterator()) {
   if (!key.startsWith('!users!')) continue;
   const user = JSON.parse(value);
-  const label = `${String(user.name)} (role ${Number(user.role)})`;
   const already = user.password === EMPTY_PASSWORD.password && user.passwordSalt === EMPTY_PASSWORD.passwordSalt;
   if (!already) {
     Object.assign(user, EMPTY_PASSWORD);
     await db.put(key, JSON.stringify(user));
     changed += 1;
   }
-  console.log(`${label}${already ? ': already passwordless' : ': password cleared'}`);
+  seen += 1;
 }
 await db.close();
-console.log(`${changed} user(s) changed.`);
+console.log(`${seen} user(s) found, ${changed} changed.`);
+if (seen === 0) {
+  console.error('No users found: wrong world folder?');
+  process.exit(1);
+}
 
 // The bridge module must never dial a real bridge: drop a stored link port or host so the module
 // manifest's default (the dead port campaign-copy.ps1 patches in) applies.

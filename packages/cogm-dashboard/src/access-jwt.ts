@@ -137,8 +137,11 @@ export class AccessJwtVerifier {
     return this.keys.get(kid) ?? null;
   }
 
-  /** The verified email of a token, or null for anything that does not check out. */
-  async verify(token: string): Promise<AccessIdentity | null> {
+  /**
+   * The claims of a token whose signature, expiry, issuer and audience all check out, or null.
+   * Shared by the email check and the service-token check; neither reads the other's claims.
+   */
+  private async verifiedClaims(token: string): Promise<Record<string, unknown> | null> {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const [head, body, sig] = parts as [string, string, string];
@@ -168,7 +171,50 @@ export class AccessJwtVerifier {
     if (payload.iss !== this.issuer) return null;
     const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
     if (!aud.some(a => typeof a === 'string' && this.config.audiences.includes(a))) return null;
+    return payload;
+  }
+
+  /**
+   * False while no signing key is known (the key fetch failed or returned none): a refusal then
+   * says nothing about the token, only that nothing can be checked yet.
+   */
+  get hasKeys(): boolean {
+    return this.keys.size > 0;
+  }
+
+  /** The verified email of a token, or null for anything that does not check out. */
+  async verify(token: string): Promise<AccessIdentity | null> {
+    const payload = await this.verifiedClaims(token);
+    if (!payload) return null;
     if (typeof payload.email !== 'string' || !payload.email.includes('@')) return null;
     return { email: payload.email.trim().toLowerCase() };
   }
+
+  /**
+   * A service token's client id (D-136, the player connector). Cloudflare Access signs a service
+   * token's JWT without an email; the token's Client ID is its `common_name` claim (confirmed
+   * only by third-party code so far: the first real request settles it, see `claimNames`).
+   * A token that carries an email is a person, never a service token: refused here, so a GM's
+   * login cannot reach the player endpoint. Use a verifier built with the player application's
+   * AUD tag only.
+   */
+  async verifyServiceToken(token: string): Promise<ServiceTokenResult> {
+    const payload = await this.verifiedClaims(token);
+    if (!payload) return { ok: false, reason: 'invalid' };
+    if (typeof payload.email === 'string' && payload.email !== '') {
+      return { ok: false, reason: 'has-email' };
+    }
+    const id = payload.common_name;
+    if (typeof id !== 'string' || id.trim() === '') {
+      // Names only, never values: this is how the spike gets answered from the first real call.
+      return { ok: false, reason: 'no-client-id', claimNames: Object.keys(payload).sort() };
+    }
+    return { ok: true, clientId: id.trim() };
+  }
 }
+
+/** The outcome of {@link AccessJwtVerifier.verifyServiceToken}. */
+export type ServiceTokenResult =
+  | { ok: true; clientId: string }
+  | { ok: false; reason: 'invalid' | 'has-email' }
+  | { ok: false; reason: 'no-client-id'; claimNames: string[] };

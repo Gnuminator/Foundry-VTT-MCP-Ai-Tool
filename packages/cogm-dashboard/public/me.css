@@ -103,6 +103,52 @@ main {
   margin: 0 auto;
 }
 
+/* ---- Your Claude connector (D-136) ---- */
+.me-connector {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--line);
+}
+.me-connector summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.me-connector dl {
+  margin: 0.6rem 0 0;
+}
+.me-connector dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+.me-connector dd {
+  margin: 0.2rem 0 0;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.me-connector input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  font:
+    0.9rem ui-monospace,
+    monospace;
+}
+.me-connector button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+
 /* ---- At the table ---- */
 .fancy {
   display: grid;

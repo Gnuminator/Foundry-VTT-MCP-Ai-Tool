@@ -52,6 +52,8 @@ import { mountHandoutSeenRoute } from './handout-seen-route.js';
 import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes-route.js';
 import { mountHelpRoute } from './help-route.js';
 import { mountMeRoute } from './me-route.js';
+import { playerConnectorFromEnv, type PlayerConnectorOptions } from './player-connector.js';
+import { mountPlayerRoute } from './player-route.js';
 import { mountSpaceRoute } from './space-route.js';
 import { VersionTracker, defaultKitLastRunFile, mountVersionsRoute } from './versions.js';
 import { PlayerLinkStore } from './player-links.js';
@@ -107,6 +109,9 @@ export interface DashboardClient {
     target: 'portrait' | 'both',
     data: string
   ): Promise<unknown>;
+  /** The player connector (D-136): the five tool definitions and one tool run; absent on fakes. */
+  listPlayerTools?(): Promise<unknown>;
+  playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;
@@ -122,6 +127,8 @@ export interface DashboardDeps {
   helpFile?: string | URL;
   /** Fetches Cloudflare Access's public keys (I-022); default the global fetch. Tests stub it. */
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
+  /** The player connector (D-136); default from the environment (`FOUNDRY_AI_PLAYER_CONNECTOR*`). */
+  playerConnector?: PlayerConnectorOptions;
   /** The storage space check's status file; default env FOUNDRY_AI_SPACE_STATUS, else the Pi's path. */
   spaceStatusFile?: string;
   /** Test clock for the space check's age. */
@@ -629,6 +636,18 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     directory: playerDirectory,
     onRecorded: () => sse.broadcast('handouts-seen', {}, gmOnly),
   });
+  // The player connector (D-136): /mcp/player, before the app-wide parser (it parses its own).
+  const playerConnector =
+    deps.playerConnector ??
+    playerConnectorFromEnv(process.env, message => logger.child('player-connector').warn(message));
+  mountPlayerRoute(app, {
+    config,
+    connector: playerConnector,
+    client,
+    directory: playerDirectory,
+    logger,
+    ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
+  });
   app.use(express.json({ limit: '256kb' }));
   // The player page and the /open confirm page get their headers from inside express.static,
   // by file name and file identity, so no URL spelling (`/player%2Ehtml`, `/Player.html`,
@@ -741,6 +760,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   mountMeRoute(app, {
     client,
     links: playerLinks,
+    connector: playerConnector.enabled ? playerConnector.store : null,
     directory: playerDirectory,
     requireGm,
     logger,

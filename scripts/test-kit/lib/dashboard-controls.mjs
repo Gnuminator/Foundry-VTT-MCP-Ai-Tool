@@ -632,7 +632,7 @@ export const DASHBOARD_CONTROLS = [
     needs: 'picker-tool',
     selector: '#tool-form .ref-open',
     expect: '#tool-form .ref-menu',
-    // Required: the tool runner always has tools with a Pick button (plan-actor-change and more).
+    // Required: the Tool Runner always has tools with a Pick button (plan-actor-change and more).
   },
   {
     name: 'dash.tools.pick-choice',

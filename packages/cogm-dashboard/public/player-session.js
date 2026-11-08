@@ -1,5 +1,5 @@
 // The player page follows the session (I-111, D-092): during a session the live cards come first
-// (combat order, session feed, handouts); between sessions the campaign cards come first (last
+// (combat order, Live Feed, handouts); between sessions the campaign cards come first (last
 // recap, handouts, quests). Pure functions over the projected player state, so they test without a
 // browser. Nothing here widens what the server sends.
 

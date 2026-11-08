@@ -1,5 +1,5 @@
 // "Use Foundry targets" (item foundry-targets-picker): the tokens the GM has targeted in Foundry,
-// or failing that selected on the canvas, fill the combat pick and the Tool runner's token fields
+// or failing that selected on the canvas, fill the combat pick and the Tool Runner's token fields
 // (group save, roll request, Damage / Heal). Read through get-targets; nothing is written.
 import { callTool } from './api';
 

@@ -5,7 +5,7 @@
 // apply puts it on, with Undo. End combat plans, asks once and applies (lib/endCombat.ts, the same
 // flow as the live strip's). Damage / Heal opens the small form (DamageForm), which plans and
 // applies in one click with Undo; the roll row (StripRolls) asks players for checks and saves.
-// Nothing here opens the Tool runner. The rules are in lib/combat.ts; moments.css lays the strip
+// Nothing here opens the Tool Runner. The rules are in lib/combat.ts; moments.css lays the strip
 // out per During layout and fight.
 //
 // What is new: the reaction button is only on a living boss, the switch is there whenever Boss

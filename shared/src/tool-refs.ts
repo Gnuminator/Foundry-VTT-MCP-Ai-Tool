@@ -3,7 +3,7 @@
  *
  * A tool parameter that names a Foundry document (a token, an actor, a journal
  * page, ...) or another choosable thing (a pending plan, a Tarokka card) carries
- * an `x-foundry-ref` annotation in its input schema. The dashboard's tool runner
+ * an `x-foundry-ref` annotation in its input schema. The dashboard's Tool Runner
  * reads it and offers a searchable list of the current candidates next to the
  * manual input; the read-only `list-ref-choices` tool supplies the candidates.
  *

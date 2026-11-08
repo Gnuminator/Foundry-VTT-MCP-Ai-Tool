@@ -1,6 +1,6 @@
 /**
  * Small helpers for driving the GM dashboard page (the React app in packages/cogm-dashboard/web/src, served at /)
- * with Playwright: the Advanced menu, the During screen's cards, the tool runner form, the confirm
+ * with Playwright: the Advanced menu, the During screen's cards, the Tool Runner form, the confirm
  * window, the toasts with their Undo. Used by the write flow scenario (slice 4). Element ids come from
  * web/src; keep them in step. These helpers only click and read; they never call the
  * dashboard's API themselves.

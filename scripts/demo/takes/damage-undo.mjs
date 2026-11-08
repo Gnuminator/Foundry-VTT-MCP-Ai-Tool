@@ -1,4 +1,4 @@
-// Take: damage on several targets at once from the During view's turn-order strip, one click
+// Take: damage on several targets at once from the During view's Combat Tracker, one click
 // with dnd5e working out a resistance (D-086), then Undo in Recent Changes. Something Foundry's
 // own UI does one token at a time (I-095).
 //
@@ -57,7 +57,7 @@ export async function setup(t) {
     if (hp === null) throw new Error(`No token "${name}" with HP on the active scene.`);
   }
   // Show HP bars to the viewer and start a fight with the three (not saved: the world is reset
-  // next time). The dashboard's turn-order strip shows a running combat only.
+  // next time). The dashboard's Combat Tracker shows a running combat only.
   await gm.page.evaluate(async names => {
     const scene = globalThis.canvas.scene;
     const tokens = scene.tokens.filter(t => names.includes(t.name));
@@ -94,7 +94,7 @@ export async function run(t) {
     await t.pause(800);
   });
 
-  await t.step('select', 'Pick the three creatures in the turn-order strip', async () => {
+  await t.step('select', 'Pick the three creatures in the Combat Tracker', async () => {
     for (const name of TARGETS) {
       await humanClick(page.locator(`#pane-combat .combatant[data-name="${name}"]`));
       await t.pause(400);

@@ -1163,7 +1163,7 @@ body {
 }
 
 /* =============================================================================
-   GM ACTIONS — master toggle, combat action bar, tool runner drawer, modal
+   GM ACTIONS — master toggle, combat action bar, Tool Runner drawer, modal
    ============================================================================= */
 
 /* ---- Master GM Actions toggle (armed = write surface live) ---- */
@@ -1248,7 +1248,7 @@ body {
   color: var(--accent-bright);
 }
 
-/* ---- Drawer (off-canvas tool runner) ---- */
+/* ---- Drawer (off-canvas Tool Runner) ---- */
 .drawer-backdrop {
   position: fixed;
   inset: 0;

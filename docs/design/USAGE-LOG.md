@@ -6,7 +6,7 @@ they never use. Local only (bridge vault), GM Obsidian vault only. Contract: `sh
 ## Events
 
 `UsageEvent` (see the contract): `kind` is `view` (with visible `durationMs`), `action`, `tool`
-(dashboard tool runner, `outcome`, `code`), `shortcut` or `error` (`code` only). `name` is a fixed
+(dashboard Tool Runner, `outcome`, `code`), `shortcut` or `error` (`code` only). `name` is a fixed
 control name: `dash.*`, `tool.<tool-name>`, `player.*`, `module.*`. Never typed text, tool
 arguments, setting values, document ids or error messages. `sanitizeUsageEvent` drops every other
 field.

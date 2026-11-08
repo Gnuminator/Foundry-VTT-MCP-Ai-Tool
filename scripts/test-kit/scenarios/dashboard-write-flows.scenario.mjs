@@ -1,6 +1,6 @@
 /**
  * The dashboard's write flows, clicked in a real browser (slice 4). Every flow drives the REAL page
- * (the tool runner form, the confirm window, the toast Undo, Recent Changes Undo, the Tarokka, Party and
+ * (the Tool Runner form, the confirm window, the toast Undo, Recent Changes Undo, the Tarokka, Party and
  * Handouts drawers, the player links, the Everyone tab's undo window and Redo), then reads Foundry (or
  * the bridge) to see that the change is really there, undoes it, and reads again to see that it is
  * exactly gone. Each flow is one step that goes on after a failure, checks the page logged no new
@@ -184,7 +184,7 @@ export default {
     const total = (/** @type {any} */ s) => s.hp.value + (s.hp.temp || 0);
 
     /**
-     * Damage the hero through the tool runner form and the confirm window; returns the HP before.
+     * Damage the hero through the Tool Runner form and the confirm window; returns the HP before.
      * @param {any} h @param {number} [amount]
      */
     const damageThroughForm = async (h, amount = 2) => {
@@ -199,7 +199,7 @@ export default {
       });
       await submitToolForm(page);
       const { modal } = await settleWrite(page);
-      t.check(modal, 'the tool runner form opens the confirm window');
+      t.check(modal, 'the Tool Runner form opens the confirm window');
       t.check(/Confirm action/i.test(modal?.title ?? ''), `the window is titled "${modal?.title}"`);
       t.check(modal?.destructive === false, 'a damage plan does not ask for the destructive box');
       t.check(
@@ -283,10 +283,10 @@ export default {
       return `${gmWasOn ? 'GM Actions were on' : 'GM Actions turned on (put back at the end)'}${switched}`;
     });
 
-    // --- (a) the tool runner form, the confirm window, Recent Changes Undo -----------------------
+    // --- (a) the Tool Runner form, the confirm window, Recent Changes Undo -----------------------
 
     await flow(
-      'tool runner: damage a hero, confirm in the window, Undo from Recent Changes',
+      'Tool Runner: damage a hero, confirm in the window, Undo from Recent Changes',
       'flow-a-recent-changes.png',
       async () => {
         const h = hero();
@@ -340,10 +340,10 @@ export default {
       }
     );
 
-    // --- (f) a note: a map pin through the tool runner -------------------------------------------
+    // --- (f) a note: a map pin through the Tool Runner -------------------------------------------
 
     await flow(
-      'tool runner: a map note on the scene, taken back with the toast Undo',
+      'Tool Runner: a map note on the scene, taken back with the toast Undo',
       'flow-f-map-note.png',
       async () => {
         const marker = `Kit note ${randomBytes(3).toString('hex')}`;
@@ -355,7 +355,7 @@ export default {
         });
         await submitToolForm(page);
         const { modal } = await settleWrite(page);
-        t.check(modal, 'the tool runner form opens the confirm window');
+        t.check(modal, 'the Tool Runner form opens the confirm window');
         await waitToast(page, 'undo');
         await closeTools(page);
         const choices = async () =>

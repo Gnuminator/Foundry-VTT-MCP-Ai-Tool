@@ -19,7 +19,7 @@ a.btn {
   align-items: center;
 }
 
-/* The Tool runner: the list and the form scroll on their own under the gate bar, as in the old
+/* The Tool Runner: the list and the form scroll on their own under the gate bar, as in the old
    drawer (the shared drawer body scrolls as a whole). */
 .tarokka-body.tool-runner-body {
   display: flex;
@@ -368,7 +368,7 @@ main.moment-views #moment-during.during-no-bar {
   font-size: var(--fs-xs);
 }
 
-/* Tool runner form (design pass, I-149 trial): parameter names read as identifiers, the helper
+/* Tool Runner form (design pass, I-149 trial): parameter names read as identifiers, the helper
    text is readable, and Run stays in view under a long form. Tokens only. */
 .tool-runner-body .tool-detail {
   gap: var(--space-3);

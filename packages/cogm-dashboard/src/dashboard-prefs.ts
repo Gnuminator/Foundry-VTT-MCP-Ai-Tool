@@ -1,6 +1,6 @@
 /**
  * The GM's screen choices for a world (D-092, I-107): which During layout the dashboard uses,
- * whether the combat buttons (Damage / Heal, Condition, Clear) show in the turn-order strip,
+ * whether the combat buttons (Damage / Heal, Condition, Clear) show in the Combat Tracker,
  * and how far the layout trial has come. Stored like the theme (theme.ts): one JSON file keyed
  * by world id, so the choice follows the GM to any browser or device. Without a file (tests, or
  * no state folder) the choices live in memory only. Not game state and never sent to players.

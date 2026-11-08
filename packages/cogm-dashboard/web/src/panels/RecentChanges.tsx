@@ -66,7 +66,7 @@ import { Button, Panel, panelStateOf } from '../ui';
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
 const EVERYONE_KEY = [...CHANGES_KEY, 'everyone'] as const;
 
-/** The tool catalog (the Tool runner's query, same key and answer): tells if `list-changes` exists. */
+/** The tool catalog (the Tool Runner's query, same key and answer): tells if `list-changes` exists. */
 const TOOLS_KEY = ['tools'] as const;
 
 /** A time as the browser words it; the raw text when it is not one. */
@@ -335,7 +335,7 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
   const cardRef = useRef<HTMLElement>(null);
 
   // The Game and Everything tabs need the bridge's list-changes: an older bridge has none and
-  // the Tool list stands alone (the catalog is the Tool runner's, kept by the server for a minute).
+  // the Tool list stands alone (the catalog is the Tool Runner's, kept by the server for a minute).
   const catalog = useQuery({
     queryKey: TOOLS_KEY,
     queryFn: () => api<{ tools?: { name: string }[] }>('/api/tools'),

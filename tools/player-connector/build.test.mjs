@@ -245,6 +245,50 @@ test('a 403 on initialize and tools/list is answered locally with the reason', a
   assert.match(replies[2].error.message, /HTTP 403/);
 });
 
+test('after a failed initialize the table comes back: one new session, list_changed, status call', async () => {
+  mode = 'status401';
+  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const fwd = createForwarder(
+    {
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+    (...a) => fetch(...a)
+  );
+  let recovered = 0;
+  fwd.onRecovered = () => recovered++;
+  const ask = (id, method, params) => handleMessage({ jsonrpc: '2.0', id, method, params }, fwd);
+  const init = await ask(1, 'initialize', { protocolVersion: '2025-06-18' });
+  assert.equal(init.result.capabilities.tools.listChanged, true);
+  const down = await ask(2, 'tools/call', { name: 'connection-status' });
+  assert.equal(down.result.isError, true);
+  assert.match(down.result.content[0].text, /refused the login/);
+  assert.equal(recovered, 0);
+  mode = 'ok';
+  seen.length = 0;
+  const [a, b] = await Promise.all([ask(3, 'tools/list'), ask(4, 'resources/list')]);
+  assert.equal(a.result.method, 'tools/list');
+  assert.equal(b.result.method, 'resources/list');
+  assert.equal(recovered, 1);
+  assert.equal(seen.filter(s => JSON.parse(s.body).method === 'initialize').length, 1);
+  const status = await ask(5, 'tools/call', { name: 'connection-status' });
+  assert.match(status.result.content[0].text, /Connected to the table/);
+});
+
+test('network down: initialize and tools/list are answered locally, no secret shown', async () => {
+  const { replies } = await run(
+    [
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    ],
+    { FOUNDRY_PLAYER_ENDPOINT: 'http://127.0.0.1:1/mcp/player' }
+  );
+  assert.equal(replies[0].result.serverInfo.name, 'foundry-player');
+  assert.match(replies[1].result.tools[0].description, /Could not reach the table/);
+  assert.ok(!JSON.stringify(replies).includes(SECRET));
+});
+
 test('a 500 is mapped to a server-problem text', async () => {
   mode = 'status500';
   const { replies } = await run([call(1)]);

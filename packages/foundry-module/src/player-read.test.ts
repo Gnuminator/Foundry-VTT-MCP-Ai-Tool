@@ -359,7 +359,7 @@ describe('warmPlayerIndexes', () => {
     const built: string[] = [];
     const spy = vi.spyOn(rulesSearch, 'warmScoped');
     const n = await warmPlayerIndexes({ rulesSearch });
-    const warmed = spy.mock.calls[0]![0].map((p: any) => p.metadata.id);
+    const warmed = spy.mock.calls[0][0].map((p: any) => p.metadata.id);
     expect(n).toBe(warmed.length);
     expect(warmed.length).toBeGreaterThan(0);
     // A pack nobody may observe and the denied adventure pack stay cold.

@@ -98,11 +98,14 @@ function fromEventStream(text, id) {
 }
 
 function createForwarder(env, fetchImpl) {
-  const secrets = [env.FOUNDRY_PLAYER_CLIENT_ID, env.FOUNDRY_PLAYER_CLIENT_SECRET];
+  // Pasted values often carry a trailing space or newline; a newline would make fetch throw.
+  const clientId = (env.FOUNDRY_PLAYER_CLIENT_ID || '').trim();
+  const clientSecret = (env.FOUNDRY_PLAYER_CLIENT_SECRET || '').trim();
+  const secrets = [clientId, clientSecret];
   const timeoutMs =
     Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) > 0 ? Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) : 30000;
   const endpoint = parseEndpoint(env.FOUNDRY_PLAYER_ENDPOINT);
-  const missing = !env.FOUNDRY_PLAYER_CLIENT_ID || !env.FOUNDRY_PLAYER_CLIENT_SECRET;
+  const missing = !clientId || !clientSecret;
   let sessionId = null;
 
   /** Returns {message} (a JSON-RPC response object) or {failure: text}. */
@@ -120,8 +123,8 @@ function createForwarder(env, fetchImpl) {
       const headers = {
         'content-type': 'application/json',
         accept: 'application/json, text/event-stream',
-        'cf-access-client-id': env.FOUNDRY_PLAYER_CLIENT_ID,
-        'cf-access-client-secret': env.FOUNDRY_PLAYER_CLIENT_SECRET,
+        'cf-access-client-id': clientId,
+        'cf-access-client-secret': clientSecret,
         'user-agent': `foundry-player-connector/${VERSION}`,
       };
       if (sessionId) headers['mcp-session-id'] = sessionId;

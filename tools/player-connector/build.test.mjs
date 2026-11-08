@@ -130,6 +130,18 @@ test('forwards initialize, tools/list and tools/call with the two Access headers
   assert.equal(r3.result.params.name, 'get-my-character');
 });
 
+test('trims spaces and newlines around the pasted values', async () => {
+  mode = 'ok';
+  seen.length = 0;
+  const { replies } = await run([call(1)], {
+    FOUNDRY_PLAYER_CLIENT_ID: `  ${ID}\n`,
+    FOUNDRY_PLAYER_CLIENT_SECRET: `${SECRET} \r\n`,
+  });
+  assert.equal(replies[0].result.method, 'tools/call');
+  assert.equal(seen[0].headers['cf-access-client-id'], ID);
+  assert.equal(seen[0].headers['cf-access-client-secret'], SECRET);
+});
+
 test('answers ping locally', async () => {
   seen.length = 0;
   const { replies } = await run([{ jsonrpc: '2.0', id: 'p', method: 'ping' }]);

@@ -44,8 +44,8 @@ You need:
   who runs the tool sends them to you privately, and you can also see them on your own **My
   character** page under **Your Claude connector** (there are copy buttons next to each).
   Treat the secret like a password: do not post it in Discord, do not put it in a screenshot.
-- The file `foundry-player.mcpb` and the file `foundry-dnd-helper-player.zip`. The person who runs
-  the tool tells you where to download them.
+- Two files, which you download in step 2. You do not need Claude Desktop installed yet: step 1
+  does that.
 
 ## Step 1: install Claude Desktop and sign in
 
@@ -53,38 +53,52 @@ You need:
 2. Run the installer and open the app.
 3. Sign in with your own account. If you do not have one, create one with your email address. A
    free account may be enough to try the helper. If a step below mentions a menu you do not have
-   (Customize or Skills, say), your plan may not include it: tell the person who runs the tool
+   (Extensions or Skills, say), your plan may not include it: tell the person who runs the tool
    which one.
 4. Open a chat and send "hello" to check that it answers. If it does, the app works.
 
 Anthropic changes the menus now and then. If a button is not where this guide says, look for the
 same word nearby, or use the search box in Settings.
 
-## Step 2: add the extension and paste your two values
+## Step 2: download the two files
 
-1. Find `foundry-player.mcpb` in your Downloads folder and **double-click** it. Claude Desktop
-   opens and shows an install window for it. (If nothing happens, open Claude Desktop, go to
-   **Settings**, then **Extensions**, and drag the file into that window.)
-2. Click **Install**. Claude may warn that extensions run on your computer. This one only talks
+Click each link. Your browser saves the file in your **Downloads** folder.
+
+- **The extension:**
+  [foundry-player.mcpb](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-player.mcpb)
+- **The skill:**
+  [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
+
+The links always give you the newest version. If your browser asks whether to keep a file it
+does not know, choose **Keep**. Do not open or unzip either file yet.
+
+## Step 3: add the extension and paste your two values
+
+1. In Claude Desktop open **Settings**, then **Desktop**, then **Extensions**.
+2. Drag `foundry-player.mcpb` from your Downloads folder into that window. (Double-clicking the
+   file in Downloads also works on most computers: Claude Desktop opens with the same install
+   window.)
+3. Click **Install**. Claude may warn that extensions run on your computer. This one only talks
    to our game server, and the file itself holds no book text and no secret.
-3. A form asks for two things. Paste your **Client ID** into the first box and your **Client
+4. A form asks for two things. Paste your **Client ID** into the first box and your **Client
    Secret** into the second. The secret box hides what you type.
-4. Make sure the extension is switched **on** (a toggle next to its name in Settings,
+5. Make sure the extension is switched **on** (a toggle next to its name in Settings, Desktop,
    Extensions).
-5. Quit Claude Desktop completely (right-click its icon by the clock and choose Quit, closing the
+6. Quit Claude Desktop completely (right-click its icon by the clock and choose Quit, closing the
    window is not enough) and open it again.
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
 You should see **Foundry** (or **foundry-player**) listed with five tools. If you do, the plug is
 in.
 
-## Step 3: add the skill
+## Step 4: add the skill
 
-1. In Claude Desktop open **Customize**, then **Skills**.
-2. Choose to add a skill and pick `foundry-dnd-helper-player.zip`. **Do not unzip it first.**
+1. In Claude Desktop open **Settings**, then **Customize**, then **Skills**.
+2. Choose to add a skill and pick `foundry-dnd-helper-player.zip` from your Downloads folder.
+   **Do not unzip it first.**
 3. Make sure the skill is switched on.
 
-## Step 4: your first question
+## Step 5: your first question
 
 Start a new chat and ask:
 
@@ -192,8 +206,8 @@ This is by design, and it also protects the story.
 - **Not live.** It reads your sheet when it asks. If you change something in Foundry, say so and
   ask it to look again.
 
-Sometimes a result carries a note such as "2 results hidden". That is normal. Some text is held
-back on purpose. Do not try to get around it, just ask the GM.
+Sometimes a search finds less than you expected. That is normal: some text is held back on
+purpose, without a note saying so. Do not try to get around it, just ask the GM.
 
 Also remember that your chats with Claude go to Anthropic under your own account, like any chat.
 Nothing you say to the helper is sent to the other players.
@@ -201,7 +215,7 @@ Nothing you say to the helper is sent to the other players.
 ## Troubleshooting
 
 **Claude does not mention Foundry at all, or says it has no tool for that.**
-Open Settings, Extensions and check the Foundry extension is switched on. Then quit Claude Desktop
+Open Settings, Desktop, Extensions and check the Foundry extension is switched on. Then quit Claude Desktop
 completely and reopen it. Start a **new** chat: an old chat does not pick up new tools.
 
 **It says "not found" about my character.**
@@ -211,7 +225,7 @@ character yet, that is correct: make one first. If the name is right, your value
 that you own it.
 
 **An error, "unauthorized", "forbidden" or "could not connect".**
-Almost always the two values. Open Settings, Extensions, the Foundry extension, and check that the
+Almost always the two values. Open Settings, Desktop, Extensions, the Foundry extension, and check that the
 Client ID and Client Secret were pasted whole, with no space at the start or end and nothing
 missing. Paste them again from your **My character** page with the copy buttons. If they are right,
 the game server may be down. Ask the person who runs the tool.
@@ -225,7 +239,7 @@ The table may not allow that book for players, or the entry's name may differ. T
 word ("grapple" and "grappled"), or ask for a search by what the thing does.
 
 **The skill is not used.**
-Open Customize, Skills and check "foundry-dnd-helper-player" is on. Start your message with "Use
+Open Settings, Customize, Skills and check "foundry-dnd-helper-player" is on. Start your message with "Use
 the D&D helper skill to..." the first time.
 
 **It claims it changed my character.**
@@ -233,10 +247,10 @@ It cannot, and it should never say so. Check your sheet in Foundry, then tell th
 the tool. The helper only reads.
 
 **Claude Desktop will not open the `.mcpb` file.**
-Update Claude Desktop (a recent version is needed), then drag the file into Settings, Extensions.
+Update Claude Desktop (a recent version is needed), then drag the file into Settings, Desktop, Extensions.
 
 **I want to start over.**
-Remove the extension in Settings, Extensions, and install it again from the file. Your values are
+Remove the extension in Settings, Desktop, Extensions, and install it again from the file (download it again from step 2 if it is gone). Your values are
 asked for again.
 
 ## Getting new values
@@ -248,7 +262,7 @@ person who runs the tool tells you they were reset.
    connector**. If the card shows a new pair, use the copy buttons.
 2. If it does not, message the person who runs the tool and ask for new values. Say which
    character is yours. They send them privately.
-3. In Claude Desktop open Settings, Extensions, the Foundry extension and replace the Client ID
+3. In Claude Desktop open Settings, Desktop, Extensions, the Foundry extension and replace the Client ID
    and the Client Secret. Quit and reopen Claude Desktop.
 4. Ask whether your old values still work. If you lost the secret, that does not matter. If
    someone else saw it, ask for the old values to be switched off too.

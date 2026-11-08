@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: e1bff6af492d
+sourceHash: 18a951e0e929
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -13,6 +13,8 @@ læser. Korte how-tos står i [spillerens kogebog](cookbook.md).
 
 Er du ny ved bordet? Start med [Kom med i spillet](join.md) (adressen, login, Discord), og derefter
 [Lav din karakter](make-a-character.md).
+Vil du have en AI-hjælper til din egen karakter og reglerne? Se [D&D-hjælperen til
+spillere](dnd-helper.md).
 
 ## Det kan du se
 

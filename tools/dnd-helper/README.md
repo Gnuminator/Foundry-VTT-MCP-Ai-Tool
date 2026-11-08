@@ -13,7 +13,8 @@ Design and decisions: vault `Design/D&D helper design 2026-10-24.md`, I-152.
 npm run dnd-helper
 ```
 
-Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (and the unpacked folder). Pages come from
+Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (GM edition, core connector) and
+`foundry-dnd-helper-player.zip` (player edition, see below), each with its unpacked folder. Pages come from
 `tools/dnd-helper/pages/`, plus the public player guides `docs/player/make-a-character.md` and
 `join.md`. Built like the GM coach (`tools/gm-coach`).
 
@@ -26,6 +27,17 @@ Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (and the unpacked folder).
    on; Play, Prep, Build and Admin are not needed.
 4. Try: "I want to make a new character", "What do I get at level 5 as my Fighter?", "How does
    grappling work?".
+
+## Player edition (D-136)
+
+`foundry-dnd-helper-player.zip` has the same flows (create, level up, rules, sheet check) on top
+of the read-only `player` tool set only: `get-my-character`, `get-my-level-up-options`,
+`search-books`, `find-book-entries`, `get-book-entry`. Its own files are in `tools/dnd-helper/player/`
+(SKILL.md, project instructions, level-up and rules pages); creation and sheet check are the GM
+pages with tool names swapped by `swap()` in `build.mjs`, which throws if a GM page changes under
+it. For "which is best" it links the Dungeon Mister 2024 guides as labelled opinion. A build test
+checks that it names no GM tool, holds no book text and has no em dash. Players follow
+`docs/player/dnd-helper.md`.
 
 ## Known limits
 

@@ -29,13 +29,14 @@ let changed = 0;
 for await (const [key, value] of db.iterator()) {
   if (!key.startsWith('!users!')) continue;
   const user = JSON.parse(value);
+  const label = `${String(user.name)} (role ${Number(user.role)})`;
   const already = user.password === EMPTY_PASSWORD.password && user.passwordSalt === EMPTY_PASSWORD.passwordSalt;
   if (!already) {
     Object.assign(user, EMPTY_PASSWORD);
     await db.put(key, JSON.stringify(user));
     changed += 1;
   }
-  console.log(`${user.name} (role ${user.role})${already ? ': already passwordless' : ': password cleared'}`);
+  console.log(`${label}${already ? ': already passwordless' : ': password cleared'}`);
 }
 await db.close();
 console.log(`${changed} user(s) changed.`);

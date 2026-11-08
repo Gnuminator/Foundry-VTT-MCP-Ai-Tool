@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 4fbcce17c5fc
+sourceHash: 8368c93c377f
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -35,14 +35,16 @@ Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunne
 
 Klienten opdaterer sig ikke selv. Når den, der byggede værktøjet, sender en ny
 `FoundryMCPServer-Setup-vX.Y.Z.exe`, installerer du den oven på den gamle: samme trin som under
-"Installer" ovenfor. Adressesiden er allerede udfyldt; hvis installationsprogrammet spørger efter
-Client ID og secret igen, så indsæt dem igen.
+"Installer" ovenfor. Siden "Bridge address" er allerede udfyldt, men installationsprogrammet spørger igen
+efter Client ID og secret, så hav nøglen klar og indsæt begge.
 
 Gør det, når Claude ser ud til at mangle værktøjer, som vejledningerne nævner. En gammel klient
-skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: spørg Claude i en ny chat _"Run
-get-preflight"_. Rækken **Claude Desktop connectors are up to date** er grøn, når du er opdateret.
-En advarsel betyder, at en gammel klient stadig er forbundet: afslut Claude Desktop fra systembakken,
-kør den nyeste installer, start Claude Desktop igen og spørg endnu en gang.
+skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: sørg for, at Prep-connectoren er slået til (**+**, derefter
+**Connectors**), og spørg så Claude i en ny chat _"Run get-preflight"_. Rækken **Claude Desktop
+connectors are up to date** er grøn, når du er opdateret. En advarsel betyder, at en gammel klient
+stadig er forbundet: afslut Claude Desktop fra systembakken (nær uret), kør den nyeste installer,
+start Claude Desktop igen og spørg endnu en gang. Siger rækken, at ingen connector er forbundet, er
+Claude Desktop ikke forbundet til serveren endnu; det er ikke et opdateringsproblem.
 
 ## Tjek, at det virker
 

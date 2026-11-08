@@ -46,6 +46,7 @@
     "docs:kit:check": "node scripts/docs-kit.mjs --check",
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
+    "player-connector": "node tools/player-connector/build.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
     "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
     "dev:test": "node --test \"scripts/dev/*.test.mjs\"",

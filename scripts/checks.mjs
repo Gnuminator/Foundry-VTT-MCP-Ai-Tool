@@ -181,6 +181,7 @@ export const CHECKS = [
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),
+  nodeTest('player-connector-test', 'tools', 'tools/player-connector/build.test.mjs'),
   {
     name: 'livekit-recorder-install',
     group: 'tools',

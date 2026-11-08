@@ -1,0 +1,49 @@
+{
+  "manifest_version": "0.3",
+  "name": "foundry-player",
+  "display_name": "Foundry player connector",
+  "version": "0.1.0",
+  "description": "Lets your own Claude read your character and the books from the table's Foundry. Read-only.",
+  "long_description": "Connects Claude Desktop to the table's read-only player endpoint over HTTPS. You paste the Client ID and Client Secret you were given; nothing else is installed. Claude can read your own character and short book passages, and cannot change anything.",
+  "author": { "name": "Foundry AI Tool" },
+  "license": "MIT",
+  "keywords": ["foundry", "dnd", "player"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "FOUNDRY_PLAYER_ENDPOINT": "${user_config.endpoint_url}",
+        "FOUNDRY_PLAYER_CLIENT_ID": "${user_config.client_id}",
+        "FOUNDRY_PLAYER_CLIENT_SECRET": "${user_config.client_secret}"
+      }
+    }
+  },
+  "user_config": {
+    "client_id": {
+      "type": "string",
+      "title": "Client ID",
+      "description": "The Client ID the table's host gave you.",
+      "required": true,
+      "sensitive": true
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "Client Secret",
+      "description": "The Client Secret the table's host gave you.",
+      "required": true,
+      "sensitive": true
+    },
+    "endpoint_url": {
+      "type": "string",
+      "title": "Endpoint address",
+      "description": "The https:// address of the player endpoint. Already filled in if the host built this file with one.",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["win32"]
+  }
+}

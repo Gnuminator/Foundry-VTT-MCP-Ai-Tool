@@ -288,7 +288,9 @@ export class PlayerTools {
         return {
           query: raw?.query ?? a.query,
           results: kept.slice(0, PLAYER_SEARCH_LIMIT),
-          ...(raw?.note ? { note: raw.note } : {}),
+          // Set from what is left, not from the module's note: "all filtered" and "nothing
+          // matched" must read the same.
+          ...(kept.length === 0 ? { note: 'Nothing found in the books you can read.' } : {}),
         };
       }
       case 'find-book-entries': {

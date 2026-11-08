@@ -197,6 +197,19 @@ describe('the last-line term filter', () => {
     }
   );
 
+  it('an all-filtered search reads the same as a search that found nothing', async () => {
+    const filtered = make({ query: 'xx', results: [hit('CANARY strahd lore')] });
+    const empty = make({
+      query: 'xx',
+      results: [],
+      note: 'Nothing found in the books you can read.',
+    });
+    const a = await filtered.tools.run('search-books', { query: 'xx' }, 'u');
+    const b = await empty.tools.run('search-books', { query: 'xx' }, 'u');
+    expect(a).toEqual(b);
+    expect(JSON.stringify(a)).not.toContain('CANARY');
+  });
+
   it('drops a result named by a live Tarokka card or a configured extra term', async () => {
     const { tools } = make(
       { results: [hit('The Raven Keeper waits', 'Card'), hit('CANARY-X lore'), hit('plain')] },

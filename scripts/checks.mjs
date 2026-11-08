@@ -356,6 +356,7 @@ export function isEntryModule(argv1, self) {
  */
 export function entryDecision(argv1, self) {
   if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && /^file:/i.test(argv1)) return 'import'; // a `node -e` import, as drift-check.mjs
   if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
     return 'mismatch';
   }

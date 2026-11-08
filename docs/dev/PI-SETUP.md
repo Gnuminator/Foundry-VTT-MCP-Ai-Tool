@@ -1452,9 +1452,9 @@ the time of the newest `dietpi-backup` snapshot (`backup.snapshotAt`, from the m
 file), whether `foundry.service` itself is active (`foundry.serviceActive`), the clock (`clock.ntpSynced`
 and the last measured NTP `clock.offsetMs`, null when systemd-timesyncd does not run), and
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`, and
-a `deployed` object (the ref from `.tool-ref`, the names of missing environment variables, whether
-libicu is present, the compose container state, its health and restart count; names and states
-only). No log lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
+a `deployed` object (the ref from `.tool-ref`, the missing environment variables as `file:NAME`, whether
+libicu is present, the compose container state, its health and restart count, `containers` null
+while docker.service is stopped; names and states only). No log lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
 Today, red when the backup is older than 30 hours or no report came for 3 hours.
 
 - **Token file (the user creates it, once):** `/etc/foundry-ai-tool/board-status.conf`, owner root,

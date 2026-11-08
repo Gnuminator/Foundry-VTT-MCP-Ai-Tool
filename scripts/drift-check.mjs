@@ -548,6 +548,8 @@ export function isEntryModule(argv1, self) {
  */
 export function entryDecision(argv1, self) {
   if (isEntryModule(argv1, self)) return 'run';
+  // lane-merge's `node -e` fallback passes the file: URL as argv[1]; that is an import, not a start.
+  if (argv1 && /^file:/i.test(argv1)) return 'import';
   if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
     return 'mismatch';
   }

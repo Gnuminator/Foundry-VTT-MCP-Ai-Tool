@@ -9,7 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runDriftCheck, pickRemote, entryDecision } from './drift-check.mjs';
 import { entryDecision as checksEntryDecision } from './checks.mjs';
 
@@ -24,6 +24,8 @@ test('entryDecision (drift-check.mjs and checks.mjs): run, mismatch for a same-n
     assert.equal(fn(path.join(os.tmpdir(), 'nope', name), self), 'mismatch');
     assert.equal(fn(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
     assert.equal(fn(undefined, self), 'import');
+    // lane-merge's `node -e` fallback passes the module's file: URL as argv[1].
+    assert.equal(fn(pathToFileURL(self).href, self), 'import');
   }
 });
 

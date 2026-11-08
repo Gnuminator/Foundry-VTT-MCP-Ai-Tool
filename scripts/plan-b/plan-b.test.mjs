@@ -230,6 +230,15 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.doesNotMatch(text, /'-C', \$L\.AppDir/);
   });
 
+  test('restore.ps1 retries the final app rename and puts the old app folder back when it fails', () => {
+    const text = readFileSync(path.join(here, 'restore.ps1'), 'utf8');
+    const retry = text.indexOf('for ($try = 1; $try -le 3');
+    const back = text.indexOf('Move-Item -LiteralPath $old -Destination $L.AppDir');
+    const fail = text.indexOf('could not move the new app folder into place');
+    assert.ok(retry > 0 && back > retry && fail > back, 'retry, then roll back, then say where the new folder is');
+    assert.match(text, /the unpacked new one is in \$newApp/);
+  });
+
   test('module port flag: set for a rehearsal, removed for game night, other flags kept', () => {
     const r = ps(`
       $plain = '{"id":"foundry-mcp-bridge","version":"0.21.0"}'

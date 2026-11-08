@@ -265,7 +265,9 @@ for (const kind of ['items', 'monsters']) {
     const hits = [...copyBlob(d.toObject()).matchAll(/Compendium\.(dnd5e\.[A-Za-z0-9_-]+)/g)];
     if (hits.length) {
       copyLinkOut.push(`${d.name ?? d.id}`);
-      for (const h of hits) if (hide.includes(h[1])) copyTargets.add(h[1]);
+      for (const h of hits)
+        if (hide.includes(h[1]) || ['dnd5e.items', 'dnd5e.monsters'].includes(h[1]))
+          copyTargets.add(h[1]);
     }
   }
 }

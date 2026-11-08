@@ -458,6 +458,25 @@ describe('seven-books-trim.js', () => {
     assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.classes/);
   });
 
+  test('a copied creature that links into dnd5e.items names that pack as hidden by the real run', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('dnd5e.monsters').docs.set(id(902), {
+      _id: id(902),
+      name: 'Armed Guard',
+      type: 'npc',
+      system: {},
+      items: [{ system: { description: { value: link('dnd5e.items', id(900)) } } }],
+    });
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd5e.monsters',
+      id(902),
+      'Actor'
+    );
+    const { lines } = await run(trimSource, world, true);
+    assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.items/);
+  });
+
   test('copied SRD creatures: links inside embedded features are found too', async () => {
     const world = standardWorld();
     wire(world);

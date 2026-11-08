@@ -10,7 +10,8 @@ page explains the extra bits: what you can see, what gets recorded, and what an 
 how-tos are in the [player cookbook](cookbook.md).
 
 New to the table? Start with [Join the game](join.md) (the address, logging in, Discord), then
-[Make your character](make-a-character.md).
+[Make your character](make-a-character.md). Want an AI helper for your own character and the
+rules? See [The D&D helper for players](dnd-helper.md).
 
 ## What you see
 

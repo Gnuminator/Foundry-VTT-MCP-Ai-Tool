@@ -19,6 +19,16 @@ import { fileURLToPath } from 'node:url';
 import { zip } from '../gm-coach/build.mjs';
 
 export const SKILL_NAME = 'foundry-dnd-helper';
+export const PLAYER_SKILL_NAME = 'foundry-dnd-helper-player';
+
+/** The tools of the read-only `player` set: the only tools the player edition may name. */
+export const PLAYER_TOOLS = [
+  'get-my-character',
+  'get-my-level-up-options',
+  'search-books',
+  'find-book-entries',
+  'get-book-entry',
+];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
@@ -51,34 +61,109 @@ export function collectFiles() {
 }
 
 /**
- * Build the skill folder and zip into `outDir`.
- * @param {string} outDir
- * @returns {{folder: string, zipFile: string, files: Map<string, string>}}
+ * Replace each [from, to] pair in `text`; throws when a pair no longer matches, so a change to the
+ * GM page cannot silently leave a GM tool name in the player edition.
+ * @param {string} text
+ * @param {Array<[string, string]>} pairs
+ * @param {string} label
  */
-export function build(outDir) {
+function swap(text, pairs, label) {
+  let out = text;
+  for (const [from, to] of pairs) {
+    if (!out.includes(from)) throw new Error(`player edition: "${from}" not found in ${label}`);
+    out = out.split(from).join(to);
+  }
+  return out;
+}
+
+/**
+ * Files of the player edition: the same flows with the tool names of the `player` set. Level-up and
+ * rules question are written for it (tools/dnd-helper/player/pages); creation and sheet check are
+ * the GM pages with their tool names swapped; the plan note and the public guides are shared.
+ * @returns {Map<string, string>}
+ */
+export function collectPlayerFiles() {
   const files = collectFiles();
-  const folder = path.join(outDir, SKILL_NAME);
+  const read = f => readFileSync(path.join(here, 'player', f), 'utf8');
+  files.set('SKILL.md', read('SKILL.md'));
+  files.set('references/level-up.md', read('pages/level-up.md'));
+  files.set('references/rules-question.md', read('pages/rules-question.md'));
+  files.set(
+    'references/character-creation.md',
+    swap(
+      files.get('references/character-creation.md'),
+      [
+        ['## 2. Look up options (connector, core set)', '## 2. Look up options (player connector)'],
+        [
+          '1. `list-compendium-packs` once to see which books are installed. The Actor Studio lists are\n   usually limited by the GM to the 2024 PHB module, so offer only choices that exist there.\n2. For each candidate class, species and background, `search-compendium` the exact name, then\n   `get-compendium-item` for the entry.',
+          '1. The Actor Studio lists are usually limited by the GM to the 2024 PHB module, so offer only\n   choices that exist there.\n2. For each candidate class, species and background, `find-book-entries` the exact name, then\n   `get-book-entry` for the entry.',
+        ],
+        ['look it up with\n   `search-compendium`;', 'look it up with\n   `find-book-entries`;'],
+        ['with `get-character`,', 'with `get-my-character`,'],
+      ],
+      'character-creation'
+    )
+  );
+  files.set(
+    'references/sheet-check.md',
+    swap(
+      files.get('references/sheet-check.md'),
+      [
+        [
+          '1. `list-characters` to find the actor (ask which one if several), then `get-character`.',
+          '1. `get-my-character` (ask which character if the player has several).',
+        ],
+        [
+          '3. For one feature or spell in doubt, `get-character-entity` or `search-character-items`.',
+          '3. For one feature or spell in doubt, look at its entry in the `get-my-character` result.',
+        ],
+        ['`get-compendium-item`', '`find-book-entries` and `get-book-entry`'],
+      ],
+      'sheet-check'
+    )
+  );
+  return files;
+}
+
+/** Write one skill (folder and zip) under `outDir`. */
+function write(outDir, skillName, files) {
+  const folder = path.join(outDir, skillName);
   rmSync(folder, { recursive: true, force: true });
   for (const [name, text] of files) {
     const target = path.join(folder, ...name.split('/'));
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, text);
   }
-  const zipFile = path.join(outDir, `${SKILL_NAME}.zip`);
+  const zipFile = path.join(outDir, `${skillName}.zip`);
   const entries = [...files].map(([name, text]) => ({
-    name: `${SKILL_NAME}/${name}`,
+    name: `${skillName}/${name}`,
     data: Buffer.from(text, 'utf8'),
   }));
   writeFileSync(zipFile, zip(entries));
   return { folder, zipFile, files };
 }
 
+/**
+ * Build the skill folder and zip into `outDir`.
+ * @param {string} outDir
+ * @returns {{folder: string, zipFile: string, files: Map<string, string>}}
+ */
+export function build(outDir) {
+  return write(outDir, SKILL_NAME, collectFiles());
+}
+
+/** Build the player edition (folder and zip) into `outDir`. */
+export function buildPlayer(outDir) {
+  return write(outDir, PLAYER_SKILL_NAME, collectPlayerFiles());
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const i = process.argv.indexOf('--out');
   const outDir = i > -1 ? path.resolve(process.argv[i + 1]) : path.join(here, 'dist');
-  const { zipFile, files } = build(outDir);
-  const bytes = [...files.values()].reduce((n, t) => n + Buffer.byteLength(t), 0);
-  console.log(
-    `dnd-helper: ${files.size} files, ${Math.round(bytes / 1024)} KB of text -> ${zipFile}`
-  );
+  for (const { zipFile, files } of [build(outDir), buildPlayer(outDir)]) {
+    const bytes = [...files.values()].reduce((n, t) => n + Buffer.byteLength(t), 0);
+    console.log(
+      `dnd-helper: ${files.size} files, ${Math.round(bytes / 1024)} KB of text -> ${zipFile}`
+    );
+  }
 }

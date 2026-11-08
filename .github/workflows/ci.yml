@@ -304,6 +304,10 @@ jobs:
         # tools/dnd-helper/build.mjs, the skill zip builder (the zip itself is not kept).
         run: node --test tools/dnd-helper/build.test.mjs
 
+      - name: Player connector extension
+        # tools/player-connector: the .mcpb build and the stdio-to-HTTPS wrapper against a fake local endpoint.
+        run: node --test tools/player-connector/build.test.mjs
+
       - name: Livekit recorder
         # tools/livekit/recorder is not a workspace: it has its own package.json and lockfile, so it installs on its own.
         run: npm ci --prefix tools/livekit/recorder

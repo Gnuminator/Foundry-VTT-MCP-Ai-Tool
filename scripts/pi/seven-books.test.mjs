@@ -179,6 +179,7 @@ function combinedCheckFile(trimSrc, baselineSrc) {
   const sources = {
     '/root/seven-books-trim.js': trimSrc,
     '/root/seven-books-baseline.js': baselineSrc,
+    '/root/grave-domain-patch.js': '', // its own tests are in grave-domain-patch.test.mjs
   };
   let out = '';
   for (const raw of stage.slice(start, end).split('\n')) {
@@ -192,7 +193,7 @@ function combinedCheckFile(trimSrc, baselineSrc) {
     } else
       assert.match(
         line,
-        /^(|if \[ -f \/root\/seven-books-baseline\.js \]; then|fi)$/,
+        /^(|#.*|if \[ -f \/root\/seven-books-baseline\.js \]; then|if \[ -f \/root\/grave-domain-patch\.js \] && \[ ! -L \/root\/grave-domain-patch\.js \]; then|fi)$/,
         `unexpected line: ${line}`
       );
   }
@@ -556,7 +557,10 @@ describe('seven-books-trim.js', () => {
     assert.ok(!world.packs.has('world.legacy-other-books'));
     const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
     assert.match(stage, /trap '' HUP PIPE/);
-    assert.match(stage, /^\[ "\$\{MODE:-trim\}" = check \] \|\| require_recent_snapshot/m);
+    assert.match(
+      stage,
+      /^case "\$\{MODE:-trim\}" in check \| grave-check\) ;; \*\) require_recent_snapshot ;; esac/m
+    );
     assert.match(stage, /MODE=check only reads/);
   });
 
@@ -1261,7 +1265,10 @@ describe('seven-books-baseline.js', () => {
     assert.match(stage, /BASELINE_MODE = 'undo'/);
     assert.match(stage, /BASELINE_MODE = 'check'/);
     assert.match(stage, /\[ "\$MODE" = baseline \]/);
-    assert.match(stage, /MODE must be trim, check, baseline, baseline-undo or delete/);
+    assert.match(
+      stage,
+      /MODE must be trim, check, baseline, baseline-undo, delete, grave-patch or grave-check/
+    );
     assert.match(
       stage,
       /the undo points the journal pages of dnd-players-handbook\.content and aitool-content\.journals back at the old packs/

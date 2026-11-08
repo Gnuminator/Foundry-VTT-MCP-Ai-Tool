@@ -178,7 +178,12 @@ export const CHECKS = [
   nodeTest('pi-join-page-look', 'pi', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'pi', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
-  nodeTest('pi-seven-books', 'pi', 'scripts/pi/seven-books.test.mjs'),
+  nodeTest(
+    'pi-seven-books',
+    'pi',
+    'scripts/pi/seven-books.test.mjs',
+    'scripts/pi/grave-domain-patch.test.mjs'
+  ),
   nodeTest('pi-world-switch', 'pi', 'scripts/pi/switch-world.test.mjs'),
   nodeTest('pi-control-port-check', 'pi', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'pi', 'scripts/pi/pi-stage-safety.test.mjs'),
@@ -373,7 +378,9 @@ export function entryDecision(argv1, self) {
 
 const entry = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
 if (entry === 'mismatch') {
-  console.error(`checks: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  console.error(
+    `checks: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`
+  );
   process.exitCode = 1;
 } else if (entry === 'run') {
   if (process.argv.includes('--list')) {

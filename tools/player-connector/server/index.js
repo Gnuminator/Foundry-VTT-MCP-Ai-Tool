@@ -15,7 +15,7 @@
 
 const readline = require('node:readline');
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 /** Replace every secret value of 4 or more characters in `text`. */
 function scrub(text, secrets) {

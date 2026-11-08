@@ -41,7 +41,7 @@ function Get-CopyPid {
   $p = [int](Get-Content $PidFile -TotalCount 1)
   # Only the Foundry we started: a reused pid of any other process does not count.
   $line = Get-ProcessCommandLine $p
-  if ($line -and $line.Contains('FoundryCampaign') -and $line.Contains("--port=$Port")) { return $p }
+  if ($line -and $line.Contains($DataRoot) -and $line.Contains("--port=$Port")) { return $p }
   Remove-Item $PidFile -ErrorAction SilentlyContinue
   return $null
 }
@@ -103,11 +103,22 @@ function Invoke-Refresh {
   $opts['world'] = $null
   $opts | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $cfg 'options.json')
 
+  $movedPrev = $false
   if (Test-Path $DataRoot) {
     if (Test-Path $prev) { Remove-Item -Recurse -Force $prev }
     Move-Item $DataRoot $prev
+    $movedPrev = $true
   }
-  Move-Item $new $DataRoot
+  try {
+    Move-Item $new $DataRoot
+  } catch {
+    # The final move failed: put the old copy back so the copy is never left without data.
+    if ($movedPrev -and -not (Test-Path $DataRoot) -and (Test-Path $prev)) {
+      Move-Item $prev $DataRoot
+      Write-Warning "Swapping in the new data failed; the previous copy was moved back to $DataRoot."
+    }
+    throw
+  }
   # Every user of the copy gets an empty password, so the GM can join as "Gamemaster" in the browser.
   & (Get-NodeExe) (Join-Path $PSScriptRoot 'campaign-copy-users.mjs') $TestEnv.AppDir (Join-Path $DataRoot 'Data' 'worlds' $World)
   if ($LASTEXITCODE -ne 0) { throw 'Clearing the copy''s user passwords failed.' }
@@ -135,9 +146,14 @@ function Invoke-Start {
   # The node process that was started with this data folder and port (the port table is not
   # always readable from every shell).
   $owner = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -and $_.CommandLine.Contains('FoundryCampaign') -and $_.CommandLine.Contains("--port=$Port") } |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($DataRoot) -and $_.CommandLine.Contains("--port=$Port") } |
     Select-Object -First 1 -ExpandProperty ProcessId
-  if (-not $owner) { throw "Foundry listens on $Port but its process could not be found." }
+  if (-not $owner) {
+    # Do not leave an unrecorded Foundry running: stop the shell we started and its children.
+    if ($shell -and -not $shell.HasExited) { & taskkill.exe /PID $shell.Id /T /F | Out-Null }
+    throw "Foundry listens on $Port but its process could not be found; the shell we started was stopped."
+  }
+  Write-Host "Foundry pid $owner"
   Set-Content $PidFile $owner
   Write-Host "Foundry (campaign copy, world $World): http://localhost:$Port"
 }

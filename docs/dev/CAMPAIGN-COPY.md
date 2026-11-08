@@ -26,7 +26,10 @@ pwsh scripts/test-env/campaign-copy.ps1 status
 folder is kept once as `data.prev`). Options: `-WithJB2A` (also pull the 1.6 GB animation module),
 `-PiHost` (ssh name, default `foundry-pi`), `-Port`, `-Root`, `-NoPull` (redo only the local set-up
 on a complete pull left in `data.new`). The pull goes into `pull.tar` first, so a dropped ssh
-connection fails the refresh and leaves the old copy alone.
+connection fails the refresh and leaves the old copy alone. The tar needs a few GB of free space
+while it unpacks and stays behind after a failed unpack (the next refresh deletes it). A "file
+changed as we read it" error from the live Pi fails the refresh too: safe, run it again. If the final
+swap of the data folder fails, `refresh` moves `data.prev` back so the copy is never left empty.
 
 ## What refresh does on the Pi, and what it copies
 
@@ -39,8 +42,8 @@ connection fails the refresh and leaves the old copy alone.
   (all of them at the Pi's versions, without JB2A), `assets/`, `ddb-images/`, `tokenizer/`.
   Not copied: the other Pi worlds (`strahd-kit`, `frostmaiden-training`, `pi-check`) and
   `Config/` (the Pi's `options.json` and licence are not used).
-- Then, locally: a `Config/options.json` for port 30004, server A's licence file and `admin.txt`
-  (the setup screen has server A's admin login), the module copy of
+- Then, locally: a `Config/options.json` for port 30004, server A's licence file and, if server A has
+  one, its `admin.txt` (the setup screen then has server A's admin login), the module copy of
   `foundry-mcp-bridge` gets `flags.foundry-mcp-bridge.defaultServerPort = 31545` and no update
   manifest (so it never reaches a real bridge), and `campaign-copy-users.mjs` gives every user the
   empty-password hash (Foundry stores "no password" as that hash, an empty string is rejected).

@@ -1,7 +1,9 @@
 /** scripts/gamenight-watch-pi.mjs: the session gate, the five probes and one round (tick). No outside network. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { DEFAULTS, initialState, safeUrl, scrubUrls, postToChannel } from './gamenight-watch.mjs';
 import {
@@ -15,8 +17,13 @@ import {
   probeDashboard,
   probePublic,
   probeRecorder,
+  publicUrlProblem,
+  readSession,
   readSessionOpen,
+  SettingsError,
+  settingsUrl,
   tick,
+  unitActive,
 } from './gamenight-watch-pi.mjs';
 
 const jsonRes = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
@@ -239,7 +246,7 @@ test('tick: idle without a session, posts on start, on a state change, on recove
   await tick(rt);
   assert.equal(rt.pending.length, 0); // one closed reading is not the end
   await tick(rt);
-  assert.match(rt.pending[0].text, /^Game-night watch stopped: the session is marked ended\.$/);
+  assert.match(rt.pending[0].text, /^Game-night watch stopped: the session has ended or has gone quiet\.$/);
   const n = rt.pending.length;
   await tick(rt);
   assert.equal(rt.pending.length, n); // idle again
@@ -257,6 +264,101 @@ test('tick: an unknown session reading keeps the watch as it was', async () => {
   const idle = makeRt({ readOpen: async () => null });
   await tick(idle.rt);
   assert.equal(idle.rt.gate.active, false);
+});
+
+test('tick: an unknown session reading is logged once per stretch', async () => {
+  const { rt, calls } = makeRt({ readOpen: async () => null });
+  await tick(rt);
+  await tick(rt);
+  assert.equal(calls.logs.filter(l => /reading unavailable/.test(l)).length, 1);
+  rt.readOpen = async () => false;
+  await tick(rt);
+  rt.readOpen = async () => null;
+  await tick(rt);
+  assert.equal(calls.logs.filter(l => /reading unavailable/.test(l)).length, 2);
+});
+
+test('tick: a quiet night with Foundry down raises no alarm and no start post; recent events still do', async () => {
+  const { rt, answers, calls } = makeRt({ now: () => 10 * 3600 * 1000, lastEventAt: 0 });
+  answers.open = true;
+  answers.foundry = { ok: false, ms: 5, error: 'no answer' };
+  const quiet = await tick(rt);
+  assert.equal(quiet.failed, 0);
+  assert.equal(rt.pending.length, 0);
+  assert.ok(calls.logs.some(l => /quiet night/.test(l)));
+  // an event 5 minutes ago: this is a real outage
+  rt.lastEventAt = 10 * 3600 * 1000 - 5 * 60 * 1000;
+  await tick(rt);
+  await tick(rt);
+  assert.match(rt.pending.at(-1).text, /Foundry is not working/);
+  // a quiet night with Foundry up is still watched
+  const up = makeRt({ now: () => 10 * 3600 * 1000, lastEventAt: 0 });
+  up.answers.open = true;
+  await tick(up.rt);
+  assert.match(up.rt.pending[0].text, /^Game-night watch started\./);
+});
+
+test('readSession reads lastEventAt; a missing or odd value is null', async () => {
+  const read = text => readSession(1, 'h', async () => ({ content: [{ type: 'text', text }] }));
+  const got = await read(JSON.stringify({ open: true, lastEventAt: '2026-11-08T01:00:00.000Z' }));
+  assert.deepEqual(got, { open: true, lastEventAt: Date.parse('2026-11-08T01:00:00.000Z') });
+  assert.equal((await read(JSON.stringify({ open: true }))).lastEventAt, null);
+  assert.equal((await read(JSON.stringify({ open: true, lastEventAt: 'x' }))).lastEventAt, null);
+  assert.deepEqual(await read('{}'), { open: null, lastEventAt: null });
+});
+
+test('unitActive: exit 3 is not running, any other failure cannot tell', async () => {
+  const exec = code => (_c, _a, _o, cb) => cb(code === 0 ? null : Object.assign(new Error('x'), { code }));
+  assert.equal(await unitActive('u', exec(0)), 'active');
+  assert.equal(await unitActive('u', exec(3)), 'inactive');
+  assert.equal(await unitActive('u', exec(1)), 'unknown');
+  assert.equal(await unitActive('u', exec('ENOENT')), 'unknown');
+});
+
+test('probeRecorder: cannot tell is no alarm, but not running is', async () => {
+  const base = { unit: 'u', timeoutMs: 1000 };
+  const unknown = await probeRecorder({ ...base, isActive: async () => 'unknown' });
+  assert.equal(unknown.ok, true);
+  assert.match(unknown.note, /cannot tell/);
+  assert.match((await probeRecorder({ ...base, isActive: async () => 'inactive' })).error, /not running/);
+});
+
+test('publicUrlProblem refuses plain http only while the Access token is set; settingsUrl hides the value', () => {
+  const headers = { 'CF-Access-Client-Id': 'a', 'CF-Access-Client-Secret': 'b' };
+  assert.match(publicUrlProblem('http://pub.example', headers), /https/);
+  assert.equal(publicUrlProblem('https://pub.example', headers), null);
+  assert.equal(publicUrlProblem('http://pub.example', null), null);
+  assert.equal(publicUrlProblem(null, headers), null);
+  assert.throws(
+    () => settingsUrl('ftp://x/?token=SECRET', 'WATCH_PUBLIC_URL'),
+    err => err instanceof SettingsError && !/SECRET/.test(err.message)
+  );
+});
+
+const watchScript = fileURLToPath(new URL('./gamenight-watch-pi.mjs', import.meta.url));
+const runWatch = (args, env = {}) =>
+  spawnSync(process.execPath, [watchScript, ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
+
+test('the script exits 2 on settings errors: a bad number, a bad flag, an http public address', () => {
+  assert.equal(runWatch(['--interval', 'abc']).status, 2);
+  assert.equal(runWatch(['--bogus']).status, 2);
+  const http = runWatch([], {
+    WATCH_PUBLIC_URL: 'http://pub.example',
+    CF_ACCESS_CLIENT_ID: 'a',
+    CF_ACCESS_CLIENT_SECRET: 'b',
+  });
+  assert.equal(http.status, 2);
+  assert.match(http.stderr, /https/);
+  assert.doesNotMatch(http.stderr, /pub\.example/);
+});
+
+test("--env-files with a comma list is not mistaken for Node's own --env-file", () => {
+  const r = runWatch(['--once', '--always', '--env-files', 'a.env,b.env', '--interval', 'x']);
+  assert.doesNotMatch(r.stderr, /not found/);
+  assert.equal(r.status, 2); // our own settings error (bad number), not Node's "a.env,b.env: not found"
 });
 
 test('tick: a slow bridge link is never called slow (no speed limit on it)', async () => {

@@ -36,6 +36,32 @@ describe('stage 29 as text', () => {
     assert.match(stage, /stat -c %Y "\$f"\)" -gt "\$started"/);
   });
 
+  test('CHECK passes --env-files (Node reads --env-file itself) and its pipes end in || true', () => {
+    assert.match(stage, /--env-files "\$bot_env,\$watch_env"/);
+    assert.doesNotMatch(stage, /--env-file "/);
+    for (const l of stage.split('\n').filter(x => /\| sed /.test(x) && !x.trim().startsWith('#'))) {
+      assert.match(l, /\|\| true/, l);
+    }
+  });
+
+  test('the start waits for the watching line and fails when it never comes', () => {
+    assert.match(stage, /grep -q ' watching '/);
+    assert.match(stage, /did not reach its 'watching' line/);
+  });
+
+  test('the header names the restart triggers and the real test overrides', () => {
+    assert.match(stage, /settings file changed/);
+    assert.match(stage, /newer than the running service/);
+    assert.match(stage, /Tests only: SRC_DIR and UNIT_DIR/);
+  });
+
+  test('the token and game-server stages restart the watch for changed settings', () => {
+    for (const f of ['set-discord-token.sh', '26-discord-game-server.sh']) {
+      const s = readFileSync(path.join(repo, 'scripts/pi/remote', f), 'utf8');
+      assert.match(s, /systemctl restart "\$watch_unit"/, f);
+    }
+  });
+
   test('every rm -rf has a guarded variable and the settings file is never removed', () => {
     for (const m of stage.matchAll(/rm -(rf|f) ("[^"]*")/g)) assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
     assert.doesNotMatch(stage, /rm [^\n]*watch_env/);

@@ -62,4 +62,10 @@ if journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -
 else
   warn "the bot runs but has not logged in after 30 s; ask Claude to check: journalctl -u $unit -n 20"
 fi
+# The game-night watch (stage 29) reads the same token from this file: restart it (also when it stopped on exit 2 for the
+# old token) so a token change reaches it. It holds no recording and no player, so no quiet check.
+watch_unit=foundry-ai-tool-gamenight-watch.service
+if have_systemd && [ -f "/etc/systemd/system/$watch_unit" ]; then
+  systemctl restart "$watch_unit" && ok "restarted $watch_unit for the new token" || warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
+fi
 say "done: the bot answers /record in Discord"

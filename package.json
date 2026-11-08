@@ -25,6 +25,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "studio:pin-check": "node scripts/pi/check-studio-pin.mjs",
     "kit": "node scripts/test-kit/kit.mjs",
     "kit:run": "node scripts/test-kit/kit-run.mjs",
     "kit:test": "node --test \"scripts/test-kit/test/*.test.mjs\"",

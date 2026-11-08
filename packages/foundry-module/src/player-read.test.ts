@@ -356,22 +356,25 @@ describe('warmPlayerIndexes', () => {
     g.game.users = Object.assign([...all], {
       get: (id: string): unknown => all.find(u => u.id === id),
     });
-    const built: string[] = [];
     const spy = vi.spyOn(rulesSearch, 'warmScoped');
     const n = await warmPlayerIndexes({ rulesSearch });
     const warmed = spy.mock.calls[0][0].map((p: any) => p.metadata.id);
     expect(n).toBe(warmed.length);
     expect(warmed.length).toBeGreaterThan(0);
-    // A pack nobody may observe and the denied adventure pack stay cold.
-    expect(warmed).not.toContain('aitool-content.journals');
-    built.push(...warmed);
+    // The adventure packs stay cold; packs only player B may observe are warmed (the cache is
+    // shared), which must not change what player A finds.
+    for (const id of ['aitool-content.journals', 'adv.curse', 'dnd5e.rules', 'dnd5e.monsters']) {
+      expect(warmed).not.toContain(id);
+    }
+    expect(warmed).toContain('other-mod.hiddenbook');
+    expect(warmed).toContain('world.mine');
     // The search after the warm-up reads the cache: it does not call getDocuments again.
     const docs = g.game.packs.filter((p: any) => warmed.includes(p.metadata.id));
     const counts = docs.map((p: any) => vi.spyOn(p, 'getDocuments'));
     const r = await as('searchBooks', { query: 'fireball' });
     expect(r.results.map((h: any) => h.name)).toContain('Fireball');
     for (const c of counts) expect(c).not.toHaveBeenCalled();
-    expect(built.length).toBe(n);
+    assertNoCanary(r);
   });
 });
 

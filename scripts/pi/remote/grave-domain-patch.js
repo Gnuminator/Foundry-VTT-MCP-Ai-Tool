@@ -25,8 +25,8 @@ const CLASSES = 'aitool-content.classes';
 const SPELLS = 'aitool-content.spells';
 const PHB_SPELLS = 'dnd-players-handbook.spells';
 const PHB_SPARE = 'phbsplSparetheDy';
-// dnd5e's own form for "the cleric's Channel Divinity on this actor": item type and identifier (the Players Handbook
-// module's subclass features use a compendium uuid here, which dnd5e does not resolve on an actor).
+// dnd5e's own form for "the cleric's Channel Divinity on this actor": item type and identifier (tested on server A:
+// it spends the use from the Channel Divinity item on the actor; a compendium uuid here did not on a bare copy).
 const CD_TARGET = 'feat:channel-divinity';
 const CIRCLE = 'cVLrkyhsPzELan6D';
 const PATH = 'RC9A6n8RjP4gtPoF';
@@ -102,6 +102,9 @@ const spareFrom = book => {
   delete o.sort;
   o.ownership = { default: 0 };
   o.flags = { ...(o.flags ?? {}), [FLAG]: { ...(o.flags?.[FLAG] ?? {}), graveDomainSpare: true } };
+  // The feature is Xanathar's content, and XGtE is one of the seven kept books: the seven-book trim keeps the copy
+  // and the check does not call it drift.
+  o.system.source = { ...(o.system.source ?? {}), book: 'XGtE', custom: '' };
   o.system.range = { ...(o.system.range ?? {}), value: '30', units: 'ft', special: '' };
   o.system.activation = { ...(o.system.activation ?? {}), type: 'bonus', value: 1, condition: '' };
   for (const a of Object.values(o.system.activities ?? {})) {

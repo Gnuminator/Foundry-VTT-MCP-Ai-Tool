@@ -114,6 +114,7 @@ describe('grave-domain-patch.js', () => {
     assert.equal(spare.system.activities.a1.range.override, true);
     assert.equal(spare.system.activities.a1.activation.override, true);
     assert.equal(spare.flags['foundry-ai-tool'].graveDomainSpare, true);
+    assert.equal(spare.system.source.book, 'XGtE'); // a kept book, so the seven-book trim keeps the copy
     const adv = w.classes.docs.get('cVLrkyhsPzELan6D').system.advancement.aitGraveSpare001;
     assert.equal(adv.type, 'ItemGrant');
     assert.equal(

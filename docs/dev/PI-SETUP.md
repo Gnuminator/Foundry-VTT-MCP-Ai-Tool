@@ -1770,10 +1770,12 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   bonus action) and Channel Divinity: Path to the Grave has a Use activity that spends one Channel Divinity use (the curse stays by hand). The
   Spare the Dying copy is made from the Players Handbook spell at run time, so no spell text is in the repo. Pi sitting: snapshot, `MODE=grave-patch`
   dry run, `MODE=grave-patch APPLY=1` (it adds to shared module packs, which is harmless for other worlds), then `MODE=baseline` dry run and
-  `APPLY=1 OTHER_WORLDS_OK=1` (REFRESH should list only the patched entries), then `MODE=grave-check` (read-only). Characters already built from the
-  old entries keep them (rebuild or add by hand).
-  A content module update that rewrites the pack undoes the patch: `MODE=grave-check` says when. By hand on a test server: fetch the file in the
-  browser console of a GM session and run it as an async function body with `{ dryRun, log }` (the test-server steps are in the PR for this patch).
+  `APPLY=1 OTHER_WORLDS_OK=1` (REFRESH should list only the patched entries), then stage 13 (as after every baseline), then `MODE=grave-check`
+  (read-only). Characters already built from the old entries keep them (rebuild or add by hand). A content module update that rewrites the pack
+  undoes the patch: `MODE=grave-check` says when. The Spare the Dying copy is on no class spell list, so spell pickers do not offer it.
+  By hand on a test server, in the browser console of a GM session (serve the file from any local address that sends
+  `Access-Control-Allow-Origin: *`; dry run first, `false` for the real run):
+  `const AF = Object.getPrototypeOf(async function(){}).constructor; await new AF('args', await (await fetch(URL)).text())({ dryRun: true, log: console.log })`.
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
   Debian 13 ARM64 container, run by the ARM job in CI).
 

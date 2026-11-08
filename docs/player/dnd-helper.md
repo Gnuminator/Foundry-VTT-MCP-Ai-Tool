@@ -206,8 +206,8 @@ This is by design, and it also protects the story.
 - **Not live.** It reads your sheet when it asks. If you change something in Foundry, say so and
   ask it to look again.
 
-Sometimes a result carries a note such as "2 results hidden". That is normal. Some text is held
-back on purpose. Do not try to get around it, just ask the GM.
+Sometimes a search finds less than you expected. That is normal: some text is held back on
+purpose, without a note saying so. Do not try to get around it, just ask the GM.
 
 Also remember that your chats with Claude go to Anthropic under your own account, like any chat.
 Nothing you say to the helper is sent to the other players.

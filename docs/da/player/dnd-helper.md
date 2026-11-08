@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: d9903d5dc2b2
+sourceHash: 961c257fa4f5
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -210,8 +210,8 @@ Det er med vilje, og det beskytter også historien.
 - **Ikke live.** Den læser dit ark, når den spørger. Ændrer du noget i Foundry, så sig det og bed
   den kigge igen.
 
-Nogle gange har et resultat en note som "2 results hidden". Det er normalt. Noget tekst holdes
-tilbage med vilje. Prøv ikke at komme uden om det, spørg bare GM'en.
+Nogle gange finder en søgning mindre, end du havde ventet. Det er normalt: noget tekst holdes
+tilbage med vilje, uden en note om det. Prøv ikke at komme uden om det, spørg bare GM'en.
 
 Husk også, at dine chats med Claude går til Anthropic under din egen konto, som enhver anden chat.
 Intet, du siger til hjælperen, bliver sendt til de andre spillere.

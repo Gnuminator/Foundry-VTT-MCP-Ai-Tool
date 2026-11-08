@@ -219,6 +219,7 @@ fi
 # lock the GM out of the dashboard, so stop and let the user look.
 grep -q '^DASHBOARD_ALLOWED_HOSTS=[^[:space:]]' "$access" || die "$access has no DASHBOARD_ALLOWED_HOSTS line with a value: run set-dashboard-access.sh (it writes the GM hosts) and then this stage. Nothing was changed"
 cur_hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
+[ -n "$cur_hosts" ] || die "$access: the last DASHBOARD_ALLOWED_HOSTS line is empty: run set-dashboard-access.sh. Nothing was changed"
 if host_in_list "$cur_hosts" "$host"; then new_hosts="$cur_hosts"; else new_hosts="${cur_hosts:+$cur_hosts,}$host"; fi
 
 if [ "$dry" = 1 ]; then
@@ -302,6 +303,7 @@ say "the check"
 if ! have_systemd; then
   warn "no systemd here (a test container?): the service checks are skipped"
 else
+  sleep 2
   code=""
   for _ in $(seq 1 30); do
     code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $host" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
@@ -314,8 +316,13 @@ else
   ports_after="$(ports_line)"
   if [ "$ports_before" = "$ports_after" ]; then ok "ports 31414 to 31416 as before: $ports_after"; else bad "ports 31414 to 31416 changed: before '$ports_before', after '$ports_after'"; fi
   cp_rc=0
-  control_port_check 31414 || cp_rc=$?
+  for _ in $(seq 1 15); do
+    cp_rc=0
+    control_port_check 31414 || cp_rc=$?
+    [ "$cp_rc" = 0 ] && break
+    sleep 1
+  done
   [ "$cp_rc" = 0 ] && ok "the bridge control port answers on loopback" || bad "the bridge control port 31414 check returned $cp_rc"
 fi
-[ "$fails" = 0 ] || die "stage 30: $fails check(s) failed (see the warnings above). The install is in place; fix the cause and run it again with CHECK=1"
+[ "$fails" = 0 ] || die "stage 30: $fails check(s) failed (see the warnings above). The install is in place; fix the cause and run it again with CHECK=1 (or UNDO=1 to take the install out)"
 say "stage 30 done: player host $host. Next: the first call with each token, then 'journalctl -u $dash_unit | grep common_name' (the Client ID claim check), a no-token 401 and a GM-login 403 through Cloudflare"

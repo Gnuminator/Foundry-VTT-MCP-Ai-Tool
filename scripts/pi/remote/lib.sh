@@ -344,7 +344,7 @@ foundry_copy_file() {
 }
 
 # control_port_check [PORT]: the bridge's control port (default 31414), which the Cloudflare TCP route
-# (D-095, mcp.<domain>) points at. It has no login of its own, so it must listen on loopback only.
+# (D-095, mcp.<domain>) points at. It has no login of its own, so it must listen on loopback only (the Pi's own tailscale interface counts as private, it is the user's tailnet).
 # Returns 0 = answers a ping on loopback and nothing listens beyond loopback, 1 = no ping answer,
 # 2 = a listener beyond loopback (checked first). Read-only.
 control_port_check() {

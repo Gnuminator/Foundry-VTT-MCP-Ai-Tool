@@ -527,3 +527,20 @@ test('the player connector Cloudflare script asks with --apply (it runs ssh itse
     assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
   }
 });
+
+test('a Cloudflare --apply chained with a denied remote command still denies; a continued line still asks', () => {
+  const chained =
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi && ssh foundry-pi wipefs -a /dev/sda';
+  assert.equal(kind(chained), 'deny', JSON.stringify(decide(chained, repo)));
+  const continued = 'node scripts/pi/player-connector-cloudflare.mjs \\\n  --apply --send-to foundry-pi';
+  assert.equal(kind(continued), 'ask', JSON.stringify(decide(continued, repo)));
+  const mixed = decide(
+    'node scripts/pi/player-connector-cloudflare.mjs --apply && ssh foundry-pi systemctl restart foo',
+    repo,
+  );
+  assert.equal(mixed?.decision, 'ask');
+  assert.ok(
+    mixed.reasons.some(r => r.includes('Cloudflare')),
+    JSON.stringify(mixed),
+  );
+});

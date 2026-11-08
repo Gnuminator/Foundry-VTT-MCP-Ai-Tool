@@ -34,6 +34,17 @@ describe('RecorderHealth silence', () => {
     expect(out[0]).toContain('5 min');
   });
 
+  it('names the age since the last packet after an unmute, not since the unmute', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    h.packet('u1', 'Mara', T);
+    h.setMuted('u1', true, T + MIN);
+    h.setMuted('u1', false, T + 30 * MIN);
+    const out = h.silent(T + 30 * MIN + SILENCE_MS);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain('35 min');
+  });
+
   it('ignores a late packet from someone who left, until they join again', () => {
     const h = new RecorderHealth();
     h.join('u1', 'Mara', false, T);

@@ -132,6 +132,8 @@ class FoundryMCPBridge {
   private lastPublishedLinkState: LinkRelayStateName | null = null;
   /** The state whose write is under way, so a repeat before it finishes writes nothing. */
   private publishingLinkState: LinkRelayStateName | null = null;
+  /** Counts writes so a late settle of an older write cannot overwrite the record of a newer one. */
+  private linkStateWriteSeq = 0;
 
   /**
    * Only a browser that is the chosen bridge user may write the notice: with "Any GM" (no user
@@ -152,9 +154,11 @@ class FoundryMCPBridge {
     if (state === this.lastPublishedLinkState || state === this.publishingLinkState) return;
     if (!this.canPublishLinkState()) return;
     this.publishingLinkState = state;
+    const seq = ++this.linkStateWriteSeq;
     const done = (error?: unknown): void => {
       if (this.publishingLinkState === state) this.publishingLinkState = null;
-      if (error === undefined) this.lastPublishedLinkState = state;
+      if (error === undefined && seq === this.linkStateWriteSeq)
+        this.lastPublishedLinkState = state;
       else console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
     };
     try {

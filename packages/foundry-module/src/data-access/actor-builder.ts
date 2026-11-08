@@ -34,7 +34,7 @@ interface AttackActivity {
   /** Activity#use: the card and its consumption belong to this activity, not the item's first. */
   use: (...args: unknown[]) => Promise<unknown>;
   rollAttack: (config: object, dialog: object, message: object) => Promise<unknown>;
-  /** dnd5e: false when the activity cannot be used right now (for example no uses left). */
+  /** dnd5e 6: the item can be used and is not hidden (`item.canUse && !isHidden`); false is not only "no uses left". */
   canUse?: boolean;
 }
 

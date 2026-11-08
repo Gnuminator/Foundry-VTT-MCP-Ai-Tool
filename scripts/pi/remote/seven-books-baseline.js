@@ -394,7 +394,7 @@ const needsRefresh = (have, w) =>
   have.name !== w.data.name ||
   !have.ours ||
   have.source !== w.data.flags['foundry-ai-tool'].sourcePack;
-const stale = []; // same id, other name, and not a copy of ours: stops the run
+const stale = []; // same id, other name, and its source tag is not the pack it is read from now (so not a rename of ours): stops the run
 const refreshNames = [];
 for (const [docId, w] of wantedCopy) {
   const have = targetIndex[w.target].get(docId);

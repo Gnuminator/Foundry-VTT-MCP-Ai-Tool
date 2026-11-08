@@ -522,7 +522,43 @@ export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
   return 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides (as lane-merge.mjs;
+ * copied, not imported: lane-merge runs this file from a temp copy).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const entry = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
+if (entry === 'mismatch') {
+  console.error(`drift-check: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  process.exit(1);
+} else if (entry === 'run') {
   const args = process.argv.slice(2);
   const at = args.indexOf('--remote');
   const remote = at >= 0 ? args[at + 1] : undefined;

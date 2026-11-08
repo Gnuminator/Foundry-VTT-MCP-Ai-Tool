@@ -12,6 +12,7 @@
  * pushed to the aitool repo, and this checkout should be on it (the PNGs are written here).
  */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,12 +42,8 @@ export const safeTarget = rel => {
  * @param {{databaseId:number,displayTitle:string}[]} runs
  * @param {string} nonce
  */
-export const pickRun = (runs, nonce, branch) =>
-  runs.find(
-    r =>
-      r.displayTitle?.split(' ').includes(nonce) &&
-      (branch === undefined || r.headBranch === undefined || r.headBranch === branch)
-  );
+export const pickRun = (runs, nonce) =>
+  runs.find(r => r.displayTitle?.split(' ').includes(nonce));
 
 /**
  * Refuses a run that is not for this branch and the sha the branch had when we dispatched.
@@ -78,9 +75,16 @@ export const artifactProblem = (headText, runSha) => {
   return '';
 };
 
-/** Per-branch log file name, so lanes running at once never share one. @param {string} branch */
+/**
+ * Per-branch log file name, so lanes running at once never share one. A short hash of the exact
+ * branch name keeps `a/b` and `a_b` apart and, with the lower-cased name, `A` and `a` on NTFS.
+ * @param {string} branch
+ */
 export const logPathFor = branch =>
-  path.join(os.tmpdir(), `visual-baselines-${branch.replace(/[^A-Za-z0-9._-]/g, '_')}.log`);
+  path.join(
+    os.tmpdir(),
+    `visual-baselines-${branch.replace(/[^A-Za-z0-9._-]/g, '_').toLowerCase()}-${createHash('sha1').update(branch).digest('hex').slice(0, 6)}.log`
+  );
 
 /**
  * What the run's playwright-exit.txt says. A non-zero exit with no changed PNG means nothing
@@ -134,7 +138,11 @@ async function main() {
     return 2;
   }
   const logFile = logPathFor(branch);
-  fs.writeFileSync(logFile, '');
+  try {
+    fs.writeFileSync(logFile, '');
+  } catch {
+    /* the log is a convenience */
+  }
   for (const m of ['log', 'warn', 'error']) {
     const orig = console[m].bind(console);
     console[m] = (...a) => {
@@ -161,7 +169,7 @@ async function main() {
     );
     return 2;
   }
-  const expectedSha = gh(['api', `repos/${REPO}/commits/${branch}`, '--jq', '.sha']).trim();
+  const expectedSha = gh(['api', `repos/${REPO}/git/ref/heads/${branch}`, '--jq', '.object.sha']).trim();
   const since = Date.now();
   const nonce = `n${since.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   gh([
@@ -179,7 +187,7 @@ async function main() {
         '--limit', '30', '--json', 'databaseId,displayTitle,headBranch,headSha'
       ])
     );
-    run = pickRun(list, nonce, branch);
+    run = pickRun(list, nonce);
   }
   const bad = runProblem(run, branch, expectedSha);
   if (bad) throw new Error(bad);

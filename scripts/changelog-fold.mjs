@@ -11,13 +11,14 @@
  * A fragment is one or more sections, each a `### Heading` line followed by bullets (`- ...`,
  * wrapped lines indented by two spaces). A section whose heading already exists under
  * "## Unreleased" is appended to the end of that section; a new heading becomes a new section at
- * the end of "Unreleased". Headings are compared by their base: a trailing "(...)" tag is dropped
- * and the test aliases ("Testing", "Test kit", "Test environment") count as "Tests" and every heading that starts with "Pi" or "Orange Pi" counts as "Orange Pi", so repeated
+ * the end of "Unreleased". Headings are compared by their base: a trailing "(...)" tag is dropped,
+ * the test aliases ("Testing", "Test kit", "Test environment") count as "Tests", and every heading
+ * that starts with "Pi" or "Orange Pi" counts as "Orange Pi", so repeated
  * "### Tooling (...)" fragments end up under one "### Tooling" (a new section is written with the
  * base heading). Fragments are folded in file-name order. `changelog.d/README.md` explains
  * the format and is never folded.
  */
-import { readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -39,7 +40,8 @@ const HEADING_ALIASES = new Map([
 const PI_HEADING = /^(orange )?pi( |$)/i;
 
 /**
- * The heading a section is filed under: no trailing "(...)" tag, test aliases folded to "Tests".
+ * The heading a section is filed under: no trailing "(...)" tag, test aliases folded to "Tests",
+ * Pi and Orange Pi headings (including "Pi fixes") folded to "Orange Pi".
  * @param {string} heading a "### ..." line
  */
 export function baseHeading(heading) {
@@ -158,4 +160,42 @@ function main() {
   console.log(`changelog-fold: folded ${files.length} fragment(s) into CHANGELOG.md "Unreleased".`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0 (as lane-merge.mjs; not imported, each script
+ * stands alone).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const decision = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
+if (decision === 'run') main();
+else if (decision === 'mismatch') {
+  console.error(`changelog-fold: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  process.exit(1);
+}

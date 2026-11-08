@@ -1,0 +1,4 @@
+### Orange Pi
+
+- **Player connector on the Pi (stage 30):** `30-player-connector.sh` installs the players' login table (`player-connector.json`, foundry 0600), turns the player endpoint on for the dashboard and the bridge through a drop-in and its own env file, and adds the player host to the dashboard's allowed hosts. It checks that `/mcp/player` answers 401 with no token and that ports 31414 to 31416 listen as before. It changes no unit, port or GM connector; DRY_RUN, CHECK and UNDO modes; it refuses if a dev user is set (player-connector-pi).
+- **Cloudflare side from the PC:** `scripts/pi/player-connector-cloudflare.mjs` plans (read-only) or applies the four player service tokens, the Access application with a service-auth policy only, the tunnel route limited to `/mcp/player`, and the DNS name, and sends the secrets straight to the Pi without printing or saving them.

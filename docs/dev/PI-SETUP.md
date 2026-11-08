@@ -1876,6 +1876,24 @@ Access application must allow that service token (policy "Service Auth") for the
 reads or prints the values. Other settings (ports, the recorder unit and status address, mention ids) are listed
 in the template.
 
+## Player connector (stage 30)
+
+`scripts/pi/remote/30-player-connector.sh` (backlog `player-connector-pi`, D-136) is the Pi side of the player endpoint
+`POST https://<player host>/mcp/player`. The Cloudflare side is made from the PC by
+`scripts/pi/player-connector-cloudflare.mjs` (the tunnel is remotely managed, so its routes are not on the Pi): four
+service tokens, an Access application with a service-auth policy only (no email policy, so a GM login is refused), the
+tunnel route limited to the path `^/mcp/player$`, and the DNS name. That script sends the login table to the Pi as
+`/root/player-connector.json.new`; the secrets never reach the screen, a log, the repo or the vault.
+
+Stage 30 then installs the table as `/etc/foundry-ai-tool/player-connector.json` (foundry, 0600), writes
+`/etc/foundry-ai-tool/player-connector.env` (`FOUNDRY_AI_PLAYER_CONNECTOR=on` and the table path) and a drop-in
+`player-connector.conf` on the dashboard and bridge units, and adds the player host to `DASHBOARD_ALLOWED_HOSTS` in
+`dashboard-access.env` (`set-dashboard-access.sh` writes that file whole, so run stage 30 again after it). Both services
+run as `foundry`. It restarts them only if something they read changed, and checks the 401 with no token, the 421 for an
+unlisted name and that ports 31414 to 31416 listen as before. `FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER` must not be set on
+the Pi; the stage refuses if it is. Modes: `DRY_RUN=1`, `CHECK=1`, `UNDO=1` (keeps the table). The ordered sitting steps are in
+the vault note `Handoff/Pi sitting 2026-11-08 player connector.md`.
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                         |

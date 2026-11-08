@@ -122,6 +122,15 @@ jobs:
         # scripts/gamenight-watch-pi.mjs (watch-on-pi): the session gate, the five probes and one round, no outside network.
         run: node --test scripts/gamenight-watch-pi.test.mjs
 
+      - name: Pi stage 30 player connector and its Cloudflare script
+        # 30-player-connector.sh (player-connector-pi) as text, and scripts/pi/player-connector-cloudflare.mjs against a fake Cloudflare.
+        # The stage scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/player-connector-stage.test.mjs
+
+      - name: Pi player connector Cloudflare script
+        # scripts/pi/player-connector-cloudflare.mjs against a fake Cloudflare API: plan, apply, secrets never printed.
+        run: node --test scripts/pi/player-connector-cloudflare.test.mjs
+
       - name: Pi stage 29 game-night watch
         # 29-gamenight-watch.sh (backlog watch-on-pi) as text: snapshot before the write, guarded rm, no secret in the unit.
         # The scenarios run in a container on the ARM runner (build-test-arm).
@@ -721,6 +730,13 @@ jobs:
         env:
           PI_STAGE29_CONTAINER: 1
         run: node --test scripts/pi/gamenight-watch-stage.test.mjs
+
+      - name: Pi stage 30 in an ARM64 container
+        # scripts/pi/container-test/stage30-scenarios.sh: stage 30 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, install,
+        # rerun, replaced table, check, the snapshot rule, undo).
+        env:
+          PI_STAGE30_CONTAINER: 1
+        run: node --test scripts/pi/player-connector-stage.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

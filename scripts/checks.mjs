@@ -158,6 +158,7 @@ export const CHECKS = [
   nodeTest('pi-gm-passwords', 'pi', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-system-trial-guard', 'pi', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-player-creation', 'pi', 'scripts/pi/player-creation.test.mjs'),
+  nodeTest('pi-check-studio-pin', 'pi', 'scripts/pi/check-studio-pin.test.mjs'),
   nodeTest('pi-world-switches', 'pi', 'scripts/pi/world-switches.test.mjs'),
   nodeTest('pi-kit-session', 'pi', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'pi', 'scripts/pi/fetch-kit-login.test.mjs'),

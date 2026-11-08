@@ -57,8 +57,8 @@ const slug = text =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
 
-/** The levels at which a class can raise an ability score (the most any class has: fighter and rogue add 6, 14, 19). */
-const ASI_LEVELS = [4, 6, 8, 12, 14, 16, 19];
+/** The levels at which a class can raise an ability score (the union over classes: all have 4, 8, 12, 16, 19; the fighter adds 6 and 14, the rogue adds 10). */
+const ASI_LEVELS = [4, 6, 8, 10, 12, 14, 16, 19];
 
 /**
  * Whether Constitution rises at ability score increases can explain a hit point shortfall: each rise of the
@@ -338,18 +338,31 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
     // (the 2024 book, Gaining a Level; dnd5e). Only a shortfall that is a sum of ability score increase levels
     // (see conRiseExplains) gets its own finding id; any other shortfall stays a plain STUDIO finding.
     // Fixed in the fork build 2.10.5-aitool.6.
+    // A hero that also carries a hit point effect: when every source is a per-level bonus (hp.bonuses.level,
+    // only changes hp.bonuses.level, like Draconic Resilience (one per level) or Tough (two per level)), take
+    // the worked-out bonus (hp.bonuses.level times the level) off first, so a Constitution shortfall on top of
+    // it still gets its own finding. A source of any other shape, or an overall bonus, explains the whole
+    // shortfall (SYSTEM), as before.
+    const sources = studio.actor.hp?.sources ?? [];
+    const levelKey = 'system.attributes.hp.bonuses.level';
+    const effectsKnown =
+      sources.every(s => (s.keys ?? []).length > 0 && (s.keys ?? []).every(k => k === levelKey)) &&
+      !Number(studio.actor.hp?.bonuses?.overall ?? 0);
+    const perLevelBonus = Number(studio.actor.hp?.bonuses?.level ?? sources.length);
+    const effectShare = effectsKnown ? perLevelBonus * level : 0;
     const conRise =
-      !(studio.actor.hp?.sources ?? []).length &&
+      effectsKnown &&
       level >= 4 &&
       conMod > 0 &&
-      conRiseExplains(shortfall, level, conMod);
+      conRiseExplains(shortfall - effectShare, level, conMod);
+    const bySystem = sources.length > 0 && !conRise;
     // An effect that adds to the maximum (Draconic Resilience) raises the maximum, not the current value.
     bad(
       'current hit points',
-      (studio.actor.hp?.sources ?? []).length ? 'SYSTEM' : 'STUDIO',
+      bySystem ? 'SYSTEM' : 'STUDIO',
       'a new hero does not start at full hit points',
       `the Studio hero has ${studio.actor.hp?.value}/${studio.actor.hp?.max}` +
-        ((studio.actor.hp?.sources ?? []).length
+        (bySystem
           ? ` (the system raises the maximum for an effect, not the current value: ${studio.actor.hp.sources.map(x => x.item).join(', ')})`
           : conRise
             ? ` (${shortfall} short, Constitution modifier +${conMod} at level ${level}: a Constitution increase raises the maximum for every level, not the current value)`

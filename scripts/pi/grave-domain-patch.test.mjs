@@ -200,10 +200,7 @@ describe('grave-domain-patch.js', () => {
       if (arg.locked === true) throw new Error('stuck');
       return configure(arg);
     };
-    await assert.rejects(
-      run(w),
-      /could not be locked[\s\S]*could not lock aitool-content\.spells again: stuck/
-    );
+    await assert.rejects(run(w), /stuck[\s\S]*DONE BEFORE THE FAILURE/);
   });
 
   test('check mode also looks at the player copies once the baseline exists', async () => {

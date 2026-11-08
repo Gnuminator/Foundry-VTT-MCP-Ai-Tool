@@ -179,6 +179,7 @@ function combinedCheckFile(trimSrc, baselineSrc) {
   const sources = {
     '/root/seven-books-trim.js': trimSrc,
     '/root/seven-books-baseline.js': baselineSrc,
+    '/root/grave-domain-patch.js': '', // its own tests are in grave-domain-patch.test.mjs
   };
   let out = '';
   for (const raw of stage.slice(start, end).split('\n')) {
@@ -192,7 +193,7 @@ function combinedCheckFile(trimSrc, baselineSrc) {
     } else
       assert.match(
         line,
-        /^(|if \[ -f \/root\/seven-books-baseline\.js \]; then|fi)$/,
+        /^(|#.*|if \[ -f \/root\/seven-books-baseline\.js \]; then|if \[ -f \/root\/grave-domain-patch\.js \] && \[ ! -L \/root\/grave-domain-patch\.js \]; then|fi)$/,
         `unexpected line: ${line}`
       );
   }

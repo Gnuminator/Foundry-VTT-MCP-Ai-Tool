@@ -61,6 +61,7 @@ import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
+import { PLAYER_READ_QUERY, playerRead } from './player-read.js';
 import { UPLOAD_PLAYER_PORTRAIT_QUERY, uploadPlayerPortrait } from './player-portrait.js';
 import { gateWriteHandlers } from './write-gate.js';
 import { getSetupInfo } from './data-access/setup-info.js';
@@ -341,6 +342,16 @@ export class QueryHandlers {
         const result = await characterSheets(data);
         return { ...result, rollRequests: this.dataAccess.listOpenRollRequests(result.userId) };
       })
+    );
+
+    // A player's own Claude (playerRead): their sheets, level-up options and the books they may
+    // read, scoped to the one user id in the message. Read-only; the pack's permission level
+    // alone controls access (a document inside a pack follows its pack). Not an MCP tool for
+    // the GM connectors (the control method `player_tool`). GM client only.
+    handlers.set(`${modulePrefix}.${PLAYER_READ_QUERY}`, (data: unknown) =>
+      this.withGmGate('Player read failed', () =>
+        playerRead(data, this.dataAccess.playerReadDeps())
+      )
     );
 
     // The player pressed a roll button on the dashboard's page: this GM client rolls for their

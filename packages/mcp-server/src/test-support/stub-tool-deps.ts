@@ -45,6 +45,7 @@ import { PrepDigestTools } from '../tools/prep-digest.js';
 import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
 import { LevelUpTools } from '../tools/level-up.js';
+import { PlayerTools } from '../tools/player.js';
 import { ResourceTools } from '../tools/resources.js';
 import { SceneChangeTools } from '../tools/scene-change.js';
 import { CombatChangeTools } from '../tools/combat-change.js';
@@ -137,6 +138,11 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     refChoiceTools: new RefChoiceTools({ ...base, guardedWrites: {} }),
     resourceTools: new ResourceTools(base),
     levelUpTools: new LevelUpTools(base),
+    playerTools: new PlayerTools({
+      ...base,
+      secretTerms: { findSecretTermsInMany: vi.fn(() => Promise.resolve([])) },
+      worldIds: { current: vi.fn(() => Promise.resolve('world')) },
+    }),
     sceneChangeTools: new SceneChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
     combatChangeTools: new CombatChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
     sceneTools: new SceneTools(base),

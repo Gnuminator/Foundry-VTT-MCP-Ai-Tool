@@ -72,6 +72,7 @@ const WRITE_VERBS = [
 const READ_VERBS = [
   'wait-for-',
   'check-',
+  'find-',
   'get-',
   'list-',
   'measure-',

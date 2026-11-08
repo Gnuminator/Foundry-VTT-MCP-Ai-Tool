@@ -15,6 +15,7 @@ import { CharacterDataAccess } from './data-access/characters.js';
 import { ScenesTokensDataAccess } from './data-access/scenes-tokens.js';
 import { SceneFxDataAccess } from './data-access/scene-fx.js';
 import { CompendiumDataAccess } from './data-access/compendium.js';
+import type { PlayerReadDeps } from './player-read.js';
 import { RulesSearchDataAccess } from './data-access/rules-search.js';
 import type { RulesSearchParams, RulesSearchResult } from './data-access/rules-search.js';
 import { CombatDataAccess } from './data-access/combat.js';
@@ -170,6 +171,11 @@ export class FoundryDataAccess {
 
   async searchRules(params: RulesSearchParams): Promise<RulesSearchResult> {
     return this.rulesSearch.searchRules(params);
+  }
+
+  /** The player-scoped read (player-read.ts) gets the real rules search and level-up readers here. */
+  playerReadDeps(): PlayerReadDeps {
+    return { rulesSearch: this.rulesSearch, levelUp: this.levelUp };
   }
 
   async listCreaturesByCriteria(criteria: {

@@ -60,7 +60,14 @@ import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
 
 import { ChatLogTools } from './tools/chat-log.js';
+import { splitPlayerTools } from './tool-sets.js';
 import { LevelUpTools } from './tools/level-up.js';
+import {
+  PLAYER_CONFIG_ENV,
+  PlayerTools,
+  handlePlayerTool,
+  readExtraDenyTerms,
+} from './tools/player.js';
 import { ResourceTools } from './tools/resources.js';
 import { EffectsTools } from './tools/effects.js';
 import { CombatTools } from './tools/combat.js';
@@ -409,6 +416,14 @@ async function startBackend(): Promise<void> {
   });
   const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
   const secretTerms = new SecretTermsService({ store: vaultStore });
+  // The player set (D-136): runs only through the `player_tool` control message below.
+  const playerTools = new PlayerTools({
+    foundryClient,
+    logger,
+    secretTerms,
+    worldIds,
+    extraDenyTerms: (): string[] => readExtraDenyTerms(process.env[PLAYER_CONFIG_ENV]),
+  });
   const handouts = new HandoutsService({
     guardedWrites,
     store: vaultStore,
@@ -538,6 +553,7 @@ async function startBackend(): Promise<void> {
     chatLogTools,
     resourceTools,
     levelUpTools,
+    playerTools,
     effectsTools,
     combatTools,
     movementTools,
@@ -589,7 +605,10 @@ async function startBackend(): Promise<void> {
   const announceAiChanges = createAiChangesAnnouncer(foundryClient, logger);
   guardedWrites.addRecordedListener(announceAiChanges);
   handouts.addQueueChangedListener(announceAiChanges);
-  const allTools = collectToolDefinitions(toolDeps);
+  // The player tools are not listed to any other control client (see splitPlayerTools).
+  const { listed: allTools, player: playerToolDefinitions } = splitPlayerTools(
+    collectToolDefinitions(toolDeps)
+  );
   allToolNames = allTools.map(t => t.name);
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
@@ -746,6 +765,15 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // The five player tool definitions, for the dashboard's /mcp/player `tools/list`.
+          if (msg.method === 'list_player_tools') {
+            socket.write(
+              `${JSON.stringify({ id: msg.id, result: { tools: playerToolDefinitions } })}\n`
+            );
+
+            continue;
+          }
+
           if (msg.method === 'call_tool') {
             const { name, args, requestedBy } = (msg.params || {}) as {
               name: string;
@@ -884,6 +912,17 @@ async function startBackend(): Promise<void> {
               const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
             }
+
+            continue;
+          }
+
+          // A player's own Claude (D-136): the dashboard's /mcp/player route sends the verified
+          // Foundry user id in `params.userId`; the tool arguments are untrusted and never carry
+          // one. Only the five player tools run here, all read-only. Not a call_tool route, never
+          // listed to Claude, and the stdio wrapper never forwards it.
+          if (msg.method === 'player_tool') {
+            const result = await handlePlayerTool(playerTools, msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
 
             continue;
           }

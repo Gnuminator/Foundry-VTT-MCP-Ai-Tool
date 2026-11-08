@@ -45,6 +45,7 @@ import type { PrepDigestTools } from './tools/prep-digest.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
 import type { LevelUpTools } from './tools/level-up.js';
+import type { PlayerTools } from './tools/player.js';
 import type { ResourceTools } from './tools/resources.js';
 import type { SceneChangeTools } from './tools/scene-change.js';
 import type { CombatChangeTools } from './tools/combat-change.js';
@@ -96,6 +97,8 @@ export interface ToolRouterDeps {
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
   levelUpTools: LevelUpTools;
+  /** Definitions only: the player tools have no call_tool route (control message `player_tool`). */
+  playerTools: PlayerTools;
   sceneChangeTools: SceneChangeTools;
   combatChangeTools: CombatChangeTools;
   sceneTools: SceneTools;
@@ -309,6 +312,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.sceneChangeTools.getToolDefinitions(),
     ...deps.combatChangeTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
+    ...deps.playerTools.getToolDefinitions(),
   ]);
 }
 

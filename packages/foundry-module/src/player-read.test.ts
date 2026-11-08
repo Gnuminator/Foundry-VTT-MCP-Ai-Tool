@@ -102,14 +102,27 @@ function pack(
     getDocuments: async (): Promise<any[]> => docs,
     getDocument: async (docId: string): Promise<any> => docs.find(d => d.id === docId) ?? null,
     getIndex: async (): Promise<any[]> =>
-      docs.map(d => ({ _id: d.id, name: d.name, type: d.type })),
+      docs.map(d => ({
+        _id: d.id,
+        name: d.name,
+        type: d.type,
+        ...(d.system && 'identified' in d.system
+          ? {
+              system: {
+                identified: d.system.identified,
+                unidentified: { name: d.system.unidentified?.name },
+              },
+            }
+          : {}),
+      })),
     testUserPermission: perm(opts.viewers ?? [userA, userB]),
   };
 }
 
 const levelUpCalls: any[] = [];
+const rulesSearch = new RulesSearchDataAccess();
 const deps: PlayerReadDeps = {
-  rulesSearch: new RulesSearchDataAccess(),
+  rulesSearch,
   levelUp: {
     getLevelUpOptions: async data => {
       levelUpCalls.push(data);
@@ -134,7 +147,7 @@ function install(): void {
     [userA]
   );
   ring.system.identified = false;
-  ring.system.unidentified = { description: '<p>A plain iron ring.</p>' };
+  ring.system.unidentified = { name: 'Plain ring', description: '<p>A plain iron ring.</p>' };
   const longSpell = itemDoc(
     'spelllong000001',
     'Wishful',
@@ -254,6 +267,8 @@ function assertNoCanary(value: unknown): void {
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   levelUpCalls.length = 0;
+  // The index is cached per pack id for minutes: a test must not see the last test's packs.
+  rulesSearch.clearCache();
   install();
 });
 afterEach(() => {
@@ -439,6 +454,52 @@ describe('playerRead: books', () => {
     });
     expect(book.description).toContain('seize a creature');
     assertNoCanary(book);
+  });
+
+  it('a GM search that ran first does not put secrets or the true name in the player answers', async () => {
+    g.game.settings = { get: (): string => '' };
+    const gmFirst = await deps.rulesSearch.searchRules({ query: 'fireball', excerptChars: 4000 });
+    expect(JSON.stringify(gmFirst)).toContain('CANARY-GM-SECRET-ITEM');
+    for (const query of ['fireball', 'grappling', 'ring iron']) {
+      assertNoCanary(await as('searchBooks', { query, excerptChars: 600 }));
+    }
+    const ring = await as('searchBooks', { query: 'plain iron ring' });
+    expect(ring.results.map((h: any) => h.name)).toEqual(['Plain ring']);
+  });
+
+  it('findEntries lists an unidentified item under its unidentified name only', async () => {
+    const byTrueName = await as('findEntries', { query: 'mystery' });
+    expect(byTrueName.results).toEqual([]);
+    const byShownName = await as('findEntries', { query: 'plain ring' });
+    expect(byShownName.results).toEqual([
+      expect.objectContaining({ entryId: 'ringunid000001', name: 'Plain ring' }),
+    ]);
+    assertNoCanary(byShownName);
+    expect(JSON.stringify(byShownName)).not.toContain('Mystery');
+    const entry = await as('getEntry', {
+      packId: 'dnd-players-handbook.spells',
+      entryId: 'ringunid000001',
+    });
+    expect(entry.name).toBe('Plain ring');
+  });
+
+  it('an unidentified item with no unidentified name shows a placeholder', async () => {
+    const pack = g.game.packs[0];
+    const doc = (await pack.getDocuments()).find((d: any) => d.id === 'ringunid000001');
+    doc.system.unidentified.name = '';
+    const r = await as('findEntries', { query: 'unidentified' });
+    expect(r.results.map((x: any) => x.name)).toEqual(['Unidentified item']);
+    expect(JSON.stringify(r)).not.toContain('Mystery');
+  });
+
+  it('findEntries takes "species" for the dnd5e type "race"', async () => {
+    g.game.packs.push(
+      pack('dnd-players-handbook.origins', 'Item', [
+        itemDoc('spHuman00000001', 'Human', 'race', '<p>People.</p>', [userA]),
+      ])
+    );
+    const r = await as('findEntries', { query: 'human', type: 'species' });
+    expect(r.results).toEqual([expect.objectContaining({ name: 'Human', type: 'race' })]);
   });
 
   it('the GM search keeps the full text, separate from the player index', async () => {

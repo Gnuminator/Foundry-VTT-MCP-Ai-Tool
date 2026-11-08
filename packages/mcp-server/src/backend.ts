@@ -60,6 +60,7 @@ import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
 
 import { ChatLogTools } from './tools/chat-log.js';
+import { splitPlayerTools } from './tool-sets.js';
 import { LevelUpTools } from './tools/level-up.js';
 import {
   PLAYER_CONFIG_ENV,
@@ -604,7 +605,10 @@ async function startBackend(): Promise<void> {
   const announceAiChanges = createAiChangesAnnouncer(foundryClient, logger);
   guardedWrites.addRecordedListener(announceAiChanges);
   handouts.addQueueChangedListener(announceAiChanges);
-  const allTools = collectToolDefinitions(toolDeps);
+  // The player tools are not listed to any other control client (see splitPlayerTools).
+  const { listed: allTools, player: playerToolDefinitions } = splitPlayerTools(
+    collectToolDefinitions(toolDeps)
+  );
   allToolNames = allTools.map(t => t.name);
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
@@ -757,6 +761,15 @@ async function startBackend(): Promise<void> {
 
           if (msg.method === 'list_tools') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
+
+            continue;
+          }
+
+          // The five player tool definitions, for the dashboard's /mcp/player `tools/list`.
+          if (msg.method === 'list_player_tools') {
+            socket.write(
+              `${JSON.stringify({ id: msg.id, result: { tools: playerToolDefinitions } })}\n`
+            );
 
             continue;
           }

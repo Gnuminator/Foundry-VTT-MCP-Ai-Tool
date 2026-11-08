@@ -202,8 +202,15 @@ function install(): void {
       pack(
         'world.mine',
         'Item',
-        [itemDoc('wp1', 'World fireball', 'spell', '<p>CANARY-WORLD-PACK fireball</p>', [userA])],
-        { packageType: 'world' }
+        [itemDoc('wp1', 'World fireball', 'spell', '<p>CANARY-WORLD-PACK fireball</p>', [userB])],
+        { packageType: 'world', viewers: [userB] }
+      ),
+      // The live campaign keeps the kept books in world.player-* packs: readable when observed.
+      pack(
+        'world.player-feats',
+        'Item',
+        [itemDoc('wf1', 'Lucky Charm', 'feat', '<p>POSITIVE-WORLD-FEAT text</p>', [userA])],
+        { packageType: 'world', viewers: [userA] }
       ),
     ],
   };
@@ -371,6 +378,15 @@ describe('playerRead: books', () => {
     await expect(as('getEntry', {})).rejects.toThrow('Entry not found');
   });
 
+  it('reads an observable world.player-* pack, and not a world pack the user cannot observe', async () => {
+    const r = await as('findEntries', { query: 'lucky' });
+    expect(r.results.map((x: any) => x.name)).toEqual(['Lucky Charm']);
+    const e = await as('getEntry', { packId: 'world.player-feats', entryId: 'wf1' });
+    expect(e.description).toContain('POSITIVE-WORLD-FEAT');
+    const none = await as('findEntries', { query: 'world fireball' });
+    expect(none.results).toEqual([]);
+  });
+
   it('a permission function that is missing counts as not allowed', async () => {
     const spells = g.game.packs[0];
     delete spells.testUserPermission;
@@ -380,7 +396,7 @@ describe('playerRead: books', () => {
 });
 
 describe('isDeniedPack', () => {
-  it('denies adventures, dnd5e, the DMG pack and world packs', () => {
+  it('denies adventures, dnd5e and the DMG pack, but not world packs as a class', () => {
     const mk = (id: string, type = 'Item', packageType = 'module'): any =>
       ({
         documentName: type,
@@ -389,7 +405,7 @@ describe('isDeniedPack', () => {
     expect(isDeniedPack(mk('x.y', 'Adventure'))).toBe(true);
     expect(isDeniedPack(mk('dnd5e.rules'))).toBe(true);
     expect(isDeniedPack(mk('aitool-content.journals', 'JournalEntry'))).toBe(true);
-    expect(isDeniedPack(mk('world.stuff', 'Item', 'world'))).toBe(true);
+    expect(isDeniedPack(mk('world.player-feats', 'Item', 'world'))).toBe(false);
     expect(isDeniedPack(mk('dnd-players-handbook.spells'))).toBe(false);
     expect(isDeniedPack(mk('aitool-content.spells'))).toBe(false);
   });

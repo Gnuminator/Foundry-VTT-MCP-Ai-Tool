@@ -201,6 +201,21 @@ const SET_OF_TOOL: ReadonlyMap<string, ToolSetName> = new Map(
   ALL_TOOL_SET_NAMES.flatMap(set => TOOL_SETS[set].tools.map(tool => [tool, set] as const))
 );
 
+/**
+ * Splits a tool list into the tools every control client may list (`list_tools`) and the player
+ * tools, which only the control message `list_player_tools` returns: an installed wrapper from
+ * before the player set would otherwise list them in its core entry and fail every call.
+ */
+export function splitPlayerTools<T extends { name: string }>(
+  tools: readonly T[]
+): { listed: T[]; player: T[] } {
+  const player = TOOL_SETS[PLAYER_TOOL_SET].tools;
+  return {
+    listed: tools.filter(t => !player.includes(t.name)),
+    player: tools.filter(t => player.includes(t.name)),
+  };
+}
+
 /** The set a tool belongs to, or undefined for a name no set lists. */
 export function toolSetOf(toolName: string): ToolSetName | undefined {
   return SET_OF_TOOL.get(toolName);

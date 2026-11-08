@@ -91,7 +91,9 @@ export function isDeniedPack(pack: PackLike): boolean {
   if (packType(pack) === 'Adventure') return true;
   if (id.startsWith('dnd5e.') || pkg === 'dnd5e') return true;
   if (id === DENIED_ID) return true;
-  if (meta.packageType === 'world' || id.startsWith('world.')) return true;
+  // World packs are NOT denied as a class: the live campaign keeps the kept books in
+  // world.player-* packs. Adventure packs (above), the OBSERVER check and the term filter cover
+  // the GM-only ones.
   return false;
 }
 

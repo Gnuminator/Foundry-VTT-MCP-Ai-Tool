@@ -10,9 +10,15 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildToolRouter } from '../tool-router.js';
+import { buildToolRouter, collectToolDefinitions } from '../tool-router.js';
 import { stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
-import { PLAYER_TOOL_SET, TOOL_SETS, filterToolsBySets, resolveToolSets } from '../tool-sets.js';
+import {
+  PLAYER_TOOL_SET,
+  TOOL_SETS,
+  filterToolsBySets,
+  resolveToolSets,
+  splitPlayerTools,
+} from '../tool-sets.js';
 import {
   PLAYER_ENTRY_CHARS,
   PLAYER_EXCERPT_CHARS,
@@ -65,6 +71,13 @@ describe('the player set is never served on stdio and has no call_tool route', (
     const all = names.map(name => ({ name }));
     for (const raw of [undefined, 'all', 'core', 'core,player', 'player'])
       expect(filterToolsBySets(all, resolveToolSets(raw))).toEqual([]);
+  });
+
+  it('list_tools leaves them out; list_player_tools carries exactly the five', () => {
+    const { listed, player } = splitPlayerTools(collectToolDefinitions(deps));
+    expect(listed.map(t => t.name)).not.toEqual(expect.arrayContaining([names[0]]));
+    for (const name of names) expect(listed.map(t => t.name)).not.toContain(name);
+    expect(player.map(t => t.name).sort()).toEqual([...names].sort());
   });
 
   it('call_tool has no route for them (the dashboard path is player_tool only)', () => {

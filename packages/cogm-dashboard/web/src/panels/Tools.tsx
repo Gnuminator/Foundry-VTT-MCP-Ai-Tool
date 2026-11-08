@@ -1,4 +1,4 @@
-// The Tool runner (🛠 Tools): every bridge tool the dashboard can see (GET /api/tools), grouped by
+// The Tool Runner (🛠 Tools): every bridge tool the dashboard can see (GET /api/tools), grouped by
 // category, and one tool as a form built from its input schema, with picker lists for parameters
 // that name something. Reads run at once. A plan-* tool is planned and then applied after the
 // confirm window, always (a plan typed by hand is never a one-click change, and Enter in a field

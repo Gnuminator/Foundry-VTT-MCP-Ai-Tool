@@ -121,7 +121,7 @@ export function HandoutsDrawer({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** "+ Queue a page": the Tool runner on plan-page-reveal, queue, for the active scene if known. */
+  /** "+ Queue a page": the Tool Runner on plan-page-reveal, queue, for the active scene if known. */
   onQueuePage: (sceneId: string | null) => void;
 }): JSX.Element {
   const toast = useToast();
@@ -443,7 +443,7 @@ export function HandoutsDrawer({
             />{' '}
             Show it now
           </label>
-          {/* Opens the Tool runner with the form filled in; the GM picks the page and runs it. */}
+          {/* Opens the Tool Runner with the form filled in; the GM picks the page and runs it. */}
           <Button
             id="handouts-add"
             data-track="dash.handouts.queue-page"

@@ -1,7 +1,7 @@
 // The combat strip on the React dashboard (D-092, I-070, I-095): the rows from a `combat` stream
 // event, picking rows and the action bar, Damage / Heal opening its small form (one guarded write
 // when its button is pressed), Condition and End combat inline (plan, one confirm, apply with
-// Undo; no Tool runner), Boss prompts and the reaction buttons, the fight marked old
+// Undo; no Tool Runner), Boss prompts and the reaction buttons, the fight marked old
 // while the bridge is away, and that the strip is out of the way when no fight runs. The bridge
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -24,7 +24,7 @@ const STARTED = '2026-10-10T18:00:00.000Z';
 // lib/stream.ts AWAY_AFTER_MS: how long a failed poll keeps the strip from saying so.
 const AWAY_AFTER_MS = 5000;
 
-// The reads the page and the Tool runner make themselves (see `setup`). The strip writes only
+// The reads the page and the Tool Runner make themselves (see `setup`). The strip writes only
 // from the Damage / Heal form and the roll row; a test that clicked other buttons expects no other
 // call, whatever a future write is named, and no call that carries a confirm flag.
 const PAGE_READS = new Set([
@@ -971,7 +971,7 @@ test.describe('picking combatants', () => {
     ]);
   });
 
-  test('End combat plans, asks one plain question, then applies with Undo; no Tool runner', async ({
+  test('End combat plans, asks one plain question, then applies with Undo; no Tool Runner', async ({
     page,
   }) => {
     const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });

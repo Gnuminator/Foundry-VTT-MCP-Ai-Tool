@@ -20,7 +20,7 @@ import { useWorldTheme } from '../lib/worldTheme';
 import { Button } from '../ui';
 import { focusedElement, useConfirm } from './ConfirmDialog';
 import { DockContext } from './Drawer';
-import { LivePlayLine } from './GmActionsSwitch';
+import { GmActionsButton } from './GmActionsSwitch';
 import { useHelp } from './HelpButton';
 import { LazyPanel, panelChunk, usePreloadPanels } from './LazyPanel';
 import { LiveStrip } from './LiveStrip';
@@ -125,7 +125,7 @@ export function LiveScreen(): JSX.Element {
         <h1>Dashboard</h1>
         <div className="controls">
           <SessionMarker />
-          <LivePlayLine />
+          <GmActionsButton />
           <ThemePicker />
           <StreamState />
           <HealthLine />

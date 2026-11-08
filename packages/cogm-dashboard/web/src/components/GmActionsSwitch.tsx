@@ -10,11 +10,11 @@ const GM_ACTIONS_NAME = 'GM Actions';
 /**
  * The GM Actions button in the header: "GM Actions on", or "GM Actions off: Turn on" with what is off
  * in the tooltip and the accessible name. Start session is the only switch (it turns on GM Actions and every Turn on for
- * tonight switch, End session turns them off); this line only shows the state and opens the list
+ * tonight switch, End session turns them off); this button only shows the state and opens the list
  * of switches, with one Turn on for whatever is off. When the module's switches cannot be read it
  * says so instead of "on". It replaces the old GM Actions button (#btn-gm).
  */
-export function LivePlayLine(): JSX.Element {
+export function GmActionsButton(): JSX.Element {
   const live = useLivePlay();
   const gmActions = useDashboardSettings()?.gmActionsEnabled === true;
   const everything = [GM_ACTIONS, ...live.list.map(s => s.id)];

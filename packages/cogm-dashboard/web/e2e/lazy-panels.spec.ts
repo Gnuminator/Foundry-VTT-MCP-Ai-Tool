@@ -5,7 +5,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, fromMenu, ok, toast } from './support';
 
-/** The Tool runner's chunk (Vite names it Tools-<hash>.js). */
+/** The Tool Runner's chunk (Vite names it Tools-<hash>.js). */
 const TOOLS_CHUNK = '**/assets/Tools-*.js';
 
 async function fakeWorld(page: Page): Promise<void> {

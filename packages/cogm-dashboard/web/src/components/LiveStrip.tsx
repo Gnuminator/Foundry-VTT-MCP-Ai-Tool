@@ -2,7 +2,7 @@
 // screen B (a Foundry window) both draw. One combat row of creature cards with the portrait
 // leading each, an always-present pick bar (Damage / Heal inline, condition chips), the roll bar,
 // Show next handout, and Next turn / End combat / Undo in the header. Every write goes through the
-// guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool runner.
+// guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool Runner.
 // The words and small rules are in lib/liveStrip.ts.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {

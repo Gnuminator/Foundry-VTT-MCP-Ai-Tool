@@ -1,4 +1,4 @@
-// The Pick from list button next to a Tool runner field that names something (x-foundry-ref): a list of
+// The Pick from list button next to a Tool Runner field that names something (x-foundry-ref): a list of
 // what exists now from list-ref-choices, with a filter box. Styled by the shared
 // public/styles.css (.ref-picker, .ref-menu, .ref-item, ...). The field
 // still takes typed text; the hint under it names what the value points at, also for a prefilled

@@ -1,4 +1,4 @@
-// The Tool runner on the React dashboard: the catalog by category (GET /api/tools, faked here),
+// The Tool Runner on the React dashboard: the catalog by category (GET /api/tools, faked here),
 // the search, a read, form checks, a plan typed by hand through the GM Actions gate and the
 // confirm window (Cancel, Confirm, Undo), a destructive plan, a write that is not a plan, a failed
 // plan, an apply the bridge refuses, picker lists naming a prefilled value, the Escape order, where
@@ -462,7 +462,7 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   ]);
 });
 
-test('an Undo GM Actions refuse after the drawer closed opens the Tool runner again', async ({
+test('an Undo GM Actions refuse after the drawer closed opens the Tool Runner again', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));
@@ -483,7 +483,7 @@ test('an Undo GM Actions refuse after the drawer closed opens the Tool runner ag
   await drawer.getByRole('button', { name: 'Close' }).click();
   await expect(drawer).toBeHidden();
   await page.locator('.toast-stack .toast-undo .toast-action').click();
-  // The Tool runner's own gate text, and its drawer, not Pre-flight.
+  // The Tool Runner's own gate text, and its drawer, not Pre-flight.
   await expect(
     toast(page, 'GM Actions are off. Enable GM Actions at the top of the Tool Runner.')
   ).toBeVisible();
@@ -520,7 +520,7 @@ test('an Undo GM Actions refuse with the drawer open under another brings it to 
   await expect(drawer).toHaveClass(/drawer-top/);
   await expect(party).not.toHaveClass(/drawer-top/);
   await expect(drawer.locator('#gm-gate-enable')).toBeFocused();
-  // Escape follows the top: the Tool runner closes first, then Party.
+  // Escape follows the top: the Tool Runner closes first, then Party.
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(party).toHaveClass(/drawer-top/);
@@ -855,7 +855,7 @@ test('a compendium picker waits for two letters', async ({ page }) => {
   ]);
 });
 
-test('+ Queue a page opens the Tool runner filled in, names shown, and queues on Run', async ({
+test('+ Queue a page opens the Tool Runner filled in, names shown, and queues on Run', async ({
   page,
 }) => {
   // Queueing changes nothing in Foundry: it works with GM Actions off, as Remove does.

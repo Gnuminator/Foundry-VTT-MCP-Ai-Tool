@@ -1,7 +1,7 @@
 // The Condition picker on the combat strip (item dashboard-inline-condition-endcombat): one chip
 // per condition, the same list the live strip offers. A chip plans the condition for the picked
 // tokens with plan-actor-change, one plain confirm window asks, and the apply puts it on; the toast
-// has Undo and Recent Changes keeps the change. No Tool runner. It shares the Damage / Heal form's
+// has Undo and Recent Changes keeps the change. No Tool Runner. It shares the Damage / Heal form's
 // look (its CSS module), since the two open in the same place under the action bar.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 

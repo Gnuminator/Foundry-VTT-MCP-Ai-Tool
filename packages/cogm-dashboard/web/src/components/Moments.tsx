@@ -31,7 +31,7 @@ export type DockName = DrawerDockName | 'changes';
 const ORDER: readonly Moment[] = ['before', 'during', 'after'];
 
 /**
- * The panels docked in each moment. Tarokka and the Tool runner never dock.
+ * The panels docked in each moment. Tarokka and the Tool Runner never dock.
  * Recent Changes is in During and After only; over Before it is not on the page.
  */
 export const DOCKS: Record<Moment, readonly DockName[]> = {

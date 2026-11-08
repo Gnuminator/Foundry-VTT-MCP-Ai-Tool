@@ -9,7 +9,7 @@ import { reply } from '../storybook/fakeApi';
 import { SWITCHES_READY, SWITCHES_TONIGHT } from '../storybook/fixtures/preflight';
 import type { DashboardParameters } from '../storybook/withDashboard';
 
-import { LivePlayLine } from './GmActionsSwitch';
+import { GmActionsButton } from './GmActionsSwitch';
 
 // The GM Actions button in the header: "GM Actions on" or what is off with a Turn on. Start
 // session is the only switch; the button shows the state and its list holds one Turn on.
@@ -35,7 +35,7 @@ function Header(): JSX.Element {
           </div>
         </div>
         <div className="controls">
-          <LivePlayLine />
+          <GmActionsButton />
         </div>
       </header>
     </div>

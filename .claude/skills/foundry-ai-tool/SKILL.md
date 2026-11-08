@@ -1,6 +1,6 @@
 ---
 name: foundry-ai-tool
-description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (tool runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist, the M2 player-view checks and the Obsidian O4 mirror checks (notes, links, /open route). Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
+description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (Tool Runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist, the M2 player-view checks and the Obsidian O4 mirror checks (notes, links, /open route). Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
 ---
 
 # Foundry AI Tool: tools, dashboard, smoke test
@@ -50,12 +50,12 @@ Features plan with read-only `plan-*` tools; one generic `apply-planned-change` 
 
 ## Dashboard (http://localhost:3100)
 
-- Header: GM Actions switch; **Advanced** menu with **Tools** (tool runner), **Tarokka** drawer
+- Header: GM Actions switch; **Advanced** menu with **Tools** (Tool Runner), **Tarokka** drawer
   (GM only), Handouts, Prep, Party, Module diagnostics and Player links. The Tool Runner's chunk
   loads lazily: "Loading..." for a few seconds the first time. Turning GM Actions on removes the
   yellow banner at the top of the runner and moves the search box up: take a new screenshot
   before clicking.
-- Tool runner: search, then a form built from the tool's schema. Parameters that name something
+- Tool Runner: search, then a form built from the tool's schema. Parameters that name something
   have **Pick from list**: a filterable list of what exists now (tokens of the current scene with
   disposition, hidden flag and position; actors; journals; compendium entries by search; plans;
   changes; ...). Multi-select for list parameters; typing by hand still works. A red

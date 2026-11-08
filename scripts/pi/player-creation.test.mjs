@@ -420,7 +420,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     return r;
   };
   const count = (calls, call) => calls.filter(c => c === call).length;
-  const PINNED = '2.10.5-aitool.8';
+  const PINNED = '2.10.5-aitool.9';
   const GOOD_CALLS = [
     'is-active --quiet foundry.service',
     'is-active --quiet foundry-ai-tool-gm-browser.service',
@@ -532,10 +532,10 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.equal(r.exit, 1, r.output);
     const line = r.output
       .split('\n')
-      .find(l => l.includes(`2.10.5-aitool.9 is newer than ${PINNED}:`));
+      .find(l => l.includes(`2.10.5-aitool.10 is newer than ${PINNED}:`));
     assert.ok(line && line.includes('ALLOW_DOWNGRADE=1'), r.output);
     assert.deepEqual(r.calls, []);
-    assert.equal(r.version, '2.10.5-aitool.9');
+    assert.equal(r.version, '2.10.5-aitool.10');
   });
 
   test('ALLOW_DOWNGRADE=1 replaces the newer build and keeps it in prev', () => {

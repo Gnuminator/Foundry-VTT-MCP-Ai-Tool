@@ -52,8 +52,9 @@ You need:
 1. Go to <https://claude.com/download> and download Claude for Windows.
 2. Run the installer and open the app.
 3. Sign in with your own account. If you do not have one, create one with your email address. A
-   free account is enough to try the helper. If a step below mentions a menu you do not have, your
-   plan may not include it: tell the person who runs the tool which one.
+   free account may be enough to try the helper. If a step below mentions a menu you do not have
+   (Customize or Skills, say), your plan may not include it: tell the person who runs the tool
+   which one.
 4. Open a chat and send "hello" to check that it answers. If it does, the app works.
 
 Anthropic changes the menus now and then. If a button is not where this guide says, look for the
@@ -65,10 +66,9 @@ same word nearby, or use the search box in Settings.
    opens and shows an install window for it. (If nothing happens, open Claude Desktop, go to
    **Settings**, then **Extensions**, and drag the file into that window.)
 2. Click **Install**. Claude may warn that extensions run on your computer. This one only talks
-   to our game server, and it contains no book text and no secrets.
+   to our game server, and the file itself holds no book text and no secret.
 3. A form asks for two things. Paste your **Client ID** into the first box and your **Client
-   Secret** into the second. The secret box hides what you type and Claude Desktop keeps it in
-   the Windows credential store, not in a plain file.
+   Secret** into the second. The secret box hides what you type.
 4. Make sure the extension is switched **on** (a toggle next to its name in Settings,
    Extensions).
 5. Quit Claude Desktop completely (right-click its icon by the clock and choose Quit, closing the

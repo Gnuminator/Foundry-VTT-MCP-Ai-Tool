@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: d80544e0a854
+sourceHash: fb6cc4daea18
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -31,7 +31,7 @@ udgangspunkt ved Claude ikke noget om vores spil. Tre små dele ændrer det:
 Det, den **gør**: læser dine egne karakterer, læser de bøger, som bordet lader spillere læse, og
 snakker valgene igennem med dig.
 
-Det, den **aldrig gør**: ændrer noget. Den kan ikke redigere dit ark, rolle terninger, flytte en
+Det, den **aldrig gør**: ændrer noget. Den kan ikke redigere dit ark, rulle terninger, flytte en
 token eller sende en besked i spillet. Du laver selv alle ændringer ved at klikke i Foundry, og
 Claude fortæller dig, hvad du skal klikke på. Det er med vilje.
 
@@ -53,9 +53,9 @@ Du skal bruge:
 
 1. Gå til <https://claude.com/download> og hent Claude til Windows.
 2. Kør installationsprogrammet og åbn appen.
-3. Log ind med din egen konto. Har du ikke en, så opret en med din e-mailadresse. En gratis konto er
-   nok til at prøve hjælperen. Hvis et trin nedenfor nævner en menu, du ikke har, kan din plan
-   mangle den: sig til den, der kører værktøjet, hvilken.
+3. Log ind med din egen konto. Har du ikke en, så opret en med din e-mailadresse. En gratis konto kan
+   være nok til at prøve hjælperen. Hvis et trin nedenfor nævner en menu, du ikke har (fx
+   Customize eller Skills), kan din plan mangle den: sig til den, der kører værktøjet, hvilken.
 4. Åbn en chat og send "hej" for at se, om den svarer. Gør den det, virker appen.
 
 Anthropic ændrer menuerne en gang imellem. Hvis en knap ikke står, hvor guiden siger, så led efter
@@ -67,10 +67,9 @@ det samme ord i nærheden, eller brug søgefeltet i Settings.
    og viser et installationsvindue for den. (Sker der ingenting, så åbn Claude Desktop, gå til
    **Settings**, derefter **Extensions**, og træk filen ind i det vindue.)
 2. Klik på **Install**. Claude advarer måske om, at extensions kører på din computer. Denne her
-   taler kun med vores spilserver, og den indeholder ingen bogtekst og ingen hemmeligheder.
+   taler kun med vores spilserver, og selve filen indeholder ingen bogtekst og ingen hemmelighed.
 3. En formular beder om to ting. Indsæt dit **Client ID** i det første felt og din **Client Secret**
-   i det andet. Secret-feltet skjuler det, du skriver, og Claude Desktop gemmer den i Windows'
-   legitimationslager, ikke i en almindelig fil.
+   i det andet. Secret-feltet skjuler det, du skriver.
 4. Sørg for, at extension er slået **til** (en kontakt ved siden af navnet i Settings, Extensions).
 5. Luk Claude Desktop helt (højreklik på dets ikon ved uret og vælg Quit, det er ikke nok at lukke
    vinduet) og åbn det igen.
@@ -131,7 +130,7 @@ Flere ting at spørge om:
 
 Claude læser dit ark og det, det næste level giver, slår hver feature op i bøgerne og svarer i to
 dele: hvad du får automatisk, og hvad du vælger, med to-tre muligheder til **din** build og en
-anbefaling. For hit points fortæller den dig gennemsnittet og resultatet af rollet for din hit die,
+anbefaling. For hit points fortæller den dig gennemsnittet og resultatet af terningkastet for din hit die,
 og gennemsnittet er det sikre valg. Derefter fortæller den dig, hvad du skal klikke på i Foundrys
 level-up-vindue.
 
@@ -178,7 +177,7 @@ den her måde.
 Bøgerne lister muligheder, de rangerer dem ikke. Spørger du "hvad er den stærkeste Fighter
 subclass", giver Claude sin egen begrundelse til din build og siger klart, at det er **mening**.
 Den peger måske også på Dungeon Mister 2024-guiderne, <https://dungeonmister.com/dnd-5e-2024/>, som
-én holdningsprægede kilde fra fællesskabet. Det er én skribents syn, ikke reglerne og ikke bordets.
+én holdningspræget kilde fra fællesskabet. Det er én skribents syn, ikke reglerne og ikke bordets.
 Claude linker kun til den (og åbner den måske, hvis websøgning er slået til i din chat), den kopierer
 ikke siden.
 
@@ -192,7 +191,7 @@ Det er med vilje, og det beskytter også historien.
   Spørg GM'en.
 - **Korte uddrag.** En søgning giver et par korte uddrag, og et enkelt indlæg er begrænset i
   længde. Ved en lang regel fortæller Claude dig, hvor du kan læse det hele i Foundry.
-- **Ingen ændringer.** Den kan ikke redigere noget. Den kan heller ikke rolle for dig.
+- **Ingen ændringer.** Den kan ikke redigere noget. Den kan heller ikke rulle terninger for dig.
 - **Ikke live.** Den læser dit ark, når den spørger. Ændrer du noget i Foundry, så sig det og bed
   den kigge igen.
 

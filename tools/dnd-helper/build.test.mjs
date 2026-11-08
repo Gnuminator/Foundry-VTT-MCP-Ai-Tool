@@ -123,10 +123,14 @@ test('the player zip names only player-set tools and no GM tool', () => {
   withPlayerBuild(({ files }) => {
     const named = new Set();
     for (const [name, text] of files) {
-      if (!OWN_PAGE(name)) continue;
+      // Allowlist: every backticked kebab-case token, on every page, must be a player tool.
       for (const m of text.matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)+)`/g)) {
         named.add(m[1]);
-        assert.ok(!gm.has(m[1]), `${name} names the GM tool ${m[1]}`);
+        assert.ok(PLAYER_TOOLS.includes(m[1]), `${name} names ${m[1]}, not a player tool`);
+      }
+      // Denylist: no GM tool name anywhere in the text, backticked or not.
+      for (const tool of gm) {
+        assert.ok(!new RegExp(`(?<![a-z0-9-])${tool}(?![a-z0-9-])`).test(text), `${name}: ${tool}`);
       }
       assert.doesNotMatch(text, /\bcore set\b|search-rules|compendium-pack/i, name);
     }

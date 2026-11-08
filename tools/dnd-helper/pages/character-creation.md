@@ -88,8 +88,12 @@ before they hit them, and re-check after:
    times (SRD 5.1, SRD 5.2, PHB, **PHB 2024**; pick PHB 2024), and Cleric, Druid and Wizard lists
    are mixed (pick only the class named after Magic Initiate). The class Spells tab still offers
    cantrips already given by the feat: avoid doubles.
-5. **Equipment tab:** the items turn green by themselves; the gold amounts stay black until
-   clicked. Click each until the bar says 100%, then **Confirm**.
+5. **Equipment tab:** the items turn green by themselves, but some tiles are choices you must
+   click: the dark gold tile at the bottom of the left pane (the background's "8 GP" or similar),
+   the class gold tile ("7 GP"), and the **Select focus** list for "any holy focus" (pick Amulet,
+   Emblem or Reliquary). Never stop at 75%: the bar reaches 100% only when every one is done, and
+   then a **Confirm** button appears. Closing before Confirm drops the equipment picks (Studio now
+   asks first). After Confirm, body armor and a shield are equipped; other gear is not.
 6. **Wizards have no Spellbook** in the starting kit. The GM adds one from the item compendium.
 7. **Cosmetic only:** the raw key `GAS.Spells.Cantrip` under chosen cantrips, class steps headed
    "Level 1 -> 2", a spell card lingering at the bottom right.

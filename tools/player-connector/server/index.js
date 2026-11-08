@@ -138,12 +138,11 @@ function createForwarder(env, fetchImpl) {
         signal: ctl.signal,
       });
       if (res.status >= 300 && res.status < 400) {
-        sessionId = null;
+        // A refusal says nothing about whether the server's session is alive: keep the id.
         return { failure: describeFailure({ kind: 'redirect' }), status: res.status };
       }
       if (res.status < 200 || res.status >= 300) {
         await res.arrayBuffer().catch(() => undefined); // never echo a body that could hold detail
-        if (res.status === 401 || res.status === 403) sessionId = null;
         return { failure: describeFailure({ status: res.status }), status: res.status };
       }
       const sid = res.headers.get('mcp-session-id');

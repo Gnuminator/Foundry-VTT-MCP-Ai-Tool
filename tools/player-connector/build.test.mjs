@@ -34,6 +34,7 @@ before(async () => {
       if (mode === 'session') {
         const sid = req.headers['mcp-session-id'];
         if (rpc.method === 'test/reset') sessions.clear();
+        else if (rpc.method === 'test/deny') return res.writeHead(403).end();
         else if (rpc.method === 'initialize') {
           const fresh = `s${++sessionCount}`;
           sessions.add(fresh);
@@ -180,6 +181,9 @@ test('a forgotten session (404) starts a new one and retries once', async () => 
   const ask = (id, method, params) => handleMessage({ jsonrpc: '2.0', id, method, params }, fwd);
   assert.equal((await ask(1, 'initialize', {})).result.session, 's1');
   assert.equal((await ask(2, 'tools/list')).result.sid, 's1');
+  // A passing refusal (403) must not cost us the live session.
+  assert.match((await ask(20, 'test/deny')).error.message, /HTTP 403/);
+  assert.equal((await ask(21, 'tools/list')).result.sid, 's1');
   await ask(3, 'test/reset'); // the server forgets every session
   const healed = await ask(4, 'tools/list');
   assert.equal(healed.result.sid, 's2', 'a new session was started and the call retried');

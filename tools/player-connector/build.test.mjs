@@ -523,8 +523,8 @@ test('the first initialize is capped at 10 s even with a longer timeout', async 
     mock.timers.tick(9999);
     assert.equal(signals[0].aborted, false);
     mock.timers.tick(1);
-    const out = await init;
     assert.equal(signals[0].aborted, true);
+    const out = await init;
     assert.match(out.failure, /did not answer in time/);
   } finally {
     mock.timers.reset();
@@ -624,14 +624,17 @@ test('a closed stdout pipe makes the process exit 0 without noise', async () => 
   child.stdout.destroy();
   // stdin stays open: only the stdout error handler can end the process.
   const code = await new Promise(resolve => {
-    child.on('close', c => resolve(c));
-    setTimeout(() => {
-      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }) + '\n');
-    }, 100);
-    setTimeout(() => {
+    const giveUp = setTimeout(() => {
       child.kill();
       resolve('still running after 3 s');
     }, 3000);
+    child.on('close', c => {
+      clearTimeout(giveUp);
+      resolve(c);
+    });
+    setTimeout(() => {
+      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }) + '\n');
+    }, 100);
   });
   assert.equal(code, 0);
   assert.equal(err, '');

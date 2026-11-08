@@ -10,6 +10,9 @@
 #   6 CHECK exits 0 when the round is clean and 1 when a check prints FAIL; it prints no secret
 #   7 the snapshot rule: a stale snapshot refuses before anything is written; DRY_RUN and CHECK need none
 #   8 UNDO removes the unit and the files and keeps the settings file
+#   9 with a fake systemctl and journalctl: a first run starts the unit and waits for the watching line; a file newer than
+#     the running service restarts it; nothing newer does not; a unit that never reaches its watching line fails the stage
+# The stand-in Node refuses --env-file anywhere on its command line, as real Node does (CHECK must use --env-files).
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage29-scenarios.sh
 # (scripts/pi/gamenight-watch-stage.test.mjs runs it with PI_STAGE29_CONTAINER=1.) STAGE=<file> runs another copy of the script.
@@ -49,6 +52,8 @@ mkdir -p "$unit_dir"
 cat >"$NODE_DIR/bin/node" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
+  # Real Node reads --env-file from the whole command line, script arguments included, and stops on a list it cannot open.
+  *"--env-file "*|*"--env-file="*) echo "node: ${*#*--env-file}: not found"; exit 9 ;;
   *--check*) exit 0 ;;
   *--once*)
     echo "2026-11-07 20:00:00 session open: watch started"
@@ -184,5 +189,46 @@ run UNDO=1
 rc=$?
 if [ "$rc" -eq 0 ] && [ ! -e "$dest" ] && [ ! -e "$unit_file" ] && [ "$(sha256sum <"$watch_env")" = "$env_sum" ]; then
   pass "UNDO removes the unit and the files and keeps the settings file"; else fail "undo: rc=$rc $OUT"; fi
+
+# 9. With a stand-in systemd (a /run/systemd/system folder and a fake systemctl and journalctl): the restart rules and
+# the wait for the watch's "watching" line.
+mkdir -p /run/systemd/system /tmp/fakebin
+cat >/tmp/fakebin/systemctl <<'EOF'
+#!/usr/bin/env bash
+# Fake systemctl: state in /tmp/fake-*; every call is logged to /tmp/systemctl.log.
+echo "$*" >>/tmp/systemctl.log
+case "$1" in
+  is-active) [ -f /tmp/fake-active ] && [ ! -f /tmp/fake-dead ] ;;
+  show) cat /tmp/fake-started 2>/dev/null ;;
+  start | restart) touch /tmp/fake-active /tmp/fake-acted ;;
+  *) exit 0 ;;
+esac
+EOF
+cat >/tmp/fakebin/journalctl <<'EOF'
+#!/usr/bin/env bash
+[ -f /tmp/fake-acted ] && [ ! -f /tmp/fake-nowatch ] && echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
+EOF
+chmod 0755 /tmp/fakebin/systemctl /tmp/fakebin/journalctl
+rm -f /tmp/systemctl.log /tmp/fake-active /tmp/fake-dead /tmp/fake-nowatch /tmp/fake-started
+fresh
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q '^start ' /tmp/systemctl.log && echo "$OUT" | grep -q 'running and watching'; then pass "a first run starts the unit and sees the watching line"; else fail "systemd start: rc=$rc $OUT"; fi
+: >/tmp/systemctl.log
+echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q '^restart ' /tmp/systemctl.log; then pass "files newer than the running service restart it (a cut-off upgrade)"; else fail "newer-than-service: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
+: >/tmp/systemctl.log
+echo "Tue 2099-01-01 00:00:00 UTC" >/tmp/fake-started
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
+rc=$?
+if [ "$rc" -eq 0 ] && ! grep -q "^restart " /tmp/systemctl.log && echo "$OUT" | grep -q "not restarted"; then pass "nothing newer than the service: no restart, no wait for a new watching line"; else fail "no restart: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
+touch /tmp/fake-nowatch; echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
+rc=$?
+rm -f /tmp/fake-nowatch
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that never reaches its watching line fails the stage"; else fail "no watching line: rc=$rc $OUT"; fi
+rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/fake-acted /tmp/systemctl.log
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

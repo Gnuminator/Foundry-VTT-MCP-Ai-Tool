@@ -19,10 +19,17 @@
  *   node scripts/gamenight-watch-pi.mjs --once --always one round of probes, no session needed
  *
  * Settings come from the real environment (the systemd unit loads discord-bot.env and
- * gamenight-watch.env) and, with --env-file, from a file: DISCORD_TOKEN, GAMENIGHT_WATCH_CHANNEL_ID,
+ * gamenight-watch.env) and, with --env-files (one or more files, comma separated), from files:
+ * DISCORD_TOKEN, GAMENIGHT_WATCH_CHANNEL_ID,
  * GAMENIGHT_WATCH_MENTION_IDS (as the PC watch) and WATCH_FOUNDRY_URL, WATCH_DASHBOARD_URL,
  * WATCH_CONTROL_PORT, WATCH_PUBLIC_URL, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET,
  * WATCH_RECORDER_UNIT, WATCH_RECORDER_STATUS_URL. Secrets are never printed.
+ *
+ * The flag is --env-files, not --env-file: Node itself reads --env-file from the whole command line, script
+ * arguments included, and stops with "not found" on a comma-joined list (stage 29 CHECK=1 hit exactly that).
+ *
+ * Exit codes: 2 is a settings problem (a bad number or address, no token, Discord refuses the channel, a public
+ * address that is not https while the Access token is set): the unit does not restart on it. 1 is anything else.
  */
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
@@ -46,6 +53,14 @@ import {
 
 /** The session ends after this many closed readings in a row (one odd answer does not end it). */
 export const END_AFTER = 2;
+
+/**
+ * A session still marked open but with no event for this long, while Foundry is down, is a night that ended without
+ * anyone marking it (or the 04:30 backup stopping Foundry): that round alarms and posts nothing. The session gate itself
+ * lets go after 3 h without events; this is shorter so a late night does not alarm at the backup, and long enough that a
+ * quiet stretch of play followed by a crash is still caught. A crash after 2 h of no events at all is not alarmed.
+ */
+export const QUIET_MS = 2 * 60 * 60 * 1000;
 
 /** One check: key, the words used in posts, and how slow is slow (Infinity: never judged on speed). */
 export const CHECKS = [
@@ -122,6 +137,11 @@ export function controlCall(port, host, method, params = {}, timeoutMs = 5000, n
 
 /** Is a play session marked open? true, false, or null when the bridge cannot say. */
 export async function readSessionOpen(port, host = '127.0.0.1', call = controlCall) {
+  return (await readSession(port, host, call)).open;
+}
+
+/** The session reading: `open` as in readSessionOpen, and `lastEventAt` (ms since epoch, null when unknown). */
+export async function readSession(port, host = '127.0.0.1', call = controlCall) {
   try {
     // requestedBy: the bridge counts a call without one as an old wrapper (get-preflight shows it).
     const result = await call(port, host, 'call_tool', {
@@ -131,11 +151,15 @@ export async function readSessionOpen(port, host = '127.0.0.1', call = controlCa
     });
     const text = result?.content?.[0]?.text;
     const parsed = typeof text === 'string' ? JSON.parse(text) : null;
-    if (typeof parsed?.open !== 'boolean') return null;
+    if (typeof parsed?.open !== 'boolean') return { open: null, lastEventAt: null };
+    const at = typeof parsed.lastEventAt === 'string' ? Date.parse(parsed.lastEventAt) : NaN;
     // A paper night has Foundry closed by design: nothing to watch. A bridge from before `mode` reads as live.
-    return parsed.open && parsed.mode !== 'paper';
+    return {
+      open: parsed.open && parsed.mode !== 'paper',
+      lastEventAt: Number.isFinite(at) ? at : null,
+    };
   } catch {
-    return null;
+    return { open: null, lastEventAt: null };
   }
 }
 
@@ -174,10 +198,17 @@ export async function probeDashboard(url, timeoutMs, fetchImpl = fetch) {
   }
 }
 
-/** Is the recorder's systemd unit active? @returns {Promise<boolean>} */
+/**
+ * Is the recorder's systemd unit active? `systemctl is-active` exits 0 when active and 3 when it is not; any other
+ * outcome (no D-Bus for this user, no systemctl, a timeout) cannot tell and must not read as "not running".
+ * @returns {Promise<'active'|'inactive'|'unknown'>}
+ */
 export function unitActive(unit, exec = execFile) {
   return new Promise(resolve => {
-    exec('systemctl', ['is-active', '--quiet', unit], { timeout: 5000 }, err => resolve(!err));
+    exec('systemctl', ['is-active', '--quiet', unit], { timeout: 5000 }, err => {
+      if (!err) return resolve('active');
+      resolve(err.code === 3 ? 'inactive' : 'unknown');
+    });
   });
 }
 
@@ -187,9 +218,13 @@ export function unitActive(unit, exec = execFile) {
  */
 export async function probeRecorder({ unit, statusUrl, timeoutMs, isActive = unitActive, fetchImpl = fetch }) {
   const started = Date.now();
-  if (!(await isActive(unit))) {
+  const state = await isActive(unit);
+  // A test double may still answer a plain boolean.
+  if (state === false || state === 'inactive') {
     return { ok: false, ms: Date.now() - started, error: 'the recorder service is not running' };
   }
+  // "Cannot tell" is no alarm: the status address (when set) still decides, and the log says what happened.
+  const note = state === 'unknown' ? 'cannot tell if the recorder service runs' : undefined;
   if (statusUrl) {
     try {
       const res = await fetchImpl(statusUrl, {
@@ -210,7 +245,7 @@ export async function probeRecorder({ unit, statusUrl, timeoutMs, isActive = uni
       return { ok: false, ms: Date.now() - started, error: `recorder status ${failWord(err)}` };
     }
   }
-  return { ok: true, ms: Date.now() - started };
+  return { ok: true, ms: Date.now() - started, ...(note ? { note } : {}) };
 }
 
 /** The public address through Cloudflare Access. Access turning the token away is its own wording. */
@@ -254,12 +289,16 @@ export function summarize(results) {
 export async function tick(rt) {
   const now = rt.now ?? Date.now;
   const open = rt.always ? true : await rt.readOpen();
+  // A bridge that does not answer teaches nothing (the gate keeps its state); say so once per stretch.
+  if (open === null && !rt.unknownLogged) rt.log('session reading unavailable: the bridge did not answer');
+  rt.unknownLogged = open === null;
   const gated = gateStep(rt.gate, open);
   rt.gate = gated.gate;
   const active = rt.gate.active;
   if (gated.event === 'ended') {
     rt.log('session ended: watch idle');
-    rt.pending.push({ text: 'Game-night watch stopped: the session is marked ended.', at: now() });
+    // Nobody may have marked the end: a night that went quiet closes by itself.
+    rt.pending.push({ text: 'Game-night watch stopped: the session has ended or has gone quiet.', at: now() });
     return;
   }
   if (!active) return;
@@ -268,6 +307,19 @@ export async function tick(rt) {
   const results = await Promise.all(
     enabled.map(async check => ({ check, probe: await rt.probes[check.key]() }))
   );
+  // Still marked open, nothing happened for a long while and Foundry is down: the table has gone home (or the nightly
+  // backup stopped Foundry). No alarm and no start post; the gate ends the watch by itself when the session closes.
+  const foundryProbe = results.find(r => r.check.key === 'foundry')?.probe;
+  if (
+    !rt.always &&
+    foundryProbe &&
+    !foundryProbe.ok &&
+    typeof rt.lastEventAt === 'number' &&
+    now() - rt.lastEventAt > QUIET_MS
+  ) {
+    rt.log('quiet night and Foundry is down: nothing alarmed');
+    return { failed: 0 };
+  }
   if (gated.event === 'started') {
     rt.log('session open: watch started');
     for (const c of enabled) rt.states[c.key] = initialState();
@@ -282,7 +334,7 @@ export async function tick(rt) {
     const out = step(rt.states[check.key] ?? initialState(), probe, cfg);
     rt.states[check.key] = out.state;
     rt.log(
-      `${check.key} ${probe.ok ? 'ok' : 'FAIL'} ${probe.ms} ms${probe.error ? ` (${probe.error})` : ''} -> ${out.state.mode}`
+      `${check.key} ${probe.ok ? 'ok' : 'FAIL'} ${probe.ms} ms${probe.error ? ` (${probe.error})` : ''}${probe.note ? ` (${probe.note})` : ''} -> ${out.state.mode}`
     );
     if (out.alert) {
       const text = scrubUrls(formatCheckAlert(check, out.alert, probe, cfg, rt.mentions));
@@ -293,12 +345,40 @@ export async function tick(rt) {
   return { failed: results.filter(r => !r.probe.ok).length };
 }
 
+/** A settings problem: exit 2, which the unit does not restart on (RestartPreventExitStatus=2). */
+export class SettingsError extends Error {}
+
+/** safeUrl with a fixed message: the raw value is never echoed (it may hold a token). */
+export function settingsUrl(raw, name) {
+  try {
+    return safeUrl(raw);
+  } catch {
+    throw new SettingsError(`${name} is not a valid http or https address.`);
+  }
+}
+
+/**
+ * The public address is sent the Access service token: it must be https, or the token would cross the network in
+ * the clear. Returns the problem as words, or null.
+ */
+export function publicUrlProblem(publicUrl, headers) {
+  if (publicUrl && headers && new URL(publicUrl).protocol !== 'https:') {
+    return 'WATCH_PUBLIC_URL must start with https:// while the Access service token is set (the token is never sent over plain http).';
+  }
+  return null;
+}
+
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  // --env-file takes one file or several, comma separated; a later file wins over an earlier one.
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    throw new SettingsError(err instanceof Error ? err.message : 'bad arguments');
+  }
+  // --env-files takes one file or several, comma separated; a later file wins over an earlier one.
   const fromFile = {};
-  if (typeof args['env-file'] === 'string') {
-    for (const f of args['env-file'].split(',').filter(Boolean)) {
+  if (typeof args['env-files'] === 'string') {
+    for (const f of args['env-files'].split(',').filter(Boolean)) {
       if (existsSync(f)) Object.assign(fromFile, parseEnv(readFileSync(f, 'utf8')));
     }
   }
@@ -306,7 +386,7 @@ async function main() {
   const num = (name, dflt) => {
     if (args[name] === undefined) return dflt;
     const v = Number(args[name]);
-    if (!Number.isFinite(v) || v <= 0) throw new Error(`--${name} must be a positive number.`);
+    if (!Number.isFinite(v) || v <= 0) throw new SettingsError(`--${name} must be a positive number.`);
     return v;
   };
   const cfg = {
@@ -322,13 +402,17 @@ async function main() {
     console.error('WATCH_CONTROL_PORT must be a port number.');
     process.exit(2);
   }
-  const foundryUrl = safeUrl(get('WATCH_FOUNDRY_URL') ?? 'http://127.0.0.1:30000');
-  const dashboardUrl = safeUrl(get('WATCH_DASHBOARD_URL') ?? 'http://127.0.0.1:3000');
+  const foundryUrl = settingsUrl(get('WATCH_FOUNDRY_URL') ?? 'http://127.0.0.1:30000', 'WATCH_FOUNDRY_URL');
+  const dashboardUrl = settingsUrl(get('WATCH_DASHBOARD_URL') ?? 'http://127.0.0.1:3000', 'WATCH_DASHBOARD_URL');
   const publicRaw = get('WATCH_PUBLIC_URL');
-  const publicUrl = publicRaw ? safeUrl(publicRaw) : null;
+  const publicUrl = publicRaw ? settingsUrl(publicRaw, 'WATCH_PUBLIC_URL') : null;
   const headers = accessHeaders(get);
+  const publicProblem = publicUrlProblem(publicUrl, headers);
+  if (publicProblem) throw new SettingsError(publicProblem);
   const recorderStatus = get('WATCH_RECORDER_STATUS_URL');
-  const recorderStatusUrl = recorderStatus ? safeUrl(recorderStatus) : undefined;
+  const recorderStatusUrl = recorderStatus
+    ? settingsUrl(recorderStatus, 'WATCH_RECORDER_STATUS_URL')
+    : undefined;
   const unit = get('WATCH_RECORDER_UNIT') ?? 'foundry-ai-tool-discord-bot.service';
   const mentions = (get('GAMENIGHT_WATCH_MENTION_IDS') ?? '')
     .split(',')
@@ -374,14 +458,22 @@ async function main() {
     pending: [],
     always: Boolean(args.always),
     checks: CHECKS,
-    readOpen: () => readSessionOpen(port),
+    lastEventAt: null,
+    readOpen: async () => {
+      const reading = await readSession(port);
+      rt.lastEventAt = reading.lastEventAt;
+      return reading.open;
+    },
     probes,
     log,
   };
   let stopping = false;
+  /** The loop's flush in flight: the stop handler waits for it, so one text is never posted twice. */
+  let flushing = Promise.resolve();
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    await flushing.catch(() => {});
     if (target && rt.gate.active) {
       rt.pending.push({ text: 'Game-night watch stopped: the service is stopping.', at: Date.now() });
       await flushPending(rt.pending, a => postToChannel(target, a.text), () => {}).catch(() => {});
@@ -394,11 +486,14 @@ async function main() {
   for (;;) {
     const round = await tick(rt);
     if (target && rt.pending.length > 0) {
-      rt.pending = await flushPending(
+      flushing = flushPending(
         rt.pending,
         a => postToChannel(target, withLateNote(a)),
         m => console.error(`${stamp()} ${m}`)
-      );
+      ).then(left => {
+        rt.pending = left;
+      });
+      await flushing;
     }
     if (args.once) {
       // Exit 1 when a probe failed this round or a post is still unsent, so a stage check can tell.
@@ -423,6 +518,6 @@ const isMain = () => {
 if (isMain()) {
   main().catch(err => {
     console.error(err instanceof Error ? scrubUrls(err.message) : 'failed');
-    process.exit(1);
+    process.exit(err instanceof SettingsError ? 2 : 1);
   });
 }

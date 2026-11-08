@@ -12,9 +12,10 @@
 #      again: it is where the user adds the public address and the Access service token. Without them the public check is off;
 #   3. writes the unit /etc/systemd/system/foundry-ai-tool-gamenight-watch.service (User=foundry, reads discord-bot.env for the
 #      bot token and #gm-bot, and gamenight-watch.env), enables and starts it. It idles until a session is marked.
-# It restarts nothing else: the bridge, the dashboard, Foundry and the recorder are not touched, so it needs no quiet check. A
-# changed watch unit or script restarts the watch itself (it re-reads the session at once; a running watch posts one "stopped"
-# line and one "started" line).
+# It restarts nothing else: the bridge, the dashboard, Foundry and the recorder are not touched, so it needs no quiet check. The
+# watch itself is restarted when the unit, a script or the settings file changed in this run, or when any of those files is
+# newer than the running service (an upgrade or an env edit nobody restarted for). It re-reads the session at once; a running
+# watch posts one "stopped" line and one "started" line, so a rerun during a marked session shows both in #gm-bot.
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1  print what a real run would do; changes nothing, needs no snapshot
@@ -26,7 +27,8 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
 # The service token is added by the user, never by Claude: edit $TOOL_ETC/gamenight-watch.env on the Pi, then
-# `systemctl restart foundry-ai-tool-gamenight-watch`. Tests only: SRC_DIR, TOOL_ETC, TOOL_DIR, UNIT_DIR, NODE_DIR.
+# `systemctl restart foundry-ai-tool-gamenight-watch`. Tests only: SRC_DIR and UNIT_DIR (TOOL_ETC, TOOL_DIR and NODE_DIR
+# are set by lib.sh, so they are not overrides).
 
 dry="${DRY_RUN:-0}"
 check="${CHECK:-0}"
@@ -100,9 +102,12 @@ if [ "$check" = 1 ]; then
   [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
   command -v runuser >/dev/null 2>&1 || die "runuser not found"
   say "installed files (compare with the repo at the merge commit)"
-  (cd "$dest" && sha256sum $files) | sed 's/^/    /'
-  out="$(runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" "$dest/gamenight-watch-pi.mjs" --once --always --env-file "$bot_env,$watch_env" 2>&1)" || rc=$?
-  printf '%s\n' "$out" | sed 's/^/    /'
+  # Both files, so the comparison with the repo covers the whole install (the settings file holds no copy of either).
+  (cd "$dest" && sha256sum $files) | sed 's/^/    /' || true
+  # --env-files, not --env-file: Node itself reads --env-file from the whole command line, script arguments included,
+  # and stops with "not found" on a comma-joined list.
+  out="$(runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" "$dest/gamenight-watch-pi.mjs" --once --always --env-files "$bot_env,$watch_env" 2>&1)" || rc=$?
+  printf '%s\n' "$out" | sed 's/^/    /' || true
   if have_systemd; then
     systemctl is-active --quiet "$unit" && ok "$unit is running" || die "$unit is not running: journalctl -u $unit -n 20"
   fi
@@ -165,8 +170,9 @@ else
   mark_changed "$dest/gamenight-watch.mjs" "$dest/gamenight-watch-pi.mjs"
   ok "installed $files in $dest"
 fi
-# The files come from the PC, not from the release build: SHA256SUMS lets the user compare them with the repo
-# (git show aitool/main:scripts/gamenight-watch.mjs | sha256sum) and CHECK shows them again.
+# The files come from the PC, not from the release build: SHA256SUMS lets the user compare both with the repo
+# (git show aitool/main:scripts/gamenight-watch.mjs | sha256sum, and the same for gamenight-watch-pi.mjs) and CHECK shows
+# them again.
 (cd "$dest" && sha256sum $files >SHA256SUMS)
 chmod 0644 "$dest/SHA256SUMS"
 sed 's/^/    /' "$dest/SHA256SUMS" || true
@@ -187,11 +193,14 @@ say "the unit"
 write_file "$unit_file" 0644 "$want_unit" || true
 
 say "start"
+since="$(date '+%Y-%m-%d %H:%M:%S')"
 if have_systemd; then
   systemctl daemon-reload
   systemctl enable "$unit" >/dev/null 2>&1
+  acted=0
   if ! systemctl is-active --quiet "$unit"; then
     systemctl start "$unit"
+    acted=1
   else
     # Restart when a file changed in this run, or is newer than the running service (a rerun after a cut-off upgrade: the
     # files were written, the restart never happened). Only the watch itself restarts; it holds no player and no recording.
@@ -204,11 +213,32 @@ if have_systemd; then
         restart=1
       fi
     done
-    if [ "$restart" = 1 ]; then systemctl restart "$unit"; fi
+    if [ "$restart" = 1 ]; then
+      systemctl restart "$unit"
+      acted=1
+    fi
   fi
   sleep 2
   systemctl is-active --quiet "$unit" || die "$unit did not start: journalctl -u $unit -n 30"
-  ok "$unit running"
+  if [ "$acted" = 1 ]; then
+    # "Running" is not "watching": a settings problem (no token, Discord refuses #gm-bot, an http public address with the
+    # Access token) exits 2 within seconds and the unit stays down. Wait for the watch's own "watching" line (the journal
+    # holds log lines, never a token or an address) and fail loudly when the unit stopped first. Only after a start or
+    # restart of this run: a clean rerun writes no new line.
+    seen=0
+    for _ in $(seq 1 20); do
+      journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -q ' watching ' && { seen=1; break; }
+      systemctl is-active --quiet "$unit" || break
+      sleep 1
+    done
+    if [ "$seen" != 1 ]; then
+      journalctl -u "$unit" -n 5 --no-pager 2>/dev/null | sed 's/^/    /' || true
+      die "$unit did not reach its 'watching' line (a settings problem stops it for good): journalctl -u $unit -n 30"
+    fi
+    ok "$unit running and watching"
+  else
+    ok "$unit running (not restarted)"
+  fi
   journalctl -u "$unit" -n 3 --no-pager 2>/dev/null | sed 's/^/    /' || true
 else
   warn "no systemd here (a test container?): files and unit written, nothing started"

@@ -278,6 +278,12 @@ if [ -n "$want_guild" ]; then
 else
   warn "the file has no DISCORD_GUILD_ID: /record registers globally (can take up to an hour)"
 fi
+# The game-night watch (stage 29) posts to the channel this file names: restart it (also when it stopped on exit 2 for an
+# old channel) so a changed #gm-bot line reaches it. It holds no recording and no player, so no quiet check.
+watch_unit=foundry-ai-tool-gamenight-watch.service
+if have_systemd && [ -f "/etc/systemd/system/$watch_unit" ]; then
+  systemctl restart "$watch_unit" && ok "restarted $watch_unit for the changed settings" || warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
+fi
 if [ "$undo" = 1 ]; then
   say "done: the bot is back on the earlier server"
 else

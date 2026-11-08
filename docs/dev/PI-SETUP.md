@@ -1835,7 +1835,22 @@ ended (2 closed readings in a row) or the service stops. A bridge that does not 
 session (watch on stays on, off stays off), but the bridge check itself then reports. Posts hold no address, no
 query string and no token; the log shows host names only.
 
-**Install (user OK and a `dietpi-backup` snapshot first; never on a game night):**
+A session that is still marked open but has had no event for 2 hours, with Foundry down (the 04:30 backup on a late
+night), raises no alarm and no start post. The end post reads "the session has ended or has gone quiet", because
+nobody may have marked the end. A recorder check that cannot read `systemctl` as the `foundry` user counts as "cannot
+tell" in the log, not as a down recorder. A settings problem (a bad number or address, no token, Discord refusing the
+channel, or a public address on plain http while the Access token is set) exits 2 and the service stays stopped;
+fix the file, then restart it. `set-discord-token.ps1` and stage 26 restart the watch for you, and stage 29 waits for the
+watch's "watching" line after a start or restart and fails when it never comes.
+
+**Install (user OK and a `dietpi-backup` snapshot first; never on a game night).** Step 1, read-only, before anything
+else: check that the `foundry` user can ask systemd about the recorder, the way the watch does:
+
+```bash
+ssh foundry-pi 'runuser -u foundry -- systemctl is-active foundry-ai-tool-discord-bot.service; echo exit=$?'
+```
+
+`active`/exit 0 or `inactive`/exit 3 are both fine; anything else means the recorder check will report "cannot tell".
 
 ```bash
 scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/
@@ -1849,7 +1864,8 @@ It restarts nothing but itself. `UNDO=1` removes the service and the files and k
 
 The files come from the PC, not from the release build: copy them from a clean checkout of `main` at the merge commit. The stage
 writes `SHA256SUMS` next to them (and `CHECK=1` prints it) so the hashes can be compared with
-`git show aitool/main:scripts/gamenight-watch-pi.mjs | sha256sum`. A paper night (`mark-play-session` with `mode: "paper"`) is not
+`git show aitool/main:scripts/gamenight-watch.mjs | sha256sum` and
+`git show aitool/main:scripts/gamenight-watch-pi.mjs | sha256sum` (both files). A paper night (`mark-play-session` with `mode: "paper"`) is not
 watched, because Foundry is closed on those. That needs a bridge build whose `get-play-session` reports `mode`; on an older bridge
 a paper night would look like a live one and alarm, so run stage 5 with the release that has it before the first real session.
 

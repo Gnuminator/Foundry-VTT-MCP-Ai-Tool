@@ -1,0 +1,61 @@
+// Make every user of the campaign copy passwordless (the copy is a test server on localhost).
+// Run with Foundry on the copy stopped:
+//   node scripts/test-env/campaign-copy-users.mjs <foundry app folder> <world data folder>
+// For example: <app>=C:\FoundryTest\app-14.370-official, <world>=C:\FoundryCampaign\data\Data\worlds\curse-of-strahd
+// It reads and writes only the world's `users` and `settings` LevelDBs inside the copy. Prints counts only.
+import { createRequire } from 'node:module';
+import path from 'node:path';
+
+const [appDir, worldDir] = process.argv.slice(2);
+if (!appDir || !worldDir) {
+  console.error('usage: campaign-copy-users.mjs <foundry app folder> <world folder>');
+  process.exit(2);
+}
+const require = createRequire(path.join(appDir, 'package.json'));
+const { ClassicLevel } = require('classic-level');
+
+const open = { keyEncoding: 'utf8', valueEncoding: 'utf8', createIfMissing: false };
+const db = new ClassicLevel(path.join(worldDir, 'data', 'users'), open);
+await db.open();
+// Foundry stores "no password" as the hash of the empty string with the user's salt (an empty
+// string would mean "wrong password"). This pair is the one a passwordless user has on the test
+// servers (read from the "Claude" user of server A); it is not a secret.
+const EMPTY_PASSWORD = {
+  password: '11a9c84ba8c7103b95d9ac3dcf43b35d388f9def69802b977a77fca2fd90a0d4ea81d9c8075aa218a467de0356dd5bbde307cfb8461c8fbace948084432d7271',
+  passwordSalt: '0402a6847ee45a113e586ec100be6c0e322eea5ea3c84146aa30a54a29fc3723',
+};
+let changed = 0;
+let seen = 0;
+for await (const [key, value] of db.iterator()) {
+  if (!key.startsWith('!users!')) continue;
+  const user = JSON.parse(value);
+  const already = user.password === EMPTY_PASSWORD.password && user.passwordSalt === EMPTY_PASSWORD.passwordSalt;
+  if (!already) {
+    Object.assign(user, EMPTY_PASSWORD);
+    await db.put(key, JSON.stringify(user));
+    changed += 1;
+  }
+  seen += 1;
+}
+await db.close();
+console.log(`${seen} user(s) found, ${changed} changed.`);
+if (seen === 0) {
+  console.error('No users found: wrong world folder?');
+  process.exit(1);
+}
+
+// The bridge module must never dial a real bridge: drop a stored link port or host so the module
+// manifest's default (the dead port campaign-copy.ps1 patches in) applies.
+const settings = new ClassicLevel(path.join(worldDir, 'data', 'settings'), open);
+await settings.open();
+let dropped = 0;
+for await (const [key, value] of settings.iterator()) {
+  const doc = JSON.parse(value);
+  if (doc.key === 'foundry-mcp-bridge.serverPort' || doc.key === 'foundry-mcp-bridge.serverHost') {
+    await settings.del(key);
+    dropped += 1;
+    console.log(`removed stored setting ${doc.key}`);
+  }
+}
+await settings.close();
+console.log(`${dropped} bridge link setting(s) removed.`);

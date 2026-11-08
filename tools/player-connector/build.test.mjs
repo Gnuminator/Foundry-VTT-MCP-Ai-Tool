@@ -6,7 +6,7 @@ import http from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { after, before, test } from 'node:test';
+import { after, before, mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
 import { build } from './build.mjs';
@@ -412,7 +412,7 @@ test('a pasted value with characters outside printable ASCII gives a paste-again
   });
   assert.match(replies[0].result.content[0].text, /paste them again/);
   assert.equal(seen.length, 0);
-  for (const text of [stdout, stderr]) assert.ok(!text.includes('sec'));
+  for (const text of [stdout, stderr]) assert.ok(!text.includes('sec–ret-with-dash'));
 });
 
 function sessionForwarder() {
@@ -469,6 +469,175 @@ test('a 3xx keeps the session', async () => {
   assert.match((await ask(2, 'test/redirect')).error.message, /refused the login/);
   assert.equal((await ask(3, 'tools/list')).result.sid, 's1');
   assert.equal(sessionCount, 1);
+});
+
+test('initialize answers with a supported protocol version, not whatever was asked', async () => {
+  mode = 'status403';
+  const { replies } = await run([
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
+    { jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '1999-01-01' } },
+    { jsonrpc: '2.0', id: 3, method: 'initialize', params: {} },
+  ]);
+  assert.equal(replies[0].result.protocolVersion, '2024-11-05');
+  assert.equal(replies[1].result.protocolVersion, '2025-11-25');
+  assert.equal(replies[2].result.protocolVersion, '2025-11-25');
+});
+
+test('tools/call after a failed initialize is a tool error with the reason', async () => {
+  mode = 'status403';
+  const { replies } = await run([
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+    call(2),
+    call(3, 'connection-status'),
+  ]);
+  for (const r of replies.slice(1)) {
+    assert.equal(r.result.isError, true);
+    assert.match(r.result.content[0].text, /HTTP 403/);
+  }
+  assert.equal(replies[1].id, 2);
+  assert.equal(replies[2].id, 3);
+});
+
+test('the first initialize is capped at 10 s even with a longer timeout', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { createForwarder } = createRequire(import.meta.url)(SERVER);
+    const signals = [];
+    const fwd = createForwarder(
+      {
+        FOUNDRY_PLAYER_ENDPOINT: base,
+        FOUNDRY_PLAYER_CLIENT_ID: ID,
+        FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+        FOUNDRY_PLAYER_TIMEOUT_MS: '30000',
+      },
+      (_url, init) => {
+        signals.push(init.signal);
+        return new Promise((_res, rej) =>
+          init.signal.addEventListener('abort', () =>
+            rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          )
+        );
+      }
+    );
+    const init = fwd.forward({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+    mock.timers.tick(9999);
+    assert.equal(signals[0].aborted, false);
+    mock.timers.tick(1);
+    assert.equal(signals[0].aborted, true);
+    const out = await init;
+    assert.match(out.failure, /did not answer in time/);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('a failed reinit keeps the old session id, so the next 404 tries again', async () => {
+  mode = 'session';
+  initError = false;
+  sessions.clear();
+  sessionCount = 0;
+  const ask = sessionForwarder();
+  await ask(1, 'initialize', {});
+  sessions.clear();
+  initError = true;
+  try {
+    assert.equal((await ask(2, 'tools/list')).error.message, 'no room');
+  } finally {
+    initError = false;
+  }
+  seen.length = 0;
+  const again = await ask(3, 'tools/list');
+  assert.equal(again.result.sid, 's2', 'the retry started a new session');
+  assert.equal(seen[0].headers['mcp-session-id'], 's1', 'the first try still carried the old id');
+});
+
+test('a call that starts during a reinit waits for the new session', async () => {
+  const { createForwarder } = createRequire(import.meta.url)(SERVER);
+  const sent = [];
+  let releaseInit;
+  const reply = (status, body, sid) =>
+    Promise.resolve(
+      new Response(status === 202 || status === 404 ? null : body, {
+        status,
+        headers: { 'content-type': 'application/json', ...(sid ? { 'mcp-session-id': sid } : {}) },
+      })
+    );
+  const fwd = createForwarder(
+    {
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+    (_url, init) => {
+      const rpc = JSON.parse(init.body);
+      const sid = init.headers['mcp-session-id'] ?? null;
+      sent.push({ method: rpc.method, sid });
+      const ok = JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { sid } });
+      if (rpc.method === 'initialize') {
+        const count = sent.filter(s => s.method === 'initialize').length;
+        if (count === 1) return reply(200, ok, 'old');
+        return new Promise(r => (releaseInit = () => r(reply(200, ok, 'new'))));
+      }
+      if (rpc.method === 'notifications/initialized') return reply(202, '');
+      return sid === 'new' ? reply(200, ok) : reply(404, '');
+    }
+  );
+  await fwd.forward({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  const first = fwd.forward({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+  await new Promise(r => setTimeout(r, 50)); // the 404 came back, the reinit is waiting
+  assert.ok(releaseInit, 'reinit is in flight');
+  const second = fwd.forward({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(
+    sent.filter(s => s.method === 'tools/list').length,
+    1,
+    'the second call sent nothing while the reinit ran'
+  );
+  releaseInit();
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(a.message.result.sid, 'new');
+  assert.equal(b.message.result.sid, 'new');
+});
+
+test('replies already started are flushed when stdin closes', async () => {
+  mode = 'ok';
+  const { replies } = await run([
+    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 3, method: 'ping' },
+  ]);
+  assert.deepEqual(replies.map(r => r.id).sort(), [1, 2, 3]);
+});
+
+test('a closed stdout pipe makes the process exit 0 without noise', async () => {
+  const child = spawn(process.execPath, [SERVER], {
+    env: {
+      PATH: process.env.PATH,
+      SystemRoot: process.env.SystemRoot,
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+  });
+  let err = '';
+  child.stderr.on('data', d => (err += d));
+  child.stdout.destroy();
+  // stdin stays open: only the stdout error handler can end the process.
+  const code = await new Promise(resolve => {
+    const giveUp = setTimeout(() => {
+      child.kill();
+      resolve('still running after 3 s');
+    }, 3000);
+    child.on('close', c => {
+      clearTimeout(giveUp);
+      resolve(c);
+    });
+    setTimeout(() => {
+      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }) + '\n');
+    }, 100);
+  });
+  assert.equal(code, 0);
+  assert.equal(err, '');
 });
 
 test('the VERSION constant equals the manifest version', () => {

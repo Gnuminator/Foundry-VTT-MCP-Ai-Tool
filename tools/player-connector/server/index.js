@@ -10,12 +10,17 @@
  *   FOUNDRY_PLAYER_ENDPOINT        https:// address (http only for localhost, for tests)
  *   FOUNDRY_PLAYER_CLIENT_ID       CF-Access-Client-Id
  *   FOUNDRY_PLAYER_CLIENT_SECRET   CF-Access-Client-Secret
- *   FOUNDRY_PLAYER_TIMEOUT_MS      per-request timeout, default 30000
+ *   FOUNDRY_PLAYER_TIMEOUT_MS      per-request timeout, default 30000 (initialize: at most 10000)
  */
 
 const readline = require('node:readline');
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
+
+// Protocol versions the local initialize answer offers; the newest is the fallback.
+const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
+// Claude Desktop gives a starting extension little time: cap the first initialize attempt.
+const INIT_TIMEOUT_MS = 10000;
 
 /** Replace every secret value of 4 or more characters in `text`. */
 function scrub(text, secrets) {
@@ -124,7 +129,10 @@ function createForwarder(env, fetchImpl) {
     if (!reinit) {
       reinit = (async () => {
         sessionId = null;
-        const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+        const re = await send(
+          { ...initRequest, id: `reinit-${Date.now()}` },
+          Math.min(timeoutMs, INIT_TIMEOUT_MS)
+        );
         if (re.failure) return re;
         await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
         initFailed = false;
@@ -139,7 +147,7 @@ function createForwarder(env, fetchImpl) {
   let reinitInFlight = null;
 
   /** One POST. Returns {message} (a JSON-RPC response object) or {failure: text, status?}. */
-  async function send(request) {
+  async function send(request, limitMs = timeoutMs) {
     if (endpoint.error) return { failure: endpoint.error };
     if (missing) {
       return {
@@ -154,7 +162,7 @@ function createForwarder(env, fetchImpl) {
       };
     }
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const timer = setTimeout(() => ctl.abort(), limitMs);
     try {
       const headers = {
         'content-type': 'application/json',
@@ -223,8 +231,14 @@ function createForwarder(env, fetchImpl) {
       const bad = await ensureInit();
       if (bad) return bad;
     }
+    // A call that starts while a new session is being set up waits for it.
+    if (request.method !== 'initialize' && reinitInFlight)
+      await reinitInFlight.catch(() => undefined);
     const had = sessionId;
-    const first = await send(request);
+    const first = await send(
+      request,
+      request.method === 'initialize' ? Math.min(timeoutMs, INIT_TIMEOUT_MS) : timeoutMs
+    );
     if (request.method === 'initialize') initFailed = !!first.failure;
     if (!(first.status === 404 && had && initRequest && request.method !== 'initialize'))
       return first;
@@ -234,7 +248,10 @@ function createForwarder(env, fetchImpl) {
       reinitInFlight = (async () => {
         sessionId = null;
         const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
-        if (re.failure || re.message.error) return re;
+        if (re.failure || re.message.error) {
+          sessionId = had; // keep the old id so the next 404 tries again
+          return re;
+        }
         await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
         return null;
       })().finally(() => {
@@ -296,16 +313,19 @@ async function handleMessage(msg, forwarder) {
         result: { isError: true, content: [{ type: 'text', text }] },
       };
     }
-    // Desktop is expected to show only a generic "failed to start" when initialize errors,
-    // hiding the reason (to be confirmed by a manual install). Answer initialize and tools/list locally so the extension stays loaded and the
-    // reason reaches the player as a tool (its description) and as the tool's result.
+    // Desktop is expected to show only a generic "failed to start" when initialize errors, hiding
+    // the reason (to be confirmed by a manual install). Answer initialize and tools/list locally
+    // so the extension stays loaded and the reason reaches the player as a tool (its description)
+    // and as the tool's result.
     if (msg.method === 'initialize') {
       const asked = msg.params && msg.params.protocolVersion;
       return {
         jsonrpc: '2.0',
         id: msg.id,
         result: {
-          protocolVersion: typeof asked === 'string' ? asked : '2025-06-18',
+          protocolVersion: PROTOCOL_VERSIONS.includes(asked)
+            ? asked
+            : PROTOCOL_VERSIONS[PROTOCOL_VERSIONS.length - 1],
           capabilities: { tools: { listChanged: true } },
           serverInfo: { name: 'foundry-player', version: VERSION },
         },

@@ -24,7 +24,9 @@ pwsh scripts/test-env/campaign-copy.ps1 status
 
 `refresh` needs the copy stopped. It overwrites every change made on the copy (the previous data
 folder is kept once as `data.prev`). Options: `-WithJB2A` (also pull the 1.6 GB animation module),
-`-PiHost` (ssh name, default `foundry-pi`), `-Port`, `-Root`.
+`-PiHost` (ssh name, default `foundry-pi`), `-Port`, `-Root`, `-NoPull` (redo only the local set-up
+on a complete pull left in `data.new`). The pull goes into `pull.tar` first, so a dropped ssh
+connection fails the refresh and leaves the old copy alone.
 
 ## What refresh does on the Pi, and what it copies
 
@@ -37,8 +39,8 @@ folder is kept once as `data.prev`). Options: `-WithJB2A` (also pull the 1.6 GB 
   (all of them at the Pi's versions, without JB2A), `assets/`, `ddb-images/`, `tokenizer/`.
   Not copied: the other Pi worlds (`strahd-kit`, `frostmaiden-training`, `pi-check`) and
   `Config/` (the Pi's `options.json` and licence are not used).
-- Then, locally: a `Config/options.json` for port 30004, server A's licence file, no `admin.txt`
-  (the copy's setup screen has no admin password, it listens on this PC only), the module copy of
+- Then, locally: a `Config/options.json` for port 30004, server A's licence file and `admin.txt`
+  (the setup screen has server A's admin login), the module copy of
   `foundry-mcp-bridge` gets `flags.foundry-mcp-bridge.defaultServerPort = 31545` and no update
   manifest (so it never reaches a real bridge), and `campaign-copy-users.mjs` gives every user the
   empty-password hash (Foundry stores "no password" as that hash, an empty string is rejected).
@@ -54,6 +56,13 @@ folder is kept once as `data.prev`). Options: `-WithJB2A` (also pull the 1.6 GB 
 - The world's journals and actors contain campaign text. Do not paste book text into notes.
 - Do not start the AI Tool bridge or the dashboard against it without picking free ports; the
   test-env scripts for A, B and C do not know this copy.
+- **Network:** Foundry listens on all interfaces, and the copy holds the real campaign data with
+  passwordless users. Like servers A, B and C it is reachable from the LAN unless a firewall rule
+  blocks the port; `campaign-copy.ps1 status` shows the state and the one-line admin command
+  (the user's decision, the script does not change firewall settings).
+- The bridge link settings are removed from the copy's world settings, so the module dials the
+  dead port 31545. The other Pi modules are unchanged and may make outbound calls (for example
+  Discord or webhook modules), as they do on the Pi.
 
 ## Differences from the live world
 

@@ -30,7 +30,7 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'config.ps1')   # server A's settings: app folder, Node helpers, port checks
 
-$Forbidden = @(31414, 31415, 31416, 30100, 31614, 31615, 3300, 3100, 31514, 31515, 31524, 31525, 31534, 31535, 30001, 30002, 30003, 30000)
+$Forbidden = @(31414, 31415, 31416, 30100, 31614, 31615, 3300, 3100, 3101, 3102, 31514, 31515, 31524, 31525, 31534, 31535, 31544, 31545, 30001, 30002, 30003, 30000)
 if ($Forbidden -contains $Port) { throw "Port $Port belongs to the live system, Plan B or a test server. Pick another." }
 $DataRoot = Join-Path $Root 'data'
 $PidFile = Join-Path $Root 'foundry.pid'
@@ -39,7 +39,9 @@ $DeadLink = 31545
 function Get-CopyPid {
   if (-not (Test-Path $PidFile)) { return $null }
   $p = [int](Get-Content $PidFile -TotalCount 1)
-  if (Get-Process -Id $p -ErrorAction SilentlyContinue) { return $p }
+  # Only the Foundry we started: a reused pid of any other process does not count.
+  $line = Get-ProcessCommandLine $p
+  if ($line -and $line.Contains('FoundryCampaign') -and $line.Contains("--port=$Port")) { return $p }
   Remove-Item $PidFile -ErrorAction SilentlyContinue
   return $null
 }
@@ -49,10 +51,12 @@ function Invoke-Refresh {
   $new = Join-Path $Root 'data.new'
   $prev = Join-Path $Root 'data.prev'
   if ($NoPull) {
-    if (-not (Test-Path $new)) { throw "-NoPull needs an already pulled $new." }
+    if (-not (Test-Path (Join-Path $new '.pull-complete'))) { throw "-NoPull needs a complete pull in $new (no .pull-complete marker)." }
   } else {
     if (Test-Path $new) { Remove-Item -Recurse -Force $new }
     New-Item -ItemType Directory -Force $new | Out-Null
+    $tarFile = Join-Path $Root 'pull.tar'
+    if (Test-Path $tarFile) { Remove-Item -Force $tarFile }
   }
   $excludes = @('--exclude=worlds/frostmaiden-training', '--exclude=worlds/pi-check', '--exclude=worlds/strahd-kit')
   if (-not $WithJB2A) { $excludes += '--exclude=modules/JB2A_DnD5e' }
@@ -60,9 +64,17 @@ function Invoke-Refresh {
   $remote = "cd /var/lib/foundry/Data && nice -n 19 tar cf - $($excludes -join ' ') worlds systems modules assets ddb-images tokenizer"
   if (-not $NoPull) {
     Write-Host "Pulling from $PiHost (read-only tar, uncompressed)..."
+    # Into a file first (cmd keeps the byte stream raw), so ssh's own exit code is checked.
+    & cmd.exe /d /c "ssh -o BatchMode=yes $PiHost `"$remote`" > `"$tarFile`""
+    if ($LASTEXITCODE -ne 0) { throw "Pull failed (ssh exit $LASTEXITCODE); the old copy is untouched." }
     New-Item -ItemType Directory -Force (Join-Path $new 'Data') | Out-Null
-    & cmd.exe /d /c "ssh -o BatchMode=yes $PiHost `"$remote`" | tar xf - -C `"$(Join-Path $new 'Data')`""
-    if ($LASTEXITCODE -ne 0) { throw "Pull failed (exit $LASTEXITCODE); the old copy is untouched, partial data is in $new." }
+    & (Join-Path $env:SystemRoot 'System32' 'tar.exe') xf $tarFile -C (Join-Path $new 'Data')
+    if ($LASTEXITCODE -ne 0) { throw "Unpacking failed (tar exit $LASTEXITCODE); the old copy is untouched." }
+    Remove-Item -Force $tarFile
+    foreach ($need in @('systems/dnd5e/system.json', 'modules/foundry-mcp-bridge/module.json', "worlds/$World/world.json", "worlds/$World/packs")) {
+      if (-not (Test-Path (Join-Path $new 'Data' $need))) { throw "Pulled data lacks $need; the old copy is untouched." }
+    }
+    Set-Content (Join-Path $new '.pull-complete') (Get-Date -Format o)
   }
   if (-not (Test-Path (Join-Path $new 'Data' 'worlds' $World 'world.json'))) { throw "Pulled data has no world '$World'; old copy untouched." }
 
@@ -82,7 +94,9 @@ function Invoke-Refresh {
   $licence = Join-Path $TestEnv.DataDir 'Config' 'license.json'
   if (-not (Test-Path $licence)) { throw "No licence at $licence (start server A once and enter the licence key)." }
   Copy-Item $licence (Join-Path $cfg 'license.json')
-  # No admin.txt: the copy's setup screen has no admin password (localhost only, test data).
+  # Server A's admin login (hashed) protects the copy's setup screen too.
+  $adminTxt = Join-Path $TestEnv.DataDir 'Config' 'admin.txt'
+  if (Test-Path $adminTxt) { Copy-Item $adminTxt (Join-Path $cfg 'admin.txt') }
   $opts = Get-Content (Join-Path $TestEnv.DataDir 'Config' 'options.json') -Raw | ConvertFrom-Json -AsHashtable
   $opts['dataPath'] = $Root.Replace('\', '/') + '/data'
   $opts['port'] = $Port
@@ -118,17 +132,22 @@ function Invoke-Start {
   $shell = Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden -WorkingDirectory $appRoot -PassThru `
     -ArgumentList '/d', '/s', '/c', "`"$cmd 1>`"$out`" 2>`"$err`" <nul`""
   if (-not (Wait-PortOpen $Port 90)) { throw "Foundry did not open port $Port; see $err" }
-  $child = Get-CimInstance Win32_Process -Filter "ParentProcessId=$($shell.Id)" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^node' } | Select-Object -First 1
-  Set-Content $PidFile $(if ($child) { $child.ProcessId } else { $shell.Id })
+  # The node process that was started with this data folder and port (the port table is not
+  # always readable from every shell).
+  $owner = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains('FoundryCampaign') -and $_.CommandLine.Contains("--port=$Port") } |
+    Select-Object -First 1 -ExpandProperty ProcessId
+  if (-not $owner) { throw "Foundry listens on $Port but its process could not be found." }
+  Set-Content $PidFile $owner
   Write-Host "Foundry (campaign copy, world $World): http://localhost:$Port"
 }
 
 function Invoke-Stop {
   $p = Get-CopyPid
-  if (-not $p) { Write-Host 'Not running (no pid file).'; return }
-  # Only the pid we recorded, after checking it is a node process on our port.
-  $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
-  if ($proc -and $proc.ProcessName -match '^node') { Stop-Process -Id $p; Write-Host "Stopped pid $p." } else { Write-Host "Pid $p is not a node process; left alone." }
+  if (-not $p) { Write-Host 'Not running (no matching Foundry for the pid file).'; return }
+  # Get-CopyPid already checked the command line (our data folder and port).
+  Stop-Process -Id $p
+  Write-Host "Stopped Foundry pid $p."
   Remove-Item $PidFile -ErrorAction SilentlyContinue
 }
 
@@ -139,5 +158,10 @@ switch ($Action) {
   'status' {
     Write-Host "Root: $Root   data: $(if (Test-Path $DataRoot) { 'present' } else { 'missing (run refresh)' })"
     Write-Host "Foundry port ${Port}: $(if (Test-PortOpen $Port) { 'listening' } else { 'closed' })   pid: $(Get-CopyPid)"
+    # Foundry listens on all interfaces and the copy holds the real campaign data with passwordless
+    # users, so say whether the network can reach it (a firewall rule is the user's decision).
+    $blocked = @(Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and $_.Action -eq 'Block' -and $_.Direction -eq 'Inbound' } |
+        ForEach-Object { ($_ | Get-NetFirewallPortFilter).LocalPort }) -contains [string]$Port
+    Write-Host "Network: $(if ($blocked) { "port $Port blocked from the network" } else { "port $Port reachable from the network. To block it: New-NetFirewallRule -DisplayName '$FirewallRuleName' -Direction Inbound -Protocol TCP -LocalPort $Port -Action Block (admin PowerShell, the user's decision)" })"
   }
 }

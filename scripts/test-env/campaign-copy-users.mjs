@@ -15,7 +15,8 @@ if (!appDir || !worldDir) {
 const require = createRequire(path.join(appDir, 'package.json'));
 const { ClassicLevel } = require('classic-level');
 
-const db = new ClassicLevel(path.join(worldDir, 'data', 'users'), { keyEncoding: 'utf8', valueEncoding: 'utf8' });
+const open = { keyEncoding: 'utf8', valueEncoding: 'utf8', createIfMissing: false };
+const db = new ClassicLevel(path.join(worldDir, 'data', 'users'), open);
 await db.open();
 // Foundry stores "no password" as the hash of the empty string with the user's salt (an empty
 // string would mean "wrong password"). This pair is the one a passwordless user has on the test
@@ -38,3 +39,19 @@ for await (const [key, value] of db.iterator()) {
 }
 await db.close();
 console.log(`${changed} user(s) changed.`);
+
+// The bridge module must never dial a real bridge: drop a stored link port or host so the module
+// manifest's default (the dead port campaign-copy.ps1 patches in) applies.
+const settings = new ClassicLevel(path.join(worldDir, 'data', 'settings'), open);
+await settings.open();
+let dropped = 0;
+for await (const [key, value] of settings.iterator()) {
+  const doc = JSON.parse(value);
+  if (doc.key === 'foundry-mcp-bridge.serverPort' || doc.key === 'foundry-mcp-bridge.serverHost') {
+    await settings.del(key);
+    dropped += 1;
+    console.log(`removed stored setting ${doc.key}`);
+  }
+}
+await settings.close();
+console.log(`${dropped} bridge link setting(s) removed.`);

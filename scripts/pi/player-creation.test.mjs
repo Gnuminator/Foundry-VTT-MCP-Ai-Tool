@@ -420,7 +420,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     return r;
   };
   const count = (calls, call) => calls.filter(c => c === call).length;
-  const PINNED = '2.10.5-aitool.7';
+  const PINNED = '2.10.5-aitool.8';
   const GOOD_CALLS = [
     'is-active --quiet foundry.service',
     'is-active --quiet foundry-ai-tool-gm-browser.service',

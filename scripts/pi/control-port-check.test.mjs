@@ -106,6 +106,45 @@ describe('control_port_check', { skip: noBash }, () => {
     }
   });
 
+  test('0: a tailnet listener (100.64.0.0/10, fd7a:115c:a1e0::/48) next to loopback is fine', async () => {
+    const { server, port } = await fakeBridge(PONG);
+    try {
+      for (const local of [
+        `100.101.102.103:${port}`,
+        `100.64.0.1:${port}`,
+        `100.127.255.254:${port}`,
+        `[fd7a:115c:a1e0::1234:5678]:${port}`,
+      ]) {
+        const r = await check(
+          port,
+          `LISTEN 0 511 127.0.0.1:${port} 0.0.0.0:*\nLISTEN 0 511 ${local} 0.0.0.0:*\n`
+        );
+        assert.match(r.stdout, /rc=0/, local + r.stdout + r.stderr);
+      }
+    } finally {
+      server.close();
+    }
+  });
+
+  test('2: addresses just outside the tailnet range, or a LAN address, are still refused', async () => {
+    const { server, port } = await fakeBridge(PONG);
+    try {
+      for (const local of [
+        `100.63.0.1:${port}`,
+        `100.128.0.1:${port}`,
+        `192.168.1.10:${port}`,
+        `10.0.0.5:${port}`,
+        `[fd7a:115c:a1e1::1]:${port}`,
+        `1100.64.0.1:${port}`,
+      ]) {
+        const r = await check(port, `LISTEN 0 511 ${local} 0.0.0.0:*\n`);
+        assert.match(r.stdout, /rc=2/, local + r.stdout + r.stderr);
+      }
+    } finally {
+      server.close();
+    }
+  });
+
   test('1: nothing answers', async () => {
     const { server, port } = await fakeBridge('');
     server.close();

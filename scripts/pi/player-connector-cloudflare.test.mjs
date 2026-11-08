@@ -2,7 +2,7 @@
 //   node --test scripts/pi/player-connector-cloudflare.test.mjs
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -252,6 +252,49 @@ describe('apply on an empty account', () => {
     });
     assert.equal(code, 2);
     assert.deepEqual(cf2.state.calls, []);
+  });
+
+  test('--out refuses an existing file and any folder under a .git, before any request', async () => {
+    const { dir, deps } = setup();
+    const taken = path.join(dir, 'taken.json');
+    writeFileSync(taken, 'old');
+    const cf = makeCloudflare();
+    assert.equal(
+      await main(['--apply', '--users', 'u', '--out', taken], { ...deps, fetch: cf.fetch }),
+      2
+    );
+    assert.deepEqual(cf.state.calls, []);
+    assert.equal(readFileSync(taken, 'utf8'), 'old');
+
+    const checkout = path.join(dir, 'some-checkout');
+    mkdirSync(path.join(checkout, '.git'), { recursive: true });
+    mkdirSync(path.join(checkout, 'sub'), { recursive: true });
+    const cf2 = makeCloudflare();
+    assert.equal(
+      await main(['--apply', '--users', 'u', '--out', path.join(checkout, 'sub', 'p.json')], {
+        ...deps,
+        fetch: cf2.fetch,
+      }),
+      2
+    );
+    assert.deepEqual(cf2.state.calls, []);
+  });
+
+  test('--host must be a name inside --zone', async () => {
+    const cf = makeCloudflare();
+    const { written, deps } = setup();
+    const code = await main(['--users', 'u', '--host', 'player-ai.example.org'], {
+      ...deps,
+      fetch: cf.fetch,
+    });
+    assert.equal(code, 2);
+    assert.match(written.stderr, /inside --zone/);
+    assert.deepEqual(cf.state.calls, []);
+    const ok = await main(
+      ['--users', 'u', '--host', 'player.example.org', '--zone', 'example.org'],
+      { ...deps, fetch: makeCloudflare().fetch }
+    );
+    assert.notEqual(ok, 2);
   });
 
   test('apply without --send-to or --out refuses before any request', async () => {

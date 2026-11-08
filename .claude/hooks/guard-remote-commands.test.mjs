@@ -175,7 +175,7 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'docker container stop x'",
     "ssh foundry-pi 'docker stop x'",
     'ssh foundry-pi \'MODE=up TEST_ALLOW_CUTOVER="1" bash -s\' < stage.sh',
-    "ssh foundry-pi \"MODE=up TEST_ALLOW_CUTOVER='1' bash -s\" < stage.sh",
+    'ssh foundry-pi "MODE=up TEST_ALLOW_CUTOVER=\'1\' bash -s" < stage.sh',
     "ssh foundry-pi 'docker rm -f $(docker ps -aq)'",
     "ssh foundry-pi 'docker system prune -af'",
     "ssh foundry-pi 'docker kill foundry-ai-tool-pi-foundry-1'",
@@ -505,6 +505,24 @@ test('the older gaps from the PR #146 review are closed', () => {
     "ssh foundry-pi 'rm -- -rf'",
     "ssh foundry-pi 'apt-get -o Acquire::Retries=3 install -y restic'",
     "bash -c 'ssh localhost true'",
+  ]) {
+    assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+});
+
+test('the player connector Cloudflare script asks with --apply (it runs ssh itself) and is free as a plan', () => {
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi',
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com --apply',
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --rotate --send-to foundry-pi',
+    'CLOUDFLARE_API_TOKEN=x node ./scripts/pi/player-connector-cloudflare.mjs --apply',
+  ]) {
+    assert.equal(kind(c), 'ask', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs',
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com',
+    'node --test scripts/pi/player-connector-cloudflare.test.mjs',
   ]) {
     assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
   }

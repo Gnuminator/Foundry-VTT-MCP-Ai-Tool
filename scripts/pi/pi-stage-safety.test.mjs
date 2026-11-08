@@ -504,6 +504,7 @@ describe('the stages', () => {
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
       '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first
+      '30-player-connector': 'require_quiet_if_active', // before the first write, when a restart is coming
     };
     for (const [s, fn] of Object.entries(quiet)) {
       assert.ok(read(`scripts/pi/remote/${s}.sh`).includes(fn), `${s}.sh calls ${fn}`);

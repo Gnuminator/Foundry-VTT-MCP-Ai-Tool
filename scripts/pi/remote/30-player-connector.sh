@@ -13,7 +13,9 @@
 #      file is kept next to it; set-dashboard-access.sh writes that file whole, so run this stage again after it);
 #   4. restarts the bridge and the dashboard only if something they read changed (require_quiet: no players online, no recording);
 #   5. checks: the dashboard answers 401 to /mcp/player with no token, 421 for an unlisted name, the units run as $FOUNDRY_USER
-#      (the table is 0600 foundry), and the ports 31414 to 31416 listen exactly as before the run.
+#      (the table is 0600 foundry), the ports 31414 to 31416 listen exactly as before the run and the bridge control port answers
+#      on loopback. A failed check makes the run end with exit 1 (the install stays in place; CHECK=1 repeats the checks).
+#      CHECK=1 has no "before" to compare the ports with: it prints them and fails on the control port check.
 # It changes no port, no firewall, no tunnel setting and no GM connector. The tunnel route lives in Cloudflare (remotely managed).
 #
 # Modes (environment, before bash):
@@ -38,6 +40,9 @@ dash_unit=foundry-ai-tool-dashboard.service
 bridge_unit=foundry-ai-tool-bridge.service
 node="$NODE_DIR/bin/node"
 dropin_name=player-connector.conf
+fails=0
+# A check of the real run that failed: counted, shown as a warning, and the run ends with exit 1 after the last check.
+bad() { warn "$*"; fails=$((fails + 1)); }
 
 require_root
 modes=0
@@ -133,6 +138,9 @@ if [ "$check" = 1 ]; then
     code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' http://127.0.0.1:3000/ || true)"
     [ "$code" = 421 ] && ok "an unlisted name: 421" || die "an unlisted name gave '$code', expected 421"
     ok "ports 31414 to 31416 listening: $(ports_line)"
+    cp_rc=0
+    control_port_check 31414 || cp_rc=$?
+    [ "$cp_rc" = 0 ] && ok "the bridge control port answers on loopback" || die "the bridge control port 31414 check returned $cp_rc (1 = no answer, 2 = a listener beyond loopback and the tailnet)"
   else
     warn "no systemd here (a test container?): the service checks are skipped"
   fi
@@ -145,15 +153,31 @@ if [ "$undo" = 1 ]; then
   say "undo: the player connector off"
   host=""
   [ ! -f "$cfg" ] || host="$(player_host 2>/dev/null || true)"
+  hosts=""
+  [ ! -f "$access" ] || hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
+  # Only what is really there is undone, and only a service whose own input changes is restarted (a restart drops the GM link).
+  restart_dash=0
+  restart_bridge=0
+  if [ -f "$envf" ]; then restart_dash=1 restart_bridge=1; fi
+  [ ! -f "$unit_dir/$dash_unit.d/$dropin_name" ] || restart_dash=1
+  [ ! -f "$unit_dir/$bridge_unit.d/$dropin_name" ] || restart_bridge=1
+  undo_host=0
+  if [ -n "$host" ] && host_in_list "$hosts" "$host"; then undo_host=1 restart_dash=1; fi
+  if [ "$restart_dash" = 1 ]; then require_quiet_if_active "$dash_unit" "undoing the player connector (restarting the dashboard)"; fi
+  if [ "$restart_bridge" = 1 ]; then require_quiet_if_active "$bridge_unit" "undoing the player connector (restarting the bridge)"; fi
   for u in "$dash_unit" "$bridge_unit"; do
     rm -f "${unit_dir:?}/$u.d/$dropin_name"
     rmdir "${unit_dir:?}/$u.d" 2>/dev/null || true
-    mark_changed "$unit_dir/$u"
   done
+  [ "$restart_dash" = 0 ] || mark_changed "$unit_dir/$dash_unit"
+  [ "$restart_bridge" = 0 ] || mark_changed "$unit_dir/$bridge_unit"
   rm -f "${envf:?}"
-  if [ -n "$host" ] && [ -f "$access" ]; then
-    hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
-    new="$(printf '%s' ",$hosts," | sed "s/,$host,/,/g; s/^,//; s/,\$//")"
+  if [ "$undo_host" = 1 ]; then
+    # Plain string work (no sed pattern), so the dots of the host are not wildcards.
+    new=",$hosts,"
+    while [ "${new#*",$host,"}" != "$new" ]; do new="${new%%",$host,"*},${new#*",$host,"}"; done
+    new="${new#,}"
+    new="${new%,}"
     tmp="$(mktemp "$TOOL_ETC/.dashboard-access.env.XXXXXX")"
     trap 'rm -f "${tmp:?}"' EXIT
     awk -v v="$new" '/^DASHBOARD_ALLOWED_HOSTS=/ { print "DASHBOARD_ALLOWED_HOSTS=" v; next } { print }' "$access" >"$tmp"
@@ -191,6 +215,9 @@ if [ -f "$access" ]; then
 else
   die "$access is missing: run set-dashboard-access.sh first. Nothing was changed"
 fi
+# Without the line the dashboard falls back to the unit's own list (the tailnet name); writing a line with only the player host would
+# lock the GM out of the dashboard, so stop and let the user look.
+grep -q '^DASHBOARD_ALLOWED_HOSTS=[^[:space:]]' "$access" || die "$access has no DASHBOARD_ALLOWED_HOSTS line with a value: run set-dashboard-access.sh (it writes the GM hosts) and then this stage. Nothing was changed"
 cur_hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
 if host_in_list "$cur_hosts" "$host"; then new_hosts="$cur_hosts"; else new_hosts="${cur_hosts:+$cur_hosts,}$host"; fi
 
@@ -203,6 +230,22 @@ if [ "$dry" = 1 ]; then
   ok "restart the bridge and the dashboard if something they read changed (refused while players are online or a recording runs)"
   ok "ports 31414 to 31416 now: $(ports_line)"
   exit 0
+fi
+
+# A restart is coming when anything the services read will change: ask now, before the first write, so a refusal leaves everything as it
+# was (a rerun after it then installs the table again).
+will_change=0
+if [ "$use_src" = 1 ]; then
+  if [ -f "$cfg" ] && cmp -s "$src" "$cfg"; then :; else will_change=1; fi
+fi
+[ "$(cat "$envf" 2>/dev/null)" = "$env_body" ] || will_change=1
+for u in "$dash_unit" "$bridge_unit"; do
+  [ "$(cat "$unit_dir/$u.d/$dropin_name" 2>/dev/null)" = "$dropin_body" ] || will_change=1
+done
+[ "$new_hosts" = "$cur_hosts" ] || will_change=1
+if [ "$will_change" = 1 ]; then
+  require_quiet_if_active "$dash_unit" "restarting the dashboard for the player connector"
+  require_quiet_if_active "$bridge_unit" "restarting the bridge for the player connector"
 fi
 
 ports_before="$(ports_line)"
@@ -265,13 +308,14 @@ else
     [ "$code" != 000 ] && [ -n "$code" ] && break
     sleep 1
   done
-  [ "$code" = 401 ] && ok "/mcp/player with no token: 401" || warn "/mcp/player with no token gave '$code', expected 401 (journalctl -u $dash_unit -n 30)"
+  [ "$code" = 401 ] && ok "/mcp/player with no token: 401" || bad "/mcp/player with no token gave '$code', expected 401 (journalctl -u $dash_unit -n 30)"
   code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' http://127.0.0.1:3000/ || true)"
-  [ "$code" = 421 ] && ok "an unlisted name: 421" || warn "an unlisted name gave '$code', expected 421"
+  [ "$code" = 421 ] && ok "an unlisted name: 421" || bad "an unlisted name gave '$code', expected 421"
   ports_after="$(ports_line)"
-  if [ "$ports_before" = "$ports_after" ]; then ok "ports 31414 to 31416 as before: $ports_after"; else warn "ports 31414 to 31416 changed: before '$ports_before', after '$ports_after'"; fi
+  if [ "$ports_before" = "$ports_after" ]; then ok "ports 31414 to 31416 as before: $ports_after"; else bad "ports 31414 to 31416 changed: before '$ports_before', after '$ports_after'"; fi
   cp_rc=0
   control_port_check 31414 || cp_rc=$?
-  [ "$cp_rc" = 0 ] && ok "the bridge control port answers on loopback" || warn "the bridge control port 31414 check returned $cp_rc"
+  [ "$cp_rc" = 0 ] && ok "the bridge control port answers on loopback" || bad "the bridge control port 31414 check returned $cp_rc"
 fi
+[ "$fails" = 0 ] || die "stage 30: $fails check(s) failed (see the warnings above). The install is in place; fix the cause and run it again with CHECK=1"
 say "stage 30 done: player host $host. Next: the first call with each token, then 'journalctl -u $dash_unit | grep common_name' (the Client ID claim check), a no-token 401 and a GM-login 403 through Cloudflare"

@@ -84,6 +84,8 @@ async function start(
     devUser?: string;
     teamDomain?: string;
     host?: string;
+    /** The bridge lists no users (the table is off or Foundry has not answered yet). */
+    noUsers?: boolean;
   } = {}
 ): Promise<{ base: string; calls: Call[]; warns: string[] }> {
   const calls: Call[] = [];
@@ -112,11 +114,13 @@ async function start(
             id: WORLD,
             title: 'Test',
             system: { id: 'dnd5e' },
-            playerUsers: [
-              { id: ALICE, name: 'Alice', isGM: false },
-              { id: BOB, name: 'Bob', isGM: false },
-              { id: DANNI_GM, name: 'Danni', isGM: true },
-            ],
+            playerUsers: options.noUsers
+              ? []
+              : [
+                  { id: ALICE, name: 'Alice', isGM: false },
+                  { id: BOB, name: 'Bob', isGM: false },
+                  { id: DANNI_GM, name: 'Danni', isGM: true },
+                ],
           } as T)
         : Promise.reject(new Error('no tool')),
     characterSheet: (userId: string): Promise<unknown> => Promise.resolve({ userId, sheets: [] }),
@@ -229,7 +233,7 @@ describe('/mcp/player: who gets in', () => {
   it('is not there at all when the connector is off', async () => {
     const { base, calls } = await start({ enabled: false });
     const res = await rpc(base, call('get-my-character'), asA);
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(404);
     expect(calls).toHaveLength(0);
   });
 
@@ -289,11 +293,26 @@ describe('/mcp/player: who gets in', () => {
   });
 
   it('logs the claim names, never values, when a valid token has no common_name', async () => {
-    const { base, calls } = await start();
-    const res = await rpc(base, call('get-my-character'), {
-      'cf-access-jwt-assertion': jwt({ type: 'app', sub: 'secret-looking-value' }),
-    });
-    expect(res.status).toBe(403);
+    const warn = vi.spyOn(Logger.prototype, 'warn');
+    try {
+      const { base, calls } = await start();
+      const res = await rpc(base, call('get-my-character'), {
+        'cf-access-jwt-assertion': jwt({ type: 'app', sub: 'secret-looking-value' }),
+      });
+      expect(res.status).toBe(403);
+      expect(calls).toHaveLength(0);
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).toContain('no common_name');
+      expect(logged).toContain('"type"');
+      expect(logged).not.toContain('secret-looking-value');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('says try again (503), not wrong login, when the table lists no users', async () => {
+    const { base, calls } = await start({ noUsers: true });
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(503);
     expect(calls).toHaveLength(0);
   });
 

@@ -33,6 +33,7 @@ export const PLAYER_ENDPOINT_TOOLS: readonly string[] = [
 ];
 
 export interface PlayerRouteClient {
+  readonly isConnected?: boolean;
   listPlayerTools?(): Promise<unknown>;
   playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
 }
@@ -128,10 +129,14 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
   }
 
   /** A mapped user must still be a non-GM Foundry user (the directory never holds a GM). */
-  async function isPlayer(userId: string): Promise<boolean> {
-    if (directory.get(userId)) return true;
+  async function playerStatus(userId: string): Promise<'ok' | 'refused' | 'offline'> {
+    if (directory.get(userId)) return 'ok';
     await directory.refreshIfStale();
-    return directory.get(userId) !== null;
+    if (directory.get(userId)) return 'ok';
+    // A table that is off (no bridge, or no user list yet) is not a wrong login: the player is
+    // told to try again, not to check their credentials.
+    if (client.isConnected === false || directory.list().length === 0) return 'offline';
+    return 'refused';
   }
 
   const parseBody = express.json({ limit: MAX_BODY, type: ['application/json'] });
@@ -163,8 +168,9 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       res.status(who.status).end();
       return;
     }
-    if (!(await isPlayer(who.userId))) {
-      res.status(403).end();
+    const state = await playerStatus(who.userId);
+    if (state !== 'ok') {
+      res.status(state === 'offline' ? 503 : 403).end();
       return;
     }
 
@@ -188,7 +194,7 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       const version =
         typeof asked === 'string' && SUPPORTED_PROTOCOLS.includes(asked)
           ? asked
-          : SUPPORTED_PROTOCOLS[1];
+          : SUPPORTED_PROTOCOLS[0];
       res.json({
         jsonrpc: '2.0',
         id,

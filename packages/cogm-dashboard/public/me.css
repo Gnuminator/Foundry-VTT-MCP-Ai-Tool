@@ -158,6 +158,9 @@ main {
   flex-wrap: wrap;
   margin-top: 0.6rem;
 }
+.me-connector .mc-error[hidden] {
+  display: none;
+}
 .me-connector p.muted {
   margin: 0.4rem 0 0;
   min-height: 1.2em;

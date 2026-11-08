@@ -24,6 +24,9 @@ const CANARIES = [
   'CANARY-NONE-ENTRY',
   'CANARY-OTHER-ACTOR',
   'CANARY-WORLD-PACK',
+  'CANARY-GM-SECRET-ITEM',
+  'CANARY-GM-SECRET-PAGE',
+  'CANARY-UNIDENTIFIED-TRUE',
 ];
 
 /** A document a given set of users may observe (everyone in `users`). */
@@ -80,6 +83,12 @@ function pack(
   opts: { viewers?: unknown[]; packageType?: string; label?: string } = {}
 ): any {
   const [pkg] = id.split('.');
+  // Foundry 14: a document or page inside a pack uses the PACK's permission level.
+  const packLevel = perm(opts.viewers ?? [userA, userB]);
+  for (const d of docs) {
+    d.testUserPermission = packLevel;
+    for (const p of d.pages ?? []) p.testUserPermission = packLevel;
+  }
   return {
     documentName: type,
     collection: id,
@@ -114,16 +123,18 @@ function install(): void {
     'spellfireball01',
     'Fireball',
     'spell',
-    '<p>A bright streak flashes and blossoms into an explosion of flame. Fireball damage 8d6.</p>',
+    '<p>A bright streak flashes and blossoms into an explosion of flame. Fireball damage 8d6.</p><section class="secret"><p>CANARY-GM-SECRET-ITEM fireball</p></section>',
     [userA, userB]
   );
-  const hiddenSpell = itemDoc(
-    'spellnone000001',
-    'Fireball Secret',
-    'spell',
-    '<p>CANARY-NONE-ENTRY fireball variant.</p>',
-    []
+  const ring = itemDoc(
+    'ringunid000001',
+    'Mystery ring',
+    'equipment',
+    '<p>CANARY-UNIDENTIFIED-TRUE ring of fireball</p>',
+    [userA]
   );
+  ring.system.identified = false;
+  ring.system.unidentified = { description: '<p>A plain iron ring.</p>' };
   const longSpell = itemDoc(
     'spelllong000001',
     'Wishful',
@@ -131,19 +142,18 @@ function install(): void {
     `<p>${'word '.repeat(2000)}</p>`,
     [userA]
   );
-  const phb = pack('dnd-players-handbook.spells', 'Item', [fireball, hiddenSpell, longSpell]);
-  // The second page is invisible to A.
+  const phb = pack('dnd-players-handbook.spells', 'Item', [fireball, ring, longSpell]);
   const grapple = journalDoc(
     'jrnlgrapple0001',
     'Grappling',
     [
-      ['Grappling', `<p>Grappling lets you seize a creature. ${'detail '.repeat(300)}</p>`],
-      ['Secret page', '<p>CANARY-NONE-ENTRY grappling</p>'],
+      [
+        'Grappling',
+        `<p>Grappling lets you seize a creature. ${'detail '.repeat(300)}</p><section class="secret"><p>CANARY-GM-SECRET-PAGE grappling</p></section>`,
+      ],
     ],
     [userA]
   );
-  grapple.pages[0].testUserPermission = (): boolean => true;
-  grapple.pages[1].testUserPermission = (): boolean => false;
   const phbJournal = pack('dnd-players-handbook.rules', 'JournalEntry', [grapple]);
 
   g.game = {
@@ -196,6 +206,26 @@ function install(): void {
           itemDoc('hid1', 'Hidden fireball', 'spell', '<p>CANARY-HIDDEN-PACK fireball</p>', [
             userA,
           ]),
+          itemDoc(
+            'spellnone000001',
+            'Fireball Secret',
+            'spell',
+            '<p>CANARY-NONE-ENTRY fireball variant.</p>',
+            [userA]
+          ),
+        ],
+        { viewers: [userB] }
+      ),
+      pack(
+        'other-mod.hiddenbook',
+        'JournalEntry',
+        [
+          journalDoc(
+            'hidj1',
+            'Hidden book',
+            [['Secret page', '<p>CANARY-NONE-ENTRY grappling</p>']],
+            [userA]
+          ),
         ],
         { viewers: [userB] }
       ),
@@ -362,7 +392,8 @@ describe('playerRead: books', () => {
 
   it('getEntry gives one identical error for every unreadable entry', async () => {
     const attempts: Array<[string, string]> = [
-      ['dnd-players-handbook.spells', 'spellnone000001'], // NONE on the entry
+      ['other-mod.secret', 'spellnone000001'], // a pack the user cannot observe
+      ['other-mod.hiddenbook', 'hidj1'],
       ['dnd-players-handbook.spells', 'doesnotexist'],
       ['aitool-content.journals', 'dmg1'],
       ['dnd5e.rules', 'sys1'],
@@ -385,6 +416,36 @@ describe('playerRead: books', () => {
     expect(e.description).toContain('POSITIVE-WORLD-FEAT');
     const none = await as('findEntries', { query: 'world fireball' });
     expect(none.results).toEqual([]);
+  });
+
+  it('keeps GM secret blocks and unidentified text out of search and getEntry', async () => {
+    for (const query of ['fireball', 'grappling', 'ring iron']) {
+      assertNoCanary(await as('searchBooks', { query, excerptChars: 600 }));
+    }
+    const item = await as('getEntry', {
+      packId: 'dnd-players-handbook.spells',
+      entryId: 'spellfireball01',
+    });
+    expect(item.description).toContain('explosion of flame');
+    assertNoCanary(item);
+    const ring = await as('getEntry', {
+      packId: 'dnd-players-handbook.spells',
+      entryId: 'ringunid000001',
+    });
+    expect(ring.description).toBe('A plain iron ring.');
+    const book = await as('getEntry', {
+      packId: 'dnd-players-handbook.rules',
+      entryId: 'jrnlgrapple0001',
+    });
+    expect(book.description).toContain('seize a creature');
+    assertNoCanary(book);
+  });
+
+  it('the GM search keeps the full text, separate from the player index', async () => {
+    g.game.settings = { get: (): string => '' };
+    await as('searchBooks', { query: 'fireball' });
+    const gmResult = await deps.rulesSearch.searchRules({ query: 'fireball', excerptChars: 4000 });
+    expect(JSON.stringify(gmResult)).toContain('CANARY-GM-SECRET-ITEM');
   });
 
   it('a permission function that is missing counts as not allowed', async () => {

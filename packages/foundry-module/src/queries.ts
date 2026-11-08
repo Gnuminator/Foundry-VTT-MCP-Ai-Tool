@@ -345,8 +345,9 @@ export class QueryHandlers {
     );
 
     // A player's own Claude (playerRead): their sheets, level-up options and the books they may
-    // read, scoped to the one user id in the message. Read-only; not an MCP tool for the GM
-    // connectors (the control method `player_read`). GM client only.
+    // read, scoped to the one user id in the message. Read-only; the pack's permission level
+    // alone controls access (a document inside a pack follows its pack). Not an MCP tool for
+    // the GM connectors (the control method `player_tool`). GM client only.
     handlers.set(`${modulePrefix}.${PLAYER_READ_QUERY}`, (data: unknown) =>
       this.withGmGate('Player read failed', () =>
         playerRead(data, this.dataAccess.playerReadDeps())

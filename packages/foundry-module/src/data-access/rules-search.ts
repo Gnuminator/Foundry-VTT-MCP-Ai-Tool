@@ -5,6 +5,7 @@
  * are searched only when the caller asks. Read-only.
  */
 
+import { stripSecrets } from '../character-sheet-fields.js';
 import { MODULE_ID } from '../constants.js';
 
 /**
@@ -134,6 +135,19 @@ export interface RulesSearchParams {
   excerptChars?: number;
   /** Also search compendium packs that are not on the allowlist. */
   includeOtherBooks?: boolean;
+}
+
+/** An item's description as a player sees it: an unidentified item shows only its unidentified text. */
+export function itemDescription(doc: {
+  system?: {
+    identified?: boolean;
+    description?: { value?: string };
+    unidentified?: { description?: string };
+  };
+}): string {
+  const s = doc.system;
+  if (s?.identified === false) return s.unidentified?.description ?? '';
+  return s?.description?.value ?? '';
 }
 
 /** HTML to plain text: tags out, entities decoded for the common few, blanks squeezed. */
@@ -297,9 +311,11 @@ export class RulesSearchDataAccess {
 
   /**
    * Player search: the same ranking as `searchRules`, but over exactly the packs the caller
-   * passes (already limited to what one player may read). It never reads world journals, the
-   * allowlist setting or any client flag; each candidate must pass `entryAllowed` (the per-entry
-   * permission check) before it counts, and the search stops at `limit` allowed hits.
+   * passes (already limited to the packs one player may observe; in Foundry 14 only the pack
+   * controls access, its documents follow it). It never reads world journals, the allowlist
+   * setting or any client flag. The text is indexed without GM secret blocks (a separate cache
+   * entry from the GM's search). `entryAllowed` is an extra, harmless check on each candidate,
+   * and the search stops at `limit` allowed hits.
    */
   async searchRulesScoped(params: ScopedSearchParams): Promise<ScopedSearchResult> {
     const query = typeof params?.query === 'string' ? params.query.trim() : '';
@@ -319,7 +335,7 @@ export class RulesSearchDataAccess {
       if (type !== 'JournalEntry' && type !== 'Item') continue;
       const id: string = pack.metadata.id;
       try {
-        entries.push(...(await this.indexPack(pack, id, type)));
+        entries.push(...(await this.indexPack(pack, id, type, true)));
         order.set(id, order.size);
       } catch (error) {
         console.warn(`${MODULE_ID} | rules search: skipping pack ${id}`, error);
@@ -412,20 +428,27 @@ export class RulesSearchDataAccess {
    * is still served while one background rebuild runs, so no search waits for a whole pack
    * (a cold build can pass the dashboard's 15 s timeout).
    */
-  private indexPack(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
-    const cached = this.cache.get(id);
+  private indexPack(
+    pack: PackLike,
+    id: string,
+    type: string,
+    forPlayer = false
+  ): Promise<IndexedText[]> {
+    // A player's index has the GM secret blocks removed and lives under its own cache key.
+    const cacheKey = forPlayer ? `player:${id}` : id;
+    const cached = this.cache.get(cacheKey);
     if (cached) {
       if (Date.now() - cached.at >= CACHE_TTL_MS && !cached.refreshing) {
         cached.refreshing = true;
         // One pack at a time, so the rebuilds never load every pack at once during play.
         this.refreshChain = this.refreshChain.then(() =>
           withTimeout(
-            this.buildPackIndex(pack, id, type),
+            this.buildPackIndex(pack, id, type, forPlayer),
             REFRESH_TIMEOUT_MS,
             `refresh of ${id}`
           ).then(
             fresh => {
-              this.cache.set(id, { at: Date.now(), entries: Promise.resolve(fresh) });
+              this.cache.set(cacheKey, { at: Date.now(), entries: Promise.resolve(fresh) });
             },
             error => {
               console.warn(`${MODULE_ID} | rules search: refresh of ${id} failed`, error);
@@ -437,19 +460,26 @@ export class RulesSearchDataAccess {
       }
       return cached.entries;
     }
-    const entries = this.buildPackIndex(pack, id, type);
-    this.cache.set(id, { at: Date.now(), entries });
-    entries.catch(() => this.cache.delete(id));
+    const entries = this.buildPackIndex(pack, id, type, forPlayer);
+    this.cache.set(cacheKey, { at: Date.now(), entries });
+    entries.catch(() => this.cache.delete(cacheKey));
     return entries;
   }
 
-  private async buildPackIndex(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
+  private async buildPackIndex(
+    pack: PackLike,
+    id: string,
+    type: string,
+    forPlayer = false
+  ): Promise<IndexedText[]> {
     const out: IndexedText[] = [];
     const label: string = pack.metadata?.label ?? id;
     const docs = await pack.getDocuments();
+    const clean = (html: unknown): string =>
+      plainText(forPlayer && typeof html === 'string' ? stripSecrets(html) : html);
     for (const doc of docs) {
       if (type === 'Item') {
-        const text = plainText(doc.system?.description?.value);
+        const text = clean(forPlayer ? itemDescription(doc) : doc.system?.description?.value);
         if (text) {
           out.push({
             source: 'compendium',
@@ -464,7 +494,7 @@ export class RulesSearchDataAccess {
         continue;
       }
       for (const page of doc.pages ?? []) {
-        const text = plainText(page.text?.content);
+        const text = clean(page.text?.content);
         if (!text) continue;
         out.push({
           source: 'compendium',
@@ -585,7 +615,11 @@ export interface DocLike {
   id: string;
   name?: string;
   type?: string;
-  system?: { description?: { value?: string } };
+  system?: {
+    identified?: boolean;
+    description?: { value?: string };
+    unidentified?: { description?: string };
+  };
   pages?: Iterable<PageLike>;
   testUserPermission?(user: unknown, level: string): boolean;
 }

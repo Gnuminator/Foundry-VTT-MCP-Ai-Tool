@@ -3,7 +3,10 @@
  * The control port has no login, so every permission check here uses the user object looked up
  * from the `userId` in the message, never anything else the caller sends. A player sees their own
  * characters and the rules books they may observe; world journals, world actors, adventure packs,
- * the dnd5e system packs (monster stat blocks), the DMG pack and world-owned packs never.
+ * the dnd5e system packs (monster stat blocks) and the DMG pack never. World-owned packs are
+ * allowed (the kept books live there) when the user can observe the pack. In Foundry 14 a
+ * document inside a pack follows the PACK's permission level, so the pack check is what controls
+ * access. GM secret blocks are stripped from everything a player gets.
  */
 
 import { characterSheets } from './character-sheet.js';
@@ -15,7 +18,8 @@ import type {
   ScopedSearchParams,
   ScopedSearchResult,
 } from './data-access/rules-search.js';
-import { plainText } from './data-access/rules-search.js';
+import { itemDescription, plainText } from './data-access/rules-search.js';
+import { stripSecrets } from './character-sheet-fields.js';
 
 /** Query name (a module file imports types only from shared). */
 export const PLAYER_READ_QUERY = 'playerRead';
@@ -209,11 +213,10 @@ async function searchBooksAction(
     if (!allowed(doc, user, 'OBSERVER')) return false;
     if (hit.pageId) {
       const page = [...(doc?.pages ?? [])].find(p => p.id === hit.pageId);
-      if (
-        page &&
-        typeof page.testUserPermission === 'function' &&
-        !allowed(page, user, 'OBSERVER')
-      ) {
+      // A page that is gone is not allowed. (A page follows its pack's level; this check is
+      // harmless extra, not the access control.)
+      if (!page) return false;
+      if (typeof page.testUserPermission === 'function' && !allowed(page, user, 'OBSERVER')) {
         return false;
       }
     }
@@ -236,7 +239,6 @@ async function findEntriesAction(
   const query = str(body.query).trim().toLowerCase();
   const type = str(body.type).trim().toLowerCase();
   const limit = clamp(body.limit, 10, 1, MAX_FIND);
-  const load = documentLoader();
   const results: Array<{
     packId: string;
     packLabel: string;
@@ -265,8 +267,7 @@ async function findEntriesAction(
       if (!entryId) continue;
       if (query && !name.toLowerCase().includes(query)) continue;
       if (type && rowType.toLowerCase() !== type) continue;
-      const doc = await load(pack, entryId);
-      if (!allowed(doc, user, 'OBSERVER')) continue;
+      // The pack check in playerPacks is the access control; entries follow their pack.
       results.push({
         packId: pack.metadata.id,
         packLabel: pack.metadata.label ?? pack.metadata.id,
@@ -298,13 +299,13 @@ async function getEntryAction(user: PlayerUser, body: Record<string, unknown>): 
       if (typeof page.testUserPermission === 'function' && !allowed(page, user, 'OBSERVER')) {
         continue;
       }
-      const text = plainText(page.text?.content);
+      const text = plainText(stripSecrets(page.text?.content ?? ''));
       if (text) parts.push(`${page.name ?? ''}: ${text}`);
     }
     description = parts.join('\n\n');
   } else {
     type = doc.type ?? 'Item';
-    description = plainText(doc.system?.description?.value);
+    description = plainText(stripSecrets(itemDescription(doc)));
   }
   const truncated = description.length > MAX_DESCRIPTION;
   return {

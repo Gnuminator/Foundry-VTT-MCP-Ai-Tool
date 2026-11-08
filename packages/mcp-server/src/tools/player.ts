@@ -110,10 +110,17 @@ export function readExtraDenyTerms(path: string | undefined): string[] {
     return Array.isArray(parsed.denyTerms)
       ? parsed.denyTerms.filter((t): t is string => typeof t === 'string')
       : [];
-  } catch {
+  } catch (error) {
+    // Once per path is enough noise: the filter still has the base terms.
+    if (!warnedConfigPaths.has(path)) {
+      warnedConfigPaths.add(path);
+      console.warn(`Player connector: cannot read ${PLAYER_CONFIG_ENV} (${String(error)})`);
+    }
     return [];
   }
 }
+
+const warnedConfigPaths = new Set<string>();
 
 function cap(text: unknown, max: number): string {
   const s = typeof text === 'string' ? text : '';
@@ -251,7 +258,12 @@ export class PlayerTools {
           ...h,
           snippet: cap(h.snippet, PLAYER_EXCERPT_CHARS),
         }));
-        const { kept, hidden } = await this.filter(hits, h => [h.name, h.pageName, h.snippet]);
+        const { kept, hidden } = await this.filter(hits, h => [
+          h.name,
+          h.pageName,
+          h.snippet,
+          h.packLabel,
+        ]);
         return {
           query: raw?.query ?? a.query,
           results: kept.slice(0, PLAYER_SEARCH_LIMIT),
@@ -266,10 +278,10 @@ export class PlayerTools {
           ...(a.query ? { query: a.query } : {}),
           ...(a.type ? { type: a.type } : {}),
           limit: Math.min(a.limit ?? 10, PLAYER_FIND_LIMIT),
-        })) as { results?: Array<{ name?: string }> } | undefined;
+        })) as { results?: Array<{ name?: string; packLabel?: string }> } | undefined;
         const { kept, hidden } = await this.filter(
           Array.isArray(raw?.results) ? raw.results : [],
-          r => [r.name]
+          r => [r.name, r.packLabel]
         );
         return {
           results: kept.slice(0, PLAYER_FIND_LIMIT),

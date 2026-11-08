@@ -265,6 +265,22 @@ describe('ConnectorStore logging', () => {
     store.read();
     expect(warns.filter(m => m.includes('cannot be read'))).toHaveLength(2);
   });
+
+  it('repeats the drop warnings when the same bad file comes back after an unreadable spell', () => {
+    const bad = {
+      players: [{ clientId: 'b', clientSecret: 's', userId: 'short' }],
+    };
+    const file = configFile(bad);
+    const warns: string[] = [];
+    const store = new ConnectorStore(file, m => warns.push(m));
+    store.read();
+    expect(warns.filter(m => m.includes('dropped'))).toHaveLength(1);
+    writeFileSync(file, '{ not json');
+    store.read();
+    writeFileSync(file, JSON.stringify(bad));
+    store.read();
+    expect(warns.filter(m => m.includes('dropped'))).toHaveLength(2);
+  });
 });
 
 describe('/mcp/player: who gets in', () => {

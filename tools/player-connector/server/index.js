@@ -16,7 +16,7 @@
 
 const readline = require('node:readline');
 
-const VERSION = '0.1.4';
+const VERSION = '0.1.5';
 
 // Protocol versions the local initialize answer offers; the newest is the fallback.
 const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
@@ -248,7 +248,10 @@ function createForwarder(env, fetchImpl) {
     if (sessionId === had && !reinitInFlight) {
       reinitInFlight = (async () => {
         sessionId = null;
-        const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+        const re = await send(
+          { ...initRequest, id: `reinit-${Date.now()}` },
+          Math.min(timeoutMs, INIT_TIMEOUT_MS)
+        );
         if (re.failure || re.message.error) {
           sessionId = had; // keep the old id so the next 404 tries again
           return re;

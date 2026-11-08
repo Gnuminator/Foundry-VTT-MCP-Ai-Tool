@@ -128,7 +128,9 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     }
   }
   if (!devUser && !connector.teamDomain) {
-    log.warn('Player connector is on but CF_ACCESS_TEAM_DOMAIN is not set: every login is refused');
+    log.warn(
+      'Player connector is on but CF_ACCESS_TEAM_DOMAIN is not set or does not parse: every login is refused'
+    );
   }
 
   // One verifier per set of AUD tags (the file is read per request, so an edit needs no restart).

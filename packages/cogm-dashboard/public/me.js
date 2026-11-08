@@ -263,6 +263,7 @@ async function loadConnector() {
     // The card is shown with a retry, so a player is not left with nothing to try.
     setConnectorError('Could not load your connector values. Check your connection and try again.');
     $('me-connector').hidden = false;
+    $('me-connector').open = true; // an alert inside a closed details is not announced
   } finally {
     connectorLoading = false;
   }
@@ -306,7 +307,13 @@ document.addEventListener('click', e => {
     const input = $(copy.dataset.copy);
     void copyValue(input).then(ok => {
       copy.textContent = ok ? 'Copied' : 'Copy';
-      announce(ok ? 'Copied' : 'Could not copy. The value is selected: press Ctrl+C.');
+      announce(
+        ok
+          ? 'Copied'
+          : input.type === 'password'
+            ? 'Could not copy. Press Show, then select the value and copy it.'
+            : 'Could not copy. The value is selected: press Ctrl+C.'
+      );
       setTimeout(() => (copy.textContent = 'Copy'), 1500);
     });
   }

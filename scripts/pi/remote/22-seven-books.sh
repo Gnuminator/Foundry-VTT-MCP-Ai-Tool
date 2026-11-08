@@ -32,6 +32,12 @@
 # MODE=delete also DELETE_LEGACY=with-the-users-ok (the legacy pack holds the only copy of about 1500 entries on the
 # Pi; the PC's content module and the snapshot are the way back). A GM_SCRIPT in the environment is ignored: the
 # script follows MODE.
+# MODE=grave-patch (scp scripts/pi/remote/grave-domain-patch.js too) patches aitool-content.classes and .spells so Circle
+# of Mortality grants Spare the Dying and Path to the Grave has a Use activity (Backlog grave-domain-content-patch); the
+# module packs are shared by every world, which is fine for an additive patch. Then MODE=baseline refreshes the player
+# packs from them. MODE=grave-check is the read-only check (no snapshot, no APPLY). The Pi sitting for it: snapshot,
+# MODE=grave-patch dry run, MODE=grave-patch APPLY=1, MODE=baseline dry run, MODE=baseline APPLY=1 (read REFRESH: only the
+# patched entries may refresh), MODE=grave-check.
 # Order of the Pi sitting: snapshot, MODE=trim (if not done yet), MODE=baseline dry run, MODE=baseline APPLY=1, stage 13,
 # MODE=check.
 # Take a snapshot first (/boot/dietpi/dietpi-backup 1) and get the user's OK before APPLY=1. Do the dry run first:
@@ -39,7 +45,7 @@
 
 require_root
 trap '' HUP PIPE # a dropped ssh (HUP, closed pipe) must not kill the stage halfway through a step
-[ "${MODE:-trim}" = check ] || require_recent_snapshot # the drift check only reads
+case "${MODE:-trim}" in check | grave-check) ;; *) require_recent_snapshot ;; esac # the drift checks only read
 
 WORLD="${WORLD:-curse-of-strahd}"
 MODE="${MODE:-trim}"
@@ -88,7 +94,23 @@ case "$MODE" in
       mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" ||
       die "could not write $GM_SCRIPT. Nothing was changed"
     ;;
-  *) die "MODE must be trim, check, baseline, baseline-undo or delete (got '$MODE'). Nothing was changed" ;;
+  grave-patch)
+    # The Grave Domain content patch (Circle of Mortality grants Spare the Dying, Path to the Grave gets a Use activity)
+    # on the module packs aitool-content.classes and .spells. Run MODE=baseline (REFRESH) after it so the player packs
+    # get the patched entries.
+    GM_SCRIPT=/root/grave-domain-patch.js
+    ;;
+  grave-check)
+    # Read-only: the same file with GRAVE_MODE 'check' in front, always a dry run; fails when the patch is missing.
+    [ -z "${APPLY:-}" ] || die "MODE=grave-check only reads and takes no APPLY. Nothing was changed"
+    [ -f /root/grave-domain-patch.js ] && [ ! -L /root/grave-domain-patch.js ] ||
+      die "no /root/grave-domain-patch.js: scp the GM scripts to /root/ first (see the header). Nothing was changed"
+    GM_SCRIPT=/root/grave-domain-check.js
+    { printf "const GRAVE_MODE = 'check';\n"; cat /root/grave-domain-patch.js; } >"$GM_SCRIPT.new" &&
+      mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" ||
+      die "could not write $GM_SCRIPT. Nothing was changed"
+    ;;
+  *) die "MODE must be trim, check, baseline, baseline-undo, delete, grave-patch or grave-check (got '$MODE'). Nothing was changed" ;;
 esac
 [ -f "$GM_SCRIPT" ] && [ ! -L "$GM_SCRIPT" ] || die "no $GM_SCRIPT: scp the GM scripts to /root/ first (see the header). Nothing was changed"
 have_systemd || die "needs systemd (the Pi, not a test container). Nothing was changed"

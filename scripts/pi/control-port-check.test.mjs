@@ -106,36 +106,31 @@ describe('control_port_check', { skip: noBash }, () => {
     }
   });
 
-  test('0: a tailnet listener (100.64.0.0/10, fd7a:115c:a1e0::/48) next to loopback is fine', async () => {
+  test('0: the tailscale interface listeners next to loopback are fine (as ss prints them on the Pi)', async () => {
     const { server, port } = await fakeBridge(PONG);
     try {
-      for (const local of [
-        `100.101.102.103:${port}`,
-        `100.64.0.1:${port}`,
-        `100.127.255.254:${port}`,
-        `[fd7a:115c:a1e0::1234:5678]:${port}`,
-      ]) {
-        const r = await check(
-          port,
-          `LISTEN 0 511 127.0.0.1:${port} 0.0.0.0:*\nLISTEN 0 511 ${local} 0.0.0.0:*\n`
-        );
-        assert.match(r.stdout, /rc=0/, local + r.stdout + r.stderr);
-      }
+      // Copied from `ss -ltnH 'sport = :31414'` on the Pi, 2026-11-08.
+      const real =
+        `LISTEN 0      4096                100.110.82.102%tailscale0:${port} 0.0.0.0:*\n` +
+        `LISTEN 0      511                                 127.0.0.1:${port} 0.0.0.0:*\n` +
+        `LISTEN 0      4096   [fd7a:115c:a1e0::8b01:52fb]%tailscale0:${port}    [::]:*\n`;
+      const r0 = await check(port, real);
+      assert.match(r0.stdout, /rc=0/, r0.stdout + r0.stderr);
     } finally {
       server.close();
     }
   });
 
-  test('2: addresses just outside the tailnet range, or a LAN address, are still refused', async () => {
+  test('2: a tailnet-looking address without the interface scope, a LAN address or another interface is still refused', async () => {
     const { server, port } = await fakeBridge(PONG);
     try {
       for (const local of [
-        `100.63.0.1:${port}`,
-        `100.128.0.1:${port}`,
+        `100.110.82.102:${port}`,
         `192.168.1.10:${port}`,
+        `192.168.1.10%eth0:${port}`,
         `10.0.0.5:${port}`,
-        `[fd7a:115c:a1e1::1]:${port}`,
-        `1100.64.0.1:${port}`,
+        `[fd7a:115c:a1e0::1]:${port}`,
+        `[fe80::1]%eth0:${port}`,
       ]) {
         const r = await check(port, `LISTEN 0 511 ${local} 0.0.0.0:*\n`);
         assert.match(r.stdout, /rc=2/, local + r.stdout + r.stderr);

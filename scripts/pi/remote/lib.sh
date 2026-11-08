@@ -350,9 +350,10 @@ foundry_copy_file() {
 control_port_check() {
   local port="${1:-31414}" listeners reply=""
   listeners="$(ss -ltnH "sport = :$port" 2>/dev/null | awk '{print $4}' || true)"
-  # A listener on the Pi's own tailnet address (100.64.0.0/10, fd7a:115c:a1e0::/48) is reachable only from the user's
-  # tailnet, which the user trusts (stage 4), so it is not a listener "beyond loopback".
-  if [ -n "$listeners" ] && printf '%s\n' "$listeners" | grep -qvE '^(127\.0\.0\.1|\[::1\]|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]+\.[0-9]+|\[fd7a:115c:a1e0:[0-9a-f:]*\]):'; then
+  # A listener bound to the Pi's own tailscale interface (ss prints it as 100.x.y.z%tailscale0:PORT, and the IPv6 tailnet
+  # address as [fd7a:...]%tailscale0:PORT) is reachable only from the user's tailnet, which the user trusts (stage 4), so
+  # it is not a listener "beyond loopback". Only that interface scope counts, not the address range.
+  if [ -n "$listeners" ] && printf '%s\n' "$listeners" | grep -qvE '^(127\.0\.0\.1|\[::1\]|[0-9.]+%tailscale[0-9]*|\[[0-9a-f:]+\]%tailscale[0-9]*):'; then
     return 2
   fi
   reply="$( { exec 3<>"/dev/tcp/127.0.0.1/$port"; printf '{"id":"ping","method":"ping"}\n' >&3; IFS= read -r -t 5 -u 3 line; printf '%s' "${line:-}"; } 2>/dev/null )" || true

@@ -189,3 +189,33 @@ test('the skill is advise-only: no write tool is named as a step', () => {
     rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('PLAYER_TOOLS is exactly the player set in tool-sets.ts', () => {
+  const src = readFileSync(
+    new URL('../../packages/mcp-server/src/tool-sets.ts', import.meta.url),
+    'utf8'
+  );
+  const block = /\n {2}player: \{[\s\S]*?tools: \[([\s\S]*?)\]/.exec(src);
+  assert.ok(block, 'the player set was found in tool-sets.ts');
+  const names = [...block[1].matchAll(/'([a-z0-9-]+)'/g)].map(m => m[1]);
+  assert.deepEqual([...PLAYER_TOOLS].sort(), names.sort());
+});
+
+test('every page the player SKILL.md names is in the zip', () => {
+  withPlayerBuild(({ files }) => {
+    const named = [...files.get('SKILL.md').matchAll(/`(references\/[A-Za-z0-9_./-]+\.md)`/g)].map(
+      m => m[1]
+    );
+    assert.ok(named.length >= 7, 'the page table was parsed');
+    for (const page of named) assert.ok(files.has(page), `${page} is named but not in the zip`);
+  });
+});
+
+test('the player pages carry no server or module version provenance', () => {
+  withPlayerBuild(({ files }) => {
+    for (const [name, text] of files) {
+      if (!OWN_PAGE(name)) continue;
+      assert.doesNotMatch(text, /server C|Actor Studio \d|AI Tool mirror/i, name);
+    }
+  });
+});

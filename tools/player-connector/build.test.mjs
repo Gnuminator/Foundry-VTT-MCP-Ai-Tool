@@ -23,6 +23,7 @@ let mode = 'ok';
 const seen = [];
 const sessions = new Set();
 let sessionCount = 0;
+let initError = false;
 
 before(async () => {
   fake = http.createServer((req, res) => {
@@ -35,7 +36,18 @@ before(async () => {
         const sid = req.headers['mcp-session-id'];
         if (rpc.method === 'test/reset') sessions.clear();
         else if (rpc.method === 'test/deny') return res.writeHead(403).end();
-        else if (rpc.method === 'initialize') {
+        else if (rpc.method === 'test/redirect')
+          return res.writeHead(302, { location: 'https://example.cloudflareaccess.com/' }).end();
+        else if (rpc.method === 'initialize' && initError) {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          return res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: rpc.id,
+              error: { code: -32001, message: 'no room' },
+            })
+          );
+        } else if (rpc.method === 'initialize') {
           const fresh = `s${++sessionCount}`;
           sessions.add(fresh);
           res.writeHead(200, { 'content-type': 'application/json', 'mcp-session-id': fresh });
@@ -50,7 +62,10 @@ before(async () => {
           JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { sid: sid ?? null } })
         );
       }
-      if (mode === 'status403') {
+      if (mode === 'emptybody') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end('{}');
+      } else if (mode === 'status403') {
         res.writeHead(403).end(`denied ${ID} ${SECRET}`);
       } else if (mode === 'status401') {
         res.writeHead(401).end();
@@ -296,11 +311,11 @@ test('a 500 is mapped to a server-problem text', async () => {
 });
 
 test('network down gives a plain text', async () => {
-  const { replies, stderr } = await run([call(1)], {
+  const { replies, stdout, stderr } = await run([call(1)], {
     FOUNDRY_PLAYER_ENDPOINT: 'http://127.0.0.1:1/mcp/player',
   });
   assert.match(replies[0].result.content[0].text, /Could not reach the table/);
-  assert.ok(!stderr.includes(SECRET));
+  for (const text of [stdout, stderr]) assert.ok(!text.includes(SECRET) && !text.includes(ID));
 });
 
 test('a timeout gives a plain text', async () => {
@@ -382,4 +397,83 @@ test('the committed manifest has no endpoint default and no secret', () => {
   const m = JSON.parse(readFileSync(path.join(here, 'manifest.json'), 'utf8'));
   assert.equal(m.user_config.endpoint_url.default, undefined);
   assert.ok(!JSON.stringify(m).match(/cf-access|secret_/i));
+});
+
+test('a 200 with neither result nor error is a bad-body failure', async () => {
+  mode = 'emptybody';
+  const { replies } = await run([call(1)]);
+  assert.match(replies[0].result.content[0].text, /something Claude cannot read/);
+});
+
+test('a pasted value with characters outside printable ASCII gives a paste-again text', async () => {
+  seen.length = 0;
+  const { replies, stdout, stderr } = await run([call(1)], {
+    FOUNDRY_PLAYER_CLIENT_SECRET: 'sec–ret-with-dash',
+  });
+  assert.match(replies[0].result.content[0].text, /paste them again/);
+  assert.equal(seen.length, 0);
+  for (const text of [stdout, stderr]) assert.ok(!text.includes('sec'));
+});
+
+function sessionForwarder() {
+  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const fwd = createForwarder(
+    {
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+    (...a) => fetch(...a)
+  );
+  return (id, method, params) => handleMessage({ jsonrpc: '2.0', id, method, params }, fwd);
+}
+
+test('concurrent calls on a stale session share one new session', async () => {
+  mode = 'session';
+  initError = false;
+  sessions.clear();
+  sessionCount = 0;
+  const ask = sessionForwarder();
+  await ask(1, 'initialize', {});
+  sessions.clear();
+  const all = await Promise.all([ask(2, 'tools/list'), ask(3, 'tools/list'), ask(4, 'tools/list')]);
+  assert.equal(sessionCount, 2, 'one reinit, not three');
+  for (const r of all) assert.equal(r.result.sid, 's2');
+});
+
+test('a reinit that answers with a JSON-RPC error returns that error', async () => {
+  mode = 'session';
+  initError = false;
+  sessions.clear();
+  sessionCount = 0;
+  const ask = sessionForwarder();
+  await ask(1, 'initialize', {});
+  sessions.clear();
+  initError = true;
+  try {
+    const r = await ask(2, 'tools/list');
+    assert.equal(r.error.code, -32001);
+    assert.equal(r.error.message, 'no room');
+    assert.equal(r.id, 2);
+  } finally {
+    initError = false;
+  }
+});
+
+test('a 3xx keeps the session', async () => {
+  mode = 'session';
+  sessions.clear();
+  sessionCount = 0;
+  const ask = sessionForwarder();
+  await ask(1, 'initialize', {});
+  assert.match((await ask(2, 'test/redirect')).error.message, /refused the login/);
+  assert.equal((await ask(3, 'tools/list')).result.sid, 's1');
+  assert.equal(sessionCount, 1);
+});
+
+test('the VERSION constant equals the manifest version', () => {
+  const m = JSON.parse(readFileSync(path.join(here, 'manifest.json'), 'utf8'));
+  const v = /const VERSION = '([^']+)'/.exec(readFileSync(SERVER, 'utf8'));
+  assert.ok(v, 'VERSION constant found');
+  assert.equal(v[1], m.version);
 });

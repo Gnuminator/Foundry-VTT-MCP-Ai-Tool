@@ -2,8 +2,8 @@
 
 A Claude skill plus Claude Desktop project instructions for building characters, advising
 level-ups and answering rules questions at our Foundry table. It works through the Foundry AI Tool
-core connector and only reads: the player makes every change by clicking in Foundry. No book text
-is in the skill; it sends Claude to the compendiums in Foundry.
+core connector and only reads: the player makes every change by clicking in Foundry. The skill holds
+no Foundry rules markup and its pages are capped in size; it sends Claude to the compendiums in Foundry.
 
 Design and decisions: vault `Design/D&D helper design 2026-10-24.md`, I-152.
 
@@ -36,7 +36,7 @@ of the read-only `player` tool set only: `get-my-character`, `get-my-level-up-op
 (SKILL.md, project instructions, level-up and rules pages); creation and sheet check are the GM
 pages with tool names swapped by `swap()` in `build.mjs`, which throws if a GM page changes under
 it. For "which is best" it links the Dungeon Mister 2024 guides as labelled opinion. A build test
-checks that it names no GM tool, holds no book text and has no em dash. Players follow
+checks that it names no GM tool, that every page `SKILL.md` names is in the zip, and that it has no em dash. It has no project instructions: the skill carries everything. Players follow
 `docs/player/dnd-helper.md`.
 
 ## Known limits

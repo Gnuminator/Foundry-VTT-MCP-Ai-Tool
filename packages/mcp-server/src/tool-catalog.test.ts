@@ -20,15 +20,25 @@ import { describe, expect, it } from 'vitest';
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { TOOL_HINTS } from './tool-hints.js';
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
-import { TOOL_SETS, TOOL_SET_NAMES, filterToolsBySets, resolveToolSets } from './tool-sets.js';
+import {
+  ALL_TOOL_SET_NAMES,
+  PLAYER_TOOL_SET,
+  TOOL_SETS,
+  filterToolsBySets,
+  resolveToolSets,
+} from './tool-sets.js';
 
 const deps = stubToolRouterDeps();
 
 const tools = collectToolDefinitions(deps);
 
+/** The tools one set lists (the player set is not reachable through resolveToolSets). */
+const inSet = (set: (typeof ALL_TOOL_SET_NAMES)[number]): typeof tools =>
+  tools.filter(t => TOOL_SETS[set].tools.includes(t.name));
+
 describe('tool catalog', () => {
-  it('lists exactly 100 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(100);
+  it('lists exactly 105 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(105);
     for (const method of [
       'record_usage',
       'session_switches',
@@ -43,7 +53,11 @@ describe('tool catalog', () => {
   it('has unique names, one route per tool and a tool per route', () => {
     const names = tools.map(t => t.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(Object.keys(buildToolRouter(deps)).sort()).toEqual([...names].sort());
+    // The player tools have no call_tool route: they run only through the player_tool message.
+    const playerTools = TOOL_SETS[PLAYER_TOOL_SET].tools;
+    expect(Object.keys(buildToolRouter(deps)).sort()).toEqual(
+      names.filter(n => !playerTools.includes(n)).sort()
+    );
   });
 
   it('annotates every parameter that names something (picker or free text)', () => {
@@ -56,7 +70,7 @@ describe('tool catalog', () => {
   });
 
   it('puts every tool in exactly one tool set, and sets list only real tools', () => {
-    const listed = TOOL_SET_NAMES.flatMap(set => TOOL_SETS[set].tools);
+    const listed = ALL_TOOL_SET_NAMES.flatMap(set => TOOL_SETS[set].tools);
     expect(new Set(listed).size).toBe(listed.length);
     expect([...listed].sort()).toEqual(tools.map(t => t.name).sort());
   });
@@ -69,10 +83,11 @@ describe('tool catalog', () => {
       play: 50_000, // about 41,100 with the rounds field of plan-actor-change (condition-round-duration; raised 9,000 on purpose, confirmed by the user 2026-10-31); about 40,400 with wait-for-game-event (I-001; raised 1,000 on purpose, confirmed by the user 2026-10-29); about 39,400 before; about 39,000 with plan-combat-change (David's GM test; raised 1,500 on purpose, room for its start action); about 38,000 before, with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
       prep: 22_500, // about 22,200 (22,183 measured after #620's encounter suggestions); about 22,450 with the five chosen-card arguments of plan-tarokka-import (tarokka-gm-choice, no raise); about 22,100 with the clear option of plan-tarokka-import (#507, raised 500 on purpose); about 21,900 before. Near full: the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
+      player: 2_500, // about 1,900; new set (D-136, player-connector-set): the five player tools, served only on /mcp/player, never on stdio
       admin: 15_000, // raised from 10,500 to 15,000 for the placed-tokens text of plan-token-rings and room for the setup tools (the user, 2026-11-06); about 10,500 before; about 8,700 with plan-foundry-setup (D-135, part 1; raised from 8,000 to 10,500 for all three setup parts, the user's OK 2026-11-02); about 7,800 before
     } as const;
-    for (const set of TOOL_SET_NAMES) {
-      const served = stripToolRefs(filterToolsBySets(tools, resolveToolSets(set)));
+    for (const set of ALL_TOOL_SET_NAMES) {
+      const served = stripToolRefs(inSet(set));
       const size = JSON.stringify(served).length;
       // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
       // Written before the assertion, so an over-budget set still shows its (negative) room.
@@ -95,7 +110,7 @@ describe('tool catalog', () => {
       fileURLToPath(new URL('../../../docs/reference/TOOL-SETS.md', import.meta.url)),
       'utf8'
     ).replace(/\r\n/g, '\n');
-    for (const set of TOOL_SET_NAMES) {
+    for (const set of ALL_TOOL_SET_NAMES) {
       // The bullet "- **<set>:** `a`, `b`, ..." runs until the next bullet or a blank line.
       const start = doc.indexOf(`- **${set}:**`);
       expect(start, set).toBeGreaterThanOrEqual(0);
@@ -169,7 +184,7 @@ describe('tool catalog', () => {
       Math.abs(grab(docFile, doc, /Core alone is\s+about (\d+)% of everything/) - corePercent),
       `${docFile}: core share, measured ${corePercent.toFixed(1)}%; update the number`
     ).toBeLessThanOrEqual(2);
-    for (const set of TOOL_SET_NAMES) {
+    for (const set of ALL_TOOL_SET_NAMES) {
       const row = new RegExp(
         String.raw`^\| \*\*${set}\*\*\s*\|[^|]*\|\s*([\d,]+)\s*\|\s*about ([\d,]+)\s*\|`,
         'm'
@@ -177,19 +192,14 @@ describe('tool catalog', () => {
       const match = row.exec(doc);
       expect(match, `${docFile}: no table row for ${set}`).not.toBeNull();
       expect(num(match![1]), `${docFile}: tool count of ${set}`).toBe(TOOL_SETS[set].tools.length);
-      within10(
-        docFile,
-        `size of ${set}`,
-        num(match![2]),
-        size(filterToolsBySets(tools, resolveToolSets(set)))
-      );
+      within10(docFile, `size of ${set}`, num(match![2]), size(inSet(set)));
     }
 
     // The README carries no tool counts or sizes (they drift); they live in the generated docs.
     const readme = read('README.md');
     expect(readme, 'README.md: a hard-coded tool count').not.toMatch(/\b\d[\d,]*\s+tools\b/);
     expect(readme, 'README.md: a hard-coded definition size').not.toMatch(/[\d,]+ characters of/);
-    for (const set of TOOL_SET_NAMES) {
+    for (const set of ALL_TOOL_SET_NAMES) {
       expect(readme, `README.md: a tool count column for ${set}`).not.toMatch(
         new RegExp(String.raw`^\| \*\*${set}\*\*\s*\|\s*[\d,]+\s*\|`, 'm')
       );

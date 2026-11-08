@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 105 tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -15,6 +15,7 @@ The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
+| [Player](#player) | `none (served on /mcp/player only)` | 5 | A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio. |
 
 ## Core
 
@@ -1499,3 +1500,62 @@ Parameters:
 - `excludeFolderIds` (array of string): Folders (any document type) whose contents are never mirrored, subfolders included. The full list replaces the current one.
 - `storyItemTypes` (array of string): Item types that get a story-item note when the item is in the mirrored set (for example weapon, equipment, consumable, tool, loot, container). The full list replaces the current one.
 - `libraryPacks` (array of string): Compendium packs (e.g. world.ddb-monsters) whose monsters, items, spells, classes, species, backgrounds and feats get Library notes in the GM vault (licensed, kept out of git). Replaces the list.
+
+## Player
+
+A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio.
+
+### get-my-character
+
+Your own character sheet(s): abilities, class and level, hit points, proficiencies, spells, features and inventory. Only characters you own. Read-only.
+
+Kind: read-only. Title: Get my character.
+
+Parameters:
+
+- `name` (string)
+
+### get-my-level-up-options
+
+Advice only, changes nothing: what your next class level grants and the choices still open (hit points, ASI or feat, subclass, spells). Only your own characters.
+
+Kind: read-only. Title: Get my level-up options.
+
+Parameters:
+
+- `name` (string)
+- `className` (string)
+
+### search-books
+
+Search the rulebooks you can read for a rule or term. Returns short excerpts; open one with get-book-entry.
+
+Kind: read-only. Title: Search the books.
+
+Parameters:
+
+- `query` (string, required)
+- `limit` (integer): Results, 1 to 10 (default 5).
+
+### find-book-entries
+
+Find entries by name or type (classes, species, backgrounds, feats, spells, items) for building a character. Open one with get-book-entry.
+
+Kind: read-only. Title: Find book entries.
+
+Parameters:
+
+- `query` (string)
+- `type` (string)
+- `limit` (integer): Results, 1 to 20 (default 10).
+
+### get-book-entry
+
+One book entry with its description (cut at about 6,000 characters). Use the packId and entryId from search-books or find-book-entries.
+
+Kind: read-only. Title: Get a book entry.
+
+Parameters:
+
+- `packId` (string, required)
+- `entryId` (string, required)

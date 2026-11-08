@@ -148,6 +148,12 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
     kind: 'write',
   },
   'manage-world-items': { title: 'Manage world items', kind: 'destructive' },
+  // player (served only on /mcp/player)
+  'get-my-character': { title: 'Get my character', kind: 'read' },
+  'get-my-level-up-options': { title: 'Get my level-up options', kind: 'read' },
+  'search-books': { title: 'Search the books', kind: 'read' },
+  'find-book-entries': { title: 'Find book entries', kind: 'read' },
+  'get-book-entry': { title: 'Get a book entry', kind: 'read' },
   // admin
   'get-modules': { title: 'List modules', kind: 'read' },
   'get-module-errors': { title: 'Get module errors', kind: 'read' },

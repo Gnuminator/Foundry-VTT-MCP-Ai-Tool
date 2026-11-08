@@ -7,12 +7,12 @@
  */
 import { createHash } from 'node:crypto';
 
-import { TOOL_SETS, TOOL_SET_NAMES } from './tool-sets.js';
+import { ALL_TOOL_SET_NAMES, TOOL_SETS } from './tool-sets.js';
 
 /** The build id of a tool-set catalog: 12 hex characters of a SHA-256 over the set lists. */
 export function toolSetsBuildId(
   sets: Readonly<Record<string, { tools: readonly string[] }>> = TOOL_SETS,
-  names: readonly string[] = TOOL_SET_NAMES
+  names: readonly string[] = ALL_TOOL_SET_NAMES
 ): string {
   const lists = names.map(name => [name, [...(sets[name]?.tools ?? [])]]);
   return createHash('sha256').update(JSON.stringify(lists)).digest('hex').slice(0, 12);

@@ -17,9 +17,24 @@
  * Pure: no SDK, no I/O.
  */
 
+/**
+ * The five sets a stdio wrapper (a Claude Desktop entry) can serve. The sixth set, `player`
+ * (D-136), is never served on stdio: its tools need a verified Foundry user id, which only the
+ * dashboard's `/mcp/player` route (control message `player_tool`) can supply. `resolveToolSets`
+ * drops it, `all` excludes it and `filterToolsBySets` never lists its tools.
+ */
 export const TOOL_SET_NAMES = ['core', 'play', 'prep', 'build', 'admin'] as const;
 
-export type ToolSetName = (typeof TOOL_SET_NAMES)[number];
+/** The set only `/mcp/player` serves. */
+export const PLAYER_TOOL_SET = 'player' as const;
+
+/** Every set the catalog knows, the player set last. */
+export const ALL_TOOL_SET_NAMES = [...TOOL_SET_NAMES, PLAYER_TOOL_SET] as const;
+
+export type ToolSetName = (typeof ALL_TOOL_SET_NAMES)[number];
+
+/** The sets a stdio wrapper may serve (everything but `player`). */
+export type ServedToolSetName = (typeof TOOL_SET_NAMES)[number];
 
 export interface ToolSetSpec {
   /** Short label, for docs and the server instructions. */
@@ -165,13 +180,25 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'plan-obsidian-mirror',
     ],
   },
+  player: {
+    title: 'Player',
+    purpose:
+      "A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio.",
+    tools: [
+      'get-my-character',
+      'get-my-level-up-options',
+      'search-books',
+      'find-book-entries',
+      'get-book-entry',
+    ],
+  },
 };
 
 /** The environment variable a Claude Desktop entry sets, e.g. `core` or `prep,admin`. */
 export const TOOL_SETS_ENV = 'FOUNDRY_AI_TOOL_SETS';
 
 const SET_OF_TOOL: ReadonlyMap<string, ToolSetName> = new Map(
-  TOOL_SET_NAMES.flatMap(set => TOOL_SETS[set].tools.map(tool => [tool, set] as const))
+  ALL_TOOL_SET_NAMES.flatMap(set => TOOL_SETS[set].tools.map(tool => [tool, set] as const))
 );
 
 /** The set a tool belongs to, or undefined for a name no set lists. */
@@ -181,14 +208,14 @@ export function toolSetOf(toolName: string): ToolSetName | undefined {
 
 export interface ToolSetSelection {
   /** The sets this wrapper serves, in canonical order. All four when nothing narrows it. */
-  sets: readonly ToolSetName[];
+  sets: readonly ServedToolSetName[];
   /** True when every tool is served (unset, blank, `all`, or nothing valid named). */
   all: boolean;
   /** Problems with the value, for the wrapper log. */
   warnings: string[];
 }
 
-function isToolSetName(value: string): value is ToolSetName {
+function isToolSetName(value: string): value is ServedToolSetName {
   return (TOOL_SET_NAMES as readonly string[]).includes(value);
 }
 
@@ -230,10 +257,12 @@ export function filterToolsBySets<T extends { name: string }>(
   tools: readonly T[],
   selection: Pick<ToolSetSelection, 'sets' | 'all'>
 ): T[] {
-  if (selection.all) return [...tools];
-  return tools.filter(t => {
+  // The player tools need a verified user id; no stdio wrapper lists them, whatever it is told.
+  const served = tools.filter(t => toolSetOf(t.name) !== PLAYER_TOOL_SET);
+  if (selection.all) return served;
+  return served.filter(t => {
     const set = toolSetOf(t.name);
-    return selection.sets.includes(set ?? 'core');
+    return selection.sets.includes((set ?? 'core') as ServedToolSetName);
   });
 }
 

@@ -267,53 +267,12 @@ export class RulesSearchDataAccess {
       searchedPacks.push('world journals');
     }
 
-    const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
-    // Rare terms count more than common ones ("grappl" beats "action").
-    const patterns = terms.map(termPattern);
-    const presence = entries.map(entry => termPresence(entry, terms, patterns));
-    const weights = terms.map((_, i) => {
-      const df = presence.filter(p => p[i] !== 'none').length;
-      return Math.log(1 + entries.length / Math.max(df, 1));
-    });
     const packRank = (id: string | undefined): number => {
       const pkg = id?.split('.')[0] ?? '';
       const at = allowlist.findIndex(e => e === id || e === pkg);
       return at < 0 ? allowlist.length : at;
     };
-    const seen = new Set<string>();
-    const hits: RulesSearchHit[] = [];
-    const order = entries.map((_, i) => i);
-    const scores = order.map(i => scoreEntry(entries[i], terms, patterns, presence[i], weights));
-    order.sort(
-      (a, b) =>
-        scores[b].score - scores[a].score ||
-        packRank(entries[a].packId) - packRank(entries[b].packId)
-    );
-    for (const i of order) {
-      const entry = entries[i];
-      const scored = scores[i];
-      if (scored.matched < needed) continue;
-      // The PHB and the SRD 5.2 carry the same page: list it once, from the first pack.
-      const key = `${entry.pageName ?? entry.name}|${entry.text.slice(0, 120)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      hits.push({
-        source: entry.source,
-        packId: entry.packId,
-        packLabel: entry.packLabel,
-        documentId: entry.documentId,
-        documentType: entry.documentType,
-        name: entry.name,
-        pageId: entry.pageId,
-        pageName: entry.pageName,
-        snippet: snippetAround(entry.text, scored.firstIndex, excerptChars),
-        score: scored.score,
-        readWith:
-          entry.source === 'world'
-            ? 'list-journals (journalId, pageId)'
-            : 'get-compendium-item (packId, itemId=documentId)',
-      });
-    }
+    const hits = await this.rankHits(entries, terms, packRank, excerptChars);
 
     return {
       query,
@@ -334,6 +293,118 @@ export class RulesSearchDataAccess {
             }
           : {}),
     };
+  }
+
+  /**
+   * Player search: the same ranking as `searchRules`, but over exactly the packs the caller
+   * passes (already limited to what one player may read). It never reads world journals, the
+   * allowlist setting or any client flag; each candidate must pass `entryAllowed` (the per-entry
+   * permission check) before it counts, and the search stops at `limit` allowed hits.
+   */
+  async searchRulesScoped(params: ScopedSearchParams): Promise<ScopedSearchResult> {
+    const query = typeof params?.query === 'string' ? params.query.trim() : '';
+    if (query.length < 2) throw new Error('Search query must be at least 2 characters');
+    const terms = queryTerms(query);
+    if (terms.length === 0) {
+      throw new Error(
+        'Search query has no searchable words (only filler words like "how" or "the")'
+      );
+    }
+    const limit = clampInt(params.limit, 5, 1, 10);
+    const excerptChars = clampInt(params.excerptChars, SNIPPET_CHARS, 80, 600);
+    const entries: IndexedText[] = [];
+    const order = new Map<string, number>();
+    for (const pack of params.packs) {
+      const type: string | undefined = pack.documentName ?? pack.metadata?.type;
+      if (type !== 'JournalEntry' && type !== 'Item') continue;
+      const id: string = pack.metadata.id;
+      try {
+        entries.push(...(await this.indexPack(pack, id, type)));
+        order.set(id, order.size);
+      } catch (error) {
+        console.warn(`${MODULE_ID} | rules search: skipping pack ${id}`, error);
+      }
+    }
+    const hits = await this.rankHits(
+      entries,
+      terms,
+      id => order.get(id ?? '') ?? order.size,
+      excerptChars,
+      params.entryAllowed,
+      limit
+    );
+    return {
+      query,
+      results: hits.map(h => ({
+        packId: h.packId,
+        packLabel: h.packLabel,
+        documentId: h.documentId,
+        documentType: h.documentType,
+        name: h.name,
+        pageId: h.pageId,
+        pageName: h.pageName,
+        snippet: h.snippet,
+      })),
+      ...(hits.length === 0 ? { note: 'Nothing found in the books you can read.' } : {}),
+    };
+  }
+
+  /** Score, order and de-duplicate the entries; `accept` filters a hit before it counts. */
+  private async rankHits(
+    entries: IndexedText[],
+    terms: string[],
+    packRank: (id: string | undefined) => number,
+    excerptChars: number,
+    accept?: (hit: RulesSearchHit) => Promise<boolean>,
+    max = Infinity
+  ): Promise<RulesSearchHit[]> {
+    const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
+    // Rare terms count more than common ones ("grappl" beats "action").
+    const patterns = terms.map(termPattern);
+    const presence = entries.map(entry => termPresence(entry, terms, patterns));
+    const weights = terms.map((_, i) => {
+      const df = presence.filter(p => p[i] !== 'none').length;
+      return Math.log(1 + entries.length / Math.max(df, 1));
+    });
+    const seen = new Set<string>();
+    const hits: RulesSearchHit[] = [];
+    const order = entries.map((_, i) => i);
+    const scores = order.map(i => scoreEntry(entries[i], terms, patterns, presence[i], weights));
+    order.sort(
+      (a, b) =>
+        scores[b].score - scores[a].score ||
+        packRank(entries[a].packId) - packRank(entries[b].packId)
+    );
+    for (const i of order) {
+      if (hits.length >= max) break;
+      const entry = entries[i];
+      const scored = scores[i];
+      if (scored.matched < needed) continue;
+      // The PHB and the SRD 5.2 carry the same page: list it once, from the first pack.
+      const key = `${entry.pageName ?? entry.name}|${entry.text.slice(0, 120)}`;
+      if (seen.has(key)) continue;
+      const hit: RulesSearchHit = {
+        source: entry.source,
+        packId: entry.packId,
+        packLabel: entry.packLabel,
+        documentId: entry.documentId,
+        documentType: entry.documentType,
+        name: entry.name,
+        pageId: entry.pageId,
+        pageName: entry.pageName,
+        snippet: snippetAround(entry.text, scored.firstIndex, excerptChars),
+        score: scored.score,
+        readWith:
+          entry.source === 'world'
+            ? 'list-journals (journalId, pageId)'
+            : 'get-compendium-item (packId, itemId=documentId)',
+      };
+      // A hit the caller may not read must not hide a readable duplicate, so it is not recorded.
+      if (accept && !(await accept(hit))) continue;
+      seen.add(key);
+      hits.push(hit);
+    }
+    return hits;
   }
 
   /**
@@ -504,21 +575,64 @@ function snippetAround(text: string, index: number, chars: number): string {
 }
 
 /** The few fields of a Foundry document and compendium pack this search reads. */
-interface PageLike {
+export interface PageLike {
   id: string;
   name?: string;
   text?: { content?: string };
+  testUserPermission?(user: unknown, level: string): boolean;
 }
-interface DocLike {
+export interface DocLike {
   id: string;
   name?: string;
   type?: string;
   system?: { description?: { value?: string } };
   pages?: Iterable<PageLike>;
+  testUserPermission?(user: unknown, level: string): boolean;
 }
-interface PackLike {
+export interface PackLike {
   documentName?: string;
   collection?: string;
-  metadata: { id: string; label?: string; packageName?: string; type?: string };
+  metadata: {
+    id: string;
+    label?: string;
+    packageName?: string;
+    type?: string;
+    packageType?: string;
+  };
   getDocuments(): Promise<DocLike[]>;
+  getDocument?(id: string): Promise<DocLike | null | undefined>;
+  getIndex?(options?: { fields?: string[] }): Promise<Iterable<IndexRow>>;
+  index?: Iterable<IndexRow>;
+  testUserPermission?(user: unknown, level: string): boolean;
+}
+export interface IndexRow {
+  _id?: string;
+  id?: string;
+  name?: string;
+  type?: string;
+}
+
+export interface ScopedSearchParams {
+  query: string;
+  limit?: number;
+  excerptChars?: number;
+  /** Already filtered to the packs one player may read. */
+  packs: PackLike[];
+  /** Per-entry permission check; a hit that fails it is dropped. */
+  entryAllowed: (hit: RulesSearchHit) => Promise<boolean>;
+}
+
+export interface ScopedSearchResult {
+  query: string;
+  results: Array<{
+    packId?: string | undefined;
+    packLabel?: string | undefined;
+    documentId: string;
+    documentType: string;
+    name: string;
+    pageId?: string | undefined;
+    pageName?: string | undefined;
+    snippet: string;
+  }>;
+  note?: string;
 }

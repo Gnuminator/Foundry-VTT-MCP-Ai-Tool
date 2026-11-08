@@ -479,8 +479,8 @@ test('initialize answers with a supported protocol version, not whatever was ask
     { jsonrpc: '2.0', id: 3, method: 'initialize', params: {} },
   ]);
   assert.equal(replies[0].result.protocolVersion, '2024-11-05');
-  assert.equal(replies[1].result.protocolVersion, '2025-06-18');
-  assert.equal(replies[2].result.protocolVersion, '2025-06-18');
+  assert.equal(replies[1].result.protocolVersion, '2025-11-25');
+  assert.equal(replies[2].result.protocolVersion, '2025-11-25');
 });
 
 test('tools/call after a failed initialize is a tool error with the reason', async () => {
@@ -622,12 +622,16 @@ test('a closed stdout pipe makes the process exit 0 without noise', async () => 
   let err = '';
   child.stderr.on('data', d => (err += d));
   child.stdout.destroy();
+  // stdin stays open: only the stdout error handler can end the process.
   const code = await new Promise(resolve => {
     child.on('close', c => resolve(c));
     setTimeout(() => {
       child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }) + '\n');
-      child.stdin.end();
     }, 100);
+    setTimeout(() => {
+      child.kill();
+      resolve('still running after 3 s');
+    }, 3000);
   });
   assert.equal(code, 0);
   assert.equal(err, '');

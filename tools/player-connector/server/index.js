@@ -10,7 +10,7 @@
  *   FOUNDRY_PLAYER_ENDPOINT        https:// address (http only for localhost, for tests)
  *   FOUNDRY_PLAYER_CLIENT_ID       CF-Access-Client-Id
  *   FOUNDRY_PLAYER_CLIENT_SECRET   CF-Access-Client-Secret
- *   FOUNDRY_PLAYER_TIMEOUT_MS      per-request timeout, default 30000
+ *   FOUNDRY_PLAYER_TIMEOUT_MS      per-request timeout, default 30000 (initialize: at most 10000)
  */
 
 const readline = require('node:readline');
@@ -18,7 +18,7 @@ const readline = require('node:readline');
 const VERSION = '0.1.2';
 
 // Protocol versions the local initialize answer offers; the newest is the fallback.
-const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18'];
+const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
 // Claude Desktop gives a starting extension little time: cap the first initialize attempt.
 const INIT_TIMEOUT_MS = 10000;
 
@@ -129,7 +129,10 @@ function createForwarder(env, fetchImpl) {
     if (!reinit) {
       reinit = (async () => {
         sessionId = null;
-        const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+        const re = await send(
+          { ...initRequest, id: `reinit-${Date.now()}` },
+          Math.min(timeoutMs, INIT_TIMEOUT_MS)
+        );
         if (re.failure) return re;
         await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
         initFailed = false;

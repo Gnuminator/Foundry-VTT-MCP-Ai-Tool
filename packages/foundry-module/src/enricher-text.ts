@@ -6,8 +6,10 @@
 /** The words a "&Reference[...]" shows: "condition=prone apply=false" is "prone", "Spell Scroll" stays. */
 function referenceName(inner: string): string {
   const withoutOptions = inner.replace(/(\s+\w+=\S*)+\s*$/, '').trim();
-  const keyed = /^\w+=(.*)$/.exec(withoutOptions);
-  return (keyed?.[1] ?? withoutOptions).trim();
+  // "condition=prone" names its value; "Prone=1" (a level or count) is named by its key.
+  const keyed = /^(\w+)=(.*)$/.exec(withoutOptions);
+  if (!keyed) return withoutOptions;
+  return (/^\d+$/.test(keyed[2] ?? '') ? keyed[1] : keyed[2])?.trim() ?? withoutOptions;
 }
 
 export function enrichersToText(html: string): string {

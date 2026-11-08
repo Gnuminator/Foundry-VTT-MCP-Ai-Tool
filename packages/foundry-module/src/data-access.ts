@@ -178,6 +178,7 @@ export class FoundryDataAccess {
     return { rulesSearch: this.rulesSearch };
   }
 
+  /** The player-scoped read (player-read.ts) gets the real rules search and level-up readers here. */
   playerReadDeps(): PlayerReadDeps {
     return { rulesSearch: this.rulesSearch, levelUp: this.levelUp };
   }

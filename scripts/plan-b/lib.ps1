@@ -17,7 +17,8 @@
 # Assistant GM and the spare tunnel's route need no changes.
 #
 # The functions above the "processes" line are pure (no files, no network) and are tested by
-# scripts/plan-b/plan-b.test.mjs.
+# scripts/plan-b/plan-b.test.mjs; the two folder-move helpers (Move-WithRetry, Install-AppFolder) touch only
+# the folders they are given and are tested there on temporary folders.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

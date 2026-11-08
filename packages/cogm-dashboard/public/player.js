@@ -396,8 +396,8 @@ function renderState(s) {
 
 // I-039: a handout revealed to chosen players shows only to them (by the picked name; the
 // table is trusted, D-065). Opening one tells the GM's seen log, once per page per visit.
-/** True once the name list had names to pick from: only then does "Pick your name" make sense. */
-let pickerHasNames = false;
+/** Whether the name list had names to pick from: null until asked (a stored pick or Skip never asks), so the hint only hides once we know there is nobody. */
+let pickerHasNames = null;
 
 let lastHandouts = [];
 let currentWho = null;
@@ -426,7 +426,7 @@ function renderHandouts(handouts) {
     rest,
     currentWho && currentWho.userId
       ? 'Nothing revealed yet.'
-      : pickerHasNames
+      : pickerHasNames !== false
         ? 'Nothing revealed yet. Pick your name to see handouts meant just for you.'
         : 'Nothing revealed yet.'
   );
@@ -508,6 +508,8 @@ function showWho(who) {
   elWho.hidden = false;
   elWhoName.textContent = whoLine(who);
   elWhoChange.textContent = who && who.name ? 'Not you? Change' : 'Pick your name';
+  // No names to pick from: the button would open an empty picker.
+  elWhoChange.hidden = !(who && who.name) && pickerHasNames === false;
 }
 async function loadNames() {
   try {

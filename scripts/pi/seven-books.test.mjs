@@ -1093,6 +1093,17 @@ describe('seven-books-baseline.js', () => {
       player(world, 'spells').docs.get(id(6)).flags['foundry-ai-tool'].baselineCopy,
       true
     );
+    // a renamed source AND a copy without the flag, same source pack: a refresh, and the flag is back after a real run
+    const flagless = world.packs.get('aitool-content.feats').docs.get(id(5));
+    delete player(world, 'feats').docs.get(id(5)).flags['foundry-ai-tool'].baselineCopy;
+    flagless.name = 'Alert III';
+    assert.equal((await run(baselineSource, world, true)).result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.equal(
+      player(world, 'feats').docs.get(id(5)).flags['foundry-ai-tool'].baselineCopy,
+      true
+    );
+    assert.deepEqual(names(player(world, 'feats')), ['Alert III']);
     // a hand-made entry with the same id and another name is still no copy of ours
     player(world, 'items').docs.set(id(7), mk(7, 'Not Rope', 'loot'));
     await assert.rejects(run(baselineSource, world, true), /not the kept ones/);
@@ -1136,7 +1147,7 @@ describe('seven-books-baseline.js', () => {
     await assert.rejects(run(undo, world, false), /journal pages still name a world pack/);
     assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');
     assert.deepEqual(player(world, 'spells').ownership, OPEN);
-    // the partly-pointed-back state: only the first page of the entry is rewritten; the error counts pages, not links, and names the next step
+    // the partly-pointed-back state: the wrapper rewrites every page of the entry except the first; the error counts pages, not links, and names the next step
     const part = worlds();
     await run(baselineSource, part, false);
     wrapJournal(part, async (update, d, a) => update.apply(d, [a[0], a[1].slice(1)]));

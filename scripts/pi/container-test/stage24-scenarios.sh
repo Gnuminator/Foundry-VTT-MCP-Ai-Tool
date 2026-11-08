@@ -255,12 +255,13 @@ printf 'FOUNDRY_APP_DIR="%s\\x"\n' "$SB/foundry-app" >>"$SB/tool/app/deploy/pi/.
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'sets FOUNDRY_APP_DIR with a \$ or a backslash' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a backslash is refused"; else fail "up env backslash (rc $RC): $OUT"; fi
 cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
-# A relative data folder in .env must not block the way out: rollback and down ignore the absolute-path rule.
-printf 'TOOL_DATA_DIR=rel/data\n' >>"$SB/tool/app/deploy/pi/.env"
+# A relative data folder with a $ in .env (up refuses both) must not block the way out: rollback and down ignore both rules.
+printf 'TOOL_DATA_DIR=rel/${X}\n' >>"$SB/tool/app/deploy/pi/.env"
 run_stage MODE=rollback
 if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'rolled back' && ! echo "$OUT" | grep -q 'must be an absolute path'; then pass "rollback is not blocked by a relative .env data folder"; else fail "rollback relative env (rc $RC): $OUT"; fi
-run_stage MODE=down $reh
-if [ "$RC" -eq 0 ] && ! echo "$OUT" | grep -q 'must be an absolute path' && ! echo "$CALLS" | grep -q 'compose.* up' && stack_gone; then pass "down is not blocked by a relative .env data folder"; else fail "down relative env (rc $RC): $OUT"; fi
+running_stack # the rollback emptied the stack: start one so that stack_gone below proves the down
+run_stage MODE=down
+if [ "$RC" -eq 0 ] && ! echo "$OUT" | grep -q 'must be an absolute path' && ! echo "$OUT" | grep -q 'with a \$ or a backslash' && ! echo "$CALLS" | grep -q 'compose.* up' && stack_gone; then pass "down is not blocked by a relative .env data folder"; else fail "down relative env (rc $RC): $OUT"; fi
 new_pi # rollback changed the units: start the next scenarios from a fresh Pi
 # realpath that fails: the check fails closed instead of comparing raw strings.
 mkdir -p "$SB/nort"

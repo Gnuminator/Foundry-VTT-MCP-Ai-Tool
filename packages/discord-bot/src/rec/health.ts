@@ -128,7 +128,7 @@ export class RecorderHealth {
       const what =
         m.lastPacket === null
           ? 'has not been recorded at all'
-          : `has not been recorded for ${formatAge(now - since)}`;
+          : `has not been recorded for ${formatAge(now - m.lastPacket)}`;
       out.push(
         `Recorder: ${m.name} ${what}. If they have been speaking, their track may have stopped.`
       );

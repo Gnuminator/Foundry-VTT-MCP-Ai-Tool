@@ -187,14 +187,14 @@ if [ ! -e "$daemon_json" ]; then
     rm -f -- "$daemon_new" || true
     die "$daemon_new could not be written completely: live-restore is not set. Nothing else was changed"
   fi
-  mv -- "$daemon_new" "$daemon_json" || { rm -f -- "$daemon_new"; die "cannot move $daemon_new to $daemon_json"; }
-  LIB_CHANGED="$LIB_CHANGED$daemon_json "
-  ok "wrote $daemon_json"
+  mv -- "$daemon_new" "$daemon_json" || { rm -f -- "$daemon_new" || true; die "cannot move $daemon_new to $daemon_json"; }
   # Read the moved file back: if it is not what was checked, remove it so dockerd is not left with a broken file.
   if ! grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json" 2>/dev/null || ! grep -q '}' "$daemon_json"; then
-    rm -f -- "$daemon_json"
+    rm -f -- "$daemon_json" || true
     die "$daemon_json is missing or incomplete after the move: removed it; live-restore is not set"
   fi
+  LIB_CHANGED="$LIB_CHANGED$daemon_json "
+  ok "wrote $daemon_json"
   if have_systemd && systemctl is-active --quiet docker.service 2>/dev/null; then
     systemctl reload docker.service >/dev/null 2>&1 || warn "systemctl reload docker.service failed: live-restore applies at the next daemon restart"
     # Read it back: a reload that did not take leaves containers to restart with the daemon. The daemon applies the

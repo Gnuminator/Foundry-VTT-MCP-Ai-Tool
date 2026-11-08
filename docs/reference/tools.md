@@ -108,7 +108,7 @@ Parameters:
 
 ### get-token-positions
 
-Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).
 
 Kind: read-only. Title: Get token positions.
 
@@ -150,7 +150,7 @@ Parameters:
 
 ### search-compendium
 
-Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
+Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria (Build) instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
 
 Kind: read-only. Title: Search compendiums.
 
@@ -158,7 +158,7 @@ Parameters:
 
 - `query` (string, required): Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.
 - `packType` (string): Optional filter by pack type (e.g., "Item", "Actor", "JournalEntry")
-- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.
+- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria (Build) instead.
   - `challengeRating` (number or object)
   - `creatureType` (string): Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant"). One of: `humanoid`, `dragon`, `beast`, `undead`, `fey`, `fiend`, `celestial`, `construct`, `elemental`, `giant`, `monstrosity`, `ooze`, `plant`, `aberration`.
   - `size` (string): Creature size (e.g., "medium", "large", "huge"; dnd5e keys such as "med" also work). One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`, `sm`, `med`, `lg`, `grg`.
@@ -183,7 +183,7 @@ Parameters:
 
 ### get-compendium-item
 
-Use this to read one compendium item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full. Compact mode is lighter.
+Use this to read one item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.
 
 Kind: read-only. Title: Get compendium item.
 
@@ -229,7 +229,7 @@ Parameters:
 
 Applied plans only, newest first: summary, diff, when, still undoable. Use this to find one for undo-change; for direct writes and changes by players or the GM use list-changes. Read-only.
 
-Kind: read-only. Title: List recent AI changes.
+Kind: read-only. Title: List applied plans.
 
 Parameters:
 
@@ -404,7 +404,7 @@ No parameters.
 
 ### get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log (Prep).
 
 Kind: read-only. Title: Get chat log.
 
@@ -510,7 +510,7 @@ No parameters.
 
 ### get-recent-events
 
-Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log (Prep). Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
 
 Kind: read-only. Title: Get recent events.
 
@@ -941,7 +941,7 @@ Parameters:
 
 ### suggest-balanced-encounter
 
-Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria / search-compendium to pick actual creatures. D&D 5e only.
+Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria (Build) / search-compendium to pick creatures. D&D 5e only.
 
 Kind: read-only. Title: Suggest balanced encounter.
 
@@ -1072,7 +1072,7 @@ Parameters:
 
 ### get-session-log
 
-The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events, and for chat text use get-chat-log.
+The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events (Play), for chat text get-chat-log (Play).
 
 Kind: read-only. Title: Get session log.
 

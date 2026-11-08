@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-## v0.27.0 (released 2026-11-07): an Assistant GM watchdog, a game-night watch on the Pi, resuming an unfinished character, one player pack per type, Pi stage lows
+## v0.27.0 (released 2026-11-07): an Assistant GM watchdog, a game-night watch on the Pi, resuming an unfinished character, one player pack per type, seven-book baseline fixes
 
-Wire contracts: module id, socket channel, method prefix and ports are unchanged. Additive only: `get-play-session` reports `mode` (`live`, `paper` or `null`).
+Wire contracts: module id, socket channel, settings namespace, method prefix and ports are unchanged. Additive only: `get-play-session` reports `mode` (`live`, `paper` or `null`), and the Pi board report gains a `deployed` key.
 
 ### Module
 

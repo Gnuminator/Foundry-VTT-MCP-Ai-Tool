@@ -36,7 +36,7 @@ export class MovementTools {
       {
         name: 'get-token-positions',
         description:
-          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.',
+          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).',
         inputSchema: {
           type: 'object',
           properties: {

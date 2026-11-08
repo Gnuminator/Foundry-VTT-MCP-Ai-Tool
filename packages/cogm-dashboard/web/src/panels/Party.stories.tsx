@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
 import { userEvent, waitFor, within } from 'storybook/test';
 
+import { REMEMBER } from '../lib/remember';
 import { Opened } from '../storybook/Opened';
 import { bridgeDown, fail, gmActionsOff, pending, toolOk, type Reply } from '../storybook/fakeApi';
 import {
@@ -36,8 +37,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Loaded: Story = {};
 const clearNoticeChoices = (): void => {
-  localStorage.removeItem('cogm_party_notice_dc');
-  localStorage.removeItem('cogm_party_notice_skill');
+  localStorage.removeItem(REMEMBER.partyNoticeDc);
+  localStorage.removeItem(REMEMBER.partyNoticeSkill);
 };
 
 /** I-078: DC 12 typed, Perception picked: a chip per character with its passive score and a tick or cross. */

@@ -2,6 +2,105 @@
 
 ## Unreleased
 
+## v0.28.0 (released 2026-11-08): per-player Claude connectors, a read-only player tool set, a Claude Desktop extension and player skill, Actor Studio fixes
+
+Wire contracts: module id, socket channel, settings namespace, method prefix and ports (31414 to 31416) are unchanged. Additive only: a sixth tool set `player` (five read-only tools), the control message `player_tool`, the bridge query `playerRead`, and the dashboard endpoint `/mcp/player`, which is off unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`.
+
+### Actor Studio fork
+
+- **Take Average:** with the forced-average switch on, a hero levelled from 1 to 2 now records the average, not the roll (the fork sends real input and change events to the dnd5e 6 checkbox).
+- **Magic Initiate:** a Sage, Acolyte or Guide background offers only the Wizard, Cleric or Druid spell list; a freely chosen Magic Initiate still offers all three.
+- **Spell ability:** the casting ability picked on the first spell step of a feat or lineage is carried to the second step.
+- **Cantrips:** the Spells tab counts cantrips that effects add, so a Thaumaturge cleric sees 4 cantrip slots at level 1 (level-up flow not checked live).
+- **Focus lists:** the holy, arcane and druidic focus lists show only the matching focuses (checked live for the holy focus).
+- **Open:** a focus picked on the Equipment tab is lost when switching to another tab and back; cause not found yet. The fork release and the stage 13 pin follow in a later Pi sitting (fork PR Gnuminator/foundryvtt-actor-studio#1).
+
+### Tests
+
+- **Campaign copy test server:** `scripts/test-env/campaign-copy.ps1` pulls the live Curse of Strahd world, the dnd5e system and the modules from the Pi (read-only) into `C:\FoundryCampaign` and runs it on `http://localhost:30004`, so campaign-specific problems can be fixed and tested off the live server. See `docs/dev/CAMPAIGN-COPY.md`.
+
+### Dashboard
+
+- **Live words sweep:** code comments, test titles, the damage demo take's step label and docs now use the names on screen: Tool Runner, Live Feed and Combat Tracker. The header button's component is called `GmActionsButton`. Comments, labels and docs only; nothing behaves differently.
+
+### Tooling
+
+- **Tool pointers name the set:** where a tool description points to a tool in a set that may be switched off, it now names that set: Core and Prep descriptions point to Build and Play tools (`get-compendium-entry-full`, `list-creatures-by-criteria`, `get-token-details`, `get-chat-log`, `get-recent-events`), and Play points to `get-session-log` (Prep). Pointers into Core stay bare, since Core is always on. `list-recent-changes` is titled "List applied plans".
+- **Changelog fold:** every heading that starts with "Pi" or "Orange Pi" is filed under one `### Orange Pi`, so Pi entries no longer end up under four headings.
+- **Board report:** the Pi stage 16 failure hint lists the `deployed` key among the accepted report keys.
+- **Release notes v0.27.0:** the wire-contract line names the settings namespace and the new `deployed` board key, and the headline no longer repeats "Pi" and "lows".
+- **Script entry guard:** `changelog-fold.mjs`, `checks.mjs` and `drift-check.mjs` decide whether to run with real paths (case-insensitive on Windows) and exit 1 when started under their own file name from a different file, the way `lane-merge.mjs` does, so a junction or drive-letter case no longer turns into a silent exit 0. `changelog.d/README.md` says item and PR references go in the bullet, not the heading tag.
+- **Visual baselines helper:** the branch head is read from the exact `heads/` ref (a tag of the same name cannot answer), the run picker no longer hides the wrong-branch refusal, log names carry a short hash (`a/b` and `a_b` differ) and a failed log write no longer stops the run. Tests cover the log name, a run without a branch and the script start.
+- **Docs:** the Pi stage 16 paragraph in `PI-SETUP.md` names the `deployed` report object; the changelog fold comments mention the Pi rule.
+
+### Module
+
+- **Player page:** a player who skipped the name pick still sees the "Pick your name" hint on the empty handouts list, and the header button hides when there is nobody to pick.
+- **Link state:** a late settle of an older link-state write no longer overwrites the record of a newer one.
+- **Recorder:** the secret key is also redacted after a colon, a space before the value, or in quotes; the silence message counts from the last packet after an unmute or a reconnect.
+
+### Orange Pi
+
+- **Stage 23:** the two cleanups of a failed `daemon.json` write cannot stop the script silently, and "wrote" is printed after the read-back.
+- **Stage 24:** the `$` and backslash rule for env values is documented in the script header and in `deploy/pi/README.md`; the rollback and down scenarios now use a relative value with a `$` and start a stack first, so they prove the way out is never blocked.
+- **Seven-book baseline:** a test for a renamed source with a copy that lacks the baseline flag; clearer comments.
+- **Player connector on the Pi (stage 30):** `30-player-connector.sh` installs the players' login table (`player-connector.json`, foundry 0600), turns the player endpoint on for the dashboard and the bridge through a drop-in and its own env file, and adds the player host to the dashboard's allowed hosts. It checks that `/mcp/player` answers 401 with no token and that ports 31414 to 31416 listen as before. It changes no unit, port or GM connector; DRY_RUN, CHECK and UNDO modes; it refuses if a dev user is set (player-connector-pi).
+- **Cloudflare side from the PC:** `scripts/pi/player-connector-cloudflare.mjs` plans (read-only) or applies the four player service tokens, the Access application with a service-auth policy only, the tunnel route limited to `/mcp/player`, and the DNS name, and sends the secrets straight to the Pi without printing or saving them.
+- **Plan B restore keeps an app folder:** if the final rename of the freshly unpacked Foundry app fails (a file lock), `restore.ps1` retries three times, then moves the old app folder back and says where the new one is, instead of leaving none.
+- **Stage 26 UNDO:** an unreadable saved file now stops the undo with a message, instead of reading as "key absent" and dropping all six keys.
+- **Seven books trim:** the dry run's "packs the real run hides" line now includes `dnd5e.items` and `dnd5e.monsters` when a copied creature links into them.
+- **Docs:** the runner gate, stage 27 and stage 26 sections of the Pi setup guide describe the session-end cutoff, the busy-port check, the UNDO rerun and the six managed keys.
+- **Game-night watch: the stage 29 check runs again.** `CHECK=1` stopped with "not found" because Node itself reads
+  `--env-file` anywhere on the command line, so the watch's comma-joined list never reached the watch. The flag is now
+  `--env-files`.
+- **Game-night watch: fewer false alarms and clearer failures.** A night that is still marked open but quiet for 2
+  hours, with Foundry down (the 04:30 backup), no longer alarms; the end post says "the session has ended or has gone
+  quiet"; the recorder probe tells "not running" from "cannot tell"; a settings problem (a bad number or address, or a
+  public address on plain http while the Access token is set) stops the service for good instead of restarting it every
+  ten seconds; an unreadable session answer is logged once; stopping the service cannot post a message twice.
+- **Stage 29 waits for the watch.** After the start it waits for the "watching" line and fails loudly when the unit
+  stopped first. `set-discord-token.sh` and stage 26 restart the watch after a token or channel change. The container test
+  covers the restart rules with a fake systemd.
+
+### Player connector
+
+- **Per-player login (D-136):** the dashboard serves a read-only `/mcp/player` endpoint that is off
+  unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`. Each player is a Cloudflare Access service token; the
+  dashboard checks the signed token against the player application, maps its Client ID to one
+  Foundry user from the Pi's `player-connector.json`, and runs the five player tools for that user
+  only. A GM login, an unknown token or a user Foundry does not list as a player gets a bare 401
+  or 403.
+- **Your Claude connector:** a player's own `/me` page shows their Client ID and Secret with copy
+  buttons, never anyone else's.
+- **Login and network problems now show a reason:** when the table refuses the login or cannot be
+  reached, the extension still starts in Claude Desktop and offers one `connection-status` tool that
+  says what is wrong, instead of Desktop showing only a generic failure (item
+  player-connector-desktop-load).
+- **Wrapper and player skill review fixes:** the player connector now treats a 200 reply with no
+  result or error as unreadable, asks the player to paste the Client ID and Secret again when they
+  hold a stray special character, shares one new session between calls that go stale together,
+  passes on a JSON-RPC error from that restart, flushes the last reply at exit and leaves quietly
+  when Claude Desktop closes the pipe. The player skill drops server and module provenance text
+  and its unused project instructions, and builds are checked against the player tool set in
+  `tool-sets.ts` and against the pages `SKILL.md` names.
+- **Desktop extension for players:** `npm run player-connector` builds `foundry-player.mcpb`, an
+  extension for Claude Desktop that forwards MCP requests to the read-only player endpoint over
+  HTTPS with the player's own Cloudflare Access login. The two login values are kept as sensitive
+  settings and are never printed or logged; refusals, a missing network and timeouts come back as
+  plain text. Server side and install guide are separate items (D-136).
+
+### Tools
+
+- **Player tool set (backend half of the player connector):** a sixth tool set `player` with five read-only tools (`get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`, `get-book-entry`) for a player's own Claude Desktop. It is never served on stdio and has no `call_tool` route: it runs only through the new control message `player_tool`, whose Foundry user id comes from the message (the dashboard's later `/mcp/player` route), never from the tool arguments. The new bridge query `playerRead` checks every actor (owner) and pack (observer) with that user, drops Adventure packs, world journals and actors, `dnd5e` and the Books pack, caps excerpts and entries, and a last-line filter hides any book result that names Strahd, Barovia, Ravenloft, Tarokka, Ireena, Vallaki, a live Tarokka card or a term from an optional Pi config list (D-136; player-connector-set).
+
+### D&D helper
+
+- **Player edition of the D&D helper skill:** `npm run dnd-helper` now also writes
+  `foundry-dnd-helper-player.zip`, the same flows (create, level up, rules, sheet check) on the
+  read-only player tool set only, advise-only, with a labelled pointer to the Dungeon Mister 2024
+  guides for "which is best" questions. Build tests check that it names no GM tool; the pages hold no Foundry rules markup
+  and are capped in size. New player guide `docs/player/dnd-helper.md` (D-136; Backlog player-skill-zip).
+
 ## v0.27.0 (released 2026-11-07): an Assistant GM watchdog, a game-night watch on the Pi, resuming an unfinished character, one player pack per type, seven-book baseline fixes
 
 Wire contracts: module id, socket channel, settings namespace, method prefix and ports are unchanged. Additive only: `get-play-session` reports `mode` (`live`, `paper` or `null`), and the Pi board report gains a `deployed` key.

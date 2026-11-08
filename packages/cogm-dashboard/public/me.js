@@ -227,6 +227,12 @@ function setConnectorError(text) {
   $('mc-fields').hidden = !!text;
 }
 
+/** An earlier failure may have shown the error card: a later "not set up" answer takes it away. */
+function hideConnector() {
+  setConnectorError('');
+  $('me-connector').hidden = true;
+}
+
 /** "Your Claude connector" (D-136): the player's own pair, read once; hidden when not set up. */
 async function loadConnector() {
   if (!key || connectorLoaded || connectorLoading) return;
@@ -236,11 +242,15 @@ async function loadConnector() {
     const body = await res.json().catch(() => ({}));
     if (res.ok && !body.enabled) {
       connectorLoaded = true; // not set up for this player: the card stays hidden
+      hideConnector();
       return;
     }
     // A 4xx (no world yet, a bad link) is not a broken connector: the card stays hidden. Only a
     // server error or a lost connection gets the error state with a retry.
-    if (res.status >= 400 && res.status < 500) return;
+    if (res.status >= 400 && res.status < 500) {
+      hideConnector();
+      return;
+    }
     if (!res.ok) throw new Error('bad status');
     $('mc-endpoint').value = body.endpoint || '';
     $('mc-id').value = body.clientId || '';

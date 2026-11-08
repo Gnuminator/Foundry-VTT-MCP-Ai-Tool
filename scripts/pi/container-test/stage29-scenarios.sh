@@ -200,35 +200,35 @@ echo "$*" >>/tmp/systemctl.log
 case "$1" in
   is-active) [ -f /tmp/fake-active ] && [ ! -f /tmp/fake-dead ] ;;
   show) cat /tmp/fake-started 2>/dev/null ;;
-  start | restart) touch /tmp/fake-active ;;
+  start | restart) touch /tmp/fake-active /tmp/fake-acted ;;
   *) exit 0 ;;
 esac
 EOF
 cat >/tmp/fakebin/journalctl <<'EOF'
 #!/usr/bin/env bash
-[ -f /tmp/fake-nowatch ] || echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
+[ -f /tmp/fake-acted ] && [ ! -f /tmp/fake-nowatch ] && echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
 EOF
 chmod 0755 /tmp/fakebin/systemctl /tmp/fakebin/journalctl
 rm -f /tmp/systemctl.log /tmp/fake-active /tmp/fake-dead /tmp/fake-nowatch /tmp/fake-started
 fresh
-run PATH="/tmp/fakebin:$PATH"
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
 rc=$?
 if [ "$rc" -eq 0 ] && grep -q '^start ' /tmp/systemctl.log && echo "$OUT" | grep -q 'running and watching'; then pass "a first run starts the unit and sees the watching line"; else fail "systemd start: rc=$rc $OUT"; fi
 : >/tmp/systemctl.log
 echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
-run PATH="/tmp/fakebin:$PATH"
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
 rc=$?
 if [ "$rc" -eq 0 ] && grep -q '^restart ' /tmp/systemctl.log; then pass "files newer than the running service restart it (a cut-off upgrade)"; else fail "newer-than-service: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
 : >/tmp/systemctl.log
 echo "Tue 2099-01-01 00:00:00 UTC" >/tmp/fake-started
-run PATH="/tmp/fakebin:$PATH"
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
 rc=$?
-if [ "$rc" -eq 0 ] && ! grep -q '^restart ' /tmp/systemctl.log; then pass "nothing newer than the service: no restart"; else fail "no restart: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
-touch /tmp/fake-nowatch
-run PATH="/tmp/fakebin:$PATH"
+if [ "$rc" -eq 0 ] && ! grep -q "^restart " /tmp/systemctl.log && echo "$OUT" | grep -q "not restarted"; then pass "nothing newer than the service: no restart, no wait for a new watching line"; else fail "no restart: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
+touch /tmp/fake-nowatch; echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
+rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
 rc=$?
 rm -f /tmp/fake-nowatch
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that never reaches its watching line fails the stage"; else fail "no watching line: rc=$rc $OUT"; fi
-rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/systemctl.log
+rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/fake-acted /tmp/systemctl.log
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

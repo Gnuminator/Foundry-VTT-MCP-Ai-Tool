@@ -56,9 +56,11 @@ export const END_AFTER = 2;
 
 /**
  * A session still marked open but with no event for this long, while Foundry is down, is a night that ended without
- * anyone marking it (or the 04:30 backup stopping Foundry): that round alarms and posts nothing.
+ * anyone marking it (or the 04:30 backup stopping Foundry): that round alarms and posts nothing. The session gate itself
+ * lets go after 3 h without events; this is shorter so a late night does not alarm at the backup, and long enough that a
+ * quiet stretch of play followed by a crash is still caught. A crash after 2 h of no events at all is not alarmed.
  */
-export const QUIET_MS = 45 * 60 * 1000;
+export const QUIET_MS = 2 * 60 * 60 * 1000;
 
 /** One check: key, the words used in posts, and how slow is slow (Infinity: never judged on speed). */
 export const CHECKS = [

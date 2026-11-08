@@ -40,7 +40,10 @@ function str(value: unknown): string {
 }
 
 /** Parse the file's JSON; entries that are not complete are dropped, never guessed. */
-export function parseConnectorFile(raw: unknown): ConnectorFile {
+export function parseConnectorFile(
+  raw: unknown,
+  problem: (message: string) => void = (): void => undefined
+): ConnectorFile {
   const rec = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const aud = rec.audience;
   const audiences = (Array.isArray(aud) ? aud : [aud]).map(str).filter(a => a !== '');
@@ -56,20 +59,29 @@ export function parseConnectorFile(raw: unknown): ConnectorFile {
   }
   const seen = new Set<string>();
   const players: ConnectorPlayer[] = [];
-  for (const item of Array.isArray(rec.players) ? (rec.players as unknown[]) : []) {
+  const list = Array.isArray(rec.players) ? (rec.players as unknown[]) : [];
+  for (const [index, item] of list.entries()) {
     const p = (item ?? {}) as Record<string, unknown>;
     const clientId = str(p.clientId);
     const clientSecret = str(p.clientSecret);
     const userId = str(p.userId);
-    if (!clientId || !clientSecret || !USER_ID_RE.test(userId)) continue;
+    if (!clientId || !clientSecret || !USER_ID_RE.test(userId)) {
+      problem(`players[${index}] is incomplete or has a bad user id: dropped`);
+      continue;
+    }
     // One Client ID, one user: a duplicate id makes the whole mapping ambiguous, so neither stays.
     if (seen.has(clientId)) {
+      problem('a Client ID appears twice: both entries dropped');
       const at = players.findIndex(x => x.clientId === clientId);
       if (at >= 0) players.splice(at, 1);
       continue;
     }
     seen.add(clientId);
     players.push({ clientId, clientSecret, userId });
+  }
+  // Two logins for one Foundry user: /me shows only the first pair; say so.
+  if (new Set(players.map(p => p.userId)).size < players.length) {
+    problem('two entries share one Foundry user id: /me shows only the first pair');
   }
   return { endpoint, audiences, players };
 }
@@ -88,11 +100,14 @@ export class ConnectorStore {
   ) {}
 
   private warned = false;
+  /** The problems last logged, so an unchanged file does not log again on every request. */
+  private lastProblems = '';
 
   read(): ConnectorFile {
     if (!this.file) return { endpoint: null, audiences: [], players: [] };
+    let json: unknown;
     try {
-      return parseConnectorFile(JSON.parse(readFileSync(this.file, 'utf8')));
+      json = JSON.parse(readFileSync(this.file, 'utf8'));
     } catch {
       if (!this.warned) {
         this.warned = true;
@@ -100,6 +115,15 @@ export class ConnectorStore {
       }
       return { endpoint: null, audiences: [], players: [] };
     }
+    this.warned = false; // readable again: a later breakage is worth a new line
+    const problems: string[] = [];
+    const parsed = parseConnectorFile(json, m => problems.push(m));
+    const signature = problems.join('|');
+    if (signature !== this.lastProblems) {
+      this.lastProblems = signature;
+      for (const m of problems) this.warn(`Player connector: ${m}`);
+    }
+    return parsed;
   }
 
   /** The Foundry user a verified Client ID belongs to, or null (constant-time over every entry). */
@@ -131,6 +155,8 @@ export interface PlayerConnectorOptions {
   readonly teamDomain: string;
   /** Local development: act as this Foundry user with no login. Loopback only (see below). */
   readonly devUser: string;
+  /** `CF_ACCESS_TEAM_DOMAIN` as set, even when it does not parse (then `teamDomain` is ''). */
+  readonly teamDomainRaw?: string;
 }
 
 /** The options from the environment (`FOUNDRY_AI_PLAYER_CONNECTOR*`, `CF_ACCESS_TEAM_DOMAIN`). */
@@ -144,6 +170,7 @@ export function playerConnectorFromEnv(
     enabled,
     store: new ConnectorStore(file || null, warn),
     teamDomain: parseTeamDomain(env.CF_ACCESS_TEAM_DOMAIN ?? ''),
+    teamDomainRaw: (env.CF_ACCESS_TEAM_DOMAIN ?? '').trim(),
     devUser: (env.FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER ?? '').trim(),
   };
 }

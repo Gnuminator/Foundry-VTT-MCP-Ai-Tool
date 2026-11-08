@@ -12,8 +12,12 @@
  * - The user comes from the config file only. Never from the request body. The user must also be
  *   a non-GM user Foundry lists; anything else gets nothing.
  * - Only `initialize`, `ping`, `tools/list` and `tools/call` of the five player tools. No batches.
- * - A refusal is a bare 401 or 403: no body, so nothing to learn from it.
+ * - A refusal is a bare 401 or 403: no body, so nothing to learn from it. A bare 503 means the
+ *   table is not ready (no config file or audience, no key fetched from Cloudflare, the bridge or
+ *   the user list is off, or the player tools are not available): try again, not "check your login".
  */
+import { readFileSync } from 'fs';
+
 import express, { type Express, type Request, type Response } from 'express';
 
 import { AccessJwtVerifier, type AccessJwtConfig } from './access-jwt.js';
@@ -47,7 +51,19 @@ export interface PlayerRouteOptions {
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
 }
 
-const SUPPORTED_PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
+const SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
+
+/** The dashboard's own version (package.json sits one level above src/ and dist/). */
+const SERVER_VERSION = ((): string => {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      version?: unknown;
+    };
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 const MAX_BODY = '64kb';
 
 type JsonRpcId = string | number | null;
@@ -81,7 +97,10 @@ function isBareLocalRequest(req: Request): boolean {
   if (!loopbackPeer) return false;
   return !Object.keys(req.headers).some(
     h =>
-      h.startsWith('cf-') ||
+      // The player connector wrapper always sends its service-token pair, also to a local
+      // dashboard in dev-user mode. The edge and cloudflared add other cf- headers (ray,
+      // connecting-ip), so the pair alone does not make a request look proxied.
+      (h.startsWith('cf-') && h !== 'cf-access-client-id' && h !== 'cf-access-client-secret') ||
       h.startsWith('tailscale-') ||
       h === 'x-forwarded-for' ||
       h === 'forwarded'
@@ -101,8 +120,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     if (!isLoopbackHost(options.config.host)) {
       log.warn('The dev user is ignored: the dashboard is not on loopback');
       devUser = '';
-    } else if (connector.teamDomain) {
-      log.warn('The dev user is ignored: CF_ACCESS_TEAM_DOMAIN is set (a real login setup)');
+    } else if (connector.teamDomain || connector.teamDomainRaw) {
+      log.warn(
+        'The dev user is ignored: CF_ACCESS_TEAM_DOMAIN is set (a real login setup, even if malformed)'
+      );
       devUser = '';
     }
   }
@@ -162,7 +183,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     return { userId };
   }
 
-  /** A mapped user must still be a non-GM Foundry user (the directory never holds a GM). */
+  /**
+   * A mapped user must still be a non-GM Foundry user (the directory never holds a GM). This is
+   * only a first filter: the module's own refusal (a GM or unknown user) is authoritative.
+   */
   async function playerStatus(userId: string): Promise<'ok' | 'refused' | 'offline'> {
     if (directory.get(userId)) return 'ok';
     await directory.refreshIfStale();
@@ -217,6 +241,11 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     const hasId = typeof msg.id === 'string' || typeof msg.id === 'number';
     const id: JsonRpcId = hasId ? (msg.id as string | number) : null;
     const method = typeof msg.method === 'string' ? msg.method : '';
+    if (hasId && method === '') {
+      // A request needs a method.
+      res.json(rpcError(id, -32600, 'Invalid request'));
+      return;
+    }
     if (!hasId) {
       // A notification (initialized, cancelled): accepted, nothing to answer.
       res.status(202).end();
@@ -235,7 +264,7 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
         result: {
           protocolVersion: version,
           capabilities: { tools: {} },
-          serverInfo: { name: 'foundry-ai-tool-player', version: '1.0.0' },
+          serverInfo: { name: 'foundry-ai-tool-player', version: SERVER_VERSION },
           instructions:
             'Read-only. Your own characters and the rulebooks your Foundry login can read.',
         },

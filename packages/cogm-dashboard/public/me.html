@@ -32,24 +32,34 @@
         These are your own values for the table connector in Claude Desktop. Keep them to yourself:
         they work like a password.
       </p>
-      <dl>
-        <dt>Endpoint address</dt>
-        <dd>
-          <input id="mc-endpoint" readonly aria-label="Endpoint address" />
-          <button type="button" data-copy="mc-endpoint">Copy</button>
-        </dd>
-        <dt>Client ID</dt>
-        <dd>
-          <input id="mc-id" readonly aria-label="Client ID" />
-          <button type="button" data-copy="mc-id">Copy</button>
-        </dd>
-        <dt>Client Secret</dt>
-        <dd>
-          <input id="mc-secret" type="password" readonly aria-label="Client Secret" />
-          <button type="button" id="mc-show" aria-pressed="false">Show</button>
-          <button type="button" data-copy="mc-secret">Copy</button>
-        </dd>
-      </dl>
+      <div id="mc-error" class="mc-error" role="alert" hidden>
+        <span id="mc-error-text"></span>
+        <button type="button" id="mc-retry">Try again</button>
+      </div>
+      <div id="mc-fields">
+        <p id="mc-hint" class="muted" hidden>
+          No endpoint address is set yet. Ask whoever runs the table for it.
+        </p>
+        <dl>
+          <dt>Endpoint address</dt>
+          <dd>
+            <input id="mc-endpoint" readonly aria-label="Endpoint address" />
+            <button type="button" data-copy="mc-endpoint">Copy</button>
+          </dd>
+          <dt>Client ID</dt>
+          <dd>
+            <input id="mc-id" readonly aria-label="Client ID" />
+            <button type="button" data-copy="mc-id">Copy</button>
+          </dd>
+          <dt>Client Secret</dt>
+          <dd>
+            <input id="mc-secret" type="password" readonly aria-label="Client Secret" />
+            <button type="button" id="mc-show" aria-pressed="false">Show</button>
+            <button type="button" data-copy="mc-secret">Copy</button>
+          </dd>
+        </dl>
+      </div>
+      <p id="mc-live" class="muted" role="status" aria-live="polite"></p>
     </details>
     <footer class="me-foot no-print">
       <span id="me-updated"></span>

@@ -10,12 +10,13 @@
  *   FOUNDRY_PLAYER_ENDPOINT        https:// address (http only for localhost, for tests)
  *   FOUNDRY_PLAYER_CLIENT_ID       CF-Access-Client-Id
  *   FOUNDRY_PLAYER_CLIENT_SECRET   CF-Access-Client-Secret
- *   FOUNDRY_PLAYER_TIMEOUT_MS      per-request timeout, default 30000 (initialize: at most 10000)
+ *   FOUNDRY_PLAYER_TIMEOUT_MS      per-request timeout, default 70000 (initialize: at most 10000);
+ *                                  the dashboard gives a player tool 60 s, so this waits a bit longer
  */
 
 const readline = require('node:readline');
 
-const VERSION = '0.1.3';
+const VERSION = '0.1.4';
 
 // Protocol versions the local initialize answer offers; the newest is the fallback.
 const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
@@ -108,7 +109,7 @@ function createForwarder(env, fetchImpl) {
   const clientSecret = (env.FOUNDRY_PLAYER_CLIENT_SECRET || '').trim();
   const secrets = [clientId, clientSecret];
   const timeoutMs =
-    Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) > 0 ? Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) : 30000;
+    Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) > 0 ? Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) : 70000;
   const endpoint = parseEndpoint(env.FOUNDRY_PLAYER_ENDPOINT);
   const missing = !clientId || !clientSecret;
   // Header values must be printable ASCII; anything else makes fetch throw before it sends.

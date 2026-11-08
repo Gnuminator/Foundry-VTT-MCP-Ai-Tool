@@ -187,7 +187,7 @@ if [ ! -e "$daemon_json" ]; then
     rm -f -- "$daemon_new" || true
     die "$daemon_new could not be written completely: live-restore is not set. Nothing else was changed"
   fi
-  mv -- "$daemon_new" "$daemon_json" || { rm -f -- "$daemon_new"; die "cannot move $daemon_new to $daemon_json"; }
+  mv -- "$daemon_new" "$daemon_json" || { rm -f -- "$daemon_new" || true; die "cannot move $daemon_new to $daemon_json"; }
   # Read the moved file back: if it is not what was checked, remove it so dockerd is not left with a broken file.
   if ! grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json" 2>/dev/null || ! grep -q '}' "$daemon_json"; then
     rm -f -- "$daemon_json" || true

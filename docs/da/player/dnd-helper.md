@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: fb6cc4daea18
+sourceHash: d9903d5dc2b2
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -46,8 +46,8 @@ Du skal bruge:
   værktøjet, sender dem til dig privat, og du kan også se dem på din egen **My character**-side under
   **Your Claude connector** (der er kopiér-knapper ved hver af dem). Behandl secret'en som en
   adgangskode: læg den ikke i Discord, og put den ikke i et screenshot.
-- Filen `foundry-player.mcpb` og filen `foundry-dnd-helper-player.zip`. Den, der kører værktøjet,
-  fortæller dig, hvor du kan hente dem.
+- To filer, som du henter i trin 2. Du behøver ikke have Claude Desktop installeret endnu: det gør
+  trin 1.
 
 ## Trin 1: installer Claude Desktop og log ind
 
@@ -55,36 +55,51 @@ Du skal bruge:
 2. Kør installationsprogrammet og åbn appen.
 3. Log ind med din egen konto. Har du ikke en, så opret en med din e-mailadresse. En gratis konto kan
    være nok til at prøve hjælperen. Hvis et trin nedenfor nævner en menu, du ikke har (fx
-   Customize eller Skills), kan din plan mangle den: sig til den, der kører værktøjet, hvilken.
+   Extensions eller Skills), kan din plan mangle den: sig til den, der kører værktøjet, hvilken.
 4. Åbn en chat og send "hej" for at se, om den svarer. Gør den det, virker appen.
 
 Anthropic ændrer menuerne en gang imellem. Hvis en knap ikke står, hvor guiden siger, så led efter
 det samme ord i nærheden, eller brug søgefeltet i Settings.
 
-## Trin 2: tilføj extension og indsæt dine to værdier
+## Trin 2: hent de to filer
 
-1. Find `foundry-player.mcpb` i din Downloads-mappe og **dobbeltklik** på den. Claude Desktop åbner
-   og viser et installationsvindue for den. (Sker der ingenting, så åbn Claude Desktop, gå til
-   **Settings**, derefter **Extensions**, og træk filen ind i det vindue.)
-2. Klik på **Install**. Claude advarer måske om, at extensions kører på din computer. Denne her
+Klik på hvert link. Din browser gemmer filen i din **Downloads**-mappe.
+
+- **Extension:**
+  [foundry-player.mcpb](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-player.mcpb)
+- **Skillen:**
+  [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
+
+Linkene giver dig altid den nyeste version. Spørger din browser, om den skal beholde en fil, den ikke
+kender, så vælg **Keep**. Åbn eller pak ingen af filerne ud endnu.
+
+## Trin 3: tilføj extension og indsæt dine to værdier
+
+1. Åbn **Settings** i Claude Desktop, derefter **Desktop**, derefter **Extensions**.
+2. Træk `foundry-player.mcpb` fra din Downloads-mappe ind i det vindue. (Et dobbeltklik på filen i
+   Downloads virker også på de fleste computere: Claude Desktop åbner med det samme
+   installationsvindue.)
+3. Klik på **Install**. Claude advarer måske om, at extensions kører på din computer. Denne her
    taler kun med vores spilserver, og selve filen indeholder ingen bogtekst og ingen hemmelighed.
-3. En formular beder om to ting. Indsæt dit **Client ID** i det første felt og din **Client Secret**
+4. En formular beder om to ting. Indsæt dit **Client ID** i det første felt og din **Client Secret**
    i det andet. Secret-feltet skjuler det, du skriver.
-4. Sørg for, at extension er slået **til** (en kontakt ved siden af navnet i Settings, Extensions).
-5. Luk Claude Desktop helt (højreklik på dets ikon ved uret og vælg Quit, det er ikke nok at lukke
+5. Sørg for, at extension er slået **til** (en kontakt ved siden af navnet i Settings, Desktop,
+   Extensions).
+6. Luk Claude Desktop helt (højreklik på dets ikon ved uret og vælg Quit, det er ikke nok at lukke
    vinduet) og åbn det igen.
 
 For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
 beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med fem tools. Gør du det,
 sidder stikket i.
 
-## Trin 3: tilføj skillen
+## Trin 4: tilføj skillen
 
-1. Åbn **Customize** i Claude Desktop, derefter **Skills**.
-2. Vælg at tilføje en skill og peg på `foundry-dnd-helper-player.zip`. **Pak den ikke ud først.**
+1. Åbn **Settings** i Claude Desktop, derefter **Customize**, derefter **Skills**.
+2. Vælg at tilføje en skill og peg på `foundry-dnd-helper-player.zip` i din Downloads-mappe. **Pak
+   den ikke ud først.**
 3. Sørg for, at skillen er slået til.
 
-## Trin 4: dit første spørgsmål
+## Trin 5: dit første spørgsmål
 
 Start en ny chat og spørg:
 
@@ -204,7 +219,7 @@ Intet, du siger til hjælperen, bliver sendt til de andre spillere.
 ## Fejlfinding
 
 **Claude nævner slet ikke Foundry, eller siger, at den ikke har et tool til det.**
-Åbn Settings, Extensions og tjek, at Foundry-extension er slået til. Luk så Claude Desktop helt og
+Åbn Settings, Desktop, Extensions og tjek, at Foundry-extension er slået til. Luk så Claude Desktop helt og
 åbn det igen. Start en **ny** chat: en gammel chat opfanger ikke nye tools.
 
 **Den siger "not found" om min karakter.**
@@ -213,8 +228,8 @@ endnu, er det korrekt: lav en først. Er navnet rigtigt, kan dine værdier være
 punkt), eller karakteren er måske ikke tildelt dig i Foundry. Bed din GM tjekke, at du ejer den.
 
 **En fejl, "unauthorized", "forbidden" eller "could not connect".**
-Næsten altid de to værdier. Åbn Settings, Extensions, Foundry-extension og tjek, at Client ID og
-Client Secret er indsat hele, uden mellemrum i starten eller enden og uden noget, der mangler.
+Næsten altid de to værdier. Åbn Settings, Desktop, Extensions, Foundry-extension og tjek, at Client ID
+og Client Secret er indsat hele, uden mellemrum i starten eller enden og uden noget, der mangler.
 Indsæt dem igen fra din **My character**-side med kopiér-knapperne. Er de rigtige, kan spilserveren
 være nede. Spørg den, der kører værktøjet.
 
@@ -227,7 +242,7 @@ Bordet lader måske ikke spillere se den bog, eller indlæggets navn er anderled
 ("grapple" og "grappled"), eller bed om en søgning efter, hvad tingen gør.
 
 **Skillen bliver ikke brugt.**
-Åbn Customize, Skills og tjek, at "foundry-dnd-helper-player" er slået til. Start din besked med
+Åbn Settings, Customize, Skills og tjek, at "foundry-dnd-helper-player" er slået til. Start din besked med
 "Brug D&D-hjælper-skillen til at..." første gang.
 
 **Den påstår, at den har ændret min karakter.**
@@ -236,11 +251,11 @@ kører værktøjet. Hjælperen læser kun.
 
 **Claude Desktop vil ikke åbne `.mcpb`-filen.**
 Opdater Claude Desktop (der skal bruges en nyere version), og træk så filen ind i Settings,
-Extensions.
+Desktop, Extensions.
 
 **Jeg vil starte forfra.**
-Fjern extension i Settings, Extensions, og installer den igen fra filen. Du bliver bedt om dine
-værdier igen.
+Fjern extension i Settings, Desktop, Extensions, og installer den igen fra filen (hent den igen fra
+trin 2, hvis den er væk). Du bliver bedt om dine værdier igen.
 
 ## Få nye værdier
 
@@ -251,8 +266,8 @@ der kører værktøjet, fortæller dig, at de er nulstillet.
    connector**. Viser kortet et nyt par, så brug kopiér-knapperne.
 2. Gør det ikke det, så skriv til den, der kører værktøjet, og bed om nye værdier. Sig, hvilken
    karakter der er din. De sender dem privat.
-3. Åbn Settings, Extensions, Foundry-extension i Claude Desktop og skift Client ID og Client Secret
-   ud. Luk Claude Desktop og åbn det igen.
+3. Åbn Settings, Desktop, Extensions, Foundry-extension i Claude Desktop og skift Client ID og
+   Client Secret ud. Luk Claude Desktop og åbn det igen.
 4. Spørg, om dine gamle værdier stadig virker. Har du bare mistet hemmeligheden, gør det ikke
    noget. Har en anden set den, så bed om, at de gamle værdier også bliver slukket.
 

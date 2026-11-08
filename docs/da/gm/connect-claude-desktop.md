@@ -31,6 +31,19 @@ Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunne
    slået fra, er ikke tilgængelig i den chat. Gør derefter afsnittet Stop "Allow"-spørgsmålene nedenfor én
    gang, så Claude ikke spørger "Allow?" ved hvert eneste værktøjskald.
 
+## Opdater klienten
+
+Klienten opdaterer sig ikke selv. Når den, der byggede værktøjet, sender en ny
+`FoundryMCPServer-Setup-vX.Y.Z.exe`, installerer du den oven på den gamle: samme trin som under
+"Installer" ovenfor. Adressesiden er allerede udfyldt; hvis installationsprogrammet spørger efter
+Client ID og secret igen, så indsæt dem igen.
+
+Gør det, når Claude ser ud til at mangle værktøjer, som vejledningerne nævner. En gammel klient
+skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: spørg Claude i en ny chat _"Run
+get-preflight"_. Rækken **Claude Desktop connectors are up to date** er grøn, når du er opdateret.
+En advarsel betyder, at en gammel klient stadig er forbundet: afslut Claude Desktop fra systembakken,
+kør den nyeste installer, start Claude Desktop igen og spørg endnu en gang.
+
 ## Tjek, at det virker
 
 Spørg Claude: _"What world is open in Foundry?"_ Et normalt svar med worldens navn betyder, at du

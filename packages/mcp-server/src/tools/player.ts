@@ -82,6 +82,18 @@ const levelUpArgs = z.object({
 });
 
 /**
+ * A bridge failure reads "Query foundry-mcp-bridge.playerRead failed: Player read failed: <why>";
+ * a player only needs the reason.
+ */
+export function playerErrorText(message: string): string {
+  const why = message
+    .replace(/^Query \S+ failed:\s*/, '')
+    .replace(/^Player read failed:\s*/, '')
+    .trim();
+  return why === '' ? 'The request failed.' : why;
+}
+
+/**
  * The control message `player_tool`: `params` is `{ tool, args, userId }`. Anything but a player
  * tool, a missing or blank userId or a failed read answers with an error payload (never throws).
  */
@@ -99,7 +111,7 @@ export async function handlePlayerTool(
       e instanceof z.ZodError
         ? `Check the arguments: ${e.issues.map(i => `${i.path.join('.') || 'input'} ${i.message}`).join('; ')}`
         : e instanceof Error
-          ? e.message
+          ? playerErrorText(e.message)
           : 'The request failed.';
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
   }
@@ -271,17 +283,14 @@ export class PlayerTools {
           ...h,
           snippet: cap(h.snippet, PLAYER_EXCERPT_CHARS),
         }));
-        const { kept, hidden } = await this.filter(hits, h => [
-          h.name,
-          h.pageName,
-          h.snippet,
-          h.packLabel,
-        ]);
+        // Filtered hits go silently: a "hidden" count would tell a player a Strahd term matched.
+        const { kept } = await this.filter(hits, h => [h.name, h.pageName, h.snippet, h.packLabel]);
         return {
           query: raw?.query ?? a.query,
           results: kept.slice(0, PLAYER_SEARCH_LIMIT),
-          ...(hidden > 0 ? { note: `${hidden} result${hidden === 1 ? '' : 's'} hidden` } : {}),
-          ...(raw?.note && hidden === 0 ? { note: raw.note } : {}),
+          // Set from what is left, not from the module's note: "all filtered" and "nothing
+          // matched" must read the same.
+          ...(kept.length === 0 ? { note: 'Nothing found in the books you can read.' } : {}),
         };
       }
       case 'find-book-entries': {
@@ -292,14 +301,11 @@ export class PlayerTools {
           ...(a.type ? { type: a.type } : {}),
           limit: Math.min(a.limit ?? 10, PLAYER_FIND_LIMIT),
         })) as { results?: Array<{ name?: string; packLabel?: string }> } | undefined;
-        const { kept, hidden } = await this.filter(
-          Array.isArray(raw?.results) ? raw.results : [],
-          r => [r.name, r.packLabel]
-        );
-        return {
-          results: kept.slice(0, PLAYER_FIND_LIMIT),
-          ...(hidden > 0 ? { note: `${hidden} result${hidden === 1 ? '' : 's'} hidden` } : {}),
-        };
+        const { kept } = await this.filter(Array.isArray(raw?.results) ? raw.results : [], r => [
+          r.name,
+          r.packLabel,
+        ]);
+        return { results: kept.slice(0, PLAYER_FIND_LIMIT) };
       }
       case 'get-book-entry': {
         const a = entryArgs.parse(args ?? {});
@@ -308,7 +314,8 @@ export class PlayerTools {
           | undefined;
         const description = cap(raw?.description, PLAYER_ENTRY_CHARS);
         const { hidden } = await this.filter([raw ?? {}], e => [e.name, description]);
-        if (hidden > 0) return { note: '1 result hidden' };
+        // Same answer as a missing entry, so nothing says a term matched.
+        if (hidden > 0) throw new Error('Entry not found');
         return {
           ...raw,
           description,

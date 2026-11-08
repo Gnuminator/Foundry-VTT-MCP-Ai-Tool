@@ -24,6 +24,7 @@ import {
   PLAYER_EXCERPT_CHARS,
   PlayerTools,
   handlePlayerTool,
+  playerErrorText,
   readExtraDenyTerms,
 } from './player.js';
 
@@ -180,7 +181,7 @@ describe('the last-line term filter', () => {
   });
 
   it.each(['Strahd', 'Barovia', 'Ravenloft', 'Tarokka', 'Ireena', 'Vallaki'])(
-    'drops a search result that mentions %s and counts it',
+    'drops a search result that mentions %s without saying so',
     async term => {
       const { tools } = make({
         results: [
@@ -191,9 +192,23 @@ describe('the last-line term filter', () => {
       const out = (await tools.run('search-books', { query: 'grapple' }, 'u')) as any;
       expect(JSON.stringify(out)).not.toContain('CANARY');
       expect(out.results).toHaveLength(1);
-      expect(out.note).toBe('1 result hidden');
+      expect(out.note).toBeUndefined();
+      expect(JSON.stringify(out)).not.toContain('hidden');
     }
   );
+
+  it('an all-filtered search reads the same as a search that found nothing', async () => {
+    const filtered = make({ query: 'xx', results: [hit('CANARY strahd lore')] });
+    const empty = make({
+      query: 'xx',
+      results: [],
+      note: 'Nothing found in the books you can read.',
+    });
+    const a = await filtered.tools.run('search-books', { query: 'xx' }, 'u');
+    const b = await empty.tools.run('search-books', { query: 'xx' }, 'u');
+    expect(a).toEqual(b);
+    expect(JSON.stringify(a)).not.toContain('CANARY');
+  });
 
   it('drops a result named by a live Tarokka card or a configured extra term', async () => {
     const { tools } = make(
@@ -202,7 +217,7 @@ describe('the last-line term filter', () => {
     );
     const out = (await tools.run('search-books', { query: 'anything' }, 'u')) as any;
     expect(out.results).toHaveLength(1);
-    expect(out.note).toBe('2 results hidden');
+    expect(out.note).toBeUndefined();
   });
 
   it('hides find-book-entries names and a get-book-entry description alike', async () => {
@@ -211,8 +226,25 @@ describe('the last-line term filter', () => {
     expect(f.results).toEqual([{ name: 'Cloak of Elvenkind' }]);
 
     const entry = make({ name: 'Lore', description: 'Barovia is a valley.' });
-    const e = (await entry.tools.run('get-book-entry', { packId: 'p', entryId: 'e' }, 'u')) as any;
-    expect(e).toEqual({ note: '1 result hidden' });
+    // Answers like a missing entry, so nothing says a term matched.
+    await expect(
+      entry.tools.run('get-book-entry', { packId: 'p', entryId: 'e' }, 'u')
+    ).rejects.toThrow('Entry not found');
+  });
+
+  it('player-facing errors drop the bridge prefixes', async () => {
+    const wrapped = make({});
+    wrapped.query.mockRejectedValue(
+      new Error('Query foundry-mcp-bridge.playerRead failed: Player read failed: Entry not found')
+    );
+    const r = await handlePlayerTool(wrapped.tools, {
+      tool: 'get-book-entry',
+      args: { packId: 'p', entryId: 'e' },
+      userId: 'u1',
+    });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe('Error: Entry not found');
+    expect(playerErrorText('Query x failed: Player read failed: ')).toBe('The request failed.');
   });
 
   it('does not filter the player’s own character (a backstory may name Barovia)', async () => {

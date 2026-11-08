@@ -101,20 +101,25 @@ function pack(
     },
     getDocuments: async (): Promise<any[]> => docs,
     getDocument: async (docId: string): Promise<any> => docs.find(d => d.id === docId) ?? null,
-    getIndex: async (): Promise<any[]> =>
-      docs.map(d => ({
-        _id: d.id,
-        name: d.name,
-        type: d.type,
-        ...(d.system && 'identified' in d.system
-          ? {
-              system: {
-                identified: d.system.identified,
-                unidentified: { name: d.system.unidentified?.name },
-              },
-            }
-          : {}),
-      })),
+    // Like Foundry: system fields come back only when listed in options.fields.
+    getIndex: async (options?: { fields?: string[] }): Promise<any[]> => {
+      const fields = options?.fields ?? [];
+      return docs.map(d => {
+        const system: Record<string, unknown> = {};
+        if (d.system && 'identified' in d.system && fields.includes('system.identified')) {
+          system.identified = d.system.identified;
+        }
+        if (d.system && 'identified' in d.system && fields.includes('system.unidentified.name')) {
+          system.unidentified = { name: d.system.unidentified?.name };
+        }
+        return {
+          _id: d.id,
+          name: d.name,
+          type: d.type,
+          ...(Object.keys(system).length > 0 ? { system } : {}),
+        };
+      });
+    },
     testUserPermission: perm(opts.viewers ?? [userA, userB]),
   };
 }
@@ -490,6 +495,15 @@ describe('playerRead: books', () => {
     const r = await as('findEntries', { query: 'unidentified' });
     expect(r.results.map((x: any) => x.name)).toEqual(['Unidentified item']);
     expect(JSON.stringify(r)).not.toContain('Mystery');
+    const entry = await as('getEntry', {
+      packId: 'dnd-players-handbook.spells',
+      entryId: 'ringunid000001',
+    });
+    expect(entry.name).toBe('Unidentified item');
+    expect(JSON.stringify(entry)).not.toContain('Mystery');
+    const found = await as('searchBooks', { query: 'plain iron ring' });
+    expect(found.results.map((x: any) => x.name)).toEqual(['Unidentified item']);
+    expect(JSON.stringify(found)).not.toContain('Mystery');
   });
 
   it('findEntries takes "species" for the dnd5e type "race"', async () => {

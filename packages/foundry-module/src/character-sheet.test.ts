@@ -242,6 +242,13 @@ describe('stripSecrets and plainText', () => {
     expect(plainText(html)).toBe('kept');
   });
 
+  it('shows an enricher as its label, like a book entry does', () => {
+    const html =
+      '<p>Cast @UUID[Compendium.dnd5e.spells.Item.abc]{Fireball} or [[/damage 2d6 fire]] ' +
+      'and &Reference[Prone]; see @UUID[Item.xyz].</p>';
+    expect(plainText(html)).toBe('Cast Fireball or damage 2d6 fire and Prone; see .');
+  });
+
   it('keeps void and self-closing tags out of the depth count', () => {
     const html = '<section class="secret">a<br><img src="x.png"/><section/>b</section><p>c</p>';
     expect(plainText(html)).toBe('c');

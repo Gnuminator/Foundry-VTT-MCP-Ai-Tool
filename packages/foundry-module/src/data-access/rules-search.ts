@@ -7,6 +7,7 @@
 
 import { stripSecrets } from '../character-sheet-fields.js';
 import { MODULE_ID } from '../constants.js';
+import { enrichersToText } from '../enricher-text.js';
 
 /**
  * Searched when the `rulesSearchPacks` setting is empty: the PHB module, the dnd5e system
@@ -168,16 +169,7 @@ export function playerItemName(
 /** HTML to plain text: tags out, entities decoded for the common few, blanks squeezed. */
 export function plainText(html: unknown): string {
   if (typeof html !== 'string') return '';
-  let text = html
-    // Labelled enrichers keep their label; a bare roll keeps its command and arguments
-    // ("[[/damage 2d6 fire]]" reads "damage 2d6 fire"); a bare reference keeps its name.
-    .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
-    .replace(/&(?:amp;)?Reference\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/&(?:amp;)?Reference\[([^\]=\s]+)[^\]]*\]/g, '$1')
-    .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
-    .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ');
+  let text = enrichersToText(html).replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ');
   // Strip tags until none is left, so nested input like "<scr<script>ipt>" cannot rebuild one.
   let previous: string;
   do {
@@ -332,6 +324,29 @@ export class RulesSearchDataAccess {
    * entry from the GM's search). `entryAllowed` is an extra, harmless check on each candidate,
    * and the search stops at `limit` allowed hits.
    */
+  /**
+   * Build the player indexes for `packs` one pack at a time, so the first player search after a
+   * Foundry start finds them ready (a cold build is 20 to 30 s on the Pi). A pack that fails is
+   * skipped; the search builds it again.
+   */
+  async warmScoped(packs: PackLike[]): Promise<number> {
+    let built = 0;
+    for (const pack of packs) {
+      const type: string | undefined = pack.documentName ?? pack.metadata?.type;
+      if (type !== 'JournalEntry' && type !== 'Item') continue;
+      try {
+        await this.indexPack(pack, pack.metadata.id, type, true);
+        built++;
+      } catch (error) {
+        console.warn(
+          `${MODULE_ID} | rules search: warm-up skipped pack ${pack.metadata.id}`,
+          error
+        );
+      }
+    }
+    return built;
+  }
+
   async searchRulesScoped(params: ScopedSearchParams): Promise<ScopedSearchResult> {
     const query = typeof params?.query === 'string' ? params.query.trim() : '';
     if (query.length < 2) throw new Error('Search query must be at least 2 characters');

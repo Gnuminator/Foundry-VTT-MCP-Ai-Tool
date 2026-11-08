@@ -4,6 +4,7 @@
  * spell preparation and item uses). Each returns a plain value or a safe default.
  */
 import type { SheetUses } from '@gnuminator/shared';
+import { enrichersToText } from './enricher-text.js';
 
 export type Rec = Record<string, unknown>;
 
@@ -139,15 +140,8 @@ export function stripSecrets(html: string): string {
  * Secret sections (`<section class="secret">`) are the GM's even on a player's own sheet.
  */
 export function plainText(html: unknown, max = 600): string {
-  const text = stripSecrets(str(html))
-    // Enrichers read as their label, like a book entry does: "@UUID[...]{Fireball}" is "Fireball",
-    // a bare "[[/damage 2d6 fire]]" is "damage 2d6 fire", a bare reference keeps its name.
-    .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
-    .replace(/&(?:amp;)?Reference\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/&(?:amp;)?Reference\[([^\]=\s]+)[^\]]*\]/g, '$1')
-    .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
+  // Enrichers read as their label, like a book entry does (enricher-text.ts).
+  const text = enrichersToText(stripSecrets(str(html)))
     .replace(/<(br|\/p|\/li|\/h[1-6])\s*\/?>/gi, '\n')
     .replace(TAG, '')
     .replace(/&nbsp;/g, ' ')

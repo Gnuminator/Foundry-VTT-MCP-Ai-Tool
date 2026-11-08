@@ -25,6 +25,7 @@ import {
   PlayerTools,
   handlePlayerTool,
   playerErrorText,
+  PLAYER_READ_TIMEOUT_MS,
   readExtraDenyTerms,
 } from './player.js';
 
@@ -245,6 +246,34 @@ describe('the last-line term filter', () => {
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toBe('Error: Entry not found');
     expect(playerErrorText('Query x failed: Player read failed: ')).toBe('The request failed.');
+  });
+
+  it('a player read waits long enough for a cold index, and a timeout reads as a sentence', async () => {
+    const wrapped = make({});
+    await wrapped.tools.run('search-books', { query: 'fireball' }, 'u1');
+    expect(wrapped.query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.playerRead',
+      expect.objectContaining({ action: 'searchBooks' }),
+      { timeoutMs: PLAYER_READ_TIMEOUT_MS }
+    );
+    expect(PLAYER_READ_TIMEOUT_MS).toBeGreaterThan(30_000);
+    expect(PLAYER_READ_TIMEOUT_MS).toBeLessThan(60_000);
+
+    wrapped.query.mockRejectedValue(
+      new Error(
+        'Query foundry-mcp-bridge.playerRead failed: Query timeout: foundry-mcp-bridge.playerRead'
+      )
+    );
+    const r = await handlePlayerTool(wrapped.tools, {
+      tool: 'search-books',
+      args: { query: 'fireball' },
+      userId: 'u1',
+    });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe('Error: Foundry did not answer in time. Try again.');
+    expect(playerErrorText('Query timeout: foundry-mcp-bridge.playerRead')).toBe(
+      'Foundry did not answer in time. Try again.'
+    );
   });
 
   it('does not filter the player’s own character (a backstory may name Barovia)', async () => {

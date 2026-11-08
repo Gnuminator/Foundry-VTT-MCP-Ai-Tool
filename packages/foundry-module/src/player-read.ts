@@ -323,6 +323,23 @@ async function getEntryAction(user: PlayerUser, body: Record<string, unknown>): 
   };
 }
 
+/**
+ * Build the book indexes any player may search, once, so the first player search after a
+ * restart does not pay for it. The index cache is shared by all players, so the packs of every
+ * non-GM user are warmed (once each). Returns how many packs were built.
+ */
+export async function warmPlayerIndexes(deps: {
+  rulesSearch: { warmScoped(packs: PackLike[]): Promise<number> };
+}): Promise<number> {
+  const game = getGame();
+  const byId = new Map<string, PackLike>();
+  for (const user of (game?.users as Iterable<PlayerUser> | undefined) ?? []) {
+    if (user.isGM) continue;
+    for (const pack of playerPacks(user)) byId.set(pack.metadata.id, pack);
+  }
+  return deps.rulesSearch.warmScoped([...byId.values()]);
+}
+
 /** The query handler: `{ userId, action, ... }`. Unknown actions throw. */
 export async function playerRead(data: unknown, deps: PlayerReadDeps): Promise<unknown> {
   const body = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;

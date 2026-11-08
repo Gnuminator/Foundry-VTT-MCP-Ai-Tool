@@ -5,7 +5,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RulesSearchDataAccess } from './data-access/rules-search.js';
-import { isDeniedPack, playerRead, PLAYER_READ_QUERY, type PlayerReadDeps } from './player-read.js';
+import {
+  isDeniedPack,
+  playerRead,
+  PLAYER_READ_QUERY,
+  warmPlayerIndexes,
+  type PlayerReadDeps,
+} from './player-read.js';
 import { NON_WRITE_METHODS, WRITE_METHODS } from './write-gate.js';
 
 const g = globalThis as any;
@@ -341,6 +347,34 @@ describe('playerRead: characters', () => {
   it('levelUp with several owned characters asks for a name', async () => {
     g.game.actors.push(actor('actorA0000000002', 'Cass', [userA]));
     await expect(as('levelUp')).rejects.toThrow(/Brenna, Cass/);
+  });
+});
+
+describe('warmPlayerIndexes', () => {
+  it('builds the indexes of the packs players may observe, so the first search does not', async () => {
+    const all = [userA, userB, gm];
+    g.game.users = Object.assign([...all], {
+      get: (id: string): unknown => all.find(u => u.id === id),
+    });
+    const spy = vi.spyOn(rulesSearch, 'warmScoped');
+    const n = await warmPlayerIndexes({ rulesSearch });
+    const warmed = spy.mock.calls[0][0].map((p: any) => p.metadata.id);
+    expect(n).toBe(warmed.length);
+    expect(warmed.length).toBeGreaterThan(0);
+    // The adventure packs stay cold; packs only player B may observe are warmed (the cache is
+    // shared), which must not change what player A finds.
+    for (const id of ['aitool-content.journals', 'adv.curse', 'dnd5e.rules', 'dnd5e.monsters']) {
+      expect(warmed).not.toContain(id);
+    }
+    expect(warmed).toContain('other-mod.hiddenbook');
+    expect(warmed).toContain('world.mine');
+    // The search after the warm-up reads the cache: it does not call getDocuments again.
+    const docs = g.game.packs.filter((p: any) => warmed.includes(p.metadata.id));
+    const counts = docs.map((p: any) => vi.spyOn(p, 'getDocuments'));
+    const r = await as('searchBooks', { query: 'fireball' });
+    expect(r.results.map((h: any) => h.name)).toContain('Fireball');
+    for (const c of counts) expect(c).not.toHaveBeenCalled();
+    assertNoCanary(r);
   });
 });
 

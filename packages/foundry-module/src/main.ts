@@ -52,6 +52,7 @@ import {
   startTableWatch,
 } from './tarokka-table-window.js';
 import { logInfo } from './log.js';
+import { warmPlayerIndexes } from './player-read.js';
 import { toGmMessage } from './gm-message.js';
 // Connection control now handled through settings menu
 
@@ -422,6 +423,7 @@ class FoundryMCPBridge {
 
       // Rebuild a missing or stale creature index in the background.
       this.warmEnhancedIndex();
+      this.warmPlayerIndexes();
 
       logInfo(`[${MODULE_ID}] Module ready`);
     } catch (error) {
@@ -452,6 +454,28 @@ class FoundryMCPBridge {
       })
       .catch(error => {
         console.warn(`[${MODULE_ID}] Failed to build the enhanced creature index:`, error);
+      });
+  }
+
+  /**
+   * Build the player book indexes in the background after start, so the first player search
+   * after a restart answers in seconds (a cold build is 20 to 30 s on the Pi, over the query
+   * timeout). Same client rule as the creature index: the bridge user's browser only.
+   */
+  private warmPlayerIndexes(): void {
+    if (!this.isGMUser()) return;
+    if (!isBridgeUser(this.settings.getSetting('bridgeUserId'), game.user?.id)) return;
+    if (game.system.id !== 'dnd5e') return;
+
+    const started = Date.now();
+    void warmPlayerIndexes(this.queryHandlers.dataAccess.playerWarmDeps())
+      .then(built => {
+        logInfo(
+          `[${MODULE_ID}] Player book indexes ready (${built} packs, ${Date.now() - started} ms)`
+        );
+      })
+      .catch(error => {
+        console.warn(`[${MODULE_ID}] Failed to warm the player book indexes:`, error);
       });
   }
 

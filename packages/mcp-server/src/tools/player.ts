@@ -75,6 +75,9 @@ const entryArgs = z.object({
   packId: z.string().min(1).max(200),
   entryId: z.string().min(1).max(64),
 });
+/** Reply time for a player read; under the 60 s the dashboard waits for `player_tool`. */
+export const PLAYER_READ_TIMEOUT_MS = 50_000;
+
 const characterArgs = z.object({ name: z.string().max(100).optional() });
 const levelUpArgs = z.object({
   name: z.string().max(100).optional(),
@@ -86,6 +89,8 @@ const levelUpArgs = z.object({
  * a player only needs the reason.
  */
 export function playerErrorText(message: string): string {
+  // A timeout reads "Query foundry-mcp-bridge.playerRead failed: Query timeout: ..." or bare.
+  if (/Query timeout:/.test(message)) return 'Foundry did not answer in time. Try again.';
   const why = message
     .replace(/^Query \S+ failed:\s*/, '')
     .replace(/^Player read failed:\s*/, '')
@@ -255,8 +260,14 @@ export class PlayerTools {
     }
     const id = userId.trim();
     this.logger.info('Player tool call', { tool, userId: id });
+    // The first book search after a Foundry restart builds the pack indexes (20 to 30 s on the
+    // Pi), longer than the 10 s default; the dashboard's player_tool call allows 60 s.
     const read = (data: Record<string, unknown>): Promise<unknown> =>
-      this.foundryClient.query('foundry-mcp-bridge.playerRead', { userId: id, ...data });
+      this.foundryClient.query(
+        'foundry-mcp-bridge.playerRead',
+        { userId: id, ...data },
+        { timeoutMs: PLAYER_READ_TIMEOUT_MS }
+      );
 
     switch (tool as PlayerToolName) {
       case 'get-my-character': {

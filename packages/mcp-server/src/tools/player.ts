@@ -77,6 +77,10 @@ const entryArgs = z.object({
 });
 /** Reply time for a player read; under the 60 s the dashboard waits for `player_tool`. */
 export const PLAYER_READ_TIMEOUT_MS = 50_000;
+/** How long the dashboard waits for `player_tool` (mcp-control-client.ts); a test pins the copy. */
+export const PLAYER_DASHBOARD_WAIT_MS = 60_000;
+/** The player connector's per-request default (tools/player-connector/server/index.js; same). */
+export const PLAYER_WRAPPER_TIMEOUT_MS = 70_000;
 
 const characterArgs = z.object({ name: z.string().max(100).optional() });
 const levelUpArgs = z.object({
@@ -90,7 +94,8 @@ const levelUpArgs = z.object({
  */
 export function playerErrorText(message: string): string {
   // A timeout reads "Query foundry-mcp-bridge.playerRead failed: Query timeout: ..." or bare.
-  if (/Query timeout:/.test(message)) return 'Foundry did not answer in time. Try again.';
+  if (/^(?:Query \S+ failed:\s*)?Query timeout:/.test(message))
+    return 'Foundry did not answer in time. Try again.';
   const why = message
     .replace(/^Query \S+ failed:\s*/, '')
     .replace(/^Player read failed:\s*/, '')

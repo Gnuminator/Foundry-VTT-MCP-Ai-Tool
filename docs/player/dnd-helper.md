@@ -76,7 +76,7 @@ does not know, choose **Keep**. Do not open or unzip either file yet.
 
 1. In Claude Desktop open **Settings**, then **Desktop**, then **Extensions**.
 2. Drag `foundry-player.mcpb` from your Downloads folder into that window. (Double-clicking the
-   file in Downloads also works on most computers: Claude Desktop opens with the same install
+   file in Downloads also works on Windows: Claude Desktop opens with the same install
    window.)
 3. Click **Install**. Claude may warn that extensions run on your computer. This one only talks
    to our game server, and the file itself holds no book text and no secret.
@@ -215,8 +215,8 @@ Nothing you say to the helper is sent to the other players.
 ## Troubleshooting
 
 **Claude does not mention Foundry at all, or says it has no tool for that.**
-Open Settings, Desktop, Extensions and check the Foundry extension is switched on. Then quit Claude Desktop
-completely and reopen it. Start a **new** chat: an old chat does not pick up new tools.
+Open Settings, Desktop, Extensions and check the Foundry extension is switched on. Then quit
+Claude Desktop completely and reopen it. Start a **new** chat: an old chat does not pick up new tools.
 
 **It says "not found" about my character.**
 Check how the name is spelled on your sheet and ask again with the exact name. If you have no
@@ -225,9 +225,9 @@ character yet, that is correct: make one first. If the name is right, your value
 that you own it.
 
 **An error, "unauthorized", "forbidden" or "could not connect".**
-Almost always the two values. Open Settings, Desktop, Extensions, the Foundry extension, and check that the
-Client ID and Client Secret were pasted whole, with no space at the start or end and nothing
-missing. Paste them again from your **My character** page with the copy buttons. If they are right,
+Almost always the two values. Open Settings, Desktop, Extensions, the Foundry extension, and
+check that the Client ID and Client Secret were pasted whole, with no space at the start or end
+and nothing missing. Paste them again from your **My character** page with the copy buttons. If they are right,
 the game server may be down. Ask the person who runs the tool.
 
 **It answers from memory and does not name a book.**
@@ -239,19 +239,20 @@ The table may not allow that book for players, or the entry's name may differ. T
 word ("grapple" and "grappled"), or ask for a search by what the thing does.
 
 **The skill is not used.**
-Open Settings, Customize, Skills and check "foundry-dnd-helper-player" is on. Start your message with "Use
-the D&D helper skill to..." the first time.
+Open Settings, Customize, Skills and check "foundry-dnd-helper-player" is on. Start your message
+with "Use the D&D helper skill to..." the first time.
 
 **It claims it changed my character.**
 It cannot, and it should never say so. Check your sheet in Foundry, then tell the person who runs
 the tool. The helper only reads.
 
 **Claude Desktop will not open the `.mcpb` file.**
-Update Claude Desktop (a recent version is needed), then drag the file into Settings, Desktop, Extensions.
+Update Claude Desktop (a recent version is needed), then drag the file into Settings, Desktop,
+Extensions.
 
 **I want to start over.**
-Remove the extension in Settings, Desktop, Extensions, and install it again from the file (download it again from step 2 if it is gone). Your values are
-asked for again.
+Remove the extension in Settings, Desktop, Extensions, and install it again from the file
+(download it again from step 2 if it is gone). Your values are asked for again.
 
 ## Getting new values
 
@@ -262,8 +263,8 @@ person who runs the tool tells you they were reset.
    connector**. If the card shows a new pair, use the copy buttons.
 2. If it does not, message the person who runs the tool and ask for new values. Say which
    character is yours. They send them privately.
-3. In Claude Desktop open Settings, Desktop, Extensions, the Foundry extension and replace the Client ID
-   and the Client Secret. Quit and reopen Claude Desktop.
+3. In Claude Desktop open Settings, Desktop, Extensions, the Foundry extension and replace the
+   Client ID and the Client Secret. Quit and reopen Claude Desktop.
 4. Ask whether your old values still work. If you lost the secret, that does not matter. If
    someone else saw it, ask for the old values to be switched off too.
 

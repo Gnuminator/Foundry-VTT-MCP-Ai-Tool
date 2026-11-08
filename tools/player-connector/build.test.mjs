@@ -609,6 +609,59 @@ test('a call that starts during a reinit waits for the new session', async () =>
   assert.equal(b.message.result.sid, 'new');
 });
 
+test('a reinit after a 404 that hangs aborts near the 10 s cap, not at the tool limit', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { createForwarder } = loadServer();
+    const signals = [];
+    const reply = (status, body, sid) =>
+      Promise.resolve(
+        new Response(status === 404 ? null : body, {
+          status,
+          headers: {
+            'content-type': 'application/json',
+            ...(sid ? { 'mcp-session-id': sid } : {}),
+          },
+        })
+      );
+    let inits = 0;
+    const fwd = createForwarder(
+      {
+        FOUNDRY_PLAYER_ENDPOINT: base,
+        FOUNDRY_PLAYER_CLIENT_ID: ID,
+        FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+        // the default, 70 s: the reinit must not wait for it
+        FOUNDRY_PLAYER_TIMEOUT_MS: '70000',
+      },
+      (_url, init) => {
+        const rpc = JSON.parse(init.body);
+        const ok = JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: {} });
+        if (rpc.method === 'initialize' && ++inits === 1) return reply(200, ok, 'old');
+        if (rpc.method !== 'initialize') return reply(404, '');
+        signals.push(init.signal);
+        return new Promise((_res, rej) =>
+          init.signal.addEventListener('abort', () =>
+            rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          )
+        );
+      }
+    );
+    await fwd.forward({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+    const call = fwd.forward({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+    await new Promise(r => setImmediate(r)); // the 404 came back, the reinit hangs
+    await new Promise(r => setImmediate(r));
+    assert.equal(signals.length, 1, 'the reinit is in flight');
+    mock.timers.tick(9999);
+    assert.equal(signals[0].aborted, false);
+    mock.timers.tick(1);
+    assert.equal(signals[0].aborted, true, 'aborted at INIT_TIMEOUT_MS, long before 70 s');
+    const out = await call;
+    assert.match(out.failure, /did not answer in time/);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test('replies already started are flushed when stdin closes', async () => {
   mode = 'ok';
   const { replies } = await run([

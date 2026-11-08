@@ -367,6 +367,7 @@ describe('warmPlayerIndexes', () => {
       expect(warmed).not.toContain(id);
     }
     expect(warmed).toContain('other-mod.hiddenbook');
+    expect(warmed).toContain('other-mod.secret');
     expect(warmed).toContain('world.mine');
     // The search after the warm-up reads the cache: it does not call getDocuments again.
     const docs = g.game.packs.filter((p: any) => warmed.includes(p.metadata.id));
@@ -375,6 +376,10 @@ describe('warmPlayerIndexes', () => {
     expect(r.results.map((h: any) => h.name)).toContain('Fireball');
     for (const c of counts) expect(c).not.toHaveBeenCalled();
     assertNoCanary(r);
+    // The shared cache holds packs player A cannot observe; A's search still finds nothing of them.
+    const g2 = await as('searchBooks', { query: 'grappling' });
+    expect(g2.results.map((h: any) => h.name)).toEqual(['Grappling']);
+    assertNoCanary(g2);
   });
 });
 

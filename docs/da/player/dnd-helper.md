@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 961c257fa4f5
+sourceHash: 6fb00b6c0256
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -77,7 +77,7 @@ kender, så vælg **Keep**. Åbn eller pak ingen af filerne ud endnu.
 
 1. Åbn **Settings** i Claude Desktop, derefter **Desktop**, derefter **Extensions**.
 2. Træk `foundry-player.mcpb` fra din Downloads-mappe ind i det vindue. (Et dobbeltklik på filen i
-   Downloads virker også på de fleste computere: Claude Desktop åbner med det samme
+   Downloads virker også på Windows: Claude Desktop åbner med det samme
    installationsvindue.)
 3. Klik på **Install**. Claude advarer måske om, at extensions kører på din computer. Denne her
    taler kun med vores spilserver, og selve filen indeholder ingen bogtekst og ingen hemmelighed.
@@ -219,8 +219,8 @@ Intet, du siger til hjælperen, bliver sendt til de andre spillere.
 ## Fejlfinding
 
 **Claude nævner slet ikke Foundry, eller siger, at den ikke har et tool til det.**
-Åbn Settings, Desktop, Extensions og tjek, at Foundry-extension er slået til. Luk så Claude Desktop helt og
-åbn det igen. Start en **ny** chat: en gammel chat opfanger ikke nye tools.
+Åbn Settings, Desktop, Extensions og tjek, at Foundry-extension er slået til. Luk så Claude
+Desktop helt og åbn det igen. Start en **ny** chat: en gammel chat opfanger ikke nye tools.
 
 **Den siger "not found" om min karakter.**
 Tjek, hvordan navnet er stavet på dit ark, og spørg igen med det præcise navn. Har du ingen karakter
@@ -228,8 +228,9 @@ endnu, er det korrekt: lav en først. Er navnet rigtigt, kan dine værdier være
 punkt), eller karakteren er måske ikke tildelt dig i Foundry. Bed din GM tjekke, at du ejer den.
 
 **En fejl, "unauthorized", "forbidden" eller "could not connect".**
-Næsten altid de to værdier. Åbn Settings, Desktop, Extensions, Foundry-extension og tjek, at Client ID
-og Client Secret er indsat hele, uden mellemrum i starten eller enden og uden noget, der mangler.
+Næsten altid de to værdier. Åbn Settings, Desktop, Extensions, Foundry-extension og tjek, at
+Client ID og Client Secret er indsat hele, uden mellemrum i starten eller enden og uden noget, der
+mangler.
 Indsæt dem igen fra din **My character**-side med kopiér-knapperne. Er de rigtige, kan spilserveren
 være nede. Spørg den, der kører værktøjet.
 
@@ -242,8 +243,8 @@ Bordet lader måske ikke spillere se den bog, eller indlæggets navn er anderled
 ("grapple" og "grappled"), eller bed om en søgning efter, hvad tingen gør.
 
 **Skillen bliver ikke brugt.**
-Åbn Settings, Customize, Skills og tjek, at "foundry-dnd-helper-player" er slået til. Start din besked med
-"Brug D&D-hjælper-skillen til at..." første gang.
+Åbn Settings, Customize, Skills og tjek, at "foundry-dnd-helper-player" er slået til. Start din
+besked med "Brug D&D-hjælper-skillen til at..." første gang.
 
 **Den påstår, at den har ændret min karakter.**
 Det kan den ikke, og det skal den aldrig sige. Tjek dit ark i Foundry, og sig det så til den, der

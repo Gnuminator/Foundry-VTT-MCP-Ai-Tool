@@ -3,13 +3,34 @@
  * plain text. One function for the book search and the character sheet, so a fix lands in both.
  */
 
-/** The words a "&Reference[...]" shows: "condition=prone apply=false" is "prone", "Spell Scroll" stays. */
-function referenceName(inner: string): string {
-  const withoutOptions = inner.replace(/(\s+\w+=\S*)+\s*$/, '').trim();
-  // "condition=prone" names its value; "Prone=1" (a level or count) is named by its key.
-  const keyed = /^(\w+)=(.*)$/.exec(withoutOptions);
-  if (!keyed) return withoutOptions;
-  return (/^\d+$/.test(keyed[2] ?? '') ? keyed[1] : keyed[2])?.trim() ?? withoutOptions;
+const unquote = (v: string): string => v.replace(/^(["'])(.*)\1$/, '$2');
+
+/**
+ * The words a "&Reference[...]" shows. Tokenized like dnd5e's parseConfig: whitespace separates
+ * tokens outside quotes, "key=value" is an option wherever it sits, quotes are stripped. A
+ * boolean or numeric option ("apply=false", "level=3") is never the name; "condition=prone"
+ * names its value, "Spell Scroll" keeps its words, "Prone=1" (a level or count) is named by
+ * its key as a last resort.
+ */
+export function referenceName(inner: string): string {
+  const tokens = inner.match(/[^\s"'=]+=(?:"[^"]*"|'[^']*'|\S*)|"[^"]*"|'[^']*'|\S+/g) ?? [];
+  const positional: string[] = [];
+  const valued: string[] = [];
+  const counted: string[] = [];
+  for (const token of tokens) {
+    const opt = /^([^\s"'=]+)=(.*)$/.exec(token);
+    if (!opt) {
+      positional.push(unquote(token));
+      continue;
+    }
+    const value = unquote(opt[2] ?? '');
+    if (value === '' || /^(true|false)$/i.test(value)) continue;
+    if (/^\d+(\.\d+)?$/.test(value)) counted.push(opt[1] ?? '');
+    else valued.push(value);
+  }
+  if (valued.length > 0) return valued[0]?.trim() ?? '';
+  if (positional.length > 0) return positional.join(' ').trim();
+  return (counted[0] ?? '').trim();
 }
 
 export function enrichersToText(html: string): string {

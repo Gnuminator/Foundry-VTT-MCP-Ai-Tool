@@ -7,8 +7,9 @@
  *   references/          the pages in tools/dnd-helper/pages (flows, checklists, plan-note format)
  *   references/player/   docs/player make-a-character and join (the public click-through guides)
  *
- * No book or campaign text goes in. The Claude Desktop project instructions are
- * tools/dnd-helper/project-instructions.md (paste into the project, not part of the zip).
+ * No Foundry rules markup or campaign text goes in, and the pages are capped in size. The Claude
+ * Desktop project instructions for the GM edition are tools/dnd-helper/project-instructions.md
+ * (paste into the project, not part of the zip); the player edition has none.
  *
  *   node tools/dnd-helper/build.mjs              build into tools/dnd-helper/dist/
  *   node tools/dnd-helper/build.mjs --out <dir>  build somewhere else (tests)
@@ -115,7 +116,7 @@ export function collectPlayerFiles() {
         ],
         [
           '3. For one feature or spell in doubt, `get-character-entity` or `search-character-items`.',
-          '3. For one feature or spell in doubt, look at its entry in the `get-my-character` result.',
+          '3. For one feature or spell in doubt, find it under spells, features or inventory in the `get-my-character` result. If it is not listed there, say the tool does not show it and ask the player to open that item on the sheet.',
         ],
         ['`get-compendium-item`', '`find-book-entries` and `get-book-entry`'],
       ],

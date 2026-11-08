@@ -214,7 +214,7 @@ test('a forgotten session (404) starts a new one and retries once', async () => 
     (...a) => fetch(...a)
   );
   const r = await handleMessage({ jsonrpc: '2.0', id: 9, method: 'tools/list' }, fresh);
-  assert.match(r.error.message, /HTTP 404/);
+  assert.match(r.result.tools[0].description, /HTTP 404/);
 });
 
 test('answers ping locally', async () => {
@@ -243,12 +243,65 @@ for (const m of ['status401', 'status403', 'redirect']) {
   });
 }
 
-test('a 403 on tools/list is a JSON-RPC error with the same text', async () => {
+test('a 403 on initialize and tools/list is answered locally with the reason', async () => {
   mode = 'status403';
-  const { replies } = await run([{ jsonrpc: '2.0', id: 1, method: 'tools/list' }]);
-  assert.equal(replies[0].error.code, -32000);
-  assert.match(replies[0].error.message, /HTTP 403/);
-  assert.ok(!replies[0].error.message.includes('denied'), 'the response body is not echoed');
+  const { replies } = await run([
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 3, method: 'resources/list' },
+  ]);
+  assert.equal(replies[0].result.serverInfo.name, 'foundry-player');
+  assert.equal(replies[0].result.protocolVersion, '2025-06-18');
+  const tool = replies[1].result.tools[0];
+  assert.equal(tool.name, 'connection-status');
+  assert.match(tool.description, /HTTP 403/);
+  assert.ok(!tool.description.includes('denied'), 'the response body is not echoed');
+  assert.equal(replies[2].error.code, -32000);
+  assert.match(replies[2].error.message, /HTTP 403/);
+});
+
+test('after a failed initialize the table comes back: one new session, list_changed, status call', async () => {
+  mode = 'status401';
+  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const fwd = createForwarder(
+    {
+      FOUNDRY_PLAYER_ENDPOINT: base,
+      FOUNDRY_PLAYER_CLIENT_ID: ID,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+    },
+    (...a) => fetch(...a)
+  );
+  let recovered = 0;
+  fwd.onRecovered = () => recovered++;
+  const ask = (id, method, params) => handleMessage({ jsonrpc: '2.0', id, method, params }, fwd);
+  const init = await ask(1, 'initialize', { protocolVersion: '2025-06-18' });
+  assert.equal(init.result.capabilities.tools.listChanged, true);
+  const down = await ask(2, 'tools/call', { name: 'connection-status' });
+  assert.equal(down.result.isError, true);
+  assert.match(down.result.content[0].text, /refused the login/);
+  assert.equal(recovered, 0);
+  mode = 'ok';
+  seen.length = 0;
+  const [a, b] = await Promise.all([ask(3, 'tools/list'), ask(4, 'resources/list')]);
+  assert.equal(a.result.method, 'tools/list');
+  assert.equal(b.result.method, 'resources/list');
+  assert.equal(recovered, 1);
+  assert.equal(seen.filter(s => JSON.parse(s.body).method === 'initialize').length, 1);
+  const status = await ask(5, 'tools/call', { name: 'connection-status' });
+  assert.match(status.result.content[0].text, /Connected to the table/);
+});
+
+test('network down: initialize and tools/list are answered locally, no secret shown', async () => {
+  const { replies } = await run(
+    [
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    ],
+    { FOUNDRY_PLAYER_ENDPOINT: 'http://127.0.0.1:1/mcp/player' }
+  );
+  assert.equal(replies[0].result.serverInfo.name, 'foundry-player');
+  assert.match(replies[1].result.tools[0].description, /Could not reach the table/);
+  assert.ok(!JSON.stringify(replies).includes(SECRET));
 });
 
 test('a 500 is mapped to a server-problem text', async () => {

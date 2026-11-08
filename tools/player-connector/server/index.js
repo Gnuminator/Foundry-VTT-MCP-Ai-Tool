@@ -111,6 +111,31 @@ function createForwarder(env, fetchImpl) {
   const badChars = !missing && !(printable.test(clientId) && printable.test(clientSecret));
   let sessionId = null;
   let initRequest = null;
+  let initFailed = false;
+  let reinit = null;
+  const api = { forward: null, secrets, onRecovered: null };
+
+  /**
+   * The local initialize answer hid a failure: try the real initialize again before the next
+   * request. One attempt is shared by requests that arrive together. Returns the failure, or null.
+   */
+  function ensureInit() {
+    if (!initFailed || !initRequest) return null;
+    if (!reinit) {
+      reinit = (async () => {
+        sessionId = null;
+        const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+        if (re.failure) return re;
+        await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
+        initFailed = false;
+        if (api.onRecovered) api.onRecovered();
+        return null;
+      })().finally(() => {
+        reinit = null;
+      });
+    }
+    return reinit;
+  }
   let reinitInFlight = null;
 
   /** One POST. Returns {message} (a JSON-RPC response object) or {failure: text, status?}. */
@@ -194,8 +219,13 @@ function createForwarder(env, fetchImpl) {
       initRequest = request;
       sessionId = null;
     }
+    if (request.method !== 'initialize') {
+      const bad = await ensureInit();
+      if (bad) return bad;
+    }
     const had = sessionId;
     const first = await send(request);
+    if (request.method === 'initialize') initFailed = !!first.failure;
     if (!(first.status === 404 && had && initRequest && request.method !== 'initialize'))
       return first;
     // Calls that go stale together share one new session; a call that finds the session
@@ -218,7 +248,8 @@ function createForwarder(env, fetchImpl) {
     return send(request);
   }
 
-  return { forward, secrets };
+  api.forward = forward;
+  return api;
 }
 
 /** Handle one parsed stdin message. Returns the response object to write, or null for nothing. */
@@ -232,12 +263,29 @@ async function handleMessage(msg, forwarder) {
   if (typeof msg.method !== 'string') {
     return { jsonrpc: '2.0', id: msg.id, error: { code: -32600, message: 'Invalid request' } };
   }
+  const statusCall =
+    msg.method === 'tools/call' && msg.params && msg.params.name === 'connection-status';
+  // The status tool is ours, not the server's: check the connection with a tools/list.
   const out = await forwarder.forward({
     jsonrpc: '2.0',
     id: msg.id,
-    method: msg.method,
-    params: msg.params,
+    method: statusCall ? 'tools/list' : msg.method,
+    params: statusCall ? undefined : msg.params,
   });
+  if (statusCall && !out.failure) {
+    return {
+      jsonrpc: '2.0',
+      id: msg.id,
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: "Connected to the table. If the table's tools are missing from Claude, turn the extension off and on again in Claude Desktop settings.",
+          },
+        ],
+      },
+    };
+  }
   if (out.failure) {
     const text = scrub(out.failure, forwarder.secrets);
     if (msg.method === 'tools/call') {
@@ -246,6 +294,36 @@ async function handleMessage(msg, forwarder) {
         jsonrpc: '2.0',
         id: msg.id,
         result: { isError: true, content: [{ type: 'text', text }] },
+      };
+    }
+    // Desktop is expected to show only a generic "failed to start" when initialize errors,
+    // hiding the reason (to be confirmed by a manual install). Answer initialize and tools/list locally so the extension stays loaded and the
+    // reason reaches the player as a tool (its description) and as the tool's result.
+    if (msg.method === 'initialize') {
+      const asked = msg.params && msg.params.protocolVersion;
+      return {
+        jsonrpc: '2.0',
+        id: msg.id,
+        result: {
+          protocolVersion: typeof asked === 'string' ? asked : '2025-06-18',
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: 'foundry-player', version: VERSION },
+        },
+      };
+    }
+    if (msg.method === 'tools/list') {
+      return {
+        jsonrpc: '2.0',
+        id: msg.id,
+        result: {
+          tools: [
+            {
+              name: 'connection-status',
+              description: `The table connection is not working. ${text}`,
+              inputSchema: { type: 'object', properties: {} },
+            },
+          ],
+        },
       };
     }
     return { jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: text } };
@@ -262,6 +340,8 @@ function main() {
   // The reader went away (Claude Desktop closed the pipe): leave quietly.
   process.stdout.on('error', () => process.exit(0));
   const forwarder = createForwarder(process.env, (...a) => fetch(...a));
+  forwarder.onRecovered = () =>
+    write({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' });
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   const pending = new Set();
   rl.on('line', line => {

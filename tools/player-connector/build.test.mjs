@@ -199,7 +199,7 @@ test('a forgotten session (404) starts a new one and retries once', async () => 
     (...a) => fetch(...a)
   );
   const r = await handleMessage({ jsonrpc: '2.0', id: 9, method: 'tools/list' }, fresh);
-  assert.match(r.error.message, /HTTP 404/);
+  assert.match(r.result.tools[0].description, /HTTP 404/);
 });
 
 test('answers ping locally', async () => {
@@ -228,12 +228,21 @@ for (const m of ['status401', 'status403', 'redirect']) {
   });
 }
 
-test('a 403 on tools/list is a JSON-RPC error with the same text', async () => {
+test('a 403 on initialize and tools/list is answered locally with the reason', async () => {
   mode = 'status403';
-  const { replies } = await run([{ jsonrpc: '2.0', id: 1, method: 'tools/list' }]);
-  assert.equal(replies[0].error.code, -32000);
-  assert.match(replies[0].error.message, /HTTP 403/);
-  assert.ok(!replies[0].error.message.includes('denied'), 'the response body is not echoed');
+  const { replies } = await run([
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 3, method: 'resources/list' },
+  ]);
+  assert.equal(replies[0].result.serverInfo.name, 'foundry-player');
+  assert.equal(replies[0].result.protocolVersion, '2025-06-18');
+  const tool = replies[1].result.tools[0];
+  assert.equal(tool.name, 'connection-status');
+  assert.match(tool.description, /HTTP 403/);
+  assert.ok(!tool.description.includes('denied'), 'the response body is not echoed');
+  assert.equal(replies[2].error.code, -32000);
+  assert.match(replies[2].error.message, /HTTP 403/);
 });
 
 test('a 500 is mapped to a server-problem text', async () => {

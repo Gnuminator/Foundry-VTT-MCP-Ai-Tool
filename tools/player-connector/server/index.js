@@ -109,6 +109,7 @@ function createForwarder(env, fetchImpl) {
   let sessionId = null;
 
   let initRequest = null;
+  let initFailed = false;
 
   /** One POST. Returns {message} (a JSON-RPC response object) or {failure: text, status?}. */
   async function send(request) {
@@ -180,8 +181,16 @@ function createForwarder(env, fetchImpl) {
       initRequest = request;
       sessionId = null;
     }
+    if (request.method !== 'initialize' && initFailed && initRequest) {
+      // The local initialize answer hid a failure: try the real one again before this request.
+      const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+      if (re.failure) return re;
+      initFailed = false;
+      await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
+    }
     const had = sessionId;
     const first = await send(request);
+    if (request.method === 'initialize') initFailed = !!first.failure;
     if (!(first.status === 404 && had && initRequest && request.method !== 'initialize'))
       return first;
     sessionId = null;
@@ -219,6 +228,36 @@ async function handleMessage(msg, forwarder) {
         jsonrpc: '2.0',
         id: msg.id,
         result: { isError: true, content: [{ type: 'text', text }] },
+      };
+    }
+    // Claude Desktop shows only a generic "failed to start" when initialize errors, hiding the
+    // reason. Answer initialize and tools/list locally so the extension stays loaded and the
+    // reason reaches the player as a tool (its description) and as the tool's result.
+    if (msg.method === 'initialize') {
+      const asked = msg.params && msg.params.protocolVersion;
+      return {
+        jsonrpc: '2.0',
+        id: msg.id,
+        result: {
+          protocolVersion: typeof asked === 'string' ? asked : '2025-06-18',
+          capabilities: { tools: {} },
+          serverInfo: { name: 'foundry-player', version: VERSION },
+        },
+      };
+    }
+    if (msg.method === 'tools/list') {
+      return {
+        jsonrpc: '2.0',
+        id: msg.id,
+        result: {
+          tools: [
+            {
+              name: 'connection-status',
+              description: `The table connection is not working. ${text}`,
+              inputSchema: { type: 'object', properties: {} },
+            },
+          ],
+        },
       };
     }
     return { jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: text } };

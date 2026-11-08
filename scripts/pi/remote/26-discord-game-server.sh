@@ -158,6 +158,8 @@ fi
 
 if [ "$undo" = 1 ]; then
   [ -f "$saved" ] || die "no saved copy at $saved: nothing to undo (the stage has not changed this Pi, or the copy was removed)"
+  # grep exits 2 on an unreadable file, which the key loop below would read as "key absent" and drop all six keys.
+  [ -r "$saved" ] || die "the saved copy $saved cannot be read: nothing was changed (check its owner and mode)"
   say "the saved file"
   show_state "$saved"
   want_guild="$(get "$saved" DISCORD_GUILD_ID)"

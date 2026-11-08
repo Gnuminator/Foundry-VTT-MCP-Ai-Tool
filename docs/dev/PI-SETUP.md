@@ -1494,7 +1494,9 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) **or a non-GM
   player is connected** (an unmarked night: the newest `user-join`/`user-leave` per user in the 3 newest
   `sessions/<date>.play.jsonl`; a join younger than 14 hours with no later leave counts; the GM and the TV table
-  viewer do not) it stops the
+  viewer do not; a record with no `isGM` field counts as a player, so the runners stay stopped when in doubt; a join
+  older than the newest `session-end` of that world is ignored, since a Foundry stop or a world switch can end a
+  session without a leave) it stops the
   runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
   is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
   Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
@@ -1549,10 +1551,12 @@ bot and then the dashboard only when something changed (`require_quiet`: not whi
 recording runs, so never on a game night), and checks that `GET /status` answers JSON.
 
 - **Look first:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/27-bot-status.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+  (the dry run also refuses a port that is already in use, so the plan does not look fine on a busy port)
 - **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `bash -s`. Then look at the GM
   health line with a recording running: the Recorder dot shows only when something is wrong, grey "unknown" means
   the dashboard cannot reach the bot.
-- **Undo:** the same pipe with `UNDO=1`. `PORT=<n>` picks another port.
+- **Undo:** the same pipe with `UNDO=1`. `PORT=<n>` picks another port. An UNDO that was cut off is finished by
+  running it again: the rerun restarts a dashboard whose process still carries `DASHBOARD_BOT_STATUS_URL`.
 - Tests: `scripts/pi/bot-status-stage.test.mjs`.
 
 ## Discord bot on the game server (stage 26)
@@ -1573,7 +1577,7 @@ there until the bot leaves it.
   stage warns that the post stays off. A rerun after a cut-off run restarts a bot that is older than the file.
 - **Check:** `CHECK=1` (the four lines, and "Registered /record in server ..." in the bot's journal since it started), then
   `/record` in a voice channel on the game server and a session-over post in #session-notes.
-- **Undo:** the same pipe with `UNDO=1` (the six keys the stage set go back to their saved values, a key the saved file lacks is removed, the token and every other line stay as they are now; the bot is restarted).
+- **Undo:** the same pipe with `UNDO=1` (the six keys the stage manages, the four ids and the two addresses, go back to their saved values, a key the saved file lacks is removed, the token and every other line stay as they are now; the bot is restarted).
 - Tests: `scripts/pi/discord-game-server.test.mjs` and `scripts/pi/container-test/stage26-scenarios.sh`.
 
 ## Join page look (stage 19)

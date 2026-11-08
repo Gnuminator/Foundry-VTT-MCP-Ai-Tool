@@ -165,7 +165,7 @@ if [ "$rc" -eq 0 ] && [ "$(get DISCORD_GUILD_ID)" = "$guild" ]; then pass "a sna
 run UNDO=1
 rc=$?
 if [ "$rc" -eq 0 ] && grep -q "^DISCORD_GUILD_ID=$silvera$" "$env_file" && ! grep -q 'DISCORD_SESSION_POST_CHANNEL_ID' "$env_file" && [ -e "$saved" ]; then
-  pass "UNDO restores the saved file and keeps the copy"; else fail "undo: rc=$rc $OUT"; fi
+  pass "UNDO puts the stage's keys back to the saved values and keeps the copy"; else fail "undo: rc=$rc $OUT"; fi
 if [ "$(stat -c '%a %U:%G' "$env_file")" = "640 root:$FOUNDRY_USER" ]; then pass "the restored file is 0640 root:$FOUNDRY_USER"; else fail "restored mode"; fi
 
 # 9. The session-over post settings.
@@ -193,7 +193,12 @@ cat >/tmp/sd/bin/systemctl <<'SH'
 #!/usr/bin/env bash
 echo "$*" >>/tmp/sd/calls
 case "$1" in
-  is-active) [ "${@: -1}" = foundry-ai-tool-discord-bot.service ] && [ -f /tmp/sd/active ] ;;
+  is-active)
+    case "${@: -1}" in
+      foundry-ai-tool-discord-bot.service) [ -f /tmp/sd/active ] ;;
+      foundry.service) [ -f /tmp/sd/foundry ] ;;
+      *) false ;;
+    esac ;;
   show) cat /tmp/sd/ts 2>/dev/null ;;
   restart | start) : >/tmp/sd/active; date -u '+%F %T UTC' >/tmp/sd/ts ;;
 esac
@@ -217,6 +222,23 @@ date -d '+1 hour' '+%F %T' >/tmp/sd/ts
 sdrun
 rc=$?
 if [ "$rc" -eq 0 ] && ! grep -q '^restart' /tmp/sd/calls; then pass "a clean rerun leaves a newer bot alone"; else fail "clean rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+# Two players online (stand-in curl and node): the clean rerun restarts nothing, so it must not be refused; a rerun that
+# does need the restart is refused and leaves the bot alone.
+: >/tmp/sd/foundry
+mkdir -p /opt/node24/bin
+printf '#!/bin/sh\ncat >/dev/null\nprintf 2\n' >/opt/node24/bin/node
+printf '#!/bin/sh\necho "{}"\n' >/tmp/sd/bin/curl
+chmod +x /opt/node24/bin/node /tmp/sd/bin/curl
+: >/tmp/sd/calls
+sdrun
+rc=$?
+if [ "$rc" -eq 0 ] && ! grep -q '^restart' /tmp/sd/calls; then pass "a clean rerun is not refused while players are online"; else fail "clean rerun with players: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
+: >/tmp/sd/calls
+sdrun
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'player(s) are online' && ! grep -q '^restart' /tmp/sd/calls; then pass "a rerun that needs the restart is refused while players are online"; else fail "refused rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+rm -f /tmp/sd/foundry /opt/node24/bin/node /tmp/sd/bin/curl
 echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
 : >/tmp/sd/calls
 sdrun

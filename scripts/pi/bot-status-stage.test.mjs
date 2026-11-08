@@ -326,7 +326,7 @@ describe('27-bot-status.sh', { skip: !hasBash && 'no bash here' }, () => {
       'A=1\0DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status\0'
     );
     writeFileSync(path.join(d, 'state', 'show-ts'), '2099-01-01 00:00:00 UTC\n'); // started after every file
-    // the second UNDO needs a state to undo: put the line back so the bot env is not "nothing to do" is not required
+    // the second UNDO has nothing left to undo in the bot env, and still restarts a dashboard that carries the URL
     rmSync(path.join(d, 'state', 'calls'));
     const r = run(d, { UNDO: '1' });
     assert.equal(r.status, 0, r.out);

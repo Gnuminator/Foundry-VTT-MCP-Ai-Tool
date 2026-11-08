@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { baseHeading, fold } from './changelog-fold.mjs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { baseHeading, entryDecision, fold, isEntryModule } from './changelog-fold.mjs';
+
+test('entryDecision: run for this file, mismatch for a same-named other file, import otherwise', () => {
+  const self = fileURLToPath(new URL('./changelog-fold.mjs', import.meta.url));
+  assert.equal(entryDecision(self, self), 'run');
+  assert.ok(!isEntryModule(undefined, self));
+  if (process.platform === 'win32') assert.equal(entryDecision(self.toUpperCase(), self), 'run');
+  assert.equal(entryDecision(path.join(os.tmpdir(), 'nope', 'changelog-fold.mjs'), self), 'mismatch');
+  assert.equal(entryDecision(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
+  assert.equal(entryDecision(undefined, self), 'import');
+  assert.equal(entryDecision(pathToFileURL(self).href, self), 'import');
+});
 
 const section = (heading, bullet) => ({ heading, lines: [`- ${bullet}`] });
 

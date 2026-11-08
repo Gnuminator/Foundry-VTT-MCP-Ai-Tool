@@ -79,7 +79,7 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
   them, push, and only then open the PR. The helper takes only its own run (branch, nonce and the
   branch head sha at dispatch) and refuses an artifact from another sha; it logs to
-  `%TEMP%\visual-baselines-<branch>.log` (slashes become `_`; printed on the first line), so lanes running it at once do
+  `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (slashes become `_`, lower case, a short hash of the exact branch name; printed on the first line), so lanes running it at once do
   not share a log. If it writes nothing, read that log and the run log. Never copy
   baselines from a failed PR run; re-run after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives,

@@ -15,6 +15,7 @@
  *
  *   node scripts/checks.mjs --list      print every entry: name, group and where it runs
  */
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -329,7 +330,44 @@ export const CI_ONLY = {
     'Installs Chromium and its system packages on the CI runner; on a PC it is a one-time `npx playwright install chromium`.',
 };
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides (as lane-merge.mjs;
+ * copied, not imported: this file imports no other repo file).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file.
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && /^file:/i.test(argv1)) return 'import'; // a `node -e` import, as drift-check.mjs
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const entry = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
+if (entry === 'mismatch') {
+  console.error(`checks: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  process.exitCode = 1;
+} else if (entry === 'run') {
   if (process.argv.includes('--list')) {
     for (const c of CHECKS) {
       const where = [c.steps === false ? '' : 'ci+green', c.drift ? 'drift' : ''].filter(Boolean);

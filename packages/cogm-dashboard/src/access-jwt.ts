@@ -174,6 +174,14 @@ export class AccessJwtVerifier {
     return payload;
   }
 
+  /**
+   * False while no signing key is known (the key fetch failed or returned none): a refusal then
+   * says nothing about the token, only that nothing can be checked yet.
+   */
+  get hasKeys(): boolean {
+    return this.keys.size > 0;
+  }
+
   /** The verified email of a token, or null for anything that does not check out. */
   async verify(token: string): Promise<AccessIdentity | null> {
     const payload = await this.verifiedClaims(token);

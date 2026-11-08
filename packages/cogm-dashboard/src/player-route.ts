@@ -56,12 +56,35 @@ function rpcError(id: JsonRpcId, code: number, message: string): object {
   return { jsonrpc: '2.0', id, error: { code, message } };
 }
 
-/** Headers a tunnel adds to every request; their presence means this is not a local dev call. */
-function viaTunnel(req: Request): boolean {
-  return Boolean(
-    req.headers['cf-connecting-ip'] ||
-      req.headers['cf-ray'] ||
-      req.headers['cf-access-jwt-assertion']
+/** A token with the shape of an Access JWT: three parts and a header naming RS256 and a key id. */
+function looksSigned(token: string): boolean {
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const head = JSON.parse(Buffer.from(parts[0] as string, 'base64url').toString('utf8')) as {
+      alg?: unknown;
+      kid?: unknown;
+    };
+    return head.alg === 'RS256' && typeof head.kid === 'string';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A request from this machine itself: a loopback peer and none of the headers a tunnel, Access
+ * or a proxy adds. Dev mode serves only these.
+ */
+function isBareLocalRequest(req: Request): boolean {
+  const peer = req.socket.remoteAddress ?? '';
+  const loopbackPeer = peer === '::1' || peer.startsWith('127.') || peer === '::ffff:127.0.0.1';
+  if (!loopbackPeer) return false;
+  return !Object.keys(req.headers).some(
+    h =>
+      h.startsWith('cf-') ||
+      h.startsWith('tailscale-') ||
+      h === 'x-forwarded-for' ||
+      h === 'forwarded'
   );
 }
 
@@ -71,9 +94,17 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
 
   const log = logger.child('player-connector');
   let devUser = connector.devUser;
-  if (devUser && !isLoopbackHost(options.config.host)) {
-    log.warn('FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER is ignored: the dashboard is not on loopback');
-    devUser = '';
+  if (devUser) {
+    // The Pi binds loopback too, so loopback alone proves nothing: a real login setup (a team
+    // domain) always wins, and the setting is announced every start.
+    log.warn('FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER is set: local development only');
+    if (!isLoopbackHost(options.config.host)) {
+      log.warn('The dev user is ignored: the dashboard is not on loopback');
+      devUser = '';
+    } else if (connector.teamDomain) {
+      log.warn('The dev user is ignored: CF_ACCESS_TEAM_DOMAIN is set (a real login setup)');
+      devUser = '';
+    }
   }
   if (!devUser && !connector.teamDomain) {
     log.warn('Player connector is on but CF_ACCESS_TEAM_DOMAIN is not set: every login is refused');
@@ -93,28 +124,31 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
   let warnedClaims = false;
 
   /** The Foundry user id of this request, or the status to refuse with. */
-  async function identify(req: Request): Promise<{ userId: string } | { status: 401 | 403 }> {
-    if (devUser) {
-      // Dev mode is for a bare local server. A request that came through the tunnel or Access
-      // is never served as the dev user, and the setting never combines with a real login setup.
-      if (viaTunnel(req)) return { status: 403 };
-      if (connector.store.read().audiences.length > 0) return { status: 403 };
+  async function identify(req: Request): Promise<{ userId: string } | { status: 401 | 403 | 503 }> {
+    // Dev mode is for a bare local server: no login, loopback peer, no proxy or tunnel headers,
+    // and no Access application named in the file. Anything else goes through the real check.
+    if (devUser && isBareLocalRequest(req) && connector.store.read().audiences.length === 0) {
       return { userId: devUser };
     }
     const raw = req.headers['cf-access-jwt-assertion'];
     const token = (Array.isArray(raw) ? raw[0] : raw)?.trim();
-    if (!token) return { status: 401 };
+    if (!token) return { status: devUser ? 403 : 401 };
     const file = connector.store.read();
     const v = verifierFor(file.audiences);
-    if (!v) return { status: 401 };
+    // Nothing to check against (no file, audience or team domain): the table's fault, not theirs.
+    if (!v) return { status: 503 };
     let result;
     try {
       result = await v.verifyServiceToken(token);
     } catch {
-      return { status: 401 };
+      return { status: 503 };
     }
     if (!result.ok) {
-      if (result.reason === 'invalid') return { status: 401 };
+      // A token that cannot even be read is the caller's; a readable one that no key could be
+      // fetched for is ours (Cloudflare unreachable): try again, not "check your login".
+      if (result.reason === 'invalid') {
+        return { status: v.hasKeys || !looksSigned(token) ? 401 : 503 };
+      }
       if (result.reason === 'no-client-id' && !warnedClaims) {
         warnedClaims = true;
         log.warn('A valid player token has no common_name claim; its claim names follow', {

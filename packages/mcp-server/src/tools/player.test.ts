@@ -264,8 +264,12 @@ describe('readExtraDenyTerms', () => {
       writeFileSync(good, JSON.stringify({ denyTerms: ['Krezk', 7, 'Argynvostholt'], tokens: {} }));
       expect(readExtraDenyTerms(good)).toEqual(['Krezk', 'Argynvostholt']);
       const bad = join(dir, 'bad.json');
-      writeFileSync(bad, '{nope');
+      writeFileSync(bad, '{"players":[{"clientSecret":"s3cr3t-value-zzz" nope');
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       expect(readExtraDenyTerms(bad)).toEqual([]);
+      // The parse error quotes the file; the log line must not (the file holds Client Secrets).
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('s3cr3t-value-zzz');
+      warn.mockRestore();
       expect(readExtraDenyTerms(join(dir, 'missing.json'))).toEqual([]);
       expect(readExtraDenyTerms(undefined)).toEqual([]);
     } finally {

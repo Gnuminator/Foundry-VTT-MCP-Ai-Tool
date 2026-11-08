@@ -83,6 +83,7 @@ async function start(
     file?: string | null;
     devUser?: string;
     teamDomain?: string;
+    keyFetchFails?: boolean;
     host?: string;
     /** The bridge lists no users (the table is off or Foundry has not answered yet). */
     noUsers?: boolean;
@@ -141,7 +142,10 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'player-route'),
     client,
-    accessFetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ keys }) }),
+    accessFetch: () =>
+      options.keyFetchFails
+        ? Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        : Promise.resolve({ ok: true, json: () => Promise.resolve({ keys }) }),
     playerConnector: {
       enabled: options.enabled ?? true,
       store: new ConnectorStore(file, m => warns.push(m)),
@@ -317,16 +321,19 @@ describe('/mcp/player: who gets in', () => {
   });
 
   it('refuses everything when the config file is missing or has no audience', async () => {
+    // A table-side fault is 503 (try again), never "check your login".
     const { base, warns } = await start({ file: path.join(dir, 'nope.json') });
-    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(401);
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(503);
     expect(warns.join(' ')).toContain('config file cannot be read');
     const noAud = await start({ file: configFile({ audience: '' }) });
-    expect((await rpc(noAud.base, call('get-my-character'), asA)).status).toBe(401);
+    expect((await rpc(noAud.base, call('get-my-character'), asA)).status).toBe(503);
   });
 
-  it('refuses everything without a team domain', async () => {
+  it('answers 503 without a team domain and when the signing keys cannot be fetched', async () => {
     const { base } = await start({ teamDomain: '' });
-    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(401);
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(503);
+    const noKeys = await start({ keyFetchFails: true });
+    expect((await rpc(noKeys.base, call('get-my-character'), asA)).status).toBe(503);
   });
 
   it('only answers POST', async () => {
@@ -384,7 +391,11 @@ describe('/mcp/player: what it runs', () => {
 describe('dev mode', () => {
   it('serves the dev user on loopback with no login', async () => {
     // A dev setup has no Access application in its file.
-    const { base, calls } = await start({ devUser: ALICE, file: configFile({ audience: '' }) });
+    const { base, calls } = await start({
+      devUser: ALICE,
+      teamDomain: '',
+      file: configFile({ audience: '' }),
+    });
     expect((await rpc(base, call('get-my-character'))).status).toBe(200);
     expect(calls[0]?.userId).toBe(ALICE);
   });
@@ -399,8 +410,19 @@ describe('dev mode', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('is never used for a request that came through the tunnel or Access', async () => {
+  it('is ignored when a team domain is set: real players still log in, no login gets 401', async () => {
     const { base, calls } = await start({ devUser: ALICE });
+    expect((await rpc(base, call('get-my-character'))).status).toBe(401);
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(200);
+    expect(calls.map(c => c.userId)).toEqual([ALICE]);
+  });
+
+  it('is never used for a request that came through the tunnel or Access', async () => {
+    const { base, calls } = await start({
+      devUser: ALICE,
+      teamDomain: '',
+      file: configFile({ audience: '' }),
+    });
     expect(
       (await rpc(base, call('get-my-character'), { 'cf-connecting-ip': '1.2.3.4' })).status
     ).toBe(403);
@@ -409,7 +431,7 @@ describe('dev mode', () => {
   });
 
   it('is not used once the config file names an Access application', async () => {
-    const { base, calls } = await start({ devUser: ALICE });
+    const { base, calls } = await start({ devUser: ALICE, teamDomain: '' });
     // The default test file names an audience: production-shaped setups never serve the dev user.
     expect((await rpc(base, call('get-my-character'))).status).toBe(403);
     expect(calls).toHaveLength(0);

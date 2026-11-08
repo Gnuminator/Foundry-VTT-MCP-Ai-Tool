@@ -114,7 +114,12 @@ export function readExtraDenyTerms(path: string | undefined): string[] {
     // Once per path is enough noise: the filter still has the base terms.
     if (!warnedConfigPaths.has(path)) {
       warnedConfigPaths.add(path);
-      console.warn(`Player connector: cannot read ${PLAYER_CONFIG_ENV} (${String(error)})`);
+      // Fixed text only: a JSON parse error quotes part of the file, and the file holds secrets.
+      const why =
+        error instanceof SyntaxError
+          ? 'not valid JSON'
+          : ((error as NodeJS.ErrnoException).code ?? 'unreadable');
+      console.warn(`Player connector: cannot read ${PLAYER_CONFIG_ENV} (${why})`);
     }
     return [];
   }

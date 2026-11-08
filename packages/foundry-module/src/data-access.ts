@@ -173,7 +173,7 @@ export class FoundryDataAccess {
     return this.rulesSearch.searchRules(params);
   }
 
-  /** The player-scoped read (player-read.ts) gets the real rules search and level-up readers here. */
+  /** The rules search alone, for the index warm-up after Foundry starts (player-read.ts). */
   playerWarmDeps(): { rulesSearch: RulesSearchDataAccess } {
     return { rulesSearch: this.rulesSearch };
   }

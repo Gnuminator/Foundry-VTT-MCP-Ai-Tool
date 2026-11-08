@@ -317,14 +317,6 @@ export class RulesSearchDataAccess {
   }
 
   /**
-   * Player search: the same ranking as `searchRules`, but over exactly the packs the caller
-   * passes (already limited to the packs one player may observe; in Foundry 14 only the pack
-   * controls access, its documents follow it). It never reads world journals, the allowlist
-   * setting or any client flag. The text is indexed without GM secret blocks (a separate cache
-   * entry from the GM's search). `entryAllowed` is an extra, harmless check on each candidate,
-   * and the search stops at `limit` allowed hits.
-   */
-  /**
    * Build the player indexes for `packs` one pack at a time, so the first player search after a
    * Foundry start finds them ready (a cold build is 20 to 30 s on the Pi). A pack that fails is
    * skipped; the search builds it again.
@@ -347,6 +339,14 @@ export class RulesSearchDataAccess {
     return built;
   }
 
+  /**
+   * Player search: the same ranking as `searchRules`, but over exactly the packs the caller
+   * passes (already limited to the packs one player may observe; in Foundry 14 only the pack
+   * controls access, its documents follow it). It never reads world journals, the allowlist
+   * setting or any client flag. The text is indexed without GM secret blocks (a separate cache
+   * entry from the GM's search). `entryAllowed` is an extra, harmless check on each candidate,
+   * and the search stops at `limit` allowed hits.
+   */
   async searchRulesScoped(params: ScopedSearchParams): Promise<ScopedSearchResult> {
     const query = typeof params?.query === 'string' ? params.query.trim() : '';
     if (query.length < 2) throw new Error('Search query must be at least 2 characters');

@@ -260,6 +260,15 @@ describe('stripSecrets and plainText', () => {
     expect(rulesPlainText('see @UUID[Item.xyz].')).toBe('see (link).');
   });
 
+  it('reads reference options in any position, strips quotes and drops boolean or numeric ones', () => {
+    const html =
+      '<p>&Reference[apply=false condition=prone] and &Reference[rule="Difficult Terrain"] and ' +
+      "&Reference[condition='half cover' level=3] and &Reference[Prone=1]</p>";
+    const want = 'prone and Difficult Terrain and half cover and Prone';
+    expect(plainText(html)).toBe(want);
+    expect(rulesPlainText(html)).toBe(want);
+  });
+
   it('keeps void and self-closing tags out of the depth count', () => {
     const html = '<section class="secret">a<br><img src="x.png"/><section/>b</section><p>c</p>';
     expect(plainText(html)).toBe('c');

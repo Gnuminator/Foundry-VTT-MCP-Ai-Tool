@@ -4,9 +4,10 @@
  * with the worst case (a Strahd excerpt, a Tarokka card name, an oversize entry) and the last-line
  * filter, the caps and the "user id comes from the message only" rule are checked.
  */
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +26,9 @@ import {
   PlayerTools,
   handlePlayerTool,
   playerErrorText,
+  PLAYER_DASHBOARD_WAIT_MS,
   PLAYER_READ_TIMEOUT_MS,
+  PLAYER_WRAPPER_TIMEOUT_MS,
   readExtraDenyTerms,
 } from './player.js';
 
@@ -257,7 +260,23 @@ describe('the last-line term filter', () => {
       { timeoutMs: PLAYER_READ_TIMEOUT_MS }
     );
     expect(PLAYER_READ_TIMEOUT_MS).toBeGreaterThan(30_000);
-    expect(PLAYER_READ_TIMEOUT_MS).toBeLessThan(60_000);
+    expect(PLAYER_READ_TIMEOUT_MS).toBeLessThan(PLAYER_DASHBOARD_WAIT_MS);
+    expect(PLAYER_DASHBOARD_WAIT_MS).toBeLessThan(PLAYER_WRAPPER_TIMEOUT_MS);
+    // The other two values live in packages that do not import this one: pin their copies.
+    const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
+    const dash = readFileSync(
+      join(root, 'packages/cogm-dashboard/src/feed/mcp-control-client.ts'),
+      'utf8'
+    );
+    expect(dash).toContain(
+      `'player_tool', { userId, tool, args }, ${PLAYER_DASHBOARD_WAIT_MS / 1000}_000`
+    );
+    const wrapper = readFileSync(join(root, 'tools/player-connector/server/index.js'), 'utf8');
+    expect(wrapper).toContain(`: ${PLAYER_WRAPPER_TIMEOUT_MS};`);
+    // A message that merely mentions a timeout is not one.
+    expect(playerErrorText('Player read failed: Query timeout: x of the sheet')).toBe(
+      'Query timeout: x of the sheet'
+    );
 
     wrapped.query.mockRejectedValue(
       new Error(

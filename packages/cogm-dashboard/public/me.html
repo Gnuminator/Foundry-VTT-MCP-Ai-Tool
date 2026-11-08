@@ -26,6 +26,31 @@
     <main id="me-main">
       <p class="me-empty">Loading…</p>
     </main>
+    <details class="me-connector no-print" id="me-connector" hidden>
+      <summary>Your Claude connector</summary>
+      <p>
+        These are your own values for the table connector in Claude Desktop. Keep them to yourself:
+        they work like a password.
+      </p>
+      <dl>
+        <dt>Endpoint address</dt>
+        <dd>
+          <input id="mc-endpoint" readonly aria-label="Endpoint address" />
+          <button type="button" data-copy="mc-endpoint">Copy</button>
+        </dd>
+        <dt>Client ID</dt>
+        <dd>
+          <input id="mc-id" readonly aria-label="Client ID" />
+          <button type="button" data-copy="mc-id">Copy</button>
+        </dd>
+        <dt>Client Secret</dt>
+        <dd>
+          <input id="mc-secret" type="password" readonly aria-label="Client Secret" />
+          <button type="button" id="mc-show" aria-pressed="false">Show</button>
+          <button type="button" data-copy="mc-secret">Copy</button>
+        </dd>
+      </dl>
+    </details>
     <footer class="me-foot no-print">
       <span id="me-updated"></span>
       <button type="button" id="me-print">Print</button>

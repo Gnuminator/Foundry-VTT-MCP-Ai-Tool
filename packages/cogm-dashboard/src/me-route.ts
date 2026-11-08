@@ -47,6 +47,8 @@ export interface MeRouteOptions {
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** For a failed link save or removal (the reply to the GM is a fixed sentence). */
   logger?: Pick<Logger, 'warn'>;
+  /** The player connector's login table (D-136), or null when the connector is off. */
+  connector?: Pick<import('./player-connector.js').ConnectorStore, 'credentialsFor'> | null;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
@@ -115,6 +117,33 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
           .status(502)
           .json({ error: 'Could not read your character. Wait a moment and try again.' });
       });
+  });
+
+  // "Your Claude connector" (D-136): the caller's own Client ID and Secret, never anyone else's.
+  // The pair is chosen by the user the private key maps to; there is no way to name another.
+  app.get('/api/me/connector', (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return;
+    }
+    const own = options.connector?.credentialsFor(userId) ?? null;
+    if (!own) {
+      res.json({ enabled: false });
+      return;
+    }
+    res.json({
+      enabled: true,
+      endpoint: own.endpoint,
+      clientId: own.clientId,
+      clientSecret: own.clientSecret,
+    });
   });
 
   // One roll at a time per player: a second press while the first is rolling is refused.

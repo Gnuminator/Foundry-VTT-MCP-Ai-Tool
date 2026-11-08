@@ -217,7 +217,41 @@ async function load() {
   }
 }
 
+/** "Your Claude connector" (D-136): the player's own pair, read once; hidden when not set up. */
+async function loadConnector() {
+  if (!key) return;
+  try {
+    const res = await fetch('/api/me/connector', { headers: { 'X-CoGM-Me': key } });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.enabled) return;
+    $('mc-endpoint').value = body.endpoint || '';
+    $('mc-id').value = body.clientId || '';
+    $('mc-secret').value = body.clientSecret || '';
+    $('me-connector').hidden = false;
+  } catch {
+    /* the card stays hidden */
+  }
+}
+
 document.addEventListener('click', e => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    const input = $(copy.dataset.copy);
+    void navigator.clipboard
+      ?.writeText(input.value)
+      .then(() => {
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 1500);
+      })
+      .catch(() => input.select());
+  }
+  if (e.target.closest('#mc-show')) {
+    const secret = $('mc-secret');
+    const show = secret.type === 'password';
+    secret.type = show ? 'text' : 'password';
+    $('mc-show').textContent = show ? 'Hide' : 'Show';
+    $('mc-show').setAttribute('aria-pressed', String(show));
+  }
   const v = e.target.closest('[data-view]');
   if (v) {
     view = v.dataset.view;
@@ -240,3 +274,4 @@ setInterval(() => {
 }, REFRESH_MS);
 render();
 void load();
+void loadConnector();

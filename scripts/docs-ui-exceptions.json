@@ -4,6 +4,10 @@
     { "name": "Alt + F4", "reason": "Windows keyboard shortcut" },
     { "name": "Win + R", "reason": "Windows keyboard shortcut" },
     { "name": "Always allow", "reason": "Claude Desktop permission prompt" },
+    {
+      "name": "Claude Desktop connectors are up to date",
+      "reason": "get-preflight row label (packages/mcp-server/src/tools/preflight.ts), shown in Claude's answer"
+    },
     { "name": "Connectors", "reason": "Claude Desktop menu" },
     { "name": "Customize", "reason": "Claude Desktop menu" },
     { "name": "Quit", "reason": "Claude Desktop tray menu" },

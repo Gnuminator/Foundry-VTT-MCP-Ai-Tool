@@ -84,14 +84,9 @@ in.
 2. Choose to add a skill and pick `foundry-dnd-helper-player.zip`. **Do not unzip it first.**
 3. Make sure the skill is switched on.
 
-Optional but nice: create a **Project** called "D&D helper" and paste the contents of the
-"project instructions" the person who runs the tool gave you into it. A project keeps all your
-helper chats in one place and reminds Claude of the table rules (we start at level 3, advise only,
-2024 rules). The skill works without it.
-
 ## Step 4: your first question
 
-Start a new chat (inside the project if you made one) and ask:
+Start a new chat and ask:
 
 > What characters do I have in Foundry? Give me a short summary of each.
 
@@ -219,8 +214,7 @@ that you own it.
 Almost always the two values. Open Settings, Extensions, the Foundry extension, and check that the
 Client ID and Client Secret were pasted whole, with no space at the start or end and nothing
 missing. Paste them again from your **My character** page with the copy buttons. If they are right,
-the game server may simply be off: the helper only works while the server is on, which is usually
-on game nights and for a while before.
+the game server may be down. Ask the person who runs the tool.
 
 **It answers from memory and does not name a book.**
 Ask: "Look that up in the books first and name the entry." If the lookup fails, it should say so
@@ -256,7 +250,8 @@ person who runs the tool tells you they were reset.
    character is yours. They send them privately.
 3. In Claude Desktop open Settings, Extensions, the Foundry extension and replace the Client ID
    and the Client Secret. Quit and reopen Claude Desktop.
-4. Old values stop working once new ones are issued.
+4. Ask whether your old values still work. If you lost the secret, that does not matter. If
+   someone else saw it, ask for the old values to be switched off too.
 
 Never send your secret in a public channel. If you did, ask for new values.
 

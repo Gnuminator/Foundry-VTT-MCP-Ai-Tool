@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 8de2e338cc12
+sourceHash: d80544e0a854
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -85,14 +85,9 @@ sidder stikket i.
 2. Vælg at tilføje en skill og peg på `foundry-dnd-helper-player.zip`. **Pak den ikke ud først.**
 3. Sørg for, at skillen er slået til.
 
-Valgfrit, men rart: lav et **Project**, der hedder "D&D helper", og indsæt indholdet af de
-"project instructions", som den, der kører værktøjet, gav dig. Et project samler alle dine
-hjælper-chats ét sted og minder Claude om bordets regler (vi starter på level 3, kun rådgivning,
-2024-regler). Skillen virker også uden.
-
 ## Trin 4: dit første spørgsmål
 
-Start en ny chat (inde i projectet, hvis du lavede et) og spørg:
+Start en ny chat og spørg:
 
 > Hvilke karakterer har jeg i Foundry? Giv mig et kort resumé af hver.
 
@@ -222,8 +217,7 @@ punkt), eller karakteren er måske ikke tildelt dig i Foundry. Bed din GM tjekke
 Næsten altid de to værdier. Åbn Settings, Extensions, Foundry-extension og tjek, at Client ID og
 Client Secret er indsat hele, uden mellemrum i starten eller enden og uden noget, der mangler.
 Indsæt dem igen fra din **My character**-side med kopiér-knapperne. Er de rigtige, kan spilserveren
-simpelthen være slukket: hjælperen virker kun, mens serveren er tændt, hvilket normalt er på
-spilaftener og et stykke tid før.
+være nede. Spørg den, der kører værktøjet.
 
 **Den svarer fra hukommelsen og nævner ingen bog.**
 Spørg: "Slå det op i bøgerne først og nævn indlægget." Fejler opslaget, skal den sige det og mærke
@@ -260,7 +254,8 @@ der kører værktøjet, fortæller dig, at de er nulstillet.
    karakter der er din. De sender dem privat.
 3. Åbn Settings, Extensions, Foundry-extension i Claude Desktop og skift Client ID og Client Secret
    ud. Luk Claude Desktop og åbn det igen.
-4. Gamle værdier holder op med at virke, når der er udstedt nye.
+4. Spørg, om dine gamle værdier stadig virker. Har du bare mistet hemmeligheden, gør det ikke
+   noget. Har en anden set den, så bed om, at de gamle værdier også bliver slukket.
 
 Send aldrig din secret i en offentlig kanal. Har du gjort det, så bed om nye værdier.
 

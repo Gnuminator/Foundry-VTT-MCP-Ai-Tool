@@ -150,6 +150,21 @@ export function itemDescription(doc: {
   return s?.description?.value ?? '';
 }
 
+/**
+ * The name a player sees: an unidentified item shows its unidentified name (or a plain
+ * placeholder when the GM set none), never the true one.
+ */
+export function playerItemName(
+  name: string | undefined,
+  system:
+    | { identified?: boolean; unidentified?: { name?: string; description?: string } }
+    | undefined
+): string {
+  if (system?.identified !== false) return name ?? '';
+  const hidden = system.unidentified?.name?.trim();
+  return hidden || 'Unidentified item';
+}
+
 /** HTML to plain text: tags out, entities decoded for the common few, blanks squeezed. */
 export function plainText(html: unknown): string {
   if (typeof html !== 'string') return '';
@@ -487,7 +502,7 @@ export class RulesSearchDataAccess {
             packLabel: label,
             documentId: doc.id,
             documentType: doc.type ?? 'Item',
-            name: doc.name ?? '',
+            name: forPlayer ? playerItemName(doc.name, doc.system) : (doc.name ?? ''),
             text,
           });
         }
@@ -618,7 +633,7 @@ export interface DocLike {
   system?: {
     identified?: boolean;
     description?: { value?: string };
-    unidentified?: { description?: string };
+    unidentified?: { name?: string; description?: string };
   };
   pages?: Iterable<PageLike>;
   testUserPermission?(user: unknown, level: string): boolean;
@@ -644,6 +659,7 @@ export interface IndexRow {
   id?: string;
   name?: string;
   type?: string;
+  system?: { identified?: boolean; unidentified?: { name?: string } };
 }
 
 export interface ScopedSearchParams {

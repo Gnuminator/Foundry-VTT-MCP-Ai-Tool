@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { freeText } from '@gnuminator/shared';
+import { freeText, type ToolResultPayload } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
@@ -88,13 +88,19 @@ const levelUpArgs = z.object({
 export async function handlePlayerTool(
   tools: Pick<PlayerTools, 'run'>,
   params: unknown
-): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: true }> {
+): Promise<ToolResultPayload> {
   const p = (params ?? {}) as { tool?: unknown; args?: unknown; userId?: unknown };
   try {
     const result = await tools.run(p.tool, p.args, p.userId);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'The request failed.';
+    // A bad argument is the player's to fix: say which one in a sentence, not as a raw schema dump.
+    const message =
+      e instanceof z.ZodError
+        ? `Check the arguments: ${e.issues.map(i => `${i.path.join('.') || 'input'} ${i.message}`).join('; ')}`
+        : e instanceof Error
+          ? e.message
+          : 'The request failed.';
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
   }
 }
@@ -196,7 +202,9 @@ export class PlayerTools {
             query: { type: 'string', ...freeText('Part of the entry name.') },
             type: {
               type: 'string',
-              ...freeText('An entry type such as class, race, background, feat, spell, weapon.'),
+              ...freeText(
+                'An entry type such as class, subclass, species, background, feat, spell, weapon.'
+              ),
             },
             limit: { type: 'integer', description: 'Results, 1 to 20 (default 10).' },
           },

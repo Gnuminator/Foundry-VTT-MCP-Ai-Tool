@@ -110,6 +110,19 @@ describe('player_tool refuses everything that is not a player tool, or has no id
     expect(query).not.toHaveBeenCalled();
   });
 
+  it('names the bad argument in a sentence, not as a raw schema dump', async () => {
+    const { tools, query } = make({});
+    const r = await handlePlayerTool(tools, {
+      tool: 'search-books',
+      args: { query: 'a' },
+      userId: 'u1',
+    });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/^Error: Check the arguments: query /);
+    expect(r.content[0].text).not.toContain('"code"');
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it('answers an error payload, never throws, for a malformed message', async () => {
     const { tools } = make({});
     for (const params of [undefined, null, 'x', 7, []]) {

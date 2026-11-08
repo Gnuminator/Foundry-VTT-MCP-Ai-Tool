@@ -16,13 +16,13 @@ Foundry, mostly in the character builder Actor Studio.
 These five tools are all of them. Do not look for others, and do not ask the player to switch
 anything on.
 
-| Tool                      | Use it to                                                                |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `get-my-character`        | read the player's own character sheet (give a name if they have several) |
-| `get-my-level-up-options` | see what the next level grants and which choices are open                |
-| `search-books`            | search the text of the books; returns short excerpts and where they are  |
-| `find-book-entries`       | find an entry by name or type (class, species, background, feat, spell)  |
-| `get-book-entry`          | read one entry in full (capped in length)                                |
+| Tool                      | Use it to                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `get-my-character`        | read the player's own character sheet (give a name if they have several)          |
+| `get-my-level-up-options` | see what the next level grants and which choices are open                         |
+| `search-books`            | search the text of the books; returns short excerpts and where they are           |
+| `find-book-entries`       | find an entry by name or type (class, subclass, species, background, feat, spell) |
+| `get-book-entry`          | read one entry in full (capped in length)                                         |
 
 If a tool answers "not found", or a result says some results were hidden, accept it. Never try to
 get round it with another tool, another name or a repeated search.

@@ -1,0 +1,3 @@
+### Fixes
+
+- **Player helper, found by running it end to end:** `find-book-entries` accepts the type "species" (dnd5e files species as "race", so the player skill's own wording found nothing). An unidentified item is listed, searched and opened under its unidentified name only (a placeholder when none is set). A wrong argument to a player tool now says which one, in a sentence, instead of showing a raw schema error. The player skill names the real entry types. The tool-sets page counts the 100 Claude Desktop tools apart from the five player tools.

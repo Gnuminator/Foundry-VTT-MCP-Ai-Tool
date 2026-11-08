@@ -18,7 +18,7 @@ import type {
   ScopedSearchParams,
   ScopedSearchResult,
 } from './data-access/rules-search.js';
-import { itemDescription, plainText } from './data-access/rules-search.js';
+import { itemDescription, plainText, playerItemName } from './data-access/rules-search.js';
 import { stripSecrets } from './character-sheet-fields.js';
 
 /** Query name (a module file imports types only from shared). */
@@ -237,7 +237,9 @@ async function findEntriesAction(
   body: Record<string, unknown>
 ): Promise<unknown> {
   const query = str(body.query).trim().toLowerCase();
-  const type = str(body.type).trim().toLowerCase();
+  // dnd5e still files species under the type "race"; players say species.
+  const typeAsked = str(body.type).trim().toLowerCase();
+  const type = typeAsked === 'species' ? 'race' : typeAsked;
   const limit = clamp(body.limit, 10, 1, MAX_FIND);
   const results: Array<{
     packId: string;
@@ -253,7 +255,9 @@ async function findEntriesAction(
     try {
       const index =
         typeof pack.getIndex === 'function'
-          ? await pack.getIndex({ fields: ['name', 'type'] })
+          ? await pack.getIndex({
+              fields: ['name', 'type', 'system.identified', 'system.unidentified.name'],
+            })
           : pack.index;
       rows = [...(index ?? [])];
     } catch {
@@ -262,7 +266,8 @@ async function findEntriesAction(
     for (const row of rows) {
       if (results.length >= limit) break;
       const entryId = str(row._id ?? row.id);
-      const name = str(row.name);
+      // An unidentified item is listed, and matched, under the name a player may know.
+      const name = playerItemName(str(row.name), row.system);
       const rowType = kind === 'JournalEntry' ? 'JournalEntry' : str(row.type);
       if (!entryId) continue;
       if (query && !name.toLowerCase().includes(query)) continue;
@@ -311,7 +316,7 @@ async function getEntryAction(user: PlayerUser, body: Record<string, unknown>): 
   return {
     packId,
     entryId,
-    name: doc.name ?? '',
+    name: playerItemName(doc.name, doc.system),
     type,
     description: truncated ? description.slice(0, MAX_DESCRIPTION) : description,
     ...(truncated ? { truncated: true } : {}),

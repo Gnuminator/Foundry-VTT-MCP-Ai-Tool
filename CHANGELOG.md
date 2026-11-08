@@ -4,9 +4,9 @@
 
 ## v0.28.0 (released 2026-11-08): per-player Claude connectors, a read-only player tool set, a Claude Desktop extension and player skill, Actor Studio fixes
 
-Wire contracts: module id, socket channel, settings namespace, method prefix and ports (31414 to 31416) are unchanged. Additive only: a sixth tool set `player` (five read-only tools), the control message `player_tool`, the bridge query `playerRead`, and the dashboard endpoint `/mcp/player`, which is off unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`.
+Wire contracts: module id, socket channel, settings namespace, method prefix and ports (31414 to 31416) are unchanged. Additive only: a sixth tool set `player` (five read-only tools), the control messages `list_player_tools` and `player_tool`, the bridge query `playerRead`, and the dashboard endpoints `/mcp/player` (off unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`) and `/api/me/connector` (a player's own Client ID and Secret on `/me`; answers `enabled: false` when the connector is off).
 
-### Actor Studio fork
+### Actor Studio fork (2.10.5-aitool.8)
 
 - **Take Average:** with the forced-average switch on, a hero levelled from 1 to 2 now records the average, not the roll (the fork sends real input and change events to the dnd5e 6 checkbox).
 - **Magic Initiate:** a Sage, Acolyte or Guide background offers only the Wizard, Cleric or Druid spell list; a freely chosen Magic Initiate still offers all three.
@@ -87,11 +87,11 @@ Wire contracts: module id, socket channel, settings namespace, method prefix and
   extension for Claude Desktop that forwards MCP requests to the read-only player endpoint over
   HTTPS with the player's own Cloudflare Access login. The two login values are kept as sensitive
   settings and are never printed or logged; refusals, a missing network and timeouts come back as
-  plain text. Server side and install guide are separate items (D-136).
+  plain text. The player skill and install guide are separate items (D-136).
 
 ### Tools
 
-- **Player tool set (backend half of the player connector):** a sixth tool set `player` with five read-only tools (`get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`, `get-book-entry`) for a player's own Claude Desktop. It is never served on stdio and has no `call_tool` route: it runs only through the new control message `player_tool`, whose Foundry user id comes from the message (the dashboard's later `/mcp/player` route), never from the tool arguments. The new bridge query `playerRead` checks every actor (owner) and pack (observer) with that user, drops Adventure packs, world journals and actors, `dnd5e` and the Books pack, caps excerpts and entries, and a last-line filter hides any book result that names Strahd, Barovia, Ravenloft, Tarokka, Ireena, Vallaki, a live Tarokka card or a term from an optional Pi config list (D-136; player-connector-set).
+- **Player tool set (backend half of the player connector):** a sixth tool set `player` with five read-only tools (`get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`, `get-book-entry`) for a player's own Claude Desktop. It is never served on stdio and has no `call_tool` route: it runs only through the new control message `player_tool`, whose Foundry user id comes from the message (the dashboard's `/mcp/player` route), never from the tool arguments. The new bridge query `playerRead` checks every actor (owner) and pack (observer) with that user, drops Adventure packs, world journals and actors, `dnd5e` and the Books pack, caps excerpts and entries, and a last-line filter hides any book result that names Strahd, Barovia, Ravenloft, Tarokka, Ireena, Vallaki, a live Tarokka card or a term from an optional Pi config list (D-136; player-connector-set).
 
 ### D&D helper
 

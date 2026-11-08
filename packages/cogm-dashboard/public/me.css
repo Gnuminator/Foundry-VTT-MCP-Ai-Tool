@@ -165,6 +165,11 @@ main {
   margin: 0.4rem 0 0;
   min-height: 1.2em;
 }
+/* The paper views are white: the muted grey is about 2.5:1 there, so the card uses a darker one. */
+body.paper .me-connector dt,
+body.paper .me-connector .muted {
+  color: #4b5563;
+}
 
 /* ---- At the table ---- */
 .fancy {

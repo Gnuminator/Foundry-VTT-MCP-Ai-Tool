@@ -109,6 +109,7 @@ export class ConnectorStore {
     try {
       json = JSON.parse(readFileSync(this.file, 'utf8'));
     } catch {
+      this.lastProblems = ''; // readable again later: its drop warnings are worth repeating
       if (!this.warned) {
         this.warned = true;
         this.warn('Player connector: the config file cannot be read; every login is refused');

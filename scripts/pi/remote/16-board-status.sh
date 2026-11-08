@@ -295,7 +295,7 @@ enable_unit foundry-board-status.timer
 
 if have_systemd; then
   say "one report now"
-  "$status_script" </dev/null || die "the first report failed (see the line above); check the token and that the board endpoint is deployed and accepts the report keys backup.snapshotAt, foundry.serviceActive and clock"
+  "$status_script" </dev/null || die "the first report failed (see the line above); check the token and that the board endpoint is deployed and accepts the report keys backup.snapshotAt, foundry.serviceActive, clock and deployed"
   ok "first report sent"
   systemctl list-timers foundry-board-status.timer --no-pager </dev/null || true
 else

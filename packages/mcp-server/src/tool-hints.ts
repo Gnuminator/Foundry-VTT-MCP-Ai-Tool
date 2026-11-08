@@ -63,7 +63,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'list-compendium-packs': { title: 'List compendium packs', kind: 'read' },
   'get-planned-change': { title: 'Show planned change', kind: 'read' },
   'apply-planned-change': { title: 'Apply planned change', kind: 'destructive' },
-  'list-recent-changes': { title: 'List recent AI changes', kind: 'read' },
+  'list-recent-changes': { title: 'List applied plans', kind: 'read' },
   'list-changes': { title: 'List all recent changes', kind: 'read' },
   'plan-undo-changes': { title: 'Plan undoing changes', kind: 'read' },
   'undo-change': { title: 'Undo change', kind: 'destructive' },

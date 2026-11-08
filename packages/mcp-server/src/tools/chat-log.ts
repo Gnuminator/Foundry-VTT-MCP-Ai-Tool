@@ -33,7 +33,7 @@ export class ChatLogTools {
       {
         name: 'get-chat-log',
         description:
-          "Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.",
+          "Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log (Prep).",
         inputSchema: {
           type: 'object',
           properties: {

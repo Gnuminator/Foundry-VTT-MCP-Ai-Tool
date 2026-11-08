@@ -183,7 +183,7 @@ export class CompendiumTools {
       {
         name: 'get-compendium-item',
         description:
-          'Use this to read one compendium item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full. Compact mode is lighter.',
+          'Use this to read one compendium item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.',
         inputSchema: {
           type: 'object',
           properties: {

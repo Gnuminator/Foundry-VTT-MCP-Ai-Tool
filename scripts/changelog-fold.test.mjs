@@ -10,6 +10,10 @@ test('baseHeading drops one trailing tag and folds the test aliases', () => {
   assert.equal(baseHeading('### Testing'), '### Tests');
   assert.equal(baseHeading('### Test Kit (x)'), '### Tests');
   assert.equal(baseHeading('### Test environment'), '### Tests');
+  assert.equal(baseHeading('### Pi stages'), '### Orange Pi');
+  assert.equal(baseHeading('### Pi and Plan B scripts (x)'), '### Orange Pi');
+  assert.equal(baseHeading('### Orange Pi (D-123)'), '### Orange Pi');
+  assert.equal(baseHeading('### Pipeline'), '### Pipeline');
   assert.equal(baseHeading('### Foo (a (b))'), '### Foo (a (b))');
   assert.equal(baseHeading('### (x)'), '### (x)');
 });

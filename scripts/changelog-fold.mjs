@@ -12,7 +12,7 @@
  * wrapped lines indented by two spaces). A section whose heading already exists under
  * "## Unreleased" is appended to the end of that section; a new heading becomes a new section at
  * the end of "Unreleased". Headings are compared by their base: a trailing "(...)" tag is dropped
- * and the test aliases ("Testing", "Test kit", "Test environment") count as "Tests", so repeated
+ * and the test aliases ("Testing", "Test kit", "Test environment") count as "Tests" and every heading that starts with "Pi" or "Orange Pi" counts as "Orange Pi", so repeated
  * "### Tooling (...)" fragments end up under one "### Tooling" (a new section is written with the
  * base heading). Fragments are folded in file-name order. `changelog.d/README.md` explains
  * the format and is never folded.
@@ -35,6 +35,9 @@ const HEADING_ALIASES = new Map([
   ['test environment', 'Tests'],
 ]);
 
+/** Pi headings ("Pi", "Pi stages", "Pi and Plan B scripts", "Orange Pi (D-123)", ...) all go under one. */
+const PI_HEADING = /^(orange )?pi( |$)/i;
+
 /**
  * The heading a section is filed under: no trailing "(...)" tag, test aliases folded to "Tests".
  * @param {string} heading a "### ..." line
@@ -42,7 +45,9 @@ const HEADING_ALIASES = new Map([
 export function baseHeading(heading) {
   const full = heading.slice(4).trim();
   const name = full.replace(/\s*\([^()]*\)\s*$/, '').trim() || full;
-  return `### ${HEADING_ALIASES.get(name.toLowerCase()) ?? name}`;
+  const alias = HEADING_ALIASES.get(name.toLowerCase());
+  if (alias) return `### ${alias}`;
+  return `### ${PI_HEADING.test(name) ? 'Orange Pi' : name}`;
 }
 
 /** @returns {string[]} fragment file names, sorted */

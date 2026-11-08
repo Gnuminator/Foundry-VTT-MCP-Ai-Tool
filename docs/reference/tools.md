@@ -108,7 +108,7 @@ Parameters:
 
 ### get-token-positions
 
-Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).
 
 Kind: read-only. Title: Get token positions.
 
@@ -183,7 +183,7 @@ Parameters:
 
 ### get-compendium-item
 
-Use this to read one compendium item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full. Compact mode is lighter.
+Use this to read one compendium item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.
 
 Kind: read-only. Title: Get compendium item.
 
@@ -229,7 +229,7 @@ Parameters:
 
 Applied plans only, newest first: summary, diff, when, still undoable. Use this to find one for undo-change; for direct writes and changes by players or the GM use list-changes. Read-only.
 
-Kind: read-only. Title: List recent AI changes.
+Kind: read-only. Title: List applied plans.
 
 Parameters:
 
@@ -404,7 +404,7 @@ No parameters.
 
 ### get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log (Prep).
 
 Kind: read-only. Title: Get chat log.
 
@@ -1072,7 +1072,7 @@ Parameters:
 
 ### get-session-log
 
-The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events, and for chat text use get-chat-log.
+The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events (Play), for chat text get-chat-log (Play).
 
 Kind: read-only. Title: Get session log.
 

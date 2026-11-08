@@ -125,7 +125,11 @@ jobs:
       - name: Pi stage 30 player connector and its Cloudflare script
         # 30-player-connector.sh (player-connector-pi) as text, and scripts/pi/player-connector-cloudflare.mjs against a fake Cloudflare.
         # The stage scenarios run in a container on the ARM runner (build-test-arm).
-        run: node --test scripts/pi/player-connector-stage.test.mjs scripts/pi/player-connector-cloudflare.test.mjs
+        run: node --test scripts/pi/player-connector-stage.test.mjs
+
+      - name: Pi player connector Cloudflare script
+        # scripts/pi/player-connector-cloudflare.mjs against a fake Cloudflare API: plan, apply, secrets never printed.
+        run: node --test scripts/pi/player-connector-cloudflare.test.mjs
 
       - name: Pi stage 29 game-night watch
         # 29-gamenight-watch.sh (backlog watch-on-pi) as text: snapshot before the write, guarded rm, no secret in the unit.

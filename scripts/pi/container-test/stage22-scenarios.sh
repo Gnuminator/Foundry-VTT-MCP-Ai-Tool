@@ -252,6 +252,8 @@ if want grave; then
   check grave 'exit 0' "$out"
   out="$(run_stage 'MODE=grave-patch APPLY=1')"
   check grave 'REAL run of /root/grave-domain-patch.js' "$out"
+  check grave 'passed before' "$out"
+  check grave 'exit 0' "$out"
   fresh_pi curse-of-strahd
   out="$(run_stage 'MODE=grave-check')"
   check grave 'dry run of /root/grave-domain-check.js' "$out"

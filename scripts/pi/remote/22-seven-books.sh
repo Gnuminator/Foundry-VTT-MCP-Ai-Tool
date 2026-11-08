@@ -35,9 +35,10 @@
 # MODE=grave-patch (scp scripts/pi/remote/grave-domain-patch.js too) patches aitool-content.classes and .spells so Circle
 # of Mortality grants Spare the Dying and Path to the Grave has a Use activity (Backlog grave-domain-content-patch); the
 # module packs are shared by every world, which is fine for an additive patch. Then MODE=baseline refreshes the player
-# packs from them. MODE=grave-check is the read-only check (no snapshot, no APPLY). The Pi sitting for it: snapshot,
-# MODE=grave-patch dry run, MODE=grave-patch APPLY=1, MODE=baseline dry run, MODE=baseline APPLY=1 (read REFRESH: only the
-# patched entries may refresh), MODE=grave-check.
+# packs from them. MODE=grave-check is the read-only check (no snapshot, no APPLY); MODE=check includes it when
+# grave-domain-patch.js is uploaded. The Pi sitting for it: snapshot, MODE=grave-patch dry run, MODE=grave-patch APPLY=1,
+# MODE=baseline dry run, MODE=baseline APPLY=1 OTHER_WORLDS_OK=1 (read REFRESH: only the patched entries may refresh, plus
+# one new copy in player-spells), stage 13, MODE=check. The snapshot is the only way back.
 # Order of the Pi sitting: snapshot, MODE=trim (if not done yet), MODE=baseline dry run, MODE=baseline APPLY=1, stage 13,
 # MODE=check.
 # Take a snapshot first (/boot/dietpi/dietpi-backup 1) and get the user's OK before APPLY=1. Do the dry run first:
@@ -88,6 +89,12 @@ case "$MODE" in
       if [ -f /root/seven-books-baseline.js ]; then
         printf "await (async () => {\nconst BASELINE_MODE = 'check';\n"
         cat /root/seven-books-baseline.js
+        printf '\n})();\n'
+      fi
+      # The Grave Domain patch check (module packs, and the player copies once the baseline exists), when uploaded.
+      if [ -f /root/grave-domain-patch.js ] && [ ! -L /root/grave-domain-patch.js ]; then
+        printf "await (async () => {\nconst GRAVE_MODE = 'check';\n"
+        cat /root/grave-domain-patch.js
         printf '\n})();\n'
       fi
     } >"$GM_SCRIPT.new" &&

@@ -274,8 +274,8 @@ jobs:
 
       - name: Pi stage 22 seven-book trim
         # seven-books-trim.js, seven-books-delete-legacy.js and ddb-source-filter.js against in-memory packs, and the stage as
-        # text. The stage itself runs in a container on the ARM runner (build-test-arm).
-        run: node --test scripts/pi/seven-books.test.mjs
+        # text (and grave-domain-patch.js, the Grave Domain patch). The stage itself runs in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/seven-books.test.mjs scripts/pi/grave-domain-patch.test.mjs
 
       - name: Pi world switch
         # switch-world.sh (backlog pi-world-switch) with stand-in systemctl, curl and journalctl: the refusals before anything

@@ -185,8 +185,47 @@ describe('grave-domain-patch.js', () => {
         };
       return d;
     };
-    await assert.rejects(run(w), /boom[\s\S]*DONE BEFORE THE FAILURE[\s\S]*Spare the Dying copy/);
+    await assert.rejects(
+      run(w),
+      /boom[\s\S]*DONE BEFORE THE FAILURE[\s\S]*Spare the Dying copy aitGraveSpareDy1 in/
+    );
     assert.equal(w.classes.locked, true);
     assert.equal(w.spells.locked, true);
+  });
+
+  test('a pack that cannot be locked again fails the run', async () => {
+    const w = makeWorld();
+    const configure = w.spells.configure;
+    w.spells.configure = async arg => {
+      if (arg.locked === true) throw new Error('stuck');
+      return configure(arg);
+    };
+    await assert.rejects(
+      run(w),
+      /could not be locked[\s\S]*could not lock aitool-content\.spells again: stuck/
+    );
+  });
+
+  test('check mode also looks at the player copies once the baseline exists', async () => {
+    const w = makeWorld();
+    await run(w);
+    const pc = makePack('world.player-classes', [
+      {
+        _id: 'cVLrkyhsPzELan6D',
+        name: 'Circle of Mortality',
+        system: { advancement: {}, activities: {} },
+      },
+      { _id: 'RC9A6n8RjP4gtPoF', name: 'Path', system: { advancement: {}, activities: {} } },
+    ]);
+    const ps = makePack('world.player-spells', []);
+    w.packs.set(pc.collection, pc);
+    w.packs.set(ps.collection, ps);
+    await assert.rejects(run(w, { dryRun: true, mode: 'check' }), /run the baseline/);
+    // a baseline refresh copies the patched entries over
+    pc.docs.set('cVLrkyhsPzELan6D', structuredClone(w.classes.docs.get('cVLrkyhsPzELan6D')));
+    pc.docs.set('RC9A6n8RjP4gtPoF', structuredClone(w.classes.docs.get('RC9A6n8RjP4gtPoF')));
+    ps.docs.set('aitGraveSpareDy1', structuredClone(w.spells.docs.get('aitGraveSpareDy1')));
+    const ok = await run(w, { dryRun: true, mode: 'check' });
+    assert.equal(ok.result.patched, true);
   });
 });

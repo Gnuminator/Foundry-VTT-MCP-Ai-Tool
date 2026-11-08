@@ -173,6 +173,21 @@ if (!actOk) todo.push('add the Use activity to Path to the Grave');
 log(todo.length ? `to do: ${todo.join('; ')}` : 'already patched, nothing to do');
 
 if (CHECK) {
+  // Once the baseline exists, the copies players use must carry the patch too (a skipped or reverted baseline refresh).
+  const playerClasses = game.packs.get('world.player-classes');
+  const playerSpells = game.packs.get('world.player-spells');
+  if (playerClasses && playerSpells) {
+    const pc = await playerClasses.getDocument(CIRCLE);
+    const pp = await playerClasses.getDocument(PATH);
+    if (!pc || !covers(pc.toObject().system.advancement?.[ADV_ID], { type: 'ItemGrant', level: 1 }))
+      todo.push('world.player-classes: Circle of Mortality lacks the grant (run the baseline)');
+    if (!pp || !covers(pp.toObject().system.activities?.[ACT_ID], wantedActivity()))
+      todo.push(
+        'world.player-classes: Path to the Grave lacks the Use activity (run the baseline)'
+      );
+    if (!(await playerSpells.getDocument(SPARE_ID)))
+      todo.push('world.player-spells: the Spare the Dying copy is missing (run the baseline)');
+  }
   if (todo.length) throw new Error(`grave domain patch missing: ${todo.join('; ')}`);
   return { patched: true };
 }
@@ -202,12 +217,16 @@ try {
 } catch (e) {
   failure = e;
 }
+const relockFailures = [];
 for (const p of [classes, spells]) {
   try {
     if (!p.locked) await p.configure({ locked: true });
   } catch (e) {
-    log(`could not lock ${p.collection} again: ${e.message}`);
+    relockFailures.push(`could not lock ${p.collection} again: ${e.message}`);
   }
 }
-if (failure) throw new Error(`${failure.message}\nDONE BEFORE THE FAILURE:\n${done.join('\n')}`);
+if (failure || relockFailures.length)
+  throw new Error(
+    `${failure ? failure.message : 'the patch finished but module packs could not be locked'}\nDONE BEFORE THE FAILURE:\n${[...done, ...relockFailures].join('\n')}`
+  );
 return { patched: true, done };

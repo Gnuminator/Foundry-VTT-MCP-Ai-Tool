@@ -165,6 +165,7 @@ scenario setup-screen '{"active":false,"version":"14.368"}' 0 "" ""
 scenario downgrade-refused "$U0" 0 2.10.5-aitool.11 ""
 scenario downgrade-allowed "$U0" 0 2.10.5-aitool.11 "" ALLOW_DOWNGRADE=1 localzip
 scenario upgrade "$U0" 0 2.10.5 "" localzip
+scenario upgrade-from-9 "$U0" 0 2.10.5-aitool.9 "" localzip
 scenario foundry-off "$U0" 0 "" "foundry"
 scenario services-off "$U0" 0 "" "foundry gm"
 scenario gm-browser-fails "$U0" 0 "" "" gmbroken

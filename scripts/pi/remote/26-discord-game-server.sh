@@ -158,8 +158,11 @@ fi
 
 if [ "$undo" = 1 ]; then
   [ -f "$saved" ] || die "no saved copy at $saved: nothing to undo (the stage has not changed this Pi, or the copy was removed)"
-  # grep exits 2 on an unreadable file, which the key loop below would read as "key absent" and drop all six keys.
-  [ -r "$saved" ] || die "the saved copy $saved cannot be read: nothing was changed (check its owner and mode)"
+  # grep exits 2 on a file it cannot read, which the key loop below would read as "key absent" and drop all six keys. [ -r ]
+  # says nothing as root (this stage runs as root), so ask grep itself: 0 or 1 is a readable file, anything else stops here.
+  rc=0
+  grep -q '' "$saved" 2>/dev/null || rc=$?
+  [ "$rc" -le 1 ] || die "the saved copy $saved cannot be read by grep: nothing was changed (check its owner and mode)"
   say "the saved file"
   show_state "$saved"
   want_guild="$(get "$saved" DISCORD_GUILD_ID)"
@@ -242,8 +245,14 @@ if [ "$undo" = 1 ]; then
   say "putting the stage's keys back to the saved values"
   restore="" drop=""
   for k in $STAGE_KEYS; do
-    if grep -q "^$k=" "$saved"; then restore="${restore:+$restore
-}$k=$(get "$saved" "$k")"; else drop="${drop:+$drop }$k"; fi
+    rc=0
+    grep -q "^$k=" "$saved" || rc=$?
+    case "$rc" in
+      0) restore="${restore:+$restore
+}$k=$(get "$saved" "$k")" ;;
+      1) drop="${drop:+$drop }$k" ;;
+      *) die "grep could not read the saved copy $saved (key $k): nothing was changed" ;;
+    esac
   done
   set_keys "$restore" "$drop"
 else

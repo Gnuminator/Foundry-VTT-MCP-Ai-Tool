@@ -555,6 +555,14 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.ok(r.prev.includes('modules/foundryvtt-actor-studio/module.json'), r.prev.join('\n'));
   });
 
+  test('an installed aitool.9 is upgraded to the pinned build (version sort across one and two digits)', () => {
+    const r = run('upgrade-from-9');
+    assert.equal(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /ALLOW_DOWNGRADE/);
+    assert.equal(r.version, PINNED);
+    assert.ok(r.prev.includes('modules/foundryvtt-actor-studio/module.json'), r.prev.join('\n'));
+  });
+
   test('Foundry off before the run: no /api/status check, Foundry left stopped', () => {
     const r = run('foundry-off');
     assert.equal(r.exit, 0, r.output);

@@ -17,7 +17,8 @@
 # Assistant GM and the spare tunnel's route need no changes.
 #
 # The functions above the "processes" line are pure (no files, no network) and are tested by
-# scripts/plan-b/plan-b.test.mjs.
+# scripts/plan-b/plan-b.test.mjs; the two folder-move helpers (Move-WithRetry, Install-AppFolder) touch only
+# the folders they are given and are tested there on temporary folders.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -227,6 +228,36 @@ function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
 # Test-FoundryUnpack.
 # $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
 # this run's; a run that leaves none (the program did not start) is a failure.
+function Move-WithRetry([string]$From, [string]$To, [int]$Tries = 3, [int]$PauseSeconds = 2) {
+  # Move-Item that tries again after a pause (antivirus or an indexer can hold a folder right after a big unpack).
+  # Returns $null on success, else the last error message.
+  $err = $null
+  for ($try = 1; $try -le $Tries; $try++) {
+    try { Move-Item -LiteralPath $From -Destination $To -ErrorAction Stop; return $null }
+    catch { $err = $_.Exception.Message; if ($try -lt $Tries) { Start-Sleep -Seconds $PauseSeconds } }
+  }
+  return $err
+}
+
+function Install-AppFolder([string]$NewApp, [string]$AppDir, [string]$Old, [int]$PauseSeconds = 2) {
+  # Swap the unpacked Foundry ($NewApp) in for $AppDir; the old app folder moves to $Old first (when there was one).
+  # Every failure throws a message that says which folder is where.
+  $hadApp = Test-Path -LiteralPath $AppDir
+  if ($hadApp) {
+    $e = Move-WithRetry $AppDir $Old 3 $PauseSeconds
+    if ($e) { throw "could not move the old app folder aside to $Old ($e); the old app folder is still in $AppDir; the unpacked new one is in $NewApp" }
+  }
+  $e = Move-WithRetry $NewApp $AppDir 3 $PauseSeconds
+  if (-not $e) { return }
+  if (-not $hadApp) { $state = "there was no app folder before, so $AppDir does not exist" }
+  elseif (Test-Path -LiteralPath $AppDir) { $state = "something is in $AppDir now and the old app folder is in $Old" }
+  else {
+    $e2 = Move-WithRetry $Old $AppDir 3 $PauseSeconds
+    $state = if ($e2) { "the old app folder could not be moved back ($e2) and is in $Old" } else { 'the old app folder is back' }
+  }
+  throw "could not move the new app folder into place ($e); $state; the unpacked new one is in $NewApp"
+}
+
 function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
   $run = & {
     $ErrorActionPreference = 'Continue'

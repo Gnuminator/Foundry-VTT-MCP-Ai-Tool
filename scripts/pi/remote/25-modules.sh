@@ -215,13 +215,14 @@ start_services() { # as they were before the run
 }
 on_exit() {
   set +e # errexit is off in the trap: every step below runs, whatever an earlier one did
-  local restored=1
+  local restored=1 folders_back=0 # folders_back: undo_state ran and put every old folder back (not just "undo was set")
   if [ "$stopped" = 1 ] && have_systemd; then
     # Foundry may have been started again by the failed run (the read-back): stop it before folders move.
     systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null
     systemctl stop foundry.service 2>/dev/null
     if [ "$undo" = 1 ]; then
       if undo_state; then
+        folders_back=1
         state_phase undone 2>/dev/null
       else
         restored=0 # the phase is installing (written here, as an UNDO of a finished run starts at installed), so the next run is refused until UNDO=1 has finished the job
@@ -234,7 +235,7 @@ on_exit() {
     if [ "$restored" = 1 ] && [ "$run_word" = UNDO ]; then
       warn "the UNDO did not finish (see above): Foundry and the Assistant GM browser were started again, not left as they were before it"
     elif [ "$restored" = 1 ]; then
-      warn "the run did not finish: ${undo:+the old folders are back, }Foundry and the Assistant GM browser are as they were"
+      warn "the run did not finish: $([ "$folders_back" = 1 ] && echo 'the old folders are back, ')Foundry and the Assistant GM browser are as they were"
     else
       warn "the run did not finish and NOT every old folder is back; Foundry and the Assistant GM browser were started again"
     fi

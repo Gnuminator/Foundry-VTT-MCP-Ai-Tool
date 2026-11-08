@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "foundry-player",
   "display_name": "Foundry player connector",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Lets your own Claude read your character and the books from the table's Foundry. Read-only.",
   "long_description": "Connects Claude Desktop to the table's read-only player endpoint over HTTPS. You paste the Client ID and Client Secret you were given; nothing else is installed. Claude can read your own character and short book passages, and cannot change anything.",
   "author": { "name": "Foundry AI Tool" },

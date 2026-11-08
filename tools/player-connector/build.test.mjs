@@ -13,6 +13,16 @@ import { build } from './build.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(here, 'server', 'index.js');
+
+/** Load the server file as a library (it starts itself unless told not to). */
+function loadServer() {
+  process.env.FOUNDRY_PLAYER_NO_MAIN = '1';
+  try {
+    return createRequire(import.meta.url)(SERVER);
+  } finally {
+    delete process.env.FOUNDRY_PLAYER_NO_MAIN;
+  }
+}
 const ID = 'test-client-id-1234.access';
 const SECRET = 'test-secret-value-abcdef0123456789';
 
@@ -184,7 +194,7 @@ test('a forgotten session (404) starts a new one and retries once', async () => 
   sessions.clear();
   sessionCount = 0;
   seen.length = 0;
-  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const { createForwarder, handleMessage } = loadServer();
   const fwd = createForwarder(
     {
       FOUNDRY_PLAYER_ENDPOINT: base,
@@ -262,7 +272,7 @@ test('a 403 on initialize and tools/list is answered locally with the reason', a
 
 test('after a failed initialize the table comes back: one new session, list_changed, status call', async () => {
   mode = 'status401';
-  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const { createForwarder, handleMessage } = loadServer();
   const fwd = createForwarder(
     {
       FOUNDRY_PLAYER_ENDPOINT: base,
@@ -416,7 +426,7 @@ test('a pasted value with characters outside printable ASCII gives a paste-again
 });
 
 function sessionForwarder() {
-  const { createForwarder, handleMessage } = createRequire(import.meta.url)(SERVER);
+  const { createForwarder, handleMessage } = loadServer();
   const fwd = createForwarder(
     {
       FOUNDRY_PLAYER_ENDPOINT: base,
@@ -501,7 +511,7 @@ test('tools/call after a failed initialize is a tool error with the reason', asy
 test('the first initialize is capped at 10 s even with a longer timeout', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
-    const { createForwarder } = createRequire(import.meta.url)(SERVER);
+    const { createForwarder } = loadServer();
     const signals = [];
     const fwd = createForwarder(
       {
@@ -552,7 +562,7 @@ test('a failed reinit keeps the old session id, so the next 404 tries again', as
 });
 
 test('a call that starts during a reinit waits for the new session', async () => {
-  const { createForwarder } = createRequire(import.meta.url)(SERVER);
+  const { createForwarder } = loadServer();
   const sent = [];
   let releaseInit;
   const reply = (status, body, sid) =>
@@ -638,6 +648,34 @@ test('a closed stdout pipe makes the process exit 0 without noise', async () => 
   });
   assert.equal(code, 0);
   assert.equal(err, '');
+});
+
+test('answers initialize when loaded with require() by a launcher, not run as the entry file', async () => {
+  // Claude Desktop may start extension servers through its own launcher: require.main is then not
+  // this file. The process must still start and answer (it used to idle until Desktop gave up).
+  const child = spawn(process.execPath, ['-e', 'require(process.argv[1])', SERVER], {
+    env: { ...process.env, FOUNDRY_PLAYER_ENDPOINT: '', FOUNDRY_PLAYER_NO_MAIN: '' },
+    stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  let out = '';
+  child.stdout.on('data', d => {
+    out += d;
+  });
+  child.stdin.write(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 0,
+      method: 'initialize',
+      params: { protocolVersion: '2025-06-18' },
+    }) + '\n'
+  );
+  const deadline = Date.now() + 5000;
+  while (!out.includes('\n') && Date.now() < deadline) await new Promise(r => setTimeout(r, 50));
+  child.stdin.end();
+  child.kill();
+  const reply = JSON.parse(out.split('\n')[0] || 'null');
+  assert.equal(reply?.id, 0);
+  assert.equal(reply?.result?.serverInfo?.name, 'foundry-player');
 });
 
 test('the VERSION constant equals the manifest version', () => {

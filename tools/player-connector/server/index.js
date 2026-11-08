@@ -15,7 +15,7 @@
 
 const readline = require('node:readline');
 
-const VERSION = '0.1.2';
+const VERSION = '0.1.3';
 
 // Protocol versions the local initialize answer offers; the newest is the fallback.
 const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
@@ -404,4 +404,8 @@ module.exports = {
   handleMessage,
 };
 
-if (require.main === module) main();
+// Claude Desktop starts extension servers through its own launcher, which may load this file with
+// require(), so `require.main === module` is false there and main() would never run: the process
+// idled and Desktop reported "didn't respond within 2 minutes". Always start; only the tests, which
+// load the file as a library, set FOUNDRY_PLAYER_NO_MAIN=1 first.
+if (process.env.FOUNDRY_PLAYER_NO_MAIN !== '1') main();

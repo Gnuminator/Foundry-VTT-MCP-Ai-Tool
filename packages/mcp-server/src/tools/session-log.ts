@@ -59,7 +59,7 @@ export class SessionLogTools {
       {
         name: 'get-recent-events',
         description:
-          'Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
+          'Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log (Prep). Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
         inputSchema: {
           type: 'object',
           properties: {

@@ -13,4 +13,4 @@ does. One file, no dependencies; Claude Desktop runs it with its own Node.
   error text and that no secret reaches stdout or stderr).
 - Never logs or prints a secret; refuses plain `http` except to localhost.
 - Install: double-click the file in Claude Desktop, paste the two values. The step-by-step guide is
-  `docs/player/dnd-helper.md` (item `player-skill-zip`).
+  `docs/player/dnd-helper.md`.

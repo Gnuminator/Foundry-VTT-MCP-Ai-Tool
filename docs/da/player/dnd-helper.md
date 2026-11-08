@@ -130,9 +130,9 @@ Flere ting at spørge om:
 
 Claude læser dit ark og det, det næste level giver, slår hver feature op i bøgerne og svarer i to
 dele: hvad du får automatisk, og hvad du vælger, med to-tre muligheder til **din** build og en
-anbefaling. For hit points fortæller den dig gennemsnittet og resultatet af terningkastet for din hit die,
-og gennemsnittet er det sikre valg. Derefter fortæller den dig, hvad du skal klikke på i Foundrys
-level-up-vindue.
+anbefaling. For hit points fortæller den dig gennemsnittet og resultatet af terningkastet for din
+hit die, og gennemsnittet er det sikre valg. Derefter fortæller den dig, hvad du skal klikke på i
+Foundrys level-up-vindue.
 
 To fælder, den kender, så lyt efter, når den nævner dem: på level 3 skal du klikke på **Complete**
 i det andet vindue, der viser dine subclass-features, ellers bliver subclass'en stille og roligt

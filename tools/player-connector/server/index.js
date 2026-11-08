@@ -106,9 +106,12 @@ function createForwarder(env, fetchImpl) {
     Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) > 0 ? Number(env.FOUNDRY_PLAYER_TIMEOUT_MS) : 30000;
   const endpoint = parseEndpoint(env.FOUNDRY_PLAYER_ENDPOINT);
   const missing = !clientId || !clientSecret;
+  // Header values must be printable ASCII; anything else makes fetch throw before it sends.
+  const printable = /^[\x21-\x7e]+$/;
+  const badChars = !missing && !(printable.test(clientId) && printable.test(clientSecret));
   let sessionId = null;
-
   let initRequest = null;
+  let reinitInFlight = null;
 
   /** One POST. Returns {message} (a JSON-RPC response object) or {failure: text, status?}. */
   async function send(request) {
@@ -117,6 +120,12 @@ function createForwarder(env, fetchImpl) {
       return {
         failure:
           'The Client ID or Client Secret is empty. Open the extension settings in Claude Desktop and fill both in.',
+      };
+    }
+    if (badChars) {
+      return {
+        failure:
+          'The Client ID or Client Secret contains a character that is not allowed (a space, a line break or a special letter). Open the extension settings, delete both values and paste them again.',
       };
     }
     const ctl = new AbortController();
@@ -158,7 +167,12 @@ function createForwarder(env, fetchImpl) {
           message = null;
         }
       }
-      if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      if (
+        !message ||
+        typeof message !== 'object' ||
+        Array.isArray(message) ||
+        (message.result === undefined && message.error === undefined)
+      ) {
         return { failure: describeFailure({ kind: 'badbody' }) };
       }
       return { message };
@@ -184,10 +198,23 @@ function createForwarder(env, fetchImpl) {
     const first = await send(request);
     if (!(first.status === 404 && had && initRequest && request.method !== 'initialize'))
       return first;
-    sessionId = null;
-    const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
-    if (re.failure) return re;
-    await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
+    // Calls that go stale together share one new session; a call that finds the session
+    // already replaced just retries.
+    if (sessionId === had && !reinitInFlight) {
+      reinitInFlight = (async () => {
+        sessionId = null;
+        const re = await send({ ...initRequest, id: `reinit-${Date.now()}` });
+        if (re.failure || re.message.error) return re;
+        await send({ jsonrpc: '2.0', method: 'notifications/initialized' }).catch(() => undefined);
+        return null;
+      })().finally(() => {
+        reinitInFlight = null;
+      });
+    }
+    if (reinitInFlight) {
+      const bad = await reinitInFlight;
+      if (bad) return bad; // a failure text or the server's own JSON-RPC error
+    }
     return send(request);
   }
 
@@ -232,6 +259,8 @@ function write(obj) {
 }
 
 function main() {
+  // The reader went away (Claude Desktop closed the pipe): leave quietly.
+  process.stdout.on('error', () => process.exit(0));
   const forwarder = createForwarder(process.env, (...a) => fetch(...a));
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   const pending = new Set();
@@ -261,7 +290,8 @@ function main() {
     pending.add(p);
   });
   rl.on('close', () => {
-    Promise.allSettled([...pending]).then(() => process.exit(0));
+    // An empty write's callback runs after the earlier writes are flushed, so no reply is lost.
+    Promise.allSettled([...pending]).then(() => process.stdout.write('', () => process.exit(0)));
   });
 }
 

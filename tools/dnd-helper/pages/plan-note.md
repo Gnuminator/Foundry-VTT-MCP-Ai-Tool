@@ -6,7 +6,7 @@ the source of truth for the sheet; the plan note is only intent. Never copy shee
 into it: it goes stale, and book text must stay out of notes.
 
 Suggest this format (a Markdown file, for example `Characters/<name> plan.md` in the player's own
-vault; the Foundry AI Tool mirror writes a separate sheet note and is not meant to touch a plan note; check that the first time):
+vault; if another tool also writes notes there, keep the plan note in its own file so it is not overwritten):
 
 ```markdown
 ---

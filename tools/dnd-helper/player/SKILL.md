@@ -53,6 +53,9 @@ get round it with another tool, another name or a repeated search.
    <https://dungeonmister.com/dnd-5e-2024/>, as one opinionated community source (a link only, and
    label it as one writer's opinion, not the rules). If you can browse the web in this chat you may
    open it yourself; otherwise just give the link. Do not copy text from that site.
+9. **Start level.** The table starts at level 3 (characters end at 13). Build a new character at
+   level 1 in Actor Studio and level it up twice, with the subclass picked at level 3; plan and
+   check it that way.
 
 ## Which page to open
 

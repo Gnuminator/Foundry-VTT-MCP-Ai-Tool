@@ -154,7 +154,8 @@ test('the player zip has no em dash and a labelled link to the Dungeon Mister gu
     const emDash = String.fromCharCode(0x2014);
     for (const [name, text] of files) assert.ok(!text.includes(emDash), `${name} has an em dash`);
     const skill = files.get('SKILL.md');
-    assert.ok(skill.includes('https://dungeonmister.com/dnd-5e-2024/'));
+    const links = [...skill.matchAll(/<(https?:\/\/[^>\s]+)>/g)].map(m => m[1]);
+    assert.deepEqual(links, ['https://dungeonmister.com/dnd-5e-2024/']);
     assert.match(skill, /opinion/i);
     for (const [name, text] of files) {
       if (name !== 'SKILL.md') assert.doesNotMatch(text, /dungeonmister/i, name);

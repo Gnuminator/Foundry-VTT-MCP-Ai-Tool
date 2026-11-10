@@ -8,6 +8,8 @@
 // relative URLs and can be published under any path (the wiki serves it at /storybook/).
 import type { StorybookConfig } from '@storybook/react-vite';
 
+import { preactAlias } from '../preact-alias';
+
 const config: StorybookConfig = {
   // Stories sit next to the component they show; the overview page and later whole-screen
   // prototypes (design round 3) live under src/storybook/.
@@ -15,6 +17,11 @@ const config: StorybookConfig = {
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-themes'],
   framework: { name: '@storybook/react-vite', options: {} },
   core: { disableTelemetry: true },
+  // Same preact/compat aliases as the app build, so the baselines show what ships.
+  viteFinal: config => ({
+    ...config,
+    resolve: { ...config.resolve, alias: { ...(config.resolve?.alias as object), ...preactAlias } },
+  }),
   typescript: {
     // The stories already hold the props they use; skipping the docgen pass keeps the build quick.
     reactDocgen: false,

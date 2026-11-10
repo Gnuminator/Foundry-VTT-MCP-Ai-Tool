@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+import { preactAlias } from './preact-alias';
+
 const webDir = fileURLToPath(new URL('.', import.meta.url));
 const appVersion = (
   JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
@@ -37,6 +39,7 @@ export default defineConfig({
   // public/ holds the shared assets and the server serves it; nothing to copy.
   publicDir: false,
   plugins: [react()],
+  resolve: { alias: preactAlias },
   // The tool version for the header (lib/appVersion.ts).
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   build: {

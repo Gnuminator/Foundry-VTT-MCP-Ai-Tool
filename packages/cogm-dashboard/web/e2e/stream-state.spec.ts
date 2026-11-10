@@ -114,6 +114,7 @@ test('comes back by itself after the stream was refused once (a 502 while the se
   });
   await load(page);
   // The second connection is made after about 2 s and gets through; the header never complains.
+  // Inside the grace (the pill needs 5 s of the stream being down): this checks the first moments.
   await expect.poll(() => requests, { timeout: 8000 }).toBeGreaterThan(1);
   await settle(page);
   await expect(pill(page)).toHaveCount(0);

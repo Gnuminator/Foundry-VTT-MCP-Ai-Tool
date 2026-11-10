@@ -4,7 +4,9 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { STAGE_13, checkPin, readPin } from './check-studio-pin.mjs';
 
 const BODY = Buffer.from('not really a zip, but bytes are bytes');
@@ -90,4 +92,17 @@ test('PENDING-RELEASE is skipped, an unreadable pin is exit 2, an unreachable ho
   assert.equal(await checkPin({ stage: down.file, base: 'http://127.0.0.1:1', log }), 3);
   assert.match(logs.at(-1), /could not download/);
   rmSync(down.dir, { recursive: true });
+});
+
+test('a missing stage file and a flag without a value are exit 2', async () => {
+  const logs = [];
+  const log = s => logs.push(s);
+  assert.equal(await checkPin({ stage: path.join(tmpdir(), 'no-such-stage-13.sh'), log }), 2);
+  assert.match(logs.at(-1), /cannot read the stage file/);
+  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'check-studio-pin.mjs');
+  for (const args of [['--stage'], ['--base'], ['--stage', '--base', 'http://127.0.0.1:1']]) {
+    const r = spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+    assert.equal(r.status, 2, args.join(' '));
+    assert.match(r.stdout, /needs a value/);
+  }
 });

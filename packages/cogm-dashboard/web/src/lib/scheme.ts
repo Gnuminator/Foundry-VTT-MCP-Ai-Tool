@@ -3,6 +3,8 @@
 // then by a message whenever the setting changes. Only the page that frames this one is heard, and
 // the message carries one word. Without either, the strip keeps the dashboard's dark look.
 
+import { frameParentOrigin } from './mapPick';
+
 /** The `type` the Foundry module posts (packages/foundry-module/src/live-window.ts). */
 export const LIVE_SCHEME_MESSAGE = 'fmb-live-scheme';
 
@@ -29,8 +31,11 @@ export function followFrameScheme(target: Window = window): () => void {
   const root = target.document.documentElement;
   const fromAddress = asScheme(new URLSearchParams(target.location.search).get('scheme'));
   if (fromAddress !== null) applyScheme(fromAddress, root);
+  const parentOrigin = target.parent !== target ? frameParentOrigin(target) : null;
   const onMessage = (event: MessageEvent): void => {
     if (event.source === null || target.parent === target || event.source !== target.parent) return;
+    // The same rule as the map pick: when the browser names the parent's origin, it must match.
+    if (parentOrigin !== null && event.origin !== parentOrigin) return;
     const scheme = parseSchemeMessage(event.data);
     if (scheme !== null) applyScheme(scheme, root);
   };

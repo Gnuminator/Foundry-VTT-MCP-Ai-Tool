@@ -33,7 +33,7 @@
   --npc: #7a3fb0;
 
   --good: #17773a;
-  --warn: #9a6200;
+  --warn: #7a4a00;
   --bad: #b3202c;
   --bad-text: #8f1a24;
   --grey: #6b7385;
@@ -48,9 +48,6 @@
   --on-accent: #ffffff;
   --on-warn: #ffffff;
   --on-strong: #ffffff;
-  --veil-bone: #181c25;
-  --veil-silver: #1459c4;
-  --veil-lamp: #9a6200;
 
   --shadow-card: 0 1px 2px rgba(20, 28, 45, 0.12), 0 8px 24px -14px rgba(20, 28, 45, 0.25);
   --shadow-row: 0 1px 1px rgba(20, 28, 45, 0.1);
@@ -67,4 +64,36 @@
 
 :root[data-scheme='light'] body {
   background: var(--bg);
+}
+
+/* The Veil draws a dark ground, a mist layer and ink chips with its own colour names; on the
+   light scheme the ground is flat, the mist is off and the danger chip is a red tint with the
+   word on it (never colour alone). The lamplit primary button keeps its warm fill. */
+:root[data-theme='veil'][data-scheme='light'] {
+  background: var(--bg);
+}
+:root[data-theme='veil'][data-scheme='light'] body {
+  background: transparent;
+}
+:root[data-theme='veil'][data-scheme='light'] body::before {
+  display: none;
+}
+:root[data-theme='veil'][data-scheme='light'] .btn-primary {
+  background: #f0c45a;
+  border-color: #c99a2a;
+  color: #181c25;
+  box-shadow: none;
+}
+:root[data-theme='veil'][data-scheme='light'] .btn-primary:hover {
+  background: #f6d27e;
+  border-color: #c99a2a;
+}
+:root[data-theme='veil'][data-scheme='light'] .pane {
+  border-top-color: #c99a2a;
+}
+:root[data-theme='veil'][data-scheme='light'] .chip.bad,
+:root[data-theme='veil'][data-scheme='light'] .tag.bad {
+  background: #fdecea;
+  color: #8f1a24;
+  border: 1px solid #d9a3a8;
 }

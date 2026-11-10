@@ -49,6 +49,10 @@ function install(isGM: boolean, on: boolean): void {
 }
 
 describe('light or dark', () => {
+  it('uses the message type the dashboard listens for', () => {
+    expect(LIVE_SCHEME_MESSAGE).toBe('fmb-live-scheme');
+  });
+
   it('follows the scheme chosen for windows, then the interface, then the browser', () => {
     expect(pickScheme({ colorScheme: { applications: 'light', interface: 'dark' } }, false)).toBe(
       'light'

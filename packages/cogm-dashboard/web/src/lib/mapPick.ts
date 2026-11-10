@@ -60,7 +60,7 @@ export function useMapPick(): readonly string[] | null {
  * The origin of the page that frames this one, when the browser says: `ancestorOrigins` (Chrome,
  * Edge), else the referrer's. Null when neither is known; the source check then stands alone.
  */
-function frameParentOrigin(target: Window): string | null {
+export function frameParentOrigin(target: Window): string | null {
   try {
     const ancestor = (target.location as { ancestorOrigins?: ArrayLike<string> } | undefined)
       ?.ancestorOrigins?.[0];

@@ -28,6 +28,8 @@ import styles from './SceneMoodPanel.module.css';
 import { useToast } from './Toasts';
 import { TurnOnNote } from './TurnOnNote';
 
+type SceneMoods = NonNullable<ReturnType<typeof readMoods>>;
+
 /** Under the game state key: an applied mood or its Undo reads the scene's look again. */
 export const SCENE_MOODS_KEY = [...GAME_STATE_KEY, 'scene-moods'] as const;
 /** The module's feature switches (GET /api/features), read again after a switch-off refusal. */
@@ -81,7 +83,7 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
   const lock = useRef(false);
   // Set when the scene changed under the buttons: the list that must be on screen before the focus
   // moves to its first mood.
-  const [refocusFor, setRefocusFor] = useState<unknown>(null);
+  const [refocusFor, setRefocusFor] = useState<SceneMoods | null>(null);
 
   const applyMood = async (preset: string): Promise<void> => {
     if (lock.current || off.names.length > 0) return;
@@ -165,7 +167,16 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
   // The pressed button may be gone after the scene-changed reload. Wait for a commit that shows the
   // new list with the buttons free (an effect runs after the DOM is updated, a frame callback can
   // run before), then focus its first mood.
+  const seenMoods = useRef(moods.data);
   useEffect(() => {
+    // The list changed again before it matched: the scene moved on, so this refocus is stale.
+    if (seenMoods.current !== moods.data) {
+      seenMoods.current = moods.data;
+      if (refocusFor !== null && moods.data !== refocusFor) {
+        setRefocusFor(null);
+        return;
+      }
+    }
     if (refocusFor === null || running !== null || moods.data !== refocusFor) return;
     setRefocusFor(null);
     // Only when the focus fell to the page: a GM who moved on during the refetch keeps it.

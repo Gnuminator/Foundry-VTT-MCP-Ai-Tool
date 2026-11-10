@@ -126,3 +126,71 @@ test('does not say "no fight" before the live stream has spoken', async ({ page 
   await expect(page.locator('#glance-combat')).toContainText('Waiting for the live stream.');
   await expect(page.locator('#glance-combat')).not.toContainText('No fight right now.');
 });
+
+const STATUS = {
+  event: 'status',
+  data: {
+    controlChannel: 'connected',
+    foundry: 'reachable',
+    lastError: null,
+    lastPollAt: null,
+    foundryDownSince: null,
+  },
+};
+
+test('marks an answer Old after 45 s, and keeps the last answer when a re-read fails', async ({
+  page,
+}) => {
+  await fakeCommonRoutes(page);
+  await fakeStream(page, [STATUS, { event: 'combat', data: { combat: null } }]);
+  let partyFails = false;
+  await fakeTools(page, call => {
+    if (call.name === 'get-party') {
+      return partyFails ? { status: 502, json: { ok: false, error: 'down' } } : ok(PARTY);
+    }
+    return ok({ id: 's1', name: 'Castle gate' });
+  });
+  await page.clock.install();
+  await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+  const party = page.locator('#glance-party');
+  await expect(party).toContainText('Aldric');
+  const stamp = party.locator('[data-old]');
+  await expect(stamp).toHaveAttribute('data-old', 'false');
+  await expect(stamp).not.toContainText('Old');
+
+  // The next re-read fails: the old rows stay, with the text saying so.
+  partyFails = true;
+  await page.clock.runFor(16_000);
+  await expect(party.locator('[role="alert"]')).toContainText(
+    'Could not read the party, showing the last answer'
+  );
+  await expect(party).toContainText('Aldric');
+
+  // Nothing newer than the first answer for more than 45 s: the marker says Old.
+  await page.clock.runFor(35_000);
+  await expect(stamp).toHaveAttribute('data-old', 'true');
+  await expect(stamp).toContainText('Old:');
+});
+
+test('reads Party and Scene again every 15 s', async ({ page }) => {
+  await fakeCommonRoutes(page);
+  await fakeStream(page, [STATUS, { event: 'combat', data: { combat: null } }]);
+  const calls = await fakeTools(page, call =>
+    call.name === 'get-party' ? ok(PARTY) : ok({ id: 's1', name: 'Castle gate' })
+  );
+  await page.clock.install();
+  await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+  await expect(page.locator('#glance-party')).toContainText('Aldric');
+  await expect(page.locator('#glance-scene-name')).toHaveText('Castle gate');
+  const count = (name: string): number => calls.filter(c => c.name === name).length;
+  const party0 = count('get-party');
+  const scene0 = count('get-current-scene');
+
+  await page.clock.runFor(14_000);
+  expect(count('get-party')).toBe(party0);
+  expect(count('get-current-scene')).toBe(scene0);
+
+  await page.clock.runFor(2_000);
+  await expect.poll(() => count('get-party')).toBeGreaterThan(party0);
+  await expect.poll(() => count('get-current-scene')).toBeGreaterThan(scene0);
+});

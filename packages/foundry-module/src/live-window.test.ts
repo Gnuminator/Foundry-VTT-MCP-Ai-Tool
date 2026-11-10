@@ -10,6 +10,9 @@ import {
   LIVE_HELLO_MESSAGE,
   LIVE_PICK_MESSAGE,
   LIVE_READY_MESSAGE,
+  LIVE_SCHEME_MESSAGE,
+  pickScheme,
+  postSchemeTo,
   postHelloToTargets,
   LIVE_WINDOW_SETTING,
   LIVE_WINDOW_URL_SETTING,
@@ -44,6 +47,44 @@ function install(isGM: boolean, on: boolean): void {
   restore = world.install();
   if (on) world.settings.set(`${MODULE_ID}.${LIVE_WINDOW_SETTING}`, true);
 }
+
+describe('light or dark', () => {
+  it('follows the scheme chosen for windows, then the interface, then the browser', () => {
+    expect(pickScheme({ colorScheme: { applications: 'light', interface: 'dark' } }, false)).toBe(
+      'light'
+    );
+    expect(pickScheme({ colorScheme: { applications: '', interface: 'light' } }, false)).toBe(
+      'light'
+    );
+    expect(pickScheme({ colorScheme: { applications: 'default' } }, true)).toBe('light');
+    expect(pickScheme({ colorScheme: {} }, false)).toBe('dark');
+    expect(pickScheme(null, false)).toBe('dark');
+    expect(pickScheme(undefined, true)).toBe('light');
+  });
+
+  it('puts the scheme in the frame address and keeps the rest', () => {
+    const here = { protocol: 'http:', hostname: 'localhost' };
+    expect(liveFrameUrl('', here, 'light')).toBe('http://localhost:3100/?strip=1&scheme=light');
+    expect(liveFrameUrl('https://d.example.com/x?a=1', here, 'dark')).toBe(
+      'https://d.example.com/x?strip=1&scheme=dark'
+    );
+  });
+
+  it('posts the scheme to the frame own origin only', () => {
+    const postMessage = vi.fn();
+    postSchemeTo(
+      { src: 'http://localhost:3100/?strip=1', contentWindow: { postMessage } },
+      'light'
+    );
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: LIVE_SCHEME_MESSAGE, scheme: 'light' },
+      'http://localhost:3100'
+    );
+    postMessage.mockClear();
+    postSchemeTo({ src: '', contentWindow: { postMessage } }, 'light');
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+});
 
 describe('the live frame address', () => {
   const here = { protocol: 'http:', hostname: 'localhost' };

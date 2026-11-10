@@ -14,7 +14,8 @@
 # What it makes: the user `ghrunner` (no login, no sudo, no group of the foundry user); /opt/gh-runner/<name>/ (the pinned
 # runner release, sha256 checked); one hardened systemd unit per runner (no write outside its folder, the loopback and
 # Tailscale addresses unreachable, so a job cannot talk to the bridge, the dashboard or the Tailscale ports, 2 GB, low CPU weight);
-# and a gate timer (every minute) that keeps the runners STOPPED while a play session is marked (the same signal the Cast worker
+# and a gate timer (every minute) that keeps the `board` runner STOPPED (the `vault` runner is never held, so the PM board
+# rebuilds during play: 2026-11-10, the user) while a play session is marked (the same signal the Cast worker
 # uses: the newest session-start/session-end marker in the world vaults' sessions/<date>.jsonl, OR a connected non-GM player: the newest user-join/user-leave per user in sessions/<date>.play.jsonl, a join younger than 14 h counts, so an unmarked night is covered). A job waits on GitHub's
 # side while the runners are stopped. A job already running is never killed by the gate. Unknown state (the vault folder
 # cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS (14) hours in a row, then the gate lets the runners run again
@@ -169,17 +170,19 @@ for pair in $RUNNERS; do
   fi
 done
 
-say "the gate (stops the runners while a play session is marked or a player is connected)"
+say "the gate (stops the board runner, never the vault runner, while a play session is marked or a player is connected)"
 # Quoted heredoc: nothing in it is expanded here; it runs every minute from a timer. Environment, for tests only:
-# GATE_VAULT_ROOT, GATE_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
+# GATE_VAULT_ROOT, GATE_UNITS, GATE_KEEP_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
 script_body="$(
   cat <<'GATE_SCRIPT_BODY'
 #!/usr/bin/env bash
 # Keeps the GitHub runners off the Pi while a play session is marked or a player is connected (written by scripts/pi/remote/17-gh-runner.sh; edit it there).
-# Idle: start the runners that are stopped. Playing, or unknown: stop the runners that run no job.
+# Idle: start the runners that are stopped. Playing, or unknown: stop the board runner when it runs no job; the vault runner (GATE_KEEP_UNITS) is started in every state.
 set -euo pipefail
 vault_root="${GATE_VAULT_ROOT:-/var/lib/foundry-ai-tool/vault}"
 units="${GATE_UNITS:-foundry-ai-tool-gh-runner-vault.service foundry-ai-tool-gh-runner-board.service}"
+# Units the gate never holds: the vault runner rebuilds the PM board on every vault push, also during play.
+keep_units="${GATE_KEEP_UNITS-foundry-ai-tool-gh-runner-vault.service}"
 state_dir="${GATE_STATE_DIR:-/run/foundry-gh-runner-gate}"
 node="${GATE_NODE:-/opt/node24/bin/node}"
 now_ms="${GATE_NOW_MS:-$(($(date +%s) * 1000))}"
@@ -304,11 +307,14 @@ rc=0
 for unit in $units; do
   # activating (a runner waiting out its restart delay) counts as running; only inactive and failed are stopped
   st="$(systemctl is-active "$unit" 2>/dev/null || true)"
-  if [ "$decision" = idle ]; then
+  # A kept unit (the vault runner, which builds the PM board) is never held: it is treated as idle whatever the state.
+  unit_decision="$decision"
+  case " $keep_units " in *" $unit "*) unit_decision=idle ;; esac
+  if [ "$unit_decision" = idle ]; then
     case "$st" in
     active | activating) ;;
     *)
-      if systemctl start "$unit"; then echo "gh-runner-gate: $decision: started $unit"; else
+      if systemctl start "$unit"; then echo "gh-runner-gate: $unit_decision: started $unit"; else
         echo "gh-runner-gate: could not start $unit" >&2
         rc=1
       fi
@@ -347,7 +353,7 @@ for pair in $RUNNERS; do
     [ "${p2%%:*}" = "$name" ] || other="$other $RUNNER_BASE/${p2%%:*}"
   done
   unit_body="[Unit]
-Description=GitHub Actions runner for $GH_OWNER/$repo (PM board; stopped by the gate during a play session)
+Description=GitHub Actions runner for $GH_OWNER/$repo (PM board; the gate stops all but the vault runner during a play session)
 Wants=network-online.target
 After=network-online.target time-sync.target
 
@@ -385,7 +391,7 @@ TasksMax=512
 done
 
 gate_service="[Unit]
-Description=Foundry AI Tool: keep the GitHub runners off the Pi during a play session
+Description=Foundry AI Tool: keep the GitHub runners (except the vault runner) off the Pi during a play session
 
 [Service]
 Type=oneshot
@@ -431,7 +437,12 @@ if have_systemd; then
   for pair in $RUNNERS; do
     unit="foundry-ai-tool-gh-runner-${pair%%:*}.service"
     if ! systemctl is-active --quiet "$unit"; then
-      ok "$unit is stopped (a play session is marked, a player is connected, or the state is unknown)"
+      if [ "$unit" = foundry-ai-tool-gh-runner-vault.service ]; then
+        # The gate starts the vault runner in every state, so a stopped one means the start failed.
+        warn "$unit is stopped, but the gate never holds it: journalctl -u $unit -n 30"
+      else
+        ok "$unit is stopped (a play session is marked, a player is connected, or the state is unknown)"
+      fi
       continue
     fi
     online=""

@@ -167,10 +167,10 @@ describe('grave-domain-patch.js', () => {
 
   test('a stored <hr /> in the Spare the Dying copy counts as the same text as <hr>', async () => {
     const w = makeWorld();
-    w.phb.docs.get('phbsplSparetheDy').system.description = { value: '<p>a</p><hr>' };
+    w.phb.docs.get('phbsplSparetheDy').system.description = { value: 'a<hr />b' };
     await run(w);
-    // Foundry stores <hr /> as <hr>: a copy holding the other form is not drift
-    w.spells.docs.get('aitGraveSpareDy1').system.description = { value: '<p>a</p><hr />' };
+    // Foundry stores <hr /> as <hr>: the stored copy holding the cleaned form is not drift
+    w.spells.docs.get('aitGraveSpareDy1').system.description = { value: 'a<hr>b' };
     const ok = await run(w, { dryRun: true, mode: 'check' });
     assert.equal(ok.result.patched, true);
   });
@@ -257,8 +257,9 @@ describe('grave-domain-patch.js', () => {
   test('check mode also looks at the player copies once the baseline exists', async () => {
     const w = makeWorld();
     await run(w);
-    const pc = makePack('world.player-classes', [
-      domainEntry(0),
+    // the baseline puts the subclass in player-classes and the two class features (feat items) in player-items
+    const pc = makePack('world.player-classes', [domainEntry(0)]);
+    const pi = makePack('world.player-items', [
       {
         _id: 'cVLrkyhsPzELan6D',
         name: 'Circle of Mortality',
@@ -267,8 +268,7 @@ describe('grave-domain-patch.js', () => {
       { _id: 'RC9A6n8RjP4gtPoF', name: 'Path', system: { advancement: {}, activities: {} } },
     ]);
     const ps = makePack('world.player-spells', []);
-    w.packs.set(pc.collection, pc);
-    w.packs.set(ps.collection, ps);
+    for (const p of [pc, pi, ps]) w.packs.set(p.collection, p);
     await assert.rejects(run(w, { dryRun: true, mode: 'check' }), /run the baseline/);
     // the module packs are patched, only the player copies are behind: the error says run the baseline, not the patch
     await assert.rejects(
@@ -277,8 +277,16 @@ describe('grave-domain-patch.js', () => {
     );
     // a baseline refresh copies the patched entries over
     pc.docs.set('MNyZVxdtyB9spWr8', structuredClone(w.classes.docs.get('MNyZVxdtyB9spWr8')));
-    pc.docs.set('cVLrkyhsPzELan6D', structuredClone(w.classes.docs.get('cVLrkyhsPzELan6D')));
-    pc.docs.set('RC9A6n8RjP4gtPoF', structuredClone(w.classes.docs.get('RC9A6n8RjP4gtPoF')));
+    pi.docs.set('cVLrkyhsPzELan6D', structuredClone(w.classes.docs.get('cVLrkyhsPzELan6D')));
+    // an extra consumption target on the player copy of the Use activity is drift (the shared actCovers count)
+    const copyPath = structuredClone(w.classes.docs.get('RC9A6n8RjP4gtPoF'));
+    copyPath.system.activities.utilityPtGclNe00.consumption.targets.push({ type: 'itemUses' });
+    pi.docs.set('RC9A6n8RjP4gtPoF', copyPath);
+    await assert.rejects(
+      run(w, { dryRun: true, mode: 'check' }),
+      /world\.player-items: Path to the Grave lacks the Use activity/
+    );
+    pi.docs.set('RC9A6n8RjP4gtPoF', structuredClone(w.classes.docs.get('RC9A6n8RjP4gtPoF')));
     ps.docs.set('aitGraveSpareDy1', structuredClone(w.spells.docs.get('aitGraveSpareDy1')));
     const ok = await run(w, { dryRun: true, mode: 'check' });
     assert.equal(ok.result.patched, true);

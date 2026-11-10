@@ -209,15 +209,15 @@ if (CHECK) {
   const moduleTodo = [...todo];
   const playerClasses = game.packs.get('world.player-classes');
   const playerSpells = game.packs.get('world.player-spells');
-  if (playerClasses && playerSpells) {
-    const pc = await playerClasses.getDocument(CIRCLE);
-    const pp = await playerClasses.getDocument(PATH);
+  // The baseline files class features (feat items) in world.player-items, only classes and subclasses in player-classes.
+  const playerItems = game.packs.get('world.player-items');
+  if (playerClasses && playerItems && playerSpells) {
+    const pc = await playerItems.getDocument(CIRCLE);
+    const pp = await playerItems.getDocument(PATH);
     if (!pc || !covers(pc.toObject().system.advancement?.[ADV_ID], { type: 'ItemGrant', level: 1 }))
-      todo.push('world.player-classes: Circle of Mortality lacks the grant (run the baseline)');
+      todo.push('world.player-items: Circle of Mortality lacks the grant (run the baseline)');
     if (!pp || !actCovers(pp))
-      todo.push(
-        'world.player-classes: Path to the Grave lacks the Use activity (run the baseline)'
-      );
+      todo.push('world.player-items: Path to the Grave lacks the Use activity (run the baseline)');
     const pd = await playerClasses.getDocument(DOMAIN);
     if (!pd || !domainGrants(pd).length || unpreparedGrants(pd).length)
       todo.push(

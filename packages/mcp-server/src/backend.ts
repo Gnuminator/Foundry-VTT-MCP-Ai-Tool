@@ -20,7 +20,12 @@ import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-r
 
 import { config } from './config.js';
 
-import { MAX_REQUESTER_LENGTH, sessionsDirFrom, unknownToolMessage } from '@gnuminator/shared';
+import {
+  DEFAULT_CONTROL_PORT,
+  MAX_REQUESTER_LENGTH,
+  sessionsDirFrom,
+  unknownToolMessage,
+} from '@gnuminator/shared';
 import type { ToolResultPayload } from '@gnuminator/shared';
 
 import { createControlReader } from './control-reader.js';
@@ -131,7 +136,9 @@ const CONTROL_HOST = process.env.MCP_CONTROL_HOST?.length
   : '127.0.0.1';
 
 const CONTROL_PORT = parseInt(
-  process.env.MCP_CONTROL_PORT?.length ? process.env.MCP_CONTROL_PORT : '31414',
+  process.env.MCP_CONTROL_PORT?.length
+    ? process.env.MCP_CONTROL_PORT
+    : String(DEFAULT_CONTROL_PORT),
   10
 );
 
@@ -146,7 +153,9 @@ const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY
 // original lock name for exact backward compatibility.
 const LOCK_FILE = path.join(
   os.tmpdir(),
-  CONTROL_PORT === 31414 ? 'foundry-mcp-backend.lock' : `foundry-mcp-backend-${CONTROL_PORT}.lock`
+  CONTROL_PORT === DEFAULT_CONTROL_PORT
+    ? 'foundry-mcp-backend.lock'
+    : `foundry-mcp-backend-${CONTROL_PORT}.lock`
 );
 
 let lockFd: number | null = null;

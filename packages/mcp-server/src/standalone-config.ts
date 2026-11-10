@@ -9,6 +9,7 @@
  *
  * See DETACH-PLAN.md Phase 6 (A — decouple the bridge from Claude Desktop).
  */
+import { DEFAULT_CONTROL_PORT } from '@gnuminator/shared';
 
 export interface StandaloneOptions {
   /** Control-channel bind host (→ MCP_CONTROL_HOST). */
@@ -121,6 +122,6 @@ export function resolveControlTarget(env: NodeJS.ProcessEnv = process.env): {
 } {
   return {
     host: env.MCP_CONTROL_HOST || '127.0.0.1',
-    port: Number.parseInt(env.MCP_CONTROL_PORT || '31414', 10),
+    port: Number.parseInt(env.MCP_CONTROL_PORT || String(DEFAULT_CONTROL_PORT), 10),
   };
 }

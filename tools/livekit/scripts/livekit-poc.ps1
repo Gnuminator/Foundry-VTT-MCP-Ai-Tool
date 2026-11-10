@@ -28,7 +28,8 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $Root '.env'
 $Project = 'fvtt-livekit'
-$ForbiddenPorts = @(30000, 30001, 30002, 30003, 3100, 3101, 3102, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535)
+# The list lives in shared/ports.json (generated from shared/src/ports.ts).
+$ForbiddenPorts = @((Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $Root)) 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden)
 
 function Read-DotEnv {
   $map = @{}

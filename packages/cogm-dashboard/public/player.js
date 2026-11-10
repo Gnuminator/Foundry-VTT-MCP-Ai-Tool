@@ -367,7 +367,7 @@ async function onMineState(s) {
       const div = document.createElement('button');
       div.type = 'button';
       div.className = 'mine-alert';
-      div.textContent = `${r.text} ✕`;
+      div.textContent = `${r.text} (tap to dismiss ✕)`;
       div.title = 'Dismiss';
       div.setAttribute('aria-label', `${r.text} (tap to dismiss)`);
       div.addEventListener('click', () => div.remove());
@@ -396,6 +396,9 @@ function renderState(s) {
 
 // I-039: a handout revealed to chosen players shows only to them (by the picked name; the
 // table is trusted, D-065). Opening one tells the GM's seen log, once per page per visit.
+/** Whether the name list had names to pick from: null until asked (a stored pick or Skip never asks), so the hint only hides once we know there is nobody. */
+let pickerHasNames = null;
+
 let lastHandouts = [];
 let currentWho = null;
 const reportedSeen = new Set();
@@ -423,7 +426,9 @@ function renderHandouts(handouts) {
     rest,
     currentWho && currentWho.userId
       ? 'Nothing revealed yet.'
-      : 'Nothing revealed yet. Pick your name to see handouts meant just for you.'
+      : pickerHasNames !== false
+        ? 'Nothing revealed yet. Pick your name to see handouts meant just for you.'
+        : 'Nothing revealed yet.'
   );
   fill(elQuests, quests, 'No quests yet.');
 }
@@ -503,6 +508,8 @@ function showWho(who) {
   elWho.hidden = false;
   elWhoName.textContent = whoLine(who);
   elWhoChange.textContent = who && who.name ? 'Not you? Change' : 'Pick your name';
+  // No names to pick from: the button would open an empty picker.
+  elWhoChange.hidden = !(who && who.name) && pickerHasNames === false;
 }
 async function loadNames() {
   try {
@@ -521,6 +528,8 @@ async function loadNames() {
 
 async function askWho() {
   const names = await loadNames();
+  pickerHasNames = names.length > 0;
+  renderHandouts(lastHandouts);
   // Nobody known yet (the bridge has not seen the players): ask again next visit.
   if (names.length === 0) {
     showWho(null);

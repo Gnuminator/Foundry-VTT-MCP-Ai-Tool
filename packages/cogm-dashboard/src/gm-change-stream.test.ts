@@ -1,5 +1,5 @@
 /**
- * Guarded writes log a GM-only `gm-change` event to the session feed. It must
+ * Guarded writes log a GM-only `gm-change` event to the Live Feed. It must
  * reach the GM dashboard and never a player stream, whatever its text says.
  */
 import { describe, expect, it } from 'vitest';

@@ -8,7 +8,7 @@
  * MCP clients see them. Pure: no I/O.
  */
 import type { ToolDefinitionLike } from './tool-router.js';
-import { TOOL_SETS, TOOL_SET_NAMES, type ToolSetName } from './tool-sets.js';
+import { ALL_TOOL_SET_NAMES, TOOL_SETS, type ToolSetName } from './tool-sets.js';
 
 interface JsonSchema {
   type?: string | string[];
@@ -29,6 +29,7 @@ interface JsonSchema {
 
 /** The Claude Desktop entry that serves a set (the installer writes these names). */
 export function claudeDesktopEntry(set: ToolSetName): string {
+  if (set === 'player') return 'none (served on /mcp/player only)';
   return set === 'core' ? 'foundry-mcp' : `foundry-mcp-${set}`;
 }
 
@@ -170,17 +171,17 @@ export function renderToolReference(tools: readonly ToolDefinitionLike[]): strin
     '',
     '# Tool reference',
     '',
-    `The bridge serves ${tools.length} tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.`,
+    `The bridge serves ${tools.length} tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.`,
     '',
     '| Set | Claude Desktop entry | Tools | For |',
     '| --- | --- | --- | --- |',
-    ...TOOL_SET_NAMES.map(
+    ...ALL_TOOL_SET_NAMES.map(
       set =>
         `| [${TOOL_SETS[set].title}](#${set}) | \`${claudeDesktopEntry(set)}\` | ${TOOL_SETS[set].tools.length} | ${TOOL_SETS[set].purpose} |`
     ),
     '',
   ];
-  for (const set of TOOL_SET_NAMES) {
+  for (const set of ALL_TOOL_SET_NAMES) {
     const spec = TOOL_SETS[set];
     lines.push(`## ${spec.title}`, '', spec.purpose, '');
     for (const name of spec.tools) {

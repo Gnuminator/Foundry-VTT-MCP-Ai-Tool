@@ -2,6 +2,607 @@
 
 ## Unreleased
 
+## v0.28.0 (released 2026-11-08): per-player Claude connectors, a read-only player tool set, a Claude Desktop extension and player skill, Actor Studio fixes
+
+Wire contracts: module id, socket channel, settings namespace, method prefix and ports (31414 to 31416) are unchanged. Additive only: a sixth tool set `player` (five read-only tools), the control messages `list_player_tools` and `player_tool`, the bridge query `playerRead`, and the dashboard endpoints `/mcp/player` (off unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`) and `/api/me/connector` (a player's own Client ID and Secret on `/me`; answers `enabled: false` when the connector is off).
+
+### Actor Studio fork (2.10.5-aitool.8)
+
+- **Take Average:** with the forced-average switch on, a hero levelled from 1 to 2 now records the average, not the roll (the fork sends real input and change events to the dnd5e 6 checkbox).
+- **Magic Initiate:** a Sage, Acolyte or Guide background offers only the Wizard, Cleric or Druid spell list; a freely chosen Magic Initiate still offers all three.
+- **Spell ability:** the casting ability picked on the first spell step of a feat or lineage is carried to the second step.
+- **Cantrips:** the Spells tab counts cantrips that effects add, so a Thaumaturge cleric sees 4 cantrip slots at level 1 (level-up flow not checked live).
+- **Focus lists:** the holy, arcane and druidic focus lists show only the matching focuses (checked live for the holy focus).
+- **Open:** a focus picked on the Equipment tab is lost when switching to another tab and back; cause not found yet. The fork release and the stage 13 pin follow in a later Pi sitting (fork PR Gnuminator/foundryvtt-actor-studio#1).
+
+### Tests
+
+- **Campaign copy test server:** `scripts/test-env/campaign-copy.ps1` pulls the live Curse of Strahd world, the dnd5e system and the modules from the Pi (read-only) into `C:\FoundryCampaign` and runs it on `http://localhost:30004`, so campaign-specific problems can be fixed and tested off the live server. See `docs/dev/CAMPAIGN-COPY.md`.
+
+### Dashboard
+
+- **Live words sweep:** code comments, test titles, the damage demo take's step label and docs now use the names on screen: Tool Runner, Live Feed and Combat Tracker. The header button's component is called `GmActionsButton`. Comments, labels and docs only; nothing behaves differently.
+
+### Tooling
+
+- **Tool pointers name the set:** where a tool description points to a tool in a set that may be switched off, it now names that set: Core and Prep descriptions point to Build and Play tools (`get-compendium-entry-full`, `list-creatures-by-criteria`, `get-token-details`, `get-chat-log`, `get-recent-events`), and Play points to `get-session-log` (Prep). Pointers into Core stay bare, since Core is always on. `list-recent-changes` is titled "List applied plans".
+- **Changelog fold:** every heading that starts with "Pi" or "Orange Pi" is filed under one `### Orange Pi`, so Pi entries no longer end up under four headings.
+- **Board report:** the Pi stage 16 failure hint lists the `deployed` key among the accepted report keys.
+- **Release notes v0.27.0:** the wire-contract line names the settings namespace and the new `deployed` board key, and the headline no longer repeats "Pi" and "lows".
+- **Script entry guard:** `changelog-fold.mjs`, `checks.mjs` and `drift-check.mjs` decide whether to run with real paths (case-insensitive on Windows) and exit 1 when started under their own file name from a different file, the way `lane-merge.mjs` does, so a junction or drive-letter case no longer turns into a silent exit 0. `changelog.d/README.md` says item and PR references go in the bullet, not the heading tag.
+- **Visual baselines helper:** the branch head is read from the exact `heads/` ref (a tag of the same name cannot answer), the run picker no longer hides the wrong-branch refusal, log names carry a short hash (`a/b` and `a_b` differ) and a failed log write no longer stops the run. Tests cover the log name, a run without a branch and the script start.
+- **Docs:** the Pi stage 16 paragraph in `PI-SETUP.md` names the `deployed` report object; the changelog fold comments mention the Pi rule.
+
+### Module
+
+- **Player page:** a player who skipped the name pick still sees the "Pick your name" hint on the empty handouts list, and the header button hides when there is nobody to pick.
+- **Link state:** a late settle of an older link-state write no longer overwrites the record of a newer one.
+- **Recorder:** the secret key is also redacted after a colon, a space before the value, or in quotes; the silence message counts from the last packet after an unmute or a reconnect.
+
+### Orange Pi
+
+- **Stage 23:** the two cleanups of a failed `daemon.json` write cannot stop the script silently, and "wrote" is printed after the read-back.
+- **Stage 24:** the `$` and backslash rule for env values is documented in the script header and in `deploy/pi/README.md`; the rollback and down scenarios now use a relative value with a `$` and start a stack first, so they prove the way out is never blocked.
+- **Seven-book baseline:** a test for a renamed source with a copy that lacks the baseline flag; clearer comments.
+- **Player connector on the Pi (stage 30):** `30-player-connector.sh` installs the players' login table (`player-connector.json`, foundry 0600), turns the player endpoint on for the dashboard and the bridge through a drop-in and its own env file, and adds the player host to the dashboard's allowed hosts. It checks that `/mcp/player` answers 401 with no token and that ports 31414 to 31416 listen as before. It changes no unit, port or GM connector; DRY_RUN, CHECK and UNDO modes; it refuses if a dev user is set (player-connector-pi).
+- **Cloudflare side from the PC:** `scripts/pi/player-connector-cloudflare.mjs` plans (read-only) or applies the four player service tokens, the Access application with a service-auth policy only, the tunnel route limited to `/mcp/player`, and the DNS name, and sends the secrets straight to the Pi without printing or saving them.
+- **Plan B restore keeps an app folder:** if the final rename of the freshly unpacked Foundry app fails (a file lock), `restore.ps1` retries three times, then moves the old app folder back and says where the new one is, instead of leaving none.
+- **Stage 26 UNDO:** the undo now reads the saved file's keys by grep's own exit status and stops when grep cannot read it, instead of reading that as "key absent" and dropping all six keys (an earlier readability test did nothing as root).
+- **Seven books trim:** the dry run's "packs the real run hides" line now includes `dnd5e.items` and `dnd5e.monsters` when a copied creature links into them.
+- **Docs:** the runner gate, stage 27 and stage 26 sections of the Pi setup guide describe the session-end cutoff, the busy-port check, the UNDO rerun and the six managed keys.
+- **Game-night watch: the stage 29 check runs again.** `CHECK=1` stopped with "not found" because Node itself reads
+  `--env-file` anywhere on the command line, so the watch's comma-joined list never reached the watch. The flag is now
+  `--env-files`.
+- **Game-night watch: fewer false alarms and clearer failures.** A night that is still marked open but quiet for 2
+  hours, with Foundry down (the 04:30 backup), no longer alarms; the end post says "the session has ended or has gone
+  quiet"; the recorder probe tells "not running" from "cannot tell"; a settings problem (a bad number or address, or a
+  public address on plain http while the Access token is set) stops the service for good instead of restarting it every
+  ten seconds; an unreadable session answer is logged once; stopping the service cannot post a message twice.
+- **Stage 29 waits for the watch.** After the start it waits for the "watching" line and fails loudly when the unit
+  stopped first. `set-discord-token.sh` and stage 26 restart the watch after a token or channel change. The container test
+  covers the restart rules with a fake systemd.
+
+### Player connector
+
+- **Per-player login (D-136):** the dashboard serves a read-only `/mcp/player` endpoint that is off
+  unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`. Each player is a Cloudflare Access service token; the
+  dashboard checks the signed token against the player application, maps its Client ID to one
+  Foundry user from the Pi's `player-connector.json`, and runs the five player tools for that user
+  only. A GM login, an unknown token or a user Foundry does not list as a player gets a bare 401
+  or 403.
+- **Your Claude connector:** a player's own `/me` page shows their Client ID and Secret with copy
+  buttons, never anyone else's.
+- **Login and network problems now show a reason:** when the table refuses the login or cannot be
+  reached, the extension still starts in Claude Desktop and offers one `connection-status` tool that
+  says what is wrong, instead of Desktop showing only a generic failure (item
+  player-connector-desktop-load).
+- **Wrapper and player skill review fixes:** the player connector now treats a 200 reply with no
+  result or error as unreadable, asks the player to paste the Client ID and Secret again when they
+  hold a stray special character, shares one new session between calls that go stale together,
+  passes on a JSON-RPC error from that restart, flushes the last reply at exit and leaves quietly
+  when Claude Desktop closes the pipe. The player skill drops server and module provenance text
+  and its unused project instructions, and builds are checked against the player tool set in
+  `tool-sets.ts` and against the pages `SKILL.md` names.
+- **Desktop extension for players:** `npm run player-connector` builds `foundry-player.mcpb`, an
+  extension for Claude Desktop that forwards MCP requests to the read-only player endpoint over
+  HTTPS with the player's own Cloudflare Access login. The two login values are kept as sensitive
+  settings and are never printed or logged; refusals, a missing network and timeouts come back as
+  plain text. The player skill and install guide are separate items (D-136).
+
+### Tools
+
+- **Player tool set (backend half of the player connector):** a sixth tool set `player` with five read-only tools (`get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`, `get-book-entry`) for a player's own Claude Desktop. It is never served on stdio and has no `call_tool` route: it runs only through the new control message `player_tool`, whose Foundry user id comes from the message (the dashboard's `/mcp/player` route), never from the tool arguments. The new bridge query `playerRead` checks every actor (owner) and pack (observer) with that user, drops Adventure packs, world journals and actors, `dnd5e` and the Books pack, caps excerpts and entries, and a last-line filter hides any book result that names Strahd, Barovia, Ravenloft, Tarokka, Ireena, Vallaki, a live Tarokka card or a term from an optional Pi config list (D-136; player-connector-set).
+
+### D&D helper
+
+- **Player edition of the D&D helper skill:** `npm run dnd-helper` now also writes
+  `foundry-dnd-helper-player.zip`, the same flows (create, level up, rules, sheet check) on the
+  read-only player tool set only, advise-only, with a labelled pointer to the Dungeon Mister 2024
+  guides for "which is best" questions. Build tests check that it names no GM tool; the pages hold no Foundry rules markup
+  and are capped in size. New player guide `docs/player/dnd-helper.md` (D-136; Backlog player-skill-zip).
+
+## v0.27.0 (released 2026-11-07): an Assistant GM watchdog, a game-night watch on the Pi, resuming an unfinished character, one player pack per type, seven-book baseline fixes
+
+Wire contracts: module id, socket channel, settings namespace, method prefix and ports are unchanged. Additive only: `get-play-session` reports `mode` (`live`, `paper` or `null`), and the Pi board report gains a `deployed` key.
+
+### Module
+
+- **Resume an unfinished character (Actor Studio fork 2.10.5-aitool.7):** a player who closes Actor Studio or reloads the page in the middle of the advancements no longer loses the character. A box on the next page load, or an orange bar on the sheet, reopens Actor Studio and asks only the choices that were not finished. The player guide's "You closed the builder halfway" row says so. Stage 13 now pins `2.10.5-aitool.7`; until stage 13 runs on the Pi, the guide text is ahead of the Pi.
+
+### Orange Pi
+
+- **Assistant GM hang watchdog:** the headless Assistant GM browser now pings its own page every 15 seconds and restarts when the page has not answered for 2 minutes, even while the module socket is up (a frozen page keeps its socket, so the 2 minute no-socket check never saw it). It shares the link check's cap of three restarts in six hours and can be switched off with `GM_PAGE_WATCH=0`. New Pi stage 28 (`28-gm-watchdog.sh`) installs the new driver with a backup, an undo and a read-back; tested with a frozen page in the ARM64 container test.
+- **Seven-book baseline lows (stage 22):** a refresh puts the replaced copies back when its create fails; a rename in a kept pack and a copy made before the `baselineCopy` flag are refreshes instead of a stop; the undo scans the journals for links it could not point back before it shows or hides a pack, and logs what it restored; the check fails on a missing source pack, and an undone baseline is not called half-finished for a link no copy backs; a new world pack is created hidden; a baseline before the trim is refused, in a dry run and in a real run; name-form `@Compendium[pack.Name]` links are counted in the dry run; the HALF-FINISHED advice no longer appears after a run that finished; the trim check treats the hidden kept packs as known once the baseline is applied; the undo warning in stage 22 describes the undo. The tests build the combined check file from the stage script and cover a real run that fails after the journal rewrite.
+- **Seven-book baseline, review lows (stage 22):** an undo that stops on its journal scan now names the next step (rerun the undo or the baseline) and counts pages, not links; the refusal before the baseline names both causes (trim not run, or MODE=delete already ran) and a dry run refuses too; a copy whose id moved between kept packs is refreshed, and the rename exemption needs the same source pack; a typed link to an unmapped id is no longer counted as a name-form link. New test assertions cover the partly-pointed-back undo, the short create and failed put-back, and the undo warning in stage 22.
+- **Stage 24 reads `.env` literally only after a check:** a `$` or a backslash in a `deploy/pi/.env` value of the seven stack names (ports and folders) is refused for `up` and `cutover`, because compose reads those differently from the live-folder check. The `down` scenarios now check the exit code and that nothing is left running.
+- **Stage 23 writes `daemon.json` safely:** through a `.new` file that is checked and moved into place, a broken file is removed before the stage stops, and `docker info` is asked with a timeout. New scenarios cover both stop paths and the retry loop.
+- **Remote-command guard:** the ask message and the code comment now say "stopping, restarting or removing containers", matching what the guard asks for.
+
+### Fixes
+
+- **Visual baselines helper with several lanes at once:** `npm run visual:baselines` now takes only a
+  run for its own branch, refuses a run or artifact from another commit than the branch head at
+  dispatch, and writes its output to a per-branch log in the temp folder.
+- **Attack through use-item:** a `rollAttack` without a target now stops before anything is used, an unresolved target stops before any target is set, and an attack activity that cannot be used is skipped.
+- **Link notices:** only the chosen bridge user, with the right to change world settings, shares a lost or back notice; a failed write is tried again next time.
+- **Voice recorder:** the key redaction in debug lines covers every value shape, and a reconnect no longer reports every silent speaker at once.
+- **Player page:** the empty-handouts line only says "Pick your name" when there are names to pick, the name button is easier to tap, and the concentration reminder says it can be dismissed.
+- **Messages and docs:** leftover "MCP Bridge" wording now says "Foundry AI Tool", players get "Ask your GM" for known failures, and the docs name the switch "AI Tool: Allow Write Operations" in full.
+- **Pi compose and Docker stages, review lows:** stage 24 now fails closed when `realpath` cannot check the data folders, compares both stack folders against both live folders, strips quotes from `.env` values, refuses relative data folders, and asks for a quiet table whenever the project is the live one. Stage 23 creates `/etc/docker`, stops if `daemon.json` is missing after the write, reads `LiveRestoreEnabled` back after the reload and names the file in its dry run. The Pi command guard also catches docker's global options before `compose`, and any `TEST_ALLOW_CUTOVER` value. New tests pin the stage 16 docker.service gate, the cutover order and a dangling browser profile lock; the Cloudflare Access policy page now reads exactly as the dashboard behaves.
+- **Tooling lows from the #834 reviews:** the keep-green runner's skip message names the file it
+  checks (`node_modules/.package-lock.json`), its tests cover a leftover old install, and the
+  test-coverage runner comment and the locked-pass voice-stack test are tightened.
+
+### Discord
+
+- **Release posts in English:** the posts in #changelog and #dashboard-changelog are now written in English, and the Pi deploy line reads "The server now runs vX.Y.Z." RELEASING step 7 and the announce docs say so. A Pi that should post the new line needs stage 5 rerun on a new release tag.
+
+### Dashboard
+
+- **Party drawer fields:** the Notice DC box and the Party selects are now 2.25rem tall, so they are easy to tap.
+- **Tests:** the Who would notice skill pick is checked to stay read only, to survive a reload and to fall back to all three on a bad stored value; the Attack toast is checked to use the form's own weapon and target names when the module answer has none. The Who would notice story clears its stored choices.
+- **Attack form fixes:** the form shares the combat strip's one-write lock, Cancel and Escape do nothing while an attack runs, a failed weapon read shows its error, and a vanished attacker falls back to the default one.
+- **World switch:** a feed read that was out when the world switched no longer writes the old world's cursor or events, and a fight read still out no longer brings the old fight back.
+- **Smaller fixes:** the live strip's Undo title matches its label when a change has no summary, the header says "reconnecting" instead of "reload the page" when the stream goes quiet, and the "?" detail button has a 2.25rem hit area.
+- **Live words, leftovers:** the GM Actions header tooltip uses one grammar ("GM Actions is on", "End session turns the switches off"), the Live Feed list is announced as "Live Feed events, newest first", and the GM Actions story and code comments use GM Actions and Tool Runner. Labels and comments only.
+- **One word each for the live screens:** the list of who acts when is **Combat order** on the dashboard strip, the ribbon and the player page; the event column is **Live Feed** (the player page said "Session feed"); the header line and its tooltips say **GM Actions** (it said "Live play", while buttons and toasts said "GM Actions"); the drawer and its Advanced menu item are both **Tool Runner** (the menu said "Tools"). Only labels, text and docs changed, in English and Danish; the separate "AI Tool: Live play (writes)" setting keeps its name.
+- **Who would notice, one skill at a time:** the Party drawer's "Who would notice" row has a Skill list (all three, Perception, Investigation or Insight), remembered in the browser, and a story for it. Still read only and off until the module setting is on.
+- **Attack form polish:** the success toast now reads "Attack sent: Brannoc with Handaxe at Wolf. The roll shows in the feed." instead of claiming the attack happened. The form's note says Undo in Recent Changes gives the spent ammunition back. The attacker pick no longer jumps back when a defeated attacker returns. After a world switch the module-error re-read also happens when the read that was out fails.
+
+### MCP tools
+
+- **Look-alike tools say which to use:** the descriptions of list-changes / list-recent-changes, undo-change / plan-undo-changes, get-compendium-item / get-compendium-entry-full, get-token-details / get-token-positions, and get-session-log / get-recent-events / get-chat-log / get-combat-play-by-play now say when to use them and point at their twin, so Claude picks the right one. Descriptions only: no tool is renamed or merged.
+- **`get-play-session` reports `mode`:** `live` or `paper` while a session is open, `null` when closed (the Pi watch skips
+  paper nights, when Foundry is closed by design).
+
+### Pi
+
+- **Stage 24 reads `deploy/pi/.env` like compose:** a trailing `# comment` and spaces around a value no longer slip a live data folder past the refusal, and a shell value that is set but empty is no longer replaced by the `.env` value. The "must be an absolute path" rule now applies only to `up` and `cutover`, so `down` and `rollback` are never blocked by it.
+- **Stage 23 checks what `daemon.json` says:** it looks for `live-restore` instead of only that the file exists, and asks `docker info` a few times after the reload.
+- **Remote-command guard:** docker's `--tlscacert`, `--tlscert` and `--tlskey` options no longer hide `compose down` or `docker rm` from the ask rule. The guard also asks for `docker restart`, `docker container restart`, `docker compose restart` and `docker compose up --force-recreate`.
+- **Deployed-state check, fewer silent passes:** `deploy/pi/deployed-state.sh` asks Docker only while `docker.service` runs (a
+  stopped daemon is no longer started by the check) and warns when Docker is installed but not running or `docker ps` fails;
+  a quoted empty env value (`NAME=""`) counts as missing; the Assistant GM helper hash now comes from the release tag's (or
+  main's) git object and the line says which. `deployed-state.ps1` warns when no release tag comes back. Tests record every
+  stub call and fail on anything but show, is-active, ps or inspect.
+- **Pi health on the board:** stage 16's hourly report gains a `deployed` object (deployed ref, missing env names, libicu,
+  compose containers' state, health and restarts; names and states only). The board endpoint must accept the new key before
+  stage 16 is run again on the Pi.
+- **Compose stage lows:** `MODE=up` is refused on any live port and on the live data folders, `--wait` covers only foundry,
+  bridge and dashboard, a dry run writes no log, the cutover record is written through a temp file and cleared after a rollback,
+  `docker info` has a timeout, stage 23 sets `live-restore`, the Assistant GM container clears stale Chromium `Singleton*`
+  locks, and the guard hook asks before `docker rm`, `kill`, `system prune`, `compose down` and `TEST_ALLOW_CUTOVER=1` on a host.
+- **Actor Studio fork `2.10.5-aitool.7` pinned in stage 13:** `13-player-creation.sh` now installs the fork release `2.10.5-aitool.7` (checked against its `module.zip` sha256), which adds a Resume button for a character build that was interrupted by a closed window or a reload. Nothing changes on the Pi until the stage is run with the user's OK after a `dietpi-backup` snapshot.
+- **Game-night watch on the Pi (stage 29):** `scripts/pi/remote/29-gamenight-watch.sh` installs the watch as a service
+  that idles until a play session is marked, then checks Foundry, the dashboard's `/api/health`, the bridge link to
+  Foundry's module, the Discord recorder and (with a Cloudflare Access service token read from an env file) the public
+  address. It posts to `#gm-bot` when it starts, on every state change and when the session ends. A paper night is not
+  watched. The stage has a dry run, a check and an undo, and an ARM64 container test.
+- **No address in the watch's posts:** the PC watch's `--post` messages no longer name the Foundry address, and the
+  address in its log drops the query string and fragment; every post goes through a scrub for http(s) addresses.
+
+### Docs
+
+- **Cloudflare Access policy:** notes that a request is refused when `PLAYER_DASHBOARD_TOKEN` is set and not presented.
+- **Access policy:** the security notes say the dashboard verifies the Access token itself and ignores the plain email header;
+  `PLAYER_DASHBOARD_TOKEN` only takes effect with `GM_DASHBOARD_TOKEN` or `GM_EMAILS`.
+
+### Tooling
+
+- **`npm run green`:** the `installIsFresh` comment and test name now say exactly what the freshness check catches.
+- **Changelog fold files repeated headings under one:** `changelog:fold` now compares section headings
+  by their base, so several `### Tooling (...)` fragments land under one `### Tooling`, and Testing, Test
+  kit and Test environment land under `### Tests`. RELEASING also says to mention additive dashboard
+  `/api/health` fields in the wire-contract line and to word the headline differently from the last
+  release.
+- **Orphan story baselines are caught:** the story shots (`stories.spec.ts`) now fail when a baseline
+  PNG has no story that produces it; the leftover `components-combat-strip--combat-buttons-on.png` is deleted.
+- **Test and tooling lows:** the coverage check only counts `test_*.py` files under `tools/*/tests` as run, the local install check reads `node_modules/.package-lock.json`, the session-notes test-only voice stack notice is tested and printed after the lock check, and the announce tests use English samples and check the deploy post text.
+
+### Orange Pi and Plan B
+
+- **Seven-book check counts a hidden linked pack as drift:** `MODE=check` of stage 22 reports a hidden dnd5e pack that kept entries link to (`open`), the copied-SRD link line names the packs the real run hides and scans creature features, and PI-SETUP matches. The backup restart wait variable is now `FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES`.
+- **Runner gate and stage 27:** a player join older than the world's newest session end no longer holds the GitHub runners. Stage 27 accepts only grep exit 0 or 1 and checks the token line survived, reports a busy port in a dry run, and an UNDO rerun restarts a dashboard that still carries the status URL.
+- **Stage 26 UNDO only rewrites its own keys:** the saved copy goes through a temp file, UNDO puts back only the six keys the stage set (a token changed since stays), a clean rerun is not refused while players are online, a restart on rerun checks `/record` again, and the stage warns when the dashboard address is not port 3000.
+- **Plan B unpack:** Foundry is unpacked into `app.new`, checked, then renamed, so a failed unpack never leaves a half app; tar output on exit 0 is shown as a warning, and a `.bin` complaint only counts when the link could not be created.
+
+### CI
+
+- **Fewer dashboard screenshots:** the dashboard-visual shards photograph each screen in the neutral
+  theme only and skip the screenshots of Veil stories, except `ui-` primitives, phone stories and
+  the heal form. Axe still checks both themes and every story. Since sharded CI began on
+  2026-10-30 no screenshot comparison caught a real bug; 41 of 56 failing runs were baseline
+  updates. 42 screen baselines and 35 story baselines are gone. No longer covered by any shot: the
+  Veil theme at 1080 and 390 wide, and page-level Veil rules (moment tab glow, mist background).
+
+### Pi stages
+
+- **One player-facing pack per type:** stage 22 gets `MODE=baseline` (and `MODE=baseline-undo`). A reviewed GM script, `seven-books-baseline.js`, copies the kept entries into `world.player-classes`, `-species`, `-backgrounds`, `-feats`, `-spells` and `-items` with the same ids, rewrites the Compendium links in the copies and in the class and spell-list journal pages, and only then hides the old packs. Dry run first, a second run changes nothing, `MODE=check` also checks it, and the undo deletes nothing. Stage 13 points Actor Studio at the six packs once they exist and are open to players. Not run on the Pi yet (needs a snapshot and the user's OK).
+
+### Tests
+
+- **Kit scenario `studio-resume`:** the kit's player starts a Fighter in Actor Studio, is cut off in the middle (a page reload, then the X button), and resumes through the login dialog and the orange bar on the sheet. The finished character is judged like a normal level-1 build; the saved picks are gone and no second actor was made. Needs Actor Studio 2.10.5-aitool.7.
+
+## v0.26.0 (released 2026-11-07): bridge logs that survive restarts, a Pi runner gate that counts players, token rings, Foundry setup tools, many review lows
+
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the tool `plan-token-rings` (options `tokens`, `scenes`) and the module query `foundry-mcp-bridge.planTokenRings` (a read; its plan applies through the guarded write); the module setting "AI Tool: Token rings (writes)", off by default; the areas `module`, `user` and `ownership` of `plan-foundry-setup`; `get-preflight` `action: "pumps"`; an optional build id in the connector's `hello`; the bot's opt-in status endpoint. The module write gate now lists the methods that make no change-journal record. **Changed:** the client-stored diagnostics key is now `foundry-mcp-bridge.diagnosticsWorld` (the old key is migrated; the namespace is the same); "AI Tool: Rules check" is on by default in a fresh world. **Removed:** the unused control call `wrapper_status`. Update the module and the bridge together: with an older module, `plan-token-rings` fails and a v0.26.0 bridge refuses module or ownership reads.
+
+### Tests (studio-fighter17-hp)
+
+- **Actor Studio hit points:** the test kit's one open Studio finding, a level 17 Fighter ending at 145 of 157 hit points, comes from the system: a Constitution increase raises the maximum for every level (2024 book) but only the new level's hit points reach the current value. The kit now gives such a shortfall (level 4 or more, a positive Constitution modifier, no more missing than level times modifier) its own finding id and expects it for Actor Studio builds before `2.10.5-aitool.6`, the fork fix that keeps a full-health hero at full health after a level up (fork branch, not released). Any other hit point shortfall stays a new STUDIO finding.
+- **Module pages say `2.10.5-aitool.5`:** the foundry-modules skill table and the Actor Studio page match what stage 13 put on the Pi, and mention the Select Spells window.
+
+### Tooling (review lows of #740, #792, #794, #816)
+
+- **Test coverage check:** reads `git ls-files -z` (non-ASCII test names no longer vanish), keys its
+  runner list on the real vitest include patterns, and counts a Python test only when its tool
+  folder has a `pyproject.toml`; the header lists what it cannot see.
+- **Local green:** skips `npm ci` for the Livekit recorder when its `node_modules` is newer than
+  the lockfile; the `usage-week` step is called `dev-scripts`.
+- **Test environment:** the world.json version bump swaps the file in one step; the session notes
+  pass logs a line when the test-only `FVTT_VOICE_STACK` override is set.
+- **Weekly usage report test:** the lane-line test uses UTC times and covers 22:59:53Z and 22:59:54Z.
+
+### Test kit
+
+- **The module archive drops the pins of dropped modules:** `rehearse.mjs archive` now removes the pins of the modules on the Strahd list's `dropped` list from `pinned.json` (their files stay in the archive), so the Pi stage does not install them.
+- **The roll request card sweep** looks for dnd5e's own label ("Strength Ability Check") and still finds the card after the player has rolled and the card has been rewritten.
+- **Advancement names:** the kit reads an advancement's `name` before its old `title`.
+- **Known upstream module findings:** the module list in `scripts/modules/expected.json` now covers Actor Studio's level-up trace lines and "FSM not in idle state" warning and dnd5e 6's "Advancement title moved to name" notice, so `module-load` no longer fails on them.
+- **Console errors are blamed on the right module:** the kit follows the first stack frame that is not
+  the bridge's own console wrapper, instead of any bridge path in the message or source. The
+  real-character-flows scenario cleans up more safely (each undo on its own, poison on both
+  actors, the side scene removed if its creation throws) and checks more (timed change still
+  undoable after turns, the 0 HP rider, the usage card that names the target).
+
+### Pi and Plan B scripts (backup-truth, planb-honest-output)
+
+- **A backup that leaves Foundry down now fails:** the nightly restic script waits for
+  `foundry.service` to be active and answering after its restart (about 120 seconds, see Pi below) and ends with an ERROR line and exit 1 if it is not.
+  Needs a Pi run of stage 6 to take effect.
+- **The PC's pull scripts judge the backup by the snapshot's age:** a copy of a week-old snapshot no longer
+  counts as fresh (it is not recorded on the Pi, so the stale-backup DM can fire), and an unplugged backup
+  drive is logged to `%LOCALAPPDATA%\foundry-ai-tool\pull-fallback.log` instead of failing silently.
+- **Stage 16 board report** adds the age of the newest `dietpi-backup` snapshot, whether `foundry.service` is
+  active and the clock (NTP state and offset). Needs a Pi run of stage 16.
+- **Bridge vault backup:** the comment no longer promises a bot alert that does not exist.
+- **Plan B output is honest:** `start.ps1` says it is waiting up to 30 s for Foundry's data lock, ends every
+  failure with one `FAIL:` line and exit 1, and prints no literal `<domain>` placeholder; `check.ps1`
+  reports the module link as unknown behind a login and reads the tunnel's current state; `restore.ps1`
+  refuses a newest backup over 36 hours old unless `-AllowOld` (`-Force` stays for the played-data refusal only).
+
+### Process
+
+- **Lane heartbeat retired:** `scripts/lane-beat.mjs`, its test and the `lane:beat` npm script are gone, as are the Heartbeat section and the per-milestone handover rewrites in the `lane` skill. The PM board reads PR, CI and review state from GitHub, so a lane's vault commits are the claim and the `- progress:` line.
+
+### Tests (captured-shapes)
+
+- **Captured Foundry shapes:** `scripts/test-env/capture-shapes.mjs` records the data paths and types of real Foundry 14 / dnd5e 6 documents from a test server as JSON next to the Foundry mock, and a contract test fails when the mock's documents drift from them (the known gaps are listed in the test and only shrink).
+- **Shared change summary:** the bridge's change list is written once from the real change history into a shared fixture that the bridge test, the dashboard's Recent Changes tests and the dashboard's fake bridge all check against.
+
+### Discord
+
+- **Release posts split by reader:** `announce.mjs dashboard <text>` posts to the GM-only #dashboard-changelog (`DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID`) and may mention only the GM role (`DISCORD_GM_ROLE_ID`); #changelog posts still mention nobody. RELEASING step 7 says which lines go where.
+- **The recorder tells the GM when audio drops:** the bot now posts to the GM channel (`DISCORD_GM_BOT_CHANNEL_ID`, else `GAMENIGHT_WATCH_CHANNEL_ID`, else the voice channel) when a speaker has had no audio for 5 minutes, a stream or the voice connection errors, a rejoin fails from attempt 3, or the bot restarts after an unclean stop. `/record status` shows the voice connection and the age of each speaker's last packet. Stray errors are logged and reported instead of silently ending the process, and the voice debug log hides session ids and endpoints too.
+- **Dashboard posts:** `{gm}` in a `dashboard` text becomes the GM role mention, the role id is trimmed, and RELEASING and the README say the role needs "Allow anyone to @mention this role".
+
+### Tooling (checks-single-list)
+
+- **One list of checks:** `scripts/checks.mjs` now holds every CI command, `npm run green` step and drift-check
+  guard once, with a name, a group and the drift flags. `green.mjs` reads its steps and heavy list from it;
+  `green.test.mjs` parses `ci.yml` with a YAML parser (`js-yaml`, now a dev dependency) and fails when CI and the
+  list differ, and when `drift-check.mjs` stops matching the list. `node scripts/checks.mjs --list` prints it.
+
+### Fixes
+
+- **Combat create guard:** when the Combat class inherits `_onCreate`, the guard now looks it up
+  on the parent prototype on every call, so a patch registered after ready is not skipped.
+- **Starting a fight no longer logs an error on open clients:** a fight started with plan-combat-change start (created already begun, round 1) made Foundry's `Combat#_onCreate` throw "Cannot read properties of undefined (reading 'round')" on every open client. The module now gives such a fight the state of one that has not begun, so the start of round and first turn events fire. Undo of End combat brings the fight back without replaying any round.
+- **A direct write right after an AI change is its own change:** Next turn, initiative, rests and the other direct writes that change documents now end the change group first, so within 3 seconds after an applied AI change they show as their own entry in Recent Changes (and can be undone on their own) instead of hiding under the AI change.
+- **Play log gaps, honest wording:** a recording gap caused by the link to Foundry being down now
+  says the events were read back when the link returned, instead of "some events may be missing".
+  The pre-flight "Session and play log recording" line shows local times (HH:MM), mentions the gap
+  marker only when a recent gap is listed, and no longer says the logs are "switched off" when
+  nothing is recording.
+- **Event pump:** a full batch that still holds the saved boundary event is no longer taken for a
+  ring wrap (nothing was lost); "not recording" clears when the link returns even if the event
+  read then fails; a link-down line is no longer written next to a ring-wrap line for the same break; a failed log or state write can no longer produce a second, inverted link-down line.
+- **Module:** the live window's "Try again" clears the old answer before showing the panel again.
+- **Test server finds the newer portable Node:** `start.ps1` looks in `%LOCALAPPDATA%\node24` for a Node that fits Foundry's `engines.node`, so Foundry 14.370 (Node 24.22.1 or newer) starts when the node on PATH is older.
+- **Tarokka table:** a typed flip line is kept even when the reading fetch after the apply takes
+  more than two seconds (the grace now counts from when the fetch began).
+- **Dashboard header:** the live screen's Undo keeps its fixed width on a phone, the header button
+  rule keeps `[hidden]` working, and the live play switch e2e spec checks `data-gm-actions` in
+  every label test.
+- **Docs checks, announce, test server start:** the docs:ui corpus skips Storybook fixtures; a bold name written as code no longer joins two bold runs; the announce settings trim each source before the file fallback; `tools/session-notes/auto.ps1` accepts `FVTT_VOICE_STACK` so its test can prove the fake transcriber ran; the test server's world "verified" bump now runs after the data-folder lock wait, writes `world.json` atomically, leaves `coreVersion` alone and warns when it cannot read the compatibility block.
+- **Preflight counts older connectors against the registry's version:** the "older than the bridge"
+  count and the "behind" flag now use the same current version.
+- **Docs:** the control-call lists in ARCHITECTURE.md and `CONTROL_METHODS` now name `character_sheet`,
+  `player_roll` and `player_portrait` besides the calls they listed, and say what `link_status` is
+  for (the Pi health check). The Live Feed gets a "Roll rows" story so the roll rows show in the shots.
+- **Review lows bundle:** the test kit's settings sweep now checks the rules check switch and its
+  real default; "Previously on" sorts a restart number as a number, skips a summary file over 64 KB
+  and its prompt says the summary is context, not instructions; PLAN-B asks for Node 24.22.1 or
+  newer; the test server's portable Node lookup uses `%LOCALAPPDATA%`.
+- **Player page:** the "Use the picture for" box under "Upload my portrait" is readable (grey text on
+  the browser's white box failed the contrast check).
+- **Review lows of PRs 795, 801, 803 and 804:** the Undo button's hover text matches its label and is empty while changes load; an ability score the twin lookup does not get shows "?" instead of a made-up 10; the plan-gone toast wording is tested; the session-event pump ends an outage window when the link returns, not when it is filed; the setup module cap refusal names the target.
+- **Plainer messages and a steadier recorder:** roll-button errors tell a player to ask the GM instead of opening the browser console, and error text with a Foundry id in it is no longer shown as it is. The settings button now reads "Configure creature index". `mark-play-session` is marked "GM ONLY" like the other GM tools, and `plan-token-rings` says that undo is all-or-nothing and that disable is not the exact inverse of enable. The Discord recorder rate limits its "unexpected error" alert to one per 5 minutes, starts its run marker only after a successful login, clears it even when the shutdown throws, ignores a late packet from someone who left, hides the whole `secret_key=9,8,7` form in voice debug lines and stays quiet about silent speakers while the voice connection is down.
+- **A finished roll card keeps its heading:** once a player rolls, the chat card reads "Roll for Mara: Perception, DC 12" like the request did, instead of "Roll Request: Perception Skill Check (Public)". Cards posted before this update rebuild the heading from the roll they stored.
+- **Same-version connectors from another build:** the Claude Desktop connector now says a build id (a hash of its tool-set lists) in its hello, and `get-preflight` warns when a connector has the bridge's version from a different build. A connector from before this sends no build id and is compared by version only, as before.
+- **The unused `wrapper_status` control call is gone:** nothing called it; `get-preflight` reads the connector list directly. `CONTROL_METHODS` now lists `hello`.
+- **Docs say what can be undone:** the GM guide (English and Danish) says changes to actors, items, tokens, scenes, combat and journals can be undone, and music, folders, chat and rolls cannot. It also says which plans "apply without confirming" covers (damage, healing, temporary hit points, conditions, resources, scene dressing, starting a fight; not token changes or deletes). The dashboard README names Ask for a roll and the strip's Damage / Heal form as buttons that act at once.
+- **Tests:** an ambiguous actor name in `plan-ownership-change` keeps its candidate list end to end, and every tool marked as a write starts its description "Direct write." (apart from apply-planned-change and undo-change).
+- **Tooling review lows:** `tsc7.mjs` prints a spawn error or the signal that stopped the compiler;
+  `typescript` is held at `~6.0.3` (typescript-eslint caps below 6.1) and the `typescript7` alias is
+  pinned to exactly 7.0.2; the CI checks list flags `defaults.run.working-directory` too, and the
+  gate's drift-check copy is guarded by a test; the screenshot README matches the `#status` mask and
+  the private-handout locator is scoped; the CodeQL cache cleanup rechecks up to six times, 10 seconds
+  apart, before failing on a cache that is still being deleted.
+
+### Dashboard
+
+- **Condition and End combat work inline on the combat strip:** Condition opens a row of condition
+  chips under the action bar; a chip plans it with `plan-actor-change`, one plain confirm asks
+  ("Set prone on Brannoc and Mira?"), and it applies with Undo on the toast and in Recent Changes.
+  End combat plans with `plan-combat-change`, asks one plain question and applies, the same flow
+  as the live strip's End combat (now one shared helper, `lib/endCombat.ts`). Neither opens the
+  Tool Runner any more. GM Actions and live play gate them exactly as before.
+- **Combat strip polish:** while one change runs, Damage / Heal, Condition and End combat wait and say "Another change is running"; two creatures with one name read "Wolf 1" and "Wolf 2" in the combat rows, the Condition question and the Damage / Heal button; the focus lands on the combat pane (or the During bar when the layout hides it) after End combat. The GM guide lists End combat's one-line question under destructive changes.
+- **Scene mood panel polish:** the buttons no longer stay greyed out after Turn on, the unreadable-switches line no longer talks about live play, the click reloads the preset list if you switched scene, and the GM guide (English and Danish) has a Scene mood entry.
+- **Health line:** a stream that goes silent for 45 seconds is closed and opened again by the page itself (a half-open stream after a sleep or a tunnel stall recovers without a reload). "Last update" ages from the server's clock, so a wrong clock on the viewing device no longer turns it amber. A screen reader hears which part turned red. The Recorder and Play log details open on a tap, not only on hover, and their times show on the viewer's clock. A pump error on the Play log dot says "errors", not "gaps".
+- **Smaller stylesheets:** a few rules the old page used and nothing renders now are gone from `styles.css` and `moments.css`.
+- **Scene mood buttons:** the During bar has a Scene mood button. It opens one button per mood preset saved on the viewed scene (`list-scene-moods`). One click plans the preset with `plan-scene-mood`, asks once with the plan's own summary, then applies it; the toast has Undo and Recent Changes lists the change. While GM Actions, Allow Write Operations or the module switch "AI Tool: Scene mood and music (writes)" is off, the buttons stay, disabled, and say which switch is off and where to turn it on.
+- **Plainer error messages:** a plan or change id in an error is no longer rewritten as words; the "plan is gone" note now says it may have applied and to check Recent Changes; a lost link names the bridge ("Check that the AI Tool is running"), not Foundry; the "Query ... failed:" prefix is hidden; a dashboard-side 500 is marked `internal` and worded in plain words; a quick roll that got no answer from a proxy says "The answer did not come back." instead of "Try again"; the Ready-for-session note no longer says "Could not read the switches" twice; the player link routes no longer pass raw error text to the page. Error toasts keep their status or kind in the usage log.
+- **Combat strip focus after End combat:** a stale focus request expires, the fallback target is the Start combat button (or the bar itself), and the quick path checks that focus really fell to the page. The initiative ribbon and the reaction buttons use the same numbered names as the rows ("Goblin 1", "Goblin 2"). After the scene changes under the Scene mood panel, focus goes to the first mood of the new list.
+- **Help build:** the Danish heading warning also catches the same number of headings at other levels or in another order, and the tests for it can fail.
+- **Express 5:** the dashboard server moved from Express 4 to the 5 line (with `@types/express` 5). The
+  page routes now send `index.html` from its folder, so a build under a dot folder such as
+  `.claude/worktrees` still loads.
+- **GM health line:** the GM page (also the Foundry window B), the strip alone, the Live view and the Dashboard header show one line with four dots: Dashboard (this page's live link), Bridge, Foundry (with "down since" when it is away) and Last update. The server repeats the bridge status every 17 seconds, and a page that hears nothing for 45 seconds says it is not live. With no fight, the strip says "The bridge is away." when the bridge is away and "Foundry is away." when only Foundry is, instead of "No fight.", `/api/health` now reports the Foundry state, and a crash in the page shows a reload message instead of a blank screen.
+- **A calmer header:** every control has the same height and stays on one row at 1280 px and wider (the health line has the row under it). The live play button is short ("Live play on", or "Live play off: Turn on") and lists what is off in its tooltip. "All set" is green instead of the danger red. The Theme picker has no caption above it. The Obsidian link is a labelled button. The live screen's header now starts with the same controls in the same order as the During header (Theme is no longer inside "More"), and its Undo button keeps one width. Below 900 px the title shrinks and the subtitle goes (the version stays).
+- **Recorder and Play log dots on the health line:** the GM health line now shows a Recorder dot
+  (a speaker with no audio for 5 minutes, a failed audio stream, the bot unable to get back into the
+  voice channel) and a Play log dot (the session or play log not recording since a time, or a recent
+  gap with records lost), each only while something is wrong, with the plain words on hover. A bot
+  or bridge that does not answer shows "unknown" in grey, never OK. The Recorder dot needs the bot's
+  new read-only status endpoint (`FOUNDRY_AI_BOT_STATUS_PORT` in the bot settings) and
+  `DASHBOARD_BOT_STATUS_URL` in the dashboard; see `docs/dev/PI-SETUP.md`. `get-preflight` gained a
+  quick `action: "pumps"`.
+- **Old dashboard page references removed:** comments, stories, dev docs and test titles no longer
+  describe the dashboard against the retired page. The repo-wide guard test for the old page is gone;
+  the `/legacy/` redirect and its test stay.
+- **Player page polish:** the connection badge is announced to screen readers, a concentration reminder shows a ✕ so it reads as dismissable, and a combatant with no initiative roll reads "not rolled" instead of "none". The me-route tests now pin the player-facing texts for the 501 and 502 answers.
+- **Smaller fixes after review:** a "plan is gone, it may have applied" refusal now clears the form like any maybe-applied failure instead of keeping the draft (a second press would apply twice); more error toasts carry the failed call's kind or status in the usage log; the scene mood list only takes the focus back when it fell to the page; a failed player-link save or removal is logged; the play log dot mentions a gap marker only when a recent gap is listed.
+- **2024 twin of a monster:** Advanced, "2024 twin of a monster" shows the 2024 SRD stat block beside
+  the 2014 one (a world actor or a compendium entry) so the GM can pick which to run. A monster with
+  no clear twin, such as Strahd or the wereraven, says so instead of guessing. Read only: nothing is
+  converted or written, and the 2024 text is read from the dnd5e compendium when you ask.
+
+### Discord bot
+
+- **Recorder dot:** a stream error is dropped when that speaker mutes. A `FOUNDRY_AI_BOT_STATUS_PORT` that is not a port, or a port already in use, is now said plainly in the bot log.
+
+### Module
+
+- **No more "Cannot use 'in' operator to search for 'world'" error on page load:** the module kept the
+  world of its saved error list under `foundry-mcp-bridge.diagnostics.world`, next to the list itself
+  at `foundry-mcp-bridge.diagnostics`. A module that unfolds all browser-stored settings into an object
+  (Monk's Player Settings does at `ready`) tripped over the pair and logged the error on every load.
+  The world is now kept at `foundry-mcp-bridge.diagnosticsWorld` and the old key is moved there and
+  removed the first time the page loads.
+- **An empty Tarokka reveal text is a warning:** the Tarokka window shows "Write the text the players will read first." as a warning notification, no longer as an error, so it does not log a console error.
+- **A player's asked initiative roll ends the change group first:** dnd5e's follow-up writes of the
+  tracker roll are no longer filed under a guarded AI change made just before it in Recent Changes.
+- **Lost/back link notices reach every GM:** when the Assistant GM's browser (the Pi) holds the bridge link, its "Lost the link" and "link is back" notices are now also shown in the other GMs' browsers. The link holder shares them through a hidden world setting after its own grace period (or at once when the link never opened); the other browsers keep the throttle and the "Show connection messages" setting, players see nothing, and a GM who joins during an outage sees the "lost" notice.
+- **Foundry tells the GM when the AI Tool link drops:** the GM whose browser holds the link sees one
+  plain warning after about ten seconds without it, and one note when it is back. Short blips and
+  flapping stay silent, players never see it, and the old "Connected" text in the module settings hint
+  is gone because it went stale. The existing "Show connection messages" setting turns the toasts off.
+  (On the Pi the link is held by the Assistant GM's browser, so the toast shows there; the notice
+  reaches the other GMs through the relay described above.)
+- **Tarokka table, kept line:** a failed restore of the line you typed no longer reports a successful flip as failed. A kept line is dropped after about 2 seconds when its card never shows as flipped (an Undo), so a later reveal of the same card does not bring it back. A new flip clears the kept line of the same card and old or other-reading ones, not every one.
+- **Link toasts:** when the AI Tool server could not be reached at start, the "link is back" toast now follows once the link opens. More tests for the toast timing and the wiring in the module.
+- **The final Strahd module list:** the list, the module reference index and the all-modules kit profile now match Danni's picks: Monk's Player Settings, Health Estimate and Racooze Map Library are dropped; Item Piles (with its dnd5e companion), Find the Culprit, FXMaster, Polyglot and Monk's TokenBar are in.
+- **Stage 25 (Pi modules) is safer to run:** a failed move while the old folders are put back is no longer reported as restored (the run stays marked unfinished until undo has worked), the zips are unpacked as the foundry user, the room for the zip copies is checked first, and undo on a Foundry with no world no longer waits two minutes. The stage 14 join read-back uses the run's own join line.
+- **Settings status:** the connection status function no longer takes a hard-coded tool count (it was never shown).
+- **Rules check starts on:** "AI Tool: Rules check" is now on by default in a fresh world (it only
+  reads and changes nothing). A world that already stored "off" keeps it off; switch it on in Game
+  Settings. `check-action` says "on by default". `use-item`, attack requests and token moves now carry its
+  advice in a fresh world.
+- **Tarokka ceremony polish:** the line you type for a flip is kept until the table shows it, so a write from a second GM window can no longer drop it; Place and Show start from the stored table instead of an older copy; the overlay ignores clicks while it fades and Escape closes it; a missing sound file falls back to the chime (Foundry resolves instead of failing, so the module now checks), and a client that has not been clicked yet stays silent instead of playing the sound late. The GM docs (English and Danish) now say the ceremony needs the table shown to the players, lasts about 11 seconds, and that the line appears on the players' table.
+- **Tarokka flip as a ceremony:** when the GM flips a card on the Tarokka table, every screen dims, the card turns over slowly with a sound, and the GM's own line for the card (typed in the Flip box) fades in under it. The line stays under the card in the table window afterwards. The sound is a soft built-in chime, or a world audio file set in the module settings ("Tarokka card flip sound"). Reload, a new reading, an Undo and joining late never replay it, and reduced-motion browsers get a still reveal. The flip is the same guarded reveal as before (confirm dialog, undo in Changes); the line is only what the GM typed, no book text ships.
+- **Token rings and link toasts, review follow-ups:** `plan-token-rings` now refuses a `scenes` list without `tokens: placed` (it used to plan every actor instead) and a placed-token plan from a module that is too old to know it; a token matched by both its own name and its actor's name counts both as found; the switch hint and the tool title mention placed tokens. After a Foundry canvas reload the new link no longer shows "link is back" on top of "AI Tool connected".
+
+### Docs
+
+- **Developer docs match the code again:** `DEPLOYMENT.md` no longer says to push a branch to `main` or names a retired fork remote. `ARCHITECTURE.md` lists the extra control methods, says what still runs on player clients, and corrects the feature switch defaults, request tool list, file names and package map. The Pi and runtime test plan notes name the right dashboard port and tools. Five skill and agent notes were corrected too.
+- **The guides can no longer name a button that is not there:** `npm run docs:ui` (also in CI and `green`) reads every bold button, tab, panel or drawer name in `docs/gm`, its Danish twins and the smoke checklist, and fails when no dashboard or module string has it. Foundry's own buttons are listed with a reason in `scripts/docs-ui-exceptions.json`.
+- **The test kit page counts for itself:** the scenario table (with sizes and tags), the scenario counts per size and the number of kit worlds in `docs/dev/TEST-KIT.md` are generated from `scripts/test-kit/scenarios/` (`npm run docs:kit`; CI fails on a stale table). The page listed 23 scenarios and said 24; the repo has 28, and the size table said "eighteen" for smoke and full where smoke has 23.
+- **Foundry 14.370 on the test server:** the Pi setup and Plan B notes name the 14.370 Node.js zip, and the Pi setup notes say 14.370 needs Node 24.22.1 or newer (stage 2 with `NODE_VERSION=v24.22.2`) before stage 3.
+- **Magic Initiate in the player guide:** the character guide (English and Danish) and the session 0 guide describe the new Select Spells window from Actor Studio `2.10.5-aitool.5` instead of the old compendium-browser workarounds (pick the "PHB 2024" copy, class filters, Enter in the search box). The window lists the spells of every class (seen on the Pi), so the guides tell players to pick from the feat's class list themselves. Valid once stage 13 has installed `.5` on the Pi.
+- **Quest pages link to the checklists:** the three GM quest pages (first hour, before a session,
+  prepare session 0) and their Danish twins now link to the steps on the checklist pages instead of
+  copying them. `scripts/docs-quest-check.mjs`, part of `npm run docs:links`, fails when a quest
+  page copies a run of nine words from its checklist or leaves a checklist section neither linked
+  nor listed as skipped.
+- **The control check is stricter:** `npm run docs:ui` now also reads `docs/player` and its Danish twins, reports each problem at the line of the name, fails when a docs folder, the smoke checklist or the dashboard sources go missing, and no longer counts comments, stories or quoted ids as labels. A bold name written as code (**`Undo`**) is read. `green --quick` runs `docs:ui` and `docs:kit` for dashboard, module and kit scenario changes too. `docs:kit` takes `--root` and has its own test.
+- **Quest page check:** a heading with a code span gets the right anchor, problems carry the real file line, and headings, `:::` lines and table rows no longer join the paragraph around them.
+- **README:** no longer says there is no undo (guarded writes can be undone) and no longer hard-codes tool counts; counts live in the generated tool docs.
+
+### Pi
+
+- **Backup restart wait and seven-book trim lows:** the nightly backup now waits up to about 120 seconds for Foundry to come back (it was about 90), accepts any world after the restart (a world switched by hand during the day no longer fails the night; only the setup screen does) and its error says "not active, not answering, or not back on a world". The Discord DM about stale backup copies names the cause before the remedy. The seven-book trim keeps a refused relock from hiding the step's own error, opens a linked dnd5e pack that was already hidden (the dry run says "WILL OPEN"), and lists copied SRD entries that link to dnd5e packs themselves. Rerun stages 6 and 22 on the Pi at the next sitting; rebuild and restart the Discord bot for the DM text.
+- **Review lows of the module stage, the backup chain and the seven-book trim:** stage 25 no longer counts the bridge and content module zips in its disk check, says "NOT every old folder is back" after a failed UNDO, and moves folders with `mv -T`. Stage 6's restart wait now needs a world back in `/api/status`, not only the setup screen. Stage 16 reads clock offsets in several parts (`2min 5.300s`) and in microseconds. The snapshot pull marks a stale copy in `last-success.txt`, the Plan B check says when the module link is unknown, and the bot's stale-backup DM names both causes.
+- **The GitHub runner gate sees players, not only a marked session:** on the Pi the runners now stay stopped
+  while a non-GM player is connected (the play log's `user-join` without a later `user-leave`, a join
+  younger than 14 hours), so an unmarked game night is covered too. The unknown-state ceiling is now 14 hours
+  and still logged. Takes effect when stage 17 is run again on the Pi.
+- **Stage 27, the recorder status endpoint:** a reviewed stage script (`27-bot-status.sh`) sets
+  `FOUNDRY_AI_BOT_STATUS_PORT` in the bot's settings and `DASHBOARD_BOT_STATUS_URL` for the dashboard
+  (a systemd drop-in), restarts both only when quiet, and checks the endpoint, so the Recorder dot works
+  on the Pi. Dry run and undo included; see `docs/dev/PI-SETUP.md`.
+- **The seven-book trim notices when it is undone (stage 22):** `MODE=check` is a read-only run of the trim that fails when the world no longer matches what the trim leaves (a dropped book back in `aitool-content`, `dnd5e.items` or `dnd5e.monsters` visible again; a kept entry linking into a GM-only pack is listed, not counted as drift), so a stage 11 push or a content module update cannot undo it unseen. A rerun after such a push now replaces the stale legacy copy of an entry that came back, re-pointed effects keep their description links, and the stage ignores a hangup (HUP) and a closed pipe, so a dropped ssh does not stop it halfway.
+- **The seven-book tests run everywhere:** `scripts/pi/seven-books.test.mjs` is part of `npm run green` and has its own x64 CI step, not only the ARM64 job.
+
+### MCP tools
+
+- **Shorter tool descriptions in Play and Build:** the Play and Build sets send about 7% fewer
+  characters to Claude (Play 41,194 to 39,716, Build 28,891 to 25,430). `dnd5e-add-feature` and
+  `dnd5e-add-features-from-compendium` lose their repeated parameter lists and shouted headings;
+  `get-party` and `plan-paper-sync` say they are not for player chat instead of "GM ONLY". No tool
+  or parameter changed.
+- **Previously on:** `get-prep-digest` opens with a short "Previously on", the GM summary of the
+  newest recorded session that has one (`<FVTT_SESSIONS_DIR>/<session>-discord/notes/summary.en.md`,
+  or the Danish one when only that is written). It never reads the player recap draft or a
+  transcript. When no session has a summary yet, or the bridge cannot see the sessions folder, it
+  says so in one line. The prompt `prep-next-session` starts with it. The Prep drawer does not show
+  it yet.
+
+### Tooling
+
+- **Release check tightened in the merge gate:** the release-PR exception now looks version files up
+  by own key only, compares the NSIS version lines with the version blanked (a changed registry path
+  no longer passes), refuses a dropped `version` field, and a killed main copy of the gate also ends
+  with a `refused because` line. The lane skill describes the risky notice as it now reads.
+- **Merge gate refusals say why on the last line:** a refusal by `scripts/lane-merge.mjs` now ends
+  with one `lane:merge: refused because ...` line that holds every reason (the last line, or the one
+  before the `wait-ci ended:` verdict under `--wait-ci`), so a `tail` of the output never shows only
+  the notices. The checks themselves and the exit codes are unchanged.
+- **Risky notice says found or missing:** `risky (...): an Opus review is required` now ends with
+  `Opus note for head <sha>: found (<note>)` or `missing`, so it no longer reads as a refusal on a
+  PR that merges.
+- **Review-note refusals name the rule:** when no note counts, the refusal says how the gate finds
+  notes (`<N>-*review*.md` in a `Handoff/Reviews <date>/` folder, Opus by name or heading, a full
+  40-character `Head reviewed:` sha above `## Verdict`) and lists files of the PR it skipped because
+  "review" is not in the name.
+- **Release PRs pass the changelog check:** a PR that only folds the changelog and bumps versions
+  (as in `docs/dev/RELEASING.md`) no longer needs `--no-changelog`. The check is strict: every file
+  must be `CHANGELOG.md`, a deleted fragment, or a version-only change in a place `version:sync`
+  stamps.
+
+### Module (module-plain-errors)
+
+- **Error pop-ups in plain words:** when something fails in Foundry (opening a window, a roll button, the campaign progress toggles, the creature index build, starting the AI Tool) the GM now sees "Could not ...", a short reason and what to try, not a raw error string. The detail stays in the browser console.
+- **One name for the creature index:** menus, pop-ups and the settings window all say "creature index" now.
+- **No silent confirm windows:** the handouts and AI changes windows say so when Foundry cannot show their confirmation dialog, instead of doing nothing.
+- **Manifest:** `module.json` has a plainer description and says the module needs the dnd5e system (version 6 or newer).
+- **Dead settings code removed:** the unused `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` settings, `resetToDefaults` and the empty `migrateSettings` are gone.
+
+### Node 24 clean-ups (node24-pin-safe-check, arm-usage-catalog-step, dockerfile-node24)
+
+- **The portable Node pin skips unsafe folders:** `npm run green` and the test-environment scripts only pick a
+  portable Node 24 folder from 24.22 up; a folder holding only 24.15 is ignored and the green note says
+  "no portable Node 24.22+ found".
+- **ARM job:** the comment on its usage catalogue step says why the step stays.
+- **Docker:** the LiveKit recorder image is `node:24-alpine`, and the Obsidian O4 design note says the floor is Node 24.
+
+### Session notes
+
+- **The notes pipeline tells the GM when it stops:** the automatic pass (`auto.ps1`) now posts one short line to the GM bot channel when the notes run is paused (usage limit, or Claude logged out), a session is skipped for missing recording consent, a transcription, notes run or publish to Foundry fails, or notes are published with raw-text scenes. Each event is posted once (a paused or failed step once per day); the line names the session folder only. New `announce.mjs gm-bot` kind; channel `DISCORD_GM_BOT_CHANNEL_ID`, else `GAMENIGHT_WATCH_CHANNEL_ID`.
+- **Tell tests:** a failed transcription has its own test, the raw-scenes fixture is written by the real notes writer, and the README says a paused or failed step is told once per day.
+
+### Reliability
+
+- **The bridge log survives restarts and says when the link drops:** the Pi bridge now logs at info into `/var/lib/foundry-ai-tool/logs/mcp-server.log` (set by stage 5, `LOG_LEVEL` and `LOG_FILE_PATH`; `bridge.env` can override) instead of a private temp folder that vanished at every restart. The file log rotates (5 files of 5 MB). The link-down warning now comes after 30 seconds instead of 5 minutes, and link-up is a warning that carries the outage length. The module writes one console line when the bridge link goes up or down, even with debug logging off.
+
+### Tooling (planner-wake-lows)
+
+- **The planner wake watcher no longer fails silently:** a failed fetch or unreadable Backlog prints a stderr line, exit 4 says how many problems there were, a multi-line progress value prints the item id on every line, and exit codes are set without cutting the output.
+- **Planner skill:** the agent-\* worktree warning, the "tell the user what merged" line and the `git checkout --detach` fallback are back, inside the word budget.
+
+### Play log
+
+- **The session log marks its gaps:** when the link to Foundry was down for more than 15 seconds, Foundry was reloaded (the module's event counter went back), or more events arrived between two reads than the module's buffer holds, the recording pumps write a visible `pump-gap` line into the session log in plain words ("Recording gap ... Foundry was reloaded, so some events may be missing"). Only the session events pump writes the link-down line; the play log pump writes the reload and buffer lines and counts the records it knows were lost. A reload only counts as a gap within three hours of that world's own newest record, so opening Foundry on a new night writes none. Gap lines never count as table activity: they open no play session in stats, the Obsidian export or the prep digest.
+- **Pump health in the pre-flight:** `get-preflight` has a "Session and play log recording" line: last read, last error, since when nothing is being recorded, gaps and lost records since the backend started. Unknown before the first read, never a plain OK without one.
+
+### Tests
+
+- **The player pages are in the screenshot run:** `/player` (no personal link, with one, a handout
+  meant for one player, a fight running) and `/me` get baselines at 1080 and 390 wide and an axe check
+  at 1440.
+- **Kit negative control:** `kit run --fake --stopped-bridge` builds in the fake, then takes the
+  bridge's link to Foundry away (the dashboard answers as a real one does with no module linked:
+  Foundry unreachable, tool calls refused, an empty player screen) and runs every scenario. A unit
+  test fails if any scenario still passes or skips. It found ten scenarios that only drove Foundry's
+  own page and passed with the bridge stopped (heroes-advancement, heroes-multiclass,
+  heroes-features-use and -deep, monsters-matrix, origins-backgrounds, -feats and -species,
+  spells-cast-all and -deep); each now starts with a bridge probe (`get-world-info` names the kit
+  world). `bridge-health` also checks that the bridge reaches Foundry, not only that the control
+  channel is up.
+- **No fixed sleep in the me-route test:** it waits for the world to be loaded instead of 200 ms.
+
+### Foundry setup (D-135)
+
+- **Module toggles, review fixes:** the undo of a first switch-on from the Changes list is checked against the modules that need it, the dependency walk goes down for turning on and up for turning off (the target row is never cut by the 400 row cap), and a missing dependency row stops the plan instead of being skipped. The read and the apply both judge on or off from the module configuration first, a requirement on the game system is never taken for a module, and the chain below a module the world or system needs is marked as forced on.
+- **One undo rule for roles:** undoing a role lowering always works, from the Changes list and from undo-change alike (a redo is still gated by the setup switch).
+- **Clearer refusals:** two documents with one name list name and id, a Gamemaster or Assistant GM refusal says both, a module list that grows past the limit after the plan is named, and the server refuses a module or ownership read from an older module.
+- **Role undo tested in both shapes:** undoing a role lowering with the setup switch off is covered from the Changes list and from undo-change.
+- **Clearer cap refusal:** when a plan cannot read every module linked to the target, the refusal names the target and says to change it in Foundry itself.
+- **Modules on or off:** `plan-foundry-setup` with area `module` lists installed modules (on or off, what each requires, what needs it) and plans turning one on or off for the world. Modules it requires switch on with it, modules that require it switch off with it, both named in the plan. After the apply or the undo every connected window reloads itself a few seconds later. The AI Tool module cannot be turned off.
+- **Setup lows from the first part:** a setting that cannot be read or holds too much data is named in the plan error, a setting that grew past the size cap no longer blocks an undo, and a pack whose Assistant GM level is already below Owner can be changed and put back (the plan sets it to Owner, and the undo keeps it there).
+- **Safer module toggles:** the modules a switch drags along are worked out again when the change is applied, so a module that went off or on since the plan is a conflict instead of a half-finished change. Modules the world or system needs stay on, incompatible ones stay off, and both are marked in the read and refused in the plan. A world with hundreds of modules plans fine (the target's whole dependency chain is read), and a module list too big to change is named. Two changes at once no longer cancel each other's reload, and a failed rollback still reloads the windows.
+- **Safer user roles:** a role plan says the user is signed out and that None means no login. Two users with one name are refused (use the id); journal and scene ownership is read per user id. Redoing a role change needs the setup switch on, the Table user's flag cannot be removed to lift its Player cap, and no guarded write can delete a person's login. The user list honours its row cap.
+- **Wording:** the setup switch hint, the Admin set text and the `target` text now name modules, user roles and journal and scene ownership.
+- **User roles:** `plan-foundry-setup` with area `user` lists users (role, the actors each owns; never a password) and plans a role change between None, Player, Trusted Player and Assistant GM, through plan, confirm and undo. A Gamemaster is never made or changed, nor is the user the bridge runs as; permissions and passwords stay out of reach.
+- **Journal and scene ownership:** area `ownership` reads and plans who may see or open a world journal or scene (`journal:<name>`, `scene:<name>`, default level and per-user levels). Actors still use `plan-ownership-change`.
+
+### Session log and play log
+
+- **Reconnect and pre-flight wording:** "not recording" clears the moment the link is back even when the world-id fetch is the first call to fail (the outage is still marked on the next good read); the pre-flight recording line puts the date in front of a time that is not today.
+
+### Testing
+
+- **Real-character combat flows in the test kit:** a new kit scenario, `real-character-flows`, runs
+  six combat flows against the kit's real heroes and player user: the assigned character beside a
+  second owned actor, a poisoned roll with Automated Conditions, a timed condition undone after
+  turns, a drop to 0 HP and its undo, a fight on a scene the GM is not viewing, and a `use-item`
+  write on a client with no canvas. Five of the six fail on the code from before their fixes.
+
+### Test environment
+
+- **Test worlds launch again after a Foundry point update:** Foundry refuses to auto-launch a world
+  whose verified build is older than the running Foundry ("requested World ... is not available to
+  auto-launch"); `coreVersion` does not matter. `start.ps1 -World <id>` (so `kit:run`) now brings
+  the world's `compatibility.verified` and `coreVersion` up to the app's build before it starts
+  Foundry, on all three servers, and keeps a `world.json.bak-verified` copy.
+
+### Module (I-093)
+
+- **Round tokens with a ring:** the new admin tool `plan-token-rings` plans turning Foundry's dynamic token ring on (or off again) for the characters and NPCs of the world, so their tokens are round instead of a bare square picture. dnd5e then flashes the ring when a token takes damage and marks whose turn it is. One plan covers up to 150 actors (or tokens); the answer says how many are left, and asking again picks up there. It is a normal plan: you confirm it, it shows in Recent Changes and Undo puts every actor back. By default only the actors' default tokens change; with `tokens: placed` the tokens already on scenes are planned instead (each its own ring setting, linked or not; try it on a copy first). The switch "AI Tool: Token rings (writes)" ships off; turn it on in the module settings before asking.
+
+### Token rings for placed tokens (I-093)
+
+- **Rings on tokens already on the scenes:** `plan-token-rings` takes `tokens: "placed"` (and an
+  optional `scenes` list). The plan turns the dynamic ring on, or off, on each token already placed
+  on the scenes, linked or unlinked, as one guarded change you confirm and can undo.
+- **Names that match nothing are reported:** both plans now list requested names that matched
+  nothing (`unmatched`) and say so in the summary.
+
+### Tooling (review lows of #731, #744, #756, #784)
+
+- **Weekly usage report:** the lane line changes at the merge time of the lines PR, not at midnight; the
+  lane columns read "reached line" and "peak after line"; a session's first response is not counted as
+  confirmed (stricter than the context hook, which counts a single response).
+- **Release gate:** the version fields in `package-lock.json` are compared by package key, so a version that
+  moves between entries is refused.
+- **Lane skill and hook tests:** the skill says a lane must be started in its worktree; the context hook
+  tests lost the unused offset and regained a case for a non-writing command above the out line.
+- **Preflight:** the connector line prints the bridge's current version.
+
+### Tooling (typescript-7, step 1)
+
+- **TypeScript 6.0 in every workspace:** all packages move from 5.9 to 6.0.3. The root and ESLint tsconfigs
+  drop the deprecated `baseUrl` (TS 7 removes it), `shared` and the ESLint project name their `@types`
+  explicitly (TS 6 no longer loads them on its own), and the module's unused `@gnuminator/shared` path
+  alias is gone. No runtime change.
+
+### Tooling (typescript-7)
+
+- **Typecheck and builds use the TypeScript 7 compiler:** every workspace runs `tsc` 7.0.2 through the
+  `typescript7` npm alias (`scripts/tsc7.mjs`); the whole-repo `npm run typecheck` drops from about 13 s to
+  about 4.5 s. typescript-eslint and the other tools stay on the `typescript` 6.0 package.
+
 ## v0.25.0 (released 2026-11-04): the Attack button, initiative from Start combat, an automatic Party, handout notices in chat, Foundry setup tools, the AI commentary backend removed, clearer error messages, Pi stage scripts
 
 **Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings namespace and the WebSocket port 31415. **Added:** the Admin tool `plan-foundry-setup`; options or fields on `use-item`, `search-character-items` and `get-available-conditions` (`rollAttack`, a token id as attacker, the rules page uuid); the bridge methods `foundry-mcp-bridge.postHandoutNotice` (write), `foundry-mcp-bridge.uploadPlayerPortrait` (write) and `foundry-mcp-bridge.getSetupInfo` (read); the control calls `hello` (the wrapper sends its version), `wrapper_status`, `link_status` and `player_portrait` (an older wrapper sends no hello and still works); and the module settings "AI Tool: Add player characters to the party", "AI Tool: Foundry setup (writes)" and "AI Tool: Player portraits (writes)". **Removed:** the dashboard's AI commentary backend: `POST /api/ask`, `POST /api/post-chat`, the `/api/control` AI actions and the AI fields in `/api/health`. No tool or bridge method was removed. Update the module and the bridge together: a v0.25.0 bridge with an older module posts no handout notice in chat, `plan-foundry-setup` fails and the portrait upload fails. The Orange Pi builds the newest release tag, not `main` (D-126).
@@ -19,9 +620,6 @@
   toast's bottom edge sits on a fraction of a pixel and Chromium put it on either of two rows from
   run to run, however long the story waited.
 - **Clearer error messages for Claude:** one shared helper now words the errors the tools send back. A feature that is switched off says so, names the setting and tells Claude to stop and ask the GM instead of working around it. "Not found" errors name the tool that lists what exists, the connector's "not connected" error says to tell the GM and not retry, an expired plan says to check Recent Changes and then list plans, and an unknown tool says to check the name or restart the bridge. The "Received args" dump is gone from compendium validation errors.
-- **The Docker template builds on Node 24:** `deploy/Dockerfile` uses `node:24.22.2-slim` (pinned by
-  digest) in both stages. Node 24.15.0 on Windows crashes the dashboard tests natively ("Channel
-  closed", 17 of 30 runs); 24.22.2 passed 30 of 30.
 - **Plan B restore installs Foundry on a fresh root:** Windows `tar.exe` cannot create the
   `node_modules/.bin` links in the Foundry zip and exited 1, so `restore.ps1` threw before it wrote
   its state. It now tolerates complaints that name a `.bin` path (the app never uses them on
@@ -75,6 +673,9 @@
 
 ### Tooling
 
+- **The Docker template moves to Node 24 to match the Pi:** `deploy/Dockerfile` uses
+  `node:24.22.2-slim` (pinned by digest) in both stages. It is pinned to 24.22.2 because 24.15.0
+  crashed the dashboard tests on Windows (17 of 30 runs); 24.22.2 and 22.22.2 passed 30 of 30.
 - **Dashboard browser tests use 4 workers in CI:** the runner has 4 vCPUs and Playwright used 2.
   The x64 job should finish closer to the ARM job.
 - **The wiki build gets a Node that Astro accepts:** the wiki workflow asks for Node 22.23.4

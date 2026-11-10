@@ -57,7 +57,7 @@ Run the sheet check (`references/sheet-check.md`): read the character with `get-
 to the build card, and tell them anything that differs or looks wrong, as a short list with the fix
 to click. The card matches the sheet when every line above is true on the sheet.
 
-## Level 3 level-up snags (found live on server C, 2026-10-29)
+## Level 3 level-up snags
 
 Tell the player before they hit them:
 
@@ -74,7 +74,7 @@ Tell the player before they hit them:
 
 ## The ten level-1 snags (checklist for you and the player)
 
-Found in a real run on Foundry 14 / dnd5e 6 / Actor Studio 2.10.5. Mention the ones that apply
+Seen on Foundry 14 with dnd5e 6 and the Actor Studio module; the words on screen may differ a little in other versions. Mention the ones that apply
 before they hit them, and re-check after:
 
 1. **Character Name starts as the player's own name**, and the bar says 100% before any name is
@@ -88,8 +88,12 @@ before they hit them, and re-check after:
    times (SRD 5.1, SRD 5.2, PHB, **PHB 2024**; pick PHB 2024), and Cleric, Druid and Wizard lists
    are mixed (pick only the class named after Magic Initiate). The class Spells tab still offers
    cantrips already given by the feat: avoid doubles.
-5. **Equipment tab:** the items turn green by themselves; the gold amounts stay black until
-   clicked. Click each until the bar says 100%, then **Confirm**.
+5. **Equipment tab:** the items turn green by themselves, but some tiles are choices you must
+   click: the dark gold tile at the bottom of the left pane (the background's "8 GP" or similar),
+   the class gold tile ("7 GP"), and the **Select focus** list for "any holy focus" (pick Amulet,
+   Emblem or Reliquary). Never stop at 75%: the bar reaches 100% only when every one is done, and
+   then a **Confirm** button appears. Closing before Confirm drops the equipment picks (Studio now
+   asks first). After Confirm, body armor and a shield are equipped; other gear is not.
 6. **Wizards have no Spellbook** in the starting kit. The GM adds one from the item compendium.
 7. **Cosmetic only:** the raw key `GAS.Spells.Cantrip` under chosen cantrips, class steps headed
    "Level 1 -> 2", a spell card lingering at the bottom right.

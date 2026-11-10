@@ -52,7 +52,7 @@ fresh_pi() { # $1 the world /api/status reports
   echo 'GM_USER=Gamemaster' >"$TOOL_ETC/assistant-gm.env"
   printf '{"active":true,"world":"%s","users":0}' "$1" >/tmp/status
   echo 0 >/tmp/status_rc
-  cp "$R/seven-books-trim.js" "$R/seven-books-delete-legacy.js" /root/
+  cp "$R/seven-books-trim.js" "$R/seven-books-baseline.js" "$R/seven-books-delete-legacy.js" "$R/grave-domain-patch.js" /root/
   : >/tmp/calls
 }
 
@@ -182,10 +182,91 @@ if want check-mode; then
   check check-mode 'scp the GM scripts' "$out"
 fi
 
+if want baseline; then
+  # MODE=baseline: the baseline GM script, a dry run first, the real run only after a passed dry run of the same file
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=baseline')"
+  check baseline 'dry run of /root/seven-books-baseline.js' "$out"
+  check baseline 'dry run passed' "$out"
+  check baseline 'exit 0' "$out"
+  check baseline '--dry-run' "$(cat /tmp/calls)"
+  : >/tmp/calls
+  out="$(run_stage 'MODE=baseline APPLY=1')"
+  check baseline 'REAL run of /root/seven-books-baseline.js' "$out"
+  check baseline 'exit 0' "$out"
+  absent baseline '--dry-run' "$(cat /tmp/calls)"
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=baseline APPLY=1')"
+  check baseline 'no passed dry run of this script' "$out"
+  absent baseline 'systemd-run' "$(cat /tmp/calls)"
+  # the baseline edits the shared module packs too: the other-worlds OK applies
+  fresh_pi curse-of-strahd
+  mkdir -p "$FOUNDRY_DATA/Data/worlds/curse-of-strahd" "$FOUNDRY_DATA/Data/worlds/strahd-kit"
+  run_stage 'MODE=baseline' >/dev/null
+  out="$(run_stage 'MODE=baseline APPLY=1')"
+  check baseline 'OTHER_WORLDS_OK=1' "$out"
+  check baseline 'exit 1' "$out"
+  fresh_pi curse-of-strahd
+  rm -f /root/seven-books-baseline.js
+  out="$(run_stage 'MODE=baseline')"
+  check baseline 'scp the GM scripts' "$out"
+  check baseline 'exit 1' "$out"
+fi
+
+if want baseline-undo; then
+  # MODE=baseline-undo runs the baseline file with BASELINE_MODE 'undo' in front, as its own file
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=baseline-undo')"
+  check baseline-undo 'dry run of /root/seven-books-baseline-undo.js' "$out"
+  check baseline-undo 'exit 0' "$out"
+  check baseline-undo "^const BASELINE_MODE = 'undo';$" "$(head -n 1 /root/seven-books-baseline-undo.js)"
+  check baseline-undo '--dry-run' "$(cat /tmp/calls)"
+  fresh_pi curse-of-strahd
+  rm -f /root/seven-books-baseline.js
+  out="$(run_stage 'MODE=baseline-undo')"
+  check baseline-undo 'scp the GM scripts' "$out"
+  check baseline-undo 'exit 1' "$out"
+fi
+
+if want check-mode-baseline; then
+  # MODE=check also checks the baseline when its script is uploaded: both checks in one file, the baseline one last
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=check')"
+  check check-mode-baseline 'exit 0' "$out"
+  check check-mode-baseline "BASELINE_MODE = 'check';" "$(cat /root/seven-books-check.js)"
+  check check-mode-baseline '^const CHECK_ONLY = true;$' "$(head -n 1 /root/seven-books-check.js)"
+  # without the baseline script the check is the trim check alone
+  fresh_pi curse-of-strahd
+  rm -f /root/seven-books-baseline.js
+  out="$(run_stage 'MODE=check')"
+  check check-mode-baseline 'exit 0' "$out"
+  absent check-mode-baseline "BASELINE_MODE" "$(cat /root/seven-books-check.js)"
+fi
+
+if want grave; then
+  # MODE=grave-patch: the Grave Domain patch, dry run first; MODE=grave-check is a read-only dry run of the same file with
+  # GRAVE_MODE 'check' in front (no APPLY, no snapshot)
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=grave-patch')"
+  check grave 'dry run of /root/grave-domain-patch.js' "$out"
+  check grave 'exit 0' "$out"
+  out="$(run_stage 'MODE=grave-patch APPLY=1')"
+  check grave 'REAL run of /root/grave-domain-patch.js' "$out"
+  check grave 'passed before' "$out"
+  check grave 'exit 0' "$out"
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=grave-check')"
+  check grave 'dry run of /root/grave-domain-check.js' "$out"
+  check grave "^const GRAVE_MODE = 'check';$" "$(head -n 1 /root/grave-domain-check.js)"
+  out="$(run_stage 'MODE=grave-check APPLY=1')"
+  check grave 'MODE=grave-check only reads' "$out"
+  check grave 'exit 1' "$out"
+fi
+
 if want bad-mode; then
   fresh_pi curse-of-strahd
   out="$(run_stage 'MODE=wipe')"
-  check bad-mode 'MODE must be trim, check or delete' "$out"
+  check bad-mode 'MODE must be trim, check, baseline, baseline-undo, delete, grave-patch or grave-check' "$out"
 fi
 
 [ "$fail" = 0 ] && echo "ALL PASSED" || echo "FAIL: see above"

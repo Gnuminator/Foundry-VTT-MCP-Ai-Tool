@@ -1,6 +1,6 @@
 {
   "name": "foundry-ai-tool",
-  "version": "0.25.0",
+  "version": "0.28.0",
   "description": "Foundry AI Tool: MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
@@ -25,6 +25,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "studio:pin-check": "node scripts/pi/check-studio-pin.mjs",
     "kit": "node scripts/test-kit/kit.mjs",
     "kit:run": "node scripts/test-kit/kit-run.mjs",
     "kit:test": "node --test \"scripts/test-kit/test/*.test.mjs\"",
@@ -46,6 +47,7 @@
     "docs:kit:check": "node scripts/docs-kit.mjs --check",
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
+    "player-connector": "node tools/player-connector/build.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
     "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
     "dev:test": "node --test \"scripts/dev/*.test.mjs\"",

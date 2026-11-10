@@ -135,7 +135,15 @@ describe('change summary fixture', () => {
     });
     const actual = JSON.parse(JSON.stringify(await history.list()));
     if (process.env['UPDATE_FIXTURES'] === '1') {
-      writeFileSync(FIXTURE, `${JSON.stringify(actual, null, 2)}\n`);
+      // Prettier's own JSON layout, so the rewritten file passes format:check as it is.
+      const { format, resolveConfig } = await import('prettier');
+      writeFileSync(
+        FIXTURE,
+        await format(JSON.stringify(actual, null, 2), {
+          ...(await resolveConfig(FIXTURE)),
+          filepath: FIXTURE,
+        })
+      );
     }
     expect(actual).toEqual(JSON.parse(readFileSync(FIXTURE, 'utf8')));
     // Every kind the dashboard reads is in the sample.

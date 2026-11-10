@@ -28,6 +28,21 @@ You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel k
    A connector that is switched off is not available in that chat. Then do "Stop the Allow
    questions" below once, so Claude does not ask "Allow?" on every tool call.
 
+## Update the client
+
+The client does not update itself. When the person who built the tool sends a new
+`FoundryMCPServer-Setup-vX.Y.Z.exe`, install it over the old one: the same steps as "Install" above.
+The address page is already filled in, but the installer asks for the Client ID and secret again, so
+keep the key you were given and paste both.
+
+Do this when Claude seems to be missing tools that the guides mention. An old client hides newer
+tools without any error. To check: make sure the Prep connector is switched on (**+**, then **Connectors**), then in a new
+chat ask Claude _"Run get-preflight"_. The row **Claude Desktop connectors are up to date** is green
+when you are current. A warning means an old client is still connected: quit Claude Desktop from the
+tray, run the newest installer, start Claude Desktop again and ask once more. If the row says no
+connector is connected, Claude Desktop is not connected to the server yet; that is not an update
+problem.
+
 ## Check that it works
 
 Ask Claude: _"What world is open in Foundry?"_ A normal answer with the world's name means you are

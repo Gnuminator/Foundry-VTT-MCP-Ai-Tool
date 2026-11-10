@@ -19,17 +19,17 @@ export const TOUR: readonly TourStep[] = [
   {
     layout: 'layered',
     title: 'Cards',
-    text: 'The Live Feed is the big column. Recent Changes, Handouts and Party are cards at the side: open one and the others fold. The turn order shows only while a fight runs.',
+    text: 'The Live Feed is the big column. Recent Changes, Handouts and Party are cards at the side: open one and the others fold. The combat order shows only while a fight runs.',
   },
   {
     layout: 'toggle',
     title: 'Simple/Full',
-    text: 'Simple shows only the Live Feed, Recent Changes and Handouts. "Show everything" on the bar switches to Full: the turn order and Party as well, all open.',
+    text: 'Simple shows only the Live Feed, Recent Changes and Handouts. "Show everything" on the bar switches to Full: the combat order and Party as well, all open.',
   },
   {
     layout: 'auto',
     title: 'Auto',
-    text: 'Follows the game. Without a fight it looks like Cards. When combat starts, the turn order grows and Party opens. This preview shows a sample fight.',
+    text: 'Follows the game. Without a fight it looks like Cards. When combat starts, the combat order grows and Party opens. This preview shows a sample fight.',
     sampleCombat: true,
   },
 ];
@@ -95,8 +95,8 @@ export function showsSampleFight(trial: Trial | null): boolean {
 /** The note beside the switch in Auto. */
 export function autoNote(context: DuringContext): string {
   return context === 'combat'
-    ? 'Auto is showing Combat now: the turn order and the party come forward.'
-    : 'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.';
+    ? 'Auto is showing Combat now: the combat order and the party come forward.'
+    : 'Auto is showing Cards now, because no fight is running. A fight brings the combat order and the party forward.';
 }
 
 /** The bar's Full button: shown in Simple/Full, in the trial too. */

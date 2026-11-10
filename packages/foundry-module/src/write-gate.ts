@@ -103,6 +103,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'aiChangesUpdated',
   'applyGuardedOps',
   'characterSheet',
+  'playerRead',
   'clearModuleErrors',
   'findActor',
   'findPlayers',

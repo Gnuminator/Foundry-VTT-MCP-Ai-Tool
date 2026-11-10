@@ -337,14 +337,16 @@ export async function finishWindow(
 export const pumpStatus = page => page.evaluate(studioPump, { op: 'status' });
 
 /**
- * Create one hero in the creation window and run it to the end of level 1.
+ * Fill in the creation window (abilities, species, background, class, name) and press Create
+ * Character, without waiting for the advancements. With `pump` the answer pump starts first.
+ * Returns the actor ids from before, for finding the new actor.
  * @param {import('playwright-core').Page} page
  * @param {{name: string, classUuid: string, speciesUuid: string, backgroundUuid: string, rotation: number,
  *   featPackIds?: string[], subclassUuid?: string, abilities?: Record<string, number>,
- *   prefer?: Record<string, string[]>, equipment?: boolean, log?: (m: string) => void}} o
- * @returns {Promise<{actorId: string, pump: any, spells: any, equipment: {picks: string[], inventory: string[]} | null}>}
+ *   prefer?: Record<string, string[]>, pump?: boolean, log?: (m: string) => void}} o
+ * @returns {Promise<string[]>}
  */
-export async function createInStudio(page, o) {
+export async function beginCreation(page, o) {
   const log = o.log ?? (() => {});
   const before = await page.evaluate(() => game.actors.map(a => a.id));
   await openCreationWindow(page);
@@ -362,18 +364,34 @@ export async function createInStudio(page, o) {
   }
   await rootOf(page).locator('.character-name-input').fill(o.name);
   await sleep(500);
-  await page.evaluate(studioPump, {
-    op: 'start',
-    rotation: o.rotation,
-    subclassUuid: o.subclassUuid ?? '',
-    featPackIds: o.featPackIds ?? [],
-    prefer: o.prefer ?? {},
-  });
+  if (o.pump) {
+    await page.evaluate(studioPump, {
+      op: 'start',
+      rotation: o.rotation,
+      subclassUuid: o.subclassUuid ?? '',
+      featPackIds: o.featPackIds ?? [],
+      prefer: o.prefer ?? {},
+    });
+  }
   log(`creating ${o.name} in Actor Studio`);
   await until(() => pressFooter(page, 'gas-create-character-btn'), {
     what: 'the Create Character button',
     timeoutMs: 20000,
   });
+  return before;
+}
+
+/**
+ * Create one hero in the creation window and run it to the end of level 1.
+ * @param {import('playwright-core').Page} page
+ * @param {{name: string, classUuid: string, speciesUuid: string, backgroundUuid: string, rotation: number,
+ *   featPackIds?: string[], subclassUuid?: string, abilities?: Record<string, number>,
+ *   prefer?: Record<string, string[]>, equipment?: boolean, log?: (m: string) => void}} o
+ * @returns {Promise<{actorId: string, pump: any, spells: any, equipment: {picks: string[], inventory: string[]} | null}>}
+ */
+export async function createInStudio(page, o) {
+  const log = o.log ?? (() => {});
+  const before = await beginCreation(page, { ...o, pump: true });
   const done = await finishWindow(page, { rotation: o.rotation, equipment: o.equipment, log });
   await sleep(1500);
   const actorId = await page.evaluate(

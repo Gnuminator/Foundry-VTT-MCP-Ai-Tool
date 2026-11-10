@@ -36,7 +36,7 @@ export class MovementTools {
       {
         name: 'get-token-positions',
         description:
-          'List all tokens on a scene with their positions and status. For each token: name, actor ID, token ID, grid coordinates (x/y and grid cell), elevation, category (player character / npc / enemy), visibility (hidden or visible), current HP, and conditions. Defaults to the active scene.',
+          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).',
         inputSchema: {
           type: 'object',
           properties: {

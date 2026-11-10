@@ -421,14 +421,17 @@ export function nodeNote(o = {}) {
 }
 
 /**
- * True when `dir/node_modules` was written after `dir/package-lock.json`, so a local `npm ci`
- * would only repeat the same install (10 to 30 s and network). CI always installs.
+ * True when `dir/node_modules/.package-lock.json` was written after `dir/package-lock.json`, so a
+ * local `npm ci` would only repeat the same install (10 to 30 s and network). npm writes that file
+ * last and `npm ci` deletes node_modules first, so an aborted install usually leaves none. A
+ * leftover one from an older install is caught only when the lockfile changed since then; with an
+ * unchanged lockfile an old file beside a damaged node_modules still reads as fresh. CI always installs.
  * @param {string} dir
  */
 export function installIsFresh(dir) {
   try {
     return (
-      fs.statSync(path.join(dir, 'node_modules')).mtimeMs >
+      fs.statSync(path.join(dir, 'node_modules', '.package-lock.json')).mtimeMs >
       fs.statSync(path.join(dir, 'package-lock.json')).mtimeMs
     );
   } catch {
@@ -445,7 +448,7 @@ function spawnStep(step, fd, cwd) {
   if (step.name === 'livekit-recorder-install' && !process.env.CI) {
     const dir = path.join(cwd, 'tools', 'livekit', 'recorder');
     if (installIsFresh(dir)) {
-      fs.writeSync(fd, 'node_modules is newer than package-lock.json: npm ci skipped\n');
+      fs.writeSync(fd, 'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n');
       return 0;
     }
   }

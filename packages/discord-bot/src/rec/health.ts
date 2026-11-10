@@ -51,6 +51,8 @@ export class RecorderHealth {
   private readonly streamErrors = new Map<string, string>();
   /** The failed rejoin attempt number while the bot is out of the channel, else null. */
   private rejoinAttempt: number | null = null;
+  /** True after a tick with the voice connection down, until the first tick after it is back. */
+  private wasDown = false;
 
   /** Someone is in the channel (a join, or already there when the recording started). */
   join(userId: string, name: string, muted: boolean, now: number): void {
@@ -107,16 +109,26 @@ export class RecorderHealth {
    */
   silent(now: number, connected = true): string[] {
     const out: string[] = [];
-    if (!connected) return out;
+    if (!connected) {
+      this.wasDown = true;
+      return out;
+    }
+    // Nobody could be recorded while the link was down: every window starts again now, so a long
+    // outage does not report all members at once on the first tick after it.
+    if (this.wasDown) {
+      this.wasDown = false;
+      for (const m of this.members.values()) m.joinedAt = now;
+    }
     for (const m of this.members.values()) {
       if (m.muted || m.silenceReported) continue;
-      const since = m.lastPacket ?? m.joinedAt;
+      // The later of the last packet and the window start (joining, unmuting, a reconnect).
+      const since = Math.max(m.lastPacket ?? m.joinedAt, m.joinedAt);
       if (now - since < SILENCE_MS) continue;
       m.silenceReported = true;
       const what =
         m.lastPacket === null
           ? 'has not been recorded at all'
-          : `has not been recorded for ${formatAge(now - since)}`;
+          : `has not been recorded for ${formatAge(now - m.lastPacket)}`;
       out.push(
         `Recorder: ${m.name} ${what}. If they have been speaking, their track may have stopped.`
       );

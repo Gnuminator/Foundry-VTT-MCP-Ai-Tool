@@ -7,16 +7,17 @@
 #
 #   MODE=status    read-only: each systemd unit (enabled, active), each container (state, health, restarts); exit 1 when a
 #                  unit and the stack run at the same time (two copies of one service)
-#   MODE=up        start the compose stack (docker compose up -d --wait). Refused while a systemd unit runs or is enabled and
-#                  the stack would use the live ports (30000, 31414, 31415, 3000) or the live data folders: a second Foundry on
-#                  the live data folder corrupts it. A rehearsal beside the units sets other ports and its own data folders in
-#                  the ssh line; it runs as its own compose project (foundry-ai-tool-pi-rehearsal) and never touches the live
+#   MODE=up        start a REHEARSAL stack (docker compose up -d, then wait for foundry, bridge and dashboard). Refused on the
+#                  live ports (30000, 31414, 31415, 3000, any one of them) until the cutover is supported (Backlog:
+#                  pi-compose-cutover), and refused on the live data folders whatever state the units are in: a second
+#                  Foundry on the live data folder corrupts it. A rehearsal sets other ports and its own data folders in the
+#                  ssh line; it runs as its own compose project (foundry-ai-tool-pi-rehearsal) and never touches the live
 #                  stack. For example (deploy/pi/test.env has the ports):
 #                    ssh foundry-pi 'MODE=up FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614 BRIDGE_LINK_PORT=31615 \
 #                      DASHBOARD_PORT=3300 FOUNDRY_DATA_DIR=/var/lib/foundry-rehearsal TOOL_DATA_DIR=/var/lib/foundry-ai-tool-rehearsal bash -s'
-#                  Starting the live project again asks for a quiet table (it can recreate running containers).
+#                  (Under TEST_ALLOW_CUTOVER=1, tests only, the live project can start and then asks for a quiet table.)
 #   MODE=down      stop and remove the containers (the data folders are bind mounts and stay). Asks for a quiet table first
-#                  when the stack serves the live Foundry port. Use the same ports as the `up` (the project name follows them).
+#                  when the stack uses a live port. Use the same ports as the `up` (the project name follows them).
 #   MODE=cutover   REFUSED for now. The switch to containers needs follow-ups first: a compose-aware nightly backup
 #                  (6-backup.sh stops and copies foundry.service's world) and guards in every stage that starts or restarts
 #                  foundry.service (3, 5, 7, 11, 12, 13, 14, 19, 21, switch-world, kit-session, set-dashboard-access). Backlog:
@@ -26,6 +27,10 @@
 #                  one. Needs no quiet table (it is the way out) and only warns without a snapshot from today. Containers are
 #                  found by label, so a missing compose file or .env does not hide them; with the Docker daemon down it
 #                  refuses (the containers come back with the daemon) unless FORCE=1, which first disables docker.service.
+# FOUNDRY_DATA_DIR and TOOL_DATA_DIR must be absolute paths for up and cutover (compose and this script would resolve a
+# relative one against different folders); down, rollback and status ignore the rule so the way out is never blocked.
+# A .env value of those names with a $ (compose would expand it) or a backslash is refused for up and cutover too (the
+# key is named, not the value): write the plain path. Down, rollback and status ignore that rule as well.
 # Without MODE it is status. DRY_RUN=1 with any other mode checks everything and prints the plan.
 #
 # Not touched in any mode: Syncthing, cloudflared, Tailscale (serve), the Discord bot, the GitHub runner, the env files,
@@ -34,7 +39,8 @@
 # (they would start a second copy); MODE=rollback first. deploy/pi/deployed-state.sh reports a unit and a container
 # running together as FAIL.
 #
-# Tests only: TOOL_CHECKOUT, CUTOVER_STATE, WAIT_TIMEOUT, PORT_WAIT, TEST_ALLOW_CUTOVER.
+# Tunable: WAIT_TIMEOUT (seconds to wait for healthy, default 300; raise it for a big world on the Pi), PORT_WAIT.
+# Tests only: TOOL_CHECKOUT, CUTOVER_STATE, TEST_ALLOW_CUTOVER.
 
 mode="${MODE:-status}"
 dry="${DRY_RUN:-0}"
@@ -62,16 +68,69 @@ fi
 # An SSH drop must not leave a switch half done: ignore HUP and a closed stdout from here on and keep the story on the Pi.
 if [ "$mode" != status ]; then
   trap '' HUP PIPE
+fi
+if [ "$mode" != status ] && [ "$dry" != 1 ]; then
   STAGE_LOG="$TOOL_DIR/compose-run-$(date +%Y%m%d-%H%M%S).log"
   if (umask 077 && : >>"$STAGE_LOG") 2>/dev/null; then ok "this run is logged in $STAGE_LOG"; else STAGE_LOG=""; fi
 fi
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
-# The value compose will use: the shell wins over deploy/pi/.env wins over the default in compose.yml.
+# The value compose will use: the shell wins (even set but empty, which compose then replaces with the default) over
+# deploy/pi/.env wins over the default in compose.yml. A .env value is read like compose does: leading and trailing
+# whitespace dropped, an unquoted value ends at a ` #` comment, one pair of matching quotes removed.
+env_file_value() { # NAME: the value deploy/pi/.env gives it, read like compose does ("" when absent)
+  local v=""
+  if [ -f "$env_file" ]; then
+    v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$env_file" | tail -n 1)"
+    v="${v#"${v%%[![:space:]]*}"}"
+    case "$v" in
+      \"*) v="${v#\"}" v="${v%%\"*}" ;;
+      \'*) v="${v#\'}" v="${v%%\'*}" ;;
+      *) v="$(printf '%s' "$v" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
+    esac
+  fi
+  printf '%s' "$v"
+}
 effective() { # NAME DEFAULT
   local v="${!1:-}"
-  if [ -z "$v" ] && [ -f "$env_file" ]; then v="$(sed -n "s/^$1=//p" "$env_file" | tail -n 1)"; fi
+  if [ -z "${!1+set}" ]; then v="$(env_file_value "$1")"; fi
   printf '%s' "${v:-$2}"
+}
+# Compose interpolates $VAR and ${VAR} and reads \" escapes in a .env value; effective() reads them literally. A value of the
+# seven names with a $ or a backslash would mean one folder or port to compose and another to the live-folder check, so it
+# is refused (key only, never the value). Only a value read from .env counts: a shell value reaches compose as it is.
+check_env_file_literals() {
+  local name
+  for name in FOUNDRY_HTTP_PORT BRIDGE_CONTROL_PORT BRIDGE_LINK_PORT DASHBOARD_PORT FOUNDRY_DATA_DIR TOOL_DATA_DIR FOUNDRY_APP_DIR; do
+    [ -z "${!name+set}" ] || continue
+    case "$(env_file_value "$name")" in
+      *'$'* | *'\'*) die "$env_file sets $name with a \$ or a backslash: compose would read it differently from this script's live-folder check. Write the plain value. Nothing was changed" ;;
+    esac
+  done
+}
+# True when the stack's data folders are, or sit inside or around, the live ones. Paths are canonicalised first, so a
+# trailing slash, //, /./ or a symlink does not get past the refusal. Fails closed: when realpath cannot canonicalise a
+# path the script stops, because a raw string compare would let those forms through.
+canon() { realpath -m -- "$1" 2>/dev/null; }
+overlaps() { # A B
+  local a b
+  a="$(canon "$1")" || die "cannot check the data folders (realpath -m failed for '$1'). Nothing was changed"
+  b="$(canon "$2")" || die "cannot check the data folders (realpath -m failed for '$2'). Nothing was changed"
+  a="$a/" b="$b/"
+  case "$a" in "$b"*) return 0 ;; esac
+  case "$b" in "$a"*) return 0 ;; esac
+  return 1
+}
+# Both stack folders against both live folders, so a rehearsal Foundry folder set to the live tool folder (or the other way
+# round) is caught too.
+on_live_data() {
+  local s l
+  for s in "$foundry_data" "$tool_data"; do
+    for l in "$live_foundry_data" "$TOOL_DATA"; do
+      ! overlaps "$s" "$l" || return 0
+    done
+  done
+  return 1
 }
 http_port="$(effective FOUNDRY_HTTP_PORT 30000)"
 control_port="$(effective BRIDGE_CONTROL_PORT 31414)"
@@ -80,12 +139,22 @@ dash_port="$(effective DASHBOARD_PORT 3000)"
 foundry_data="$(effective FOUNDRY_DATA_DIR "$live_foundry_data")"
 tool_data="$(effective TOOL_DATA_DIR "$TOOL_DATA")"
 foundry_app="$(effective FOUNDRY_APP_DIR "$FOUNDRY_APP")"
+# Compose resolves a relative bind path against the compose file folder, this script against its own cwd: refuse both.
+# Only for up and cutover, the modes that mount the data folders; down, rollback and status must never be blocked by it.
+if [ "$mode" = up ] || [ "$mode" = cutover ]; then
+  check_env_file_literals
+  case "$foundry_data" in /*) ;; *) die "FOUNDRY_DATA_DIR must be an absolute path (got '$foundry_data'). Nothing was changed" ;; esac
+  case "$tool_data" in /*) ;; *) die "TOOL_DATA_DIR must be an absolute path (got '$tool_data'). Nothing was changed" ;; esac
+fi
 
 # The live stack and a rehearsal are separate compose projects, so a rehearsal can never recreate or remove the live
-# containers. A rehearsal is anything that does not use Foundry's live port.
+# containers. A rehearsal is anything that uses none of the live ports.
 live_project=foundry-ai-tool-pi
-project="$live_project"
-[ "$http_port" = 30000 ] || project="$live_project-rehearsal"
+project="$live_project-rehearsal"
+# Any one live port makes it the live project (a rehearsal that kept the live dashboard port still clashes with it).
+if [ "$http_port" = 30000 ] || [ "$control_port" = 31414 ] || [ "$link_port" = 31415 ] || [ "$dash_port" = 3000 ]; then
+  project="$live_project"
+fi
 
 dc() { docker compose -f "$compose_file" -p "$project" "$@"; }
 
@@ -94,14 +163,14 @@ dc() { docker compose -f "$compose_file" -p "$project" "$@"; }
 # but its daemon does not answer: the state is then unknown and every caller treats that as "containers may exist".
 containers_of() { # $1 project, $2 optional service, $3 -a for stopped ones too
   command -v docker >/dev/null 2>&1 || return 0
-  docker info >/dev/null 2>&1 || return 1
+  timeout 20 docker info >/dev/null 2>&1 || return 1
   local args=(ps -q)
   [ "${3:-}" != -a ] || args=(ps -aq)
   args+=(--filter "label=com.docker.compose.project=$1")
   [ -z "${2:-}" ] || args+=(--filter "label=com.docker.compose.service=$2")
   docker "${args[@]}" 2>/dev/null
 }
-daemon_known() { ! command -v docker >/dev/null 2>&1 || docker info >/dev/null 2>&1; }
+daemon_known() { ! command -v docker >/dev/null 2>&1 || timeout 20 docker info >/dev/null 2>&1; }
 need_daemon() { # $1 what
   daemon_known || die "the Docker daemon does not answer, so which containers exist is unknown (a stopped daemon brings its containers back when it starts): $1 is refused. systemctl status docker. Nothing was changed"
 }
@@ -123,7 +192,13 @@ stack_running() { # $1 project, default the current one
   [ -n "$ids" ]
 }
 # The first container id of a service of the current project ("-a": stopped ones too).
-svc_container() { containers_of "$project" "$1" "${2:-}" | head -n 1 || true; }
+# Prints nothing and returns 1 when the daemon does not answer (unknown is not "none").
+svc_container() {
+  local ids
+  ids="$(containers_of "$project" "$1" "${2:-}")" || return 1
+  printf '%s
+' "$ids" | head -n 1
+}
 
 # The services that must be healthy for the stack to count as up. The Assistant GM browser (gm-browser) is reported
 # but is no gate: it is healthy only once the world runs, the Assistant GM joined and the module socket connected, which
@@ -140,7 +215,7 @@ stack_report() {
     gate=1
     [ "$svc" != "$gm_service" ] || gate=0
     [ "$gate" = 0 ] || total=$((total + 1))
-    cid="$(svc_container "$svc" -a)"
+    cid="$(svc_container "$svc" -a)" || cid=""
     if [ -z "$cid" ]; then
       echo "    $svc: no container"
       [ "$gate" = 0 ] || bad=1
@@ -161,7 +236,7 @@ stack_report() {
 # True when the Assistant GM container has joined the world in its current run (the logs since its last start).
 gm_container_joined() {
   local cid started
-  cid="$(svc_container gm-browser)"
+  cid="$(svc_container gm-browser)" || cid=""
   [ -n "$cid" ] || return 1
   started="$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)"
   [ -n "$started" ] || return 1
@@ -169,10 +244,10 @@ gm_container_joined() {
 }
 
 # require_quiet for the stack: refuses while players are online (the Assistant GM container counts as one once it has
-# joined) or a recording runs. Only when the stack serves the live Foundry port; a rehearsal drops nobody.
+# joined) or a recording runs. Only for the live project (any live port makes it that); a rehearsal drops nobody.
 require_quiet_stack() { # $1 what
   local online joined=0
-  [ "$http_port" = 30000 ] || return 0
+  [ "$project" = "$live_project" ] || return 0
   if [ -n "$(svc_container foundry)" ]; then
     online="$(users_online)"
     if gm_container_joined; then joined=1; fi
@@ -189,7 +264,7 @@ require_quiet_stack() { # $1 what
 preflight_stack() {
   local img missing=""
   command -v docker >/dev/null 2>&1 || die "docker is not installed: run stage 23 first. Nothing was changed"
-  docker info >/dev/null 2>&1 || die "the Docker daemon does not answer (systemctl status docker). Nothing was changed"
+  timeout 20 docker info >/dev/null 2>&1 || die "the Docker daemon does not answer (systemctl status docker). Nothing was changed"
   [ -f "$compose_file" ] || die "$compose_file is missing: run stage 23 (it needs a tool build that has deploy/pi). Nothing was changed"
   grep -q '^FOUNDRY_UID=[0-9]' "$env_file" 2>/dev/null || die "$env_file has no FOUNDRY_UID: run stage 23 again (a new stage 5 build replaces the checkout and its .env). Nothing was changed"
   for img in $(dc config --images 2>/dev/null); do
@@ -223,8 +298,8 @@ conflict_guard() {
   for u in "${units[@]}"; do if unit_active "$u" || unit_enabled "$u"; then active="$active $u"; fi; done
   if [ -n "$active" ]; then
     live="$(live_ports)"
-    [ -z "$live" ] || die "systemd unit(s)$active run or are enabled and the stack would use the live port(s) $live. Two copies on one port fail. MODE=cutover switches over; for a rehearsal set other ports (deploy/pi/test.env). Nothing was changed"
-    if [ "$foundry_data" = "$live_foundry_data" ] || [ "$tool_data" = "$TOOL_DATA" ]; then
+    [ -z "$live" ] || die "systemd unit(s)$active run or are enabled and the stack would use the live port(s) $live. Two copies on one port fail. For a rehearsal set other ports (deploy/pi/test.env). Nothing was changed"
+    if on_live_data; then
       die "systemd unit(s)$active run or are enabled and the stack would share their data folder ($foundry_data, $tool_data): two Foundrys on one data folder corrupt it. Set FOUNDRY_DATA_DIR and TOOL_DATA_DIR for the rehearsal. Nothing was changed"
     fi
   elif ! stack_running; then
@@ -263,6 +338,15 @@ verify_stack() {
   return "$rc"
 }
 
+# Start the project and wait for the gate services only: gm-browser is no gate (see gate_services) and would otherwise hold
+# `--wait` for the whole timeout on a world without it.
+start_stack() {
+  dc up -d --no-build >/dev/null 2>&1 || warn "docker compose up reported an error"
+  # shellcheck disable=SC2086
+  dc up -d --no-build --wait --wait-timeout "$wait_timeout" $gate_services >/dev/null 2>&1 ||
+    warn "docker compose up --wait did not finish healthy within ${wait_timeout}s"
+}
+
 # ---- rollback --------------------------------------------------------------------------------------------------
 rollback_units_list() { # prints the units to start, one per line
   local u
@@ -277,8 +361,8 @@ rollback_units_list() { # prints the units to start, one per line
 # Stop and remove the containers of a project. `compose down` first when the compose file and .env can be read (it stops in
 # reverse dependency order); then whatever is left, found by label: restart policy off (so a daemon restart does not bring
 # them back), a graceful stop, remove.
-stop_project() { # $1 project; returns 1 when containers remain
-  local ids
+stop_project() { # $1 project; returns 1 when containers remain (or when that cannot be told)
+  local ids left
   command -v docker >/dev/null 2>&1 || return 0
   if [ -f "$compose_file" ] && [ -f "$env_file" ]; then
     docker compose -f "$compose_file" -p "$1" down >/dev/null 2>&1 || warn "docker compose down reported an error"
@@ -292,7 +376,8 @@ stop_project() { # $1 project; returns 1 when containers remain
     # shellcheck disable=SC2086
     docker rm -f $ids >/dev/null 2>&1 || warn "docker rm reported an error"
   fi
-  [ -z "$(containers_of "$1" "" -a)" ]
+  left="$(containers_of "$1" "" -a)" || return 1
+  [ -z "$left" ]
 }
 
 rollback_now() {
@@ -329,6 +414,8 @@ rollback_now() {
     fi
   done <<<"$list"
   [ -z "$fail" ] || { out "ERROR: rollback incomplete, unit(s) not running:$fail" 1; return 1; }
+  # The record said which units were on before the cutover; after a rollback it is stale.
+  rm -f "${state_file:?}"
   ok "rolled back: the systemd units run, the containers are gone"
 }
 
@@ -376,11 +463,15 @@ mode_up() {
   if [ "$project" = "$live_project" ] && [ "${TEST_ALLOW_CUTOVER:-0}" != 1 ]; then
     die "MODE=up on the live ports (project $live_project) is the cutover, which is not supported yet (Backlog: pi-compose-cutover): the nightly backup and the other stages would run next to the containers. Use rehearsal ports (deploy/pi/test.env). Nothing was changed"
   fi
+  # A rehearsal on the live data folders is the same corruption as a second Foundry there, whatever the units are doing.
+  if [ "$project" != "$live_project" ] && on_live_data; then
+    die "the rehearsal would use a live data folder ($foundry_data, $tool_data): a second Foundry on it corrupts it, also with the units off. Set FOUNDRY_DATA_DIR and TOOL_DATA_DIR for the rehearsal. Nothing was changed"
+  fi
   need_daemon "starting the stack"
   preflight_stack
   conflict_guard
   if [ "$dry" = 1 ]; then
-    say "dry run: would run  docker compose -f $compose_file -p $project up -d --wait --no-build  (ports $http_port $control_port $link_port $dash_port); nothing changed"
+    say "dry run: would run  docker compose -f $compose_file -p $project up -d --no-build, then wait for $gate_services  (ports $http_port $control_port $link_port $dash_port); nothing changed"
     return 0
   fi
   require_recent_snapshot
@@ -389,9 +480,7 @@ mode_up() {
     require_quiet_stack "starting the stack again (it can recreate running containers)"
   fi
   say "starting the stack"
-  if ! dc up -d --wait --wait-timeout "$wait_timeout" --no-build >/dev/null 2>&1; then
-    warn "docker compose up --wait did not finish healthy within ${wait_timeout}s"
-  fi
+  start_stack
   say "check"
   if verify_stack; then
     ok "the stack runs and is healthy"
@@ -455,8 +544,9 @@ mode_cutover() {
   require_recent_snapshot
   require_quiet "cutting over (it stops Foundry, the bridge, the dashboard and the Assistant GM)"
   if [ "${#was[@]}" -gt 0 ]; then
-    : >"$state_file"
-    for u in "${was[@]}"; do printf '%s\n' "$u" >>"$state_file"; done
+    # Written whole to a temp file and renamed, so an interrupted run never leaves a record with only some of the units.
+    for u in "${was[@]}"; do printf '%s\n' "$u"; done >"$state_file.new"
+    mv -f "$state_file.new" "$state_file"
     ok "recorded the units that were on in $state_file (${was[*]})"
   fi
   say "stopping and disabling the units (they stay installed)"
@@ -478,9 +568,7 @@ mode_cutover() {
   fi
   ok "ports $http_port $control_port $link_port $dash_port are free"
   say "starting the stack (up to ${wait_timeout}s for healthy)"
-  if ! dc up -d --wait --wait-timeout "$wait_timeout" --no-build >/dev/null 2>&1; then
-    warn "docker compose up --wait did not finish healthy"
-  fi
+  start_stack
   say "check"
   if verify_stack; then
     ok "cut over: the stack is healthy and the units are off and disabled"
@@ -505,7 +593,7 @@ mode_rollback() {
   fi
   # The way out must not be blocked by a missing snapshot: only a warning.
   ( require_recent_snapshot ) || warn "no snapshot from today; going on, a rollback restores the earlier state"
-  if [ "$http_port" = 30000 ] && [ -n "$(svc_container foundry)" ]; then
+  if [ "$project" = "$live_project" ] && [ -n "$(svc_container foundry)" ]; then
     online="$(users_online)"
     [ "$online" = 0 ] || warn "Foundry reports $online user(s) online: the rollback drops them (the Assistant GM counts as one)"
   fi

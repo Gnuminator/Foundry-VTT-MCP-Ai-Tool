@@ -52,6 +52,7 @@ import {
   startTableWatch,
 } from './tarokka-table-window.js';
 import { logInfo } from './log.js';
+import { warmPlayerIndexes } from './player-read.js';
 import { toGmMessage } from './gm-message.js';
 // Connection control now handled through settings menu
 
@@ -128,22 +129,54 @@ class FoundryMCPBridge {
     holdsLink: () => this.socketBridge !== null,
   });
 
-  /** In memory only: what this browser last wrote to `linkState`. */
+  /** In memory only: what this browser last wrote to `linkState` (set once the write succeeded). */
   private lastPublishedLinkState: LinkRelayStateName | null = null;
+  /** The state whose write is under way, so a repeat before it finishes writes nothing. */
+  private publishingLinkState: LinkRelayStateName | null = null;
+  /** Counts writes so a late settle of an older write cannot overwrite the record of a newer one. */
+  private linkStateWriteSeq = 0;
+
+  /**
+   * Only a browser that is the chosen bridge user may write the notice: with "Any GM" (no user
+   * chosen) every GM browser holds a link and each would write, and a user without the right to
+   * change world settings cannot write at all.
+   */
+  private canPublishLinkState(): boolean {
+    const bridgeUserId = this.settings.getSetting('bridgeUserId');
+    if (typeof bridgeUserId !== 'string' || bridgeUserId === '') return false;
+    if (!isBridgeUser(bridgeUserId, game.user?.id)) return false;
+    const user = game.user as unknown as { can?: (permission: string) => boolean } | undefined;
+    return user?.can?.('SETTINGS_MODIFY') === true;
+  }
 
   /** Writes the holder's notice state to the world so every other GM browser can show it. */
   private publishLinkState(state: LinkRelayStateName): void {
     // One write per change of notice: a repeated "lost" (a failed start() while the outage lasts) writes nothing.
-    if (state === this.lastPublishedLinkState) return;
-    this.lastPublishedLinkState = state;
+    if (state === this.lastPublishedLinkState || state === this.publishingLinkState) return;
+    if (!this.canPublishLinkState()) return;
+    this.publishingLinkState = state;
+    const seq = ++this.linkStateWriteSeq;
+    const done = (error?: unknown): void => {
+      if (this.publishingLinkState === state) this.publishingLinkState = null;
+      if (error === undefined && seq === this.linkStateWriteSeq)
+        this.lastPublishedLinkState = state;
+      else console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+    };
     try {
       const result = game.settings.set(MODULE_ID, 'linkState', { state, at: Date.now() });
-      void Promise.resolve(result).catch(error => {
-        console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
-      });
+      void Promise.resolve(result).then(
+        () => done(),
+        error => done(error ?? new Error('write failed'))
+      );
     } catch (error) {
-      console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+      done(error ?? new Error('write failed'));
     }
+  }
+
+  /** Shows the holder's notices in this GM browser: on every stored change, and once for the value present now. */
+  watchLinkState(): void {
+    Hooks.on(LINK_STATE_CHANGED_HOOK, () => this.applyStoredLinkState());
+    this.applyStoredLinkState();
   }
 
   /** The stored link state changed (or was read when this GM joined): show it unless this browser holds the link. */
@@ -183,7 +216,7 @@ class FoundryMCPBridge {
    */
   async initialize(): Promise<void> {
     try {
-      logInfo(`[${MODULE_ID}] Initializing Foundry MCP Bridge...`);
+      logInfo(`[${MODULE_ID}] Initializing Foundry AI Tool...`);
 
       // Register module settings
       this.settings.registerSettings();
@@ -390,6 +423,7 @@ class FoundryMCPBridge {
 
       // Rebuild a missing or stale creature index in the background.
       this.warmEnhancedIndex();
+      this.warmPlayerIndexes();
 
       logInfo(`[${MODULE_ID}] Module ready`);
     } catch (error) {
@@ -420,6 +454,28 @@ class FoundryMCPBridge {
       })
       .catch(error => {
         console.warn(`[${MODULE_ID}] Failed to build the enhanced creature index:`, error);
+      });
+  }
+
+  /**
+   * Build the player book indexes in the background after start, so the first player search
+   * after a restart answers in seconds (a cold build is 20 to 30 s on the Pi, over the query
+   * timeout). Same client rule as the creature index: the bridge user's browser only.
+   */
+  private warmPlayerIndexes(): void {
+    if (!this.isGMUser()) return;
+    if (!isBridgeUser(this.settings.getSetting('bridgeUserId'), game.user?.id)) return;
+    if (game.system.id !== 'dnd5e') return;
+
+    const started = Date.now();
+    void warmPlayerIndexes(this.queryHandlers.dataAccess.playerWarmDeps())
+      .then(built => {
+        logInfo(
+          `[${MODULE_ID}] Player book indexes ready (${built} packs, ${Date.now() - started} ms)`
+        );
+      })
+      .catch(error => {
+        console.warn(`[${MODULE_ID}] Failed to warm the player book indexes:`, error);
       });
   }
 
@@ -465,6 +521,7 @@ class FoundryMCPBridge {
       this.isGMUser() &&
       this.settings.getSetting('enableNotifications') !== false &&
       this.lastPublishedLinkState !== 'lost' &&
+      this.publishingLinkState !== 'lost' &&
       parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')).state === 'lost'
     ) {
       this.publishLinkState('quiet');
@@ -502,7 +559,9 @@ class FoundryMCPBridge {
 
       this.lastConnectionState = 'connected';
       // A start() during an outage that connects: the other GMs were told "lost", so tell them it is back.
-      if (this.lastPublishedLinkState === 'lost') this.publishLinkState('up');
+      if (this.lastPublishedLinkState === 'lost' || this.publishingLinkState === 'lost') {
+        this.publishLinkState('up');
+      }
       this.updateLastActivity();
 
       // Start heartbeat monitoring if enabled
@@ -755,8 +814,7 @@ Hooks.once('ready', async () => {
     // The link holder (the Assistant GM's browser) shares its lost/back notices through a world
     // setting; a GM browser that does not hold the link shows them too, also when it joins mid-outage.
     // (The setting's onChange fires for the first write, a create, as well as for later updates.)
-    Hooks.on(LINK_STATE_CHANGED_HOOK, () => foundryMCPBridge.applyStoredLinkState());
-    foundryMCPBridge.applyStoredLinkState();
+    foundryMCPBridge.watchLinkState();
 
     // Live screen B: the pinned button, and the live window if it was open before the reload.
     restoreLiveWindow();

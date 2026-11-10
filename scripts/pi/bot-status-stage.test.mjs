@@ -79,7 +79,7 @@ function fakePi({
     `echo "systemctl $*" >>"$S/calls"
 case "$1" in
   is-active) [ "\${2:-}" = --quiet ] && u="$3" || u="$2"; [ -f "$S/active-$u" ]; exit $? ;;
-  show) cat "$S/show-ts" 2>/dev/null || echo "" ;;
+  show) case "$*" in *MainPID*) cat "$S/mainpid" 2>/dev/null || echo 0 ;; *) cat "$S/show-ts" 2>/dev/null || echo "" ;; esac ;;
 esac
 exit 0`
   );
@@ -108,7 +108,7 @@ exit 0`
   return d;
 }
 
-function run(d, env = {}) {
+function run(d, env = {}, pre = '') {
   const script = [
     lib,
     'have_systemd() { return 0; }',
@@ -119,6 +119,7 @@ function run(d, env = {}) {
     `TOOL_DATA="${posix(path.join(d, 'data'))}"`,
     `NODE_DIR="${posix(path.join(d, 'node'))}"`,
     `DROPIN_DIR_BASE="${posix(path.join(d, 'systemd'))}"`,
+    pre,
     stage,
   ].join('\n');
   const file = path.join(d, 'run.sh');
@@ -130,6 +131,7 @@ function run(d, env = {}) {
       PATH: `${posix(path.join(d, 'bin'))}:${process.env.PATH}`,
       DIETPI_DIR: posix(path.join(d, 'dietpi')),
       DIETPI_BACKUP_STATS: posix(path.join(d, 'stats')),
+      PROC_ROOT: posix(path.join(d, 'proc')),
       ...env,
     },
   });
@@ -272,6 +274,70 @@ describe('27-bot-status.sh', { skip: !hasBash && 'no bash here' }, () => {
     }
   });
 
+  test('a dry run reports a busy port, and warns when ss is missing', () => {
+    const busy = run(fakePi({ portBusy: true, snapshot: false }), { DRY_RUN: '1' });
+    assert.notEqual(busy.status, 0);
+    assert.match(busy.out, /port 3110 is already in use/);
+    const d = fakePi({ snapshot: false });
+    // `command -v ss` fails, as on a Pi without iproute2
+    const r = run(
+      d,
+      { DRY_RUN: '1' },
+      'command() { if [ "${1:-}" = -v ] && [ "${2:-}" = ss ]; then return 1; fi; builtin command "$@"; }'
+    );
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /ss is not installed: whether port 3110 is free was not checked/);
+  });
+
+  test('a grep read error (exit 2) or a copy without the token line is never moved into place', () => {
+    const realGrep = spawnSync('bash', ['-c', 'command -v grep'], { encoding: 'utf8' }).stdout.trim();
+    const fail = fakePi();
+    writeFileSync(
+      path.join(fail, 'bin', 'grep'),
+      `#!/usr/bin/env bash\ncase "$*" in *-vE*) exit 2 ;; esac\nexec "${posix(realGrep)}" "$@"\n`
+    );
+    chmodSync(path.join(fail, 'bin', 'grep'), 0o755);
+    const r1 = run(fail);
+    assert.notEqual(r1.status, 0);
+    assert.match(r1.out, /reading .*discord-bot\.env failed \(grep exit 2\)/);
+    assert.match(r1.envFile, /SECRET-TOKEN-VALUE/);
+    assert.doesNotMatch(r1.envFile, /STATUS_PORT/);
+    const lost = fakePi();
+    writeFileSync(
+      path.join(lost, 'bin', 'grep'),
+      `#!/usr/bin/env bash\ncase "$*" in *-vE*) exec "${posix(realGrep)}" -vE '^(FOUNDRY_AI_BOT_STATUS_PORT|DISCORD_TOKEN)=' "\${@: -1}" ;; esac\nexec "${posix(realGrep)}" "$@"\n`
+    );
+    chmodSync(path.join(lost, 'bin', 'grep'), 0o755);
+    const r2 = run(lost);
+    assert.notEqual(r2.status, 0);
+    assert.match(r2.out, /lost its DISCORD_TOKEN line/);
+    assert.match(r2.envFile, /SECRET-TOKEN-VALUE/);
+    assert.doesNotMatch(r2.out, /SECRET-TOKEN/);
+  });
+
+  test('an UNDO rerun after a cut-off UNDO restarts a dashboard that still carries the URL', () => {
+    const d = fakePi();
+    run(d);
+    run(d, { UNDO: '1' }); // the drop-in and the line are gone now
+    mkdirSync(path.join(d, 'proc', '4242'), { recursive: true });
+    writeFileSync(path.join(d, 'state', 'mainpid'), '4242\n');
+    writeFileSync(
+      path.join(d, 'proc', '4242', 'environ'),
+      'A=1\0DASHBOARD_BOT_STATUS_URL=http://127.0.0.1:3110/status\0'
+    );
+    writeFileSync(path.join(d, 'state', 'show-ts'), '2099-01-01 00:00:00 UTC\n'); // started after every file
+    // the second UNDO has nothing left to undo in the bot env, and still restarts a dashboard that carries the URL
+    rmSync(path.join(d, 'state', 'calls'));
+    const r = run(d, { UNDO: '1' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /still has DASHBOARD_BOT_STATUS_URL/);
+    assert.match(r.calls, new RegExp(`restart ${DASH}`));
+    // a dashboard without the variable is left alone
+    writeFileSync(path.join(d, 'proc', '4242', 'environ'), 'A=1\0');
+    rmSync(path.join(d, 'state', 'calls'));
+    assert.doesNotMatch(run(d, { UNDO: '1' }).calls, new RegExp(`restart ${DASH}`));
+  });
+
   test('players online refuse the restarts, and nothing is written', () => {
     const d = fakePi({ active: [BOT, DASH, 'foundry.service'], foundryUsers: 2 });
     writeFileSync(
@@ -317,7 +383,7 @@ describe('27-bot-status.sh', { skip: !hasBash && 'no bash here' }, () => {
 
 describe('27-bot-status.sh as text', () => {
   test('rm uses ${var:?}, the port is loopback only, and the stage checks the snapshot after require_root', () => {
-    assert.doesNotMatch(stage, /rm -rf?\s+(?!"\$\{)/);
+    assert.doesNotMatch(stage, /\brm -[a-zA-Z]*\s+(?!"\$\{)/);
     assert.match(stage, /^require_root\n(?:.*\n)*?.*require_recent_snapshot/m);
     assert.doesNotMatch(stage, /FOUNDRY_AI_BOT_STATUS_HOST=/);
     assert.match(stage, /http:\/\/127\.0\.0\.1:\$port\/status/);

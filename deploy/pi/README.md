@@ -40,7 +40,11 @@ An env file must not set the ports or the folder variables above: `environment:`
 ## Rehearse beside the live stack
 
 Use other ports and your own data folders, never the live `FOUNDRY_DATA_DIR` (two Foundrys on one data folder
-corrupt it). `test.env` holds the rehearsal ports 30100, 31614, 31615 and 3300 (D-119).
+corrupt it). `test.env` holds the rehearsal ports 30100, 31614, 31615 and 3300 (D-119). Both data folders must be
+absolute paths for `up` and `cutover` (compose and the stage script would resolve a relative one against different
+folders); `down` and `rollback` ignore that rule so the way out is never blocked. Write the plain path in an env file:
+`up` and `cutover` refuse a `$` or a backslash in those values (compose would expand or read them differently from the
+script), and they name the key, not the value.
 
 On the Pi use stage 24, never a raw `docker compose up`: it asks for the snapshot, refuses a clash with the units, runs the
 rehearsal as its own project (`foundry-ai-tool-pi-rehearsal`) and checks the result. Same variables as in `test.env`:
@@ -62,7 +66,7 @@ runner.
 
 `24-compose.sh` takes `MODE=up|down|cutover|rollback`. Run it like the other stages, after the snapshot and the OK.
 
-- `MODE=up` starts the containers (use rehearsal ports while the units run).
+- `MODE=up` starts a **rehearsal** stack on other ports and its own data folders. On the live ports (any one of them) or the live data folders it is refused until the cutover is supported (Backlog `pi-compose-cutover`).
 - `MODE=cutover` is **refused for now**: the nightly backup and the stages that start `foundry.service` do not know the
   stack yet (Backlog `pi-compose-cutover`). The code stays for that item.
 - `MODE=rollback` stops every container of the live project and starts the units again: one command, nothing to rebuild.
@@ -78,6 +82,13 @@ unit and its container both run.
   reported but is not part of the gate that decides whether the stack is up: it needs the world, its login and the module.
 - `restart: unless-stopped` restarts a container that exits, also after a clean exit. A restart count of 5 or more
   is a crash loop in `deployed-state.sh`.
+
+## Docker on the host
+
+Stage 23 sets `live-restore` in `/etc/docker/daemon.json` (only when that file does not exist), so containers survive a daemon
+restart such as a `docker.io` upgrade. Docker also sets the iptables FORWARD policy to DROP (nothing on the Pi forwards
+traffic; the containers use host networking) and `/var/lib/docker` sits on the root file system, so the nightly
+`dietpi-backup` snapshot includes it (the images are rebuilt by stage 23, nothing in there is needed to restore).
 
 ## Image sizes
 

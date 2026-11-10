@@ -49,7 +49,7 @@ running inside it.
 
 - [ ] Ask for something read-only (for example "list the characters in my Foundry world") and confirm it
       returns live data from the server.
-- [ ] Open the dashboard on the server and confirm the live feed shows the request.
+- [ ] Open the dashboard on the server and confirm the Live Feed shows the request.
 
 ### 5. Uninstall (optional)
 
@@ -59,7 +59,7 @@ running inside it.
 ## Pass / fail
 
 - **PASS:** the connectors appear, a read tool returns real data from the server, and the dashboard's
-  live feed updates. Record the result.
+  Live Feed updates. Record the result.
 - **FAIL:** note exactly which step failed and any text from the log
   (`%TEMP%\foundry-mcp-claude-config.log`) and report back; a fresh Claude Code session can diagnose
   from there. Common first suspects: wrong address or Tailscale not connected ("The Foundry AI Tool

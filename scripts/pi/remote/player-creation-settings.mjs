@@ -7,7 +7,9 @@
 //     leaves them (the user, 2026-11-03; stage 22): species, backgrounds, classes, subclasses, feats and spells list
 //     the Player's Handbook pack plus the matching aitool-content pack, items and equipment list the Player's Handbook
 //     equipment plus aitool-content.items, and no list holds a dnd5e.* pack (a pack that is not in the world is left
-//     out of the list; every key not named here keeps its value);
+//     out of the list; every key not named here keeps its value). Once the seven-book baseline is applied (stage 22
+//     MODE=baseline: the six world.player-* packs exist and Player can open them) every kind lists the one world pack
+//     for its type instead; hidden again (baseline-undo), the next run goes back to the module packs;
 //   - Actor Studio, world settings: the ability score methods our table uses (the user, 2026-11-02): allowStandardArray
 //     and allowPointBuy on, allowManualInput and allowRolling off (David saw only manual entry offered);
 //   - Actor Studio's per-user usage-tracking: every saved value that is not false becomes false.
@@ -67,6 +69,22 @@ export const SOURCE_TARGETS = {
   items: [EQUIPMENT_PACK, `${CONTENT}.items`],
   equipment: [EQUIPMENT_PACK, `${CONTENT}.items`],
 };
+// After the seven-book baseline (stage 22 MODE=baseline) every kind lists the one world pack for its item type instead.
+// Used only when all six packs exist and players can open them (readState's baselineReady); undo hides them, and the
+// next run of this stage then goes back to SOURCE_TARGETS.
+const wp = n => `world.player-${n}`;
+export const BASELINE_TARGETS = {
+  races: [wp('species')],
+  racialFeatures: [wp('species'), wp('items')], // species traits are feat-type entries, which the baseline puts in items
+  backgrounds: [wp('backgrounds')],
+  classes: [wp('classes')],
+  subclasses: [wp('classes')],
+  feats: [wp('feats')],
+  spells: [wp('spells')],
+  items: [wp('items')],
+  equipment: [wp('items')],
+};
+export const BASELINE_PACKS = [...new Set(Object.values(BASELINE_TARGETS).flat())];
 // CONST.USER_ROLES.PLAYER and TRUSTED: the roles that may create actors (and so open Actor Studio).
 const PLAYER_ROLES = [1, 2];
 // Actor Studio's ability score methods: standard array and point buy only.
@@ -102,6 +120,39 @@ export function readState({ moduleId, pack, methods, targets }) {
     sourcePacks: Object.fromEntries(
       [...new Set(Object.values(targets).flat())].map(id => [id, game.packs.has(id)])
     ),
+    // The baseline is applied: all six world packs exist and Player can open them, and the kept module packs that exist
+    // in this world are hidden from Player (the baseline opens the world packs and hides the old ones in one last step, so
+    // a half-finished run, with the world packs hidden or the old packs still open, is not ready).
+    baselineReady:
+      [
+        'world.player-classes',
+        'world.player-species',
+        'world.player-backgrounds',
+        'world.player-feats',
+        'world.player-spells',
+        'world.player-items',
+      ].every(id => {
+        const own = game.packs.get(id)?.ownership ?? game.packs.get(id)?.config?.ownership;
+        return game.packs.has(id) && own?.PLAYER !== undefined && own.PLAYER !== 'NONE';
+      }) &&
+      [
+        'dnd-players-handbook.classes',
+        'dnd-players-handbook.origins',
+        'dnd-players-handbook.feats',
+        'dnd-players-handbook.spells',
+        'dnd-players-handbook.equipment',
+        'aitool-content.classes',
+        'aitool-content.species',
+        'aitool-content.backgrounds',
+        'aitool-content.feats',
+        'aitool-content.spells',
+        'aitool-content.items',
+      ]
+        .filter(id => game.packs.has(id))
+        .every(id => {
+          const own = game.packs.get(id)?.ownership ?? game.packs.get(id)?.config?.ownership;
+          return own?.PLAYER === 'NONE';
+        }),
     studioSettingsRegistered:
       registered('enableEquipmentSelection') &&
       registered('compendiumSources') &&
@@ -210,7 +261,7 @@ export function blockers(state, world) {
 }
 
 // What the settings must look like at the end, checked against what they were at the start.
-export function mismatches(before, after) {
+export function mismatches(before, after, targets = SOURCE_TARGETS) {
   const problems = [];
   const roles = after.actorCreate ?? [];
   for (const role of PLAYER_ROLES) {
@@ -229,7 +280,7 @@ export function mismatches(before, after) {
     }
   }
   const sources = after.compendiumSources ?? {};
-  for (const [kind, packs] of Object.entries(SOURCE_TARGETS)) {
+  for (const [kind, packs] of Object.entries(targets)) {
     const wanted = packs.filter(id => after.sourcePacks?.[id]);
     if (wanted.length && JSON.stringify(sources[kind]) !== JSON.stringify(wanted)) {
       problems.push(
@@ -304,8 +355,14 @@ async function main() {
       methods: ABILITY_METHODS,
       targets: SOURCE_TARGETS,
     };
+    // Read both lists' packs; the baseline lists are used once the six world packs are in place.
+    args.targets = { ...SOURCE_TARGETS, ...Object.fromEntries(BASELINE_PACKS.map(p => [p, [p]])) };
     const before = await page.evaluate(readState, args);
+    args.targets = before.baselineReady ? BASELINE_TARGETS : SOURCE_TARGETS;
     log(`world ${before.world}, joined as ${before.user} (GM: ${before.isGM})`);
+    log(
+      `Actor Studio sources: ${before.baselineReady ? 'the six world packs (baseline)' : 'the kept module packs'}`
+    );
     const problems = blockers(before, world);
     if (problems.length) throw new Error(problems.join('; '));
     log(`before: ${show(before)}`);
@@ -318,7 +375,7 @@ async function main() {
     await ready();
     const after = await page.evaluate(readState, args);
     log(`after:  ${show(after)}`);
-    const wrong = mismatches(before, after);
+    const wrong = mismatches(before, after, args.targets);
     if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);
     log('verified');
   } finally {

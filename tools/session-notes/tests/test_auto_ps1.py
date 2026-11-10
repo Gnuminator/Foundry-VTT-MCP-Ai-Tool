@@ -81,6 +81,15 @@ def test_a_live_lock_stops_the_pass_and_stays(sessions: Path) -> None:
     assert lock.read_text(encoding="utf-8").strip() == str(os.getpid())
 
 
+def test_a_locked_pass_prints_no_voice_stack_notice(sessions: Path, tmp_path: Path) -> None:
+    make_lock(sessions, str(os.getpid()))
+    fake = tmp_path / "fake-voice-stack.ps1"
+    fake.write_text("exit 0\n", encoding="ascii")
+    code, out = run_pass(sessions, FVTT_VOICE_STACK=str(fake))
+    assert code == 0 and "Another pass is running" in out
+    assert "FVTT_VOICE_STACK" not in out
+
+
 def test_a_lock_of_a_dead_pass_is_removed_at_once(sessions: Path) -> None:
     lock = make_lock(sessions, str(dead_pid()), age_minutes=1)
     code, out = run_pass(sessions)
@@ -327,6 +336,7 @@ def test_a_failed_transcription_tells(tmp_path: Path, sessions: Path) -> None:
     sent = tells(calls)
     assert marker.exists() and "transcribe" in marker.read_text(encoding="ascii", errors="replace")
     assert code == 0 and "transcription failed" in out
+    assert "FVTT_VOICE_STACK is set (test only)" in out
     assert len(sent) == 1 and "transcription" in sent[0] and "2026-10-01-test" in sent[0]
 
 

@@ -380,7 +380,7 @@ describe('selecting combatants and the action bar', () => {
     expect(pruneSelection(empty, combat, false)).toBe(empty);
   });
 
-  it('targets the picked combatants in the bridge order, and asks the Tool runner for a plan', () => {
+  it('targets the picked combatants in the bridge order, and asks the Tool Runner for a plan', () => {
     const combat = fight([who({ id: 'a', name: 'Alder' }), who({ id: 'b', name: 'Bram' })]);
     expect(selectedTargets(combat, new Set(['b', 'a']))).toEqual(['Alder', 'Bram']);
     expect(selectedTargets(null, new Set(['a']))).toEqual([]);

@@ -53,6 +53,8 @@ export interface GetPlaySessionResult {
   worldId: string;
   open: boolean;
   startedAt: string | null;
+  /** While open: a live session or a night played on paper (Foundry is closed on those). Null when closed. */
+  mode: 'live' | 'paper' | null;
   lastEventAt: string | null;
   /**
    * When the newest session ended, for a closed one: its end marker, or its last logged event
@@ -439,6 +441,7 @@ export class PlaySessionTools {
       worldId,
       open,
       startedAt: open ? newestMarker!.timestamp : null,
+      mode: open ? (isPaperStart(newestMarker!) ? 'paper' : 'live') : null,
       lastEventAt: lastEventAtMs === null ? null : new Date(lastEventAtMs).toISOString(),
       endedAt,
       previousEndedAt,

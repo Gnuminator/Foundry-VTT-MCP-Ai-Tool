@@ -196,7 +196,7 @@
     enqueue(kind, name, extra);
   };
 
-  /** A tool run from the tool runner (the tool name comes from the tool list). */
+  /** A tool run from the Tool Runner (the tool name comes from the tool list). */
   api.trackTool = function (toolName, outcome, code) {
     var slug = String(toolName || '')
       .toLowerCase()

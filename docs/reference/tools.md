@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 105 tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -15,6 +15,7 @@ The bridge serves 100 tools in five sets. [Tool sets](TOOL-SETS.md) explains the
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
+| [Player](#player) | `none (served on /mcp/player only)` | 5 | A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio. |
 
 ## Core
 
@@ -108,7 +109,7 @@ Parameters:
 
 ### get-token-positions
 
-List all tokens on a scene with their positions and status. For each token: name, actor ID, token ID, grid coordinates (x/y and grid cell), elevation, category (player character / npc / enemy), visibility (hidden or visible), current HP, and conditions. Defaults to the active scene.
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).
 
 Kind: read-only. Title: Get token positions.
 
@@ -150,7 +151,7 @@ Parameters:
 
 ### search-compendium
 
-Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
+Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria (Build) instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
 
 Kind: read-only. Title: Search compendiums.
 
@@ -158,7 +159,7 @@ Parameters:
 
 - `query` (string, required): Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.
 - `packType` (string): Optional filter by pack type (e.g., "Item", "Actor", "JournalEntry")
-- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.
+- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria (Build) instead.
   - `challengeRating` (number or object)
   - `creatureType` (string): Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant"). One of: `humanoid`, `dragon`, `beast`, `undead`, `fey`, `fiend`, `celestial`, `construct`, `elemental`, `giant`, `monstrosity`, `ooze`, `plant`, `aberration`.
   - `size` (string): Creature size (e.g., "medium", "large", "huge"; dnd5e keys such as "med" also work). One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`, `sm`, `med`, `lg`, `grg`.
@@ -183,7 +184,7 @@ Parameters:
 
 ### get-compendium-item
 
-Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.
+Use this to read one item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.
 
 Kind: read-only. Title: Get compendium item.
 
@@ -227,9 +228,9 @@ Parameters:
 
 ### list-recent-changes
 
-List recently applied guarded changes for the current world (newest first): summary, diff, when, and whether each can still be undone. Read-only.
+Applied plans only, newest first: summary, diff, when, still undoable. Use this to find one for undo-change; for direct writes and changes by players or the GM use list-changes. Read-only.
 
-Kind: read-only. Title: List recent AI changes.
+Kind: read-only. Title: List applied plans.
 
 Parameters:
 
@@ -237,7 +238,7 @@ Parameters:
 
 ### list-changes
 
-List everyone's recent changes in Foundry (players, the GM and the AI) from the last 7 days, newest first: who, what and when, as readable lines such as "Ilvara: HP 10 -> 5". Filter by person, by thing (a document uuid) and by AI or human. Read-only. Each change has an id; undo it with plan-undo-changes (anyone's change) or, for an AI change, undo-change.
+Use this to see what anyone changed (players, GM, AI) in the last 7 days, newest first: who, what, when, e.g. "Ilvara: HP 10 -> 5". Filter by person, thing (document uuid) or AI/human. Read-only. Undo with plan-undo-changes, or undo-change for an AI change.
 
 Kind: read-only. Title: List all recent changes.
 
@@ -251,7 +252,7 @@ Parameters:
 
 ### plan-undo-changes
 
-Plan undoing one change from list-changes (by anyone: a player, the GM or the AI), or everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.
+Use this to undo a change by anyone (id from list-changes); for an AI change undo-change is simpler. Can also undo everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.
 
 Kind: read-only. Title: Plan undoing changes.
 
@@ -263,7 +264,7 @@ Parameters:
 
 ### undo-change
 
-Undo an applied change (by changeId from list-recent-changes), restoring the previous values. Requires confirm: true. Refuses instead of overwriting if the documents were edited since the change.
+Use this to undo an applied plan (changeId from list-recent-changes), restoring the previous values; for a direct write or a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.
 
 Kind: changes something and can delete or overwrite. Title: Undo change.
 
@@ -322,7 +323,7 @@ Parameters:
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
 - `spellLevel` (number): For spells: cast at a higher level than base (D&D 5e upcasting)
-- `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.
+- `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.
 
 ### request-player-rolls
 
@@ -386,7 +387,7 @@ Parameters:
 
 ### get-token-details
 
-Get detailed information about a specific token including all properties and linked actor data
+Use this for the full properties of one token and linked actor data; for positions of all tokens on a scene use get-token-positions.
 
 Kind: read-only. Title: Get token details.
 
@@ -404,7 +405,7 @@ No parameters.
 
 ### get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use it to follow what happened.
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log (Prep).
 
 Kind: read-only. Title: Get chat log.
 
@@ -417,7 +418,7 @@ Parameters:
 
 ### get-combat-play-by-play
 
-Summary of the current or most recent combat, rebuilt from the chat-log buffer and the turn timeline: each round by turn (who acted, with roll and damage results), key events (downed, dead, stabilized, conditions applied or removed), and totals for rounds and damage dealt per actor.
+Use this for a recap of the current or most recent combat (for raw chat use get-chat-log), rebuilt from the chat-log buffer and the turn timeline: each round by turn (who acted, with roll and damage results), key events (downed, dead, stabilized, conditions applied or removed), and totals for rounds and damage dealt per actor.
 
 Kind: read-only. Title: Get combat play-by-play.
 
@@ -510,7 +511,7 @@ No parameters.
 
 ### get-recent-events
 
-Low-latency "what happened since timestamp X" delta of session events, for situational awareness during play. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log (Prep). Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
 
 Kind: read-only. Title: Get recent events.
 
@@ -941,7 +942,7 @@ Parameters:
 
 ### suggest-balanced-encounter
 
-Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria / search-compendium to pick actual creatures. D&D 5e only.
+Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria (Build) / search-compendium to pick creatures. D&D 5e only.
 
 Kind: read-only. Title: Suggest balanced encounter.
 
@@ -1072,7 +1073,7 @@ Parameters:
 
 ### get-session-log
 
-Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this as a session memory layer to recap what has happened.
+The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events (Play), for chat text get-chat-log (Play).
 
 Kind: read-only. Title: Get session log.
 
@@ -1142,7 +1143,7 @@ Parameters:
 
 ### get-compendium-entry-full
 
-Retrieve complete stat block data including items, spells, and abilities for actor creation
+Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.
 
 Kind: read-only. Title: Get full compendium entry.
 
@@ -1464,7 +1465,7 @@ Parameters:
 
 ### plan-token-rings
 
-Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo is all-or-nothing (it reverts every actor of the plan or none), and disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo reverts the whole plan (actors or tokens); if one write fails, the earlier ones are rolled back where possible. Disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
 
 Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
 
@@ -1499,3 +1500,62 @@ Parameters:
 - `excludeFolderIds` (array of string): Folders (any document type) whose contents are never mirrored, subfolders included. The full list replaces the current one.
 - `storyItemTypes` (array of string): Item types that get a story-item note when the item is in the mirrored set (for example weapon, equipment, consumable, tool, loot, container). The full list replaces the current one.
 - `libraryPacks` (array of string): Compendium packs (e.g. world.ddb-monsters) whose monsters, items, spells, classes, species, backgrounds and feats get Library notes in the GM vault (licensed, kept out of git). Replaces the list.
+
+## Player
+
+A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio.
+
+### get-my-character
+
+Your own character sheet(s): abilities, class and level, hit points, proficiencies, spells, features and inventory. Only characters you own. Read-only.
+
+Kind: read-only. Title: Get my character.
+
+Parameters:
+
+- `name` (string)
+
+### get-my-level-up-options
+
+Advice only, changes nothing: what your next class level grants and the choices still open (hit points, ASI or feat, subclass, spells). Only your own characters.
+
+Kind: read-only. Title: Get my level-up options.
+
+Parameters:
+
+- `name` (string)
+- `className` (string)
+
+### search-books
+
+Search the rulebooks you can read for a rule or term. Returns short excerpts; open one with get-book-entry.
+
+Kind: read-only. Title: Search the books.
+
+Parameters:
+
+- `query` (string, required)
+- `limit` (integer): Results, 1 to 10 (default 5).
+
+### find-book-entries
+
+Find entries by name or type (classes, species, backgrounds, feats, spells, items) for building a character. Open one with get-book-entry.
+
+Kind: read-only. Title: Find book entries.
+
+Parameters:
+
+- `query` (string)
+- `type` (string)
+- `limit` (integer): Results, 1 to 20 (default 10).
+
+### get-book-entry
+
+One book entry with its description (cut at about 6,000 characters). Use the packId and entryId from search-books or find-book-entries.
+
+Kind: read-only. Title: Get a book entry.
+
+Parameters:
+
+- `packId` (string, required)
+- `entryId` (string, required)

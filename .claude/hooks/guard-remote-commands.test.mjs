@@ -27,11 +27,11 @@ test('read-only remote commands pass', () => {
   }
 });
 
-test('the real stage scripts pass, except stage 1 (the foundry user), stage 9 (SSH login keys), stage 15 (SSH settings) and stage 17 (the ghrunner user), which ask', () => {
+test('the real stage scripts pass, except stage 1 (the foundry user), stage 9 (SSH login keys), stage 15 (SSH settings), stage 17 (the ghrunner user) and stage 24 (docker rm, compose down), which ask', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   for (const name of readdirSync(dir).filter(n => /^\d+-.*\.sh$/.test(n))) {
     const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/${name} | ssh -o BatchMode=yes foundry-pi bash`;
-    const expected = /^(1|9|15|17)-/.test(name) ? 'ask' : 'allow';
+    const expected = /^(1|9|15|17|24)-/.test(name) ? 'ask' : 'allow';
     assert.equal(kind(command), expected, `${name}: ${JSON.stringify(decide(command, repo))}`);
   }
 });
@@ -166,8 +166,53 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'rm -rf /mnt/dietpi-backup/data_3'",
     "ssh foundry-pi 'dietpi-backup -1'",
     "ssh foundry-pi 'parted /dev/nvme0n1 mklabel gpt'",
+    "ssh foundry-pi 'docker compose -f /opt/foundry-ai-tool/app/deploy/pi/compose.yml -p foundry-ai-tool-pi down'",
+    "ssh foundry-pi 'docker-compose down'",
+    "ssh foundry-pi 'docker compose -p x rm -sf'",
+    "ssh foundry-pi 'docker compose -p x kill'",
+    "ssh foundry-pi 'docker compose -p x stop foundry'",
+    "ssh foundry-pi 'docker container kill x'",
+    "ssh foundry-pi 'docker container stop x'",
+    "ssh foundry-pi 'docker stop x'",
+    'ssh foundry-pi \'MODE=up TEST_ALLOW_CUTOVER="1" bash -s\' < stage.sh',
+    'ssh foundry-pi "MODE=up TEST_ALLOW_CUTOVER=\'1\' bash -s" < stage.sh',
+    "ssh foundry-pi 'docker rm -f $(docker ps -aq)'",
+    "ssh foundry-pi 'docker system prune -af'",
+    "ssh foundry-pi 'docker kill foundry-ai-tool-pi-foundry-1'",
+    "ssh foundry-pi 'docker -H unix:///var/run/docker.sock container rm x'",
+    "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=1 bash -s' < stage.sh",
+    "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=$\\'1\\' bash -s' < stage.sh",
+    "ssh foundry-pi 'MODE=up TEST_ALLOW_CUTOVER=\\1 bash -s' < stage.sh",
+    "ssh foundry-pi 'docker --context x compose down'",
+    "ssh foundry-pi 'docker -H unix:///var/run/docker.sock compose -p x down'",
+    "ssh foundry-pi 'docker --config /root/.d compose -p x rm -sf'",
+    "ssh foundry-pi 'docker --tlscacert /c compose -p x down'",
+    "ssh foundry-pi 'docker --tlscert /c --tlskey /k compose -p x down'",
+    "ssh foundry-pi 'docker --tlscacert /c rm x'",
+    "ssh foundry-pi 'docker restart foundry-ai-tool-pi-foundry-1'",
+    "ssh foundry-pi 'docker container restart x'",
+    "ssh foundry-pi 'docker compose -p x restart foundry'",
+    "ssh foundry-pi 'docker compose -p x up -d --force-recreate'",
   ]) {
     assert.equal(kind(c), 'ask', c);
+  }
+});
+
+test('read-only docker commands over ssh are allowed', () => {
+  for (const c of [
+    "ssh foundry-pi 'docker ps -a'",
+    "ssh foundry-pi 'docker inspect foundry-ai-tool-pi-foundry-1'",
+    "ssh foundry-pi 'docker logs --tail 50 foundry-ai-tool-pi-bridge-1'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p ps'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p up -d'",
+    "ssh foundry-pi 'docker info'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p logs --tail 50 foundry'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p config'",
+    "ssh foundry-pi 'docker stats --no-stream'",
+    "ssh foundry-pi 'docker compose -f x.yml -p p ps --filter status=stopped'",
+    "ssh foundry-pi 'docker --context x compose -p p ps'",
+  ]) {
+    assert.equal(kind(c), 'allow', c);
   }
 });
 
@@ -231,6 +276,11 @@ test('long adversarial commands are checked in linear time', () => {
     'ssh foundry-pi systemctl stop ' + 'a '.repeat(1000),
     'ssh foundry-pi ' + 'a.sh '.repeat(400),
     ('# x\n' + 'ssh foundry-pi cat a\n').repeat(80),
+    // The docker compose rule reads global options between `docker` and `compose`.
+    'ssh foundry-pi docker ' + '-H x '.repeat(400),
+    'ssh foundry-pi docker ' + '-H x '.repeat(400) + 'compose',
+    'ssh foundry-pi docker -' + 'a'.repeat(2000),
+    'ssh foundry-pi ' + 'docker '.repeat(300),
   ];
   for (const c of long) {
     const ms = bestMs(() => decide(c, repo), 100);
@@ -458,4 +508,39 @@ test('the older gaps from the PR #146 review are closed', () => {
   ]) {
     assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
   }
+});
+
+test('the player connector Cloudflare script asks with --apply (it runs ssh itself) and is free as a plan', () => {
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi',
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com --apply',
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --rotate --send-to foundry-pi',
+    'CLOUDFLARE_API_TOKEN=x node ./scripts/pi/player-connector-cloudflare.mjs --apply',
+  ]) {
+    assert.equal(kind(c), 'ask', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs',
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com',
+    'node --test scripts/pi/player-connector-cloudflare.test.mjs',
+  ]) {
+    assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+});
+
+test('a Cloudflare --apply chained with a denied remote command still denies; a continued line still asks', () => {
+  const chained =
+    'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi && ssh foundry-pi wipefs -a /dev/sda';
+  assert.equal(kind(chained), 'deny', JSON.stringify(decide(chained, repo)));
+  const continued = 'node scripts/pi/player-connector-cloudflare.mjs \\\n  --apply --send-to foundry-pi';
+  assert.equal(kind(continued), 'ask', JSON.stringify(decide(continued, repo)));
+  const mixed = decide(
+    'node scripts/pi/player-connector-cloudflare.mjs --apply && ssh foundry-pi systemctl restart foo',
+    repo,
+  );
+  assert.equal(mixed?.decision, 'ask');
+  assert.ok(
+    mixed.reasons.some(r => r.includes('Cloudflare')),
+    JSON.stringify(mixed),
+  );
 });

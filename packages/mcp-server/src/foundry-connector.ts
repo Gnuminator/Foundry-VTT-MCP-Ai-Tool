@@ -57,7 +57,11 @@ interface SocketEntry {
 
 /** Default query timeout in ms. Writers pass a longer one. */
 export const DEFAULT_QUERY_TIMEOUT_MS = 10000;
-/** How long the link may stay down before one `link-down` warning is logged. */
+/**
+ * How long the link may stay down before one `link-down` warning is logged. A planned Foundry or
+ * Assistant GM restart over 30 s warns too, so anything that alerts a person on link-down (the
+ * Discord bot, if it ever hooks it) must use its own, longer threshold, not this one.
+ */
 export const LINK_DOWN_WARN_MS = 30 * 1000;
 /** How often the link state is re-checked. */
 const LINK_WATCH_INTERVAL_MS = 5000;

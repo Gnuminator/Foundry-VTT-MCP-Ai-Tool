@@ -23,6 +23,7 @@ export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
 export const READ_TOOLS_EXTRA: ReadonlySet<string> = new Set([
   'check-action',
   'check-secret-terms',
+  'find-book-entries',
   'open-in-foundry',
   'wait-for-game-event',
 ]);

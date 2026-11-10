@@ -45,7 +45,12 @@ describe('23-docker.sh as text', () => {
     const code = s22.replace(/^\s*#.*$/gm, '');
     assert.doesNotMatch(code, /usermod|adduser|gpasswd|groupadd/);
     assert.doesNotMatch(code, /compose[^\n]* (up|start|down|rm)\b/);
-    assert.doesNotMatch(code, /\brm\b|\bmv\b|prune|reboot|shutdown/);
+    // The one file the stage creates, daemon.json, goes in through a .new file; only its own .new, move and cleanup are allowed.
+    const rest = code
+      .replaceAll('rm -f -- "$daemon_new"', '')
+      .replaceAll('rm -f -- "$daemon_json"', '')
+      .replaceAll('mv -- "$daemon_new" "$daemon_json"', '');
+    assert.doesNotMatch(rest, /\brm\b|\bmv\b|prune|reboot|shutdown/);
   });
 
   test('keeps the .env lines it does not own and writes only the four managed names', () => {
@@ -81,9 +86,20 @@ describe('24-compose.sh as text', () => {
     const cut = s23.slice(s23.indexOf('mode_cutover() {'), s23.indexOf('mode_rollback() {'));
     const snap = cut.indexOf('require_recent_snapshot');
     const quiet = cut.indexOf('require_quiet "cutting over');
-    const record = cut.indexOf(': >"$state_file"');
-    const stop = cut.indexOf('systemctl disable --now');
+    const record = cut.indexOf('>"$state_file.new"');
+    const stop = cut.indexOf('systemctl disable --now "$u"');
     assert.ok(snap > 0 && snap < quiet && quiet < record && record < stop);
+    // The record is renamed into place (mv) before the first stop, so an interrupted run never leaves a half record.
+    const mv = cut.indexOf('mv -f "$state_file.new" "$state_file"');
+    assert.ok(record < mv && mv < stop);
+    // The mode_up refusals (live project without the test switch, rehearsal on live data) come before the daemon check.
+    const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
+    const liveRefusal = up.indexOf('is the cutover, which is not supported yet');
+    const dataRefusal = up.indexOf('would use a live data folder');
+    assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
+    // The first start does not build (stage 23 does) and comes before the --wait start.
+    const first = s23.indexOf('dc up -d --no-build >/dev/null');
+    assert.ok(first > 0 && first < s23.indexOf('dc up -d --no-build --wait'));
     // The images are checked (preflight) before anything stops.
     assert.ok(cut.indexOf('preflight_stack') < snap);
   });
@@ -126,7 +142,10 @@ describe('24-compose.sh as text', () => {
   });
 
   test('up never builds (stage 23 does) and refuses the live ports and data folders next to a running unit', () => {
-    assert.match(s23, /up -d --wait --wait-timeout "\$wait_timeout" --no-build/);
+    assert.match(s23, /up -d --no-build --wait --wait-timeout "\$wait_timeout"/);
+    // The live data folders are compared as canonical paths (a trailing slash must not get past), in both refusals.
+    assert.match(s23, /canon\(\) \{ realpath -m/);
+    assert.equal((s23.match(/on_live_data/g) ?? []).length, 3, 'defined once, used by conflict_guard and mode_up');
     assert.match(s23, /share their data folder/);
     assert.match(s23, /live port\(s\)/);
   });

@@ -35,6 +35,17 @@ describe('redactVoiceDebug other forms', () => {
     expect(redactVoiceDebug('secretKey=[9, 8, 7] next')).toBe('secretKey=[redacted] next');
     expect(redactVoiceDebug('secret_key=9, 8, 7;')).toBe('secret_key=[redacted];');
   });
+
+  it('removes the key after a colon, a space before the value, or in quotes', () => {
+    expect(redactVoiceDebug('secret_key: [9, 8, 7] next')).toBe('secret_key=[redacted] next');
+    expect(redactVoiceDebug('secret_key= 1,2 next')).toBe('secret_key=[redacted] next');
+    expect(redactVoiceDebug('secret_key="abc" next')).toBe('secret_key=[redacted] next');
+  });
+
+  it('removes a value that starts with digits but is not a list', () => {
+    expect(redactVoiceDebug('secret_key=12ab34 next')).toBe('secret_key=[redacted] next');
+    expect(redactVoiceDebug('secret_key=9,8,7abc next')).toBe('secret_key=[redacted] next');
+  });
 });
 
 describe('installRtpTap', () => {

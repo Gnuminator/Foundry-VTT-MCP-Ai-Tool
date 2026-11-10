@@ -232,6 +232,19 @@ export class McpControlClient extends EventEmitter {
     return this.send('player_roll', { userId, buttonId });
   }
 
+  /** The player tool definitions, for `/mcp/player` `tools/list` (D-136). A control method. */
+  async listPlayerTools(): Promise<unknown> {
+    return this.send('list_player_tools');
+  }
+
+  /**
+   * One player tool for a verified Foundry user (D-136): `{ content, isError? }`. The user id
+   * comes from the dashboard's login check, never from the tool arguments. A control method.
+   */
+  async playerTool(userId: string, tool: string, args: unknown): Promise<unknown> {
+    return this.send('player_tool', { userId, tool, args }, 60_000);
+  }
+
   /**
    * "Upload my portrait": a player's picture (base64) for a character they own; the module checks
    * the ownership and stores it, the backend records the actor change. A control method. Slow

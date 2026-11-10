@@ -34,15 +34,21 @@ interface AttackActivity {
   /** Activity#use: the card and its consumption belong to this activity, not the item's first. */
   use: (...args: unknown[]) => Promise<unknown>;
   rollAttack: (config: object, dialog: object, message: object) => Promise<unknown>;
+  /** dnd5e 6: the item can be used and is not hidden (`item.canUse && !isHidden`); false is not only "no uses left". */
+  canUse?: boolean;
 }
 
-/** The first attack activity of a dnd5e item, if it has one. */
+/** The first usable attack activity of a dnd5e item, if it has one. */
 function findAttackActivity(item: Item): AttackActivity | undefined {
   const activities = (item.system as { activities?: Iterable<AttackActivity> } | undefined)
     ?.activities;
   if (!activities) return undefined;
   return Array.from(activities).find(
-    a => a.type === 'attack' && typeof a.rollAttack === 'function' && typeof a.use === 'function'
+    a =>
+      a.type === 'attack' &&
+      a.canUse !== false &&
+      typeof a.rollAttack === 'function' &&
+      typeof a.use === 'function'
   );
 }
 
@@ -248,6 +254,10 @@ export class ActorBuilderDataAccess {
     if (options.rollAttack) {
       if (systemId !== 'dnd5e') throw new Error('rollAttack needs the dnd5e game system');
       if (!attackActivity) throw new Error(`"${item.name}" has no attack to roll`);
+      // The roll has no dialog to pick a target, so it needs named ones (not the GM's live set).
+      if (!targets || targets.length === 0) {
+        throw new Error('rollAttack needs at least one target; nothing was used or rolled');
+      }
     }
 
     // Handle targeting if targets are specified
@@ -303,6 +313,13 @@ export class ActorBuilderDataAccess {
         }
       }
 
+      // An attack with an unresolved target stops here, before any target is set or used.
+      if (attackActivity && tokenIds.length < targets.length) {
+        throw new Error(
+          'Targets not set (a target is not on the active scene); nothing was used or rolled'
+        );
+      }
+
       // Set targets using Foundry's targeting system
       // v14 has no User#updateTokenTargets; the tokens layer owns targeting
       // (client/canvas/layers/tokens.mjs:341). It only resolves ids on the viewed canvas.
@@ -350,10 +367,9 @@ export class ActorBuilderDataAccess {
         }
       }
       // With no dialog to fix them, an attack must not roll against old targets or none.
-      if (attackActivity && (targetsNotSet || tokenIds.length < targets.length)) {
-        throw new Error(
-          `Targets not set (${targetsNotSet || 'a target is not on the active scene'}); nothing was used or rolled`
-        );
+      if (attackActivity && targetsNotSet) {
+        headlessTargets()?.clear();
+        throw new Error(`Targets not set (${targetsNotSet}); nothing was used or rolled`);
       }
     }
 

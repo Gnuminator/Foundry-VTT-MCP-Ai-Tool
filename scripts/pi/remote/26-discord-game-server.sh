@@ -20,12 +20,13 @@
 #   PLAYER_PAGE_URL=https://... (no query or token) to set the first and, with it, DASHBOARD_URL (default
 #   http://127.0.0.1:3000). Without it an existing link is kept and the stage warns when there is none.
 #   3. when the lines are already right the file is not changed, but a bot that started before the file was written (a
-#      run cut off before its restart) is restarted, so a rerun finishes the job; otherwise:
+#      run cut off before its restart) is restarted (and its /record registration checked), so a rerun finishes the job;
+#      otherwise:
 #      a snapshot from today is required, and a bot restart is refused while players are online in Foundry or a
 #      recording runs (restarting the bot ends a recording; FORCE=1 overrides, with a warning);
-#   4. copies the env file once to discord-bot.env.before-game-server (same owner and mode; it holds the token, so it
-#      stays in /etc/foundry-ai-tool and is never copied elsewhere), writes the new file whole in one step and restarts
-#      the bot;
+#   4. copies the env file once to discord-bot.env.before-game-server (through a temp file and mv; same owner and mode; it
+#      holds the token, so it stays in /etc/foundry-ai-tool and is never copied elsewhere), writes the new file whole in
+#      one step and restarts the bot;
 #   5. the check: waits up to 30 s for "Logged in as" and "Registered /record in server <the game server id>" in the
 #      bot's own journal lines (only those two lines are read, never the whole journal).
 # Safe to run again. Nothing else on the Pi is touched.
@@ -33,7 +34,9 @@
 # Modes (environment, before bash):
 #   DRY_RUN=1  print the state and what a real run would do; changes nothing, needs no snapshot
 #   CHECK=1    only the check (step 5) plus the four lines; changes nothing, exit 1 when something is off
-#   UNDO=1     put the saved file back (the Silvera settings) and restart the bot; the saved copy stays
+#   UNDO=1     put the keys the stage set back to their saved values (the Silvera settings; a key the saved file lacks is
+#              removed) and restart the bot; every other line, a token changed since included, stays as it is now. The
+#              saved copy stays
 # A real run and UNDO need a dietpi-backup snapshot from today and the user's OK. These lines are bash (Git Bash, or
 # Claude's Bash tool), not PowerShell:
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
@@ -108,7 +111,14 @@ post_note() {
   if [ -z "$(get "$env_file" FOUNDRY_AI_PLAYER_PAGE_URL)" ]; then
     warn "FOUNDRY_AI_PLAYER_PAGE_URL is not set: the bot will NOT post the session-over link in #session-notes. Rerun with PLAYER_PAGE_URL=https://... (no ?token=)"
   fi
+  case "$(get "$env_file" FOUNDRY_AI_DASHBOARD_URL)" in
+    http://127.0.0.1:3000 | http://localhost:3000) ;;
+    *) warn "FOUNDRY_AI_DASHBOARD_URL is not set to the Pi's dashboard (port 3000; the bot's default is 3100): the bot would read the session flag from the wrong port. Rerun with PLAYER_PAGE_URL=https://... to set it" ;;
+  esac
 }
+
+# The keys this stage sets (the four ids and, with PLAYER_PAGE_URL, the two addresses). UNDO touches only these.
+STAGE_KEYS="DISCORD_GUILD_ID DISCORD_SESSION_POST_CHANNEL_ID GAMENIGHT_WATCH_CHANNEL_ID DISCORD_CHANGELOG_CHANNEL_ID FOUNDRY_AI_PLAYER_PAGE_URL FOUNDRY_AI_DASHBOARD_URL"
 
 # The check: the bot's own login and /record lines since SINCE (a journal timestamp); the token is never in these lines.
 check_bot() { # check_bot SINCE
@@ -148,6 +158,11 @@ fi
 
 if [ "$undo" = 1 ]; then
   [ -f "$saved" ] || die "no saved copy at $saved: nothing to undo (the stage has not changed this Pi, or the copy was removed)"
+  # grep exits 2 on a file it cannot read, which the key loop below would read as "key absent" and drop all six keys. [ -r ]
+  # says nothing as root (this stage runs as root), so ask grep itself: 0 or 1 is a readable file, anything else stops here.
+  rc=0
+  grep -q '' "$saved" 2>/dev/null || rc=$?
+  [ "$rc" -le 1 ] || die "the saved copy $saved cannot be read by grep: nothing was changed (check its owner and mode)"
   say "the saved file"
   show_state "$saved"
   want_guild="$(get "$saved" DISCORD_GUILD_ID)"
@@ -157,7 +172,7 @@ fi
 
 if [ "$dry" = 1 ]; then
   if [ "$undo" = 1 ]; then
-    say "dry run: would put $saved back as $env_file and restart $unit; nothing changed"
+    say "dry run: would set the stage's six keys in $env_file back to their values in $saved (a key the saved file lacks is removed; every other line, the token included, stays as it is now) and restart $unit; nothing changed"
   elif lines_right; then
     say "dry run: the lines are already right; a real run changes no setting (it still restarts a bot older than the file)"
   else
@@ -177,8 +192,14 @@ if [ "$undo" != 1 ] && lines_right; then
   # A run that wrote the file but was cut off before the restart (a refusal, a dropped connection) must still restart the
   # bot: enable_unit restarts a running unit only when the file is newer than the service, so a clean rerun is a no-op.
   if have_systemd; then
-    require_quiet_if_active "$unit" "restarting the Discord bot for the settings already in the file"
+    # enable_unit asks require_quiet itself when (and only when) it restarts, so a clean rerun is never refused.
+    since="$(date '+%Y-%m-%d %H:%M:%S')"
+    started_before="$(unit_started_epoch "$unit")"
     enable_unit "$unit" "$env_file"
+    if [ "$(unit_started_epoch "$unit")" != "$started_before" ]; then
+      check_bot "$since" "$guild_id" ||
+        warn "the bot was restarted but has not registered /record in server $guild_id after ${wait_seconds} s; ask Claude to check: journalctl -u $unit -n 20"
+    fi
   fi
   post_note
   exit 0
@@ -190,39 +211,65 @@ require_quiet_if_active "$unit" "restarting the Discord bot (it would end a reco
 
 since="$(date '+%Y-%m-%d %H:%M:%S')"
 tmp="$(mktemp "$(dirname "$env_file")/.discord-bot.env.XXXXXX")"
-trap 'rm -f "$tmp"' EXIT
+tmp_saved=""
+trap 'rm -f "${tmp:?}" ${tmp_saved:+"$tmp_saved"}' EXIT
 owner_group="root:$FOUNDRY_USER"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || owner_group="$(stat -c '%U:%G' "$env_file")"
 
-if [ "$undo" = 1 ]; then
-  say "putting the saved file back"
-  cp "$saved" "$tmp"
-else
-  say "the settings file"
-  if [ ! -f "$saved" ]; then
-    cp -p "$env_file" "$saved"
-    chown "$owner_group" "$saved"
-    chmod 0640 "$saved"
-    ok "saved the current file as $saved (it holds the token: stays here)"
-  else
-    ok "$saved already exists: kept (it is the Silvera-era file undo returns to)"
-  fi
-  # The values go to awk through its environment; the token line passes through untouched.
-  WANTED="$wanted" awk '
+# set_keys: rewrites $env_file into $tmp with WANTED (KEY=VALUE lines) in place of the managed keys, and DROP (space separated
+# keys) removed. Every other line, the token above all, passes through untouched; the values reach awk through its environment.
+set_keys() {
+  WANTED="$1" DROP="$2" awk '
     BEGIN {
       n = split(ENVIRON["WANTED"], pairs, "\n")
-      for (i = 1; i <= n; i++) { k = pairs[i]; sub(/=.*/, "", k); order[i] = k; val[k] = substr(pairs[i], length(k) + 2) }
+      for (i = 1; i <= n; i++) { k = pairs[i]; if (k == "") continue; sub(/=.*/, "", k); order[i] = k; val[k] = substr(pairs[i], length(k) + 2) }
+      m = split(ENVIRON["DROP"], dk, " ")
+      for (i = 1; i <= m; i++) drop[dk[i]] = 1
     }
     {
       k = $0; sub(/=.*/, "", k)
+      if ($0 ~ /^[A-Z_]+=/ && (k in drop)) next
       if ($0 ~ /^[A-Z_]+=/ && (k in val)) {
         if (!(k in seen)) { print k "=" val[k]; seen[k] = 1 }
         next
       }
       print
     }
-    END { for (i = 1; i <= n; i++) if (!(order[i] in seen)) print order[i] "=" val[order[i]] }
+    END { for (i = 1; i <= n; i++) if (order[i] != "" && !(order[i] in seen)) print order[i] "=" val[order[i]] }
   ' "$env_file" >"$tmp"
+}
+
+if [ "$undo" = 1 ]; then
+  # Only the keys this stage sets go back to their saved values (a key the saved file lacks is removed); a token or any other
+  # line changed since the stage ran stays as it is now.
+  say "putting the stage's keys back to the saved values"
+  restore="" drop=""
+  for k in $STAGE_KEYS; do
+    rc=0
+    grep -q "^$k=" "$saved" || rc=$?
+    case "$rc" in
+      0) restore="${restore:+$restore
+}$k=$(get "$saved" "$k")" ;;
+      1) drop="${drop:+$drop }$k" ;;
+      *) die "grep could not read the saved copy $saved (key $k): nothing was changed" ;;
+    esac
+  done
+  set_keys "$restore" "$drop"
+else
+  say "the settings file"
+  if [ ! -f "$saved" ]; then
+    # Temp file in the same folder, then mv: a dropped connection never leaves a half saved copy that undo would trust.
+    tmp_saved="$(mktemp "$(dirname "$saved")/.discord-bot.env.saved.XXXXXX")"
+    cp -p "$env_file" "$tmp_saved"
+    chown "$owner_group" "$tmp_saved"
+    chmod 0640 "$tmp_saved"
+    mv "$tmp_saved" "$saved"
+    tmp_saved=""
+    ok "saved the current file as $saved (it holds the token: stays here)"
+  else
+    ok "$saved already exists: kept (it holds the Silvera-era values undo returns the stage's keys to)"
+  fi
+  set_keys "$wanted" ""
 fi
 chown "$owner_group" "$tmp"
 chmod 0640 "$tmp"
@@ -239,6 +286,12 @@ if [ -n "$want_guild" ]; then
     warn "the bot runs but has not registered /record in server $want_guild after ${wait_seconds} s; ask Claude to check: journalctl -u $unit -n 20"
 else
   warn "the file has no DISCORD_GUILD_ID: /record registers globally (can take up to an hour)"
+fi
+# The game-night watch (stage 29) posts to the channel this file names: restart it (also when it stopped on exit 2 for an
+# old channel) so a changed #gm-bot line reaches it. It holds no recording and no player, so no quiet check.
+watch_unit=foundry-ai-tool-gamenight-watch.service
+if have_systemd && [ -f "/etc/systemd/system/$watch_unit" ]; then
+  systemctl restart "$watch_unit" && ok "restarted $watch_unit for the changed settings" || warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
 fi
 if [ "$undo" = 1 ]; then
   say "done: the bot is back on the earlier server"

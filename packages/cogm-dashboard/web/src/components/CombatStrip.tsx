@@ -5,7 +5,7 @@
 // apply puts it on, with Undo. End combat plans, asks once and applies (lib/endCombat.ts, the same
 // flow as the live strip's). Damage / Heal opens the small form (DamageForm), which plans and
 // applies in one click with Undo; the roll row (StripRolls) asks players for checks and saves.
-// Nothing here opens the Tool runner. The rules are in lib/combat.ts; moments.css lays the strip
+// Nothing here opens the Tool Runner. The rules are in lib/combat.ts; moments.css lays the strip
 // out per During layout and fight.
 //
 // What is new: the reaction button is only on a living boss, the switch is there whenever Boss
@@ -660,7 +660,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
               live={live}
               off={liveOff}
               label="End combat"
-              hint="Damage, conditions and rolls on the combatants need live play."
+              hint="Damage, conditions and rolls on the combatants need GM Actions."
             />
           )}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
@@ -740,6 +740,8 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
                 combatants={combat?.combatants ?? []}
                 picked={pickedRows.map(c => c.id)}
                 stale={stale}
+                locked={busy}
+                once={once}
                 onClose={() => {
                   setAttackOpen(false);
                   // The form's own button unmounts with it: put focus back on the one that opened it.
@@ -762,7 +764,7 @@ export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Eleme
         ? {
             bodyProps: {
               role: 'list',
-              'aria-label': 'Turn order',
+              'aria-label': 'Combat order',
               // The row scrolls sideways on a narrow screen; with nothing in it to Tab to, the
               // keyboard needs the list itself to scroll it.
               ...(hasControls ? {} : { tabIndex: 0 }),

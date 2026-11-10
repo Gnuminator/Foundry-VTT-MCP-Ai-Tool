@@ -632,7 +632,7 @@ export const DASHBOARD_CONTROLS = [
     needs: 'picker-tool',
     selector: '#tool-form .ref-open',
     expect: '#tool-form .ref-menu',
-    // Required: the tool runner always has tools with a Pick button (plan-actor-change and more).
+    // Required: the Tool Runner always has tools with a Pick button (plan-actor-change and more).
   },
   {
     name: 'dash.tools.pick-choice',
@@ -741,6 +741,13 @@ export const DASHBOARD_CONTROLS = [
     reach: PARTY,
     optional: true,
     why: 'only shown when the world has more than one party',
+  },
+  {
+    name: 'dash.party.notice-skill',
+    how: 'toggle',
+    reach: PARTY,
+    optional: true,
+    why: 'only shown with the AI Tool: Who would notice switch on',
   },
   {
     name: 'dash.party.open-actor',

@@ -21,6 +21,14 @@ hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 | Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                                                                                                                                                   |
 | Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                                                                                                                                            |
 
+### Campaign copy (the live Strahd world, port 30004)
+
+`pwsh scripts/test-env/campaign-copy.ps1 refresh|start|stop|status` keeps a copy of the live
+Curse of Strahd world (pulled read-only from the Pi) at `C:\FoundryCampaign`, Foundry only on
+`http://localhost:30004`, join as `Gamemaster` (no password). For campaign-specific problems
+(the real `world.player-*` packs, the live module set); no bridge or dashboard. Steps, rules and
+what it copies: `docs/dev/CAMPAIGN-COPY.md`. It is outside the A/B/C lock; stop it when idle.
+
 ### Three test servers (A, B and C)
 
 The table above is **server A**, the default: quick checks, `live:roundtrip`, manual tests in the

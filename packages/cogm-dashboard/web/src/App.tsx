@@ -20,7 +20,7 @@ import {
   showDocked,
 } from './components/Drawer';
 import { FoldScope } from './components/Folds';
-import { LivePlayLine } from './components/GmActionsSwitch';
+import { GmActionsButton } from './components/GmActionsSwitch';
 import { StripBoundary } from './components/StripBoundary';
 import { SessionMarker } from './components/SessionMarker';
 import { ThemePicker } from './components/ThemePicker';
@@ -270,7 +270,7 @@ function Dashboard(): JSX.Element {
   // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
   const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Turn on for tonight turns them
-  // on (the Tool runner points at its own gate bar).
+  // on (the Tool Runner points at its own gate bar).
   // Already open under another drawer, it comes to the top.
   // Docked in Before, the drawers over the page close so it shows, and it takes the focus once
   // they are gone.
@@ -296,7 +296,7 @@ function Dashboard(): JSX.Element {
     }
     setDrawers(d => ({ ...d, prep: false, preflight: true }));
   };
-  // Another panel opens the Tool runner on a tool with its form filled in.
+  // Another panel opens the Tool Runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
 
   return (
@@ -323,7 +323,7 @@ function Dashboard(): JSX.Element {
         <MomentTabs moment={moment} onPick={pick} />
         <div className="controls">
           <SessionMarker />
-          <LivePlayLine />
+          <GmActionsButton />
           <ThemePicker />
           <StreamState />
           <HealthLine />
@@ -400,9 +400,9 @@ function Dashboard(): JSX.Element {
               <Button
                 id="btn-tools"
                 data-track="dash.header.tools"
-                title="Open the tool runner (run any bridge tool)"
+                title="Open the Tool Runner (run any bridge tool)"
               >
-                🛠 Tools
+                🛠 Tool Runner
               </Button>
             </AdvancedItem>
             <AdvancedItem

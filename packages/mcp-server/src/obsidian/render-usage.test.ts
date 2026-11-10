@@ -77,7 +77,7 @@ describe('renderUsageNote', () => {
       '### Dashboard',
       '### Player page',
       '### Foundry module',
-      '### Tools never run from the tool runner',
+      '### Tools never run from the Tool Runner',
       '## Per person',
       '## Per session',
       '## Errors',

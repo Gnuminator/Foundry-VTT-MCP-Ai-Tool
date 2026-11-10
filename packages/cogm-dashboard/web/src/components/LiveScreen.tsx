@@ -1,7 +1,7 @@
 // Live screen A (item live-screen-a): the opt-in "Live" view of the dashboard at /?live=1, next to
 // today's During view, which stays the default. One fixed page for the whole evening: the live
 // strip on top, Party always open, Handouts, and "What just happened" as one list with Undo on
-// each line, with a permanent "Undo: <last change>" and "Live play on" in the header. The page
+// each line, with a permanent "Undo: <last change>" and "GM Actions on" in the header. The page
 // does not rearrange itself: nothing here shows or hides a panel (the strip's own fight and no-fight
 // faces and the Start / End session button are the only things an event of the GM's changes).
 // It draws the same components as the default dashboard (LiveStrip, the Party, Handouts and Recent
@@ -20,7 +20,7 @@ import { useWorldTheme } from '../lib/worldTheme';
 import { Button } from '../ui';
 import { focusedElement, useConfirm } from './ConfirmDialog';
 import { DockContext } from './Drawer';
-import { LivePlayLine } from './GmActionsSwitch';
+import { GmActionsButton } from './GmActionsSwitch';
 import { useHelp } from './HelpButton';
 import { LazyPanel, panelChunk, usePreloadPanels } from './LazyPanel';
 import { LiveStrip } from './LiveStrip';
@@ -125,7 +125,7 @@ export function LiveScreen(): JSX.Element {
         <h1>Dashboard</h1>
         <div className="controls">
           <SessionMarker />
-          <LivePlayLine />
+          <GmActionsButton />
           <ThemePicker />
           <StreamState />
           <HealthLine />
@@ -173,7 +173,7 @@ export function LiveScreen(): JSX.Element {
                 open
                 onOpenChange={() => undefined}
                 onQueuePage={() =>
-                  // Queueing a page is prep work and opens the Tool runner, which is not on this page.
+                  // Queueing a page is prep work and opens the Tool Runner, which is not on this page.
                   toast(
                     `Queue pages in Handouts on the default dashboard (More: ${BACK_TO_STANDARD_TEXT}).`
                   )

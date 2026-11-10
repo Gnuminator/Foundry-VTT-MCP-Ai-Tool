@@ -1,4 +1,4 @@
-// The Tool runner's form logic, without React: the catalog's categories, the form a tool's input
+// The Tool Runner's form logic, without React: the catalog's categories, the form a tool's input
 // schema gives, and the args a filled form sends, with numbers checked before they are sent.
 import { CONFIRM_FORWARDED_TOOLS } from '../../../src/tool-policy';
 

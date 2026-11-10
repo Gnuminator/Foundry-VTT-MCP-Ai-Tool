@@ -15,6 +15,7 @@
  *
  *   node scripts/checks.mjs --list      print every entry: name, group and where it runs
  */
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -134,6 +135,7 @@ export const CHECKS = [
     'scripts/green.test.mjs',
     'scripts/lane-merge.test.mjs',
     'scripts/visual-baselines.test.mjs',
+    'scripts/changelog-fold.test.mjs',
     'scripts/review-runner/lib.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
@@ -141,6 +143,14 @@ export const CHECKS = [
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
+  nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
+  nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),
+  nodeTest(
+    'pi-player-connector-cloudflare',
+    'pi',
+    'scripts/pi/player-connector-cloudflare.test.mjs'
+  ),
+  nodeTest('pi-gamenight-watch-stage', 'pi', 'scripts/pi/gamenight-watch-stage.test.mjs'),
   nodeTest('pi-space-check', 'pi', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'pi', 'scripts/pi/backup-pull-record.test.mjs'),
   nodeTest('pi-world-refs', 'pi', 'scripts/pi/world-refs.test.mjs'),
@@ -148,6 +158,7 @@ export const CHECKS = [
   nodeTest('pi-gm-passwords', 'pi', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-system-trial-guard', 'pi', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-player-creation', 'pi', 'scripts/pi/player-creation.test.mjs'),
+  nodeTest('pi-check-studio-pin', 'pi', 'scripts/pi/check-studio-pin.test.mjs'),
   nodeTest('pi-world-switches', 'pi', 'scripts/pi/world-switches.test.mjs'),
   nodeTest('pi-kit-session', 'pi', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'pi', 'scripts/pi/fetch-kit-login.test.mjs'),
@@ -167,7 +178,12 @@ export const CHECKS = [
   nodeTest('pi-join-page-look', 'pi', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'pi', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
-  nodeTest('pi-seven-books', 'pi', 'scripts/pi/seven-books.test.mjs'),
+  nodeTest(
+    'pi-seven-books',
+    'pi',
+    'scripts/pi/seven-books.test.mjs',
+    'scripts/pi/grave-domain-patch.test.mjs'
+  ),
   nodeTest('pi-world-switch', 'pi', 'scripts/pi/switch-world.test.mjs'),
   nodeTest('pi-control-port-check', 'pi', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'pi', 'scripts/pi/pi-stage-safety.test.mjs'),
@@ -177,6 +193,7 @@ export const CHECKS = [
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),
+  nodeTest('player-connector-test', 'tools', 'tools/player-connector/build.test.mjs'),
   {
     name: 'livekit-recorder-install',
     group: 'tools',
@@ -326,7 +343,46 @@ export const CI_ONLY = {
     'Installs Chromium and its system packages on the CI runner; on a PC it is a one-time `npx playwright install chromium`.',
 };
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides (as lane-merge.mjs;
+ * copied, not imported: this file imports no other repo file).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file.
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && /^file:/i.test(argv1)) return 'import'; // a `node -e` import, as drift-check.mjs
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const entry = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
+if (entry === 'mismatch') {
+  console.error(
+    `checks: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`
+  );
+  process.exitCode = 1;
+} else if (entry === 'run') {
   if (process.argv.includes('--list')) {
     for (const c of CHECKS) {
       const where = [c.steps === false ? '' : 'ci+green', c.drift ? 'drift' : ''].filter(Boolean);

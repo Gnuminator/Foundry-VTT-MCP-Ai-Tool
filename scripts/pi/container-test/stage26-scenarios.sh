@@ -9,7 +9,14 @@
 #   5 CHECK exits 0 when right and 1 when the lines are wrong
 #   6 a file without the four lines gets them appended; duplicate lines collapse to one
 #   7 the snapshot rule: a stale snapshot refuses before the file is written; a snapshot from today allows it
-#   8 UNDO puts the saved file back byte for byte
+#   8 UNDO puts the stage's keys back to the saved values and keeps the copy
+#   9 the session-over post settings (page link, dashboard address, warnings when they are missing or not port 3000)
+#  10 a run cut off before the restart: a rerun restarts a bot older than the file and checks /record again
+#  11 UNDO rewrites only the keys the stage set: a token changed since stays; the saved copy comes through a temp file
+#     (no temp file is left behind)
+#  12 (inside scenario 10's fake systemd) players online: a clean rerun is not refused (it restarts nothing); a rerun that
+#     needs the restart is refused with "player(s) are online" and leaves the bot alone
+#  UNDO branches on grep's own exit status (0 restore, 1 drop, else stop); an unreadable copy is not testable as root
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage26-scenarios.sh
 # (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE26_CONTAINER=1.) STAGE=<file> runs the scenarios against
@@ -161,7 +168,7 @@ if [ "$rc" -eq 0 ] && [ "$(get DISCORD_GUILD_ID)" = "$guild" ]; then pass "a sna
 run UNDO=1
 rc=$?
 if [ "$rc" -eq 0 ] && grep -q "^DISCORD_GUILD_ID=$silvera$" "$env_file" && ! grep -q 'DISCORD_SESSION_POST_CHANNEL_ID' "$env_file" && [ -e "$saved" ]; then
-  pass "UNDO restores the saved file and keeps the copy"; else fail "undo: rc=$rc $OUT"; fi
+  pass "UNDO puts the stage's keys back to the saved values and keeps the copy"; else fail "undo: rc=$rc $OUT"; fi
 if [ "$(stat -c '%a %U:%G' "$env_file")" = "640 root:$FOUNDRY_USER" ]; then pass "the restored file is 0640 root:$FOUNDRY_USER"; else fail "restored mode"; fi
 
 # 9. The session-over post settings.
@@ -189,9 +196,14 @@ cat >/tmp/sd/bin/systemctl <<'SH'
 #!/usr/bin/env bash
 echo "$*" >>/tmp/sd/calls
 case "$1" in
-  is-active) [ "${@: -1}" = foundry-ai-tool-discord-bot.service ] && [ -f /tmp/sd/active ] ;;
+  is-active)
+    case "${@: -1}" in
+      foundry-ai-tool-discord-bot.service) [ -f /tmp/sd/active ] ;;
+      foundry.service) [ -f /tmp/sd/foundry ] ;;
+      *) false ;;
+    esac ;;
   show) cat /tmp/sd/ts 2>/dev/null ;;
-  restart | start) : >/tmp/sd/active ;;
+  restart | start) : >/tmp/sd/active; date -u '+%F %T UTC' >/tmp/sd/ts ;;
 esac
 SH
 cat >/tmp/sd/bin/journalctl <<SH
@@ -213,11 +225,50 @@ date -d '+1 hour' '+%F %T' >/tmp/sd/ts
 sdrun
 rc=$?
 if [ "$rc" -eq 0 ] && ! grep -q '^restart' /tmp/sd/calls; then pass "a clean rerun leaves a newer bot alone"; else fail "clean rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+# Two players online (stand-in curl and node): the clean rerun restarts nothing, so it must not be refused; a rerun that
+# does need the restart is refused and leaves the bot alone.
+: >/tmp/sd/foundry
+mkdir -p /opt/node24/bin
+printf '#!/bin/sh\ncat >/dev/null\nprintf 2\n' >/opt/node24/bin/node
+printf '#!/bin/sh\necho "{}"\n' >/tmp/sd/bin/curl
+chmod +x /opt/node24/bin/node /tmp/sd/bin/curl
+: >/tmp/sd/calls
+sdrun
+rc=$?
+if [ "$rc" -eq 0 ] && ! grep -q '^restart' /tmp/sd/calls; then pass "a clean rerun is not refused while players are online"; else fail "clean rerun with players: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
+: >/tmp/sd/calls
+sdrun
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'player(s) are online' && ! grep -q '^restart' /tmp/sd/calls; then pass "a rerun that needs the restart is refused while players are online"; else fail "refused rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+rm -f /tmp/sd/foundry /opt/node24/bin/node /tmp/sd/bin/curl
 echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
 : >/tmp/sd/calls
 sdrun
 rc=$?
 if [ "$rc" -eq 0 ] && grep -q '^restart' /tmp/sd/calls; then pass "a rerun after a cut-off run restarts the bot"; else fail "cut-off rerun: rc=$rc $OUT; $(cat /tmp/sd/calls)"; fi
+echo "2020-01-01 00:00:00 UTC" >/tmp/sd/ts
+: >/tmp/sd/calls
+sdrun
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "Registered /record in server $guild"; then
+  pass "a rerun that restarts the bot checks /record again"; else fail "rerun check: rc=$rc $OUT"; fi
 rm -rf /run/systemd/system /tmp/sd
+
+# 11. UNDO rewrites only the keys the stage set.
+fresh_env
+run PLAYER_PAGE_URL=https://cogm.example.com/player
+rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$(find "$TOOL_ETC" -maxdepth 1 -name '.discord-bot.env.*' 2>/dev/null)" ]; then
+  pass "no temp file is left behind after a real run"; else fail "temp files: rc=$rc $(ls -a "$TOOL_ETC")"; fi
+new_token="NEWtoken.rotated.after.the.stage.ran.0123456789"
+sed -i "s/^DISCORD_TOKEN=.*/DISCORD_TOKEN=$new_token/" "$env_file"
+echo "EXTRA_SETTING=added-later" >>"$env_file"
+run UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q "^DISCORD_TOKEN=$new_token$" "$env_file" && grep -q '^EXTRA_SETTING=added-later$' "$env_file" &&
+  [ "$(get DISCORD_GUILD_ID)" = "$silvera" ] && [ -z "$(get DISCORD_SESSION_POST_CHANNEL_ID)" ] && [ -z "$(get FOUNDRY_AI_PLAYER_PAGE_URL)" ] &&
+  ! echo "$OUT" | grep -q "$new_token"; then
+  pass "UNDO puts back only the stage's keys: a token changed since stays"; else fail "partial undo: rc=$rc $OUT"; fi
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

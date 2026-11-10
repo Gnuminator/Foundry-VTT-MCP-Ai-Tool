@@ -385,8 +385,44 @@ const CRITICAL_ETC =
 // The boot files (dietpiEnv.txt, config.txt, cmdline.txt, the kernel and the firmware).
 const BOOT_FILES = /\/boot(?:\/|(?![\w.-]))/g;
 
-/** Rules that ask: allowed only with the user's explicit OK, every time. */
+/**
+ * Docker commands that stop, restart or delete containers and images on the host (the Pi runs the stack in containers):
+ * `docker rm`, `docker kill`, `docker stop`, `docker restart`, `docker system prune` (and the other prune/rm/stop/restart
+ * verbs), `docker compose ... down|rm|kill|stop|restart` and `compose up --force-recreate`. Read-only ones (ps, logs,
+ * inspect, compose ps/config) stay free.
+ */
+const dockerDestroys = text =>
+  scan(
+    text,
+    /\bdocker[ \t]+/g,
+    /(?:(?:-H|--host|--context|-c|--config|-l|--log-level|--tlscacert|--tlscert|--tlskey)[ \t]+(?!-)\S+[ \t]+|-\S+[ \t]+)*/y,
+    tailAt(
+      /(?:(?:rm|rmi|kill|stop|restart)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop|restart)\b)/y
+    )
+  ) ||
+  followedInCommand(
+    text,
+    // docker's global options may sit between `docker` and `compose` (docker --context x compose down).
+    [
+      {
+        re: /\bdocker(?:-compose\b|(?:[ \t]+(?:(?:-H|--host|--context|-c|--config|-l|--log-level|--tlscacert|--tlscert|--tlskey)[ \t]+(?!-)\S+|-\S+))*[ \t]+compose\b)/g,
+      },
+    ],
+    /(?:\b(?:down|rm|kill|stop|restart)\b|--force-recreate\b)/g
+  );
+
+/**
+ * Rules that ask: allowed only with the user's explicit OK, every time.
+ * Decision (L113, 2026-11-07): `docker restart` and `compose restart` ask like `docker stop` (a restart is a stop),
+ * and so does `compose up --force-recreate` (it removes the old container). A raw ssh command never goes through
+ * the stage 24 quiet-table check, so the guard is the only place that asks. Plain `compose up -d` and `ps` stay free.
+ */
 const ASK = [
+  [
+    dockerDestroys,
+    'stopping, restarting or removing containers (docker rm, kill, stop, restart, prune, compose down, compose up --force-recreate)',
+  ],
+  [/\bTEST_ALLOW_CUTOVER=[^\s=]/, 'forcing the stage 24 cutover test switch on a real host'],
   [
     word(
       'useradd|adduser|userdel|deluser|usermod|groupadd|addgroup|groupdel|delgroup|groupmod|chpasswd|passwd'
@@ -878,7 +914,24 @@ const notComment = line => !/^\s*#/.test(line);
 
 const hit = (rule, text) => (typeof rule === 'function' ? rule(text) : rule.test(text));
 
+/**
+ * The player connector's Cloudflare script (scripts/pi/player-connector-cloudflare.mjs) runs ssh
+ * itself, so its command line has no `ssh` word for the rules below to see. `--apply` creates
+ * Cloudflare objects and sends the login table to the Pi: always the user's OK.
+ */
+const CLOUDFLARE_APPLY = /player-connector-cloudflare\.mjs[\s\S]*--apply\b/;
+const CLOUDFLARE_REASON =
+  'player-connector-cloudflare.mjs --apply creates Cloudflare tokens, an Access application, a tunnel route and DNS, and sends the player login table to the Pi';
+
+/** The normal decision first (deny wins), then the Cloudflare --apply reason joins the ask list. */
 export function decide(command, cwd = process.cwd()) {
+  const base = decideRemote(command, cwd);
+  if (!CLOUDFLARE_APPLY.test(command)) return base;
+  if (base?.decision === 'deny') return base;
+  return { decision: 'ask', reasons: [...new Set([...(base?.reasons ?? []), CLOUDFLARE_REASON])] };
+}
+
+function decideRemote(command, cwd) {
   if (!REMOTE.test(command)) return null;
   const hosts = remoteHosts(command);
   if (hosts && hosts.every(h => LOCAL_HOSTS.has(h.toLowerCase()))) return null;

@@ -12,6 +12,7 @@ export const REMEMBER = {
   momentPin: 'cogm_moment_pin',
   partyGroup: 'cogm_party_group',
   partyNoticeDc: 'cogm_party_notice_dc',
+  partyNoticeSkill: 'cogm_party_notice_skill',
 } as const;
 
 function read(key: string): string | null {

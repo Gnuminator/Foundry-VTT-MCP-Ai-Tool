@@ -157,7 +157,7 @@ set says so.
   combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
   the hostile ones, and starts the fight at round 1 with an Undo. **End combat** shows once a fight runs. See [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
-  need live play on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "Live play on".
+  need GM Actions on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "GM Actions on".
 
 ### Run a boss fight
 
@@ -272,7 +272,7 @@ These need the **play** set switched on.
 
 - **"Switch on the play set"** (or another set): Claude needs a tool that is off. Switch it on in
   the **+** menu, **Connectors**, and ask again.
-- **Claude picks the wrong token:** name it exactly ("Wolf 2") or pick it in the tool runner.
+- **Claude picks the wrong token:** name it exactly ("Wolf 2") or pick it in the Tool Runner.
 - **A plan is refused:** its feature switch is off, the plan is older than 15 minutes, or the thing
   changed in Foundry since. Ask for a new plan.
 - **Anything else:** [Troubleshooting](troubleshooting.md).

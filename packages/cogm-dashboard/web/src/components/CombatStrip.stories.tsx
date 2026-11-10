@@ -164,7 +164,7 @@ export const DamageFormOpen: Story = {
 
 /**
  * Two picked, Condition pressed: the condition chips under the action bar. A chip plans the
- * condition, one confirm asks, and it applies with Undo (no Tool runner).
+ * condition, one confirm asks, and it applies with Undo (no Tool Runner).
  */
 export const ConditionPickerOpen: Story = {
   name: 'Condition picker, two picked',

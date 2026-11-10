@@ -10,7 +10,9 @@
 # while a unit runs, up on rehearsal ports beside the units, up with the units off, up on a busy port, up unhealthy, up without a
 # snapshot; down (quiet check, the Assistant GM not counted); cutover (order of the stops, the record, the start), unhealthy ->
 # automatic rollback, players online, no snapshot, a control port beyond loopback, a unit that will not stop, a port that stays
-# busy, a rerun, a dry run; rollback (order, only the recorded units, a stack that will not go down).
+# busy, a rerun, a dry run; rollback (order, only the recorded units, a stack that will not go down); 19 a closed stdout;
+# 20 up on the live ports refused, a rehearsal left running seen by status and down; 21 a rehearsal on live data folders or on
+# one live port, a dry run writes no log, the cutover record is cleared after a rollback.
 set -uo pipefail
 
 REPO="${REPO:-/repo}"
@@ -105,17 +107,18 @@ case "$1" in
       [ -z "$want" ] || [ "$want" = "$s" ] || continue
       read -r st h r <"$F/c/$s"
       [ "$all" = 1 ] || [ "$st" = running ] || continue
-      echo "$s"
+      # The real docker ps -q prints container ids, not names: the stand-in uses cid-<service> and strips it again.
+      echo "cid-$s"
     done ;;
   update | stop) ;;
   rm) [ ! -f "$F/rm-fail" ] || exit 1
-      for a in "$@"; do case "$a" in rm | -f) ;; *) rm -f "$F/c/$a" ;; esac; done ;;
+      for a in "$@"; do case "$a" in rm | -f) ;; *) rm -f "$F/c/${a#cid-}" ;; esac; done ;;
   inspect)
     case "$*" in
       *StartedAt*) echo 2026-11-03T10:00:00Z ;;
-      *) cat "$F/c/${@: -1}" 2>/dev/null || exit 1 ;;
+      *) last="${@: -1}"; cat "$F/c/${last#cid-}" 2>/dev/null || exit 1 ;;
     esac ;;
-  logs) cat "$F/logs/${@: -1}" 2>/dev/null; exit 0 ;;
+  logs) last="${@: -1}"; cat "$F/logs/${last#cid-}" 2>/dev/null; exit 0 ;;
   compose)
     proj="$5"
     # compose -f FILE -p PROJECT: like the real thing, it fails when the interpolation needs a .env that is gone
@@ -205,15 +208,70 @@ running_stack
 run_stage MODE=status
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'at the same time'; then pass "status fails when a unit and the stack run together"; else fail "status mixed (rc $RC): $OUT"; fi
 
-# 3. up refusals and starts
+# 3. up refusals and starts. run_stage exports TEST_ALLOW_CUTOVER=1, so the live-port cases below (up with the units off,
+# busy ports, unhealthy, no snapshot) exercise the cutover path of `up`; scenario 20 checks the refusal itself.
 new_pi
 run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'live port(s) 30000 31414 31415 3000' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused on the live ports while a unit runs"; else fail "up live (rc $RC): $OUT"; fi
 run_stage MODE=up $reh
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'share their data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused on rehearsal ports with the live data folders"; else fail "up data (rc $RC): $OUT"; fi
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused on rehearsal ports with the live data folders"; else fail "up data (rc $RC): $OUT"; fi
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/data/"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a trailing slash on the live tool data folder does not get past the refusal"; else fail "up data slash (rc $RC): $OUT"; fi
+# A rehearsal Foundry folder set to the live tool folder (the other kind) is caught too.
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/data" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "the rehearsal Foundry folder on the live tool folder is refused"; else fail "up cross kind (rc $RC): $OUT"; fi
+# A relative data folder is refused (compose and this script would resolve it against different folders).
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="rfdata" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'FOUNDRY_DATA_DIR must be an absolute path' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a relative data folder is refused"; else fail "up relative (rc $RC): $OUT"; fi
+# A quoted value in deploy/pi/.env is unquoted like compose does: the live tool folder in quotes is still refused as live
+# data (without the strip it would start with a quote and hit the relative-path refusal instead).
+cp "$SB/tool/app/deploy/pi/.env" "$SB/env.bak"
+printf 'TOOL_DATA_DIR="%s"\n' "$SB/data" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a quoted .env value is unquoted before the live folder compare"; else fail "up quoted env (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+# A trailing comment and whitespace in .env are dropped like compose does: the live tool folder with a comment is still refused.
+printf 'TOOL_DATA_DIR=%s # live\n' "$SB/data" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a trailing comment is read like compose before the live folder compare"; else fail "up env trailing comment (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+printf '  TOOL_DATA_DIR = %s   # live\n' "$SB/data" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a comment and spaces is read like compose before the live folder compare"; else fail "up env comment (rc $RC): $OUT"; fi
+# A shell value that is set but empty wins over .env (compose then takes the default, the live folder): a safe .env value
+# behind it is not used.
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+printf 'TOOL_DATA_DIR=%s\n' "$SB/rdata" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR=
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a set-but-empty shell value does not fall through to .env"; else fail "up empty shell (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+# Compose interpolates $VAR / ${VAR} and reads backslashes in a .env value; the live-folder check does not, so a .env value of
+# the seven names with either is refused (key only). A shell value with a $ is no .env value and is not refused here.
+printf 'TOOL_DATA_DIR=%s${X}\n' "$SB/data" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'sets TOOL_DATA_DIR with a \$ or a backslash' && ! echo "$OUT" | grep -q '{X}' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a \$ is refused by key"; else fail "up env dollar (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+printf 'FOUNDRY_APP_DIR="%s\\x"\n' "$SB/foundry-app" >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'sets FOUNDRY_APP_DIR with a \$ or a backslash' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a .env value with a backslash is refused"; else fail "up env backslash (rc $RC): $OUT"; fi
+cp "$SB/env.bak" "$SB/tool/app/deploy/pi/.env"
+# A relative data folder with a $ in .env (up refuses both) must not block the way out: rollback and down ignore both rules.
+printf 'TOOL_DATA_DIR=rel/${X}\n' >>"$SB/tool/app/deploy/pi/.env"
+run_stage MODE=rollback
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'rolled back' && ! echo "$OUT" | grep -q 'must be an absolute path'; then pass "rollback is not blocked by a relative .env data folder"; else fail "rollback relative env (rc $RC): $OUT"; fi
+running_stack # the rollback emptied the stack: start one so that stack_gone below proves the down
+run_stage MODE=down
+if [ "$RC" -eq 0 ] && ! echo "$OUT" | grep -q 'must be an absolute path' && ! echo "$OUT" | grep -q 'with a \$ or a backslash' && ! echo "$CALLS" | grep -q 'compose.* up' && stack_gone; then pass "down is not blocked by a relative .env data folder"; else fail "down relative env (rc $RC): $OUT"; fi
+new_pi # rollback changed the units: start the next scenarios from a fresh Pi
+# realpath that fails: the check fails closed instead of comparing raw strings.
+mkdir -p "$SB/nort"
+printf '#!/bin/sh\nexit 1\n' >"$SB/nort/realpath"
+chmod +x "$SB/nort/realpath"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" PATH="$SB/nort:$PATH"
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'cannot check the data folders' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a failing realpath refuses instead of comparing raw paths"; else fail "up no realpath (rc $RC): $OUT"; fi
 mkdir -p "$SB/rfdata" "$SB/rdata"
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
-if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -qE 'compose.* up -d --wait .*--no-build' && ! echo "$CALLS" | grep -qE 'systemctl (disable|enable|stop|start)' && all_on $all_units; then
+if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -qE 'compose.* up -d --no-build --wait .*foundry bridge dashboard$' && ! echo "$CALLS" | grep -qE 'compose.*--wait.*gm-browser' && ! echo "$CALLS" | grep -qE 'systemctl (disable|enable|stop|start)' && all_on $all_units; then
   pass "a rehearsal comes up beside the running units and touches none of them"
 else fail "up rehearsal (rc $RC): $OUT"; fi
 new_pi
@@ -255,7 +313,7 @@ if [ "$RC" -eq 0 ] && stack_gone; then pass "the joined Assistant GM container i
 new_pi
 run_stage MODE=cutover
 if [ "$RC" -eq 0 ] && all_off $all_units && [ "$(ls "$FAKE" | grep -c '^exists-')" -eq 4 ]; then pass "cutover disables and stops all four units and leaves them installed"; else fail "cutover (rc $RC): $OUT"; fi
-if order_ok "disable --now $gmb" "disable --now $dash" "disable --now $bridge" "disable --now foundry.service" 'compose.* up -d --wait'; then
+if order_ok "disable --now $gmb" "disable --now $dash" "disable --now $bridge" "disable --now foundry.service" 'compose.* up -d --no-build --wait'; then
   pass "units stop in reverse dependency order, then the stack starts"
 else fail "order: $CALLS"; fi
 if [ "$(wc -l <"$SB/tool/compose-cutover.state")" -eq 4 ] && ! stack_gone && echo "$OUT" | grep -q 'cut over: the stack is healthy'; then pass "the record lists the units that were on, the stack is healthy"; else fail "state: $(cat "$SB/tool/compose-cutover.state" 2>&1) / $OUT"; fi
@@ -352,7 +410,7 @@ for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 running_stack
 rm -f "$SB/tool/app/deploy/pi/.env"
 run_stage MODE=status
-if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'container foundry'; then pass "status lists the containers without a .env"; else fail "status no env (rc $RC): $OUT"; fi
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'container cid-foundry'; then pass "status lists the containers without a .env"; else fail "status no env (rc $RC): $OUT"; fi
 run_stage MODE=rollback
 if [ "$RC" -eq 0 ] && stack_gone && all_on $all_units && echo "$CALLS" | grep -q 'docker rm -f' && echo "$CALLS" | grep -q 'docker update --restart=no'; then
   pass "without a .env, rollback finds the containers by label, stops them and starts the units"
@@ -417,5 +475,24 @@ run_stage MODE=status
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'a rehearsal is running'; then pass "status warns about a running rehearsal"; else fail "status rehearsal (rc $RC): $OUT"; fi
 run_stage MODE=down
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'a rehearsal does' && ! stack_gone; then pass "down without the rehearsal ports leaves it and names the ports"; else fail "down rehearsal (rc $RC): $OUT"; fi
+
+# 21. a rehearsal never touches live data folders or live ports (units off); a dry run logs nothing; the record is cleared
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+run_stage MODE=up $reh TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a rehearsal on the live data folders is refused also with the units off"; else fail "rehearsal live data (rc $RC): $OUT"; fi
+mkdir -p "$SB/rfdata" "$SB/rdata"
+run_stage MODE=up FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614 BRIDGE_LINK_PORT=31615 FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'is the cutover, which is not supported' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "one live port (the dashboard's 3000) makes it the live project, which is refused"; else fail "one live port (rc $RC): $OUT"; fi
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+mkdir -p "$SB/rfdata" "$SB/rdata"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" DRY_RUN=1 TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run' && ! ls "$SB"/tool/compose-run-*.log >/dev/null 2>&1; then pass "a dry run writes no run log"; else fail "dry run log (rc $RC): $OUT"; fi
+new_pi
+run_stage MODE=cutover
+if [ -f "$SB/tool/compose-cutover.state" ] && [ ! -e "$SB/tool/compose-cutover.state.new" ]; then pass "the cutover record is complete (written through a temp file)"; else fail "record: $(ls "$SB/tool")"; fi
+run_stage MODE=rollback
+if [ "$RC" -eq 0 ] && [ ! -e "$SB/tool/compose-cutover.state" ]; then pass "the cutover record is cleared after a successful rollback"; else fail "record kept (rc $RC): $OUT"; fi
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi

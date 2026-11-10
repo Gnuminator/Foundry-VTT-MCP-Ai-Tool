@@ -10,6 +10,7 @@ import {
   findingId,
   splitExpected,
   chooseHeroes,
+  conRiseExplains,
   classify,
   compareHeroes,
   comparablePicks,
@@ -147,6 +148,63 @@ test("the subclass pick is Actor Studio's own and is not compared", () => {
   assert.equal(comparablePicks(raw.picks).length, 3);
 });
 
+test('conRiseExplains: a shortfall is a sum of ability score increase levels, at most modifier + 1 terms', () => {
+  assert.equal(conRiseExplains(12, 17, 3), true); // 12 is one increase level
+  assert.equal(conRiseExplains(10, 10, 2), true); // the rogue's level 10
+  assert.equal(conRiseExplains(10, 9, 2), true); // 4 + 6
+  assert.equal(conRiseExplains(10, 9, 1), true); // two terms at modifier +1
+  assert.equal(conRiseExplains(18, 14, 1), true); // 4 + 14
+  assert.equal(conRiseExplains(32, 19, 1), false); // 4 + 12 + 16 needs three terms, modifier +1 allows two
+  assert.equal(conRiseExplains(9, 17, 3), false); // no sum of increase levels
+  assert.equal(conRiseExplains(8, 7, 3), false); // 8 is an increase level but the hero is level 7
+  assert.equal(conRiseExplains(4, 3, 3), false); // no increase level before 4
+  assert.equal(conRiseExplains(0, 17, 3), false); // no shortfall
+  assert.equal(conRiseExplains(12, 17, 0), false); // modifier not above zero
+  assert.equal(conRiseExplains(-4, 17, 3), false);
+});
+
+test('a Constitution shortfall on top of a per-level hit point effect keeps its own finding', () => {
+  const own =
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
+  const plain = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
+  const hero = (keys, value) => {
+    const c = pair();
+    c.studio.actor.level = 17;
+    c.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+    c.studio.actor.hp.max = 157;
+    c.studio.actor.hp.value = value;
+    c.studio.actor.hp.sources = [{ item: 'Draconic Resilience', keys }];
+    return compareHeroes(c).problems.find(p => p.category === 'current hit points');
+  };
+  const level = ['system.attributes.hp.bonuses.level'];
+  // the effect explains 17, the Constitution increase the other 12: both together are a STUDIO finding
+  assert.equal(hero(level, 157 - 17 - 12)?.id, own);
+  assert.equal(hero(level, 157 - 17 - 12)?.kind, 'STUDIO');
+  // the effect alone is the system's
+  assert.equal(hero(level, 140)?.id, plain);
+  assert.equal(hero(level, 140)?.kind, 'SYSTEM');
+  // a source of unknown shape explains any shortfall
+  assert.equal(hero([], 145)?.kind, 'SYSTEM');
+  // Tough gives two per level: at level 12 its 24 are the effect's, not a Constitution increase (12 would fit)
+  const tough = pair();
+  tough.studio.actor.level = 12;
+  tough.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  tough.studio.actor.hp.max = 157;
+  tough.studio.actor.hp.value = 157 - 24;
+  tough.studio.actor.hp.bonuses = { level: 2, overall: 0 };
+  tough.studio.actor.hp.sources = [{ item: 'Tough', keys: level }];
+  const t = compareHeroes(tough).problems.find(p => p.category === 'current hit points');
+  assert.equal(t?.id, plain);
+  assert.equal(t?.kind, 'SYSTEM');
+  // an overall bonus as well: the share is unknown, SYSTEM
+  tough.studio.actor.hp.bonuses = { level: 1, overall: 5 };
+  tough.studio.actor.hp.value = 157 - 12 - 12;
+  assert.equal(
+    compareHeroes(tough).problems.find(p => p.category === 'current hit points')?.kind,
+    'SYSTEM'
+  );
+});
+
 test('a different class level, hit point total or granted item is a STUDIO difference', () => {
   const { raw, studio } = pair();
   studio.actor.classes[0].levels = 4;
@@ -181,7 +239,8 @@ test('a new hero that cannot spend its spell slots or starts hurt is reported', 
     ['SYSTEM']
   );
   // A shortfall a Constitution increase explains (level 17, modifier +3, 12 missing) has its own id; a hero
-  // with no such room (level 3, or a shortfall bigger than level times modifier) stays a plain STUDIO finding.
+  // whose shortfall is no sum of ability score increase levels (at most modifier + 1 of them), or who has
+  // no increase level yet (level 3), stays a plain STUDIO finding.
   const con = (level, mod, value) => {
     const c = pair();
     c.studio.actor.level = level;

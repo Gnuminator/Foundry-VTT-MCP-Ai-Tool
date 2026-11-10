@@ -191,10 +191,8 @@ run as a `call_tool`.
 {"id":"<same id>","error":{"message":"..."}}
 ```
 
-The five core verbs (`CONTROL_METHODS` in `shared/src/protocol.ts`). The backend also dispatches
-dashboard control methods outside that list: `record_handout_seen`, `live_sweep`,
-`session_switches`, `feature_switches`, `character_sheet`, `player_roll` and `session_notes`
-(see `backend.ts`).
+The five core verbs (`CONTROL_METHODS` in `shared/src/protocol.ts`). The backend also answers
+methods outside that list; they are listed below the table.
 
 | Method         | `params`                                                                                     | `result`                                                                     |
 | -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -212,8 +210,8 @@ different build. A wrapper that sends no `build` is compared by version only. Th
 call that returns the wrapper list: `get-preflight` reads it in-process. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
-switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen` and
-`live_sweep`; see `backend.ts`.
+switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
+`live_sweep` and the player connector's `list_player_tools` and `player_tool`; see `backend.ts`.
 
 A `call_tool` result always wraps the tool's output as MCP content: a single text block whose
 `text` is either a plain string or a JSON-serialized object. Errors are returned **in-band** as
@@ -398,7 +396,7 @@ refuses to write while a bridge backend holds its lock.
 **The write gate (module `write-gate.ts`, P-036).** Every bridge handler is classified as a write
 (it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
 unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
-operations are disabled in the module settings" while "Allow Write Operations" is off, whoever
+operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
 calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` adds
 the older per-operation checks (quantity limits, and `requiresGM` for deletes and world
 structure).
@@ -410,7 +408,7 @@ confirmation → `list-recent-changes` / `undo-change`. The **backend** owns pla
 15 minutes), confirmation (`confirm`, plus `confirmDestructive` when the plan deletes
 anything) and the **audit ring** (`gm/audit.json`, 500 entries, big deleted-document
 snapshots in `backups/`). The **module** only snapshots targets (`snapshotGuardedOps`) and
-executes (`applyGuardedOps`), re-checking on its own: a GM client, "Allow Write Operations",
+executes (`applyGuardedOps`), re-checking on its own: a GM client, "AI Tool: Allow Write Operations",
 the feature's own switch (`feature.<id>.enabled`, off unless the feature registers `defaultEnabled`; live play, ownership,
 player portrait, table viewer, rules check and change undo start on; not needed for undo), and that
 every target still matches the plan-time snapshot — otherwise nothing is written. Actors and
@@ -590,7 +588,7 @@ it talks to the backend's control channel directly and makes no Anthropic API ca
 
 - **A Node/Express server (`server.ts`).** It owns the control-channel client and the GM and
   player tokens. It serves the static browser UI and exposes a REST + **Server-Sent Events** API.
-- **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
+- **A pure browser client.** HTML/CSS/JS that renders the Live Feed, the combat tracker,
   and the GM-action surface. It only ever talks to its own server.
   The page is React + TypeScript + Vite (D-109, `web/`) and is served at `/`
   (D-126); the retired addresses redirect

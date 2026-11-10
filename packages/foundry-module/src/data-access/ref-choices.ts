@@ -1,7 +1,7 @@
 /**
  * Candidates for the dashboard's tool-parameter pickers (`list-ref-choices`).
  *
- * The dashboard's tool runner offers, next to every parameter that names a
+ * The dashboard's Tool Runner offers, next to every parameter that names a
  * document, a searchable list of what exists right now (the tokens on the
  * current scene, the world's actors, a pack's entries, ...), so the GM picks
  * instead of typing ids. This file lists them; it changes nothing. Like every

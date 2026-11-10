@@ -344,13 +344,16 @@ foundry_copy_file() {
 }
 
 # control_port_check [PORT]: the bridge's control port (default 31414), which the Cloudflare TCP route
-# (D-095, mcp.<domain>) points at. It has no login of its own, so it must listen on loopback only.
+# (D-095, mcp.<domain>) points at. It has no login of its own, so it must listen on loopback only (the Pi's own tailscale interface counts as private, it is the user's tailnet).
 # Returns 0 = answers a ping on loopback and nothing listens beyond loopback, 1 = no ping answer,
 # 2 = a listener beyond loopback (checked first). Read-only.
 control_port_check() {
   local port="${1:-31414}" listeners reply=""
   listeners="$(ss -ltnH "sport = :$port" 2>/dev/null | awk '{print $4}' || true)"
-  if [ -n "$listeners" ] && printf '%s\n' "$listeners" | grep -qvE '^(127\.0\.0\.1|\[::1\]):'; then
+  # A listener bound to the Pi's own tailscale interface (ss prints it as 100.x.y.z%tailscale0:PORT, and the IPv6 tailnet
+  # address as [fd7a:...]%tailscale0:PORT) is reachable only from the user's tailnet, which the user trusts (stage 4), so
+  # it is not a listener "beyond loopback". Only that interface scope counts, not the address range.
+  if [ -n "$listeners" ] && printf '%s\n' "$listeners" | grep -qvE '^(127\.0\.0\.1|\[::1\]|[0-9.]+%tailscale[0-9]*|\[[0-9a-f:]+\]%tailscale[0-9]*):'; then
     return 2
   fi
   reply="$( { exec 3<>"/dev/tcp/127.0.0.1/$port"; printf '{"id":"ping","method":"ping"}\n' >&3; IFS= read -r -t 5 -u 3 line; printf '%s' "${line:-}"; } 2>/dev/null )" || true

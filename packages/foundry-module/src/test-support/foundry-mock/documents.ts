@@ -81,6 +81,8 @@ const OWNERSHIP_LEVELS: Record<string, number> = { NONE: 0, LIMITED: 1, OBSERVER
 function withDocumentMethods<T extends AnyDoc>(doc: T): T {
   const d = doc as any;
   d.flags ??= {};
+  // Real document data has `_id` next to the instance's `id`; the mock carries both.
+  if (d.id !== undefined) d._id ??= d.id;
   // Several existing tests pass their own `getUserLevel`/`testUserPermission`
   // (a stub predating this ownership surface, e.g. `data-access.players.test.ts`);
   // only install the default implementation when the caller didn't.
@@ -452,7 +454,7 @@ export interface MakeUserOptions {
 
 export function makeUser(opts: MakeUserOptions = {}): AnyDoc {
   const { id = randomId('user'), name = 'User', active = true, isGM = false, ...rest } = opts;
-  const user: AnyDoc = { id, name, active, isGM, ...rest };
+  const user: AnyDoc = { id, _id: id, name, active, isGM, ...rest };
   // Real `User#isBanned` is `role === USER_ROLES.NONE` (`common/documents/user.mjs:113`);
   // derived live from `role` when a test sets a role and no explicit `isBanned`.
   if (typeof user.role === 'number' && !Object.prototype.hasOwnProperty.call(rest, 'isBanned')) {

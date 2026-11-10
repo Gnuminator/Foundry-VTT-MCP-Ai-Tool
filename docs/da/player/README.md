@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: b85e67b0d6a0
+sourceHash: 18a951e0e929
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -13,6 +13,8 @@ læser. Korte how-tos står i [spillerens kogebog](cookbook.md).
 
 Er du ny ved bordet? Start med [Kom med i spillet](join.md) (adressen, login, Discord), og derefter
 [Lav din karakter](make-a-character.md).
+Vil du have en AI-hjælper til din egen karakter og reglerne? Se [D&D-hjælperen til
+spillere](dnd-helper.md).
 
 ## Det kan du se
 
@@ -27,7 +29,7 @@ dagen og vejr, hvis scenen har dem. Den har disse dele:
   slå et groft ord til: healthy, bloodied, critical eller down), kun almindelige conditions (som
   prone eller frightened), og de står under det navn, du kender dem under, eller som "Unknown
   creature".
-- **Session feed:** offentlige rolls og det, dine karakterer kunne se ske, for eksempel "Mira
+- **Live Feed:** offentlige rolls og det, dine karakterer kunne se ske, for eksempel "Mira
   took 7 damage." eller "Wolf 1 was hit." Private, blinde og GM-rolls vises aldrig her, og intet
   om en skabning, hvis navn du ikke kan se, vises heller.
 - **Handouts:** journal-sider, som GM'en har vist dig, for eksempel et brev eller en kortnote. En

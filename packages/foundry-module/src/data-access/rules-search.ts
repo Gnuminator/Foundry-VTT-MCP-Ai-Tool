@@ -5,7 +5,9 @@
  * are searched only when the caller asks. Read-only.
  */
 
+import { stripSecrets } from '../character-sheet-fields.js';
 import { MODULE_ID } from '../constants.js';
+import { enrichersToText } from '../enricher-text.js';
 
 /**
  * Searched when the `rulesSearchPacks` setting is empty: the PHB module, the dnd5e system
@@ -136,19 +138,38 @@ export interface RulesSearchParams {
   includeOtherBooks?: boolean;
 }
 
+/** An item's description as a player sees it: an unidentified item shows only its unidentified text. */
+export function itemDescription(doc: {
+  system?: {
+    identified?: boolean;
+    description?: { value?: string };
+    unidentified?: { description?: string };
+  };
+}): string {
+  const s = doc.system;
+  if (s?.identified === false) return s.unidentified?.description ?? '';
+  return s?.description?.value ?? '';
+}
+
+/**
+ * The name a player sees: an unidentified item shows its unidentified name (or a plain
+ * placeholder when the GM set none), never the true one.
+ */
+export function playerItemName(
+  name: string | undefined,
+  system:
+    | { identified?: boolean; unidentified?: { name?: string; description?: string } }
+    | undefined
+): string {
+  if (system?.identified !== false) return name ?? '';
+  const hidden = system.unidentified?.name?.trim();
+  return hidden || 'Unidentified item';
+}
+
 /** HTML to plain text: tags out, entities decoded for the common few, blanks squeezed. */
 export function plainText(html: unknown): string {
   if (typeof html !== 'string') return '';
-  let text = html
-    // Labelled enrichers keep their label; a bare roll keeps its command and arguments
-    // ("[[/damage 2d6 fire]]" reads "damage 2d6 fire"); a bare reference keeps its name.
-    .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
-    .replace(/&(?:amp;)?Reference\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/&(?:amp;)?Reference\[([^\]=\s]+)[^\]]*\]/g, '$1')
-    .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
-    .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ');
+  let text = enrichersToText(html).replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ');
   // Strip tags until none is left, so nested input like "<scr<script>ipt>" cannot rebuild one.
   let previous: string;
   do {
@@ -267,53 +288,12 @@ export class RulesSearchDataAccess {
       searchedPacks.push('world journals');
     }
 
-    const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
-    // Rare terms count more than common ones ("grappl" beats "action").
-    const patterns = terms.map(termPattern);
-    const presence = entries.map(entry => termPresence(entry, terms, patterns));
-    const weights = terms.map((_, i) => {
-      const df = presence.filter(p => p[i] !== 'none').length;
-      return Math.log(1 + entries.length / Math.max(df, 1));
-    });
     const packRank = (id: string | undefined): number => {
       const pkg = id?.split('.')[0] ?? '';
       const at = allowlist.findIndex(e => e === id || e === pkg);
       return at < 0 ? allowlist.length : at;
     };
-    const seen = new Set<string>();
-    const hits: RulesSearchHit[] = [];
-    const order = entries.map((_, i) => i);
-    const scores = order.map(i => scoreEntry(entries[i], terms, patterns, presence[i], weights));
-    order.sort(
-      (a, b) =>
-        scores[b].score - scores[a].score ||
-        packRank(entries[a].packId) - packRank(entries[b].packId)
-    );
-    for (const i of order) {
-      const entry = entries[i];
-      const scored = scores[i];
-      if (scored.matched < needed) continue;
-      // The PHB and the SRD 5.2 carry the same page: list it once, from the first pack.
-      const key = `${entry.pageName ?? entry.name}|${entry.text.slice(0, 120)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      hits.push({
-        source: entry.source,
-        packId: entry.packId,
-        packLabel: entry.packLabel,
-        documentId: entry.documentId,
-        documentType: entry.documentType,
-        name: entry.name,
-        pageId: entry.pageId,
-        pageName: entry.pageName,
-        snippet: snippetAround(entry.text, scored.firstIndex, excerptChars),
-        score: scored.score,
-        readWith:
-          entry.source === 'world'
-            ? 'list-journals (journalId, pageId)'
-            : 'get-compendium-item (packId, itemId=documentId)',
-      });
-    }
+    const hits = await this.rankHits(entries, terms, packRank, excerptChars);
 
     return {
       query,
@@ -337,24 +317,168 @@ export class RulesSearchDataAccess {
   }
 
   /**
+   * Build the player indexes for `packs` one pack at a time, so the first player search after a
+   * Foundry start finds them ready (a cold build is 20 to 30 s on the Pi). A pack that fails is
+   * skipped; the search builds it again.
+   */
+  async warmScoped(packs: PackLike[]): Promise<number> {
+    let built = 0;
+    for (const pack of packs) {
+      const type: string | undefined = pack.documentName ?? pack.metadata?.type;
+      if (type !== 'JournalEntry' && type !== 'Item') continue;
+      try {
+        await this.indexPack(pack, pack.metadata.id, type, true);
+        built++;
+      } catch (error) {
+        console.warn(
+          `${MODULE_ID} | rules search: warm-up skipped pack ${pack.metadata.id}`,
+          error
+        );
+      }
+    }
+    return built;
+  }
+
+  /**
+   * Player search: the same ranking as `searchRules`, but over exactly the packs the caller
+   * passes (already limited to the packs one player may observe; in Foundry 14 only the pack
+   * controls access, its documents follow it). It never reads world journals, the allowlist
+   * setting or any client flag. The text is indexed without GM secret blocks (a separate cache
+   * entry from the GM's search). `entryAllowed` is an extra, harmless check on each candidate,
+   * and the search stops at `limit` allowed hits.
+   */
+  async searchRulesScoped(params: ScopedSearchParams): Promise<ScopedSearchResult> {
+    const query = typeof params?.query === 'string' ? params.query.trim() : '';
+    if (query.length < 2) throw new Error('Search query must be at least 2 characters');
+    const terms = queryTerms(query);
+    if (terms.length === 0) {
+      throw new Error(
+        'Search query has no searchable words (only filler words like "how" or "the")'
+      );
+    }
+    const limit = clampInt(params.limit, 5, 1, 10);
+    const excerptChars = clampInt(params.excerptChars, SNIPPET_CHARS, 80, 600);
+    const entries: IndexedText[] = [];
+    const order = new Map<string, number>();
+    for (const pack of params.packs) {
+      const type: string | undefined = pack.documentName ?? pack.metadata?.type;
+      if (type !== 'JournalEntry' && type !== 'Item') continue;
+      const id: string = pack.metadata.id;
+      try {
+        entries.push(...(await this.indexPack(pack, id, type, true)));
+        order.set(id, order.size);
+      } catch (error) {
+        console.warn(`${MODULE_ID} | rules search: skipping pack ${id}`, error);
+      }
+    }
+    const hits = await this.rankHits(
+      entries,
+      terms,
+      id => order.get(id ?? '') ?? order.size,
+      excerptChars,
+      params.entryAllowed,
+      limit
+    );
+    return {
+      query,
+      results: hits.map(h => ({
+        packId: h.packId,
+        packLabel: h.packLabel,
+        documentId: h.documentId,
+        documentType: h.documentType,
+        name: h.name,
+        pageId: h.pageId,
+        pageName: h.pageName,
+        snippet: h.snippet,
+      })),
+      ...(hits.length === 0 ? { note: 'Nothing found in the books you can read.' } : {}),
+    };
+  }
+
+  /** Score, order and de-duplicate the entries; `accept` filters a hit before it counts. */
+  private async rankHits(
+    entries: IndexedText[],
+    terms: string[],
+    packRank: (id: string | undefined) => number,
+    excerptChars: number,
+    accept?: (hit: RulesSearchHit) => Promise<boolean>,
+    max = Infinity
+  ): Promise<RulesSearchHit[]> {
+    const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
+    // Rare terms count more than common ones ("grappl" beats "action").
+    const patterns = terms.map(termPattern);
+    const presence = entries.map(entry => termPresence(entry, terms, patterns));
+    const weights = terms.map((_, i) => {
+      const df = presence.filter(p => p[i] !== 'none').length;
+      return Math.log(1 + entries.length / Math.max(df, 1));
+    });
+    const seen = new Set<string>();
+    const hits: RulesSearchHit[] = [];
+    const order = entries.map((_, i) => i);
+    const scores = order.map(i => scoreEntry(entries[i], terms, patterns, presence[i], weights));
+    order.sort(
+      (a, b) =>
+        scores[b].score - scores[a].score ||
+        packRank(entries[a].packId) - packRank(entries[b].packId)
+    );
+    for (const i of order) {
+      if (hits.length >= max) break;
+      const entry = entries[i];
+      const scored = scores[i];
+      if (scored.matched < needed) continue;
+      // The PHB and the SRD 5.2 carry the same page: list it once, from the first pack.
+      const key = `${entry.pageName ?? entry.name}|${entry.text.slice(0, 120)}`;
+      if (seen.has(key)) continue;
+      const hit: RulesSearchHit = {
+        source: entry.source,
+        packId: entry.packId,
+        packLabel: entry.packLabel,
+        documentId: entry.documentId,
+        documentType: entry.documentType,
+        name: entry.name,
+        pageId: entry.pageId,
+        pageName: entry.pageName,
+        snippet: snippetAround(entry.text, scored.firstIndex, excerptChars),
+        score: scored.score,
+        readWith:
+          entry.source === 'world'
+            ? 'list-journals (journalId, pageId)'
+            : 'get-compendium-item (packId, itemId=documentId)',
+      };
+      // A hit the caller may not read must not hide a readable duplicate, so it is not recorded.
+      if (accept && !(await accept(hit))) continue;
+      seen.add(key);
+      hits.push(hit);
+    }
+    return hits;
+  }
+
+  /**
    * One build per pack, shared by searches that start together. After CACHE_TTL_MS the old index
    * is still served while one background rebuild runs, so no search waits for a whole pack
    * (a cold build can pass the dashboard's 15 s timeout).
    */
-  private indexPack(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
-    const cached = this.cache.get(id);
+  private indexPack(
+    pack: PackLike,
+    id: string,
+    type: string,
+    forPlayer = false
+  ): Promise<IndexedText[]> {
+    // A player's index has the GM secret blocks removed and lives under its own cache key.
+    const cacheKey = forPlayer ? `player:${id}` : id;
+    const cached = this.cache.get(cacheKey);
     if (cached) {
       if (Date.now() - cached.at >= CACHE_TTL_MS && !cached.refreshing) {
         cached.refreshing = true;
         // One pack at a time, so the rebuilds never load every pack at once during play.
         this.refreshChain = this.refreshChain.then(() =>
           withTimeout(
-            this.buildPackIndex(pack, id, type),
+            this.buildPackIndex(pack, id, type, forPlayer),
             REFRESH_TIMEOUT_MS,
             `refresh of ${id}`
           ).then(
             fresh => {
-              this.cache.set(id, { at: Date.now(), entries: Promise.resolve(fresh) });
+              this.cache.set(cacheKey, { at: Date.now(), entries: Promise.resolve(fresh) });
             },
             error => {
               console.warn(`${MODULE_ID} | rules search: refresh of ${id} failed`, error);
@@ -366,19 +490,26 @@ export class RulesSearchDataAccess {
       }
       return cached.entries;
     }
-    const entries = this.buildPackIndex(pack, id, type);
-    this.cache.set(id, { at: Date.now(), entries });
-    entries.catch(() => this.cache.delete(id));
+    const entries = this.buildPackIndex(pack, id, type, forPlayer);
+    this.cache.set(cacheKey, { at: Date.now(), entries });
+    entries.catch(() => this.cache.delete(cacheKey));
     return entries;
   }
 
-  private async buildPackIndex(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
+  private async buildPackIndex(
+    pack: PackLike,
+    id: string,
+    type: string,
+    forPlayer = false
+  ): Promise<IndexedText[]> {
     const out: IndexedText[] = [];
     const label: string = pack.metadata?.label ?? id;
     const docs = await pack.getDocuments();
+    const clean = (html: unknown): string =>
+      plainText(forPlayer && typeof html === 'string' ? stripSecrets(html) : html);
     for (const doc of docs) {
       if (type === 'Item') {
-        const text = plainText(doc.system?.description?.value);
+        const text = clean(forPlayer ? itemDescription(doc) : doc.system?.description?.value);
         if (text) {
           out.push({
             source: 'compendium',
@@ -386,14 +517,14 @@ export class RulesSearchDataAccess {
             packLabel: label,
             documentId: doc.id,
             documentType: doc.type ?? 'Item',
-            name: doc.name ?? '',
+            name: forPlayer ? playerItemName(doc.name, doc.system) : (doc.name ?? ''),
             text,
           });
         }
         continue;
       }
       for (const page of doc.pages ?? []) {
-        const text = plainText(page.text?.content);
+        const text = clean(page.text?.content);
         if (!text) continue;
         out.push({
           source: 'compendium',
@@ -504,21 +635,69 @@ function snippetAround(text: string, index: number, chars: number): string {
 }
 
 /** The few fields of a Foundry document and compendium pack this search reads. */
-interface PageLike {
+export interface PageLike {
   id: string;
   name?: string;
   text?: { content?: string };
+  testUserPermission?(user: unknown, level: string): boolean;
 }
-interface DocLike {
+export interface DocLike {
   id: string;
   name?: string;
   type?: string;
-  system?: { description?: { value?: string } };
+  system?: {
+    identified?: boolean;
+    description?: { value?: string };
+    unidentified?: { name?: string; description?: string };
+  };
   pages?: Iterable<PageLike>;
+  testUserPermission?(user: unknown, level: string): boolean;
 }
-interface PackLike {
+export interface PackLike {
   documentName?: string;
   collection?: string;
-  metadata: { id: string; label?: string; packageName?: string; type?: string };
+  metadata: {
+    id: string;
+    label?: string;
+    packageName?: string;
+    type?: string;
+    packageType?: string;
+  };
   getDocuments(): Promise<DocLike[]>;
+  getDocument?(id: string): Promise<DocLike | null | undefined>;
+  getIndex?(options?: { fields?: string[] }): Promise<Iterable<IndexRow>>;
+  index?: Iterable<IndexRow>;
+  testUserPermission?(user: unknown, level: string): boolean;
+}
+export interface IndexRow {
+  _id?: string;
+  id?: string;
+  name?: string;
+  type?: string;
+  system?: { identified?: boolean; unidentified?: { name?: string } };
+}
+
+export interface ScopedSearchParams {
+  query: string;
+  limit?: number;
+  excerptChars?: number;
+  /** Already filtered to the packs one player may read. */
+  packs: PackLike[];
+  /** Per-entry permission check; a hit that fails it is dropped. */
+  entryAllowed: (hit: RulesSearchHit) => Promise<boolean>;
+}
+
+export interface ScopedSearchResult {
+  query: string;
+  results: Array<{
+    packId?: string | undefined;
+    packLabel?: string | undefined;
+    documentId: string;
+    documentType: string;
+    name: string;
+    pageId?: string | undefined;
+    pageName?: string | undefined;
+    snippet: string;
+  }>;
+  note?: string;
 }

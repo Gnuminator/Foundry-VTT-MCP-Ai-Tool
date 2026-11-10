@@ -111,7 +111,7 @@ export function renderUsageNote(worldId: string, model: UsageModel): string {
         : [...entries.map(e => `- ${code(e.name)} (${e.kind})`), ''])
     );
   }
-  lines.push('### Tools never run from the tool runner', '');
+  lines.push('### Tools never run from the Tool Runner', '');
   if (model.neverUsed.tools === null) {
     lines.push('(tool list not available in this export)', '');
   } else if (model.neverUsed.tools.length === 0) {

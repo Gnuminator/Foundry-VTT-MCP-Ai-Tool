@@ -143,7 +143,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
             busyLabel="Starting..."
             onClick={() => startLog.mark('start')}
           >
-            Start the session log and live play
+            Start the session log and GM Actions
           </Button>
         )}
       </div>

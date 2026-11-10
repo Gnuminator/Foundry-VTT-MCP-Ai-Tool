@@ -10,7 +10,11 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
 1. **Fold the changelog.** `npm run changelog:fold -- --dry-run` shows the result, then `npm run changelog:fold`
    moves every fragment in `changelog.d/` into CHANGELOG "Unreleased" and deletes the files (D-089). Rename the
    `## Unreleased` heading to `## vX.Y.Z (released YYYY-MM-DD): <short summary>` and add a fresh empty
-   `## Unreleased` above it. Start the section with a line on whether the wire contracts changed.
+   `## Unreleased` above it. Start the section with a line on whether the wire contracts changed (say so when only
+   additive fields changed, for example new fields in the dashboard `/api/health` response). Write the
+   headline in words the previous release's headline did not use. Repeated headings in the fragments fold under one
+   base heading (a trailing `(...)` tag is dropped for new sections; Testing, Test kit and Test environment go
+   under `### Tests`). Duplicates already in Unreleased are left as they are: tidy them by hand.
 2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`.
 3. **Check.** `npm run green`.
 4. **Land it.** Commit on a branch (`Release vX.Y.Z`), open a PR, merge through the normal gate (the `lane` skill).
@@ -34,8 +38,8 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    builds and publishes the GitHub release (assets and checks: [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
 
 6. **Verify the release** (the `curl` in DEPLOYMENT), then deploy to the Pi if wanted.
-7. **Tell the players in #changelog and the GM in #dashboard-changelog.** Write 2 to 5 short Danish lines per post
-   from the new CHANGELOG section: game terms in English, no em dashes, nothing purely internal (tooling,
+7. **Tell the players in #changelog and the GM in #dashboard-changelog.** Write 2 to 5 short English lines per post
+   from the new CHANGELOG section: game terms as in the game, no em dashes, nothing purely internal (tooling,
    tests, CI). Sort each line by who notices it:
    - **Players' lines** (the player page, Foundry, the Discord bot, the character guides) go to #changelog,
      a normal post that never mentions anyone.
@@ -55,14 +59,14 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
 
    ```bash
    node packages/discord-bot/announce/announce.mjs changelog "**v0.26.0**
-   - Spillersiden viser nu kampen live
+   - The player page now shows the combat live
    - ..."
-   node packages/discord-bot/announce/announce.mjs dashboard "{gm} Nyt i dashboardet (v0.26.0):
-   • Ny Conditions-knap til flere tokens ad gangen
+   node packages/discord-bot/announce/announce.mjs dashboard "{gm} New in the dashboard (v0.26.0):
+   • New Conditions button for several tokens at once
    • ..."
    ```
 
-   A Pi stage 5 build of a new release tag posts "Serveren kører nu vX.Y.Z." by itself once the Pi's bot env
+   A Pi stage 5 build of a new release tag posts "The server now runs vX.Y.Z." by itself once the Pi's bot env
    has `DISCORD_CHANGELOG_CHANNEL_ID`. Posting is optional and never blocks a release; it prints one warning
    if Discord cannot be reached. The two channel ids and the GM role id belong in the PC's
    `%APPDATA%\foundry-ai-tool\discord-bot.env` (template: `packages/discord-bot/deploy/discord-bot.env.example`).

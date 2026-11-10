@@ -9,7 +9,25 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runDriftCheck, pickRemote } from './drift-check.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runDriftCheck, pickRemote, entryDecision } from './drift-check.mjs';
+import { entryDecision as checksEntryDecision } from './checks.mjs';
+
+test('entryDecision (drift-check.mjs and checks.mjs): run, mismatch for a same-named file, import', () => {
+  for (const [fn, name] of [
+    [entryDecision, 'drift-check.mjs'],
+    [checksEntryDecision, 'checks.mjs'],
+  ]) {
+    const self = fileURLToPath(new URL(`./${name}`, import.meta.url));
+    assert.equal(fn(self, self), 'run');
+    if (process.platform === 'win32') assert.equal(fn(self.toUpperCase(), self), 'run');
+    assert.equal(fn(path.join(os.tmpdir(), 'nope', name), self), 'mismatch');
+    assert.equal(fn(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
+    assert.equal(fn(undefined, self), 'import');
+    // lane-merge's `node -e` fallback passes the module's file: URL as argv[1].
+    assert.equal(fn(pathToFileURL(self).href, self), 'import');
+  }
+});
 
 /** @param {string} cwd @param {...string} args */
 const git = (cwd, ...args) =>

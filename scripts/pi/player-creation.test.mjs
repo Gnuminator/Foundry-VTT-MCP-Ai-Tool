@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ABILITY_METHODS,
   applyState,
+  BASELINE_TARGETS,
   blockers,
   mismatches,
   readState,
@@ -288,6 +289,43 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     assert.match(problems, /another compendium source changed/);
   });
 
+  test('baseline: with the six player packs open, every kind lists its one world pack; hidden packs keep the old lists', async () => {
+    const names = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'];
+    globalThis.game = fakeGame();
+    const addPacks = own => {
+      for (const n of names) globalThis.game.packs.set(`world.player-${n}`, { ownership: own });
+    };
+    addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
+    assert.equal(readState(ARGS).baselineReady, false);
+    addPacks({ PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' });
+    // the world packs are open, but the old kept packs still are too (a baseline that stopped halfway): not ready
+    const modulePacks = [...globalThis.game.packs.keys()].filter(id => !id.startsWith('world.'));
+    for (const id of modulePacks)
+      globalThis.game.packs.set(id, { ownership: { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' } });
+    assert.equal(readState(ARGS).baselineReady, false);
+    for (const id of modulePacks)
+      globalThis.game.packs.set(id, { ownership: { PLAYER: 'NONE', TRUSTED: 'NONE' } });
+    const start = readState({
+      ...ARGS,
+      targets: { ...SOURCE_TARGETS, extra: names.map(n => `world.player-${n}`) },
+    });
+    assert.equal(start.baselineReady, true);
+    const targets = BASELINE_TARGETS;
+    await applyState({ ...ARGS, targets });
+    const end = readState({ ...ARGS, targets });
+    assert.deepEqual(end.compendiumSources.races, ['world.player-species']);
+    assert.deepEqual(end.compendiumSources.classes, ['world.player-classes']);
+    assert.deepEqual(end.compendiumSources.subclasses, ['world.player-classes']);
+    assert.deepEqual(end.compendiumSources.equipment, ['world.player-items']);
+    assert.deepEqual(mismatches(start, end, targets), []);
+    assert.deepEqual(await applyState({ ...ARGS, targets }), []);
+    // undo hides the packs: the old lists come back on the next run
+    addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
+    assert.equal(readState(ARGS).baselineReady, false);
+    await applyState(ARGS);
+    assert.deepEqual(readState(ARGS).compendiumSources.races, SOURCE_TARGETS.races);
+  });
+
   test('sources: dnd5e packs come out of every list, kinds that are not ours keep their value, a missing aitool pack is skipped', async () => {
     globalThis.game = fakeGame({
       sources: {
@@ -382,7 +420,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     return r;
   };
   const count = (calls, call) => calls.filter(c => c === call).length;
-  const PINNED = '2.10.5-aitool.5';
+  const PINNED = '2.10.5-aitool.11';
   const GOOD_CALLS = [
     'is-active --quiet foundry.service',
     'is-active --quiet foundry-ai-tool-gm-browser.service',
@@ -494,10 +532,10 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.equal(r.exit, 1, r.output);
     const line = r.output
       .split('\n')
-      .find(l => l.includes(`2.10.5-aitool.9 is newer than ${PINNED}:`));
+      .find(l => l.includes(`2.10.5-aitool.12 is newer than ${PINNED}:`));
     assert.ok(line && line.includes('ALLOW_DOWNGRADE=1'), r.output);
     assert.deepEqual(r.calls, []);
-    assert.equal(r.version, '2.10.5-aitool.9');
+    assert.equal(r.version, '2.10.5-aitool.12');
   });
 
   test('ALLOW_DOWNGRADE=1 replaces the newer build and keeps it in prev', () => {
@@ -513,6 +551,14 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.equal(r.exit, 0, r.output);
     assert.match(r.output, /sha256 matches/);
     assert.match(r.output, /only files and folders, all inside the module folder/);
+    assert.equal(r.version, PINNED);
+    assert.ok(r.prev.includes('modules/foundryvtt-actor-studio/module.json'), r.prev.join('\n'));
+  });
+
+  test('an installed aitool.9 is upgraded to the pinned build (version sort across one and two digits)', () => {
+    const r = run('upgrade-from-9');
+    assert.equal(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /ALLOW_DOWNGRADE/);
     assert.equal(r.version, PINNED);
     assert.ok(r.prev.includes('modules/foundryvtt-actor-studio/module.json'), r.prev.join('\n'));
   });

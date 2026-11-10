@@ -81,6 +81,13 @@ function makePack(
           Object.assign(d, structuredClone(change));
         },
         async updateEmbeddedDocuments(name, updates) {
+          if (name === 'JournalEntryPage') {
+            for (const u of updates) {
+              const p = (d.pages ?? []).find(x => x._id === u._id);
+              if (p) Object.assign(p, structuredClone(u));
+            }
+            return;
+          }
           for (const u of updates) {
             const e = (d.effects ?? []).find(x => x._id === u._id);
             if (e) Object.assign(e, structuredClone(u));
@@ -139,8 +146,8 @@ function fakeWorld({
     Item: sink('Item'),
     Actor: sink('Actor'),
     CompendiumCollection: {
-      async createCompendium({ type, name }) {
-        const p = makePack(`world.${name}`, type);
+      async createCompendium({ type, name, ownership }) {
+        const p = makePack(`world.${name}`, type, [], ownership ? { ...ownership } : undefined);
         packs.set(p.collection, p);
         return p;
       },
@@ -160,6 +167,37 @@ async function run(source, world, dryRun) {
     world.globals.CompendiumCollection
   );
   return { result, lines };
+}
+
+// The combined check file of 22-seven-books.sh MODE=check, built by reading the stage's own assembly block (printf and cat
+// lines) instead of a hand-written copy, so a change to the stage shows up here.
+function combinedCheckFile(trimSrc, baselineSrc) {
+  const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
+  const start = stage.indexOf("printf 'const CHECK_ONLY");
+  const end = stage.indexOf('} >"$GM_SCRIPT.new"', start);
+  assert.ok(start > 0 && end > start, 'the check assembly block is in the stage');
+  const sources = {
+    '/root/seven-books-trim.js': trimSrc,
+    '/root/seven-books-baseline.js': baselineSrc,
+    '/root/grave-domain-patch.js': '', // its own tests are in grave-domain-patch.test.mjs
+  };
+  let out = '';
+  for (const raw of stage.slice(start, end).split('\n')) {
+    const line = raw.trim();
+    const printf = line.match(/^printf (['"])(.*)\1$/);
+    const cat = line.match(/^cat (\S+)$/);
+    if (printf) out += printf[2].replaceAll('\\n', '\n');
+    else if (cat) {
+      assert.ok(cat[1] in sources, `unknown file in the check assembly: ${cat[1]}`);
+      out += sources[cat[1]];
+    } else
+      assert.match(
+        line,
+        /^(|#.*|if \[ -f \/root\/seven-books-baseline\.js \]; then|if \[ -f \/root\/grave-domain-patch\.js \] && \[ ! -L \/root\/grave-domain-patch\.js \]; then|fi)$/,
+        `unexpected line: ${line}`
+      );
+  }
+  return out;
 }
 
 const spell = (n, name, book, extra = '') => ({
@@ -277,7 +315,7 @@ describe('seven-books-trim.js', () => {
       [...world.packs].map(([k, p]) => [k, [...p.docs.keys()], p.ownership])
     );
     const { result, lines } = await run(trimSource, world, true);
-    assert.deepEqual(result, { move: 0, comeBack: 0, repoint: 0, hide: 0 });
+    assert.deepEqual(result, { move: 0, comeBack: 0, repoint: 0, hide: 0, open: 0 });
     const again = await run(trimSource, world, false);
     assert.equal(again.result.moved, 0);
     assert.equal(
@@ -398,6 +436,11 @@ describe('seven-books-trim.js', () => {
     world.packs.get('dnd5e.classes').ownership = { ...HIDDEN };
     const { lines } = await run(trimSource, world, true);
     assert.match(lines.join('\n'), /WILL OPEN dnd5e\.classes: it is hidden from players/);
+    // the check mode counts it as drift (the real run changes it), and the world is clean again after the real run
+    const check = `const CHECK_ONLY = true;\n${trimSource}`;
+    await run(trimSource, world, false);
+    world.packs.get('dnd5e.classes').ownership = { ...HIDDEN };
+    await assert.rejects(run(check, world, true), /DRIFT.*"open":1/);
     await run(trimSource, world, false);
     assert.notDeepEqual(world.packs.get('dnd5e.classes').ownership, HIDDEN);
   });
@@ -409,7 +452,49 @@ describe('seven-books-trim.js', () => {
       description: { value: link('dnd5e.classes', id(800)) },
     };
     const { lines } = await run(trimSource, world, true);
-    assert.match(lines.join('\n'), /COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES[^:]*: 1 \(/);
+    assert.match(
+      lines.join('\n'),
+      /COPIED SRD ENTRIES THAT LINK TO dnd5e PACKS THEMSELVES[^:]*: 1 \(/
+    );
+    assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.classes/);
+  });
+
+  test('a copied creature that links into dnd5e.items names that pack as hidden by the real run', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('dnd5e.monsters').docs.set(id(902), {
+      _id: id(902),
+      name: 'Armed Guard',
+      type: 'npc',
+      system: {},
+      items: [{ system: { description: { value: link('dnd5e.items', id(900)) } } }],
+    });
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd5e.monsters',
+      id(902),
+      'Actor'
+    );
+    const { lines } = await run(trimSource, world, true);
+    assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.items/);
+  });
+
+  test('copied SRD creatures: links inside embedded features are found too', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('dnd5e.monsters').docs.set(id(901), {
+      _id: id(901),
+      name: 'Ghoul',
+      type: 'npc',
+      system: {},
+      items: [{ system: { description: { value: link('dnd5e.classes', id(800)) } } }],
+    });
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd5e.monsters',
+      id(901),
+      'Actor'
+    );
+    const { lines } = await run(trimSource, world, true);
+    assert.match(lines.join('\n'), /packs the real run hides: dnd5e\.classes/);
   });
 
   test('a pack that kept entries link to stays visible and is named', async () => {
@@ -472,7 +557,10 @@ describe('seven-books-trim.js', () => {
     assert.ok(!world.packs.has('world.legacy-other-books'));
     const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
     assert.match(stage, /trap '' HUP PIPE/);
-    assert.match(stage, /^\[ "\$\{MODE:-trim\}" = check \] \|\| require_recent_snapshot/m);
+    assert.match(
+      stage,
+      /^case "\$\{MODE:-trim\}" in check \| grave-check\) ;; \*\) require_recent_snapshot ;; esac/m
+    );
     assert.match(stage, /MODE=check only reads/);
   });
 
@@ -573,6 +661,618 @@ describe('seven-books-delete-legacy.js', () => {
       legacy: makePack('world.legacy-other-books', 'Item'),
     });
     await assert.rejects(run(deleteSource, world, true), /visible to players/);
+  });
+});
+
+describe('seven-books-baseline.js', () => {
+  const baselineSource = readFileSync(path.join(remote, 'seven-books-baseline.js'), 'utf8');
+  const OPEN = { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER', GAMEMASTER: 'OWNER' };
+  const mk = (n, name, type, text = '', sub = undefined) => ({
+    _id: id(n),
+    name,
+    type,
+    system: { description: { value: text }, ...(sub ? { type: { value: sub } } : {}) },
+    effects: [],
+  });
+  const worlds = () => {
+    const phbClasses = makePack('dnd-players-handbook.classes', 'Item', [
+      mk(1, 'Wizard', 'class', link('dnd-players-handbook.origins', id(3))),
+      mk(2, 'Evoker', 'subclass', link('dnd-players-handbook.classes', id(1))),
+      mk(11, 'Arcane Recovery', 'feat', '', 'class'), // a class feature is not a pickable feat
+    ]);
+    const origins = makePack('dnd-players-handbook.origins', 'Item', [
+      mk(3, 'Elf', 'race', link('aitool-content.feats', id(5))),
+      mk(4, 'Sage', 'background'),
+    ]);
+    const feats = makePack('aitool-content.feats', 'Item', [mk(5, 'Alert', 'feat', '', 'feat')]);
+    const spells = makePack('aitool-content.spells', 'Item', [
+      mk(6, 'Fireball', 'spell', link('aitool-content.summons', id(70))),
+    ]);
+    const items = makePack('aitool-content.items', 'Item', [mk(7, 'Rope', 'loot')]);
+    const equipment = makePack('dnd-players-handbook.equipment', 'Item', [
+      mk(8, 'Sword', 'weapon'),
+    ]);
+    const journal = makePack('dnd-players-handbook.content', 'JournalEntry', [
+      {
+        _id: id(100),
+        name: 'Classes',
+        pages: [
+          {
+            _id: id(101),
+            name: 'Wizard text',
+            text: {
+              content: `${link('dnd-players-handbook.classes', id(1))} @Compendium[aitool-content.spells.${id(6)}]`,
+            },
+            system: {},
+          },
+          {
+            _id: id(102),
+            name: 'Spell list',
+            type: 'spells',
+            text: {},
+            system: {
+              spells: [
+                `Compendium.aitool-content.spells.Item.${id(6)}`,
+                'Compendium.dnd5e.rules.JournalEntry.x',
+              ],
+            },
+          },
+          { _id: id(103), name: 'Plain', text: { content: 'nothing' }, system: {} },
+        ],
+      },
+    ]);
+    const extra = [
+      makePack('aitool-content.classes', 'Item'),
+      makePack('aitool-content.species', 'Item'),
+      makePack('aitool-content.backgrounds', 'Item'),
+      makePack('dnd-players-handbook.feats', 'Item'),
+      makePack('dnd-players-handbook.spells', 'Item'),
+      makePack('aitool-content.summons', 'Item', [], HIDDEN),
+      journal,
+    ];
+    const world = fakeWorld({
+      extraPacks: [phbClasses, origins, feats, spells, items, equipment, ...extra],
+    });
+    // fakeWorld already made empty aitool packs: put the content into them
+    for (const p of [feats, spells, items]) world.packs.set(p.collection, p);
+    world.packs.set(
+      'world.legacy-other-books',
+      makePack('world.legacy-other-books', 'Item', [], HIDDEN)
+    );
+    return world;
+  };
+  const player = (world, n) => world.packs.get(`world.player-${n}`);
+  const text = world => JSON.stringify([...world.packs.values()].map(p => [...p.docs.values()]));
+
+  test('a dry run counts and changes nothing', async () => {
+    const world = worlds();
+    const before = text(world);
+    const { result, lines } = await run(baselineSource, world, true);
+    assert.deepEqual(result, { copy: 9, refresh: 0, journalPages: 2, hide: 11, missingPacks: 6 });
+    assert.equal(text(world), before);
+    assert.ok(!world.packs.has('world.player-classes'));
+    assert.match(lines.join('\n'), /JOURNAL PAGES to rewrite: 2/);
+  });
+
+  test('copies by item type with the same ids, rewrites links in copies and journals, hides the old packs', async () => {
+    const world = worlds();
+    await run(baselineSource, world, true);
+    await run(baselineSource, world, false);
+    assert.deepEqual(names(player(world, 'classes')), ['Evoker', 'Wizard']);
+    assert.deepEqual(names(player(world, 'species')), ['Elf']);
+    assert.deepEqual(names(player(world, 'backgrounds')), ['Sage']);
+    assert.deepEqual(names(player(world, 'feats')), ['Alert']);
+    assert.deepEqual(names(player(world, 'spells')), ['Fireball']);
+    assert.deepEqual(names(player(world, 'items')), ['Arcane Recovery', 'Rope', 'Sword']);
+    assert.ok(player(world, 'classes').docs.has(id(1)), 'same id');
+    assert.equal(
+      player(world, 'classes').docs.get(id(1)).flags['foundry-ai-tool'].sourcePack,
+      'dnd-players-handbook.classes'
+    );
+    // links name the world pack that now holds the target; others are untouched
+    assert.match(
+      player(world, 'classes').docs.get(id(1)).system.description.value,
+      /Compendium\.world\.player-species\.Item\./
+    );
+    assert.match(
+      player(world, 'species').docs.get(id(3)).system.description.value,
+      /Compendium\.world\.player-feats\./
+    );
+    assert.match(
+      player(world, 'spells').docs.get(id(6)).system.description.value,
+      /Compendium\.aitool-content\.summons\./
+    );
+    const pages = world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages;
+    assert.match(pages[0].text.content, /Compendium\.world\.player-classes\.Item\./);
+    assert.match(
+      pages[0].text.content,
+      new RegExp(`@Compendium\\[world\\.player-spells\\.${id(6)}\\]`)
+    );
+    assert.deepEqual(pages[1].system.spells, [
+      `Compendium.world.player-spells.Item.${id(6)}`,
+      'Compendium.dnd5e.rules.JournalEntry.x',
+    ]);
+    assert.equal(pages[2].text.content, 'nothing');
+    // players see the world packs, not the old ones; the journals stay visible; module packs are locked again
+    for (const n of ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'])
+      assert.deepEqual(player(world, n).ownership, OPEN, n);
+    assert.deepEqual(world.packs.get('aitool-content.spells').ownership, HIDDEN);
+    assert.deepEqual(world.packs.get('dnd-players-handbook.equipment').ownership, HIDDEN);
+    assert.notDeepEqual(world.packs.get('dnd-players-handbook.content').ownership, HIDDEN);
+    assert.equal(world.packs.get('dnd-players-handbook.content').locked, true);
+    assert.equal(world.packs.get('aitool-content.spells').locked, true);
+    // the old entries are still there
+    assert.equal(world.packs.get('aitool-content.spells').docs.size, 1);
+  });
+
+  test('a second run changes nothing; a changed source is refreshed', async () => {
+    const world = worlds();
+    world.packs.get('aitool-content.spells').docs.get(id(6)).effects = [
+      {
+        _id: 'e1',
+        name: 'x',
+        _stats: { coreVersion: '14.368' },
+        system: { changes: [{ _id: 'c1', key: 'k', value: '1' }] },
+      },
+    ];
+    await run(baselineSource, world, true);
+    await run(baselineSource, world, false);
+    // Foundry stamps its own _stats on what it writes: that is not a change of content
+    player(world, 'spells').docs.get(id(6)).effects[0]._stats.coreVersion = '14.370';
+    player(world, 'spells').docs.get(id(6)).effects[0].system.changes[0]._id = 'c2'; // new random id on create
+    const after = text(world);
+    const again = await run(baselineSource, world, true);
+    assert.deepEqual(again.result, {
+      copy: 0,
+      refresh: 0,
+      journalPages: 0,
+      hide: 0,
+      missingPacks: 0,
+    });
+    await run(baselineSource, world, false);
+    assert.equal(text(world), after);
+    world.packs.get('aitool-content.feats').docs.get(id(5)).system.description.value = 'new text';
+    const refresh = await run(baselineSource, world, true);
+    assert.equal(refresh.result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.equal(player(world, 'feats').docs.get(id(5)).system.description.value, 'new text');
+  });
+
+  test('a copy that no kept pack has any more is an orphan: drift in check mode, removed by the real run; a hand-made entry stays', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.get('aitool-content.feats').docs.delete(id(5)); // a trim moved it out
+    player(world, 'feats').docs.set(id(77), mk(77, 'GM homebrew', 'feat', '', 'feat')); // no sourcePack tag
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    await assert.rejects(run(check, world, true), /DRIFT.*"orphans":1/s);
+    const real = await run(baselineSource, world, false);
+    assert.match(real.lines.join('\n'), /REMOVED 1 orphan copies from world\.player-feats/);
+    assert.deepEqual(names(player(world, 'feats')), ['GM homebrew']);
+    assert.match((await run(check, world, true)).lines.join('\n'), /NOT OURS.*: 1/);
+  });
+
+  test('a trimmed and baselined world passes the combined check of stage 22', async () => {
+    const trimSrc = readFileSync(path.join(remote, 'seven-books-trim.js'), 'utf8');
+    const world = worlds();
+    await run(trimSrc, world, false);
+    await run(baselineSource, world, false);
+    const combined = combinedCheckFile(trimSrc, baselineSource);
+    const { lines } = await run(combined, world, true);
+    assert.match(lines.join('\n'), /no drift: the world matches the seven-book trim/);
+    // the baseline hides the kept packs on purpose: they are no unexpected dead links for the trim check
+    assert.match(lines.join('\n'), /LINKS INTO PACKS PLAYERS CANNOT OPEN.*unexpected: 0/);
+    assert.match(lines.join('\n'), /no drift: the world matches the seven-book baseline/);
+  });
+
+  test('stops on id collisions and on a world entry that is another entry', async () => {
+    const world = worlds();
+    world.packs.get('aitool-content.items').docs.set(id(1), mk(1, 'Twin', 'loot'));
+    await assert.rejects(run(baselineSource, world, true), /id collision/);
+    const w2 = worlds();
+    w2.packs.set(
+      'world.player-feats',
+      makePack('world.player-feats', 'Item', [mk(5, 'Not Alert', 'feat')])
+    );
+    await assert.rejects(run(baselineSource, w2, true), /not the kept ones/);
+  });
+
+  test('runs without the legacy pack after the baseline (MODE=delete removes it), but refuses before the trim', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.delete('world.legacy-other-books');
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    const checked = await run(check, world, true);
+    assert.match(checked.lines.join('\n'), /legacy-other-books is not in this world/);
+    assert.match(checked.lines.join('\n'), /no drift/);
+    const again = await run(baselineSource, world, false);
+    assert.equal(again.result.copied, 0);
+    // no legacy pack and no world pack: the trim was never run here (or MODE=delete ran first): a dry run and a real run both refuse
+    const fresh = worlds();
+    fresh.packs.delete('world.legacy-other-books');
+    await assert.rejects(
+      run(baselineSource, fresh, true),
+      /run MODE=trim first.*MODE=delete already removed/s
+    );
+    await assert.rejects(
+      run(baselineSource, fresh, false),
+      /run MODE=trim first.*MODE=delete already removed/s
+    );
+    assert.ok(!fresh.packs.has('world.player-spells'));
+  });
+
+  test('a rerun with a whole source pack missing keeps its copies and says so', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.delete('dnd-players-handbook.origins'); // Elf and Sage have no source pack now
+    const dry = await run(baselineSource, world, true);
+    assert.match(
+      dry.lines.join('\n'),
+      /SOURCE PACK MISSING \(copies kept\): dnd-players-handbook\.origins 2/
+    );
+    assert.doesNotMatch(dry.lines.join('\n'), /ORPHANS/);
+    // an entry with only the trim's sourcePack tag (no baselineCopy) is not ours either
+    player(world, 'feats').docs.set(id(78), {
+      ...mk(78, 'Legacy-tagged', 'feat', '', 'feat'),
+      flags: { 'foundry-ai-tool': { sourcePack: 'aitool-content.feats' } },
+    });
+    const real = await run(baselineSource, world, false);
+    assert.doesNotMatch(real.lines.join('\n'), /REMOVED/);
+    assert.deepEqual(names(player(world, 'species')), ['Elf']);
+    assert.deepEqual(names(player(world, 'backgrounds')), ['Sage']);
+    assert.deepEqual(names(player(world, 'feats')), ['Alert', 'Legacy-tagged']);
+    assert.match(real.lines.join('\n'), /NOT OURS.*: 1/);
+  });
+
+  test('a failed copy hides nothing and still locks the module packs', async () => {
+    const world = worlds();
+    const real = world.globals.Item.createDocuments;
+    world.globals.Item.createDocuments = async (data, opts) => {
+      if (opts.pack === 'world.player-items') return [];
+      return real(data, opts);
+    };
+    await assert.rejects(run(baselineSource, world, false), e => {
+      assert.match(e.message, /created 0 of 3.*DONE BEFORE THE FAILURE/s);
+      assert.doesNotMatch(e.message, /HALF-FINISHED/); // no journal page was touched yet
+      return true;
+    });
+    assert.notDeepEqual(world.packs.get('aitool-content.spells').ownership, HIDDEN);
+    // the world packs the run made stay hidden from players until the last step
+    for (const n of ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'])
+      assert.deepEqual(player(world, n).ownership, HIDDEN, n);
+    assert.equal(world.packs.get('aitool-content.spells').locked, true);
+    const pages = world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages;
+    assert.doesNotMatch(pages[0].text.content, /world\.player/);
+  });
+
+  const wrapJournal = (world, onUpdate) => {
+    const journal = world.packs.get('dnd-players-handbook.content');
+    const orig = journal.doc.bind(journal);
+    journal.doc = x => {
+      const d = orig(x);
+      const update = d.updateEmbeddedDocuments;
+      d.updateEmbeddedDocuments = (...a) => onUpdate(update, d, a);
+      return d;
+    };
+  };
+
+  test('a real run that fails after the journal rewrite says HALF-FINISHED, and the check says it too', async () => {
+    const world = worlds();
+    let armed = false;
+    const create = world.globals.CompendiumCollection.createCompendium;
+    world.globals.CompendiumCollection.createCompendium = async opts => {
+      const pack = await create(opts);
+      const getIndex = pack.getIndex;
+      pack.getIndex = function () {
+        if (armed) throw new Error('scan failed');
+        return getIndex.call(this);
+      };
+      return pack;
+    };
+    wrapJournal(world, async (update, d, a) => {
+      await update.apply(d, a);
+      armed = true; // the residual scan reads the world packs next
+    });
+    await assert.rejects(run(baselineSource, world, false), e => {
+      assert.match(e.message, /scan failed/);
+      assert.match(e.message, /HALF-FINISHED/);
+      return true;
+    });
+    // players still see no world pack; the journal pages already name them
+    for (const n of ['classes', 'items']) assert.deepEqual(player(world, n).ownership, HIDDEN, n);
+    assert.equal(world.packs.get('dnd-players-handbook.content').locked, true);
+    armed = false;
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    await assert.rejects(run(check, world, true), /HALF-FINISHED/);
+    // a rerun finishes it
+    await run(baselineSource, world, false);
+    assert.deepEqual(player(world, 'classes').ownership, OPEN);
+  });
+
+  test('a successful run whose module packs could not be locked again does not print HALF-FINISHED', async () => {
+    const world = worlds();
+    const items = world.packs.get('aitool-content.items');
+    items.configure = async change => {
+      if (change.locked === true) throw new Error('lock refused');
+    };
+    await assert.rejects(run(baselineSource, world, false), e => {
+      assert.match(e.message, /module packs could not be locked/);
+      assert.doesNotMatch(e.message, /HALF-FINISHED/);
+      return true;
+    });
+    assert.deepEqual(player(world, 'items').ownership, OPEN);
+  });
+
+  test('a refresh whose create fails puts the replaced copies back', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.get('aitool-content.feats').docs.get(id(5)).system.description.value = 'new text';
+    const real = world.globals.Item.createDocuments;
+    let fail = true;
+    world.globals.Item.createDocuments = async (data, opts) => {
+      if (fail && opts.pack === 'world.player-feats') {
+        fail = false; // only the new copy fails; the put-back goes through
+        throw new Error('create failed');
+      }
+      return real(data, opts);
+    };
+    await assert.rejects(
+      run(baselineSource, world, false),
+      /create failed.*1 replaced copies put back/s
+    );
+    assert.deepEqual(names(player(world, 'feats')), ['Alert']);
+    assert.equal(player(world, 'feats').docs.get(id(5)).system.description.value, '');
+    await run(baselineSource, world, false);
+    assert.equal(player(world, 'feats').docs.get(id(5)).system.description.value, 'new text');
+  });
+
+  test('a refresh whose create is short, or whose put-back fails, says so', async () => {
+    const shortWorld = worlds();
+    await run(baselineSource, shortWorld, false);
+    shortWorld.packs.get('aitool-content.feats').docs.get(id(5)).system.description.value =
+      'new text';
+    const real = shortWorld.globals.Item.createDocuments;
+    let first = true;
+    shortWorld.globals.Item.createDocuments = async (data, opts) => {
+      if (first && opts.pack === 'world.player-feats') {
+        first = false;
+        return []; // created nothing, no error
+      }
+      return real(data, opts);
+    };
+    await assert.rejects(
+      run(baselineSource, shortWorld, false),
+      /created 0 of 1; 1 replaced copies put back/
+    );
+    assert.deepEqual(names(player(shortWorld, 'feats')), ['Alert']);
+    const failWorld = worlds();
+    await run(baselineSource, failWorld, false);
+    failWorld.packs.get('aitool-content.feats').docs.get(id(5)).system.description.value =
+      'new text';
+    const realFail = failWorld.globals.Item.createDocuments;
+    failWorld.globals.Item.createDocuments = async (data, opts) => {
+      if (opts.pack === 'world.player-feats') throw new Error('create failed');
+      return realFail(data, opts);
+    };
+    await assert.rejects(
+      run(baselineSource, failWorld, false),
+      /create failed.*COULD NOT put the replaced copies back \(create failed\); run again/s
+    );
+  });
+
+  test('a copy that names another kept pack than its source is a refresh; the rename exemption needs the same source', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    const tag = () => player(world, 'feats').docs.get(id(5)).flags['foundry-ai-tool'];
+    tag().sourcePack = 'aitool-content.items';
+    assert.equal((await run(baselineSource, world, true)).result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.equal(tag().sourcePack, 'aitool-content.feats');
+    // renamed source, copy names another source pack: not the rename exemption
+    world.packs.get('aitool-content.feats').docs.get(id(5)).name = 'Alert II';
+    tag().sourcePack = 'aitool-content.items';
+    await assert.rejects(run(baselineSource, world, true), /not the kept ones/);
+  });
+
+  test('a typed link to an id no kept pack maps is no name-form link', async () => {
+    const world = worlds();
+    world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      '@Compendium[dnd-players-handbook.classes.Item.zzzzzzzzzzzzzzzz]{Gone}';
+    const dry = await run(baselineSource, world, true);
+    assert.match(dry.lines.join('\n'), /NAME-FORM LINKS.*: 0\b/);
+  });
+
+  test('a rename in a kept pack is a refresh; a copy made before the baselineCopy flag gets the flag', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    world.packs.get('aitool-content.feats').docs.get(id(5)).name = 'Alert II';
+    const dry = await run(baselineSource, world, true);
+    assert.equal(dry.result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.deepEqual(names(player(world, 'feats')), ['Alert II']);
+    // an old copy without the flag
+    delete player(world, 'spells').docs.get(id(6)).flags['foundry-ai-tool'].baselineCopy;
+    assert.equal((await run(baselineSource, world, true)).result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.equal(
+      player(world, 'spells').docs.get(id(6)).flags['foundry-ai-tool'].baselineCopy,
+      true
+    );
+    // a renamed source AND a copy without the flag, same source pack: a refresh, and the flag is back after a real run
+    const flagless = world.packs.get('aitool-content.feats').docs.get(id(5));
+    delete player(world, 'feats').docs.get(id(5)).flags['foundry-ai-tool'].baselineCopy;
+    flagless.name = 'Alert III';
+    assert.equal((await run(baselineSource, world, true)).result.refresh, 1);
+    await run(baselineSource, world, false);
+    assert.equal(
+      player(world, 'feats').docs.get(id(5)).flags['foundry-ai-tool'].baselineCopy,
+      true
+    );
+    assert.deepEqual(names(player(world, 'feats')), ['Alert III']);
+    // a hand-made entry with the same id and another name is still no copy of ours
+    player(world, 'items').docs.set(id(7), mk(7, 'Not Rope', 'loot'));
+    await assert.rejects(run(baselineSource, world, true), /not the kept ones/);
+  });
+
+  test('check mode fails on a missing source pack, and a new world pack is created hidden', async () => {
+    const created = [];
+    const world = worlds();
+    const create = world.globals.CompendiumCollection.createCompendium;
+    world.globals.CompendiumCollection.createCompendium = async opts => {
+      created.push(opts.ownership);
+      return create(opts);
+    };
+    await run(baselineSource, world, false);
+    assert.equal(created.length, 6);
+    for (const o of created) assert.deepEqual(o, HIDDEN);
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    world.packs.delete('dnd-players-handbook.origins');
+    await assert.rejects(run(check, world, true), /DRIFT.*"missingSource":1/s);
+  });
+
+  test('the dry run counts name-form links, which are not rewritten', async () => {
+    const world = worlds();
+    world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      '@Compendium[dnd-players-handbook.classes.Wizard]{Wizard}';
+    const dry = await run(baselineSource, world, true);
+    assert.match(dry.lines.join('\n'), /NAME-FORM LINKS.*: 1\b/);
+    await run(baselineSource, world, false);
+    assert.match(
+      world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content,
+      /@Compendium\[dnd-players-handbook\.classes\.Wizard\]/
+    );
+  });
+
+  test('undo logs what it restored, stops on a page it could not point back, and a check after an undo ignores links it cannot map', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    const undo = `const BASELINE_MODE = 'undo';\n${baselineSource}`;
+    // a journal update that does nothing: the residual scan stops the undo before any pack is shown or hidden
+    wrapJournal(world, async () => undefined);
+    await assert.rejects(run(undo, world, false), /journal pages still name a world pack/);
+    assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');
+    assert.deepEqual(player(world, 'spells').ownership, OPEN);
+    // the partly-pointed-back state: the wrapper rewrites every page of the entry except the first; the error counts pages, not links, and names the next step
+    const part = worlds();
+    await run(baselineSource, part, false);
+    wrapJournal(part, async (update, d, a) => update.apply(d, [a[0], a[1].slice(1)]));
+    await assert.rejects(run(undo, part, false), e => {
+      assert.match(e.message, /^1 journal pages still name a world pack/);
+      assert.match(e.message, /Rerun MODE=baseline-undo \(dry run first\) or MODE=baseline/);
+      return true;
+    });
+    const fresh = worlds();
+    await run(baselineSource, fresh, false);
+    const done = await run(undo, fresh, false);
+    assert.match(done.lines.join('\n'), /RESTORED aitool-content\.spells: Player NONE -> OBSERVER/);
+    // an undo leaves a link to a world pack id with no copy alone and says so
+    const orphanLink = worlds();
+    await run(baselineSource, orphanLink, false);
+    orphanLink.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      `@UUID[Compendium.world.player-spells.Item.${id(99)}]`;
+    const undone = await run(undo, orphanLink, false);
+    assert.match(
+      undone.lines.join('\n'),
+      /links to world packs with no copy to map back \(left as they are\): 1/
+    );
+    // a link to a world pack id with no copy is no half-finished run
+    fresh.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      `@UUID[Compendium.world.player-spells.Item.${id(99)}]`;
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    assert.deepEqual((await run(check, fresh, true)).result, { applied: false });
+    // nor is a link to a hand-made entry in a world pack (it has no sourcePack, the undo cannot map it)
+    player(fresh, 'spells').docs.set(id(98), mk(98, 'GM homebrew', 'spell'));
+    fresh.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[2].text.content =
+      `@UUID[Compendium.world.player-spells.Item.${id(98)}]`;
+    assert.deepEqual((await run(check, fresh, true)).result, { applied: false });
+  });
+
+  test('check mode: not applied is fine, applied is clean, drift is an error, and it never runs for real', async () => {
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    const world = worlds();
+    assert.deepEqual((await run(check, world, true)).result, { applied: false });
+    await assert.rejects(run(check, world, false), /check only/);
+    await run(baselineSource, world, false);
+    assert.match((await run(check, world, true)).lines.join('\n'), /no drift/);
+    // a module update puts the old links back into a journal page and adds a kept entry
+    world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages[0].text.content = link(
+      'dnd-players-handbook.classes',
+      id(1)
+    );
+    world.packs.get('aitool-content.feats').docs.set(id(9), mk(9, 'Lucky', 'feat'));
+    await assert.rejects(run(check, world, true), /DRIFT.*"copy":1.*"journalPages":1/s);
+  });
+
+  test('undo points the journals back, shows the old packs, hides the world packs and deletes nothing', async () => {
+    const world = worlds();
+    const originalJournal = JSON.stringify(
+      world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages
+    );
+    await run(baselineSource, world, false);
+    const undo = `const BASELINE_MODE = 'undo';\n${baselineSource}`;
+    const dry = await run(undo, world, true);
+    assert.equal(dry.result.pages, 2);
+    assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');
+    await run(undo, world, false);
+    assert.equal(
+      JSON.stringify(world.packs.get('dnd-players-handbook.content').docs.get(id(100)).pages),
+      originalJournal
+    );
+    assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'OBSERVER');
+    assert.deepEqual(player(world, 'spells').ownership, HIDDEN);
+    assert.equal(player(world, 'spells').docs.size, 1);
+    // a rerun of the baseline brings the world packs back
+    // an undone baseline is not checked (no false drift)
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    const undone = await run(check, world, true);
+    assert.deepEqual(undone.result, { applied: false });
+    assert.match(undone.lines.join('\n'), /baseline undone \(world packs hidden\): not checked/);
+    await run(baselineSource, world, false);
+    assert.deepEqual(player(world, 'spells').ownership, OPEN);
+    assert.equal(world.packs.get('aitool-content.spells').ownership.PLAYER, 'NONE');
+    assert.deepEqual((await run(undo, makePristine(), true)).result, { undone: false });
+  });
+  test('check reports a half-finished run (journals rewritten, world packs hidden) instead of undone', async () => {
+    const world = worlds();
+    await run(baselineSource, world, false);
+    for (const n of ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'])
+      player(world, n).ownership = { ...HIDDEN };
+    for (const [pid, pack] of world.packs)
+      if (pid.startsWith('aitool-content.') || pid.startsWith('dnd-players-handbook.'))
+        pack.ownership = { ...OPEN };
+    const check = `const BASELINE_MODE = 'check';\n${baselineSource}`;
+    await assert.rejects(run(check, world, true), /HALF-FINISHED/);
+    const undo = `const BASELINE_MODE = 'undo';\n${baselineSource}`;
+    await run(undo, world, false);
+    assert.deepEqual((await run(check, world, true)).result, { applied: false });
+  });
+  const makePristine = () => worlds();
+
+  test('the combined check file of stage 22 (trim check, then baseline check) parses and runs both', async () => {
+    const trimSrc = readFileSync(path.join(remote, 'seven-books-trim.js'), 'utf8');
+    const combined = combinedCheckFile(trimSrc, baselineSource);
+    assert.match(combined, /^const CHECK_ONLY = true;\nawait \(async \(\) => \{\n/);
+    assert.match(combined, /\nawait \(async \(\) => \{\nconst BASELINE_MODE = 'check';\n/);
+    const world = worlds();
+    const { lines } = await run(combined, world, true).catch(e => ({ lines: [String(e.message)] }));
+    // an untrimmed fake world is trim drift: the trim check runs first and its error is what comes out
+    assert.match(lines.join('\n'), /DRIFT: the world no longer matches the seven-book trim/);
+  });
+
+  test('stage 22 has the baseline modes, runs the baseline check after the trim check and keeps the other gates', () => {
+    const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
+    assert.match(stage, /baseline\) GM_SCRIPT=\/root\/seven-books-baseline\.js/);
+    assert.match(stage, /baseline-undo\)/);
+    assert.match(stage, /BASELINE_MODE = 'undo'/);
+    assert.match(stage, /BASELINE_MODE = 'check'/);
+    assert.match(stage, /\[ "\$MODE" = baseline \]/);
+    assert.match(
+      stage,
+      /MODE must be trim, check, baseline, baseline-undo, delete, grave-patch or grave-check/
+    );
+    assert.match(
+      stage,
+      /the undo points the journal pages of dnd-players-handbook\.content and aitool-content\.journals back at the old packs/
+    );
   });
 });
 

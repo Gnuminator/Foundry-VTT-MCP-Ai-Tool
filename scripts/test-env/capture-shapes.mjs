@@ -5,6 +5,10 @@
 //
 //   node scripts/test-env/capture-shapes.mjs [--server A|B|C] [--out <dir>] [--user Claude]
 //
+// "Always present" (count equals samples) is weak with one or two samples: a kind with few
+// samples (ActiveEffect, group, Playlist, tool had 1-2 in the first capture) is listed in the
+// run output below so the world can be given more of it before the shapes are trusted.
+//
 // Needs the test server up with the world "ai-tool-test" (take the lock first, see lock.ps1).
 // Joins as the passwordless GM `Claude` in a headless Edge, reads `game.*` and leaves.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -43,6 +47,12 @@ const foundryUrl = `http://localhost:${cfg.FoundryPort}`;
 function collectInPage() {
   const MAX_DEPTH = 9;
   const EMBEDDED = new Set(['items', 'effects', 'tokens', 'notes', 'combatants', 'pages']);
+  const REAL_KEYS = new Set([
+    'compendiumSource',
+    'classRestriction',
+    'prependAdjective',
+    'journalEntryPage',
+  ]);
   const typeOf = v => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
   /** Add the paths of one value to `paths` (path -> {types:Set, count}); `seen` counts a doc once. */
@@ -59,12 +69,13 @@ function collectInPage() {
       for (const item of value) walk(item, `${path}[]`, paths, seen, depth + 1);
     } else if (t === 'object') {
       // Module flags are other modules' data: keep the key, not what is inside.
-      if (path === 'flags') return;
+      // Any `flags` (also one nested in system or an embedded document) is kept as a key only.
+      if (/(^|\.)flags$/.test(path)) return;
       for (const [k, v] of Object.entries(value)) {
         // A Foundry id as a key (an activity, an ownership entry) is one path, not one per id.
-        // Random ids have a digit or several capitals; a 16-letter key like compendiumSource has neither.
-        const idLike =
-          /^[A-Za-z0-9]{16}$/.test(k) && (/\d/.test(k) || (k.match(/[A-Z]/g) ?? []).length >= 4);
+        // Every 16-character alphanumeric key is an id, except these real 16-letter field names
+        // (add a name here when a capture shows a field folded by mistake).
+        const idLike = /^[A-Za-z0-9]{16}$/.test(k) && !REAL_KEYS.has(k);
         const key = idLike ? '<id>' : k;
         walk(v, path ? `${path}.${key}` : key, paths, seen, depth + 1);
       }
@@ -166,6 +177,15 @@ try {
     };
     writeFileSync(file, JSON.stringify(body, null, 2) + '\n');
     written += 1;
+  }
+  const MIN_SAMPLES = 3;
+  const thin = Object.entries(captured.kinds)
+    .filter(([, shape]) => shape.samples < MIN_SAMPLES)
+    .map(([kind, shape]) => `${kind} (${shape.samples})`);
+  if (thin.length) {
+    console.log(
+      `capture-shapes: fewer than ${MIN_SAMPLES} samples, so "always present" is weak: ${thin.join(', ')}`
+    );
   }
   console.log(
     `capture-shapes: ${written} shapes from ${foundryUrl} (Foundry ${captured.foundry}, ${captured.system} ${captured.systemVersion}) into ${out}`

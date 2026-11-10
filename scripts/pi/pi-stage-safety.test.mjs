@@ -457,6 +457,8 @@ describe('warn_dashboard_split (S3)', () => {
 });
 
 describe('the stages', () => {
+  // 29-gamenight-watch is left out on purpose too: DRY_RUN and CHECK need no snapshot, so it checks it after its mode check
+  // (scripts/pi/gamenight-watch-stage.test.mjs covers the order and the refusal).
   // 27-bot-status is left out on purpose too: DRY_RUN needs no snapshot, so it checks it right after its PORT check
   // (scripts/pi/bot-status-stage.test.mjs covers the refusal).
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
@@ -498,9 +500,11 @@ describe('the stages', () => {
       '7-vault': 'enable_unit foundry-ai-tool-bridge.service', // enable_unit calls require_quiet before a restart
       '8-recorder': 'require_no_recording',
       '27-bot-status': 'require_quiet',
+      '28-gm-watchdog': 'require_quiet_if_active',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
       '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first
+      '30-player-connector': 'require_quiet_if_active', // before the first write, when a restart is coming
     };
     for (const [s, fn] of Object.entries(quiet)) {
       assert.ok(read(`scripts/pi/remote/${s}.sh`).includes(fn), `${s}.sh calls ${fn}`);
@@ -1053,7 +1057,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a backup that leaves Foundry down fails with an ERROR line after waiting for it', () => {
     const r = nightly({
       users: [0],
-      env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active/);
@@ -1065,7 +1069,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a Foundry that is active but never answers (crashed on boot, Type=simple) fails the night', () => {
     const r = nightly({
       users: [0],
-      env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(
@@ -1079,7 +1083,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a Foundry that answers from the setup screen (its world did not open) fails the night', () => {
     const r = nightly({
       users: [0],
-      env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 1, r.out);
     assert.match(
@@ -1093,7 +1097,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   test('a world switched by hand during the day does not fail the night', () => {
     const r = nightly({
       users: [0],
-      env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_SECONDS: '3' },
+      env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
     });
     assert.equal(r.status, 0, r.out);
     assert.equal(r.sleeps, 0);

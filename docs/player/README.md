@@ -10,7 +10,8 @@ page explains the extra bits: what you can see, what gets recorded, and what an 
 how-tos are in the [player cookbook](cookbook.md).
 
 New to the table? Start with [Join the game](join.md) (the address, logging in, Discord), then
-[Make your character](make-a-character.md).
+[Make your character](make-a-character.md). Want an AI helper for your own character and the
+rules? See [The D&D helper for players](dnd-helper.md).
 
 ## What you see
 
@@ -24,7 +25,7 @@ day and weather when the scene has them. It has these parts:
   bar. Monsters and NPCs show no HP numbers and no health word (the person who runs the tool can switch a rough
   one on: healthy, bloodied, critical or down), only standard conditions (like prone or frightened),
   and appear under the name you know them by, or as "Unknown creature".
-- **Session feed:** public rolls and what your characters could see happen, for example "Mira
+- **Live Feed:** public rolls and what your characters could see happen, for example "Mira
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither
   does anything about a creature whose name you cannot see.
 - **Handouts:** journal pages the GM revealed to you, such as a letter or a map note. A handout

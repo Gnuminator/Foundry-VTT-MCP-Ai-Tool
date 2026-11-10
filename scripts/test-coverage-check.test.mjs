@@ -69,7 +69,7 @@ test('checkCoverage: written paths, written globs and runner folders count as ru
 
 test('checkCoverage: a runner pattern with no file is stale', () => {
   const { staleRunners } = checkCoverage(['shared/src/c.test.ts'], '');
-  assert.ok(staleRunners.includes('tools/*/tests/**'));
+  assert.ok(staleRunners.includes('tools/*/tests/**/test_*.py'));
   assert.ok(!staleRunners.includes('shared/src/**/*.test.ts'));
 });
 

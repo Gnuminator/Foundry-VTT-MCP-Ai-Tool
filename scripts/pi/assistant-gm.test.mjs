@@ -25,7 +25,9 @@ import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  clearProfileLocks,
   dryRunFrame,
+  isBridgeUser,
   extraGm,
   installDryRunGuard,
   isReadEvent,
@@ -517,6 +519,40 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
       /WITHOUT a dry run: the castle import broke the session/
     );
     assert.equal(runs().split('\n').length, 2);
+  });
+});
+
+describe('bridge user and stale profile locks (compose container)', () => {
+  test('isBridgeUser mirrors the module rule: empty or non-string means every GM', () => {
+    assert.equal(isBridgeUser('', 'u1'), true);
+    assert.equal(isBridgeUser(undefined, 'u1'), true);
+    assert.equal(isBridgeUser('u1', 'u1'), true);
+    assert.equal(isBridgeUser('u2', 'u1'), false);
+  });
+
+  test('clearProfileLocks removes the Singleton files and nothing else', () => {
+    const profile = abs('profile-locks');
+    mkdirSync(profile, { recursive: true });
+    for (const n of ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Preferences']) {
+      writeFileSync(path.join(profile, n), 'x');
+    }
+    assert.deepEqual(clearProfileLocks(profile).sort(), ['SingletonCookie', 'SingletonLock', 'SingletonSocket']);
+    assert.deepEqual(readdirSync(profile), ['Preferences']);
+    assert.deepEqual(clearProfileLocks(profile), []);
+    assert.deepEqual(clearProfileLocks(undefined), []);
+  });
+
+  test('clearProfileLocks removes a dangling SingletonLock symlink (Chromium links it to host-pid)', t => {
+    const profile = abs('profile-locks-dangling');
+    mkdirSync(profile, { recursive: true });
+    try {
+      symlinkSync('host-123', path.join(profile, 'SingletonLock'));
+    } catch (e) {
+      if (e.code === 'EPERM') return t.skip('symlinks need a privilege on this Windows account');
+      throw e;
+    }
+    assert.deepEqual(clearProfileLocks(profile), ['SingletonLock']);
+    assert.deepEqual(readdirSync(profile), []);
   });
 });
 

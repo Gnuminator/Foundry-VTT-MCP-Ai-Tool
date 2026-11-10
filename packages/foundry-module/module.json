@@ -2,7 +2,7 @@
   "id": "foundry-mcp-bridge",
   "title": "Foundry AI Tool",
   "description": "Lets Claude work with your Foundry world: look up characters, scenes and rules, and make changes you review first. Includes a co-GM dashboard for running a session. Built for D&D 5e (dnd5e 6) on Foundry 14. Only the GM can use it.",
-  "version": "0.25.0",
+  "version": "0.28.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14",
@@ -24,7 +24,9 @@
       {
         "id": "dnd5e",
         "type": "system",
-        "compatibility": { "minimum": "6" }
+        "compatibility": {
+          "minimum": "6"
+        }
       }
     ]
   },

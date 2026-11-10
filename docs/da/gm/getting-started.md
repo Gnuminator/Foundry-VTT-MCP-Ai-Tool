@@ -1,6 +1,6 @@
 ---
 source: gm/getting-started.md
-sourceHash: 9c4a1e4fc34e
+sourceHash: ede73df10a2d
 title: Kom i gang
 description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen og hvordan det sættes op.
 ---
@@ -34,15 +34,15 @@ Spillerne får deres egen side. Den er bygget til at udelade det, kun GM'en skal
 | **Modulet**        | "Foundry AI Tool", et tilføjelsesmodul i Foundry.                           | Det lader bridgen læse og ændre din world. Du rører sjældent ved det.         |
 | **Bridgen**        | Et lille program på hjemmeserveren (Orange Pi).                             | Det forbinder Foundry, Claude Desktop, dashboardet og Obsidian.               |
 | **Claude Desktop** | Anthropics Claude-app på din computer. En lille klient når bridgen for den. | At spørge Claude om spillet, forberedelse, regler og planlagte ændringer.     |
-| **Dashboardet**    | En webside på din anden skærm.                                              | Dit kontrolpanel: live feed, combat, godkende og fortryde ændringer.          |
-| **Spillersiden**   | En skrivebeskyttet side i dashboardet på `/player`.                         | Det, spillerne må se: combat-rækkefølge, et sikkert feed, handouts, recaps.   |
+| **Dashboardet**    | En webside på din anden skærm.                                              | Dit kontrolpanel: Live Feed, combat, godkende og fortryde ændringer.          |
+| **Spillersiden**   | En skrivebeskyttet side i dashboardet på `/player`.                         | Det, spillerne må se: combat order, et sikkert feed, handouts, recaps.        |
 | **Obsidian**       | En notesapp. Værktøjet skriver noter ind i en Obsidian-vault.               | Læsning og forberedelse: session notes, ændringshistorik, stats, world-noter. |
 | **Orange Pi**      | En lille hjemmeserver, der altid er tændt.                                  | Kører Foundry, bridgen og dashboardet hele tiden.                             |
 
 ## Hvordan de hænger sammen
 
 - **Foundry er der, hvor spillet foregår.** Kort, tokens, ark, terninger og chat bor alle der.
-- **Dashboardet er dit kontrolpanel.** Åbn det på en anden skærm. Det viser live feed og
+- **Dashboardet er dit kontrolpanel.** Åbn det på en anden skærm. Det viser Live Feed og
   combat. Før det ændrer noget, beder det dig bekræfte. Ved en planlagt ændring lister det, hvad
   der vil ændre sig. Hver guarded change, uanset om den kom fra dashboardet eller fra Claude, står
   der med Undo.

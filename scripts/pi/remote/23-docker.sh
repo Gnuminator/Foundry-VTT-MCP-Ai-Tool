@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stage 23: Docker on the Pi, and the images for deploy/pi/compose.yml (backlog pi-docker-compose). It installs the
 # engine, builds the images and writes the compose settings file. It does NOT start the stack and does not touch a
-# running service: stage 24 (MODE=up or MODE=cutover) does that, after its own snapshot and OK.
+# running service: stage 24 (MODE=up on rehearsal ports) does that, after its own snapshot and OK.
 #
 # Run it only after a dietpi-backup snapshot from today (/boot/dietpi/dietpi-backup 1) and the user's OK (pi-work skill):
 # it installs packages and builds for some minutes, which is heavy on a Pi that may be hosting a session.
@@ -17,7 +17,13 @@
 #                    the archive has it.
 # No user is added to the docker group (root runs every stage), docker's data root stays /var/lib/docker (on the NVMe,
 # like /), nothing is removed, nothing reboots. Docker adds a docker0 bridge and iptables rules for it; the containers
-# use network_mode: host, so the host's ports and Tailscale serve are unchanged.
+# use network_mode: host, so the host's ports and Tailscale serve are unchanged. Three side effects to know about:
+#   - /etc/docker/daemon.json gets "live-restore": true when it does not exist yet (containers survive a daemon restart,
+#     for example a docker.io upgrade); an existing file is only checked;
+#   - Docker sets the iptables FORWARD policy to DROP. Nothing on the Pi forwards traffic today (host networking);
+#     a future router or VPN exit role has to allow forwarding itself;
+#   - /var/lib/docker (images, layers, container logs, a few GB) is part of the root file system, so the nightly
+#     dietpi-backup snapshot includes it. Nothing under it is needed to restore: stage 23 rebuilds the images.
 #
 # What it does, in order, stopping at the first failure:
 #   1. checks the deployed checkout ($TOOL_DIR/app, built by stage 5) has deploy/pi/compose.yml and the foundry user exists;
@@ -38,7 +44,7 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-docker.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/23-docker.sh | ssh foundry-pi 'bash -s'
 # Tests only: TOOL_CHECKOUT points at a stand-in checkout, DASHBOARD_UNIT at a stand-in dashboard unit file,
-# PLAYER_VAULT_DROPIN at a stand-in stage 21 drop-in.
+# PLAYER_VAULT_DROPIN at a stand-in stage 21 drop-in, DOCKER_DAEMON_JSON at a stand-in /etc/docker/daemon.json.
 
 dry="${DRY_RUN:-0}"
 skip_build="${SKIP_BUILD:-0}"
@@ -49,6 +55,7 @@ env_file="$compose_dir/.env"
 dash_unit="${DASHBOARD_UNIT:-/etc/systemd/system/foundry-ai-tool-dashboard.service}"
 player_dropin="${PLAYER_VAULT_DROPIN:-/etc/systemd/system/foundry-ai-tool-dashboard.service.d/player-vault.conf}"
 build_log="$TOOL_DIR/docker-build.log"
+daemon_json="${DOCKER_DAEMON_JSON:-/etc/docker/daemon.json}"
 min_compose=2.24.0
 
 require_root
@@ -141,6 +148,7 @@ if [ "$dry" = 1 ]; then
     echo "    docker: not installed"
   fi
   echo "    packages a real run installs when missing: docker.io, $(pick_package docker-compose-v2 docker-compose || echo '(no compose package has a candidate: apt-get update first)'), docker-buildx"
+  if [ ! -e "$daemon_json" ]; then echo "    would write $daemon_json: live-restore true"; else echo "    $daemon_json exists: checked, not rewritten"; fi
   echo "    would write $env_file:"
   printf '%s\n' "$env_content" | sed 's/^/      /'
   if [ "$skip_build" = 1 ]; then echo "    SKIP_BUILD=1: no build"; else echo "    would build: docker compose -f deploy/pi/compose.yml build (in $checkout)"; fi
@@ -165,6 +173,49 @@ fi
 command -v docker >/dev/null 2>&1 || die "docker is not on PATH after the install"
 version_ok "$(compose_version)" || die "docker compose is '$(compose_version)'; $min_compose or newer is needed (deploy/pi/compose.yml uses env_file required: false)"
 ok "$(docker --version 2>/dev/null), compose $(compose_version)"
+
+say "live-restore"
+# With live-restore the containers keep running while the daemon restarts (a docker.io upgrade restarts it). Written only
+# when there is no daemon.json yet; an existing file is never rewritten, only checked.
+if [ ! -e "$daemon_json" ]; then
+  install -d -m 0755 "$(dirname "$daemon_json")" || die "cannot create $(dirname "$daemon_json")"
+  # Written to a .new file, checked and moved into place: a short write never leaves a daemon.json that dockerd cannot
+  # parse (it refuses to start on one), and a rerun finds no file and writes it again.
+  daemon_new="$daemon_json.new"
+  if ! printf '{\n  "live-restore": true\n}\n' >"$daemon_new" 2>/dev/null || ! chmod 0644 "$daemon_new" ||
+    ! grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_new" 2>/dev/null || ! grep -q '}' "$daemon_new"; then
+    rm -f -- "$daemon_new" || true
+    die "$daemon_new could not be written completely: live-restore is not set. Nothing else was changed"
+  fi
+  mv -- "$daemon_new" "$daemon_json" || { rm -f -- "$daemon_new" || true; die "cannot move $daemon_new to $daemon_json"; }
+  # Read the moved file back: if it is not what was checked, remove it so dockerd is not left with a broken file.
+  if ! grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json" 2>/dev/null || ! grep -q '}' "$daemon_json"; then
+    rm -f -- "$daemon_json" || true
+    die "$daemon_json is missing or incomplete after the move: removed it; live-restore is not set"
+  fi
+  LIB_CHANGED="$LIB_CHANGED$daemon_json "
+  ok "wrote $daemon_json"
+  if have_systemd && systemctl is-active --quiet docker.service 2>/dev/null; then
+    systemctl reload docker.service >/dev/null 2>&1 || warn "systemctl reload docker.service failed: live-restore applies at the next daemon restart"
+    # Read it back: a reload that did not take leaves containers to restart with the daemon. The daemon applies the
+    # reload asynchronously, so ask a few times before giving up.
+    live_restore=""
+    for _ in 1 2 3 4 5; do
+      live_restore="$(timeout 10 docker info -f '{{.LiveRestoreEnabled}}' 2>/dev/null || true)"
+      [ "$live_restore" = true ] && break
+      sleep 1
+    done
+    if [ "$live_restore" = true ]; then
+      ok "live-restore is on (docker info)"
+    else
+      warn "docker info reports LiveRestoreEnabled='${live_restore:-unknown}' after the reload: it applies at the next daemon restart"
+    fi
+  fi
+elif grep -q '"live-restore"[[:space:]]*:[[:space:]]*true' "$daemon_json"; then
+  ok "$daemon_json already sets live-restore"
+else
+  warn "$daemon_json exists without \"live-restore\": true; add it by hand so a docker.io upgrade does not restart every container"
+fi
 
 say "docker.service"
 enable_unit docker.service
@@ -200,4 +251,4 @@ for img in $images; do
   docker image inspect "$img" >/dev/null 2>&1 || die "image $img is missing after the build (log: $build_log)"
   ok "image $img"
 done
-ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports, or MODE=cutover)"
+ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports; the cutover is not supported yet)"

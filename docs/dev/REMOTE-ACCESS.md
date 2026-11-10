@@ -238,6 +238,16 @@ scripts, and the two that touch secrets are run by you.
    open in another tab, build the GM-only image proxy on the dashboard instead (a route that
    fetches the path from `FOUNDRY_AI_FOUNDRY_URL` and returns it to a GM caller only).
 
+### The player connector's Access application
+
+The player connector (`/mcp/player`) has its own Access application, separate from `Foundry players`
+and `Foundry dashboard`. Its policy allows **Service Auth only** (the players' service tokens, one
+per player), never an email login: a person's login must not reach this route. The dashboard checks
+the same thing again: a token that carries an email is refused, and the token's Client ID must be in
+`player-connector.json`. The application's AUD tag goes into that file as `audience`. If the player
+hostname ever serves anything but `/mcp/player`, narrow the tunnel's ingress path to
+`^/mcp/player$` (the Pi side of this is in the Pi stage script, not here).
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete
@@ -292,7 +302,7 @@ address with `MCP_NO_SPAWN=1`.
 mcp.<domain> --url 127.0.0.1:31914` asks for a browser login and gives nothing to a script; with a
 wrong token it is refused; `https://mcp.<domain>/` shows the Access page, never the bridge;
 `foundry.<domain>:31414`, `cogm.<domain>:31414` and the Pi's public address on 31414 do not answer.
-Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it.
+Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it (the Pi's own tailscale interface does not count).
 
 **Rotation and removing a GM.** Rotate: create a new token, add it to `MCP client`, run the installer
 again (or `tunnel-client.ps1 -Action Install`) and paste the new Client ID and secret: a new token
@@ -410,21 +420,24 @@ the remote-hosting topology.
 
 ### Dashboard (`packages/cogm-dashboard/src/config.ts`)
 
-| Variable                       | Default     | What it controls                                                                      |
-| ------------------------------ | ----------- | ------------------------------------------------------------------------------------- |
-| `PORT`                         | `3000`      | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                        |
-| `DASHBOARD_HOST`               | `127.0.0.1` | Listen address. Non-loopback needs a `GM_DASHBOARD_TOKEN` of 32 or more characters.   |
-| `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_   | Extra host names it answers to, e.g. the tunnel's public name (Host check).           |
-| `DASHBOARD_FOUNDRY_URL`        | _(unset)_   | Foundry as the GM's browser reaches it; ribbon portraits; who may frame Live.         |
-| `MCP_CONTROL_HOST`             | `127.0.0.1` | Where the dashboard connects for the control channel.                                 |
-| `MCP_CONTROL_PORT`             | `31414`     | Control channel port (must match the backend).                                        |
-| `GM_DASHBOARD_TOKEN`           | _(unset)_   | Shared secret that grants GM role. Setting this enables the GM/player split.          |
-| `PLAYER_DASHBOARD_TOKEN`       | _(unset)_   | Optional token required to view the player page.                                      |
-| `GM_EMAILS`                    | _(unset)_   | Comma-separated email addresses that map to GM role (via Cloudflare Access).          |
-| `CF_ACCESS_TEAM_DOMAIN`        | _(unset)_   | `<team>.cloudflareaccess.com`; with `CF_ACCESS_AUD`, turns on the Access token check. |
-| `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`      | Let player view see status conditions on enemy combatants.                            |
-| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`     | Let player view see coarse HP bands (e.g. "bloodied") on enemies. `false` hides them. |
-| `LOG_LEVEL`                    | `info`      | Dashboard server log verbosity.                                                       |
+| Variable                               | Default     | What it controls                                                                                                                                                                                                                                               |
+| -------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                 | `3000`      | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                                                                                                                                                                                                 |
+| `DASHBOARD_HOST`                       | `127.0.0.1` | Listen address. Non-loopback needs a `GM_DASHBOARD_TOKEN` of 32 or more characters.                                                                                                                                                                            |
+| `DASHBOARD_ALLOWED_HOSTS`              | _(unset)_   | Extra host names it answers to, e.g. the tunnel's public name (Host check).                                                                                                                                                                                    |
+| `DASHBOARD_FOUNDRY_URL`                | _(unset)_   | Foundry as the GM's browser reaches it; ribbon portraits; who may frame Live.                                                                                                                                                                                  |
+| `MCP_CONTROL_HOST`                     | `127.0.0.1` | Where the dashboard connects for the control channel.                                                                                                                                                                                                          |
+| `MCP_CONTROL_PORT`                     | `31414`     | Control channel port (must match the backend).                                                                                                                                                                                                                 |
+| `GM_DASHBOARD_TOKEN`                   | _(unset)_   | Shared secret that grants GM role. Setting this enables the GM/player split.                                                                                                                                                                                   |
+| `PLAYER_DASHBOARD_TOKEN`               | _(unset)_   | Optional token required to view the player page.                                                                                                                                                                                                               |
+| `GM_EMAILS`                            | _(unset)_   | Comma-separated email addresses that map to GM role (via Cloudflare Access).                                                                                                                                                                                   |
+| `CF_ACCESS_TEAM_DOMAIN`                | _(unset)_   | `<team>.cloudflareaccess.com`; with `CF_ACCESS_AUD`, turns on the Access token check.                                                                                                                                                                          |
+| `FOUNDRY_AI_PLAYER_CONNECTOR`          | _(unset)_   | `on` serves the read-only `/mcp/player` endpoint (player connector, D-136).                                                                                                                                                                                    |
+| `FOUNDRY_AI_PLAYER_CONNECTOR_CONFIG`   | _(unset)_   | Path to `player-connector.json`: `endpoint`, the player Access app's `audience`, and `players` (`clientId`, `clientSecret`, `userId`). Mode 600; the backend reads its `denyTerms` too.                                                                        |
+| `FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER` | _(unset)_   | Local testing only: serve this Foundry user id with no login. Ignored (with a warning) off loopback or when `CF_ACCESS_TEAM_DOMAIN` is set; served only to a loopback peer with no proxy or tunnel headers and no `audience` in the file. Never set on the Pi. |
+| `PLAYER_SHOW_ENEMY_CONDITIONS`         | `true`      | Let player view see status conditions on enemy combatants.                                                                                                                                                                                                     |
+| `PLAYER_SHOW_ENEMY_HP_BANDS`           | `false`     | Let player view see coarse HP bands (e.g. "bloodied") on enemies. `false` hides them.                                                                                                                                                                          |
+| `LOG_LEVEL`                            | `info`      | Dashboard server log verbosity.                                                                                                                                                                                                                                |
 
 ### Host check (DNS rebinding guard)
 

@@ -106,7 +106,7 @@ export class ActorCreationTools {
       {
         name: 'get-compendium-entry-full',
         description:
-          'Retrieve complete stat block data including items, spells, and abilities for actor creation',
+          'Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {

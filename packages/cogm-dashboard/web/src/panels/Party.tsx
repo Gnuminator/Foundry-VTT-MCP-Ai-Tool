@@ -14,7 +14,7 @@ import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
 import { useLivePlay } from '../lib/livePlay';
 import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import { noticed } from '../lib/notice';
-import { REMEMBER, readText, writeChoice } from '../lib/remember';
+import { REMEMBER, readChoice, readText, writeChoice } from '../lib/remember';
 import { usage } from '../lib/usage';
 import { Button, Pill, QueryState } from '../ui';
 
@@ -192,6 +192,9 @@ const NOTICE_SKILLS = [
   { key: 'insight', label: 'Insight' },
 ] as const;
 
+const NOTICE_CHOICES = ['all', 'perception', 'investigation', 'insight'] as const;
+type NoticeChoice = (typeof NOTICE_CHOICES)[number];
+
 /** I-078: who would notice a hidden thing at a typed DC. GM only; nothing is rolled or sent. */
 function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null {
   const [dcText, setDcTextState] = useState(() => readText(REMEMBER.partyNoticeDc, ''));
@@ -199,9 +202,17 @@ function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null
     setDcTextState(next);
     writeChoice(REMEMBER.partyNoticeDc, next);
   };
+  const [skill, setSkillState] = useState<NoticeChoice>(() =>
+    readChoice(REMEMBER.partyNoticeSkill, NOTICE_CHOICES, 'all')
+  );
+  const setSkill = (next: NoticeChoice): void => {
+    setSkillState(next);
+    writeChoice(REMEMBER.partyNoticeSkill, next);
+  };
   if (!members.some(m => m.passives)) return null;
   const parsed = dcText.trim() === '' ? NaN : Number(dcText);
   const dc = Number.isFinite(parsed) ? parsed : null;
+  const shown = NOTICE_SKILLS.filter(s => skill === 'all' || s.key === skill);
   return (
     <div id="party-notice">
       <h3 className="preflight-h">Who would notice</h3>
@@ -210,10 +221,32 @@ function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null
         <input
           type="number"
           id="party-notice-dc"
+          className="party-control"
           aria-label="Notice DC"
           value={dcText}
           onChange={e => setDcText(e.target.value)}
         />
+      </label>{' '}
+      <label className="pf-detail">
+        Skill{' '}
+        <select
+          id="party-notice-skill"
+          className="party-control"
+          aria-label="Notice skill"
+          data-track="dash.party.notice-skill"
+          value={skill}
+          onChange={e => {
+            const next = NOTICE_CHOICES.find(c => c === e.target.value);
+            if (next) setSkill(next);
+          }}
+        >
+          <option value="all">All three</option>
+          {NOTICE_SKILLS.map(s => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
+        </select>
       </label>
       <ul className="preflight-list" aria-label="Who would notice">
         {members
@@ -223,7 +256,7 @@ function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null
               <span className="pf-text">
                 <span className="pf-label">{m.name}</span>
                 <div className="conditions">
-                  {NOTICE_SKILLS.map(s => {
+                  {shown.map(s => {
                     const score = m.passives?.[s.key];
                     const hit = noticed(score, dc);
                     return (
@@ -499,7 +532,7 @@ export function PartyDrawer({
           {groups.length > 1 && g && (
             <select
               id="party-group"
-              className="party-group"
+              className="party-control party-group"
               aria-label="Party group"
               data-track="dash.party.group"
               value={g.actorId}

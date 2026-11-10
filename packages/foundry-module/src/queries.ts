@@ -63,6 +63,7 @@ import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
 import { PLAYER_READ_QUERY, playerRead } from './player-read.js';
+import { UPLOAD_ACTOR_IMAGE_QUERY, uploadActorImage } from './actor-image.js';
 import { UPLOAD_PLAYER_PORTRAIT_QUERY, uploadPlayerPortrait } from './player-portrait.js';
 import { gateWriteHandlers } from './write-gate.js';
 import { getSetupInfo } from './data-access/setup-info.js';
@@ -381,6 +382,13 @@ export class QueryHandlers {
     // (write-gate.ts); not an MCP tool (the control method `player_portrait`). GM client only.
     handlers.on(`${modulePrefix}.${UPLOAD_PLAYER_PORTRAIT_QUERY}`, (data: unknown) =>
       this.withGmGate('Portrait upload failed', () => uploadPlayerPortrait(data))
+    );
+
+    // plan-actor-image: store a picture the backend read from an allowed PC folder, in
+    // assets/ai-art/<actor>/ (actor-image.ts checks the bytes and finds the actor). A write
+    // (write-gate.ts); the actor change itself is a guarded plan. GM client only.
+    handlers.on(`${modulePrefix}.${UPLOAD_ACTOR_IMAGE_QUERY}`, (data: unknown) =>
+      this.withGmGate('Actor image upload failed', () => uploadActorImage(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

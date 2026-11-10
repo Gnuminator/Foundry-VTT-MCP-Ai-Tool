@@ -50,6 +50,7 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { SceneMoodTools } from './tools/scene-mood.js';
 import { TokenRingsTools } from './tools/token-rings.js';
+import { ActorImageTools } from './tools/actor-image.js';
 import { RulesCheckTools } from './tools/rules-check.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
 import { NpcTurnTools } from './tools/npc-turn.js';
@@ -496,6 +497,7 @@ async function startBackend(): Promise<void> {
   });
   const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
   const tokenRingsTools = new TokenRingsTools({ foundryClient, guardedWrites, logger });
+  const actorImageTools = new ActorImageTools({ foundryClient, guardedWrites, logger });
   const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
   const foundrySetupTools = new FoundrySetupTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({
@@ -556,6 +558,7 @@ async function startBackend(): Promise<void> {
     pcCreationTools,
     sceneMoodTools,
     tokenRingsTools,
+    actorImageTools,
     rulesCheckTools,
     tableViewerTools,
     foundrySetupTools,

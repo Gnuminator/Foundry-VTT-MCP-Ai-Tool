@@ -37,8 +37,8 @@ const inSet = (set: (typeof ALL_TOOL_SET_NAMES)[number]): typeof tools =>
   tools.filter(t => TOOL_SETS[set].tools.includes(t.name));
 
 describe('tool catalog', () => {
-  it('lists exactly 106 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(106);
+  it('lists exactly 107 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(107);
     for (const method of [
       'record_usage',
       'session_switches',

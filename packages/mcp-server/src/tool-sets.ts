@@ -161,6 +161,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'manage-world-items',
       'plan-room-setup',
       'plan-pc-creation',
+      'plan-actor-image',
     ],
   },
   admin: {

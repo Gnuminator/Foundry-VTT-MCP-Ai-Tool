@@ -541,6 +541,45 @@ test('the first initialize is capped at 10 s even with a longer timeout', async 
   }
 });
 
+test('the retry after a failed first initialize is capped at 10 s too', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { createForwarder } = loadServer();
+    const signals = [];
+    const fwd = createForwarder(
+      {
+        FOUNDRY_PLAYER_ENDPOINT: base,
+        FOUNDRY_PLAYER_CLIENT_ID: ID,
+        FOUNDRY_PLAYER_CLIENT_SECRET: SECRET,
+        FOUNDRY_PLAYER_TIMEOUT_MS: '70000',
+      },
+      (_url, init) => {
+        signals.push(init.signal);
+        return new Promise((_res, rej) =>
+          init.signal.addEventListener('abort', () =>
+            rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          )
+        );
+      }
+    );
+    const first = fwd.forward({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+    mock.timers.tick(10000);
+    assert.match((await first).failure, /did not answer in time/);
+    const call = fwd.forward({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
+    assert.equal(signals.length, 2, 'the retry initialize is in flight');
+    mock.timers.tick(9999);
+    assert.equal(signals[1].aborted, false);
+    mock.timers.tick(1);
+    assert.equal(signals[1].aborted, true, 'aborted at INIT_TIMEOUT_MS, long before 70 s');
+    const out = await call;
+    assert.match(out.failure, /did not answer in time/);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test('a failed reinit keeps the old session id, so the next 404 tries again', async () => {
   mode = 'session';
   initError = false;

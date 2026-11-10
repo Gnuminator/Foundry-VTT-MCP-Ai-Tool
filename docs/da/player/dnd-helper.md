@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 6fb00b6c0256
+sourceHash: cb875b1e2e4b
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---

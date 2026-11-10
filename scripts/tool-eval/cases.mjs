@@ -24,6 +24,45 @@ const PARTY = {
   ],
 };
 
+const CHARACTERS = [
+  { name: 'Aldric', class: 'Cleric 5', player: 'Mia', id: 'act-aldric' },
+  { name: 'Vex', class: 'Rogue 5', player: 'Jonas', id: 'act-vex' },
+  { name: 'Thorn', class: 'Fighter 5', player: 'Lars', id: 'act-thorn' },
+];
+
+/**
+ * Lookup answers every case gets unless it brings its own, so "the rogue" and "the rogue's
+ * player" can be resolved the way a real world would answer. Making the stub realistic is fine;
+ * changing a case's good paths to what a model happened to do is not.
+ */
+export const FIXTURE = {
+  'list-characters': {
+    characters: [
+      ...CHARACTERS,
+      { name: 'Vampire Spawn', class: 'NPC, CR 5', id: 'act-spawn', onScene: true },
+      { name: 'Dire Wolf', class: 'NPC, CR 1', id: 'act-wolf', onScene: true },
+    ],
+  },
+  'get-world-info': { world: 'ai-tool-test', system: 'dnd5e', players: ['Mia', 'Jonas', 'Lars'] },
+  'list-actor-ownership': {
+    actors: [
+      ...CHARACTERS.map(c => ({ name: c.name, id: c.id, owners: [c.player] })),
+      { name: 'Ezmerelda d’Avenir', id: 'act-ezmerelda', owners: [] },
+    ],
+    users: ['Mia', 'Jonas', 'Lars'],
+  },
+  'get-character': {
+    $match: [
+      { when: 'ezmerelda', result: { name: 'Ezmerelda d’Avenir', id: 'act-ezmerelda', type: 'npc', hitPoints: { value: 44, max: 44 } } },
+      { when: 'ismark', result: { name: 'Ismark Kolyanovich', hitPoints: { value: 27, max: 33 }, ac: 16 } },
+      { when: 'spawn', result: { name: 'Vampire Spawn', id: 'act-spawn', type: 'npc', features: ['Claws', 'Bite', 'Regeneration'] } },
+      { when: 'aldric', result: { ...CHARACTERS[0], hitPoints: { value: 31, max: 38 } } },
+      { when: 'thorn', result: { ...CHARACTERS[2], hitPoints: { value: 40, max: 44 } } },
+    ],
+    else: { ...CHARACTERS[1], hitPoints: { value: 22, max: 27 } },
+  },
+};
+
 export const CASES = [
   {
     id: 1,
@@ -235,7 +274,11 @@ export const CASES = [
     id: 19,
     sets: ['core', 'build'],
     ask: 'Give the vampire spawn Spider Climb.',
-    paths: [['search-compendium', 'dnd5e-add-features-from-compendium'], ['search-compendium', 'dnd5e-add-feature']],
+    // The tool takes exact feature names and searches the packs itself, so calling it straight is a good path too.
+    paths: [
+      ['dnd5e-add-features-from-compendium'],
+      ['search-compendium', 'dnd5e-add-feature'],
+    ],
     results: {
       'search-compendium': { hits: [{ name: 'Spider Climb', type: 'feat', uuid: 'Compendium.dnd5e.monsterfeatures.spider-climb' }] },
       'dnd5e-add-features-from-compendium': { added: ['Spider Climb'], actor: 'Vampire Spawn' },

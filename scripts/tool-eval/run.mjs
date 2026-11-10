@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CASES, chainOf } from './cases.mjs';
+import { CASES, FIXTURE, chainOf } from './cases.mjs';
 import { scoreTurn, summarize, verdict } from './score.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -142,7 +142,7 @@ function ensureDump(opts, outDir) {
 
 /** One chat (a chain of cases) with one model: returns one scored row per turn. */
 async function runChat(chain, model, sample, ctx) {
-  const results = {};
+  const results = { ...FIXTURE };
   for (const c of chain) Object.assign(results, c.results ?? {});
   const tag = `${chain[0].id}-${model}-${sample}`;
   const resultsFile = join(ctx.outDir, `results-${tag}.json`);

@@ -42,7 +42,13 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   if (!tools.some(t => t.name === name)) {
     return { isError: true, content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
   }
-  const canned = results[name];
+  let canned = results[name];
+  // {"$match": [{"when": "word", "result": ...}], "else": ...}: pick by the call's arguments.
+  if (canned && typeof canned === 'object' && Array.isArray(canned.$match)) {
+    const args = JSON.stringify(request.params.arguments ?? {}).toLowerCase();
+    const hit = canned.$match.find(m => args.includes(String(m.when).toLowerCase()));
+    canned = hit ? hit.result : canned.else;
+  }
   const text =
     canned === undefined
       ? JSON.stringify({ ok: true, note: 'Stub result: no data for this call in the eval.' })

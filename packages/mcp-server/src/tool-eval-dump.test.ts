@@ -46,4 +46,28 @@ describe('tool eval dump', () => {
     expect(out.tools.every(t => t.description && t.inputSchema)).toBe(true);
     expect(Object.keys(out.instructions)).toHaveLength(1 << (TOOL_SET_NAMES.length - 1));
   });
+
+  it('every tool the eval cases and write list name still exists, in a set the case switches on', async () => {
+    // A renamed or merged tool must not turn a case or a gate into a silent miss.
+    const { CASES, FIXTURE } = (await import('../../../scripts/tool-eval/cases.mjs')) as {
+      CASES: { id: number; sets: string[]; paths: string[][]; results?: object }[];
+      FIXTURE: object;
+    };
+    const { WRITE_TOOLS } = (await import('../../../scripts/tool-eval/score.mjs')) as {
+      WRITE_TOOLS: Set<string>;
+    };
+    const setOf = new Map(dump().tools.map(t => [t.name, t.set]));
+    for (const name of WRITE_TOOLS) expect(setOf.has(name), `write tool ${name}`).toBe(true);
+    for (const name of Object.keys(FIXTURE)) expect(setOf.has(name), `fixture ${name}`).toBe(true);
+    for (const c of CASES) {
+      for (const name of [...c.paths.flat(), ...Object.keys(c.results ?? {})]) {
+        expect(setOf.has(name), `case ${c.id}: ${name}`).toBe(true);
+      }
+      for (const name of c.paths.flat()) {
+        expect(c.sets, `case ${c.id}: ${name} is in set ${setOf.get(name)}`).toContain(
+          setOf.get(name)
+        );
+      }
+    }
+  });
 });

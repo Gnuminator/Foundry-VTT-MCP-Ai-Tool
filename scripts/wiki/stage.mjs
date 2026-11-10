@@ -83,7 +83,7 @@ const playerFoundryPath = repoPath => {
 };
 const GM_LABEL = '<p class="audience audience-gm">For the GM</p>';
 const GM_LABEL_DA = '<p class="audience audience-gm">Til GM\'en</p>';
-const COACH_MARKER ='<!-- wiki:coach-download -->';
+const COACH_MARKER = '<!-- wiki:coach-download -->';
 const COACH_LINE =
   'On the wiki you can download it here: [foundry-gm-coach.zip](downloads/foundry-gm-coach.zip).';
 const COACH_LINE_DA =
@@ -116,13 +116,20 @@ const SIDEBAR = [
   },
   {
     label: 'Game night',
-    pages: ['gm/before-session', 'gm/before-session-quest', 'gm/game-night-runbook', 'gm/after-session', 'gm/tv-table-viewer'],
+    pages: [
+      'gm/before-session',
+      'gm/before-session-quest',
+      'gm/game-night-runbook',
+      'gm/after-session',
+      'gm/tv-table-viewer',
+    ],
   },
   {
     label: 'The tool',
     pages: [
       'gm/dashboard',
       'gm/gm-windows',
+      'gm/loot-with-item-piles',
       'gm/live-views',
       'gm/features',
       'gm/asking-claude',
@@ -133,7 +140,12 @@ const SIDEBAR = [
   },
   {
     label: 'Your campaign',
-    pages: ['gm/prep-and-expectations', 'gm/prepare-session-0', 'gm/prepare-session-0-quest', 'gm/death-and-new-characters'],
+    pages: [
+      'gm/prep-and-expectations',
+      'gm/prepare-session-0',
+      'gm/prepare-session-0-quest',
+      'gm/death-and-new-characters',
+    ],
   },
   { label: 'When it breaks', pages: ['gm/troubleshooting', 'gm/never-and-only-if'] },
   { label: 'Foundry basics', pages: ['foundry'], rest: 'foundry' },
@@ -218,18 +230,15 @@ export function insideCodeSpan(line, offset) {
  * plain text, so a player never lands on a GM page.
  */
 export function stripOffSideLinks(text, repoPath) {
-  return text.replace(
-    /(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
-    (match, label, target) => {
-      if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#') || target.startsWith('/'))
-        return match;
-      const file = target.split('#')[0];
-      const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
-      return /^docs\/(gm|foundry)\/.+\.md$/.test(resolved) && !playerFoundryPath(resolved)
-        ? label
-        : match;
-    }
-  );
+  return text.replace(/(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, label, target) => {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#') || target.startsWith('/'))
+      return match;
+    const file = target.split('#')[0];
+    const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
+    return /^docs\/(gm|foundry)\/.+\.md$/.test(resolved) && !playerFoundryPath(resolved)
+      ? label
+      : match;
+  });
 }
 
 /** Returns a function: true for the lines that open, close or sit inside a fenced code block. */
@@ -264,52 +273,57 @@ export function rewriteLinks(text, repoPath, images, opts = {}) {
     .split('\n')
     .map(line => {
       if (inCode(line)) return line;
-      return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title, offset) => {
-        // A link shown inside an inline code span is an example, not a link.
-        if (insideCodeSpan(line, offset)) return match;
-        if (
-          /^[a-z][a-z0-9+.-]*:/i.test(target) ||
-          target.startsWith('#') ||
-          target.startsWith('/')
-        ) {
-          return match;
-        }
-        const hash = target.indexOf('#');
-        const file = hash === -1 ? target : target.slice(0, hash);
-        const anchor = hash === -1 ? '' : target.slice(hash);
-        const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
-        if (
-          (repoPath.startsWith('docs/player/') || repoPath.startsWith('docs/da/player/')) &&
-          /^docs\/(da\/)?(gm|foundry)\/.+\.md$/.test(resolved) &&
-          !playerFoundryPath(resolved)
-        ) {
-          throw new Error(
-            `${repoPath}: the link ${target} leaves the player side (${resolved} is a GM page)`
+      return line.replace(
+        /(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g,
+        (match, bang, target, title, offset) => {
+          // A link shown inside an inline code span is an example, not a link.
+          if (insideCodeSpan(line, offset)) return match;
+          if (
+            /^[a-z][a-z0-9+.-]*:/i.test(target) ||
+            target.startsWith('#') ||
+            target.startsWith('/')
+          ) {
+            return match;
+          }
+          const hash = target.indexOf('#');
+          const file = hash === -1 ? target : target.slice(0, hash);
+          const anchor = hash === -1 ? '' : target.slice(hash);
+          const resolved = path.posix.normalize(
+            path.posix.join(path.posix.dirname(repoPath), file)
           );
+          if (
+            (repoPath.startsWith('docs/player/') || repoPath.startsWith('docs/da/player/')) &&
+            /^docs\/(da\/)?(gm|foundry)\/.+\.md$/.test(resolved) &&
+            !playerFoundryPath(resolved)
+          ) {
+            throw new Error(
+              `${repoPath}: the link ${target} leaves the player side (${resolved} is a GM page)`
+            );
+          }
+          let to = stagedPathOf(resolved, playerSide);
+          // A Danish page stays in Danish: a page with no twin (the Foundry basics) is its English
+          // page shown under /da/ (Starlight's fallback page, with a note that it is not translated).
+          if (to !== null && isDanish(repoPath) && /\.md$/.test(to) && !to.startsWith('da/')) {
+            to = `da/${to}`;
+          }
+          if (to !== null && existsSync(path.join(repo, resolved))) {
+            if (to.startsWith('images/')) images.add(resolved);
+            const rel =
+              path.posix.relative(path.posix.dirname(staged), to) || path.posix.basename(to);
+            return `${bang}](${rel}${anchor}${title})`;
+          }
+          // A link into a staged section to a file that is not there is a typo, not a GitHub link.
+          if (to !== null && !existsSync(path.join(repo, resolved))) {
+            throw new Error(
+              `${repoPath}: the link ${target} points to ${resolved}, which does not exist`
+            );
+          }
+          const isDir =
+            existsSync(path.join(repo, resolved)) &&
+            statSync(path.join(repo, resolved)).isDirectory();
+          return `${bang}](${GITHUB}/${isDir ? 'tree' : 'blob'}/main/${resolved}${anchor}${title})`;
         }
-        let to = stagedPathOf(resolved, playerSide);
-        // A Danish page stays in Danish: a page with no twin (the Foundry basics) is its English
-        // page shown under /da/ (Starlight's fallback page, with a note that it is not translated).
-        if (to !== null && isDanish(repoPath) && /\.md$/.test(to) && !to.startsWith('da/')) {
-          to = `da/${to}`;
-        }
-        if (to !== null && existsSync(path.join(repo, resolved))) {
-          if (to.startsWith('images/')) images.add(resolved);
-          const rel =
-            path.posix.relative(path.posix.dirname(staged), to) || path.posix.basename(to);
-          return `${bang}](${rel}${anchor}${title})`;
-        }
-        // A link into a staged section to a file that is not there is a typo, not a GitHub link.
-        if (to !== null && !existsSync(path.join(repo, resolved))) {
-          throw new Error(
-            `${repoPath}: the link ${target} points to ${resolved}, which does not exist`
-          );
-        }
-        const isDir =
-          existsSync(path.join(repo, resolved)) &&
-          statSync(path.join(repo, resolved)).isDirectory();
-        return `${bang}](${GITHUB}/${isDir ? 'tree' : 'blob'}/main/${resolved}${anchor}${title})`;
-      });
+      );
     })
     .join('\n');
 }

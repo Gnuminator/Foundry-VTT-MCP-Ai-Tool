@@ -71,6 +71,13 @@
     },
     { "name": "Ignore", "reason": "Obsidian plugin prompt button" },
     { "name": "Open folder as vault", "reason": "Obsidian start screen button" },
-    { "name": "Revert Local Changes", "reason": "Obsidian plugin button" }
+    { "name": "Revert Local Changes", "reason": "Obsidian plugin button" },
+    { "name": "Create new pile", "reason": "Item Piles Dropping Item window button" },
+    { "name": "Add to pile", "reason": "Item Piles Dropping Item window button" },
+    { "name": "Add currency", "reason": "Item Piles pile window link" },
+    { "name": "Submit", "reason": "Item Piles Editing Currencies window button" },
+    { "name": "Show To Players", "reason": "Item Piles pile window button" },
+    { "name": "Configure Pile", "reason": "Item Piles pile window button" },
+    { "name": "Config Update", "reason": "Item Piles Configure Pile window button" }
   ]
 }

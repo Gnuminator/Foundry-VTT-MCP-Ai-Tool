@@ -777,7 +777,9 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
 
   test('desktop guard: the real process check runs under lib.ps1 strict mode without throwing', () => {
     const guard = path.join(here, '..', 'desktop', 'desktop-guard.ps1').replace(/'/g, "''");
+    // Off Windows the check logs a WARN line; keep it off stdout, which ps() parses as JSON.
     const r = ps(`
+      function Write-LogMessage { param($Message, $Level) [Console]::Error.WriteLine("[$Level] $Message") }
       . '${guard}'
       Import-ClaudeDesktopProcessCheck
       @{ count = @(Get-ClaudeDesktopProcess).Count; global = [bool](Get-Command Get-ClaudeDesktopProcess) }`);
@@ -841,13 +843,16 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
 
   test('connectors.ps1 -To pi without -ConfigFile finds the values saved next to the classic file', () => {
     const root = mkdtempSync(path.join(tmp, 'pifallback-'));
+    // The current config lives under Claude-Data, the saved values only next to the classic file.
+    const dir = path.join(root, 'local', 'Claude-Data', 'claude_x');
+    mkdirSync(dir, { recursive: true });
     mkdirSync(path.join(root, 'Claude'), { recursive: true });
     writeFileSync(
       path.join(root, 'Claude', 'claude_desktop_config.plan-b-saved.json'),
       '{"host":"100.1.2.3","port":31414}'
     );
     writeFileSync(
-      path.join(root, 'Claude', 'claude_desktop_config.json'),
+      path.join(dir, 'claude_desktop_config.json'),
       '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"127.0.0.1","MCP_CONTROL_PORT":"31614","MCP_NO_SPAWN":"1"}}}}'
     );
     const r = spawnSync(

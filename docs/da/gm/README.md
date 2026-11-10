@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 8cf62ad90125
+sourceHash: 0b2607cfa2d9
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -21,6 +21,20 @@ ikke kender, står i [ordlisten](glossary.md).
 
 **Inde fra Foundry:** fanen Settings, **Game Settings**, kategorien **Foundry AI Tool**, knappen
 **Open the GM guide** åbner disse sider i en ny browserfane.
+
+## Engangsopsætning
+
+Hver af disse er en kort side, du kan klare alene. Hver ender med, hvad du skal se, når det lykkedes, og hvad
+du gør, hvis det ikke gjorde.
+
+| Opsætning                                                             | Hvad du gør                                                              | Tid    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------ |
+| [Forbind Claude Desktop til serveren](connect-claude-desktop.md)      | Installer den lille Windows-klient og tunnelnøglen; opdater den senere.  | 10 min |
+| [Dashboardet](setup-dashboard.md)                                     | Åbn det, log ind gennem Cloudflare, sæt bogmærke og vælg et layout.      | 10 min |
+| [GM-coachen](setup-gm-coach.md)                                       | Læg Foundry GM coach-skillen ind på din Claude-konto.                    | 5 min  |
+| [Din vault på din pc (Obsidian og Syncthing)](setup-obsidian-sync.md) | Installer begge, par med serveren og tjek, at en note rejser begge veje. | 20 min |
+| [Obsidian-pluginet](setup-obsidian-plugin.md)                         | Installer pluginet og forbind det til dashboardet.                       | 10 min |
+| [Tv'et ved bordet](setup-tv-table.md)                                 | Kun til spil i samme rum: lav Table-spilleren og log tv'et ind.          | 15 min |
 
 | Side                                                             | Hvad den er til                                                                                             |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |

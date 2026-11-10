@@ -1,6 +1,6 @@
 ---
 source: gm/obsidian.md
-sourceHash: 4b66270a39aa
+sourceHash: 8c51160cbc4d
 title: Din Obsidian-vault
 description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, og hvordan du forbinder AI Tool-pluginet til dashboardet på serveren.
 ---
@@ -8,7 +8,7 @@ description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, 
 # Din Obsidian-vault
 
 Værktøjet skriver din world ind i en Obsidian-vault på serveren, og Syncthing kopierer den over på
-din pc. Du læser den i Obsidian som alle andre noter. Det er GM'ens vault: den har hemmelighederne
+din pc ([Engangsopsætning: din vault på din pc](setup-obsidian-sync.md)). Du læser den i Obsidian som alle andre noter. Det er GM'ens vault: den har hemmelighederne
 og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden hemmelighederne.
 
 ## Hvad der er i den
@@ -105,32 +105,9 @@ egen søgetekst bliver stående.
 
 ## Forbind pluginet (én gang)
 
-AI Tool-pluginet tilføjer **Open in Foundry**, handouts' afsløringsstatus og det fælles tema. Det
-taler kun med dashboardet. Når dashboardet kører på serveren, vogter Cloudflare det, og pluginet har
-brug for tre værdier for at komme igennem. Byggeren sætter dem ind sammen med dig under
-opsætningen, på din pc. De kommer aldrig i chat eller i en note.
-
-1. I Obsidian: Settings, Community plugins, **Foundry AI Tool**, tandhjulet.
-2. **Dashboard address:** dashboardets https-adresse.
-3. **GM token:** klik på den, derefter **Add secret** (nedenfor), og indsæt dashboardets GM token.
-4. **Cloudflare Access Client ID:** tilføj en secret og indsæt Client ID.
-5. **Cloudflare Access Client Secret:** tilføj endnu en secret og indsæt Client Secret.
-
-**Obsidians Add secret-dialog** har to felter. **ID** er bare et navn, du vælger, så du kan finde
-secreten igen senere, aldrig selve værdien. Brug `foundry-gm-token`, `cf-access-client-id` og
-`cf-access-client-secret`. **Secret** er værdien. Indsæt kun værdien: Cloudflares kopiknapper kopierer
-også headerens navn (`CF-Access-Client-Id: ...`), og pluginet dropper det for dig, men renere er
-bedre. Tilbage i pluginets indstillinger vælger du hver secret ud fra dens ID.
-
-**Hvor GM token kommer fra:** det er `token=`-delen af det link, som dashboardets opsætningsscript
-skrev ud (`http://<name>:3000/?token=<token>`: alt efter `token=`), eller også læser byggeren den
-fra `dashboard-access.env` på serveren i sit eget SSH-vindue.
-
-De tre værdier bliver i Obsidians secret-lager på din pc. De er ikke i vaulten, så Syncthing kopierer
-dem aldrig nogen steder hen. Cloudflare-værdierne bliver kun sendt til https-adresser.
-
-**Tjek det:** åbn en NPC-note og klik på **Open in Foundry** i statuslinjen. Arket åbner på din
-Foundry-skærm.
+AI Tool-pluginet tilføjer **Open in Foundry** og handouts' afsløringsstatus. At installere det og forbinde det
+til dashboardet står på sin egen side: [Engangsopsætning: Obsidian-pluginet](setup-obsidian-plugin.md).
+De tre værdier, det skal bruge, ligger aldrig i vaulten, så Syncthing kopierer dem aldrig.
 
 ## Når det ikke virker
 

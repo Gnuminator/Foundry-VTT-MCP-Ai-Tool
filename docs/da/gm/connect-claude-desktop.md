@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 8368c93c377f
+sourceHash: 5ece34aff49e
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -14,6 +14,12 @@ gør det én gang, og du skal bruge din **tunnelnøgle** (to stykker tekst) fra 
 værktøjet.
 
 Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunnelnøglen. Cirka 10 minutter.
+Den gratis Claude-plan er nok til at forbinde, men den har en daglig grænse; se
+[Claude Free eller Pro](claude-plans.md).
+
+Dette er en af [engangsopsætningerne](README.md#engangsopsætning). Ved en ny installation gør du
+"Installer", "Tjek, at det virker" og "Stop Allow-spørgsmålene" i den rækkefølge. For at skifte til en nyere
+klient (for eksempel `FoundryMCPServer-Setup-v0.28.0.exe`) gør du "Opdater klienten".
 
 ## Installer
 
@@ -48,8 +54,10 @@ Claude Desktop ikke forbundet til serveren endnu; det er ikke et opdateringsprob
 
 ## Tjek, at det virker
 
-Spørg Claude: _"What world is open in Foundry?"_ Et normalt svar med worldens navn betyder, at du
-er forbundet. Hvis Claude siger, at den ikke kan nå bridgen, så gå til listen nedenfor.
+Færdig, når det ser sådan ud: spørg Claude _"What world is open in Foundry?"_ Et normalt svar med worldens navn
+betyder, at du er forbundet. Sørg så for, at Prep-connectoren er slået til, og spørg _"Run get-preflight"_:
+rækken **Claude Desktop connectors are up to date** er grøn. Hvis Claude siger, at den ikke kan nå bridgen, så
+gå til listen nedenfor.
 
 ## Stop "Allow"-spørgsmålene
 

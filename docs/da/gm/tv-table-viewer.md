@@ -1,6 +1,6 @@
 ---
 source: gm/tv-table-viewer.md
-sourceHash: 50779223cd7d
+sourceHash: 0bf9215cbdf3
 title: TV'et ved bordet
 description: Vis kortet på et tv ved en session, hvor I sidder i samme rum. Tv'et logger ind én gang som en spiller ved navn Table og bliver logget ind.
 ---
@@ -17,36 +17,10 @@ Du sætter det op én gang. Derefter åbner tv'et på kortet af sig selv, også 
 **Hvad du skal bruge:** en Windows-PC ved tv'et med PowerShell 7 (`pwsh`), Edge eller Chrome og en kopi
 af værktøjets mappe (den indeholder filerne i `scripts\tv`). Bed værktøjets administrator sætte det op.
 
-## Én gang: lav Table-spilleren
+## Én gang
 
-1. Åbn Claude med **Admin**-værktøjerne slået til (**+** i chatfeltet, **Connectors**, slå **foundry-mcp-admin** til).
-2. Spørg: "Plan a Table user for the TV." Claude viser en plan: én ny spiller ved navn Table, ingen
-   adgangskode.
-3. Læs den og bekræft den. Den står i **Recent Changes**, med en **Undo**, hvis du fortryder.
-
-Hvis der allerede findes en bruger ved navn Table (en spiller eller en GM), eller Claude ikke kan læse
-brugerlisten, siger den det og planlægger ingenting. Table-spilleren er markeret som tv'et, så handout-kvitteringerne, spillertallet og sessionens fremmøde
-udelader den. (En Table-spiller lavet med en ældre version er ikke markeret: fortryd dens plan i Recent Changes og planlæg den igen, ellers bliver den ved med at blive talt med.)
-
-**Hvis kortet er mørkt på tv'et:** på en scene med token vision slået til ser en spiller kun det, som spillerens
-egne karakterer kan se, og Table har ingen. Giv Table samme udsyn som partyet: bed Claude
-"Give Table Observer on the party characters." (Claude planlægger det med ownership-værktøjet, du
-bekræfter.) Tjek det én gang på dit rigtige kort før sessionen, med tv'et forbundet.
-
-## Én gang: log tv'et ind
-
-Du skal bruge et tastatur på tv'ets computer, men kun til dette trin. Bed først værktøjets administrator om tv'ets
-e-mailadresse: koden, der beviser "det her er tv'et", bliver sendt dertil.
-
-1. På tv'ets computer åbner du PowerShell i værktøjets mappe og kører (brug spillets adresse):
-
-   ```powershell
-   pwsh scripts\tv\start-table-viewer.ps1 -Url https://your-game-address -Setup
-   ```
-
-2. Et almindeligt browservindue åbner. Skriv tv'ets e-mailadresse og derefter koden, der kommer dertil.
-3. Foundrys join-side følger, og scriptet kommer ind som **Table** for dig. Kortet dukker op.
-4. Luk vinduet.
+At lave Table-spilleren og logge tv'et ind står på sin egen side: [Engangsopsætning: tv'et ved
+bordet](setup-tv-table.md). Rettelserne til et mørkt kort og til Cloudflares loginside står også dér.
 
 ## Hver gang bagefter
 
@@ -74,7 +48,7 @@ Mens tv'et kører, åbner browseren en kontrolport, som kun denne computer kan n
 der er logget ind på denne Windows-konto, kan bruge den, så brug en tv-pc, som kun bordet bruger.
 
 E-mailkoden fra Cloudflare bliver først bedt om igen, når Access-sessionen slutter (uger).
-Når tv'et viser Cloudflares loginside, gør du "log tv'et ind" ovenfor en gang til.
+Når tv'et viser Cloudflares loginside, gør du login-trinnet på [opsætningssiden](setup-tv-table.md) en gang til.
 
 ## Under sessionen
 

@@ -11,6 +11,12 @@ to Claude Desktop, and it keeps a private, locked tunnel open to the server. You
 you need your **tunnel key** (two pieces of text) from the person who built the tool.
 
 You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel key. About 10 minutes.
+The free Claude plan is enough to connect, but it has a daily limit; see
+[Claude Free or Pro](claude-plans.md).
+
+This is one of the [one-time setups](README.md#one-time-setups). For a new install do "Install",
+"Check that it works" and "Stop the Allow questions", in that order. To move to a newer client
+(for example `FoundryMCPServer-Setup-v0.28.0.exe`) do "Update the client".
 
 ## Install
 
@@ -45,8 +51,10 @@ problem.
 
 ## Check that it works
 
-Ask Claude: _"What world is open in Foundry?"_ A normal answer with the world's name means you are
-connected. If Claude says it cannot reach the bridge, go to the list below.
+Done when it looks like this: ask Claude _"What world is open in Foundry?"_ A normal answer with
+the world's name means you are connected. Then make sure the Prep connector is switched on and ask
+_"Run get-preflight"_: the row **Claude Desktop connectors are up to date** is green. If Claude says
+it cannot reach the bridge, go to the list below.
 
 ## Stop the "Allow" questions
 

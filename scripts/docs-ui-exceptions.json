@@ -3,6 +3,14 @@
   "names": [
     { "name": "Alt + F4", "reason": "Windows keyboard shortcut" },
     { "name": "Win + R", "reason": "Windows keyboard shortcut" },
+    { "name": "Send me a code", "reason": "Cloudflare Access sign-in page button" },
+    { "name": "Sign in", "reason": "Cloudflare Access sign-in page button" },
+    { "name": "Projects", "reason": "Claude app menu" },
+    { "name": "Installed plugins", "reason": "Obsidian Community plugins settings heading" },
+    { "name": "Turn on community plugins", "reason": "Obsidian Community plugins settings button" },
+    { "name": "Ignore Patterns", "reason": "Syncthing folder dialog tab" },
+    { "name": "Browse vault in Restricted Mode", "reason": "Obsidian trust prompt button" },
+    { "name": "Activate", "reason": "Foundry scene context menu entry" },
     { "name": "Always allow", "reason": "Claude Desktop permission prompt" },
     {
       "name": "Claude Desktop connectors are up to date",

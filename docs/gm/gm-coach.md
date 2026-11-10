@@ -26,17 +26,10 @@ It answers from its pages first and says so. When the pages don't cover somethin
 from general knowledge but tells you, because many guides online describe older Foundry versions.
 It never searches the web, and it has no book or campaign text.
 
-## Add it (once, about 5 minutes)
+## Add it
 
-You need the file `foundry-gm-coach.zip` from the tool admin.
-
-<!-- wiki:coach-download -->
-
-1. In Claude (the desktop app or claude.ai), open **Settings**, **Capabilities**, and switch on
-   **Code execution and file creation**. Skills need it.
-2. Open **Customize**, **Skills**.
-3. Add a skill and upload `foundry-gm-coach.zip`. Don't unpack it first.
-4. Make sure the skill is switched on in the list.
+Once, about 5 minutes: follow [One-time setup: the GM coach](setup-gm-coach.md). It works on the free
+Claude plan.
 
 ## Ask it
 
@@ -56,19 +49,6 @@ ask in Danish.
 
 Check its answer against the screen. If it names a button you can't find, say so: it then tells
 you whether that part was checked in a live game.
-
-## If skills don't work on your account: a Claude Project
-
-A Project is a chat space with your own files. It works too, but it loads all its files into every
-message, so on the free plan it uses up your limit much faster. Upload only the pages you need.
-
-1. Unpack `foundry-gm-coach.zip`.
-2. In Claude, **Projects**, create a project called "Foundry GM coach".
-3. Open `SKILL.md` in Notepad, copy everything below the second `---` line, and paste it into the
-   project's instructions.
-4. Upload two or three pages from the `references` folder as project knowledge, for example
-   `references/foundry/in-world-layout.md`, `references/foundry/combat-tracker.md` and
-   `references/gm/game-night-runbook.md`. Change them when your questions change.
 
 ## Keeping it current
 

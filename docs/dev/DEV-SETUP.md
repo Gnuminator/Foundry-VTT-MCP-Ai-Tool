@@ -54,6 +54,15 @@ the Store stub).
 After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
 [docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.
 
+To see whether a tool description change helps or hurts Claude's tool picking, run the tool eval:
+`npm run tool-eval -- --models sonnet,haiku` (build `shared` first). It asks 22 questions through
+`claude -p` on your subscription (no API key is used) against a stub that serves the real tool
+list, and prints the share of good tool paths per model plus the hard gates (no write without a
+yes, no stand-in when a connector is off, Danish replies stay Danish). A full run of both models
+costs a couple of million tokens (mostly cache reads); `--cases 1,2` or `--dry-run` keeps it
+small. It uses Claude Code, not Claude Desktop, so compare runs with each other. The cases are in
+`scripts/tool-eval/cases.mjs`; the stub binds no port.
+
 A pull request adds its CHANGELOG entry as its own file in [changelog.d/](../../changelog.d/README.md),
 never by editing `CHANGELOG.md`, and lowers the lint and em-dash baselines itself when its counts
 drop (`npm run lint:ratchet -- --update`, `npm run emdash:ratchet -- --update`).

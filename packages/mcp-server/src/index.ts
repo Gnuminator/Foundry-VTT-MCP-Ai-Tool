@@ -14,6 +14,8 @@ import {
 
 import { config } from './config.js';
 
+import { rollLogIfLarge } from './log-roll.js';
+
 import {
   BACKEND_LOCK_HELD_EXIT_CODE,
   WRAPPER_SPAWNED_ENV,
@@ -95,11 +97,7 @@ class BackendClient {
       const line = `[${new Date().toISOString()}] ${msg}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`;
 
       // Keep the wrapper log from growing without bound: past 5 MB it rolls to wrapper.log.1.
-      try {
-        if (fs.statSync(this.logFile).size > 5 * 1024 * 1024) {
-          fs.renameSync(this.logFile, `${this.logFile}.1`);
-        }
-      } catch {}
+      rollLogIfLarge(this.logFile);
 
       fs.appendFileSync(this.logFile, line);
     } catch {}

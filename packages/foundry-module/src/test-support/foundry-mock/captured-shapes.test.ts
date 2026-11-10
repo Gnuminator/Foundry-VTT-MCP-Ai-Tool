@@ -62,10 +62,8 @@ interface Case {
   missing: string[];
 }
 
-// The mock names a document's id `id`; the real data (`toObject()`) has `_id` too. That is the
-// first gap in every list below, and the one to close first.
-const ACTOR_MISSING = ['_id', '_stats', 'folder', 'img', 'ownership', 'prototypeToken', 'sort'];
-const ITEM_MISSING = ['_id', '_stats', 'effects', 'folder', 'img', 'ownership', 'sort'];
+const ACTOR_MISSING = ['_stats', 'folder', 'img', 'ownership', 'prototypeToken', 'sort'];
+const ITEM_MISSING = ['_stats', 'effects', 'folder', 'img', 'ownership', 'sort'];
 
 const CASES: Case[] = [
   { kind: 'Actor.character', make: () => makeActor({ type: 'character' }), missing: ACTOR_MISSING },
@@ -76,7 +74,6 @@ const CASES: Case[] = [
     kind: 'Actor.ActiveEffect',
     make: () => makeEffect(),
     missing: [
-      '_id',
       '_stats',
       'description',
       'duration',
@@ -99,7 +96,6 @@ const CASES: Case[] = [
     // Foundry 14 scene data has no `templates`; the fake still makes them.
     fakeOnly: ['templates'],
     missing: [
-      '_id',
       '_stats',
       'drawings',
       'environment',
@@ -131,7 +127,6 @@ const CASES: Case[] = [
     kind: 'Scene.Token',
     make: () => makeToken(),
     missing: [
-      '_id',
       '_movementHistory',
       '_regions',
       'actorId',
@@ -163,7 +158,6 @@ const CASES: Case[] = [
     kind: 'User',
     make: () => makeUser(),
     missing: [
-      '_id',
       '_stats',
       'avatar',
       'character',
@@ -180,12 +174,12 @@ const CASES: Case[] = [
   {
     kind: 'JournalEntry',
     make: () => makeJournal(),
-    missing: ['_id', '_stats', 'categories', 'folder', 'ownership', 'sort'],
+    missing: ['_stats', 'categories', 'folder', 'ownership', 'sort'],
   },
   {
     kind: 'JournalEntry.Page.text',
     make: () => makeJournalPage(),
-    missing: ['_id', '_stats', 'category', 'image', 'sort', 'src', 'system', 'title', 'video'],
+    missing: ['_stats', 'category', 'image', 'sort', 'src', 'system', 'title', 'video'],
   },
 ];
 
@@ -228,10 +222,23 @@ describe('captured shapes', () => {
     it('keeps activities an object keyed by id, not an array', () => {
       expect(typeAt('Actor.Item.weapon', 'system.activities')).toBe('object');
       expect(typeAt('Actor.Item.weapon', 'system.activities.<id>')).toBe('object');
+      // The fake holds to it as soon as it makes activities at all.
+      const activities = (
+        makeItem({ type: 'weapon' }).system as Record<string, unknown> | undefined
+      )?.activities;
+      if (activities !== undefined) {
+        expect(Array.isArray(activities)).toBe(false);
+        expect(typeof activities).toBe('object');
+      }
     });
 
     it('moves a token with x, y and rotation as numbers', () => {
       for (const p of ['x', 'y', 'rotation']) expect(typeAt('Scene.Token', p)).toBe('number');
+      // The fake's token has numbers for each of these it makes (rotation not yet: a known gap).
+      const token = makeToken() as Record<string, unknown>;
+      for (const p of ['x', 'y', 'rotation']) {
+        if (token[p] !== undefined) expect(typeof token[p]).toBe('number');
+      }
     });
 
     it("stores an effect's statuses as an array; the fake makes a Set", () => {

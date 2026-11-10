@@ -6,7 +6,8 @@
 const unquote = (v: string): string => v.replace(/^(["'])(.*)\1$/, '$2');
 
 /**
- * The words a "&Reference[...]" shows. Tokenized like dnd5e's parseConfig: whitespace separates
+ * The words a "&Reference[...]" shows. Tokenized as a superset of dnd5e's parseConfig (which
+ * only knows double quotes; single quotes are accepted here too): whitespace separates
  * tokens outside quotes, "key=value" is an option wherever it sits, quotes are stripped. A
  * boolean or numeric option ("apply=false", "level=3") is never the name; "condition=prone"
  * names its value, "Spell Scroll" keeps its words, "Prone=1" (a level or count) is named by

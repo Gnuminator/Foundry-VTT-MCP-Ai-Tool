@@ -478,14 +478,14 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     expect(c.hasLegendaryActions).toBe(true);
   });
 
-  it('reads the canonical _id field — id is undefined when only `id` (not `_id`) is set', async () => {
-    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+  it('reads the canonical _id field, not the instance id', async () => {
+    addMonsterPack([makeActor({ id: 'g1', _id: 'canonical', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     const [c] = await index.rebuildIndex();
 
-    // The extractor reads `doc._id`; makeActor sets only `id`, so id comes out undefined.
-    expect(c.id).toBeUndefined();
+    // The extractor reads `doc._id`; makeActor mirrors `id` into `_id` unless one is given.
+    expect(c.id).toBe('canonical');
     expect(c.name).toBe('Goblin');
   });
 

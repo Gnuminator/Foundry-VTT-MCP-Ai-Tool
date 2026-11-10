@@ -62,8 +62,7 @@ test('the measured profile finds the evening and the weekend morning', () => {
 });
 
 test('a day without readings is skipped, not counted as zero', () => {
-  const day = Date.UTC(2026, 9, 21);
-  const gap = log({ skip: t => t >= day && t < day + 24 * HOUR });
+  const gap = log({ skip: t => localParts(t).day === '2026-10-21' });
   const p = buildProfile(gap, { weekStartMs: WEEK4 });
   assert.equal(p.source, 'measured');
   assert.ok(Math.abs(p.weekdayPerDay - 12) < 0.5, `weekday ${p.weekdayPerDay}`);
@@ -106,6 +105,24 @@ test('a sparse burst-only log (readings around evening sessions) keeps the point
   assert.ok(p.weekdayPerDay <= 12.5 && p.weekdayPerDay > 8, `weekday ${p.weekdayPerDay}`);
   assert.ok(p.weekendPerDay <= 9.5 && p.weekendPerDay > 6, `weekend ${p.weekendPerDay}`);
   assert.ok(sum(p.weekday, 16, 23) > 0.95);
+});
+
+test('idle days with readings count; the weekend share stays near its true share', () => {
+  // the first two weekends have readings but no spending (readings only, no weekend hours spent)
+  const quiet = [];
+  let v = 0;
+  for (const r of log()) {
+    const p = localParts(r.t - HOUR / 2);
+    const week = Math.floor((r.t - START) / WEEK_MS);
+    if ((r.t - START) % WEEK_MS === 0) v = 0;
+    else if (!(p.weekend && week < 2)) {
+      v += p.weekend ? (p.hour >= 9 && p.hour <= 11 ? 3 : 0) : p.hour >= 17 && p.hour <= 22 ? 2 : 0;
+    }
+    quiet.push({ t: r.t, v });
+  }
+  const p = buildProfile(quiet, { weekStartMs: WEEK4 });
+  // 8 weekend days spend 9 each in weeks 3 and 4 only: 4 of 8 days, so 4.5 a day on average
+  assert.ok(Math.abs(p.weekendPerDay - 4.5) < 0.6, `weekend ${p.weekendPerDay}`);
 });
 
 test('a short log uses the fallback table', () => {

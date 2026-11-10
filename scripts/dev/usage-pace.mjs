@@ -98,9 +98,16 @@ export function buildProfile(readings, { weekStartMs, weeks = 4 } = {}) {
   const from = weekStartMs - weeks * WEEK_MS;
   const inWindow = readings.filter(r => r.t >= from - MAX_GAP_MS && r.t <= weekStartMs);
   const raw = { weekday: new Array(24).fill(0), weekend: new Array(24).fill(0) };
-  // day -> { slots covered, points spent }. A real log has readings around sessions only, so a day
-  // counts when it has spending or at least 12 covered hours; edge and gap days do not dilute.
-  const covered = { weekday: new Map(), weekend: new Map() };
+  // A day counts when it has any reading, spent or not (idle days are real); days without readings
+  // are unknown, and the day the new week starts in is a partial day. A real log has readings
+  // around sessions only, so covered slots are no measure of coverage.
+  const days = { weekday: new Set(), weekend: new Set() };
+  const edge = localParts(weekStartMs).day;
+  for (const r of inWindow) {
+    if (r.t < from) continue;
+    const p = localParts(r.t);
+    if (p.day !== edge) days[p.weekend ? 'weekend' : 'weekday'].add(p.day);
+  }
   for (const s of steps(inWindow)) {
     if (s.t0 < from) continue;
     const slots = Math.max(1, Math.round((s.t1 - s.t0) / HALF_HOUR));
@@ -108,17 +115,11 @@ export function buildProfile(readings, { weekStartMs, weeks = 4 } = {}) {
     const len = (s.t1 - s.t0) / slots;
     for (let i = 0; i < slots; i++) {
       const p = localParts(s.t0 + len * (i + 0.5));
-      const type = p.weekend ? 'weekend' : 'weekday';
-      raw[type][p.hour] += per;
-      const c = covered[type].get(p.day) || { slots: 0, spent: 0 };
-      c.slots++;
-      c.spent += per;
-      covered[type].set(p.day, c);
+      if (p.day !== edge) raw[p.weekend ? 'weekend' : 'weekday'][p.hour] += per;
     }
   }
-  const daysOf = m => [...m.values()].filter(c => c.spent > 0 || c.slots >= 24).length;
-  const wd = daysOf(covered.weekday);
-  const we = daysOf(covered.weekend);
+  const wd = days.weekday.size;
+  const we = days.weekend.size;
   const total = type => raw[type].reduce((a, b) => a + b, 0);
   if (wd < MIN_WEEKDAYS || we < MIN_WEEKEND_DAYS || total('weekday') <= 0 || total('weekend') <= 0) {
     return { ...FALLBACK, weeks: 0, source: 'fallback' };

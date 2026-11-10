@@ -17,10 +17,11 @@ give you those privately; never paste them in a chat or a note.
 
 1. Go to the project's releases page (<https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>),
    open the newest release and download `foundry-ai-tool-obsidian.zip`.
-2. Unzip it. You get `main.js`, `manifest.json` and `styles.css`.
+2. Unzip it. You get a folder called `foundry-ai-tool` (and a `snippets` folder you can ignore).
 3. In File Explorer open `Documents\Obsidian\Foundry GM vault`. Click **View**, **Show**, **Hidden
    items**, then open `.obsidian`. If there is no `plugins` folder, make one.
-4. In `plugins` make a folder called `foundry-ai-tool` and copy the three files into it.
+4. Copy the folder `foundry-ai-tool` into `plugins`. Its `main.js` must end up at
+   `.obsidian\plugins\foundry-ai-tool\main.js`, not one folder deeper.
 5. In Obsidian click the gear (bottom left), **Community plugins**. If it says Restricted mode,
    click **Turn on community plugins**. Under **Installed plugins** switch on **Foundry AI Tool**.
 
@@ -48,5 +49,5 @@ your Foundry screen. (The first time, a small dashboard page may ask you to clic
 - **"...Check the GM token in the plugin settings.":** paste the GM token again.
 - **"The dashboard at ... did not answer":** the address is wrong or the server is down. Open the
   dashboard address in a browser to see.
-- **The plugin is not in the list:** the folder must be `.obsidian\plugins\foundry-ai-tool` with the
-  three files directly inside it. Restart Obsidian.
+- **The plugin is not in the list:** the folder must be `.obsidian\plugins\foundry-ai-tool` with
+  `main.js` directly inside it. Restart Obsidian.

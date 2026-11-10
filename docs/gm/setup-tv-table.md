@@ -43,6 +43,11 @@ Run the same line without `-Setup`. The browser opens full screen on the map. Wh
   Delete the old Table in Foundry (**Esc**, **User Management**) or ask the person who built the tool.
 - **The map is dark on the TV:** Table owns no characters, so token vision shows nothing. Ask Claude
   _Give Table Observer on the party characters_ and confirm the plan.
+- **Check the map once before the first session:** with the TV connected, look at your real map. Token
+  vision may leave it dark even if the test scene looked fine.
+- **The TV counts as a player:** the Table player is marked as the TV, so handout receipts, the
+  player count and attendance leave it out. A Table made with an older version is not marked: undo its
+  plan in Recent Changes and plan it again.
 - **The TV shows Cloudflare's sign-in page:** do step 2 again.
 - **"The TV browser is already running":** close that browser (for example the setup window) and run
   the line again.

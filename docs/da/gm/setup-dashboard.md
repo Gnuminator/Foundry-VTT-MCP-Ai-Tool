@@ -1,6 +1,6 @@
 ---
 source: gm/setup-dashboard.md
-sourceHash: d47890e5f004
+sourceHash: 1492129469f6
 title: 'Engangsopsætning: dashboardet'
 description: Åbn dashboardet på din anden skærm for første gang, log ind gennem Cloudflare, sæt et bogmærke og vælg dit During-layout. Cirka 10 minutter, én gang.
 ---
@@ -34,11 +34,11 @@ skal vises. Klik én gang på **✈ Pre-flight** for at se listen; at rette den 
    (Ved et første besøg har **Before**-skærmen også et kort **Pick your During layout** med den samme
    prøve; det forsvinder, når et layout er valgt.)
 2. De tre layouts vises på den rigtige skærm, ét ad gangen, med en lille guide i hjørnet.
-3. Stop på **Auto** og klik på **Use this one**. **Auto** følger spillet: det ser ud som Cards, til en kamp
+3. Klik på **Next**, til **Auto** vises, og klik så på **Use this one**. **Auto** følger spillet: det ser ud som Cards, til en kamp
    starter, og så vokser Combat order. **Stop** beholder det, du havde.
 4. Du kan skifte når som helst med **Layout** øverst på During-skærmen.
 
-## Combat buttons
+## Combat-knapper
 
 Knapperne Damage / Heal, Condition og Clear i combat strip virker, når **GM Actions** er slået til. Et
 klik på **Start session** i headeren slår det til for aftenen, så du skal ikke sætte noget nu. Indtil da kan

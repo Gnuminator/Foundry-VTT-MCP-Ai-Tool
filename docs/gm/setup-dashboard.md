@@ -32,7 +32,7 @@ mark should show. Click **✈ Pre-flight** once to see the list; fixing it is pa
    (On a first visit the **Before** screen also has a card **Pick your During layout** with the same
    trial; it is gone once a layout has been picked.)
 2. The three layouts show on the real screen, one after another, with a small guide in the corner.
-3. Stop on **Auto** and click **Use this one**. **Auto** follows the game: it looks like Cards until
+3. Click **Next** until **Auto** shows, then click **Use this one**. **Auto** follows the game: it looks like Cards until
    a fight starts, then the Combat order grows. **Stop** keeps what you had.
 4. You can change it any time with **Layout** at the top of the During screen.
 

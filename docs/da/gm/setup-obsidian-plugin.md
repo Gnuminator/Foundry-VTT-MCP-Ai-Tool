@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: b57f10ea1c9d
+sourceHash: 69cc0afea9b8
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -19,10 +19,11 @@ dem aldrig i en chat eller en note.
 
 1. Gå til projektets releases-side (<https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>),
    åbn den nyeste release og hent `foundry-ai-tool-obsidian.zip`.
-2. Pak den ud. Du får `main.js`, `manifest.json` og `styles.css`.
+2. Pak den ud. Du får en mappe, der hedder `foundry-ai-tool` (og en mappe `snippets`, du kan ignorere).
 3. Åbn `Documents\Obsidian\Foundry GM vault` i Stifinder. Klik på **View**, **Show**, **Hidden
    items**, og åbn så `.obsidian`. Hvis der ikke er en mappe `plugins`, så lav en.
-4. Lav en mappe `foundry-ai-tool` i `plugins` og kopiér de tre filer direkte ind i den.
+4. Kopiér mappen `foundry-ai-tool` ind i `plugins`. Dens `main.js` skal ende i
+   `.obsidian\plugins\foundry-ai-tool\main.js`, ikke en mappe dybere.
 5. I Obsidian klik på tandhjulet (nederst til venstre), **Community plugins**. Hvis der står Restricted
    mode, klik på **Turn on community plugins**. Under **Installed plugins** slå **Foundry AI Tool** til.
 
@@ -49,5 +50,5 @@ De tre værdier bliver i Obsidian på din pc. De ligger ikke i vaulten, så Sync
 - **"...Check the GM token in the plugin settings.":** indsæt GM-token'et igen.
 - **"The dashboard at ... did not answer":** adressen er forkert, eller serveren er nede. Åbn dashboardets
   adresse i en browser for at se.
-- **Pluginet er ikke i listen:** mappen skal være `.obsidian\plugins\foundry-ai-tool` med de tre filer
+- **Pluginet er ikke i listen:** mappen skal være `.obsidian\plugins\foundry-ai-tool` med `main.js`
   direkte i. Genstart Obsidian.

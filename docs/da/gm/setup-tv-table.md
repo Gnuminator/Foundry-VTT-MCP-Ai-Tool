@@ -1,6 +1,6 @@
 ---
 source: gm/setup-tv-table.md
-sourceHash: 6863fb4ff443
+sourceHash: 6cb2656805bc
 title: "Engangsopsætning: tv'et ved bordet"
 description: Lav Table-spilleren og log tv'ets computer ind, én gang. Kun til sessioner, hvor I sidder i samme rum.
 ---
@@ -45,6 +45,11 @@ en scene i Foundry, følger tv'et med. Tryk **Alt + F4** for at forlade fuld sk�
   byggede værktøjet.
 - **Kortet er mørkt på tv'et:** Table ejer ingen karakterer, så token vision viser intet. Bed Claude om
   _Give Table Observer on the party characters_ og bekræft planen.
+- **Tjek kortet én gang før den første session:** med tv'et forbundet, se på dit rigtige kort. Token vision
+  kan gøre det mørkt, selv om testscenen så fin ud.
+- **Tv'et tæller ikke som spiller:** Table er markeret som tv'et, så handout-kvitteringer, spillerantal og
+  fremmøde udelader den. En Table lavet med en ældre version er ikke markeret: fortryd dens plan i Recent
+  Changes og planlæg den igen.
 - **Tv'et viser Cloudflares login-side:** gør trin 2 igen.
 - **"The TV browser is already running":** luk den browser (for eksempel opsætningsvinduet) og kør linjen
   igen.

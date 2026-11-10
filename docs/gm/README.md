@@ -34,6 +34,8 @@ should see when it worked and what to do if it did not.
 | [The Obsidian plugin](setup-obsidian-plugin.md)                          | Install the plugin and connect it to the dashboard.                    | 10 min |
 | [The TV at the table](setup-tv-table.md)                                 | Only for in-person play: make the Table player and sign the TV in.     | 15 min |
 
+## All guides
+
 | Page                                                              | What it is for                                                                                 |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | [First 15 minutes](first-15-minutes.md)                           | The one page to read first: what this is, four small steps, what to ignore for now.            |

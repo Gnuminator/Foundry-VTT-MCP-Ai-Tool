@@ -1268,8 +1268,9 @@ describe('seven-books-baseline.js', () => {
     const world = worlds();
     await run(trimSrc, world, false);
     await run(baselineSource, world, false);
-    // the fake world has no Players Handbook spells pack: the trim and baseline checks pass and the real grave source is
-    // what stops the run, with its own precondition error (its patched/unpatched logic is tested in grave-domain-patch.test.mjs)
+    // the fake world's Players Handbook spells pack is empty (the pack exists, Spare the Dying is not in it): the trim and
+    // baseline checks pass and the real grave source stops at its Spare the Dying precondition, with its own error (its
+    // patched/unpatched logic is tested in grave-domain-patch.test.mjs)
     await assert.rejects(run(combined, world, true), /phbsplSparetheDy is not Spare the Dying/);
   });
 

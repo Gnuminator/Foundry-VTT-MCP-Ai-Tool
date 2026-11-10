@@ -98,7 +98,9 @@ export function buildProfile(readings, { weekStartMs, weeks = 4 } = {}) {
   const from = weekStartMs - weeks * WEEK_MS;
   const inWindow = readings.filter(r => r.t >= from - MAX_GAP_MS && r.t <= weekStartMs);
   const raw = { weekday: new Array(24).fill(0), weekend: new Array(24).fill(0) };
-  const covered = { weekday: new Map(), weekend: new Map() }; // day -> covered half hour slots
+  // day -> { slots covered, points spent }. A real log has readings around sessions only, so a day
+  // counts when it has spending or at least 12 covered hours; edge and gap days do not dilute.
+  const covered = { weekday: new Map(), weekend: new Map() };
   for (const s of steps(inWindow)) {
     if (s.t0 < from) continue;
     const slots = Math.max(1, Math.round((s.t1 - s.t0) / HALF_HOUR));
@@ -108,10 +110,13 @@ export function buildProfile(readings, { weekStartMs, weeks = 4 } = {}) {
       const p = localParts(s.t0 + len * (i + 0.5));
       const type = p.weekend ? 'weekend' : 'weekday';
       raw[type][p.hour] += per;
-      covered[type].set(p.day, (covered[type].get(p.day) || 0) + 1);
+      const c = covered[type].get(p.day) || { slots: 0, spent: 0 };
+      c.slots++;
+      c.spent += per;
+      covered[type].set(p.day, c);
     }
   }
-  const daysOf = m => [...m.values()].reduce((a, n) => a + Math.min(n, 48) / 48, 0);
+  const daysOf = m => [...m.values()].filter(c => c.spent > 0 || c.slots >= 24).length;
   const wd = daysOf(covered.weekday);
   const we = daysOf(covered.weekend);
   const total = type => raw[type].reduce((a, b) => a + b, 0);

@@ -93,6 +93,21 @@ test('a stale 95 reading and a reset do not reach the shape', () => {
   assert.deepEqual(s, [{ t0: HOUR, t1: 2 * HOUR, delta: 2 }]);
 });
 
+test('a sparse burst-only log (readings around evening sessions) keeps the points a day', () => {
+  // readings only from local 17 to 23 on weekdays and 09 to 12 on weekends: the real log's shape
+  const sparse = log({
+    skip: t => {
+      const p = localParts(t);
+      return p.weekend ? p.hour < 9 || p.hour > 12 : p.hour < 17;
+    },
+  });
+  const p = buildProfile(sparse, { weekStartMs: WEEK4 });
+  assert.equal(p.source, 'measured');
+  assert.ok(p.weekdayPerDay <= 12.5 && p.weekdayPerDay > 8, `weekday ${p.weekdayPerDay}`);
+  assert.ok(p.weekendPerDay <= 9.5 && p.weekendPerDay > 6, `weekend ${p.weekendPerDay}`);
+  assert.ok(sum(p.weekday, 16, 23) > 0.95);
+});
+
 test('a short log uses the fallback table', () => {
   const short = log({ from: WEEK4 - WEEK_MS, to: WEEK4 });
   const p = buildProfile(short, { weekStartMs: WEEK4 });
@@ -129,7 +144,12 @@ test('pace: delta, projection at the reset, too early and active hours left', ()
   const wedNight = Date.UTC(2026, 10, 12, 23); // Thursday 00:00 local
   const { expected } = expectedAt(p, WEEK4, wedNight);
   const behind = paceNow({ profile: p, weekStartMs: WEEK4, nowMs: wedNight, actual: expected * 0.9 });
-  assert.ok(behind.delta < 0 && !behind.onPace === Math.abs(behind.delta) > 8);
+  assert.ok(behind.delta < 0);
+  assert.equal(behind.onPace, Math.abs(behind.delta) <= 8);
+  assert.equal(
+    paceNow({ profile: p, weekStartMs: WEEK4, nowMs: wedNight, actual: expected - 3 }).onPace,
+    true
+  );
   assert.ok(Math.abs(behind.projected - 90) < 0.5, `projected ${behind.projected}`);
   assert.equal(behind.profileWeeks, 4);
   const ahead = paceNow({ profile: p, weekStartMs: WEEK4, nowMs: wedNight, actual: expected + 20 });

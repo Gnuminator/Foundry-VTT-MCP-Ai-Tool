@@ -167,6 +167,14 @@ describe('grave-domain-patch.js', () => {
     await assert.rejects(run(w, { mode: 'check' }), /check only/);
   });
 
+  test('an extra consumption target on the activity counts as drift', async () => {
+    const w = makeWorld();
+    await run(w);
+    const act = w.classes.docs.get('RC9A6n8RjP4gtPoF').system.activities.utilityPtGclNe00;
+    act.consumption.targets.push({ type: 'itemUses', target: 'feat:other', value: '1' });
+    await assert.rejects(run(w, { dryRun: true, mode: 'check' }), /grave domain patch missing/);
+  });
+
   test('a wrong entry under a known id stops the run before any write', async () => {
     const w = makeWorld();
     w.classes.docs.get('cVLrkyhsPzELan6D').name = 'Something else';

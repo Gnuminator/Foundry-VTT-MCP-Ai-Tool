@@ -41,10 +41,12 @@ const log = t => {
   args.log(t);
 };
 // Foundry fills defaults into what it stores: the patch holds when every value we write is there.
+// Strings compare the way the baseline compares them: Foundry's HTML cleaning turns `<hr />` into `<hr>` when it stores a text.
+const plain = v => (typeof v === 'string' ? v.replace(/\s*\/>/g, '>') : v);
 const covers = (have, want) =>
   want && typeof want === 'object'
     ? have && typeof have === 'object' && Object.keys(want).every(k => covers(have[k], want[k]))
-    : have === want;
+    : plain(have) === plain(want);
 
 const wantedAdvancement = () => ({
   _id: ADV_ID,
@@ -164,7 +166,11 @@ const spareOk =
     { system: wantSpare.system, flags: wantSpare.flags[FLAG] }
   );
 const advOk = covers(circle.toObject().system.advancement?.[ADV_ID], wantedAdvancement());
-const actOk = covers(path.toObject().system.activities?.[ACT_ID], wantedActivity());
+const haveAct = path.toObject().system.activities?.[ACT_ID];
+// covers() only checks what we wrote, so an extra consumption target (a second thing spent) is checked by count.
+const actOk =
+  covers(haveAct, wantedActivity()) &&
+  haveAct.consumption?.targets?.length === wantedActivity().consumption.targets.length;
 const todo = [];
 if (!spareOk)
   todo.push(haveSpare ? 'refresh the Spare the Dying copy' : 'make the Spare the Dying copy');
@@ -188,7 +194,10 @@ if (CHECK) {
     if (!(await playerSpells.getDocument(SPARE_ID)))
       todo.push('world.player-spells: the Spare the Dying copy is missing (run the baseline)');
   }
-  if (todo.length) throw new Error(`grave domain patch missing: ${todo.join('; ')}`);
+  if (todo.length)
+    throw new Error(
+      `grave domain patch missing (the file is uploaded but the patch is not applied: MODE=grave-patch APPLY=1, then MODE=baseline): ${todo.join('; ')}`
+    );
   return { patched: true };
 }
 if (args.dryRun || !todo.length) return { todo };

@@ -13,7 +13,6 @@ import {
   ageText,
   combatRows,
   isOld,
-  latestOf,
   partyRows,
   sceneName,
   turnLine,
@@ -61,6 +60,8 @@ function PartyPanel({ now }: { now: number }): JSX.Element {
     queryKey: ['glance', 'party'],
     queryFn: () => callTool<unknown>('get-party', {}),
     refetchInterval: GLANCE_REFRESH_MS,
+    // A phone that wakes up reads again at once instead of showing the old answer for a moment.
+    refetchOnWindowFocus: 'always',
     retry: false,
   });
   const rows = partyRows(party.data);
@@ -97,18 +98,18 @@ function PartyPanel({ now }: { now: number }): JSX.Element {
 function CombatPanel({ now }: { now: number }): JSX.Element {
   const combat = useCombat();
   // The fight is as fresh as the stream: it sends changes only, so a quiet fight is not an old one.
+  // Before the stream has spoken, null means "not heard yet", not "no fight".
   const heardAt = useStreamHeardAt();
-  // The stream says when the fight changes; the page notes the time it saw each change.
-  const [seenAt, setSeenAt] = useState(() => Date.now());
-  useEffect(() => setSeenAt(Date.now()), [combat]);
   const rows = combatRows(combat);
   return (
     <section className={styles['panel']} id="glance-combat" aria-labelledby="glance-combat-h">
       <header className={styles['panel-head']}>
         <h2 id="glance-combat-h">Fight</h2>
-        <Fresh at={latestOf(seenAt, heardAt)} now={now} />
+        <Fresh at={heardAt} now={now} />
       </header>
-      {rows === null ? (
+      {heardAt === null ? (
+        <p className={styles['empty']}>Waiting for the live stream.</p>
+      ) : rows === null ? (
         <p className={styles['empty']}>No fight right now.</p>
       ) : (
         <>
@@ -149,6 +150,7 @@ function ScenePanel({ now }: { now: number }): JSX.Element {
     queryKey: ['glance', 'scene'],
     queryFn: () => callTool<unknown>('get-current-scene', { includeTokens: false }),
     refetchInterval: GLANCE_REFRESH_MS,
+    refetchOnWindowFocus: 'always',
     retry: false,
   });
   const name = sceneName(scene.data);

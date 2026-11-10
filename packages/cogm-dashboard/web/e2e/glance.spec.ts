@@ -94,7 +94,19 @@ test('shows party, fight and scene, each with how fresh it is', async ({ page })
 
 test('says there is no fight, and what could not be read', async ({ page }) => {
   await fakeCommonRoutes(page);
-  await fakeStream(page, [{ event: 'combat', data: { combat: null } }]);
+  await fakeStream(page, [
+    {
+      event: 'status',
+      data: {
+        controlChannel: 'connected',
+        foundry: 'reachable',
+        lastError: null,
+        lastPollAt: null,
+        foundryDownSince: null,
+      },
+    },
+    { event: 'combat', data: { combat: null } },
+  ]);
   await fakeTools(page, call =>
     call.name === 'get-party'
       ? { status: 502, json: { ok: false, error: 'Foundry is not answering.' } }
@@ -104,4 +116,13 @@ test('says there is no fight, and what could not be read', async ({ page }) => {
   await expect(page.locator('#glance-combat')).toContainText('No fight right now.');
   await expect(page.locator('#glance-party [role="alert"]')).toContainText('Could not read');
   await expect(page.locator('#glance-scene-name')).toHaveText('Field');
+});
+
+test('does not say "no fight" before the live stream has spoken', async ({ page }) => {
+  await fakeCommonRoutes(page);
+  await fakeStream(page, []);
+  await fakeTools(page, () => ok({}));
+  await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+  await expect(page.locator('#glance-combat')).toContainText('Waiting for the live stream.');
+  await expect(page.locator('#glance-combat')).not.toContainText('No fight right now.');
 });

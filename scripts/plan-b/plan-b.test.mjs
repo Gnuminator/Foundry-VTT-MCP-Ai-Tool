@@ -240,27 +240,52 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     const root = path.join(tmp, `swap-${++n}`).replace(/\\/g, '/');
     const r = ps(`
       $root = '${root}'
-      function Case($name, [bool]$hadApp, [bool]$newExists, [bool]$oldExists) {
+      $script:mode = ''; $script:calls = 0
+      # The real move, except that the second move (new app into place) fails, and in the 'inplace' case something
+      # appears in the app folder meanwhile; in the 'stuck' case the third move (the old app back) fails too.
+      function Move-WithRetry($From, $To, $Tries = 3, $PauseSeconds = 2) {
+        $script:calls++
+        if ($script:mode -eq 'inplace' -and $script:calls -eq 2) { New-Item -ItemType Directory -Force -Path $To | Out-Null; return 'locked' }
+        if ($script:mode -eq 'stuck' -and $script:calls -eq 2) { return 'locked' }
+        if ($script:mode -eq 'stuck' -and $script:calls -eq 3) { return 'denied' }
+        try { Move-Item -LiteralPath $From -Destination $To -ErrorAction Stop; return $null } catch { return $_.Exception.Message }
+      }
+      function Case($name, [bool]$hadApp, [bool]$newExists, [bool]$oldExists, [string]$mode = '') {
+        $script:mode = $mode; $script:calls = 0
         $d = Join-Path $root $name
         New-Item -ItemType Directory -Force -Path $d | Out-Null
         $app = Join-Path $d 'app'; $new = Join-Path $d 'app.new'; $old = Join-Path $d 'app-old'
         if ($hadApp) { New-Item -ItemType Directory -Force -Path $app | Out-Null }
         if ($newExists) { New-Item -ItemType Directory -Force -Path $new | Out-Null }
         if ($oldExists) { New-Item -ItemType Directory -Force -Path $old | Out-Null }
-        try { Install-AppFolder $new $app $old 0; 'ok' } catch { $_.Exception.Message }
+        $msg = try { Install-AppFolder $new $app $old 0; 'ok' } catch { $_.Exception.Message }
+        @{ msg = $msg; app = (Test-Path -LiteralPath $app); old = (Test-Path -LiteralPath $old); new = (Test-Path -LiteralPath $new) }
       }
       @{
         ok = Case 'ok' $true $true $false
         nothing_before = Case 'nothing' $false $false $false
         back = Case 'back' $true $false $false
+        inplace = Case 'inplace' $true $true $false 'inplace'
+        stuck = Case 'stuck' $true $true $false 'stuck'
       }`);
-    assert.equal(r.ok, 'ok');
-    assert.match(r.nothing_before, /there was no app folder before, so .*app does not exist/);
+    assert.equal(r.ok.msg, 'ok');
+    assert.match(r.nothing_before.msg, /there was no app folder before, so .*app does not exist/);
+    assert.equal(r.nothing_before.app, false);
     assert.match(
-      r.back,
+      r.back.msg,
       /could not move the new app folder into place.*the old app folder is back/
     );
-    assert.match(r.back, /the unpacked new one is in .*app\.new/);
+    assert.match(r.back.msg, /the unpacked new one is in .*app\.new/);
+    // the folders really are where the message says: the old app is back, nothing is left at app-old or app.new
+    assert.equal(r.back.app, true);
+    assert.equal(r.back.old, false);
+    assert.equal(r.back.new, false);
+    // something sits in the app folder: the old app stays aside in app-old, the unpacked new one stays in app.new
+    assert.match(r.inplace.msg, /something is in .*app now and the old app folder is in .*app-old/);
+    assert.deepEqual([r.inplace.app, r.inplace.old, r.inplace.new], [true, true, true]);
+    // the old app could not be moved back: it stays in app-old and the message says so
+    assert.match(r.stuck.msg, /the old app folder could not be moved back \(denied\) and is in .*app-old/);
+    assert.deepEqual([r.stuck.app, r.stuck.old, r.stuck.new], [false, true, true]);
   });
 
   test('restore.ps1 swaps the app through Install-AppFolder, which retries and names every folder', () => {

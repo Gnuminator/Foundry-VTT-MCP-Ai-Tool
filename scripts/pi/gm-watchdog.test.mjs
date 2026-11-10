@@ -143,6 +143,7 @@ describe('the driver with a frozen page', () => {
     const d = startDriver({});
     try {
       assert.ok(await waitForOutput(d, /joined world w/), d.output());
+      assert.ok(await waitForOutput(d, /\[assistant-gm\] page watchdog armed \(ping every/), d.output());
       assert.equal(await within(d.exited, 1500), 'still running', d.output());
       assert.doesNotMatch(d.output(), /has not answered/);
     } finally {
@@ -156,6 +157,7 @@ describe('the driver with a frozen page', () => {
     try {
       assert.ok(await waitForOutput(d, /joined world w/), d.output());
       assert.equal(await within(d.exited, 2000), 'still running', d.output());
+      assert.doesNotMatch(d.output(), /page watchdog armed/);
     } finally {
       d.child.kill();
       d.cleanup();
@@ -201,6 +203,23 @@ describe('stage 28 as text', () => {
   test('reads back the join and puts the old driver back on failure', () => {
     assert.match(code, /browser_joined "\$GM_UNIT"/);
     assert.match(code, /put_back "\$backup"/);
+  });
+
+  test('the join only counts with the armed line from the same run; a failed put-back stops loudly', () => {
+    assert.match(code, /restart_and_read_back armed/);
+    assert.match(code, /page watchdog armed/);
+    assert.match(code, /_SYSTEMD_INVOCATION_ID=\$id/);
+    // every put_back of the old driver is checked; none is a bare statement under set -e
+    for (const m of code.matchAll(/^\s*put_back "\$[a-z_]+"(.*)$/gm)) {
+      assert.match(m[1], /\|\|/, `unchecked put_back: ${m[0].trim()}`);
+    }
+  });
+
+  test('UNDO leaves a driver that is already deployed alone and words the result from the feature line', () => {
+    assert.match(code, /hash_of "\$prev"\)" = "\$\(hash_of "\$driver"\)/);
+    assert.match(code, /has_page_ping "\$driver"/);
+    assert.match(code, /it has no page watchdog/);
+    assert.doesNotMatch(code, /the page watchdog is off/);
   });
 
   test('does not restart Foundry, download anything or touch a world', () => {

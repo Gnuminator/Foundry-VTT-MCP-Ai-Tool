@@ -222,12 +222,6 @@ function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
   return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)"; Warning = $null }
 }
 
-# Runs the unpack with native stderr captured and neither the error preference nor
-# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
-# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
-# Test-FoundryUnpack.
-# $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
-# this run's; a run that leaves none (the program did not start) is a failure.
 function Move-WithRetry([string]$From, [string]$To, [int]$Tries = 3, [int]$PauseSeconds = 2) {
   # Move-Item that tries again after a pause (antivirus or an indexer can hold a folder right after a big unpack).
   # Returns $null on success, else the last error message.
@@ -258,6 +252,12 @@ function Install-AppFolder([string]$NewApp, [string]$AppDir, [string]$Old, [int]
   throw "could not move the new app folder into place ($e); $state; the unpacked new one is in $NewApp"
 }
 
+# Runs the unpack with native stderr captured and neither the error preference nor
+# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
+# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
+# Test-FoundryUnpack.
+# $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
+# this run's; a run that leaves none (the program did not start) is a failure.
 function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
   $run = & {
     $ErrorActionPreference = 'Continue'

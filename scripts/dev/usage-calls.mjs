@@ -103,13 +103,14 @@ export function parsePiOutput(text, days = 7, now = new Date()) {
  * The same from the Pi, read-only: a fixed `cat` loop over ssh, no input from outside. [] when
  * the folder is missing; throws when ssh fails.
  */
-export function readCallsPi(days = 7, now = new Date(), host = 'foundry-pi') {
-  const remote = `cd ${PI_USAGE_DIR} 2>/dev/null && for f in *.calls.jsonl; do [ -e "$f" ] && echo "#FILE $f" && cat "$f"; done; true`;
-  const text = execFileSync(
-    'ssh',
-    ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', host, remote],
-    { encoding: 'utf8', timeout: 30000 }
-  );
+export function readCallsPi(days = 7, now = new Date(), host = 'foundry-pi', exec = execFileSync) {
+  // The leading echo ends a file that has no trailing newline before the next header.
+  const remote = `cd ${PI_USAGE_DIR} 2>/dev/null && for f in *.calls.jsonl; do [ -e "$f" ] && echo && echo "#FILE $f" && cat "$f"; done; true`;
+  const text = exec('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', host, remote], {
+    encoding: 'utf8',
+    timeout: 30000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
   return parsePiOutput(text, days, now);
 }
 

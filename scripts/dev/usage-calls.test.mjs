@@ -1,6 +1,41 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseCallLines, parsePiOutput, summarize, weekLine } from './usage-calls.mjs';
+import { parseCallLines, parsePiOutput, readCallsPi, summarize, weekLine } from './usage-calls.mjs';
+
+test('readCallsPi runs one fixed read-only ssh command with a large buffer', () => {
+  let seen;
+  const exec = (cmd, args, opts) => {
+    seen = { cmd, args, opts };
+    return '\n#FILE 2026-11-09.calls.jsonl\n' + JSON.stringify({ tool: 'a', ok: true }) + '\n';
+  };
+  const calls = readCallsPi(7, new Date(2026, 10, 10, 12), 'foundry-pi', exec);
+  assert.equal(calls.length, 1);
+  assert.equal(seen.cmd, 'ssh');
+  assert.deepEqual(seen.args.slice(0, 5), [
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'ConnectTimeout=10',
+    'foundry-pi',
+  ]);
+  assert.ok(seen.opts.maxBuffer >= 16 * 1024 * 1024);
+  assert.doesNotMatch(seen.args[5], /\brm\b|\bmv\b|\btee\b|>|\bsudo\b/);
+});
+
+test('parsePiOutput: a file without a trailing newline does not swallow the next header', () => {
+  const now = new Date(2026, 10, 10, 12);
+  // the remote loop echoes an empty line before each header
+  const out = [
+    '#FILE 2026-11-09.calls.jsonl',
+    JSON.stringify({ tool: 'in', ok: true }),
+    '#FILE 2026-11-01.calls.jsonl',
+    JSON.stringify({ tool: 'old', ok: true }),
+  ].join('\n');
+  assert.deepEqual(
+    parsePiOutput(out, 7, now).map(c => c.tool),
+    ['in']
+  );
+});
 
 const line = (tool, ok = true, set = 'play') =>
   JSON.stringify({ t: '2026-11-09T10:00:00Z', tool, set, ms: 10, size: 5, ok });

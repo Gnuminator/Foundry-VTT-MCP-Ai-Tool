@@ -32,6 +32,19 @@ Siden vælger en visning for dig: **During**, mens en session er åben, **After*
 du klikker på **End session**, ellers **Before**. En fane, du klikker på, bliver stående, til en
 session starter eller slutter, eller du genindlæser siden.
 
+### Table at a glance
+
+**Live views ▾** og så **Table at a glance** åbner en skrivebeskyttet side til en telefon eller en
+tablet ved bordet. Tre paneler: **Party** (hver karakters HP og tilstande), **Fight** (rækkefølgen
+med den aktuelle tur markeret) og **Scene** (den scene, du er på). Hvert panel viser, hvor frisk
+det er ("updated 12 s ago"); et panel, der er over 45 sekunder gammelt, siger "Old". Siden
+opdaterer sig selv, cirka hvert 15. sekund for Party og Scene og med det samme for kampen, og
+kræver ingen Claude-connector. Den læser kun: intet på den ændrer spillet.
+
+Den er kun til dig. Den viser præcis HP, også fjendernes, så hold den væk fra alle skærme, som
+spillerne kan se. En spiller, der åbner dashboardet, kommer til spillersiden, som har sin egen,
+mindre visning.
+
 ## Headeren
 
 ### Forbindelsesmærket og Pre-flight

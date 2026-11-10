@@ -155,22 +155,31 @@ function main() {
 
   git(['config', 'user.name', 'github-actions[bot]']);
   git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-  git(['checkout', '-b', branch, 'origin/main']);
-  const revert = git(['revert', '--no-edit', ...(parents > 1 ? ['-m', '1'] : []), culprit], {
+  // A branch left by an earlier reaction (a closed draft, or a failed PR create) is reused, never
+  // force-pushed: people may have pushed to it.
+  const branchExists = git(['ls-remote', '--exit-code', '--heads', 'origin', branch], {
     allowFail: true,
-  });
-  if (!revert.ok) {
-    git(['revert', '--abort'], { allowFail: true });
-    throw new Error(`the revert of ${short} conflicts (later merges build on it): ${revert.err}`);
+  }).ok;
+  if (!branchExists) pushRevertBranch();
+  function pushRevertBranch() {
+    git(['fetch', 'origin', 'main']);
+    git(['checkout', '-b', branch, 'origin/main']);
+    const revert = git(['revert', '--no-edit', ...(parents > 1 ? ['-m', '1'] : []), culprit], {
+      allowFail: true,
+    });
+    if (!revert.ok) {
+      git(['revert', '--abort'], { allowFail: true });
+      throw new Error(`the revert of ${short} conflicts (later merges build on it): ${revert.err}`);
+    }
+    fs.mkdirSync('changelog.d', { recursive: true });
+    fs.writeFileSync(
+      `changelog.d/auto-revert-${short}.md`,
+      `### Fixes\n\n- **Main reverted:** reverted ${short} (${subject.replace(/#\d+/g, '').trim()}) because main CI was red.\n`
+    );
+    git(['add', `changelog.d/auto-revert-${short}.md`]);
+    git(['commit', '-m', `Add changelog fragment for the revert of ${short}`]);
+    git(['push', 'origin', `${branch}:${branch}`]);
   }
-  fs.mkdirSync('changelog.d', { recursive: true });
-  fs.writeFileSync(
-    `changelog.d/auto-revert-${short}.md`,
-    `### Fixes\n\n- **Main reverted:** reverted ${short} (${subject.replace(/#\d+/g, '').trim()}) because main CI was red.\n`
-  );
-  git(['add', `changelog.d/auto-revert-${short}.md`]);
-  git(['commit', '-m', `Add changelog fragment for the revert of ${short}`]);
-  git(['push', 'origin', `${branch}:${branch}`]);
   const url = `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${o.run}`;
   const body = [
     `Main CI is red since ${culprit} (${subject}); the failed run was rerun once and failed again: ${url}`,

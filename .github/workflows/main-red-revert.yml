@@ -15,15 +15,16 @@ permissions:
   pull-requests: write
   actions: write
 
-# One reaction at a time; a second failure waits, it is never dropped silently.
-concurrency:
-  group: main-red-revert
-  cancel-in-progress: false
-
 jobs:
   react:
-    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push'
+    # Only a first attempt that failed takes a slot (a skipped job never enters the group).
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.run_attempt == 1
     runs-on: ubuntu-latest
+    # One reaction at a time. The group holds one running and one pending job: a newer failure
+    # replaces a pending one (as in ci.yml), the running one is never cancelled.
+    concurrency:
+      group: main-red-revert
+      cancel-in-progress: false
     # The job waits for the rerun of CI (one job does both steps; a rerun started with the
     # workflow token may not fire a second workflow_run).
     timeout-minutes: 60

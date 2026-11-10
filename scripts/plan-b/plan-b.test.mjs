@@ -213,7 +213,11 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.fakeOther, false);
     assert.equal(r.noText, false);
     assert.equal(r.lookalike, false);
-    assert.equal(r.binOther, false, 'a .bin line is only tolerated when the link could not be created');
+    assert.equal(
+      r.binOther,
+      false,
+      'a .bin line is only tolerated when the link could not be created'
+    );
     assert.match(r.summaryOnly.Message, /Error exit delayed from previous errors/);
     assert.equal(r.loud.Ok, true);
     assert.match(r.loud.Warning, /exited 0.*something odd/);
@@ -225,7 +229,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     const text = readFileSync(path.join(here, 'restore.ps1'), 'utf8');
     const unpack = text.indexOf("Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $newApp)");
     const swap = text.indexOf('Install-AppFolder $newApp $L.AppDir $old');
-    assert.ok(unpack > 0 && swap > unpack, 'unpack, then swap (old app aside, then rename) through Install-AppFolder');
+    assert.ok(
+      unpack > 0 && swap > unpack,
+      'unpack, then swap (old app aside, then rename) through Install-AppFolder'
+    );
     assert.doesNotMatch(text, /'-C', \$L\.AppDir/);
   });
 
@@ -249,7 +256,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       }`);
     assert.equal(r.ok, 'ok');
     assert.match(r.nothing_before, /there was no app folder before, so .*app does not exist/);
-    assert.match(r.back, /could not move the new app folder into place.*the old app folder is back/);
+    assert.match(
+      r.back,
+      /could not move the new app folder into place.*the old app folder is back/
+    );
     assert.match(r.back, /the unpacked new one is in .*app\.new/);
   });
 
@@ -625,10 +635,19 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
 
   test('check.ps1 sets its unknown counter before use (lib.ps1 turns on strict mode)', () => {
     const source = readFileSync(path.join(here, 'check.ps1'), 'utf8');
-    assert.match(readFileSync(path.join(here, 'lib.ps1'), 'utf8'), /Set-StrictMode -Version Latest/);
+    assert.match(
+      readFileSync(path.join(here, 'lib.ps1'), 'utf8'),
+      /Set-StrictMode -Version Latest/
+    );
     const set = source.indexOf('\n$unknown = 0');
-    assert.ok(set > 0 && set < source.indexOf('function Line'), '$unknown = 0 before the Line function');
-    assert.match(source, /if \(\$unknown\) \{ Write-Host 'Plan B is up, but the module link is unknown/);
+    assert.ok(
+      set > 0 && set < source.indexOf('function Line'),
+      '$unknown = 0 before the Line function'
+    );
+    assert.match(
+      source,
+      /if \(\$unknown\) \{ Write-Host 'Plan B is up, but the module link is unknown/
+    );
   });
 
   test('restore.ps1 refuses a backup over 36 hours old without -AllowOld, and warns with it', () => {
@@ -666,7 +685,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       );
     const refused = run([]);
     assert.equal(refused.status, 1, refused.stdout + refused.stderr);
-    assert.match(refused.stderr, /REFUSED: the newest backup is 4\d(\.\d)? hours old \(more than 36\)/);
+    assert.match(
+      refused.stderr,
+      /REFUSED: the newest backup is 4\d(\.\d)? hours old \(more than 36\)/
+    );
     assert.match(refused.stderr, /-AllowOld/);
     // -Force is for the played-data refusal only: it does not waive the age check.
     const forceOnly = run(['-Force']);
@@ -736,6 +758,88 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       'the connector without MCP_NO_SPAWN=1 is named'
     );
     assert.deepEqual(r.spawnTrue, []);
+  });
+
+  test('desktop guard: refuses while a Claude Desktop process exists, passes when none', () => {
+    const guard = path.join(here, '..', 'desktop', 'desktop-guard.ps1').replace(/'/g, "''");
+    const r = ps(`
+      . '${guard}'
+      function Get-ClaudeDesktopProcess { return @([pscustomobject]@{ Id = 4242 }) }
+      $msg = $null
+      try { Assert-ClaudeDesktopClosed } catch { $msg = $_.Exception.Message }
+      function Get-ClaudeDesktopProcess { return @() }
+      $ok = $true
+      try { Assert-ClaudeDesktopClosed } catch { $ok = $false }
+      @{ msg = $msg; ok = $ok }`);
+    assert.match(r.msg, /refused: Claude Desktop is running \(process 4242\)/);
+    assert.equal(r.ok, true);
+  });
+
+  test('the two config scripts call the guard before writing, and not on a dry run', () => {
+    const conn = readFileSync(path.join(here, 'connectors.ps1'), 'utf8');
+    const repoint = readFileSync(
+      path.join(here, '..', 'desktop', 'repoint-connectors.ps1'),
+      'utf8'
+    );
+    assert.match(conn, /desktop-guard\.ps1/);
+    const c = conn.replace(/\r\n/g, '\n');
+    assert.ok(
+      c.indexOf("Dry run: nothing written.'; exit 0 }") < c.indexOf('Assert-ClaudeDesktopClosed') &&
+        c.indexOf('Assert-ClaudeDesktopClosed') < c.indexOf('Copy-Item -LiteralPath $ConfigFile'),
+      'connectors.ps1: dry run exits first, then the guard, then the backup and write'
+    );
+    const rp = repoint.replace(/\r\n/g, '\n');
+    assert.match(rp, /desktop-guard\.ps1/);
+    assert.equal(
+      rp.split('Assert-ClaudeDesktopClosed').length - 1,
+      2,
+      'rollback and apply each call the guard'
+    );
+    assert.ok(
+      rp.indexOf('Dry run: $changed entries') < rp.lastIndexOf('Assert-ClaudeDesktopClosed') &&
+        rp.lastIndexOf('Assert-ClaudeDesktopClosed') < rp.indexOf('Copy-Item $Config $backup'),
+      'repoint-connectors.ps1: dry run returns first, then the guard, then the backup'
+    );
+  });
+
+  test('connectors.ps1 -To pi with -ConfigFile never reads the saved values next to the classic file', () => {
+    const root = mkdtempSync(path.join(tmp, 'appdata-'));
+    mkdirSync(path.join(root, 'Claude'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'Claude', 'claude_desktop_config.plan-b-saved.json'),
+      '{"host":"100.1.2.3","port":31414}'
+    );
+    const cfg = path.join(root, 'explicit.json');
+    writeFileSync(
+      cfg,
+      '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"127.0.0.1","MCP_CONTROL_PORT":"31614","MCP_NO_SPAWN":"1"}}}}'
+    );
+    const run = extra =>
+      spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(here, 'connectors.ps1'),
+          '-To',
+          'pi',
+          '-DryRun',
+          ...extra,
+        ],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, APPDATA: root, LOCALAPPDATA: path.join(root, 'local') },
+        }
+      );
+    const withFile = run(['-ConfigFile', cfg]);
+    assert.notEqual(
+      withFile.status,
+      0,
+      'explicit -ConfigFile and no saved values next to it: refused'
+    );
+    assert.match(withFile.stderr + withFile.stdout, /no saved Pi address/);
+    assert.doesNotMatch(withFile.stdout, /100\.1\.2\.3/);
   });
 
   test('the restore never brings back the Pi licence or other secrets', () => {

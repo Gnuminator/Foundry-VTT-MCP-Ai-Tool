@@ -9,6 +9,8 @@
 # script) of each entry that runs a foundry-mcp-server-*\packages\mcp-server\dist\index.cjs changes; the env (tool
 # set, control host and port) and every other server stay as they are. Claude Desktop reads the config at start: this
 # script never restarts it, and a restart ends every Claude session, so the user does that when it suits.
+# -Apply (also with -Rollback) refuses while Claude Desktop runs: it rewrites the config when it quits, which
+# would undo the change, so quit it from the tray icon first. Without -Apply nothing is written, so it works either way.
 param(
   [string]$Folder,
   [string]$Rollback,
@@ -17,6 +19,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'desktop-guard.ps1')
 # The file current Claude Desktop reads is %LOCALAPPDATA%\Claude-Data\claude_<package family>\claude_desktop_config.json
 # (Store build); %APPDATA%\Claude is a stale copy there and the fallback on older builds.
 if (-not $Config) {
@@ -31,6 +34,7 @@ if (-not (Test-Path $Config)) { throw "no Claude Desktop config at $Config" }
 if ($Rollback) {
   if (-not (Test-Path $Rollback)) { throw "no backup at $Rollback" }
   if (-not $Apply) { Write-Host "Would copy $Rollback over $Config (add -Apply)"; return }
+  Assert-ClaudeDesktopClosed
   $parsed = try { Get-Content $Rollback -Raw | ConvertFrom-Json } catch { $null }
   if (-not $parsed -or -not $parsed.mcpServers) { throw "$Rollback is not a Claude Desktop config (no JSON with mcpServers): nothing was changed" }
   $tmpRestore = "$Config.restore-tmp"
@@ -58,6 +62,7 @@ foreach ($p in $cfg.mcpServers.PSObject.Properties) {
 if (-not $changed) { Write-Host 'Nothing to change.'; return }
 if (-not $Apply) { Write-Host "Dry run: $changed entries would change. Add -Apply to write the config."; return }
 
+Assert-ClaudeDesktopClosed
 $backup = "$Config.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 Copy-Item $Config $backup
 $json = $cfg | ConvertTo-Json -Depth 20
@@ -67,4 +72,4 @@ $tmpConfig = "$Config.new-tmp"
 Move-Item $tmpConfig $Config -Force
 Write-Host "Changed $changed entries. Backup: $backup"
 Write-Host "Roll back with: pwsh scripts/desktop/repoint-connectors.ps1 -Rollback '$backup' -Apply"
-Write-Host 'Claude Desktop rewrites the config when it quits, so use -Apply only with Desktop closed (tray icon, Quit); then start it (a restart ends every session).'
+Write-Host 'Claude Desktop was closed while this ran, so it will not undo the change. Start it when it suits.'

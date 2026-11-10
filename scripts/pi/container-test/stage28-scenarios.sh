@@ -51,7 +51,7 @@ fresh_pi() {
   rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/gm-nojoin /tmp/gm-stale /tmp/gm-noarmed /tmp/gmbroken "$NEW"
   mkdir -p "$FOUNDRY_DATA" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA"
   echo '// old driver' >"$DRIVER"
-  printf '%s\n' '// assistant-gm features: extra-gm link-check page-ping' 'console.log("new driver");' >"$NEW"
+  printf '%s\n' '// assistant-gm features: extra-gm link-check page-ping page-armed-log' 'console.log("new driver");' >"$NEW"
   echo fake-invocation-1 >/tmp/gm-invocation
   printf '{"active":true,"world":"curse-of-strahd","users":0}' >/tmp/status
   echo 0 >/tmp/status_rc
@@ -219,7 +219,11 @@ if want refusals; then
   out="$(run_stage 'APPLY=1')"
   check old-source 'does not name the page-ping feature' "$out"
   check old-source 'exit 1' "$out"
-  printf '%s\n' '// assistant-gm features: page-ping' 'let (' >"$NEW"
+  printf '%s\n' '// assistant-gm features: page-ping' 'console.log("page-ping driver from before the armed line");' >"$NEW"
+  out="$(run_stage 'APPLY=1')"
+  check no-armed-feature 'does not name the page-armed-log feature' "$out"
+  check no-armed-feature 'exit 1' "$out"
+  printf '%s\n' '// assistant-gm features: page-ping page-armed-log' 'let (' >"$NEW"
   out="$(run_stage 'APPLY=1')"
   check syntax 'does not parse' "$out"
   rm -f "$NEW"

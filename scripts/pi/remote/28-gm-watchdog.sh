@@ -106,6 +106,7 @@ fi
 [ -f "$driver_src" ] || die "no new driver at $driver_src: scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/ first. Nothing was changed"
 [ ! -L "$driver_src" ] || die "$driver_src is a link. Nothing was changed"
 grep -Eq '^// assistant-gm features:( [a-z0-9-]+)* page-ping( |$)' "$driver_src" || die "$driver_src does not name the page-ping feature: it is an older driver. Nothing was changed"
+grep -Eq '^// assistant-gm features:( [a-z0-9-]+)* page-armed-log( |$)' "$driver_src" || die "$driver_src does not name the page-armed-log feature: its page watchdog logs no 'armed' line, so the read-back would fail. Nothing was changed"
 node --check "$driver_src" 2>/dev/null || die "$driver_src does not parse (node --check). Nothing was changed"
 if [ "$(hash_of "$driver_src")" = "$(hash_of "$driver")" ]; then
   ok "the deployed driver is already this one ($(hash_of "$driver")): nothing to do"

@@ -18,7 +18,7 @@
 //
 // The next line tells the Pi stages what this driver can do (stage 11 checks it before it needs a feature).
 // Add a word when a stage must tell a new driver from an old one; never remove one.
-// assistant-gm features: extra-gm link-check page-ping
+// assistant-gm features: extra-gm link-check page-ping page-armed-log
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';

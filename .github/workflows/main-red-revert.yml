@@ -1,0 +1,40 @@
+name: Main red revert
+
+# A CI run on a push to main failed: rerun the failed jobs once; when the rerun fails too, open a
+# DRAFT revert PR of the merge that turned main red (scripts/main-red-revert.mjs). The PR is never
+# merged here: the planner skill's "Main is red" section stays (a revert needs the user's OK).
+# The workflow file is read from main, so a change to it takes effect only once merged.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+# One reaction at a time; a second failure waits, it is never dropped silently.
+concurrency:
+  group: main-red-revert
+  cancel-in-progress: false
+
+jobs:
+  react:
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Rerun once, then draft a revert PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/main-red-revert.mjs --run "${{ github.event.workflow_run.id }}" --attempt "${{ github.event.workflow_run.run_attempt }}" --sha "${{ github.event.workflow_run.head_sha }}"

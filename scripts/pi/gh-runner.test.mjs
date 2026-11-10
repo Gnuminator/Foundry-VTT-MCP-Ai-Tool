@@ -166,7 +166,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     });
     assert.match(runGate(playing).calls, /stop foundry-ai-tool-gh-runner-board\.service/);
     const idle = fakePi({ logs: {}, active: activating });
-    assert.doesNotMatch(runGate(idle).calls, /start foundry-ai-tool-gh-runner-board/);
+    assert.doesNotMatch(runGate(idle).calls, /start( --no-block)? foundry-ai-tool-gh-runner-board/);
   });
 
   test('a failing start of one runner does not hide the other, and the gate exits non-zero', () => {
@@ -210,7 +210,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(1))] } },
     });
     const r = runGate(d);
-    assert.doesNotMatch(r.calls, /start foundry-ai-tool-gh-runner-board|stop /);
+    assert.doesNotMatch(r.calls, /start( --no-block)? foundry-ai-tool-gh-runner-board|stop /);
     assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
   });
 
@@ -274,7 +274,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     });
     const r = runGate(d);
     assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
-    assert.doesNotMatch(r.calls, /start foundry-ai-tool-gh-runner-board/);
+    assert.doesNotMatch(r.calls, /start( --no-block)? foundry-ai-tool-gh-runner-board/);
   });
 
   test('GATE_KEEP_UNITS can name another kept unit, and an empty list holds both runners', () => {
@@ -450,7 +450,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     const r = runGate(fakePi({ vault: false }));
     assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
     assert.doesNotMatch(r.calls, /start .*board/);
-    assert.match(r.out, /unknown \(kept\): started foundry-ai-tool-gh-runner-vault/);
+    assert.match(r.out, /unknown \(kept\): start queued for foundry-ai-tool-gh-runner-vault/);
   });
 
   test('unknown state: a running vault runner, also mid-job, is left alone', () => {
@@ -486,6 +486,17 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
 });
 
 describe('the stage as text', () => {
+  test('the read-back warns when the vault runner is stopped, and only an idle board runner is accepted as stopped', () => {
+    const vaultBranch = /if \[ "\$unit" = foundry-ai-tool-gh-runner-vault\.service \]; then\n[^\n]*\n\s*warn "\$unit is stopped, but the gate never holds it/.exec(
+      stage
+    );
+    assert.ok(vaultBranch, 'a stopped vault unit ends in warn');
+    assert.ok(
+      stage.indexOf('is stopped (a play session is marked') > stage.indexOf(vaultBranch[0]),
+      'the board runner branch is the else of that warn'
+    );
+  });
+
   test('the runner release is pinned by version and sha256, and checked before it is used', () => {
     assert.match(stage, /^RUNNER_VERSION=\d+\.\d+\.\d+$/m);
     assert.match(stage, /^RUNNER_SHA256=[0-9a-f]{64}$/m);

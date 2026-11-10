@@ -349,7 +349,8 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       sources.every(s => (s.keys ?? []).length > 0 && (s.keys ?? []).every(k => k === levelKey)) &&
       !Number(studio.actor.hp?.bonuses?.overall ?? 0);
     const perLevelBonus = Number(studio.actor.hp?.bonuses?.level ?? sources.length);
-    const effectShare = effectsKnown ? perLevelBonus * level : 0;
+    // Only a source that exists can be the origin of the bonus; with none, a level bonus is not ours to subtract.
+    const effectShare = effectsKnown && sources.length > 0 ? perLevelBonus * level : 0;
     const conRise =
       effectsKnown &&
       level >= 4 &&

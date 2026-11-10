@@ -87,6 +87,8 @@ export class SocketBridge {
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Rejects the connect() still waiting for its socket; `disconnect()` calls it so the caller is not left hanging. */
+  private cancelPendingConnect: ((error: Error) => void) | null = null;
   /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
   private stopped = false;
   /** True from a successful open until the link is lost or closed on purpose. */
@@ -129,7 +131,19 @@ export class SocketBridge {
 
     const wsUrl = `${protocol}://${host}:${this.config.serverPort}${this.config.namespace}`;
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolveConnect, rejectConnect) => {
+      const settle = (): void => {
+        this.cancelPendingConnect = null;
+      };
+      const resolve = (): void => {
+        settle();
+        resolveConnect();
+      };
+      const reject = (error: Error): void => {
+        settle();
+        rejectConnect(error);
+      };
+      this.cancelPendingConnect = reject;
       let ws!: WebSocket;
       // A socket that is no longer this bridge's current one must not touch its state.
       const isCurrent = (): boolean => this.ws === ws;
@@ -208,6 +222,7 @@ export class SocketBridge {
   }
 
   disconnect(): void {
+    this.cancelPendingConnect?.(new Error('Connection cancelled'));
     this.stopped = true;
     this.linkUp = false;
     this.clearReconnectTimer();

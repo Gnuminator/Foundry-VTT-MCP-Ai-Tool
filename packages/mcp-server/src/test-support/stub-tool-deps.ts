@@ -32,6 +32,7 @@ import { RulesCheckTools } from '../tools/rules-check.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import { NpcTurnTools } from '../tools/npc-turn.js';
 import { PaperSyncTools } from '../tools/paper-sync.js';
+import { PcCreationTools } from '../tools/pc-creation.js';
 import { RoomSetupTools } from '../tools/room-setup.js';
 import { TableViewerTools } from '../tools/table-viewer.js';
 import { FoundrySetupTools } from '../tools/foundry-setup.js';
@@ -93,6 +94,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     }),
     ownershipTools: new OwnershipTools({ ...base, guardedWrites: {} as any }),
     roomSetupTools: new RoomSetupTools({ ...base, guardedWrites: {} as any }),
+    pcCreationTools: new PcCreationTools({ ...base, guardedWrites: {} as any }),
     sceneMoodTools: new SceneMoodTools({ ...base, guardedWrites: {} as any }),
     tokenRingsTools: new TokenRingsTools({ ...base, guardedWrites: {} as any }),
     rulesCheckTools: new RulesCheckTools(base),

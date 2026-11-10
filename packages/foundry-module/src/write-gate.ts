@@ -167,6 +167,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'planCombatChange',
   'planLiveChange',
   'planPartyPlacement',
+  'planPcCreation',
   'planRoomSetup',
   'planNpcTurn',
   'planPaperSync',

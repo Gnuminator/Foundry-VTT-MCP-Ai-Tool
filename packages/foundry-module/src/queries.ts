@@ -57,6 +57,7 @@ import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
 import { NPC_TURN_QUERY } from './npc-turn.js';
 import { planNpcTurnWithDamage } from './npc-turn-damage.js';
 import { PAPER_SYNC_QUERY, planPaperSync } from './paper-sync-plan.js';
+import { planPcCreation, PC_CREATION_QUERY } from './pc-creation.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
@@ -318,6 +319,11 @@ export class QueryHandlers {
     // Room setup (I-133, read-only): turns one request into Region and Token create ops. GM only.
     handlers.on(`${modulePrefix}.${ROOM_SETUP_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to plan the room setup', () => planRoomSetup(data))
+    );
+
+    // Player-character creation (pc-creation-tool, read-only): one Actor create op with items. GM only.
+    handlers.on(`${modulePrefix}.${PC_CREATION_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the character', () => planPcCreation(data))
     );
 
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for

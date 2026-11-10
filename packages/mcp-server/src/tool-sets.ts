@@ -160,6 +160,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'dnd5e-add-features-from-compendium',
       'manage-world-items',
       'plan-room-setup',
+      'plan-pc-creation',
     ],
   },
   admin: {

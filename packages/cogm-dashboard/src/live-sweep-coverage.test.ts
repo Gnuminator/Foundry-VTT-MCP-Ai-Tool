@@ -27,6 +27,8 @@ const RECORDED_SKIPS: Record<string, string> = {
     'ships off behind the "Paper sync" switch (Paper nights A); checked by hand on a test server (plan, apply, undo, a refused value above the maximum, an item removal with its second confirm), see the PR',
   'plan-scene-restore':
     'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
+  'plan-pc-creation':
+    'ships behind the "Character creation" switch (pc-creation-tool); checked by hand on server A (build a PC with a container, apply, undo), see the PR',
   'plan-room-setup':
     'ships off behind the "Room setup" switch (I-133); checked by hand on server A (teleport and spawn: plan, apply, walk a token through, undo), see the PR',
 };

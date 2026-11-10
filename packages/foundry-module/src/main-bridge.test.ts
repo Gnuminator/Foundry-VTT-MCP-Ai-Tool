@@ -14,21 +14,34 @@ const fake = vi.hoisted(() => {
   const state = {
     instances: [] as any[],
     connectOk: true,
+    /** When set, connect() stays pending until the test calls pendingReject or disconnect() runs. */
+    hold: false,
     lastConfig: null as any,
   };
   class FakeSocketBridge {
     connected = false;
     disconnected = false;
+    pendingReject: ((e: Error) => void) | null = null;
     connect = vi.fn((): Promise<void> => {
+      if (state.hold) {
+        return new Promise<void>((_resolve, reject) => {
+          this.pendingReject = reject;
+        });
+      }
       if (!state.connectOk) return Promise.reject(new Error('WebSocket connection failed'));
       this.connected = true;
+      // Like the real SocketBridge: the link-up callback fires from onopen, before connect() resolves.
+      this.config.onLinkChange?.(true);
       return Promise.resolve();
     });
     disconnect = vi.fn(() => {
       this.disconnected = true;
       this.connected = false;
+      // Like the real SocketBridge: a disconnect cancels the connect that is still pending.
+      this.pendingReject?.(new Error('Connection cancelled'));
+      this.pendingReject = null;
     });
-    constructor(config: any) {
+    constructor(public config: any) {
       state.lastConfig = config;
       state.instances.push(this);
     }
@@ -73,6 +86,7 @@ beforeEach(async () => {
   restore = world.install();
   fake.state.instances.length = 0;
   fake.state.connectOk = true;
+  fake.state.hold = false;
   for (const [key, value] of Object.entries({
     enabled: true,
     serverHost: 'localhost',
@@ -279,6 +293,44 @@ describe('main: no world writes for connection state (PB-03)', () => {
     expect(bridge.getStatus().lastConnectionState).toBe('connected');
     await bridge.stop();
     expect(bridge.getStatus().heartbeatActive).toBe(false);
+  });
+
+  it('a normal start leaves exactly one heartbeat interval', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    expect(bridge.getStatus().heartbeatActive).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
+    await bridge.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a late link-up marks the state connected even when a heartbeat already runs', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    fake.state.lastConfig.onLinkChange(false);
+    bridge.lastConnectionState = 'error';
+
+    fake.state.lastConfig.onLinkChange(true);
+
+    expect(bridge.getStatus().lastConnectionState).toBe('connected');
+    expect(vi.getTimerCount()).toBe(1);
+    await bridge.stop();
+  });
+
+  it('stop() during a pending connect does not leave start() locked out', async () => {
+    vi.useFakeTimers();
+    fake.state.hold = true;
+    const first = bridge.start();
+    await Promise.resolve();
+    await bridge.stop();
+    await expect(first).resolves.toBeUndefined();
+    expect(bridge.getStatus().lastConnectionState).toBe('disconnected');
+
+    fake.state.hold = false;
+    await bridge.start();
+    expect(bridge.getStatus().lastConnectionState).toBe('connected');
+    expect(live()).toHaveLength(1);
+    await bridge.stop();
   });
 
   it('a link-up from a replaced bridge does not start a heartbeat', async () => {

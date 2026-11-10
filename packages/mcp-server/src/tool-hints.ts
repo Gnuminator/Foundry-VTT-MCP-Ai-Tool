@@ -110,6 +110,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
     title: 'Plan room setup (teleports, rooms, levels, stairs, hazards)',
     kind: 'read',
   },
+  'plan-pc-creation': { title: 'Plan a new player character with pack items', kind: 'read' },
   'plan-token-rings': {
     title: 'Plan dynamic token rings for actors or placed tokens',
     kind: 'read',

@@ -67,14 +67,9 @@ Foundry's join page opens. It shows the game's name at the top and three panels 
 Ignore the **Return to Setup** box at the bottom. It is for the person who runs the server, and
 it does nothing for you.
 
-The game loads. The first time, two windows open by themselves: the Actor Studio welcome window
-and Foundry's **User Configuration**. Close both for now. User Configuration comes back every time
-you join until you have a character and have picked it there (see
-[Make your character](make-a-character.md)).
-
-![Foundry's User Configuration window and the Actor Studio welcome window open next to each other, touching, after the first join](../images/guides/join-first-windows.png)
-
-The two windows can overlap. Drag one aside, or click **Close** on the Actor Studio window first.
+The game loads. The first time, Foundry's **User Configuration** may open by itself. Close it for
+now. It comes back every time you join until you have a character (see
+[Make your character](make-a-character.md)); Actor Studio makes the new character yours.
 
 If the screen says **Game Paused**, the GM has paused the game. Nothing is wrong. It goes away when
 the GM starts again.

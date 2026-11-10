@@ -1,6 +1,6 @@
 ---
 source: player/join.md
-sourceHash: 747853503ad8
+sourceHash: 50194c43b54c
 title: Kom med i spillet
 description: 'Trin for trin med billeder: spillets webadresse, den ene e-mailkode, login til Foundry, at forlade spillet og Discord.'
 ---
@@ -69,15 +69,9 @@ Foundrys join-side åbner. Den viser spillets navn øverst og tre felter til ven
 Ignorer boksen **Return to Setup** nederst. Den er til den, der kører serveren, og den gør ingenting
 for dig.
 
-Spillet indlæses. Første gang åbner to vinduer af sig selv: velkomstvinduet fra Actor Studio og
-Foundrys **User Configuration**. Luk dem begge for nu. User Configuration kommer tilbage hver gang
-du kommer ind, indtil du har en karakter og har valgt den der (se
-[Lav din karakter](make-a-character.md)).
-
-![Foundrys User Configuration-vindue og Actor Studios velkomstvindue åbne ved siden af hinanden, så de rører, efter den første join](../../images/guides/join-first-windows.png)
-
-De to vinduer kan overlappe. Træk det ene til side, eller klik først på **Close** i Actor
-Studio-vinduet.
+Spillet indlæses. Første gang åbner Foundrys **User Configuration** måske af sig selv. Luk den for
+nu. Den kommer tilbage hver gang du kommer ind, indtil du har en karakter (se
+[Lav din karakter](make-a-character.md)); Actor Studio gør den nye karakter til din.
 
 Hvis skærmen siger **Game Paused**, har GM'en sat spillet på pause. Der er ikke noget galt. Det
 forsvinder, når GM'en starter igen.

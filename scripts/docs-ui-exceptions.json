@@ -49,7 +49,11 @@
     { "name": "Join Game Session", "reason": "Foundry join screen button" },
     { "name": "Log Out", "reason": "Foundry game menu button" },
     { "name": "Actor Studio", "reason": "Actor Studio module name (character builder in Foundry)" },
-    { "name": "Don't show this message again", "reason": "Actor Studio welcome window checkbox" },
+    {
+      "name": "Go back",
+      "reason": "Actor Studio fork box button (Choices still open, Character name)"
+    },
+    { "name": "Add the subclass", "reason": "Actor Studio fork sheet bar button (subclass guard)" },
     { "name": "Create Character", "reason": "Actor Studio button" },
     { "name": "Resume", "reason": "Actor Studio fork resume dialog button" },
     {

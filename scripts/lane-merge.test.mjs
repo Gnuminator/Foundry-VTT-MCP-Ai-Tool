@@ -650,7 +650,7 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
   assert.deepEqual(rollupProblems([...newer, ...older]).failing, []);
   // the unexpanded name shares a key with the expanded one even when the cancelled entry is the later start
   const late = check(100, raw, 'CANCELLED', { startedAt: '2026-11-10T10:05:00Z' });
-  assert.deepEqual(rollupProblems([late, ...newer]).failing, []);
+  assert.deepEqual(rollupProblems([late, check(100, 'lint', 'CANCELLED'), ...newer]).failing, []);
   // nothing newer: the cancelled check still blocks
   assert.deepEqual(rollupProblems(older).failing, [raw + ' (CANCELLED)', 'lint (CANCELLED)']);
   // a newer run that is itself cancelled does not excuse an older failure, and a newer failure still fails
@@ -703,6 +703,26 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
       check(200, 'lint', 'SUCCESS'),
     ]).failing,
     [raw + ' (CANCELLED)']
+  );
+  // an unclassified older run (only raw cancelled names) may be a dispatch run: it keeps blocking
+  const rawBuild =
+    "build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}";
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawBuild, 'CANCELLED'),
+      check(200, 'build-test (Node 24)', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    [rawBuild + ' (CANCELLED)']
+  );
+  // a raw name that starts with the expression has no text to match and keeps blocking
+  assert.deepEqual(
+    rollupProblems([
+      check(100, '${{ x }}', 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    ['${{ x }} (CANCELLED)']
   );
   // a raw matrix name is replaced by a newer run's expanded leg of the same job
   const rawShard = 'dashboard-visual shard ${{ matrix.shard }}/4${{ x }}';

@@ -584,7 +584,7 @@ function checkNamer(rollup) {
  * @param {any[]} rollup @returns {any[]}
  */
 export function supersededCancelled(rollup) {
-  const { dispatch } = runClasses(rollup);
+  const { dispatch, normal } = runClasses(rollup);
   const nameOf = checkNamer(rollup);
   /** newer, replaceable candidates: finished or not, from non-dispatch runs of a named workflow */
   const candidates = rollup
@@ -601,9 +601,12 @@ export function supersededCancelled(rollup) {
     if (c.status === undefined || String(c.conclusion ?? '').toUpperCase() !== 'CANCELLED')
       return true;
     const id = runIdOf(c);
-    if (id === null || dispatch.has(id) || !c.workflowName) return true;
+    // only a run known to be a normal (pull_request) run can be superseded; an unclassified run
+    // (every job cancelled before it started) may be a dispatch run, so it keeps blocking
+    if (id === null || !normal.has(id) || !c.workflowName) return true;
     const mine = nameOf(c);
     const prefix = isRaw(c.name) ? stripExpression(c.name) : null;
+    if (prefix === '') return true;
     return !candidates.some(
       n =>
         n.id > id &&

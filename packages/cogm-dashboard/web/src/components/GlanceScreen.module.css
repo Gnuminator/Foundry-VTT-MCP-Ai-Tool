@@ -1,0 +1,133 @@
+/* Table at a glance: three panels that stack on a phone and sit side by side on a wide screen.
+   Tokens only (themes/brand.css). */
+.page {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  align-items: start;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-3);
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+}
+
+.fresh,
+.fresh-old {
+  font-size: var(--text-xs);
+  color: var(--text-muted, inherit);
+}
+
+.fresh-old {
+  font-weight: 600;
+  color: var(--warn, var(--text));
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm, 4px);
+}
+
+.row[data-current='true'] {
+  outline: 2px solid var(--accent, currentColor);
+  font-weight: 600;
+}
+
+.row[data-defeated='true'],
+.row[data-down='true'] {
+  opacity: 0.7;
+}
+
+.init {
+  min-width: 2ch;
+  text-align: right;
+  color: var(--text-muted, inherit);
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hp {
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  grid-column: 1 / -1;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--ok, #3a8f4a);
+}
+
+.mid {
+  background: var(--warn, #c9a227);
+}
+
+.low {
+  background: var(--danger, #b8402f);
+}
+
+.conditions {
+  grid-column: 1 / -1;
+  font-size: var(--text-xs);
+  color: var(--text-muted, inherit);
+}
+
+.turn {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+}
+
+.scene {
+  margin: 0;
+  font-size: var(--text-lg, 1.25rem);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-muted, inherit);
+}
+
+.problem {
+  margin: 0 0 var(--space-2);
+  color: var(--danger, inherit);
+}

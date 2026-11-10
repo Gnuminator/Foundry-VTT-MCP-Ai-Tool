@@ -1,6 +1,6 @@
 ---
 source: gm/live-views.md
-sourceHash: 6b757bff9a9c
+sourceHash: 19a7a1ee0607
 title: Live-visningerne
 description: De tre måder at have combat-strippen ved siden af Foundry (Live screen, GM page, Live window), hvor knappen Live views er, og hvornår du bruger hvilken.
 ---
@@ -16,6 +16,10 @@ syne, mens du kigger på kortet. Det kan gøres på tre måder. Alle tre ligger 
 | **Live screen**           | Én fast dashboard-side med stripen.                  | Du har en ekstra skærm eller en tablet ved siden af Foundry.       |
 | **GM page**               | Foundry og stripen side om side i ét vindue.         | Du har én skærm og vil have ét browservindue til det hele.         |
 | **Live window** (Foundry) | Et lille vindue inde i Foundry, ved siden af kortet. | Du vil have stripen inde i Foundry og er okay med et smalt vindue. |
+
+Menuen har én post mere, **Table at a glance**. Den er ikke en måde at se stripen på: det er en
+skrivebeskyttet side med party, kampen og scenen, til en telefon. Se
+[Table at a glance](dashboard.md#table-at-a-glance).
 
 ## Live screen
 

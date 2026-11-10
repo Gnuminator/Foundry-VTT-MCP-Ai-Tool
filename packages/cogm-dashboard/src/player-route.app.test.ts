@@ -612,6 +612,27 @@ describe('a service token never becomes a GM', () => {
   });
 });
 
+describe('Table at a glance is GM only', () => {
+  // The glance screen reads get-party and get-current-scene through POST /api/tool (GM routes with
+  // exact HP and hidden tokens). A signed-in player (Alice, with her own Client ID on the player
+  // application) is refused there, so the screen can show a player nothing.
+  it('refuses a player the tools the screen reads', async () => {
+    const { base, calls } = await start();
+    for (const name of ['get-party', 'get-current-scene', 'get-combat-state']) {
+      const res = await fetch(`${base}/api/tool`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'cf-access-jwt-assertion': service(ID_A),
+        },
+        body: JSON.stringify({ name, args: {} }),
+      });
+      expect(res.status).toBe(403);
+    }
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe('/me: Your Claude connector', () => {
   async function linkFor(base: string, userId: string): Promise<string> {
     const res = await fetch(`${base}/api/player-links/${userId}`, {

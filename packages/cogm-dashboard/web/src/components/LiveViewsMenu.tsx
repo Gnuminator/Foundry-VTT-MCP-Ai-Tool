@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type JSX } from 'react';
 
 import { api, ApiError } from '../lib/api';
 import { useEscapeClose } from '../lib/escape';
-import { LIVE_SCREEN_HREF } from '../lib/liveScreen';
+import { GLANCE_HREF, LIVE_SCREEN_HREF } from '../lib/liveScreen';
 import { Button } from '../ui';
 import styles from './LiveViewsMenu.module.css';
 
@@ -12,10 +12,12 @@ interface GmPageInfo {
   foundryUrl: string | null;
 }
 
-/** The three ways to see the live strip, one sentence each on when to use it. */
+/** The ways to see the live strip, one sentence each on when to use it. */
 export const LIVE_VIEWS = {
   live: 'The strip and the combat order on one fixed page. Use it on a second screen or a tablet.',
   gm: 'Foundry and the strip in one browser window. Use it when there is only one screen. Close your normal Foundry tab first: a user can be joined once.',
+  glance:
+    'Party hit points, the fight and the scene, read only, each with how fresh it is. Use it on a phone or tablet beside the table.',
   window:
     'A small window inside Foundry, next to the map. Turn it on in Foundry: the Settings tab, Game Settings, category Foundry AI Tool, "AI Tool: Live window". Then the Live button shows in the AI Tool group.',
 } as const;
@@ -85,6 +87,10 @@ export function LiveViewsMenu(): JSX.Element {
           </a>
           {isGm ? (
             <>
+              <a className={styles.entry} id="live-views-glance" href={GLANCE_HREF}>
+                <strong>Table at a glance</strong>
+                <span>{LIVE_VIEWS.glance}</span>
+              </a>
               <a className={styles.entry} id="live-views-gm" href="/gm">
                 <strong>GM page</strong>
                 <span>{LIVE_VIEWS.gm}</span>

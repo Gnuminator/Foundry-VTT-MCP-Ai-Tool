@@ -15,6 +15,10 @@ sight while you look at the map. There are three ways to do that. All three are 
 | **GM page**               | Foundry and the strip side by side in one window. | You have one screen and want one browser window for everything.      |
 | **Live window** (Foundry) | A small window inside Foundry, next to the map.   | You want the strip inside Foundry and are fine with a narrow window. |
 
+The menu has one more entry, **Table at a glance**. It is not a way to see the strip: it is a
+read-only page with the party, the fight and the scene, for a phone. See
+[Table at a glance](dashboard.md#table-at-a-glance).
+
 ## Live screen
 
 Open **Live views**, then **Live screen**. Nothing else to set up.

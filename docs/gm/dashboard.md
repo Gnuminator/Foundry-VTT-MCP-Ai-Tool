@@ -29,6 +29,19 @@ The page picks a view for you: **During** while a session is open, **After** for
 you click **End session**, otherwise **Before**. A tab you click stays until a session starts or
 ends, or you reload the page.
 
+### Table at a glance
+
+**Live views ▾**, then **Table at a glance**, opens a read-only page for a phone or a tablet beside
+the table. Three panels: **Party** (each character's hit points and conditions), **Fight** (the
+turn order, with the current turn marked) and **Scene** (the scene you are on). Every panel says
+how fresh it is ("updated 12 s ago"); one older than 45 seconds says "Old". The page refreshes by
+itself, about every 15 seconds for Party and Scene and at once for the fight, and needs no Claude
+connector. It only reads: nothing on it changes the game.
+
+It is for you only. It shows exact hit points, including the enemies', so keep it off any screen
+the players can see. Players do not get this page: a player who types its address ends up on the
+player page, which shows only what a player already sees.
+
 ## The header
 
 ### The connection mark and Pre-flight

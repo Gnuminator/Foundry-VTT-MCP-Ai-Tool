@@ -11,6 +11,15 @@ const PLAYER_TOKEN = 'e2e-player-token';
 
 const PAGES = [['the main dashboard', '/']] as const;
 
+// Table at a glance is GM only (item dashboard-glance-view): a player who types its address lands
+// on the player view, which shows only what a player already sees.
+test('a player without a token on Table at a glance lands on the player view', async ({ page }) => {
+  await fakeCommonRoutes(page);
+  await page.goto('/?glance=1');
+
+  await expect(page).toHaveURL(/\/player$/);
+});
+
 /** Waits for the page's /api/state answer, then until the page has acted on it (a redirect would have happened). */
 async function settled(page: import('@playwright/test').Page, path: string): Promise<unknown> {
   const state = page.waitForResponse('**/api/state');

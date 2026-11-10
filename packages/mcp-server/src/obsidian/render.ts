@@ -169,7 +169,9 @@ export function renderSessionNote(
   group: SessionGroupInput,
   stats: SessionStats,
   /** Links to this day's recorded session notes in Foundry (D-087), as list lines. */
-  sessionNotes: readonly string[] = []
+  sessionNotes: readonly string[] = [],
+  /** Which Changes/ note (file name without .md) holds a change, when a month is split into parts. */
+  changeNotes: ReadonlyMap<string, string> = new Map()
 ): string {
   const sorted = [...group.events].sort((a, b) => eventTimeMs(a) - eventTimeMs(b));
   const types = [...new Set(sorted.map(e => e.eventType ?? 'event'))].sort();
@@ -241,7 +243,7 @@ export function renderSessionNote(
     return `| ${cell(shortTime(time).slice(11))} | ${cell(e.eventType)} | ${cell(e.actorName)} | ${cell(`${what}${change}`)} |`;
   });
   const changeLinks = uniqueChangeIds.map(
-    id => `- [${id}](../Changes/${changeMonths.get(id) ?? ''}.md#^${id})`
+    id => `- [${id}](../Changes/${changeNotes.get(id) ?? changeMonths.get(id) ?? ''}.md#^${id})`
   );
 
   return withGeneratedHash(
@@ -353,9 +355,44 @@ function renderSessionStatsSection(stats: SessionStats): string[] {
 
 export type { ChangeEntry };
 
-/** One note per month of applied and undone guarded changes, newest first;
- * each change block ends with a `^<changeId>` block id line. */
-export function renderChangesNote(worldId: string, month: string, entries: ChangeEntry[]): string {
+/** The most changes one Changes/ note holds. A month with more rolls over to `<month>-p2.md`,
+ * `-p3`, ...: the oldest changes stay in `<month>.md`, so a note's content and name never move once
+ * it is full. A single 2.9 MB note of 6,864 changes made Obsidian run out of memory. */
+export const CHANGES_NOTE_MAX_ENTRIES = 400;
+/** The most diff lines one change shows in the note; the rest is counted. */
+export const CHANGES_NOTE_MAX_DIFF_LINES = 40;
+
+export interface ChangeNotePart {
+  /** File name without `.md`: `2026-10`, `2026-10-p2`, ... */
+  name: string;
+  entries: ChangeEntry[];
+}
+
+/** Split one month of changes into notes of at most CHANGES_NOTE_MAX_ENTRIES, oldest first. */
+export function splitChangeNotes(month: string, entries: readonly ChangeEntry[]): ChangeNotePart[] {
+  const asc = [...entries].sort(
+    (x, y) => x.appliedAt.localeCompare(y.appliedAt) || x.changeId.localeCompare(y.changeId)
+  );
+  const parts: ChangeNotePart[] = [];
+  for (let i = 0; i < asc.length; i += CHANGES_NOTE_MAX_ENTRIES) {
+    const n = i / CHANGES_NOTE_MAX_ENTRIES + 1;
+    parts.push({
+      name: n === 1 ? month : `${month}-p${n}`,
+      entries: asc.slice(i, i + CHANGES_NOTE_MAX_ENTRIES),
+    });
+  }
+  return parts;
+}
+
+/** Notes of applied and undone guarded changes, newest first inside each; a month is one note up to
+ * CHANGES_NOTE_MAX_ENTRIES changes. Each change block ends with a `^<changeId>` block id line.
+ * `part` names this note when the month is split (see splitChangeNotes). */
+export function renderChangesNote(
+  worldId: string,
+  month: string,
+  entries: ChangeEntry[],
+  part?: { name: string; all: readonly string[] }
+): string {
   const sorted = [...entries].sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
   const newest = sorted[0]?.appliedAt ?? null;
   const props = generatedProps(
@@ -383,11 +420,12 @@ export function renderChangesNote(worldId: string, month: string, entries: Chang
       `- Change \`${e.changeId}\` · feature **${neutralizeTemplater(e.feature)}** · ${e.mode} · risk ${e.risk} · written to ${e.target}`,
       `- State: ${state}`,
       '',
-      callout(
-        'note',
-        `Diff (${e.diff.length} line(s), GM only)`,
-        e.diff.map(d => `- ${d}`)
-      ),
+      callout('note', `Diff (${e.diff.length} line(s), GM only)`, [
+        ...e.diff.slice(0, CHANGES_NOTE_MAX_DIFF_LINES).map(d => `- ${d}`),
+        ...(e.diff.length > CHANGES_NOTE_MAX_DIFF_LINES
+          ? [`- ... ${e.diff.length - CHANGES_NOTE_MAX_DIFF_LINES} more line(s) not shown`]
+          : []),
+      ]),
       '',
       `^${e.changeId}`,
       '',
@@ -402,6 +440,14 @@ export function renderChangesNote(worldId: string, month: string, entries: Chang
       '',
       'Every change the AI Tool applied or undid through guarded writes (times in UTC). Undo from the dashboard (Recent Changes).',
       '',
+      ...(part && part.all.length > 1
+        ? [
+            `This month is split into notes of ${CHANGES_NOTE_MAX_ENTRIES} changes: ${part.all
+              .map(n => (n === part.name ? `**${n}**` : `[[${n}]]`))
+              .join(', ')} (oldest first).`,
+            '',
+          ]
+        : []),
       ...blocks,
     ].join('\n')
   );

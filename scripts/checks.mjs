@@ -190,6 +190,7 @@ export const CHECKS = [
   nodeTest('pi-stage-safety', 'pi', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('pi-deployed-state', 'pi', 'deploy/pi/deployed-state.test.mjs'),
   nodeTest('tunnel-client', 'scripts', 'installer/nsis/tunnel-client.test.mjs'),
+  nodeTest('configure-claude', 'scripts', 'installer/nsis/configure-claude.test.mjs'),
   nodeTest('plan-b', 'scripts', 'scripts/plan-b/plan-b.test.mjs'),
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },

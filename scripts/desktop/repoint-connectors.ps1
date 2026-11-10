@@ -12,11 +12,20 @@
 param(
   [string]$Folder,
   [string]$Rollback,
-  [string]$Config = (Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'),
+  [string]$Config = '',
   [switch]$Apply
 )
 
 $ErrorActionPreference = 'Stop'
+# The file current Claude Desktop reads is %LOCALAPPDATA%\Claude-Data\claude_<package family>\claude_desktop_config.json
+# (Store build); %APPDATA%\Claude is a stale copy there and the fallback on older builds.
+if (-not $Config) {
+  $dataDirs = @(Get-ChildItem -LiteralPath (Join-Path $env:LOCALAPPDATA 'Claude-Data') -Directory -Filter 'claude_*' -ErrorAction SilentlyContinue | Sort-Object Name)
+  $current = @($dataDirs | ForEach-Object { Join-Path $_.FullName 'claude_desktop_config.json' } | Where-Object { Test-Path -LiteralPath $_ })
+  if ($dataDirs.Count -and -not $current.Count) { throw "Claude Desktop keeps its data in $($dataDirs[0].FullName) but has no claude_desktop_config.json there; pass -Config to choose one" }
+  $Config = if ($current.Count) { $current[0] } else { Join-Path $env:APPDATA 'Claude\claude_desktop_config.json' }
+  Write-Host "Config: $Config"
+}
 if (-not (Test-Path $Config)) { throw "no Claude Desktop config at $Config" }
 
 if ($Rollback) {
@@ -58,4 +67,4 @@ $tmpConfig = "$Config.new-tmp"
 Move-Item $tmpConfig $Config -Force
 Write-Host "Changed $changed entries. Backup: $backup"
 Write-Host "Roll back with: pwsh scripts/desktop/repoint-connectors.ps1 -Rollback '$backup' -Apply"
-Write-Host 'Claude Desktop reads the config at start: restart it when it suits (a restart ends every session).'
+Write-Host 'Claude Desktop rewrites the config when it quits, so use -Apply only with Desktop closed (tray icon, Quit); then start it (a restart ends every session).'

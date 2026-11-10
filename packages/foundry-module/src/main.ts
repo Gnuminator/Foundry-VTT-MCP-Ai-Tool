@@ -423,9 +423,9 @@ class FoundryMCPBridge {
         } catch (error) {
           // A first connect that fails or times out (the backend restarting beside Foundry, for
           // example at the daily restart) is not a failed ready: start() already warned, the
-          // reconnect timer keeps dialling, and the index warm-ups below must still run.
+          // reconnect timer keeps dialling (unless auto-reconnect is off), and the index warm-ups below must still run.
           console.warn(
-            `[${MODULE_ID}] The first connect to the AI Tool server did not work (if it was the server, the bridge keeps dialling in the background):`,
+            `[${MODULE_ID}] The first connect to the AI Tool server did not work (if it was the server, the bridge keeps dialling in the background unless auto-reconnect is off):`,
             error
           );
         }
@@ -539,6 +539,7 @@ class FoundryMCPBridge {
 
     this.isConnecting = true;
     let dialled = false;
+    let bridge: SocketBridge | undefined;
 
     try {
       logInfo(`[${MODULE_ID}] Starting MCP bridge...`);
@@ -548,11 +549,12 @@ class FoundryMCPBridge {
         if (up) {
           this.linkNotifier.up();
           // A reconnect after a failed first connect: start() threw, so its own heartbeat
-          // start never ran. Only for the bridge that is still current.
-          if (this.socketBridge === bridge && this.heartbeatInterval === null) {
+          // start never ran. Only for the bridge that is still current, and not while start()
+          // is still connecting (it sets the state and starts the heartbeat itself).
+          if (this.socketBridge === bridge && !this.isConnecting) {
             this.lastConnectionState = 'connected';
             this.updateLastActivity();
-            this.startHeartbeat();
+            if (this.heartbeatInterval === null) this.startHeartbeat();
           }
         } else this.linkNotifier.down();
       };
@@ -564,11 +566,17 @@ class FoundryMCPBridge {
       }
 
       // Create and connect socket bridge
-      const bridge = new SocketBridge(config);
+      bridge = new SocketBridge(config);
       this.socketBridge = bridge;
-      setBridgeLink(this.socketBridge);
+      setBridgeLink(bridge);
       dialled = true;
-      await this.socketBridge.connect();
+      await bridge.connect();
+
+      // stop() ran while the connect was pending: this bridge is gone, so leave the state alone.
+      if (this.socketBridge !== bridge) {
+        logInfo(`[${MODULE_ID}] Bridge was stopped while connecting`);
+        return;
+      }
 
       // Log connection details for debugging
       const connectionInfo = this.socketBridge.getConnectionInfo();
@@ -594,6 +602,11 @@ class FoundryMCPBridge {
         `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
       );
     } catch (error) {
+      // stop() ran while the connect was pending and cancelled it: not a failure, nothing to report.
+      if (bridge && this.socketBridge !== bridge) {
+        logInfo(`[${MODULE_ID}] Bridge was stopped while connecting`);
+        return;
+      }
       // Log as warning instead of error for initial connection failures
       console.warn(`[${MODULE_ID}] Failed to start bridge:`, error);
 
@@ -615,7 +628,8 @@ class FoundryMCPBridge {
       this.lastConnectionState = 'error';
       throw error;
     } finally {
-      this.isConnecting = false;
+      // A stop() already cleared the flag, and a newer start() may own it now.
+      if (!bridge || this.socketBridge === bridge) this.isConnecting = false;
     }
   }
 
@@ -638,6 +652,8 @@ class FoundryMCPBridge {
 
       // Stop heartbeat monitoring
       this.stopHeartbeat();
+      // A connect still pending on this bridge must not keep start() locked out.
+      this.isConnecting = false;
 
       this.socketBridge.disconnect();
       this.socketBridge = null;

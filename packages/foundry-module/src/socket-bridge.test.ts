@@ -268,6 +268,17 @@ describe('SocketBridge — connect lifecycle', () => {
     expect(bridge.getConnectionState()).toBe(CONNECTION_STATES.CONNECTED);
   });
 
+  it('disconnect() rejects a connect that is still pending', async () => {
+    installFakeWebSocket();
+    const bridge = new SocketBridge(makeConfig()) as any;
+
+    const p = bridge.connect();
+    bridge.disconnect();
+
+    await expect(p).rejects.toThrow('Connection cancelled');
+    expect(bridge.getConnectionState()).toBe(CONNECTION_STATES.DISCONNECTED);
+  });
+
   it('builds a ws:// URL even when the page is served over https', async () => {
     (globalThis as any).window = { location: { protocol: 'https:' } };
     const fake = installFakeWebSocket();

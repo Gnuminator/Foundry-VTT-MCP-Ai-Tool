@@ -171,7 +171,7 @@ async function run(source, world, dryRun) {
 
 // The combined check file of 22-seven-books.sh MODE=check, built by reading the stage's own assembly block (printf and cat
 // lines) instead of a hand-written copy, so a change to the stage shows up here.
-function combinedCheckFile(trimSrc, baselineSrc) {
+function combinedCheckFile(trimSrc, baselineSrc, graveSrc = '') {
   const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
   const start = stage.indexOf("printf 'const CHECK_ONLY");
   const end = stage.indexOf('} >"$GM_SCRIPT.new"', start);
@@ -179,7 +179,7 @@ function combinedCheckFile(trimSrc, baselineSrc) {
   const sources = {
     '/root/seven-books-trim.js': trimSrc,
     '/root/seven-books-baseline.js': baselineSrc,
-    '/root/grave-domain-patch.js': '', // its own tests are in grave-domain-patch.test.mjs
+    '/root/grave-domain-patch.js': graveSrc, // empty unless a test passes the real file; its own tests are in grave-domain-patch.test.mjs
   };
   let out = '';
   for (const raw of stage.slice(start, end).split('\n')) {
@@ -1256,6 +1256,21 @@ describe('seven-books-baseline.js', () => {
     const { lines } = await run(combined, world, true).catch(e => ({ lines: [String(e.message)] }));
     // an untrimmed fake world is trim drift: the trim check runs first and its error is what comes out
     assert.match(lines.join('\n'), /DRIFT: the world no longer matches the seven-book trim/);
+  });
+
+  test('the combined check file with the real grave source parses and reaches the grave check last', async () => {
+    const trimSrc = readFileSync(path.join(remote, 'seven-books-trim.js'), 'utf8');
+    const graveSrc = readFileSync(path.join(remote, 'grave-domain-patch.js'), 'utf8');
+    const combined = combinedCheckFile(trimSrc, baselineSource, graveSrc);
+    assert.match(combined, /\nawait \(async \(\) => \{\nconst GRAVE_MODE = 'check';\n/);
+    assert.ok(combined.trimEnd().endsWith('})();'), 'the grave check closes the file');
+    // a trimmed and baselined world with no grave patch: both earlier checks pass, the grave check is what fails
+    const world = worlds();
+    await run(trimSrc, world, false);
+    await run(baselineSource, world, false);
+    // the fake world has no Players Handbook spells pack: the trim and baseline checks pass and the real grave source is
+    // what stops the run, with its own precondition error (its patched/unpatched logic is tested in grave-domain-patch.test.mjs)
+    await assert.rejects(run(combined, world, true), /phbsplSparetheDy is not Spare the Dying/);
   });
 
   test('stage 22 has the baseline modes, runs the baseline check after the trim check and keeps the other gates', () => {

@@ -50,8 +50,9 @@ export function spellAttacksOf(result: unknown): Weapon[] {
   return matches.flatMap((m: unknown) => {
     const r = (m ?? {}) as Record<string, unknown>;
     if (typeof r['id'] !== 'string' || typeof r['name'] !== 'string') return [];
-    if (r['hasAttack'] !== true || r['prepared'] === false) return [];
     const level = typeof r['level'] === 'number' ? r['level'] : 0;
+    // A cantrip is never "unprepared" in play.
+    if (r['hasAttack'] !== true || (level > 0 && r['prepared'] === false)) return [];
     const label = `${r['name']} (${level === 0 ? 'cantrip' : `level ${level}`})`;
     return [{ id: r['id'], name: r['name'], label }];
   });

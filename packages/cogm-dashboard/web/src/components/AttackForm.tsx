@@ -193,7 +193,7 @@ export function AttackForm({
 
   const targetName = targetRow ? targetRow.name : 'the Foundry targets';
   let buttonText = 'Pick a weapon';
-  if (weapons === null) buttonText = 'Loading weapons...';
+  if (weapons === null) buttonText = 'Loading attacks...';
   else if (weapon && attacker) buttonText = attackLabel(attacker.name, weapon.name, targetName);
 
   return (
@@ -266,7 +266,7 @@ export function AttackForm({
       </div>
       <p role="status" className={styles['note']} id="attack-note">
         {weapons !== null && weapons.length === 0
-          ? weaponError || 'This one has no weapons to attack with.'
+          ? weaponError || 'This one has no weapons or spell attacks.'
           : note}
       </p>
       <div className={styles['row']}>

@@ -775,6 +775,101 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.ok, true);
   });
 
+  test('desktop guard: the real process check runs under lib.ps1 strict mode without throwing', () => {
+    const guard = path.join(here, '..', 'desktop', 'desktop-guard.ps1').replace(/'/g, "''");
+    const r = ps(`
+      . '${guard}'
+      Import-ClaudeDesktopProcessCheck
+      @{ count = @(Get-ClaudeDesktopProcess).Count; global = [bool](Get-Command Get-ClaudeDesktopProcess) }`);
+    assert.ok(r.count >= 0);
+    assert.equal(r.global, true);
+  });
+
+  test('desktop guard: loads lazily, so a dry run needs no installer file, and a parse error in it throws', () => {
+    const root = mkdtempSync(path.join(tmp, 'guard-'));
+    mkdirSync(path.join(root, 'scripts', 'desktop'), { recursive: true });
+    mkdirSync(path.join(root, 'installer', 'nsis'), { recursive: true });
+    const copy = path.join(root, 'scripts', 'desktop', 'desktop-guard.ps1');
+    writeFileSync(copy, readFileSync(path.join(here, '..', 'desktop', 'desktop-guard.ps1')));
+    const guard = copy.replace(/'/g, "''");
+    const installer = path.join(root, 'installer', 'nsis', 'configure-claude.ps1');
+    const body = `
+      . '${guard}'
+      $msg = $null
+      try { Assert-ClaudeDesktopClosed } catch { $msg = $_.Exception.Message }
+      @{ msg = $msg }`;
+    const missing = ps(body);
+    assert.match(missing.msg, /cannot find .*configure-claude\.ps1.*nothing was changed/);
+    writeFileSync(installer, 'function Get-ClaudeDesktopProcess { @( \n');
+    const broken = ps(body);
+    assert.match(broken.msg, /parse error.*nothing was changed/);
+  });
+
+  test('connectors.ps1 -To planb saves the old values next to the config it changed', () => {
+    const root = mkdtempSync(path.join(tmp, 'planb-'));
+    const dir = path.join(root, 'local', 'Claude-Data', 'claude_x');
+    mkdirSync(dir, { recursive: true });
+    mkdirSync(path.join(root, 'Claude'), { recursive: true });
+    const cfg = path.join(dir, 'claude_desktop_config.json');
+    writeFileSync(
+      cfg,
+      '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"100.1.2.3","MCP_CONTROL_PORT":"31414","MCP_NO_SPAWN":"1"}}}}'
+    );
+    // The wrapper stands in for "Claude Desktop is not running" so the guard passes on any PC.
+    const wrapper = path.join(root, 'wrap.ps1');
+    writeFileSync(
+      wrapper,
+      `function global:Get-ClaudeDesktopProcess { @() }\n& '${path.join(here, 'connectors.ps1').replace(/'/g, "''")}' -To planb -Rehearsal -ConfigFile '${cfg.replace(/'/g, "''")}'\n`
+    );
+    const r = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper], {
+      encoding: 'utf8',
+      env: { ...process.env, APPDATA: root, LOCALAPPDATA: path.join(root, 'local') },
+    });
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    const saved = JSON.parse(
+      readFileSync(path.join(dir, 'claude_desktop_config.plan-b-saved.json'), 'utf8')
+    );
+    assert.equal(saved.host, '100.1.2.3');
+    assert.equal(saved.port, 31414);
+    assert.equal(
+      readdirSync(path.join(root, 'Claude')).length,
+      0,
+      'nothing is saved next to the classic file'
+    );
+    assert.match(readFileSync(cfg, 'utf8'), /"127\.0\.0\.1"/);
+  });
+
+  test('connectors.ps1 -To pi without -ConfigFile finds the values saved next to the classic file', () => {
+    const root = mkdtempSync(path.join(tmp, 'pifallback-'));
+    mkdirSync(path.join(root, 'Claude'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'Claude', 'claude_desktop_config.plan-b-saved.json'),
+      '{"host":"100.1.2.3","port":31414}'
+    );
+    writeFileSync(
+      path.join(root, 'Claude', 'claude_desktop_config.json'),
+      '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"127.0.0.1","MCP_CONTROL_PORT":"31614","MCP_NO_SPAWN":"1"}}}}'
+    );
+    const r = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        path.join(here, 'connectors.ps1'),
+        '-To',
+        'pi',
+        '-DryRun',
+      ],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, APPDATA: root, LOCALAPPDATA: path.join(root, 'local') },
+      }
+    );
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /127\.0\.0\.1:31614 -> 100\.1\.2\.3:31414/);
+  });
+
   test('the two config scripts call the guard before writing, and not on a dry run', () => {
     const conn = readFileSync(path.join(here, 'connectors.ps1'), 'utf8');
     const repoint = readFileSync(
@@ -794,6 +889,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       rp.split('Assert-ClaudeDesktopClosed').length - 1,
       2,
       'rollback and apply each call the guard'
+    );
+    assert.ok(
+      rp.indexOf('Assert-ClaudeDesktopClosed') < rp.indexOf('Copy-Item $Rollback'),
+      'repoint-connectors.ps1: the rollback calls the guard before it copies the backup over the config'
     );
     assert.ok(
       rp.indexOf('Dry run: $changed entries') < rp.lastIndexOf('Assert-ClaudeDesktopClosed') &&

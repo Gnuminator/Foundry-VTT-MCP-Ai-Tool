@@ -1010,7 +1010,7 @@ nothing and does not fail the stage. Without the extra file the stage warns that
   `ALLOW_DOWNGRADE=1`. Otherwise the services
   stop, the old module folder moves to `/var/lib/foundry-import/prev-<time>/modules/` (never deleted;
   put back by itself if the swap fails) and the new one takes its place, owned by `foundry`.
-  The pinned build is the fork's `2.10.5-aitool.12` release (`aitool.11` plus the edition filter, which hides a 2014 species, subclass, feat or spell in the pickers when a 2024 version is offered; `aitool.10` plus the Wisdom default for the spell ability, starting armor and shield equipped, and the gold-tile Equipment cue; `aitool.9` plus the Equipment tab fix, and with it the `aitool.8` review fixes: one native event for Take Average, a tidier spell ability carry-over, a leftover debug log removed; its zip uses forward-slash paths, which the stage requires); its `module.zip` checksum is in the
+  The pinned build is the fork's `2.10.5-aitool.12` release. It adds the edition filter (the species, subclass, feat and spell pickers hide a 2014 entry when a 2024 version is offered) over `aitool.11`, which adds the Wisdom default for the spell ability, starting armor and shield equipped, the gold-tile Equipment cue and the cosmetics from fork PR 4 (no "Level 1 -> 2" header at level 1, no welcome window on every join, "7 GP" instead of "7 Award", no raw `@abilities.wis.mod` in text) over `aitool.10`; `aitool.10` is `aitool.9` plus the Equipment tab fix, and `aitool.9` carries the `aitool.8` review fixes (one native event for Take Average, a tidier spell ability carry-over, a leftover debug log removed). The zip is built by hand (the fork runs no release workflow, see its `FORK-SYNC.md`) and uses forward-slash paths, which the stage requires; its `module.zip` checksum is in the
   script. A pinned checksum of `PENDING-RELEASE` (for a newer build whose release does not exist
   yet) makes the stage refuse to run unless it is given `STUDIO_ZIP` (a `.zip` under `/var/lib/foundry-import/`) and
   `STUDIO_SHA256` (and `STUDIO_VERSION` when the zip is not the pinned version). `STUDIO_VERSION` and
@@ -1771,7 +1771,9 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   Spare the Dying copy is made from the Players Handbook spell at run time, so no spell text is in the repo. Pi sitting: snapshot, `MODE=grave-patch`
   dry run, `MODE=grave-patch APPLY=1` (it adds to shared module packs, which is harmless for other worlds), then `MODE=baseline` dry run and
   `APPLY=1 OTHER_WORLDS_OK=1` (REFRESH should list only the patched entries), then stage 13 (as after every baseline), then `MODE=grave-check`
-  (read-only). Characters already built from the old entries keep them (rebuild or add by hand). A content module update that rewrites the pack
+  (read-only). `MODE=check` includes the grave check too when `grave-domain-patch.js` is uploaded, and then fails with "the file is uploaded
+  but the patch is not applied" until the patch has run (and the baseline after it). The snapshot is the only way back: the patch has no undo
+  mode. It was applied on the Pi on 2026-11-10 (L155's sitting: snapshot, patch, baseline copied 1 and refreshed 2). Characters already built from the old entries keep them (rebuild or add by hand). A content module update that rewrites the pack
   undoes the patch: `MODE=grave-check` says when. The Spare the Dying copy is on no class spell list, so spell pickers do not offer it.
   By hand on a test server, in the browser console of a GM session (serve the file from any local address that sends
   `Access-Control-Allow-Origin: *`; dry run first, `false` for the real run):

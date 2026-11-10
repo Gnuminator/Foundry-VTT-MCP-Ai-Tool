@@ -45,7 +45,7 @@ absent() { # $1 name, $2 what must not be in the output, $3 the output
 }
 
 fresh_pi() { # $1 the world /api/status reports
-  rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" /root/seven-books-*.js
+  rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" /root/seven-books-*.js /root/grave-domain-*.js
   rm -f /tmp/stopped-* /tmp/calls /tmp/logger /tmp/status /tmp/status_rc /tmp/started-kit
   mkdir -p "$FOUNDRY_DATA/Data/worlds" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA"
   echo '// stand-in' >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
@@ -261,6 +261,20 @@ if want grave; then
   out="$(run_stage 'MODE=grave-check APPLY=1')"
   check grave 'MODE=grave-check only reads' "$out"
   check grave 'exit 1' "$out"
+  # MODE=check puts the grave check in the combined file when the patch is uploaded
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'MODE=check')"
+  check grave 'exit 0' "$out"
+  check grave "GRAVE_MODE = 'check';" "$(cat /root/seven-books-check.js)"
+fi
+
+if want grave-no-upload; then
+  # grave-check without the file uploaded: refused, nothing changed
+  fresh_pi curse-of-strahd
+  rm -f /root/grave-domain-patch.js
+  out="$(run_stage 'MODE=grave-check')"
+  check grave-no-upload 'no /root/grave-domain-patch.js' "$out"
+  check grave-no-upload 'exit 1' "$out"
 fi
 
 if want bad-mode; then

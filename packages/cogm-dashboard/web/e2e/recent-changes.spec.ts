@@ -308,10 +308,12 @@ test('a gm-change event from Foundry reloads the list once', async ({ page }) =>
       body: `retry: 600000\n\n${lines.join('')}`,
     });
   });
+  await page.clock.install();
   const c = await load(page);
   // The reload is what shows the new list.
   await expect(c.getByText('Moved a token')).toBeVisible();
-  // The first load and the one gm-change started; nothing more follows.
+  // The first load and the one gm-change started; nothing more follows, also past the debounce.
+  await page.clock.runFor(1000);
   await settle(page);
   expect(callsOf(calls, 'list-recent-changes')).toHaveLength(2);
 });

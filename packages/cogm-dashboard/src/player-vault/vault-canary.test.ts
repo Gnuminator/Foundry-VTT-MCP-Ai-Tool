@@ -630,6 +630,18 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
       },
       { timeout: 8_000, interval: 50 }
     );
+    // And until the folders stop changing: two reads in a row are the same (no rebuild is still
+    // writing).
+    let previous = '';
+    await vi.waitFor(
+      async () => {
+        const now = JSON.stringify([await folderText(alice), await folderText(bob)]);
+        const same = now === previous;
+        previous = now;
+        expect(same).toBe(true);
+      },
+      { timeout: 8_000, interval: 100 }
+    );
 
     const a = await folderText(alice);
     const b = await folderText(bob);

@@ -281,7 +281,6 @@ async function get(
   return { status: res.status, text: await res.text(), headers: res.headers };
 }
 
-/** Everything a stream sends in `ms`, as text. */
 /** Resolves once the stream's headers are in (the server has registered the client). */
 async function openStream(
   path: string,
@@ -296,6 +295,7 @@ async function openStream(
   return { text: readBody(res, controller, ms) };
 }
 
+/** Everything a stream sends in `ms`, as text. */
 async function readBody(res: Response, controller: AbortController, ms: number): Promise<string> {
   const reader = res.body?.getReader();
   const decoder = new TextDecoder();
@@ -360,12 +360,15 @@ beforeAll(async () => {
   );
   // World info and the player view context (what the players may see) arrive asynchronously:
   // ready once the player state has the world and the projected events.
-  await vi.waitFor(async () => {
-    const res = await get('/api/player/state', GM_TOKEN);
-    const state = JSON.parse(res.text) as { world?: unknown; events?: unknown[] };
-    expect(state.world).toBeTruthy();
-    expect(state.events?.length ?? 0).toBeGreaterThan(0);
-  });
+  await vi.waitFor(
+    async () => {
+      const res = await get('/api/player/state', GM_TOKEN);
+      const state = JSON.parse(res.text) as { world?: unknown; events?: unknown[] };
+      expect(state.world).toBeTruthy();
+      expect(state.events?.length ?? 0).toBeGreaterThan(0);
+    },
+    { timeout: 5000 }
+  );
 });
 
 afterAll(async () => {

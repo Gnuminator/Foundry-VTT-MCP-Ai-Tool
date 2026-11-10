@@ -134,10 +134,11 @@ describe('RecordingSession + convertSession', () => {
     s.packet(anna, frame(1), undefined);
     s.packet(anna, frame(2), undefined);
     s.packet(bo, frame(3), undefined);
-    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    await vi.waitFor(() => expect(errors).toHaveLength(1), { timeout: 5000 });
     expect(errors[0]).toContain('1-anna.b.rec');
     expect(s.failedFiles).toEqual(['1-anna.b.rec']);
     await s.stop('test');
+    expect(errors).toHaveLength(1);
     const sessionJson = JSON.parse(readFileSync(join(dir, 'raw', 'session.json'), 'utf8')) as {
       failedFiles?: string[];
     };

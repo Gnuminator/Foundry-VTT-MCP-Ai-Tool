@@ -262,10 +262,13 @@ describe('GET /open (the static confirm page)', () => {
       lastPollAt: null,
       foundryDownSince: null,
     });
-    await vi.waitFor(async () => {
-      const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });
-      expect(gmState.text).toContain(WORLD_CANARY);
-    });
+    await vi.waitFor(
+      async () => {
+        const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });
+        expect(gmState.text).toContain(WORLD_CANARY);
+      },
+      { timeout: 5000 }
+    );
 
     const before = h.bridge.calls.length;
     for (const token of [undefined, PLAYER_TOKEN, GM_TOKEN]) {

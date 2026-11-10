@@ -74,7 +74,7 @@ test('a quick reconnect is never shown', async ({ page }) => {
   });
   await load(page);
   await expect.poll(() => requests).toBeGreaterThan(1);
-  // Well inside the grace (the pill needs 5 s of the stream being down).
+  // Inside the grace (the pill needs 5 s of the stream being down): this checks the first moments.
   await settle(page);
   await expect(pill(page)).toHaveCount(0);
 });

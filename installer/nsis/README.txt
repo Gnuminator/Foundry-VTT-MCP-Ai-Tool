@@ -50,8 +50,11 @@ Run the installer again. It remembers the last address. The old entries are repl
 other connector in Claude Desktop's settings is left alone. A backup of each settings file
 (claude_desktop_config.json.backup-<date>) is made first.
 
-Both the classic Claude Desktop (%APPDATA%\Claude) and the Microsoft Store version
-(%LOCALAPPDATA%\Packages\Claude_...\LocalCache\Roaming\Claude) are handled.
+The current Claude Desktop (Microsoft Store version) reads its settings from
+%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json; the installer writes
+that file first and says so in its log. Older versions read %APPDATA%\Claude or
+%LOCALAPPDATA%\Packages\Claude_...\LocalCache\Roaming\Claude; every one of those that exists is
+written too. Entries the installer does not own (for example Cast) are never touched.
 
 UNINSTALL
 ---------

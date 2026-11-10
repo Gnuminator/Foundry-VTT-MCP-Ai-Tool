@@ -201,8 +201,9 @@ npm install
 npm run build
 ```
 
-Add the server to your Claude Desktop config (`claude_desktop_config.json`), one entry per tool
-set, then restart Claude Desktop. Two of the five entries:
+Add the server to your Claude Desktop config (`claude_desktop_config.json`; the Store version of
+Claude Desktop reads `%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json`,
+older versions `%APPDATA%\Claude\`), one entry per tool set, then restart Claude Desktop. Two of the five entries:
 
 ```json
 {

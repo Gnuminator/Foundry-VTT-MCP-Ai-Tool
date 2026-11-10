@@ -6,7 +6,8 @@
 
 .DESCRIPTION
   The connectors reach the bridge through MCP_CONTROL_HOST and MCP_CONTROL_PORT in
-  %APPDATA%\Claude\claude_desktop_config.json (today the Pi's Tailscale address and 31414). This
+  %LOCALAPPDATA%\Claude-Data\claude_<package family>\claude_desktop_config.json (the Store build; older
+  builds: %APPDATA%\Claude\claude_desktop_config.json) (today the Pi's Tailscale address and 31414). This
   script changes only those two values, in place, so the rest of the file stays as it is:
     -To planb   127.0.0.1 and Plan B's control port (31414 on game night, 31614 with -Rehearsal)
     -To pi      the values saved by the last -To planb (or -PiHost / -PiPort)
@@ -33,7 +34,12 @@ param(
 
 . (Join-Path $PSScriptRoot 'lib.ps1')
 . (Join-Path $PSScriptRoot 'connectors-lib.ps1')
-if (-not $ConfigFile) { $ConfigFile = Join-Path $env:APPDATA 'Claude' 'claude_desktop_config.json' }
+if (-not $ConfigFile) {
+  # Current Claude Desktop (Store build) reads %LOCALAPPDATA%\Claude-Data\claude_<family>\; %APPDATA%\Claude is a stale copy there.
+  $current = @(Get-ChildItem -LiteralPath (Join-Path $env:LOCALAPPDATA 'Claude-Data') -Directory -Filter 'claude_*' -ErrorAction SilentlyContinue |
+    ForEach-Object { Join-Path $_.FullName 'claude_desktop_config.json' } | Where-Object { Test-Path -LiteralPath $_ })
+  $ConfigFile = if ($current.Count) { $current[0] } else { Join-Path $env:APPDATA 'Claude' 'claude_desktop_config.json' }
+}
 if (-not (Test-Path -LiteralPath $ConfigFile)) { throw "no Claude Desktop config at $ConfigFile" }
 $savedFile = $ConfigFile -replace '\.json$', '.plan-b-saved.json'
 $text = Get-Content -LiteralPath $ConfigFile -Raw

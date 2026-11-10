@@ -12,11 +12,19 @@
 param(
   [string]$Folder,
   [string]$Rollback,
-  [string]$Config = (Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'),
+  [string]$Config = '',
   [switch]$Apply
 )
 
 $ErrorActionPreference = 'Stop'
+# The file current Claude Desktop reads is %LOCALAPPDATA%\Claude-Data\claude_<package family>\claude_desktop_config.json
+# (Store build); %APPDATA%\Claude is a stale copy there and the fallback on older builds.
+if (-not $Config) {
+  $current = @(Get-ChildItem -LiteralPath (Join-Path $env:LOCALAPPDATA 'Claude-Data') -Directory -Filter 'claude_*' -ErrorAction SilentlyContinue |
+    ForEach-Object { Join-Path $_.FullName 'claude_desktop_config.json' } | Where-Object { Test-Path -LiteralPath $_ })
+  $Config = if ($current.Count) { $current[0] } else { Join-Path $env:APPDATA 'Claude\claude_desktop_config.json' }
+  Write-Host "Config: $Config"
+}
 if (-not (Test-Path $Config)) { throw "no Claude Desktop config at $Config" }
 
 if ($Rollback) {

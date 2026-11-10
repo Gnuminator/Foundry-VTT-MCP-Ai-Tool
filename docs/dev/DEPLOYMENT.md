@@ -77,9 +77,13 @@ a logon task that keeps `cloudflared access tcp` running on `127.0.0.1:<port>`, 
 - **Claude Desktop must be closed** while the installer writes its settings (Claude Desktop
   rewrites them when it quits). The installer asks you to quit it from the tray icon and retry; it
   never closes it. It backs up each settings file first and keeps every other entry.
-- **Config files:** the classic `%APPDATA%\Claude\claude_desktop_config.json` and the Microsoft
-  Store build's copy under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`; every one
-  that exists is written, and the classic one is created when none does.
+- **Config files:** current Claude Desktop (Store build) reads
+  `%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json`; the installer writes
+  that file first and logs which one it is. The older places, the Store build's
+  `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\` copy and the classic
+  `%APPDATA%\Claude\claude_desktop_config.json`, are stale copies there but are still written when
+  they exist (older builds read them); the classic one is created only when neither of the others
+  exists. `configure-claude.ps1 -ListConfigFiles` prints the list without writing.
 - **Uninstall** removes only the five entries.
 - `installer/nsis/configure-claude.ps1` does the editing and can be run by hand
   (`-InstallDir`, `-BridgeHost`, `-BridgePort`, `-Uninstall`, `-ConfigPath` for a single file).

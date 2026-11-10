@@ -1,6 +1,6 @@
 ---
 source: gm/getting-started.md
-sourceHash: ede73df10a2d
+sourceHash: b45bf2fa60b8
 title: Kom i gang
 description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen og hvordan det sættes op.
 ---
@@ -114,7 +114,9 @@ Trin 4 til 6 gøres én gang, af den, der satte værktøjet op til dig. De kræv
 værktøjet bygget én gang og en terminal. [README](../../../README.md#installation) har kommandoerne.
 
 4. **Forbind Claude Desktop.** Bridgen tilføjes til Claude Desktops konfigurationsfil
-   (`claude_desktop_config.json`), som fem poster: `foundry-mcp` (core) og `foundry-mcp-play`,
+   (`claude_desktop_config.json`; Store-versionen af Claude Desktop har den i
+   `%LOCALAPPDATA%\Claude-Data\claude_<pakke-id>\`, ældre versioner i `%APPDATA%\Claude\`;
+   installeren finder den rigtige og skriver, hvilken den ændrede), som fem poster: `foundry-mcp` (core) og `foundry-mcp-play`,
    `-prep`, `-build`, `-admin`. Afslut og genstart Claude Desktop. Herefter starter Claude Desktop
    bridgen, når det selv starter. Vælg så, hvilke værktøjssæt der er slået til: se
    [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde).

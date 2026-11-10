@@ -8,6 +8,7 @@
     { "name": "Projects", "reason": "Claude app menu" },
     { "name": "Installed plugins", "reason": "Obsidian Community plugins settings heading" },
     { "name": "Turn on community plugins", "reason": "Obsidian Community plugins settings button" },
+    { "name": "Enable NAT traversal", "reason": "Syncthing Connections setting" },
     { "name": "Ignore Patterns", "reason": "Syncthing folder dialog tab" },
     { "name": "Browse vault in Restricted Mode", "reason": "Obsidian trust prompt button" },
     { "name": "Activate", "reason": "Foundry scene context menu entry" },

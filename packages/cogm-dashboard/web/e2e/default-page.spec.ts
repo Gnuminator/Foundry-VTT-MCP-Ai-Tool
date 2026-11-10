@@ -3,7 +3,7 @@
 // (/?plan=<planId>) opens the plan's confirm window once GM Actions are on.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, toast } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, toast, settle } from './support';
 
 const gmActions = (on: boolean): { event: string; data: unknown }[] => [
   { event: 'settings', data: { gmActionsEnabled: on } },
@@ -94,7 +94,7 @@ test('a plan link that is not a plan id is ignored', async ({ page }) => {
   const calls = await fakeBridge(page);
   await page.goto(`/?token=${GM_TOKEN}&plan=../../etc`);
   await expect(page.getByRole('tablist', { name: 'Moment of the evening' })).toBeVisible();
-  await page.waitForTimeout(300);
+  await settle(page);
   expect(
     calls.filter(c => c.name === 'get-planned-change' || c.name === 'apply-planned-change')
   ).toHaveLength(0);

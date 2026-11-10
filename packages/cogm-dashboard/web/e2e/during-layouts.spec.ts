@@ -5,7 +5,7 @@
 // The bridge and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok, toast } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok, toast, settle } from './support';
 
 const STARTED = '2026-10-10T18:00:00.000Z';
 
@@ -555,7 +555,7 @@ test.describe('the hint', () => {
     await expect.poll(() => changes).toEqual([{ hintSession: STARTED }]);
     // Counting changes nothing on screen, and it is not sent again.
     await expect(hint(page)).toBeVisible();
-    await page.waitForTimeout(400);
+    await settle(page);
     expect(changes).toEqual([{ hintSession: STARTED }]);
   });
 

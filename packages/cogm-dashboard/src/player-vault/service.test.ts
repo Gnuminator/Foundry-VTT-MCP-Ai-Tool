@@ -225,8 +225,6 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-const pause = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
 describe('PlayerVaultService: writing', () => {
   it('writes one folder per player with a marker and the home note', async () => {
     const rig = makeRig();
@@ -257,9 +255,11 @@ describe('PlayerVaultService: writing', () => {
     await rig.svc.rebuild();
     const aliceHome = path.join(rig.root, 'Alice', 'Home.md');
     const bobHome = path.join(rig.root, 'Bob', 'Home.md');
+    // Age the files so a rewrite would show as a new mtime, without waiting for the clock.
+    const aged = new Date(Date.now() - 60_000);
+    await Promise.all([fsp.utimes(aliceHome, aged, aged), fsp.utimes(bobHome, aged, aged)]);
     const before = [(await fsp.stat(aliceHome)).mtimeMs, (await fsp.stat(bobHome)).mtimeMs];
     const filesBefore = await listFiles(rig.root);
-    await pause(30);
 
     const second = await rig.svc.rebuild();
     expect(second.written).toEqual([]);

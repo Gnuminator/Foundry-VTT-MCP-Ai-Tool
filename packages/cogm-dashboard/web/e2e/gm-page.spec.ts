@@ -3,7 +3,7 @@
 // parent like the module does, or refuses to be framed. Nothing here needs a world.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, settle } from './support';
 
 const FOUNDRY = 'http://foundry.test:30000';
 const NL = String.fromCharCode(10);
@@ -105,7 +105,7 @@ test('a message that is not from the Foundry frame picks nothing', async ({ page
   await page.evaluate(() =>
     window.postMessage({ type: 'fmb-live-pick', tokenIds: ['tk-g1'] }, '*')
   );
-  await page.waitForTimeout(300);
+  await settle(page);
   await expect(goblin(page)).toHaveAttribute('aria-pressed', 'false');
 });
 
@@ -210,7 +210,7 @@ test('a window that gets smaller keeps the same Foundry frame', async ({ page })
   await expect(frame).toBeVisible();
   await frame.evaluate(el => ((el as HTMLElement).dataset.keep = 'yes'));
   await page.setViewportSize({ width: 1200, height: 900 });
-  await page.waitForTimeout(200);
+  await settle(page);
   await expect(page.locator('iframe[title="Foundry"][data-keep="yes"]')).toHaveCount(1);
   await page.setViewportSize({ width: 1700, height: 900 });
   await expect(page.locator('iframe[title="Foundry"][data-keep="yes"]')).toHaveCount(1);

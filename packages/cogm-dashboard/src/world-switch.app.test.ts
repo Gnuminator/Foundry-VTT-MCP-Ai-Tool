@@ -46,7 +46,9 @@ afterEach(async () => {
   await Promise.all(running.splice(0).map(close => close()));
 });
 
-async function start(worlds: string[]): Promise<{ dashboard: Dashboard; port: number }> {
+async function start(
+  worlds: string[]
+): Promise<{ dashboard: Dashboard; port: number; worldReads: () => number }> {
   let call = 0;
   const bridge = {
     isConnected: true,
@@ -79,7 +81,7 @@ async function start(worlds: string[]): Promise<{ dashboard: Dashboard; port: nu
         server.close(() => resolve());
       })
   );
-  return { dashboard, port: (server.address() as AddressInfo).port };
+  return { dashboard, port: (server.address() as AddressInfo).port, worldReads: () => call };
 }
 
 interface Page {
@@ -128,7 +130,7 @@ describe('a world switch', () => {
   });
 
   it('keeps everything when the same world comes back after a drop', async () => {
-    const { dashboard, port } = await start(['world-a']);
+    const { dashboard, port, worldReads } = await start(['world-a']);
     const resync = vi.fn();
     dashboard.onFeed({ pollNow: () => undefined, resync });
 
@@ -140,8 +142,12 @@ describe('a world switch', () => {
       expect((await read(port, '/api/state', GM_TOKEN)).events).toHaveLength(1);
     });
 
+    // The negative check needs the world read after the drop to have been answered: wait for
+    // the read, then one turn of the event loop for its answer to be handled.
+    const readsBefore = worldReads();
     await switchTo(dashboard);
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await vi.waitFor(() => expect(worldReads()).toBeGreaterThan(readsBefore));
+    await new Promise(resolve => setImmediate(resolve));
 
     expect((await read(port, '/api/state', GM_TOKEN)).events).toHaveLength(1);
     expect(resync).not.toHaveBeenCalled();

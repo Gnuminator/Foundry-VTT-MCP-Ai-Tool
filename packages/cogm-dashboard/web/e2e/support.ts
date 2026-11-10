@@ -5,6 +5,21 @@ import { expect, type Locator, type Page } from '@playwright/test';
 export const GM_TOKEN = 'e2e-gm-token';
 
 /**
+ * Lets what the page has already started finish, for a check that something did NOT happen:
+ * two animation frames (React has rendered and run its effects) and one answered request to the
+ * server. It does not wait for requests the page sent to a faked route in the test process; where
+ * that matters, wait on the fake itself. A condition, not a fixed pause.
+ */
+export async function settle(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+    await fetch('/api/health', { cache: 'no-store' }).catch(() => undefined);
+  });
+}
+
+/**
  * The theme the real test server sends on its stream when there is no world (themes.get(undefined)).
  * A spec that fakes /api/theme but rides the real stream (no `fakeStream`) gets this theme event
  * right after the faked answer, so the fake must say the same or the page flips to it.

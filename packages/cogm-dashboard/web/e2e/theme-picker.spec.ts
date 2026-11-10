@@ -3,7 +3,7 @@
 // stream's `theme` event, and a refused save that puts the picker back.
 import { expect, test, type Route } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, toast } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, toast, settle } from './support';
 
 test.beforeEach(async ({ page }) => {
   await holdPlaySession(page);
@@ -56,7 +56,7 @@ test('a slow /api/theme answer does not undo the theme the stream already brough
   await expect(page.locator('#select-theme')).toHaveValue('veil');
   await late;
   // Let the old answer land and the page settle: the stream's theme still stands.
-  await page.waitForTimeout(300);
+  await settle(page);
   await expect(page.locator('#select-theme')).toHaveValue('veil');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'veil');
 });

@@ -551,6 +551,7 @@ async function refusedForAnotherReason(page: Page): Promise<Locator> {
       ? { status: 403, json: { code: 'forbidden', error: 'Not allowed.' } }
       : bridge(call)
   );
+  await page.clock.install();
   const drawer = await openTools(page);
   await openTool(drawer, 'plan-actor-change');
   await field(drawer, 'action').selectOption('damage');
@@ -562,7 +563,7 @@ async function refusedForAnotherReason(page: Page): Promise<Locator> {
   ).toBeVisible();
   // GM Actions stay on: no bar draws, so the request for its focus waits for nothing and expires.
   await expect(drawer.locator('#gm-gate')).toBeHidden();
-  await page.waitForTimeout(1_500);
+  await page.clock.runFor(1_500);
   return drawer;
 }
 

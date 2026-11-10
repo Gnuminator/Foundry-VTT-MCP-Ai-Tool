@@ -90,7 +90,15 @@ async function start(): Promise<Harness> {
   running.push(harness);
   // The world load teaches the dashboard who the players are.
   dashboard.handlers.onStatus(REACHABLE);
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await vi.waitFor(
+    async () => {
+      const res = await fetch(`http://127.0.0.1:${harness.port}/api/player/state`, {
+        headers: { 'x-cogm-token': PLAYER_TOKEN },
+      });
+      expect(((await res.json()) as { world?: unknown }).world).toBeTruthy();
+    },
+    { timeout: 5000 }
+  );
   return harness;
 }
 

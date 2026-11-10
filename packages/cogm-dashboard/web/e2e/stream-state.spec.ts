@@ -3,7 +3,7 @@
 // gave up, and gone again as soon as the stream is back. The stream is faked in the browser.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes } from './support';
+import { GM_TOKEN, fakeCommonRoutes, settle } from './support';
 
 const pill = (page: Page): Locator => page.locator('#stream-state .status-pill');
 
@@ -74,8 +74,8 @@ test('a quick reconnect is never shown', async ({ page }) => {
   });
   await load(page);
   await expect.poll(() => requests).toBeGreaterThan(1);
-  // Well inside the grace (the pill needs 5 s of the stream being down).
-  await page.waitForTimeout(500);
+  // Inside the grace (the pill needs 5 s of the stream being down): this checks the first moments.
+  await settle(page);
   await expect(pill(page)).toHaveCount(0);
 });
 
@@ -115,6 +115,6 @@ test('comes back by itself after the stream was refused once (a 502 while the se
   await load(page);
   // The second connection is made after about 2 s and gets through; the header never complains.
   await expect.poll(() => requests, { timeout: 8000 }).toBeGreaterThan(1);
-  await page.waitForTimeout(500);
+  await settle(page);
   await expect(pill(page)).toHaveCount(0);
 });

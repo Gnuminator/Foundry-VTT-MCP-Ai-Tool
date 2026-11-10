@@ -14,7 +14,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import { FOUNDRY_UUID_MAX_LENGTH, FOUNDRY_UUID_SOURCE } from '@gnuminator/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as openPage from '../public/open.js';
 import { createDashboard, type Dashboard, type DashboardDeps } from './app.js';
@@ -245,8 +245,6 @@ async function postOpen(h: Harness, body: unknown, opts: PostOptions = {}): Prom
   return answer;
 }
 
-const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
 function expectPageHeaders(answer: Answer): void {
   expect(answer.headers['content-security-policy']).toBe(OPEN_PAGE_CSP);
   expect(answer.headers['referrer-policy']).toBe('no-referrer');
@@ -264,9 +262,13 @@ describe('GET /open (the static confirm page)', () => {
       lastPollAt: null,
       foundryDownSince: null,
     });
-    await wait(150);
-    const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });
-    expect(gmState.text).toContain(WORLD_CANARY);
+    await vi.waitFor(
+      async () => {
+        const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });
+        expect(gmState.text).toContain(WORLD_CANARY);
+      },
+      { timeout: 5000 }
+    );
 
     const before = h.bridge.calls.length;
     for (const token of [undefined, PLAYER_TOKEN, GM_TOKEN]) {

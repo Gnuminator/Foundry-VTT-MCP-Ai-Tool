@@ -33,7 +33,9 @@
 # Pi; the PC's content module and the snapshot are the way back). A GM_SCRIPT in the environment is ignored: the
 # script follows MODE.
 # MODE=grave-patch (scp scripts/pi/remote/grave-domain-patch.js too) patches aitool-content.classes and .spells so Circle
-# of Mortality grants Spare the Dying and Path to the Grave has a Use activity (Backlog grave-domain-content-patch); the
+# of Mortality grants Spare the Dying, Path to the Grave has a Use activity and the five Grave Domain spell grants are
+# always prepared (Backlog grave-domain-content-patch; the player copies in world.player-items, world.player-classes and
+# world.player-spells are refreshed by MODE=baseline, not by this mode); the
 # module packs are shared by every world, which is fine for an additive patch. Then MODE=baseline refreshes the player
 # packs from them. MODE=grave-check is the read-only check (no snapshot, no APPLY); MODE=check includes the grave check
 # (last in its one file) when grave-domain-patch.js is uploaded, and fails when the file is uploaded but the patch is not

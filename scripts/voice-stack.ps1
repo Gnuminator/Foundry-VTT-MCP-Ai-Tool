@@ -241,7 +241,9 @@ switch ($Command) {
 
     $tArgs = @('--profile', 'transcribe', 'run', '--rm', '-T', '-v', "${folder}:/session", 'transcriber',
       $inside, '--out', '/session/transcripts')
-    if ($Model) { $tArgs += @('--model', $Model) }
+    # Always pass the model: the transcriber image bakes in its own default at build time, and a stale
+    # image (built before the large-v3 default) ran large-v3-turbo on 2026-10-29 without anyone asking.
+    $tArgs += @('--model', $(if ($Model) { $Model } else { 'large-v3' }))
     if ($Hotwords -and -not $NoHotwords) {
       if (Test-Path (Join-Path $folder 'names.txt')) {
         $tArgs += @('--hotwords', '/session/names.txt')

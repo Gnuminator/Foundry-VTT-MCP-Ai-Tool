@@ -5,8 +5,10 @@
 # /usr/local/sbin/foundry-ssh-log; sshd_config is not touched. The wrapper writes one line per login
 # to $TOOL_DATA/ssh-log/ssh-commands.log and keeps a copy of every `bash -s` script (the stage scripts),
 # then runs the command unchanged. If logging fails, the command still runs (fail open).
-# Commands sent as `bash -s -- no-log` (scripts/pi/set-discord-token.ps1: it carries a token) are
-# logged by name only; their input is never saved. Root only (0700 folder, 0600 files), 12 weeks kept.
+# Commands sent as `bash -s -- no-log` (scripts/pi/set-discord-token.ps1: it carries a token), commands
+# that name a token script (set-tunnel-token, set-dashboard-access, set-discord-token) and the runner
+# token write (put-runner-token.sh) are logged without their text ("command text not saved"); their
+# input is never saved. Root only (0700 folder, 0600 files), 12 weeks kept.
 #
 # An SSH settings change (the dangerous list): run it only after the user's OK, a dietpi-backup
 # snapshot, and with the user in default permission mode. Safety net: when this run changes
@@ -89,6 +91,12 @@ sftp | internal-sftp | /usr/lib/openssh/sftp-server)
   # tee keeps passing the input on even when it cannot write the copy.
   tee \"\$script\" 2>/dev/null | { umask \"\$session_umask\"; \"\${SHELL:-/bin/bash}\" -s; }
   exit \"\${PIPESTATUS[1]}\"
+  ;;
+*no-log | *set-tunnel-token* | *set-dashboard-access* | *set-discord-token* | *gh-runner-*.reg*)
+  # A token script, or a command that writes a token file: the log keeps no command text (it could carry a secret or an option value).
+  note 'run: (command text not saved: it carries or sits next to a secret)'
+  umask \"\$session_umask\"
+  exec \"\${SHELL:-/bin/bash}\" -c \"\$cmd\"
   ;;
 *)
   note \"run: \$cmd\"

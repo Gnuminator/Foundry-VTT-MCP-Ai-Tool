@@ -92,6 +92,47 @@ test('shows party, fight and scene, each with how fresh it is', async ({ page })
   expect(names.filter(n => /^(plan|apply|undo)-/.test(n))).toEqual([]);
 });
 
+for (const width of [390, 1440]) {
+  test(`Party rows put the name left and the HP at the right edge at ${width} px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fakeCommonRoutes(page);
+    const fight = [combatant('g', 'Goblin', { isCurrentTurn: true })];
+    await fakeStream(page, [
+      STATUS,
+      {
+        event: 'combat',
+        data: { combat: { active: true, round: 1, turn: 0, current: fight[0], combatants: fight } },
+      },
+    ]);
+    await fakeTools(page, call =>
+      call.name === 'get-party' ? ok(PARTY) : ok({ id: 's1', name: 'Castle gate' })
+    );
+    await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+    const row = page.locator('#glance-party li').first();
+    await expect(row).toContainText('Aldric');
+
+    const tracks = (locator: typeof row): Promise<number> =>
+      locator.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    expect(await tracks(row)).toBe(2);
+    // The Fight rows keep their three columns (initiative, name, HP).
+    expect(await tracks(page.locator('#glance-combat li').first())).toBe(3);
+
+    const rowBox = await row.boundingBox();
+    const nameBox = await row.locator('span').nth(0).boundingBox();
+    const hpBox = await row.locator('span').nth(1).boundingBox();
+    if (!rowBox || !nameBox || !hpBox) throw new Error('row not laid out');
+    // HP ends at the row's inner right edge (row padding is var(--space-2)); same line as the name.
+    const rowStyle = await row.evaluate(el => parseFloat(getComputedStyle(el).paddingRight));
+    expect(Math.abs(hpBox.x + hpBox.width - (rowBox.x + rowBox.width - rowStyle))).toBeLessThan(
+      1.5
+    );
+    expect(Math.abs(hpBox.y - nameBox.y)).toBeLessThan(2);
+    expect(hpBox.x).toBeGreaterThan(nameBox.x);
+  });
+}
+
 test('says there is no fight, and what could not be read', async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, [

@@ -62,6 +62,9 @@ Silver and so on) and click **Submit**.
 
 **Done when it looks like this:** the pile window has a **Currencies** list with your amounts.
 
+**If it fails:** an amount shows 0 or the wrong coin has it. Click **Add currency** again, check you typed in
+the right box (Gold, not Platinum) and click **Submit**.
+
 ![The pile as the GM sees it: items with quantities, coins, and the buttons Open Sheet, Show To Players and Configure Pile](../images/guides/loot-5-gm-window.png)
 
 The numbers next to the items are how many are in the pile, and you can change them right there.
@@ -75,6 +78,9 @@ Players** in the pile window. Foundry asks which players, then **Okay**.
 ![The Select Users window, both players ticked](../images/guides/loot-7-show.png)
 
 **Done when it looks like this:** the pile window opens by itself on those players' screens.
+
+**If it fails:** a player sees nothing. The window only opens for players who are logged in and ticked
+in the list. Ask them to double-click the pile on the map instead.
 
 ## 5. What the players do
 
@@ -108,7 +114,13 @@ there is nobody to split with. Players have to be logged in, each with a charact
 
 A pile deletes itself when the last item and coin are taken. If you want to keep it (a chest the
 party comes back to), open **Configure Pile**, change **Delete when empty** to **No, don't delete when empty**, then
-**Config Update**.
+**Config Update**. The settings window is shown under
+[If a player cannot open the pile](#if-a-player-cannot-open-the-pile).
+
+**Done when it looks like this:** the token is still on the map after the last item and coin are taken.
+
+**If it fails:** the pile vanished and you wanted it to stay. It deleted itself when it was empty. Make a
+new pile (step 1) and set **Delete when empty** before the players start taking.
 
 ## If a player cannot open the pile
 
@@ -127,7 +139,9 @@ party comes back to), open **Configure Pile**, change **Delete when empty** to *
 ## The Loot window and asking Claude
 
 The **Loot** window in the [GM windows](gm-windows.md#loot) shows what each character carries and
-the coins, and it updates by itself after a pick-up. It is **read-only**: it has no button that
+the coins, and it updates by itself when coins or treasure change hands. Only coins and items marked
+as treasure count (set **Loot Type** on the item), so a dagger or a potion taken from a pile does not
+show there. It is **read-only**: it has no button that
 gives anything away. That job is the pile's.
 
 You can also ask Claude to put loot straight on a character ("give Thorin 50 gold and a ruby").
@@ -141,4 +155,4 @@ open or fill piles; for a pile, use the steps above.
 - Item Piles posts a welcome card in the chat the first time you load it, and the players can see
   it. Delete it before the players join.
 - Coins and items in a pile are not in the Loot window until somebody takes them: the window shows
-  characters, not piles.
+  player characters, not piles.

@@ -1,6 +1,6 @@
 ---
 source: gm/loot-with-item-piles.md
-sourceHash: e8ae3f3e4f09
+sourceHash: 940d38cf0e03
 title: Del loot ud med Item Piles
 description: Sådan laver du en bunke loot på kortet, lægger items og mønter i den, lader spillerne tage det, de vil have, deler mønterne og hvad du gør, når en spiller ikke kan åbne den.
 ---
@@ -64,6 +64,9 @@ og så videre) og klik **Submit**.
 
 **Færdig, når det ser sådan ud:** bunke-vinduet har en liste **Currencies** med dine beløb.
 
+**Hvis det fejler:** et beløb viser 0, eller den forkerte mønt har det. Klik **Add currency** igen, tjek, at du
+skrev i det rigtige felt (Gold, ikke Platinum), og klik **Submit**.
+
 ![Bunken, som GM'en ser den: items med antal, mønter og knapperne Open Sheet, Show To Players og Configure Pile](../../images/guides/loot-5-gm-window.png)
 
 Tallene ved siden af items er, hvor mange der ligger i bunken, og du kan rette dem lige dér. Bunken er
@@ -77,6 +80,9 @@ klikke **Show To Players** i bunke-vinduet. Foundry spørger, hvilke spillere, o
 ![Vinduet Select Users, begge spillere sat kryds ved](../../images/guides/loot-7-show.png)
 
 **Færdig, når det ser sådan ud:** bunke-vinduet åbner af sig selv på de spilleres skærme.
+
+**Hvis det fejler:** en spiller ser ingenting. Vinduet åbner kun for spillere, der er logget ind og sat kryds ved
+i listen. Bed dem dobbeltklikke på bunken på kortet i stedet.
 
 ## 5. Det gør spillerne
 
@@ -110,7 +116,13 @@ er ingen at dele med. Spillerne skal være logget ind, hver med en karakter tild
 
 En bunke sletter sig selv, når sidste item og sidste mønt er taget. Vil du beholde den (en kiste,
 partiet vender tilbage til), åbn **Configure Pile**, ret **Delete when empty** til **No, don't delete
-when empty**, og klik **Config Update**.
+when empty**, og klik **Config Update**. Indstillingsvinduet er vist under
+[Hvis en spiller ikke kan åbne bunken](#hvis-en-spiller-ikke-kan-åbne-bunken).
+
+**Færdig, når det ser sådan ud:** tokenet ligger stadig på kortet, efter at sidste item og sidste mønt er taget.
+
+**Hvis det fejler:** bunken forsvandt, og du ville have, at den blev. Den slettede sig selv, da den var tom. Lav
+en ny bunke (trin 1), og ret **Delete when empty**, før spillerne begynder at tage.
 
 ## Hvis en spiller ikke kan åbne bunken
 
@@ -129,7 +141,9 @@ when empty**, og klik **Config Update**.
 ## Loot-vinduet og at spørge Claude
 
 **Loot**-vinduet i [GM-vinduerne](gm-windows.md#loot) viser, hvad hver karakter bærer, og mønterne,
-og det opdaterer sig selv efter en pick-up. Det er **read-only**: det har ingen knap, der giver noget
+og det opdaterer sig selv, når mønter eller skat skifter hænder. Kun mønter og items markeret som skat
+tæller (sæt **Loot Type** på itemet), så en dolk eller en potion, der tages fra en bunke, vises ikke
+dér. Det er **read-only**: det har ingen knap, der giver noget
 væk. Det job er bunkens.
 
 Du kan også bede Claude lægge loot direkte på en karakter ("giv Thorin 50 guld og en rubin"). Det er

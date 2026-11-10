@@ -5,13 +5,15 @@
  *
  *   node scripts/main-red-revert.mjs --run <run id> --attempt <n> --sha <head sha> [--dry-run]
  *
- * - attempt 1: `gh run rerun <id> --failed` (a flaky red heals itself) and stop.
- * - attempt 2 or more (the rerun failed too): find the merge that started the current red streak
- *   (the oldest consecutive non-green main CI push run ending at this sha), revert it on a branch
- *   `auto-revert/<sha7>` and open a draft PR. The PR is never merged here: the planner skill's
- *   "Main is red" section stays in force (a revert needs the user's OK). No-ops when main already
- *   healed (a newer run is green), when an auto-revert PR is already open, or when the revert
- *   conflicts (the job then fails with the reason, so the red shows in Actions).
+ * - attempt 1 only (a later attempt is a person's rerun and is left alone): `gh run rerun <id>
+ *   --failed`, then wait in this same job until attempt 2 has finished (a rerun started with
+ *   GITHUB_TOKEN may not fire a second workflow_run, so nothing depends on one). Green: done.
+ * - Red again: find the merge that started the current red streak (the oldest consecutive
+ *   non-green main CI push run ending at this sha), revert it on a branch `auto-revert/<sha7>` and
+ *   open a draft PR. The PR is never merged here: the planner skill's "Main is red" section stays
+ *   in force (a revert needs the user's OK). No-ops when main already healed (a newer run is
+ *   green), when an auto-revert PR is already open, or when the revert conflicts (the job then
+ *   fails with the reason, so the red shows in Actions).
  * A push with GITHUB_TOKEN starts no CI on the PR: close and reopen the draft PR (or push to its
  * branch) to start it.
  */
@@ -22,12 +24,13 @@ import { fileURLToPath } from 'node:url';
 export const BRANCH_PREFIX = 'auto-revert/';
 
 /**
- * What to do about a failed main run.
- * @param {number} attempt run_attempt of the failed run
- * @returns {'rerun' | 'revert'}
+ * Where the rerun stands, from the run as the API reports it.
+ * @param {{ status: string, run_attempt: number, conclusion: string | null }} r
+ * @returns {'waiting' | 'green' | 'red'}
  */
-export function nextStep(attempt) {
-  return attempt <= 1 ? 'rerun' : 'revert';
+export function rerunState(r) {
+  if (r.run_attempt < 2 || r.status !== 'completed') return 'waiting';
+  return r.conclusion === 'success' ? 'green' : 'red';
 }
 
 /**
@@ -40,6 +43,7 @@ export function nextStep(attempt) {
 export function findCulprit(runs, failedSha) {
   const at = runs.findIndex(r => r.head_sha === failedSha);
   if (at < 0) return { culprit: null, reason: 'the failed run is not in the recent main runs' };
+  if (runs[at].conclusion === 'success') return { culprit: null, reason: 'that run is green' };
   if (runs.slice(0, at).some(r => r.conclusion === 'success')) {
     return { culprit: null, reason: 'a newer main run is green: main already healed' };
   }
@@ -74,6 +78,29 @@ export function parseArgs(argv) {
   return o;
 }
 
+/** Polls the run until attempt 2 has finished. True when it ended red. @param {string} id */
+function waitForRerun(id) {
+  const deadline = Date.now() + 50 * 60 * 1000;
+  while (Date.now() < deadline) {
+    spawnSync('node', ['-e', 'setTimeout(()=>{},30000)']);
+    const r = JSON.parse(
+      gh([
+        'api',
+        `repos/{owner}/{repo}/actions/runs/${id}`,
+        '--jq',
+        '{status, run_attempt, conclusion}',
+      ]).out
+    );
+    const state = rerunState(r);
+    if (state === 'green') {
+      console.log('the rerun passed: a flaky red, nothing to revert');
+      return false;
+    }
+    if (state === 'red') return true;
+  }
+  throw new Error('the rerun did not finish within 50 minutes');
+}
+
 function main() {
   const o = parseArgs(process.argv.slice(2));
   if (!o.run || !o.sha || !Number.isInteger(o.attempt)) {
@@ -81,12 +108,14 @@ function main() {
     process.exitCode = 2;
     return;
   }
-  if (nextStep(o.attempt) === 'rerun') {
-    console.log(
-      `attempt ${o.attempt} failed on ${o.sha.slice(0, 7)}: rerunning the failed jobs once`
-    );
-    if (!o.dryRun) gh(['run', 'rerun', o.run, '--failed']);
+  if (o.attempt > 1) {
+    console.log(`attempt ${o.attempt} is a manual rerun: nothing to do`);
     return;
+  }
+  if (!o.dryRun) {
+    console.log(`attempt 1 failed on ${o.sha.slice(0, 7)}: rerunning the failed jobs once`);
+    gh(['run', 'rerun', o.run, '--failed']);
+    if (!waitForRerun(o.run)) return;
   }
   const listed = JSON.parse(
     gh([

@@ -24,6 +24,9 @@ jobs:
   react:
     if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+    # The job waits for the rerun of CI (one job does both steps; a rerun started with the
+    # workflow token may not fire a second workflow_run).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

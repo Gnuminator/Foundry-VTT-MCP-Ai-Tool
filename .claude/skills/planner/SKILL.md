@@ -100,9 +100,8 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
 1. **Open the unblock PR within 15 minutes:** **revert the merge that turned main red** (the
    alert's `since` sha, not the newest merge; the user's OK first, by question), or, when the break is a limit (a bundle or tool-set budget, a ratchet baseline),
    **a one-line temporary limit raise** (no OK) with a Backlog item for the proper fix. It is a
-   normal PR through the gate. A flaky red is rerun by the `Main red revert` workflow; if it fails
-   again that workflow opens a draft `auto-revert/<sha>` PR (close and reopen it to start CI). It
-   is never merged on its own: ask the user, then use or close it.
+   normal PR through the gate. The `Main red revert` workflow reruns a red once, then opens a draft
+   `auto-revert/<sha>` PR (close and reopen it to start CI); the user's OK first, then use or close it.
 2. **No other merges while main is red.** Lanes may keep building and pushing.
 3. The proper fix is a normal lane (red commit, step and unblock PR in `- source:`); tell the user in one line.
 

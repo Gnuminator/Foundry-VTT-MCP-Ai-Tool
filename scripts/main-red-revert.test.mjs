@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { findCulprit, nextStep, parseArgs } from './main-red-revert.mjs';
+import { findCulprit, rerunState, parseArgs } from './main-red-revert.mjs';
 
 const run = (head_sha, conclusion) => ({ head_sha, conclusion });
 
-test('first failure reruns, second reverts', () => {
-  assert.equal(nextStep(1), 'rerun');
-  assert.equal(nextStep(2), 'revert');
+test('rerun state', () => {
+  const r = (status, run_attempt, conclusion) => ({ status, run_attempt, conclusion });
+  assert.equal(rerunState(r('completed', 1, 'failure')), 'waiting');
+  assert.equal(rerunState(r('in_progress', 2, null)), 'waiting');
+  assert.equal(rerunState(r('completed', 2, 'success')), 'green');
+  assert.equal(rerunState(r('completed', 2, 'failure')), 'red');
 });
 
 test('culprit is the oldest red run of the streak', () => {
@@ -31,6 +34,10 @@ test('nothing to do when a newer run is green', () => {
 test('nothing to do when the failed sha or a green run is missing', () => {
   assert.equal(findCulprit([run('a', 'success')], 'x').culprit, null);
   assert.equal(findCulprit([run('b', 'failure'), run('a', 'failure')], 'b').culprit, null);
+});
+
+test('a green failed-sha run is left alone', () => {
+  assert.equal(findCulprit([run('b', 'success'), run('a', 'success')], 'b').culprit, null);
 });
 
 test('parseArgs', () => {

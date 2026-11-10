@@ -353,7 +353,7 @@ for pair in $RUNNERS; do
     [ "${p2%%:*}" = "$name" ] || other="$other $RUNNER_BASE/${p2%%:*}"
   done
   unit_body="[Unit]
-Description=GitHub Actions runner for $GH_OWNER/$repo (PM board; stopped by the gate during a play session)
+Description=GitHub Actions runner for $GH_OWNER/$repo (PM board; the gate stops all but the vault runner during a play session)
 Wants=network-online.target
 After=network-online.target time-sync.target
 
@@ -391,7 +391,7 @@ TasksMax=512
 done
 
 gate_service="[Unit]
-Description=Foundry AI Tool: keep the GitHub runners off the Pi during a play session
+Description=Foundry AI Tool: keep the GitHub runners (except the vault runner) off the Pi during a play session
 
 [Service]
 Type=oneshot

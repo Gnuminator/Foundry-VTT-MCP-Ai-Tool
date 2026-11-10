@@ -522,6 +522,44 @@ export function requiredContexts(json) {
   return contexts.length > 0 ? [...new Set(contexts)] : null;
 }
 
+/** A job name an unexpanded expression leaks into ends at the "${{"; the rest is not a name. @param {any} name */
+function stripExpression(name) {
+  const t = String(name ?? '');
+  const i = t.indexOf('${{');
+  return i < 0 ? t : t.slice(0, i).trim();
+}
+
+/** The Actions run id in a check's detailsUrl (.../actions/runs/<id>/job/<id>), or null. @param {any} c */
+function runIdOf(c) {
+  const m = /\/actions\/runs\/(\d+)/.exec(String(c.detailsUrl ?? ''));
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Drops each CANCELLED check run whose run was superseded: another check of the same workflow, not a
+ * " [dispatch]" one, comes from a run with a higher id. Such a run is the one the concurrency group
+ * cancelled when a newer run started on the same head; its leftover checks say nothing about the head.
+ * A cancelled check without a run id, or with no newer run, stays and blocks as before.
+ * @param {any[]} rollup @returns {any[]}
+ */
+export function supersededCancelled(rollup) {
+  /** @type {Map<string, number>} */
+  const newest = new Map();
+  for (const c of rollup) {
+    const id = runIdOf(c);
+    if (id === null || c.status === undefined || /\[dispatch\]/.test(stripExpression(c.name)))
+      continue;
+    const w = String(c.workflowName ?? '');
+    if (id > (newest.get(w) ?? 0)) newest.set(w, id);
+  }
+  return rollup.filter(c => {
+    if (c.status === undefined || String(c.conclusion ?? '').toUpperCase() !== 'CANCELLED')
+      return true;
+    const id = runIdOf(c);
+    return id === null || id >= (newest.get(String(c.workflowName ?? '')) ?? 0);
+  });
+}
+
 /**
  * The newest entry of each check in a rollup. A PR closed and reopened (or a workflow run again on
  * a fresh merge ref) gets a second run on the same head, and GitHub keeps both in the rollup: an old
@@ -540,9 +578,16 @@ export function requiredContexts(json) {
  * "[dispatch]" check on the head blocks the gate even when the pull_request run is green. That is on
  * purpose; `gh run rerun <id> --failed` on the dispatch run (a newer start under the same key wins)
  * or a new push clears it.
+ *
+ * Two more rules, both for a run that a newer run of the same workflow replaced on the same head
+ * (the concurrency group cancels the older one): a job cancelled before it started keeps the raw
+ * expression in its name ("dashboard-visual (screenshots)${{ ... }}"), so the newer run's green check
+ * never shared its key. The key drops everything from "${{" on, and `supersededCancelled` drops a
+ * CANCELLED check whose run id is lower than the run id of a non-dispatch check of the same workflow.
  * @param {any[]} rollup @returns {any[]}
  */
 export function latestChecks(rollup) {
+  rollup = supersededCancelled(rollup);
   const byKey = new Map();
   const isStatusEntry = c => c.state !== undefined && c.status === undefined;
   const unfinished = c =>
@@ -562,7 +607,7 @@ export function latestChecks(rollup) {
   for (const c of rollup) {
     const key = isStatusEntry(c)
       ? `status\u0000${c.context ?? c.name}`
-      : `run\u0000${c.workflowName ?? ''}\u0000${c.name ?? c.context}`;
+      : `run\u0000${c.workflowName ?? ''}\u0000${stripExpression(c.name ?? c.context)}`;
     const seen = byKey.get(key);
     if (!seen) {
       byKey.set(key, c);

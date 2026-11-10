@@ -628,6 +628,62 @@ test('latestChecks: unknown start times (Go zero time) rank by status, ties keep
   assert.deepEqual(rollupProblems([{ ...passed, startedAt: ZERO }, zeroFailed]).failing, f);
 });
 
+test('rollupProblems: a cancelled check of a superseded run does not block the newer green run', () => {
+  const url = id => `https://github.com/o/r/actions/runs/${id}/job/1`;
+  const check = (id, name, conclusion, extra = {}) => ({
+    workflowName: 'CI',
+    name,
+    status: 'COMPLETED',
+    conclusion,
+    startedAt: '2026-11-10T10:00:00Z',
+    detailsUrl: url(id),
+    ...extra,
+  });
+  const raw =
+    "dashboard-visual (screenshots)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}";
+  const older = [check(100, raw, 'CANCELLED'), check(100, 'lint', 'CANCELLED')];
+  const newer = [
+    check(200, 'dashboard-visual (screenshots)', 'SUCCESS'),
+    check(200, 'lint', 'SUCCESS'),
+  ];
+  assert.deepEqual(rollupProblems([...older, ...newer]).failing, []);
+  assert.deepEqual(rollupProblems([...newer, ...older]).failing, []);
+  // the unexpanded name shares a key with the expanded one even when the cancelled entry is the later start
+  const late = check(100, raw, 'CANCELLED', { startedAt: '2026-11-10T10:05:00Z' });
+  assert.deepEqual(rollupProblems([late, ...newer]).failing, []);
+  // nothing newer: the cancelled check still blocks
+  assert.deepEqual(rollupProblems(older).failing, [raw + ' (CANCELLED)', 'lint (CANCELLED)']);
+  // a newer run that is itself cancelled does not excuse an older failure, and a newer failure still fails
+  assert.deepEqual(
+    rollupProblems([check(100, 'lint', 'FAILURE'), check(200, 'lint', 'CANCELLED')]).failing,
+    ['lint (CANCELLED)']
+  );
+  assert.deepEqual(rollupProblems([...older, check(200, 'lint', 'FAILURE')]).failing, [
+    'lint (FAILURE)',
+  ]);
+  // only a non-dispatch run supersedes: a newer dispatch run leaves the cancelled pull_request check blocking
+  const dispatch = check(300, 'lint [dispatch]', 'SUCCESS');
+  assert.deepEqual(rollupProblems([check(100, 'lint', 'CANCELLED'), dispatch]).failing, [
+    'lint (CANCELLED)',
+  ]);
+  // another workflow's newer run supersedes nothing here
+  assert.deepEqual(
+    rollupProblems([
+      check(100, 'lint', 'CANCELLED'),
+      check(900, 'x', 'SUCCESS', { workflowName: 'Other' }),
+    ]).failing,
+    ['lint (CANCELLED)']
+  );
+  // no run id: unchanged behaviour
+  assert.deepEqual(
+    rollupProblems([
+      { workflowName: 'CI', name: 'a', status: 'COMPLETED', conclusion: 'CANCELLED' },
+      ...newer,
+    ]).failing,
+    ['a (CANCELLED)']
+  );
+});
+
 test('requiredContexts: reads the ruleset answer, nothing else counts', () => {
   assert.deepEqual(requiredContexts(JSON.stringify(RULES)), ['build-test']);
   assert.equal(requiredContexts('not json'), null);

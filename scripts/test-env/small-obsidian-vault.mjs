@@ -11,7 +11,14 @@
  * Safe to run again: it rewrites its own files and leaves anything else in the folder alone.
  * Never point it at a real vault; it refuses a folder that already has notes it did not write.
  */
-import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +29,9 @@ const root = path.resolve(
   argDir > 0 ? (process.argv[argDir + 1] ?? '') : 'C:\\FoundryTest\\obsidian-small'
 );
 const world = 'ai-tool-test';
+// Test server A's dashboard port, from the one ports source.
+const dashboardPort = JSON.parse(readFileSync(path.join(repo, 'shared', 'ports.json'), 'utf8'))
+  .ports.testA.dashboard;
 
 const MARK = 'generated_by: small-obsidian-vault';
 
@@ -61,7 +71,7 @@ for (const f of ['main.js', 'manifest.json', 'styles.css']) {
 write(
   '.obsidian/plugins/foundry-ai-tool/data.json',
   JSON.stringify(
-    { dashboardUrl: 'http://localhost:3100', theme: 'neutral', themeEnabled: false },
+    { dashboardUrl: `http://localhost:${dashboardPort}`, theme: 'neutral', themeEnabled: false },
     null,
     2
   )

@@ -11,7 +11,7 @@ import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 
 import type { PlayerVisibility } from '@gnuminator/shared';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createDashboard, type Dashboard } from '../app.js';
 import { config, type Config } from '../config.js';
@@ -282,12 +282,21 @@ async function get(
 }
 
 /** Everything a stream sends in `ms`, as text. */
-async function readStream(path: string, ms: number, token?: string): Promise<string> {
+/** Resolves once the stream's headers are in (the server has registered the client). */
+async function openStream(
+  path: string,
+  ms: number,
+  token?: string
+): Promise<{ text: Promise<string> }> {
   const controller = new AbortController();
   const res = await fetch(`${base}${path}`, {
     signal: controller.signal,
     ...(token ? { headers: { 'X-CoGM-Token': token } } : {}),
   });
+  return { text: readBody(res, controller, ms) };
+}
+
+async function readBody(res: Response, controller: AbortController, ms: number): Promise<string> {
   const reader = res.body?.getReader();
   const decoder = new TextDecoder();
   let text = '';
@@ -309,8 +318,6 @@ async function readStream(path: string, ms: number, token?: string): Promise<str
 function leaks(text: string): string[] {
   return Object.values(CANARY).filter(canary => text.includes(canary));
 }
-
-const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 beforeAll(async () => {
   const logger = new Logger('error', 'canary');
@@ -351,7 +358,11 @@ beforeAll(async () => {
     ],
     { initial: true }
   );
-  await wait(300); // world info and the player view context arrive asynchronously
+  // World info and the player view context arrive asynchronously.
+  await vi.waitFor(async () => {
+    const res = await get('/api/player/state', GM_TOKEN);
+    expect((JSON.parse(res.text) as { world?: unknown }).world).toBeTruthy();
+  });
 });
 
 afterAll(async () => {
@@ -414,12 +425,12 @@ describe('canary suite: nothing GM-only reaches a player', () => {
   });
 
   it('no player stream frame leaks, including later broadcasts', async () => {
-    const reading = Promise.all([
-      readStream('/api/player/stream', 800),
-      readStream('/api/player/stream', 800, GM_TOKEN),
-      readStream('/api/stream', 800), // the player role on the legacy stream
+    const opened = await Promise.all([
+      openStream('/api/player/stream', 800),
+      openStream('/api/player/stream', 800, GM_TOKEN),
+      openStream('/api/stream', 800), // the player role on the legacy stream
     ]);
-    await wait(100);
+    const reading = Promise.all(opened.map(o => o.text));
     dashboard.handlers.onEvents(
       [
         event('late-blind', {

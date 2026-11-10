@@ -17,6 +17,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  settle,
 } from './support';
 
 const SESSION = { success: true, worldId: 'w', open: true, endedAt: null };
@@ -311,7 +312,7 @@ test('a gm-change event from Foundry reloads the list once', async ({ page }) =>
   // The reload is what shows the new list.
   await expect(c.getByText('Moved a token')).toBeVisible();
   // The first load and the one gm-change started; nothing more follows.
-  await page.waitForTimeout(1000);
+  await settle(page);
   expect(callsOf(calls, 'list-recent-changes')).toHaveLength(2);
 });
 

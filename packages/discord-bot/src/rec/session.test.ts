@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { convertSession } from '../convert/convert.js';
 import { decodeTrack, encodeRecord } from './format.js';
 import { parseRtpHeader } from './rtp-tap.js';
@@ -134,8 +134,7 @@ describe('RecordingSession + convertSession', () => {
     s.packet(anna, frame(1), undefined);
     s.packet(anna, frame(2), undefined);
     s.packet(bo, frame(3), undefined);
-    await new Promise(r => setTimeout(r, 50));
-    expect(errors).toHaveLength(1);
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
     expect(errors[0]).toContain('1-anna.b.rec');
     expect(s.failedFiles).toEqual(['1-anna.b.rec']);
     await s.stop('test');

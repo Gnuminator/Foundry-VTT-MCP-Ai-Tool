@@ -608,8 +608,28 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
       },
       { timeout: 8_000, interval: 50 }
     );
-    // Let any rebuild still in flight finish before the final read.
-    await new Promise(resolve => setTimeout(resolve, 250));
+    // Wait until the last rebuild has landed everything the checks below look for.
+    await vi.waitFor(
+      async () => {
+        const a = await folderText(alice);
+        const b = await folderText(bob);
+        for (const text of [PUBLIC_LINK_LABEL, PUBLIC_NPC_LINE, PUBLIC_NOTICE, ALICE_ONLY_TEXT]) {
+          expect(has(a, text), `missing ${text}`).toBe(true);
+        }
+        expect(a.files).toContain('My stats.md');
+        expect(has(a, String(ALICE_STATS.damageTaken))).toBe(true);
+        for (const text of [
+          PUBLIC_NOTICE,
+          BOB_CANARIES.pageTitle,
+          BOB_CANARIES.linkLabel,
+          String(BOB_DAMAGE_TAKEN),
+        ]) {
+          expect(has(b, text), `missing ${text}`).toBe(true);
+        }
+        expect(b.files).toContain('My stats.md');
+      },
+      { timeout: 8_000, interval: 50 }
+    );
 
     const a = await folderText(alice);
     const b = await folderText(bob);

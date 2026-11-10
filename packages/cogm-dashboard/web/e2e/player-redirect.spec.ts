@@ -5,18 +5,18 @@
 // Only the deployment that asks for a player token is faked, on /api/state.
 import { expect, test } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes } from './support';
+import { GM_TOKEN, fakeCommonRoutes, settle } from './support';
 
 const PLAYER_TOKEN = 'e2e-player-token';
 
 const PAGES = [['the main dashboard', '/']] as const;
 
-/** Waits for the page's /api/state answer, then long enough for a redirect to have happened. */
+/** Waits for the page's /api/state answer, then until the page has acted on it (a redirect would have happened). */
 async function settled(page: import('@playwright/test').Page, path: string): Promise<unknown> {
   const state = page.waitForResponse('**/api/state');
   await page.goto(path);
   const body: unknown = await (await state).json();
-  await page.waitForTimeout(400);
+  await settle(page);
   return body;
 }
 

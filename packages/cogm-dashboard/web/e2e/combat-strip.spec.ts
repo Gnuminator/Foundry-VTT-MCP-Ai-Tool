@@ -14,6 +14,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  settle,
 } from './support';
 
 // The dash the strip shows for no value.
@@ -141,6 +142,8 @@ interface Options {
 interface Fakes {
   /** Sends events on the stream after the page loaded. */
   push: (events: Event[]) => void;
+  /** Resolves once everything pushed has reached the page and the page has rendered it. */
+  drained: () => Promise<void>;
   /** The tool calls the page made. */
   calls: ToolCall[];
 }
@@ -292,6 +295,7 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
   const queue: Event[][] = [];
   let wake: () => void = () => undefined;
   let requests = 0;
+  let delivering = false;
   await page.route('**/api/stream**', async route => {
     requests += 1;
     let events = first;
@@ -299,13 +303,19 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
       while (queue.length === 0) await new Promise<void>(resolve => (wake = resolve));
       events = queue.shift() ?? [];
     }
+    delivering = true;
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse(events, 100) });
+    delivering = false;
   });
   return {
     calls,
     push: (events): void => {
       queue.push(events);
       wake();
+    },
+    drained: async (): Promise<void> => {
+      await expect.poll(() => queue.length === 0 && !delivering).toBe(true);
+      await settle(page);
     },
   };
 }
@@ -575,7 +585,7 @@ test.describe('start combat', () => {
     await page.getByRole('button', { name: 'Start combat' }).click();
     await page.getByRole('button', { name: 'Start combat with 2' }).click();
     await expect.poll(() => sent).toBe(1);
-    await page.waitForTimeout(400);
+    await settle(page);
     // The first ask is still unanswered: the second has not been sent.
     expect(sent).toBe(1);
     release();
@@ -1653,32 +1663,36 @@ test.describe('the bridge is away', () => {
   });
 
   test('a failed poll that the next one clears is never shown', async ({ page }) => {
-    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    const { push, drained } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await page.clock.install();
     await load(page);
     await expect(strip(page)).toBeVisible();
     // One poll fails: the control channel is up and Foundry's state is unknown.
     push([status({ foundry: 'unknown' })]);
-    await page.waitForTimeout(1500);
+    await drained();
+    await page.clock.runFor(1500);
     await expect(strip(page)).not.toHaveClass(/is-stale/);
     await expect(away(page)).toHaveText('');
     // The next poll succeeds, and nothing was ever shown, even once the wait is over.
     push([BRIDGE_UP]);
-    await page.waitForTimeout(AWAY_AFTER_MS + 500);
+    await drained();
+    await page.clock.runFor(AWAY_AFTER_MS + 500);
     await expect(strip(page)).not.toHaveClass(/is-stale/);
     await expect(away(page)).toHaveText('');
   });
 
   test('doubt that lasts is shown after the wait, and back is at once', async ({ page }) => {
-    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    const { push, drained } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await page.clock.install();
     await load(page);
     // The strip loads as its own chunk: a strip that mounts in doubt says so at once, so wait for it.
     await expect(strip(page)).toBeVisible();
     push([status({ foundry: 'unknown' })]);
-    await page.waitForTimeout(AWAY_AFTER_MS - 1500);
+    await drained();
+    await page.clock.runFor(AWAY_AFTER_MS - 1500);
     await expect(away(page)).toHaveText('');
-    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
-      timeout: 4000,
-    });
+    await page.clock.runFor(1500);
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
     await expect(strip(page)).toHaveClass(/is-stale/);
     push([BRIDGE_UP]);
     await expect(away(page)).toHaveText('', { timeout: 1000 });
@@ -1688,7 +1702,7 @@ test.describe('the bridge is away', () => {
   test('after a dropped channel the reconnect stays marked until a poll succeeds', async ({
     page,
   }) => {
-    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    const { push, drained } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
     await load(page);
     push([status({ controlChannel: 'disconnected', foundry: 'unknown' })]);
     await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
@@ -1696,7 +1710,7 @@ test.describe('the bridge is away', () => {
     });
     // The channel is back, Foundry not yet known: on its own a blip, here still the same outage.
     push([status({ controlChannel: 'connected', foundry: 'unknown' })]);
-    await page.waitForTimeout(1000);
+    await drained();
     await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
     await expect(strip(page)).toHaveClass(/is-stale/);
     push([BRIDGE_UP]);
@@ -1917,7 +1931,7 @@ test.describe('when a write or a roll request fails', () => {
     // The form closes as soon as the plan is made; the apply follows a tick later.
     await expect.poll(() => calls.filter(c => c.name === 'apply-planned-change').length).toBe(1);
     // Settle, so a second apply that lands a moment after the first is caught too.
-    await page.waitForTimeout(300);
+    await settle(page);
     expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
     expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
   });
@@ -1954,7 +1968,7 @@ test.describe('when a write or a roll request fails', () => {
     await expect(ask).toHaveAttribute('aria-disabled', 'true');
     await expect(ask).toHaveAttribute('title', /Can't read the GM Actions switches/);
     await ask.click({ force: true });
-    await page.waitForTimeout(200);
+    await settle(page);
     expect(calls.filter(c => c.name === 'request-player-rolls')).toEqual([]);
   });
 
@@ -2002,7 +2016,7 @@ test.describe('when a write or a roll request fails', () => {
     await expect(page.locator('#damage-form')).toHaveCount(0);
     await page.locator('.toast-stack .toast-undo .toast-action').dblclick();
     await expect.poll(() => calls.filter(c => c.name === 'undo-change').length).toBe(1);
-    await page.waitForTimeout(300);
+    await settle(page);
     expect(calls.filter(c => c.name === 'undo-change')).toHaveLength(1);
   });
 

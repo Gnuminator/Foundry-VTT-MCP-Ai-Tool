@@ -12,6 +12,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  settle,
 } from './support';
 
 const NOW = new Date(2026, 9, 10, 20, 0).getTime();
@@ -368,7 +369,7 @@ test('nothing loads while Before is on screen, and it loads when After is picked
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await expect(page.getByRole('tab', { name: 'Before' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#moment-before')).toBeVisible();
-  await page.waitForTimeout(300);
+  await settle(page);
   expect(calls.filter(c => c.name === 'get-play-stats')).toHaveLength(0);
   expect(notesAsked).toBe(0);
 

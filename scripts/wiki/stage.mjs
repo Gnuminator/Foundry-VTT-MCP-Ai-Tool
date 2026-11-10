@@ -100,8 +100,18 @@ const SIDEBAR = [
       'gm/first-hour-quest',
       'gm/getting-started',
       'gm/glossary',
-      'gm/connect-claude-desktop',
       'gm/claude-plans',
+    ],
+  },
+  {
+    label: 'One-time setups',
+    pages: [
+      'gm/connect-claude-desktop',
+      'gm/setup-dashboard',
+      'gm/setup-gm-coach',
+      'gm/setup-obsidian-sync',
+      'gm/setup-obsidian-plugin',
+      'gm/setup-tv-table',
     ],
   },
   {
@@ -135,6 +145,7 @@ const LAST_GROUP = 'More guides';
 const DA_LABELS = {
   'Player or GM?': 'Spiller eller GM?',
   'Start here': 'Kom i gang',
+  'One-time setups': 'Engangsopsætning',
   'Game night': 'Spilaften',
   'The tool': 'Værktøjet',
   'Your campaign': 'Din kampagne',
@@ -450,7 +461,7 @@ function stagePage(repoPath, images, playerCopy = false) {
   const text = readFileSync(path.join(repo, repoPath), 'utf8').replace(/\r\n/g, '\n');
   let staged = rewriteLinks(text, repoPath, images, { playerCopy });
   // The download link goes in after the rewrite: the zip exists only in the staged tree.
-  if (repoPath === 'docs/gm/gm-coach.md' || repoPath === 'docs/da/gm/gm-coach.md') {
+  if (/^docs\/(da\/)?gm\/setup-gm-coach\.md$/.test(repoPath)) {
     if (!staged.includes(COACH_MARKER))
       throw new Error(`${repoPath} lost its ${COACH_MARKER} line`);
     staged = staged.replace(

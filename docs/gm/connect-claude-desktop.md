@@ -11,13 +11,21 @@ to Claude Desktop, and it keeps a private, locked tunnel open to the server. You
 you need your **tunnel key** (two pieces of text) from the person who built the tool.
 
 You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel key. About 10 minutes.
+The free Claude plan is enough to connect, but it has a daily limit; see
+[Claude Free or Pro](claude-plans.md).
+
+This is one of the [one-time setups](README.md#one-time-setups). For a new install do "Install",
+"Check that it works" and "Stop the Allow questions", in that order. To move to a newer client
+(for example `FoundryMCPServer-Setup-v0.28.0.exe`) do "Update the client".
 
 ## Install
 
 1. **Quit Claude Desktop completely.** Right-click its icon in the tray (bottom right, near the
    clock) and choose **Quit**. Closing the window is not enough. The installer will not close it for
    you.
-2. Run `FoundryMCPServer-Setup-vX.Y.Z.exe` that you were sent.
+2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (for example v0.28.0) from **Assets** at the bottom of
+   the newest release on <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, or use
+   the copy you were sent. Run it.
 3. On the page called "Bridge address", tick **Use the Cloudflare tunnel**. In **Tunnel name**
    type the name you were given (it starts with `mcp.`). Leave the address and the port as they are.
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press
@@ -45,8 +53,10 @@ problem.
 
 ## Check that it works
 
-Ask Claude: _"What world is open in Foundry?"_ A normal answer with the world's name means you are
-connected. If Claude says it cannot reach the bridge, go to the list below.
+Done when it looks like this: ask Claude _"What world is open in Foundry?"_ A normal answer with
+the world's name means you are connected. Then make sure the Prep connector is switched on and ask
+_"Run get-preflight"_: the row **Claude Desktop connectors are up to date** is green. If Claude says
+it cannot reach the bridge, go to the list below.
 
 ## Stop the "Allow" questions
 

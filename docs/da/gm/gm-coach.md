@@ -1,6 +1,6 @@
 ---
 source: gm/gm-coach.md
-sourceHash: 351656dd1183
+sourceHash: b36b7709b623
 title: Din GM coach i Claude
 description: Læg Foundry GM coach-skillen ind på din egen Claude-konto, hvordan du spørger den, og Claude Project som nødløsning.
 ---
@@ -28,17 +28,10 @@ Den svarer først ud fra sine sider og siger det. Når siderne ikke dækker noge
 ud fra almen viden, men siger det til dig, fordi mange guides på nettet beskriver ældre Foundry-versioner.
 Den søger aldrig på nettet, og den har ingen bog- eller kampagnetekst.
 
-## Læg den ind (én gang, ca. 5 minutter)
+## Læg den ind
 
-Du skal bruge filen `foundry-gm-coach.zip` fra værktøjets administrator.
-
-<!-- wiki:coach-download -->
-
-1. Åbn **Settings**, **Capabilities** i Claude (desktop-appen eller claude.ai), og slå
-   **Code execution and file creation** til. Skills har brug for den.
-2. Åbn **Customize**, **Skills**.
-3. Tilføj en skill og upload `foundry-gm-coach.zip`. Pak den ikke ud først.
-4. Sørg for, at skillen er slået til på listen.
+Én gang, cirka 5 minutter: følg [Engangsopsætning: GM-coachen](setup-gm-coach.md). Den virker på den gratis
+Claude-plan.
 
 ## Spørg den
 
@@ -58,19 +51,6 @@ spørge på dansk.
 
 Tjek dens svar mod skærmen. Hvis den nævner en knap, du ikke kan finde, så sig det: så fortæller den dig,
 om den del er blevet tjekket i et rigtigt spil.
-
-## Hvis skills ikke virker på din konto: et Claude Project
-
-Et Project er et chatrum med dine egne filer. Det virker også, men det indlæser alle sine filer i hver
-besked, så på den gratis plan æder det din grænse meget hurtigere. Upload kun de sider, du har brug for.
-
-1. Pak `foundry-gm-coach.zip` ud.
-2. I Claude: **Projects**, opret et projekt med navnet "Foundry GM coach".
-3. Åbn `SKILL.md` i Notesblok, kopiér alt under den anden `---`-linje, og indsæt det i
-   projektets instruktioner.
-4. Upload to eller tre sider fra mappen `references` som projektets viden, for eksempel
-   `references/foundry/in-world-layout.md`, `references/foundry/combat-tracker.md` og
-   `references/gm/game-night-runbook.md`. Skift dem ud, når dine spørgsmål ændrer sig.
 
 ## At holde den opdateret
 

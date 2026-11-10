@@ -15,37 +15,10 @@ You set it up once. After that the TV opens on the map by itself, also after a r
 **What you need:** a Windows PC at the TV with PowerShell 7 (`pwsh`), Edge or Chrome, and a copy
 of the tool's folder (it holds the `scripts\tv` files). Ask the tool admin to set that up.
 
-## One time: make the Table player
+## One time
 
-1. Open Claude with the **Admin** tools on (the **+** in the chat box, **Connectors**, switch on **foundry-mcp-admin**).
-2. Ask: "Plan a Table user for the TV." Claude shows a plan: one new player named Table, no
-   password.
-3. Read it, then confirm. It shows in **Recent Changes**, with an **Undo** if you change your mind.
-
-If a user called Table already exists (a player or a GM), or Claude cannot read the list of users,
-it says so and plans nothing. The Table player is marked as the TV, so the handout receipts, the
-player count and the session attendance leave it out. (A Table player made with an older version
-is not marked: undo its plan in Recent Changes and plan it again, or it keeps being counted.)
-
-**If the map is dark on the TV:** on a scene with token vision on, a player only sees what their
-own characters can see, and Table has none. Give Table the same view as the party: ask Claude
-"Give Table Observer on the party characters." (Claude plans it with the ownership tool, you
-confirm.) Check this once on your real map before the session, with the TV connected.
-
-## One time: sign the TV in
-
-You need a keyboard on the TV's computer for this step only. Ask the tool admin for the TV's
-email address first: the code that proves "this is the TV" is sent there.
-
-1. On the TV's computer, open PowerShell in the tool's folder and run (use the game's address):
-
-   ```powershell
-   pwsh scripts\tv\start-table-viewer.ps1 -Url https://your-game-address -Setup
-   ```
-
-2. A normal browser window opens. Type the TV's email address, then the code that arrives there.
-3. Foundry's join page follows and the script joins as **Table** for you. The map appears.
-4. Close the window.
+Making the Table player and signing the TV in is on its own page: [One-time setup: the TV at the
+table](setup-tv-table.md). The fixes for a dark map and for Cloudflare's sign-in page are there too.
 
 ## Every time after
 
@@ -73,7 +46,7 @@ While the TV runs, the browser opens a control port that only this computer can 
 signed in to this Windows account could use it, so use a TV PC that only the table uses.
 
 The email code from Cloudflare is only asked for again after the Access session ends (weeks).
-When the TV shows Cloudflare's sign-in page, do "sign the TV in" above once more.
+When the TV shows Cloudflare's sign-in page, do the sign-in step on the [setup page](setup-tv-table.md) once more.
 
 ## During the session
 

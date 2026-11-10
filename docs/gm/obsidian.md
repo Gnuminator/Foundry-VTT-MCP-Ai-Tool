@@ -6,7 +6,7 @@ description: The GM's Obsidian vault on your own PC, what to edit in it, and how
 # Your Obsidian vault
 
 The tool writes your world into an Obsidian vault on the server, and Syncthing copies it to your
-PC. You read it in Obsidian like any notes. It is the GM's vault: it has the secrets and the book
+PC ([One-time setup: your vault on your PC](setup-obsidian-sync.md)). You read it in Obsidian like any notes. It is the GM's vault: it has the secrets and the book
 text, so it stays on your PC. The players get vaults of their own without the secrets.
 
 ## What is in it
@@ -102,32 +102,10 @@ the graph's colour groups and one search term, and your own groups and search te
 
 ## Connect the plugin (once)
 
-The AI Tool plugin adds **Open in Foundry**, the reveal status of handouts and the shared theme. It
-talks only to the dashboard. When the dashboard runs on the server, Cloudflare guards it, and the
-plugin needs three values to get through. The builder pastes them in with you during setup, on
-your PC; they never go in chat or in a note.
-
-1. In Obsidian: Settings, Community plugins, **Foundry AI Tool**, the gear icon.
-2. **Dashboard address:** the dashboard's https address.
-3. **GM token:** click it, then **Add secret** (below), and paste the dashboard's GM token.
-4. **Cloudflare Access Client ID:** add a secret and paste the Client ID.
-5. **Cloudflare Access Client Secret:** add another secret and paste the Client Secret.
-
-**Obsidian's Add secret dialog** has two fields. **ID** is only a name for you to pick the secret by
-later, never the value itself; use `foundry-gm-token`, `cf-access-client-id` and
-`cf-access-client-secret`. **Secret** is the value. Paste only the value: Cloudflare's copy buttons
-copy the header name too (`CF-Access-Client-Id: ...`), and the plugin drops that for you, but
-cleaner is better. Back in the plugin's settings, pick each secret by its ID.
-
-**Where the GM token comes from:** it is the `token=` part of the link the dashboard setup script
-printed (`http://<name>:3000/?token=<token>`: everything after `token=`), or the builder reads it
-from `dashboard-access.env` on the server in their own SSH window.
-
-The three values stay in Obsidian's secret storage on your PC. They are not in the vault, so
-Syncthing never copies them anywhere. The Cloudflare values are sent only to https addresses.
-
-**Check it:** open an NPC note and click **Open in Foundry** in the status bar; the sheet opens on
-your Foundry screen.
+The AI Tool plugin adds **Open in Foundry** and the reveal status of handouts. Installing it and
+connecting it to the dashboard is on its own page: [One-time setup: the Obsidian
+plugin](setup-obsidian-plugin.md). The three values it needs never go in the vault, so Syncthing never
+copies them.
 
 ## When it does not work
 

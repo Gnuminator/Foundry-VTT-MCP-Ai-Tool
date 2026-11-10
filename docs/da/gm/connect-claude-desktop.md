@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 8368c93c377f
+sourceHash: a5ef72a8fa69
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -14,13 +14,21 @@ gør det én gang, og du skal bruge din **tunnelnøgle** (to stykker tekst) fra 
 værktøjet.
 
 Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunnelnøglen. Cirka 10 minutter.
+Den gratis Claude-plan er nok til at forbinde, men den har en daglig grænse; se
+[Claude Free eller Pro](claude-plans.md).
+
+Dette er en af [engangsopsætningerne](README.md#engangsopsætning). Ved en ny installation gør du
+"Installer", "Tjek, at det virker" og "Stop Allow-spørgsmålene" i den rækkefølge. For at skifte til en nyere
+klient (for eksempel `FoundryMCPServer-Setup-v0.28.0.exe`) gør du "Opdater klienten".
 
 ## Installer
 
 1. **Afslut Claude Desktop helt.** Højreklik på dets ikon i systembakken (nederst til højre, ved
    uret) og vælg **Quit**. Det er ikke nok at lukke vinduet. Installationsprogrammet lukker det ikke
    for dig.
-2. Kør `FoundryMCPServer-Setup-vX.Y.Z.exe`, som du har fået sendt.
+2. Hent `FoundryMCPServer-Setup-vX.Y.Z.exe` (for eksempel v0.28.0) under **Assets** nederst i den nyeste
+   release på <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, eller brug den kopi, du
+   har fået sendt. Kør den.
 3. På siden "Bridge address": sæt flueben ved **Use the Cloudflare tunnel**. Skriv det navn, du har
    fået, i **Tunnel name** (det begynder med `mcp.`). Lad adressen og porten stå, som de er.
 4. Gå videre. Et lille vindue spørger efter **Client ID** og derefter **secret**. Indsæt hver af dem
@@ -48,8 +56,10 @@ Claude Desktop ikke forbundet til serveren endnu; det er ikke et opdateringsprob
 
 ## Tjek, at det virker
 
-Spørg Claude: _"What world is open in Foundry?"_ Et normalt svar med worldens navn betyder, at du
-er forbundet. Hvis Claude siger, at den ikke kan nå bridgen, så gå til listen nedenfor.
+Færdig, når det ser sådan ud: spørg Claude _"What world is open in Foundry?"_ Et normalt svar med worldens navn
+betyder, at du er forbundet. Sørg så for, at Prep-connectoren er slået til, og spørg _"Run get-preflight"_:
+rækken **Claude Desktop connectors are up to date** er grøn. Hvis Claude siger, at den ikke kan nå bridgen, så
+gå til listen nedenfor.
 
 ## Stop "Allow"-spørgsmålene
 

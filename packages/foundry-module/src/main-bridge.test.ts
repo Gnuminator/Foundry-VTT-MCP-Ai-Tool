@@ -299,16 +299,14 @@ describe('main: onReady with the backend not answering', () => {
     const warmPlayers = vi.fn();
     bridge['warmEnhancedIndex'] = warmCreatures;
     bridge['warmPlayerIndexes'] = warmPlayers;
-    (console.error as ReturnType<typeof vi.fn>).mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await expect(bridge.onReady()).resolves.toBeUndefined();
 
     expect(fake.state.instances).toHaveLength(1);
     expect(warmCreatures).toHaveBeenCalledTimes(1);
     expect(warmPlayers).toHaveBeenCalledTimes(1);
-    const failedReady = (console.error as ReturnType<typeof vi.fn>).mock.calls.some(c =>
-      String(c[0]).includes('Failed during ready')
-    );
+    const failedReady = errorSpy.mock.calls.some(c => String(c[0]).includes('Failed during ready'));
     expect(failedReady).toBe(false);
   });
 });

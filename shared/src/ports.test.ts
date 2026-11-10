@@ -45,7 +45,8 @@ function countLiterals(): Record<string, number> {
 describe('ports', () => {
   it('ports.json equals the table in ports.ts', () => {
     if (update) writeFileSync(jsonPath, portsJson());
-    expect(readFileSync(jsonPath, 'utf8').replace(/\r\n/g, '\n')).toBe(portsJson());
+    // Compared as data: prettier reflows the file on commit.
+    expect(JSON.parse(readFileSync(jsonPath, 'utf8'))).toEqual(JSON.parse(portsJson()));
   });
 
   it('forbids every live, test and reserved port', () => {

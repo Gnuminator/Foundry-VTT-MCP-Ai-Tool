@@ -14,6 +14,7 @@ import {
   attackers,
   defaultAttacker,
   defaultTarget,
+  spellAttacksOf,
   weaponsOf,
   type Weapon,
 } from '../lib/attackForm';
@@ -87,14 +88,23 @@ export function AttackForm({
       return;
     }
     let live = true;
-    void callTool('search-character-items', {
+    const weaponRead = callTool('search-character-items', {
       characterIdentifier: attackerToken,
       type: 'weapon',
       limit: 50,
+    });
+    // Spells are a bonus: when that read fails the weapons still list.
+    const spells = callTool('search-character-items', {
+      characterIdentifier: attackerToken,
+      type: 'spell',
+      limit: 200,
     })
-      .then(r => {
+      .then(spellAttacksOf)
+      .catch((): Weapon[] => []);
+    void weaponRead
+      .then(async r => {
+        const found = [...weaponsOf(r), ...(await spells)];
         if (!live) return;
-        const found = weaponsOf(r);
         setWeapons(found);
         setWeaponId(found[0]?.id ?? '');
       })
@@ -216,7 +226,7 @@ export function AttackForm({
           </select>
         </label>
         <label className={styles['field']}>
-          <span>Weapon</span>
+          <span>Weapon or spell</span>
           <select
             id="attack-weapon"
             data-track="dash.attack.weapon"
@@ -229,7 +239,7 @@ export function AttackForm({
           >
             {(weapons ?? []).map(w => (
               <option key={w.id} value={w.id}>
-                {w.name}
+                {w.label}
               </option>
             ))}
           </select>

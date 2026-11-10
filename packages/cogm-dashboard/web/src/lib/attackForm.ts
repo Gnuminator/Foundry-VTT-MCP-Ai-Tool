@@ -8,6 +8,8 @@ export const FOUNDRY_TARGETS = 'foundry';
 export interface Weapon {
   id: string;
   name: string;
+  /** What the dropdown shows: the name, with "(cantrip)" or "(level N)" on a spell. */
+  label: string;
 }
 
 /** Combatants that can attack: they need a token. */
@@ -33,8 +35,25 @@ export function weaponsOf(result: unknown): Weapon[] {
   return matches.flatMap((m: unknown) => {
     const r = (m ?? {}) as Record<string, unknown>;
     return typeof r['id'] === 'string' && typeof r['name'] === 'string'
-      ? [{ id: r['id'], name: r['name'] }]
+      ? [{ id: r['id'], name: r['name'], label: r['name'] }]
       : [];
+  });
+}
+
+/**
+ * The spells from search-character-items that have an attack activity: cantrips and prepared
+ * spells (an unprepared one cannot be cast). The module marks them `hasAttack`.
+ */
+export function spellAttacksOf(result: unknown): Weapon[] {
+  const matches = (result as { matches?: unknown } | null)?.matches;
+  if (!Array.isArray(matches)) return [];
+  return matches.flatMap((m: unknown) => {
+    const r = (m ?? {}) as Record<string, unknown>;
+    if (typeof r['id'] !== 'string' || typeof r['name'] !== 'string') return [];
+    if (r['hasAttack'] !== true || r['prepared'] === false) return [];
+    const level = typeof r['level'] === 'number' ? r['level'] : 0;
+    const label = `${r['name']} (${level === 0 ? 'cantrip' : `level ${level}`})`;
+    return [{ id: r['id'], name: r['name'], label }];
   });
 }
 

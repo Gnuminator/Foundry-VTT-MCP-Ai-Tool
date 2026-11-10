@@ -1,7 +1,7 @@
 /**
  * The one source for every port the tool uses. `shared/ports.json` is the same table for
  * scripts that cannot import TypeScript (PowerShell, node .mjs, shell); a test keeps the two equal
- * and fails on a new port literal in production code (see `ports-guard.test.ts`).
+ * and fails on a new port literal in production code (see `ports.test.ts`).
  *
  * Each environment is one row: Foundry, the bridge control channel, the Foundry link and the
  * co-GM dashboard. The live row (31414 to 31416) is never bound from a dev session.

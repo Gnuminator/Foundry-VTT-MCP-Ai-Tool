@@ -41,11 +41,30 @@ test('Plan B reserves every test server port (scripts/plan-b/lib.ps1)', () => {
 });
 
 // The forbidden-port lists of the scripts that choose their own ports (L4).
-const FORBIDDEN = [
-  ['scripts/voice-stack.ps1', /\$ForbiddenPorts\s*=\s*@\(([^)]*)\)/],
-  ['tools/livekit/scripts/livekit-poc.ps1', /\$ForbiddenPorts\s*=\s*@\(([^)]*)\)/],
-  ['scripts/pi/rebuild-drill.ps1', /\$HostPort -in ([\d, ]+)\)/],
-];
+const FORBIDDEN = [['scripts/pi/rebuild-drill.ps1', /\$HostPort -in ([\d, ]+)\)/]];
+
+// voice-stack and livekit read their list from shared/ports.json; that file has to cover the
+// test servers in servers.json field by field and the live bridge ports.
+const portsJson = JSON.parse(read('shared/ports.json'));
+for (const file of ['scripts/voice-stack.ps1', 'tools/livekit/scripts/livekit-poc.ps1']) {
+  test(`${file} reads its forbidden ports from shared/ports.json`, () => {
+    assert.match(read(file), /\$ForbiddenPorts\s*=\s*@\(.*shared\/ports\.json/);
+  });
+}
+test('shared/ports.json matches servers.json and forbids every test and live port', () => {
+  const forbidden = new Set(portsJson.forbidden);
+  for (const [name, s] of Object.entries(servers)) {
+    const set = portsJson.ports[`test${name}`];
+    assert.deepEqual(
+      [set.foundry, set.control, set.link, set.dashboard],
+      [s.FoundryPort, s.ControlPort, s.LinkPort, s.DashboardPort],
+      `ports.json test${name} differs from servers.json`
+    );
+  }
+  for (const { name, key, port } of serverPorts)
+    assert.ok(forbidden.has(port), `server ${name} ${key} ${port} is not forbidden`);
+  for (const live of [31414, 31415, 31416]) assert.ok(forbidden.has(live), `live ${live}`);
+});
 
 for (const [file, pattern] of FORBIDDEN) {
   test(`${file} forbids every test server port and the live bridge ports`, () => {

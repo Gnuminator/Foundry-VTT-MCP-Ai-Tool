@@ -74,7 +74,7 @@ describe('ports', () => {
     expect(
       shrank,
       `Fewer literals now than the baseline in: ${shrank.map(([f]) => f).join(', ')}. ` +
-        'Lower it: UPDATE_PORTS=1 npm test --workspace shared'
+        'Lower it: set UPDATE_PORTS=1 (PowerShell: $env:UPDATE_PORTS=1) and run npm test --workspace shared'
     ).toEqual([]);
   });
 });

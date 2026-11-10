@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: c99c78dcb07b
+sourceHash: 52c90897d4ac
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -27,6 +27,8 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 4. Din browser åbner Syncthing-siden (adressen er `http://127.0.0.1:8384`; den virker kun på din egen
    pc). Lad PowerShell-vinduet stå åbent, mens du gør resten. Hvis Syncthing spørger om anonym
    usage reporting, vælg **No**. En advarsel om at sætte et GUI-password kan vente.
+5. Klik på **Actions**, **Settings**, **Connections**, fjern fluebenet ved **Enable NAT traversal** (så
+   Syncthing aldrig beder din router om at åbne en port) og klik på **Save**.
 
 ## 3. Send dit ID
 
@@ -81,7 +83,8 @@ sig selv.
 - **En note rejser begge veje.** I Obsidian højreklik på mappen `Prep`, **New note**, kald den
   `Sync test` og skriv en linje. Inden for et minut viser Syncthing ændringen på vej ud, og så siger
   **foundry-pi** **Up to Date** igen: serveren har din note. Den anden vej ligger alt, serveren skrev, før
-  du kom med (for eksempel `Home.md`), allerede på din pc. Slet `Sync test` bagefter.
+  du kom med (for eksempel `Home.md`), allerede på din pc. Skriv navnet `Sync test` til den, der byggede
+  værktøjet; de bekræfter, at den ligger på serveren. Slet så `Sync test`.
 
 ## Hvis det ikke virker
 

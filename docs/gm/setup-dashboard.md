@@ -28,11 +28,19 @@ mark should show. Click **✈ Pre-flight** once to see the list; fixing it is pa
 
 ## Pick your During layout
 
-1. Click **Before** at the top. Find the card **Pick your During layout**.
-2. Click **Try the layouts**. The three layouts show on the real screen, one after another.
-3. When you like one, click **Use this one**. **Auto** (the default) follows the game: it looks like
-   Cards until a fight starts, then the Combat order grows. If you are unsure, take **Auto**.
+1. In the header click **Advanced ▾**. In the **During screen** group click **▦ Try the During layouts**.
+   (On a first visit the **Before** screen also has a card **Pick your During layout** with the same
+   trial; it is gone once a layout has been picked.)
+2. The three layouts show on the real screen, one after another, with a small guide in the corner.
+3. Stop on **Auto** and click **Use this one**. **Auto** follows the game: it looks like Cards until
+   a fight starts, then the Combat order grows. **Stop** keeps what you had.
 4. You can change it any time with **Layout** at the top of the During screen.
+
+## Combat buttons
+
+The Damage / Heal, Condition and Clear buttons in the combat strip work once **GM Actions** is on.
+Clicking **Start session** in the header turns it on for the night, so you do not set anything
+now. Until then they can be off, and that is normal.
 
 ## Done when it looks like this
 
@@ -46,5 +54,5 @@ The dashboard opens from your bookmark, the Live Feed and Recent Changes show, t
 - **No code arrives:** look in the spam folder, then ask for a new code.
 - **"Connection lost" or Pre-flight says Foundry is not connected:** see
   [Troubleshooting](troubleshooting.md).
-- **The card "Pick your During layout" is gone:** you already picked. Use **Try layouts** next to
-  **Layout** on the During screen.
+- **The card "Pick your During layout" is not there:** use **Advanced ▾**, **▦ Try the During
+  layouts** instead.

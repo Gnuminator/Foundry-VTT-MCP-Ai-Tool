@@ -23,7 +23,9 @@ This is one of the [one-time setups](README.md#one-time-setups). For a new insta
 1. **Quit Claude Desktop completely.** Right-click its icon in the tray (bottom right, near the
    clock) and choose **Quit**. Closing the window is not enough. The installer will not close it for
    you.
-2. Run `FoundryMCPServer-Setup-vX.Y.Z.exe` that you were sent.
+2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (for example v0.28.0) from **Assets** at the bottom of
+   the newest release on <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, or use
+   the copy you were sent. Run it.
 3. On the page called "Bridge address", tick **Use the Cloudflare tunnel**. In **Tunnel name**
    type the name you were given (it starts with `mcp.`). Leave the address and the port as they are.
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press

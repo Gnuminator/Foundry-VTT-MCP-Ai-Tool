@@ -25,6 +25,8 @@ set this up once. What the vault holds and how to use it is in [Your Obsidian va
 4. Your browser opens the Syncthing page (the address is `http://127.0.0.1:8384`; it only works on
    your own PC). Leave the PowerShell window open while you do the rest. If Syncthing asks about
    anonymous usage reporting, choose **No**. A warning about setting a GUI password can wait.
+5. Click **Actions**, **Settings**, **Connections**, untick **Enable NAT traversal** (so Syncthing never
+   asks your router to open a port) and click **Save**.
 
 ## 3. Send your ID
 
@@ -80,7 +82,8 @@ Syncthing starts on its own.
   `Sync test` and type a line. Within a minute Syncthing shows the change going out, and then
   **foundry-pi** says **Up to Date** again: the server has your note. In the other direction,
   everything the server wrote before you joined (for example `Home.md`) is already on your PC.
-  Delete `Sync test` afterwards.
+  Message the person who built the tool the name `Sync test`; they confirm it is on the server.
+  Then delete `Sync test`.
 
 ## If it does not work
 

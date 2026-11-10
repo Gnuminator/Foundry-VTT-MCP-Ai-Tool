@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 5ece34aff49e
+sourceHash: a5ef72a8fa69
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -26,7 +26,9 @@ klient (for eksempel `FoundryMCPServer-Setup-v0.28.0.exe`) gør du "Opdater klie
 1. **Afslut Claude Desktop helt.** Højreklik på dets ikon i systembakken (nederst til højre, ved
    uret) og vælg **Quit**. Det er ikke nok at lukke vinduet. Installationsprogrammet lukker det ikke
    for dig.
-2. Kør `FoundryMCPServer-Setup-vX.Y.Z.exe`, som du har fået sendt.
+2. Hent `FoundryMCPServer-Setup-vX.Y.Z.exe` (for eksempel v0.28.0) under **Assets** nederst i den nyeste
+   release på <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, eller brug den kopi, du
+   har fået sendt. Kør den.
 3. På siden "Bridge address": sæt flueben ved **Use the Cloudflare tunnel**. Skriv det navn, du har
    fået, i **Tunnel name** (det begynder med `mcp.`). Lad adressen og porten stå, som de er.
 4. Gå videre. Et lille vindue spørger efter **Client ID** og derefter **secret**. Indsæt hver af dem

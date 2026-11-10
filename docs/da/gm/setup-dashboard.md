@@ -1,6 +1,6 @@
 ---
 source: gm/setup-dashboard.md
-sourceHash: f5d98eeea7f5
+sourceHash: d47890e5f004
 title: 'Engangsopsætning: dashboardet'
 description: Åbn dashboardet på din anden skærm for første gang, log ind gennem Cloudflare, sæt et bogmærke og vælg dit During-layout. Cirka 10 minutter, én gang.
 ---
@@ -30,11 +30,19 @@ skal vises. Klik én gang på **✈ Pre-flight** for at se listen; at rette den 
 
 ## Vælg dit During-layout
 
-1. Klik på **Before** øverst. Find kortet **Pick your During layout**.
-2. Klik på **Try the layouts**. De tre layouts vises på den rigtige skærm, ét ad gangen.
-3. Når du kan lide et, klik på **Use this one**. **Auto** (standard) følger spillet: det ser ud som Cards,
-   til en kamp starter, og så vokser Combat order. Er du i tvivl, tag **Auto**.
+1. Klik på **Advanced ▾** i headeren. I gruppen **During screen** klik på **▦ Try the During layouts**.
+   (Ved et første besøg har **Before**-skærmen også et kort **Pick your During layout** med den samme
+   prøve; det forsvinder, når et layout er valgt.)
+2. De tre layouts vises på den rigtige skærm, ét ad gangen, med en lille guide i hjørnet.
+3. Stop på **Auto** og klik på **Use this one**. **Auto** følger spillet: det ser ud som Cards, til en kamp
+   starter, og så vokser Combat order. **Stop** beholder det, du havde.
 4. Du kan skifte når som helst med **Layout** øverst på During-skærmen.
+
+## Combat buttons
+
+Knapperne Damage / Heal, Condition og Clear i combat strip virker, når **GM Actions** er slået til. Et
+klik på **Start session** i headeren slår det til for aftenen, så du skal ikke sætte noget nu. Indtil da kan
+de være slået fra, og det er normalt.
 
 ## Færdig, når det ser sådan ud
 
@@ -48,5 +56,5 @@ lost"-markering, og **Layout** øverst på During-skærmen viser det layout, du 
 - **Der kommer ingen kode:** kig i spam-mappen, og bed så om en ny kode.
 - **"Connection lost", eller Pre-flight siger, at Foundry ikke er forbundet:** se
   [Fejlfinding](troubleshooting.md).
-- **Kortet "Pick your During layout" er væk:** du har allerede valgt. Brug **Try layouts** ved siden af
-  **Layout** på During-skærmen.
+- **Kortet "Pick your During layout" er der ikke:** brug **Advanced ▾**, **▦ Try the During layouts** i
+  stedet.

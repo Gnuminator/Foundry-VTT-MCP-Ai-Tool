@@ -23,6 +23,7 @@ const OTHER_NAMES: Readonly<Record<string, string>> = {
   'foundry-mcp-bridge': 'the Foundry module id',
   'host-not-allowed': 'a dashboard error code',
   'foundry-gm-token': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
+  'foundry-ai-tool': 'the Obsidian plugin folder (docs/gm/setup-obsidian-plugin.md)',
   'quest-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
   'encounter-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
   'cf-access-client-id': 'an example Obsidian secret ID (docs/gm/obsidian.md)',

@@ -35,7 +35,11 @@ function countLiterals(): Record<string, number> {
     const text = readFileSync(join(root, file), 'utf8');
     let n = 0;
     for (const m of text.matchAll(/(?<![\w.-])(\d{4,5})(?![\w.-])/g)) {
-      if (KNOWN.has(Number(m[1]))) n += 1;
+      if (!KNOWN.has(Number(m[1]))) continue;
+      // A millisecond duration passed to a timer is not a port (e.g. setTimeout(()=>{},30000)).
+      const lineStart = text.lastIndexOf('\n', m.index) + 1;
+      if (/\bset(Timeout|Interval)\([^\n]*$/.test(text.slice(lineStart, m.index))) continue;
+      n += 1;
     }
     if (n > 0) counts[file] = n;
   }

@@ -134,7 +134,7 @@ export default {
     const raw = rawHeroes.find(h => h.classIdentifier === 'fighter' && h.abilities);
 
     /** @type {{player: import('playwright-core').Page | null, errors: () => any[], userId: string}} */
-    const ctx = { player: null, errors: () => [], userId: '' };
+    const ctx = { player: null, errors: () => [], userId: '', hasClaim: false };
 
     await t.step('the table set-up: players may create actors, one Fighter to build', async () => {
       t.check(
@@ -161,6 +161,7 @@ export default {
           await game.settings.set('core', 'permissions', p);
         }, PLAYER_ROLE);
       }
+      ctx.hasClaim = /aitool\.(1[3-9]|[2-9]\d)/.test(info.version ?? '');
       await turnOffTrackingFor(gmPage, STUDIO_MODULE, KIT_PLAYER_USER);
       const settings = playerStudioSettings(studioSettingsFor(profile), packs, narrowSources);
       const saved = await readStudioSettings(gmPage, Object.keys(settings));
@@ -233,6 +234,15 @@ export default {
         { what: 'the first advancement window', timeoutMs: 40000 }
       );
       await sleep(1000);
+      // Fork 2.10.5-aitool.13: Create Character makes the new actor the player's own character
+      if (ctx.hasClaim) {
+        ctx.hasClaim = false; // only the first build: after that the player has a character, which is never replaced
+        const claimed = await player().evaluate(() => game.user.character?.id ?? null);
+        t.check(
+          claimed === actorId,
+          `"${name}" was not set as the player's character (user.character is ${claimed})`
+        );
+      }
       return actorId;
     }
 

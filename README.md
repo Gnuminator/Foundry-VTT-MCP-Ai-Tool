@@ -26,9 +26,13 @@ currently shaped around a Curse of Strahd campaign.
 > **[player guide](docs/player/README.md)**. Everything else is in the
 > **[documentation index](docs/README.md)**.
 
-<p align="center">
-  <img src="docs/images/brand/demo.gif" alt="Foundry AI Tool: the dashboard in action, with the live combat tracker, the GM Tool Runner, confirm-gated actions and the brand lockup" width="100%">
-</p>
+Demo: the dashboard in action, with the live combat tracker, the GM Tool Runner and confirm-gated actions.
+
+<!-- markdownlint-disable MD034 -->
+
+https://github.com/user-attachments/assets/81971414-3296-4b41-aebc-116c1dc0bdfb
+
+<!-- markdownlint-enable MD034 -->
 
 ## What it does
 

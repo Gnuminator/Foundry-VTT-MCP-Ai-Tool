@@ -1497,7 +1497,8 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   viewer do not; a record with no `isGM` field counts as a player, so the runners stay stopped when in doubt; a join
   older than the newest `session-end` of that world is ignored, since a Foundry stop or a world switch can end a
   session without a leave) it stops the
-  runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
+  `board` runner when it runs no job. The `vault` runner (it rebuilds the PM board on every vault push) is never held: the
+  gate starts it when it is stopped, whatever the state (`GATE_KEEP_UNITS`, tests only, names the kept units). A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
   is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
   Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
   be read, the runners stay stopped for up to 14 hours in a row, then the gate lets them run and logs it. The runners are

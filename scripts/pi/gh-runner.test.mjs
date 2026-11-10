@@ -135,38 +135,37 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.doesNotMatch(runGate(d).calls, /start /);
   });
 
-  test('an open session stops the runners that run no job', () => {
+  test('an open session stops the board runner that runs no job, and never the vault runner', () => {
     const d = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
       active: UNITS.split(' '),
-    });
-    const r = runGate(d);
-    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
-    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
-    assert.equal(dry(d), 'state=playing decision=playing');
-  });
-
-  test('an open session leaves a runner with a job alone', () => {
-    const d = fakePi({
-      logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
-      active: UNITS.split(' '),
-      busy: ['foundry-ai-tool-gh-runner-vault.service'],
     });
     const r = runGate(d);
     assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault/);
     assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.equal(dry(d), 'state=playing decision=playing');
+  });
+
+  test('an open session leaves a held runner with a job alone', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
+      active: UNITS.split(' '),
+      busy: ['foundry-ai-tool-gh-runner-board.service'],
+    });
+    const r = runGate(d);
+    assert.doesNotMatch(r.calls, /stop /);
     assert.match(r.out, /runs a job, left alone/);
   });
 
   test('a runner waiting out its restart delay (activating) is stopped during a session, and not started when idle', () => {
-    const activating = ['foundry-ai-tool-gh-runner-vault.service=activating'];
+    const activating = ['foundry-ai-tool-gh-runner-board.service=activating'];
     const playing = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
       active: activating,
     });
-    assert.match(runGate(playing).calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(runGate(playing).calls, /stop foundry-ai-tool-gh-runner-board\.service/);
     const idle = fakePi({ logs: {}, active: activating });
-    assert.doesNotMatch(runGate(idle).calls, /start foundry-ai-tool-gh-runner-vault/);
+    assert.doesNotMatch(runGate(idle).calls, /start foundry-ai-tool-gh-runner-board/);
   });
 
   test('a failing start of one runner does not hide the other, and the gate exits non-zero', () => {
@@ -205,11 +204,13 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.equal(dry(open), 'state=playing decision=playing');
   });
 
-  test('an open session does not start a stopped runner', () => {
+  test('an open session does not start a stopped board runner, but starts a stopped vault runner', () => {
     const d = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(1))] } },
     });
-    assert.doesNotMatch(runGate(d).calls, /start |stop /);
+    const r = runGate(d);
+    assert.doesNotMatch(r.calls, /start foundry-ai-tool-gh-runner-board|stop /);
+    assert.match(r.calls, /start foundry-ai-tool-gh-runner-vault\.service/);
   });
 
   test('the last marker wins: a start followed by an end is idle', () => {
@@ -245,8 +246,43 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     });
     assert.equal(dry(d), 'state=playing decision=playing players=connected');
     const r = runGate(d);
-    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault/);
     assert.match(r.out, /playing \(players connected, no session marker\): stopped/);
+  });
+
+  test('with players connected the vault runner keeps running (even mid-job), only the board runner is held', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } },
+      active: UNITS.split(' '),
+      busy: ['foundry-ai-tool-gh-runner-vault.service'],
+    });
+    const r = runGate(d);
+    assert.equal(r.status, 0, r.out);
+    assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault|start foundry-ai-tool-gh-runner-vault/);
+    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.doesNotMatch(r.out, /foundry-ai-tool-gh-runner-vault/);
+  });
+
+  test('with players connected a stopped vault runner is started again, a stopped board runner is not', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } },
+    });
+    const r = runGate(d);
+    assert.match(r.calls, /start foundry-ai-tool-gh-runner-vault\.service/);
+    assert.doesNotMatch(r.calls, /start foundry-ai-tool-gh-runner-board/);
+  });
+
+  test('GATE_KEEP_UNITS can name another kept unit, and an empty list holds both runners', () => {
+    const logs = { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } };
+    const none = runGate(fakePi({ logs, active: UNITS.split(' ') }), { GATE_KEEP_UNITS: '' });
+    assert.match(none.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(none.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    const other = runGate(fakePi({ logs, active: UNITS.split(' ') }), {
+      GATE_KEEP_UNITS: 'foundry-ai-tool-gh-runner-board.service',
+    });
+    assert.match(other.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.doesNotMatch(other.calls, /stop foundry-ai-tool-gh-runner-board/);
   });
 
   test('a player who joined and left is idle; a rejoin counts again', () => {
@@ -401,7 +437,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
   test('an unreadable vault folder is unknown and holds the runners', () => {
     const d = fakePi({ vault: false, active: UNITS.split(' ') });
     assert.equal(dry(d), 'state=unknown decision=unknown');
-    assert.match(runGate(d).calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(runGate(d).calls, /stop foundry-ai-tool-gh-runner-board\.service/);
   });
 
   test('unknown for longer than the ceiling lets the runners run again, and says so', () => {

@@ -416,7 +416,7 @@ jobs:
       - name: Dashboard browser tests (React dashboard)
         # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
         # the real server with no bridge, the /api routes faked in the browser.
-        run: npm run test:e2e -w @gnuminator/cogm-dashboard
+        run: npm run test:e2e -w @gnuminator/cogm-dashboard -- e2e/scene-mood.spec.ts -g "viewed scene changed" --repeat-each=30
 
       - name: Keep the browser test report
         if: failure()

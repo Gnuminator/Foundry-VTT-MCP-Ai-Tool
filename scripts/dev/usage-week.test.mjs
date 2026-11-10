@@ -601,6 +601,7 @@ test('main --json prints the raw numbers; the text form ends with the run time',
     const env = {
       USAGE_WEEK_ROOT: f.projects,
       USAGE_WEEK_VAULT: f.vault,
+      USAGE_WEEK_CALLS_DIR: path.join(f.vault, 'no-calls'),
       USAGE_WEEK_NOW: NOW.toISOString(),
       USAGE_WEEK_GH: 'off',
     };
@@ -836,7 +837,10 @@ test('a measured profile runs through paceFor, usage:week --json and usage:now',
   const pace = paceFor(parseUsageLog(text), now);
   assert.equal(pace.profile.source, 'measured');
   assert.equal(pace.profile.weeks, 4);
-  assert.ok(Number.isFinite(pace.now.expected) && Number.isFinite(pace.now.projected), JSON.stringify(pace.now));
+  assert.ok(
+    Number.isFinite(pace.now.expected) && Number.isFinite(pace.now.projected),
+    JSON.stringify(pace.now)
+  );
 
   const root = mkdtempSync(path.join(os.tmpdir(), 'usage-week-measured-'));
   try {
@@ -846,6 +850,7 @@ test('a measured profile runs through paceFor, usage:week --json and usage:now',
     const env = {
       USAGE_WEEK_ROOT: path.join(root, 'projects'),
       USAGE_WEEK_VAULT: root,
+      USAGE_WEEK_CALLS_DIR: path.join(root, 'no-calls'),
       USAGE_WEEK_GH: 'off',
       USAGE_WEEK_NOW: now.toISOString(),
     };

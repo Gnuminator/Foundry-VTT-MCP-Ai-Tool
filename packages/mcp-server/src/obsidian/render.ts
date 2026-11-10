@@ -370,7 +370,9 @@ export interface ChangeNotePart {
 
 /** Split one month of changes into notes of at most CHANGES_NOTE_MAX_ENTRIES, oldest first. */
 export function splitChangeNotes(month: string, entries: readonly ChangeEntry[]): ChangeNotePart[] {
-  const asc = [...entries].sort((x, y) => x.appliedAt.localeCompare(y.appliedAt));
+  const asc = [...entries].sort(
+    (x, y) => x.appliedAt.localeCompare(y.appliedAt) || x.changeId.localeCompare(y.changeId)
+  );
   const parts: ChangeNotePart[] = [];
   for (let i = 0; i < asc.length; i += CHANGES_NOTE_MAX_ENTRIES) {
     const n = i / CHANGES_NOTE_MAX_ENTRIES + 1;

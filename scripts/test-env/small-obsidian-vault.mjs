@@ -22,7 +22,6 @@ const root = path.resolve(
   argDir > 0 ? (process.argv[argDir + 1] ?? '') : 'C:\\FoundryTest\\obsidian-small'
 );
 const world = 'ai-tool-test';
-const base = path.join(root, 'Campaigns', world, 'AI Tool');
 
 const MARK = 'generated_by: small-obsidian-vault';
 
@@ -32,15 +31,20 @@ function write(rel, text) {
   writeFileSync(file, text);
 }
 
+const MARKER = '.small-obsidian-vault';
+
+/** Only a missing folder, an empty one, or one this script made (it holds the marker file). */
 function assertSafe() {
+  if (argDir > 0 && !process.argv[argDir + 1]) throw new Error('--dir needs a folder.');
   if (!existsSync(root)) return;
-  const own = new Set(['.obsidian', 'Campaigns', 'README.md']);
-  const entries = readdirSync(root).filter(n => !own.has(n));
-  if (entries.length === 0) return;
-  throw new Error(`${root} has files this script did not write; pick an empty folder.`);
+  if (readdirSync(root).length === 0) return;
+  if (existsSync(path.join(root, MARKER))) return;
+  throw new Error(`${root} is not empty and was not made by this script; pick a new folder.`);
 }
 
 assertSafe();
+mkdirSync(root, { recursive: true });
+writeFileSync(path.join(root, MARKER), 'Made by scripts/test-env/small-obsidian-vault.mjs\n');
 
 // Plugin
 const dist = path.join(repo, 'packages', 'obsidian-plugin', 'dist');
@@ -155,7 +159,7 @@ const journals = ['Arrival at the Ford', 'The Old Mill', 'Market Day', 'Night Wa
 const npcs = ['Mara the Ferrywoman', 'Old Tobin', 'Sister Wren'];
 write(
   `Campaigns/${world}/AI Tool/Foundry/Adventures/Test Adventure.md`,
-  `---\ntype: adventure-hub\n${MARK.replace('small-obsidian-vault', 'foundry-ai-tool')}\nadventure_folders:\n  - Test Adventure\n---\n# Test Adventure\n\n${[...journals, ...npcs, 'Ford Crossing'].map(n => `- [[${n}]]`).join('\n')}\n`
+  `---\ntype: adventure-hub\ngenerated_by: foundry-ai-tool\nadventure_folders:\n  - Test Adventure\n---\n# Test Adventure\n\n${[...journals, ...npcs, 'Ford Crossing'].map(n => `- [[${n}]]`).join('\n')}\n`
 );
 journals.forEach((n, i) =>
   write(

@@ -418,7 +418,17 @@ class FoundryMCPBridge {
       const enabled = this.settings.getSetting('enabled');
 
       if (enabled) {
-        await this.start();
+        try {
+          await this.start();
+        } catch (error) {
+          // A first connect that fails or times out (the backend restarting beside Foundry, for
+          // example at the daily restart) is not a failed ready: start() already warned, the
+          // reconnect timer keeps dialling, and the index warm-ups below must still run.
+          console.warn(
+            `[${MODULE_ID}] The first connect to the AI Tool server did not work; retrying in the background:`,
+            error
+          );
+        }
       }
 
       // Rebuild a missing or stale creature index in the background.

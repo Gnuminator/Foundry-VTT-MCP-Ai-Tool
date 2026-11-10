@@ -292,6 +292,27 @@ describe('main: bridge user gating (PB-02)', () => {
   });
 });
 
+describe('main: onReady with the backend not answering', () => {
+  it('a failed first connect is a warning, not a failed ready, and the index warm-ups still run', async () => {
+    fake.state.connectOk = false;
+    const warmCreatures = vi.fn();
+    const warmPlayers = vi.fn();
+    bridge['warmEnhancedIndex'] = warmCreatures;
+    bridge['warmPlayerIndexes'] = warmPlayers;
+    (console.error as ReturnType<typeof vi.fn>).mockClear();
+
+    await expect(bridge.onReady()).resolves.toBeUndefined();
+
+    expect(fake.state.instances).toHaveLength(1);
+    expect(warmCreatures).toHaveBeenCalledTimes(1);
+    expect(warmPlayers).toHaveBeenCalledTimes(1);
+    const failedReady = (console.error as ReturnType<typeof vi.fn>).mock.calls.some(c =>
+      String(c[0]).includes('Failed during ready')
+    );
+    expect(failedReady).toBe(false);
+  });
+});
+
 describe('main: "MCP server not found" notice (PB-03)', () => {
   const warnings = (): string[] =>
     world.notifications.filter(n => n.level === 'warn').map(n => n.message);

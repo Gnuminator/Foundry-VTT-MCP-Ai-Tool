@@ -1,5 +1,6 @@
 import { parseTeamDomain, type AccessJwtConfig } from './access-jwt.js';
 import 'dotenv/config';
+import { DEFAULT_CONTROL_PORT, DEFAULT_DASHBOARD_LISTEN_PORT } from '@gnuminator/shared';
 import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -204,7 +205,7 @@ const logLevel: Config['logLevel'] =
     : 'info';
 
 export const config: Config = {
-  port: readNumber('PORT', 3000),
+  port: readNumber('PORT', DEFAULT_DASHBOARD_LISTEN_PORT),
   /** Listen address; loopback unless set (a non-loopback bind needs GM_DASHBOARD_TOKEN). */
   host: readString('DASHBOARD_HOST', '127.0.0.1'),
   /** DNS rebinding guard: a tunnel's or proxy's public name must be listed here. */
@@ -212,7 +213,7 @@ export const config: Config = {
   foundryUrl: readString('DASHBOARD_FOUNDRY_URL', ''),
   botStatusUrl: readString('DASHBOARD_BOT_STATUS_URL', ''),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
-  mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
+  mcpPort: readNumber('MCP_CONTROL_PORT', DEFAULT_CONTROL_PORT),
   pollIntervalMs,
   combatPollIntervalMs: readNumber('COMBAT_POLL_INTERVAL_MS', pollIntervalMs),
   maxEvents: readNumber('COGM_MAX_EVENTS', 80),

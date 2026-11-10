@@ -13,6 +13,7 @@
  * import the backend. The static imports here are intentionally limited to the
  * pure config/ping helpers so nothing starts before the env is wired.
  */
+import { DEFAULT_LINK_PORT } from '@gnuminator/shared';
 import {
   parseStandaloneArgs,
   applyStandaloneEnv,
@@ -63,7 +64,7 @@ async function main(): Promise<void> {
   if (ready) {
     console.error(`✓ control channel ready on ${host}:${port}`);
     if (!controlOnly) {
-      const linkPort = process.env.FOUNDRY_PORT ?? '31415';
+      const linkPort = process.env.FOUNDRY_PORT ?? String(DEFAULT_LINK_PORT);
       console.error(`  waiting for the Foundry module to connect (ws ${linkPort})…`);
     }
   } else {

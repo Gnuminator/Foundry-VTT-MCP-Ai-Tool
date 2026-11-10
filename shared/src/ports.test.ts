@@ -38,7 +38,10 @@ function countLiterals(): Record<string, number> {
       if (!KNOWN.has(Number(m[1]))) continue;
       // A millisecond duration passed to a timer is not a port (e.g. setTimeout(()=>{},30000)).
       const lineStart = text.lastIndexOf('\n', m.index) + 1;
-      if (/\bset(Timeout|Interval)\([^\n]*$/.test(text.slice(lineStart, m.index))) continue;
+      const before = text.slice(lineStart, m.index);
+      if (/\bset(Timeout|Interval)\([^\n]*$/.test(before)) continue;
+      // So is a timeout option (e.g. `timeout: 30000`, `ConnectTimeout=30000`).
+      if (/timeout\w*['"]?\s*[:=]\s*$/i.test(before)) continue;
       n += 1;
     }
     if (n > 0) counts[file] = n;

@@ -123,6 +123,7 @@ const SIDEBAR = [
     pages: [
       'gm/dashboard',
       'gm/gm-windows',
+      'gm/loot-with-item-piles',
       'gm/live-views',
       'gm/features',
       'gm/asking-claude',

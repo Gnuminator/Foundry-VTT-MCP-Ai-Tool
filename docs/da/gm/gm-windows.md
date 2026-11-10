@@ -1,6 +1,6 @@
 ---
 source: gm/gm-windows.md
-sourceHash: 2bfd69f14020
+sourceHash: 9c9783498ccc
 title: GM-vinduerne
 description: Fem små vinduer i Foundry (Combat, Party, Session, Scene, Loot), der holder det, du ser mest på under spillet, ved siden af kortet, hvor de bor, og hvad hvert af dem er til.
 ---
@@ -122,7 +122,8 @@ mønterne svarer til i guldmønter) og deres skatte-items, med en total for hele
 
 Kun items, der er markeret som skat, tæller: på itemets ark sætter du **Loot Type** til Art Object,
 Gemstone, Treasure eller Trade Good. Almindeligt eventyrudstyr (et koben, en sovepose) er udeladt, så
-vinduet ikke er en liste over alt i rygsækken. Vinduet viser kun; for at dele loot ud beder du
+vinduet ikke er en liste over alt i rygsækken. Vinduet viser kun; for at dele loot ud ved bordet laver
+du en bunke med Item Piles ([Del loot ud med Item Piles](loot-with-item-piles.md)), eller du beder
 Claude ("giv Thorin 50 guld og en rubin") og bekræfter den ændring, den planlægger.
 
 Hvornår: efter en combat eller et skatkammer, for at se, hvad partiet har nu, og hvem der har det.

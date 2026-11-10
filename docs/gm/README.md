@@ -45,6 +45,7 @@ should see when it worked and what to do if it did not.
 | [Glossary](glossary.md)                                           | The Foundry words and the tool words used in these guides.                                     |
 | [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                      |
 | [The GM windows](gm-windows.md)                                   | Combat, Party, Session, Scene and Loot as small windows next to the map, and how to switch on. |
+| [Giving out loot with Item Piles](loot-with-item-piles.md)        | Make a pile, fill it, let players take from it, split the coins, fix one that will not open.   |
 | [The live views](live-views.md)                                   | Live screen, GM page and Live window: the three ways to keep the combat strip next to Foundry. |
 | [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                               |
 | [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.          |

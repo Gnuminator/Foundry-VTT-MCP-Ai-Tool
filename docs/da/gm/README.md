@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 9377a65c5d54
+sourceHash: d2dabee8972f
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -47,6 +47,7 @@ du gør, hvis det ikke gjorde.
 | [Ordliste](glossary.md)                                          | Foundry-ordene og værktøjsordene i guiderne.                                                                |
 | [Dashboardet](dashboard.md)                                      | Hvert panel og hver knap på dashboardet, hvad de gør, og hvornår du bruger dem.                             |
 | [GM-vinduerne](gm-windows.md)                                    | Combat, Party, Session, Scene og Loot som små vinduer ved siden af kortet, og hvordan du slår dem til.      |
+| [Del loot ud med Item Piles](loot-with-item-piles.md)            | Lav en bunke, fyld den, lad spillerne tage fra den, del mønterne, ret en bunke, der ikke vil åbne.          |
 | [Live-visningerne](live-views.md)                                | Live screen, GM page og Live window: de tre måder at have combat-strippen ved siden af Foundry.             |
 | [Funktioner og hvornår du slår dem til](features.md)             | Hver funktionskontakt, hvad den gør, og hvornår du slår den til.                                            |
 | [Spørg Claude](asking-claude.md)                                 | Gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og dens grænser.               |

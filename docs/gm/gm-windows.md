@@ -120,8 +120,9 @@ top. It updates by itself when someone gains or spends coins, or an item is adde
 
 Only items that are marked as treasure count: on the item's sheet, set **Loot Type** to Art Object,
 Gemstone, Treasure or Trade Good. Ordinary adventuring gear (a crowbar, a bedroll) is left out, so
-the window is not a list of everything in the backpack. The window only shows; to hand out loot, ask
-Claude ("give Thorin 50 gold and a ruby") and confirm the change it plans.
+the window is not a list of everything in the backpack. The window only shows; to hand out loot at
+the table, make a pile with Item Piles ([Giving out loot with Item Piles](loot-with-item-piles.md)),
+or ask Claude ("give Thorin 50 gold and a ruby") and confirm the change it plans.
 
 When to use it: after a fight or a treasure room, to see what the party has now and who holds it.
 

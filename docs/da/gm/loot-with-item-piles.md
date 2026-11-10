@@ -1,6 +1,6 @@
 ---
 source: gm/loot-with-item-piles.md
-sourceHash: 940d38cf0e03
+sourceHash: 4f53bc9a7758
 title: Del loot ud med Item Piles
 description: Sådan laver du en bunke loot på kortet, lægger items og mønter i den, lader spillerne tage det, de vil have, deler mønterne og hvad du gør, når en spiller ikke kan åbne den.
 ---
@@ -95,6 +95,9 @@ fortæller, hvem der tog hvad, så alle kan se det.
 Når bunken har spillere med en karakter online, er grænsen ved mønterne hver spillers **andel**: med
 to spillere står 30 guld som "1 / 15", så ingen kan tømme pungen alene. Items er først til mølle.
 
+**Færdig, når det ser sådan ud:** itemet ligger på spillerens karakterark, og et chatkort siger, hvem der tog
+det.
+
 **Hvis det fejler:** spilleren kan slet ikke få vinduet åbent. Se [Hvis en spiller ikke kan åbne
 bunken](#hvis-en-spiller-ikke-kan-åbne-bunken).
 
@@ -127,7 +130,7 @@ en ny bunke (trin 1), og ret **Delete when empty**, før spillerne begynder at t
 ## Hvis en spiller ikke kan åbne bunken
 
 - **"You're too far away to interact with this pile."** Spillerens token står ikke ved siden af
-  bunken. En bunke åbner kun for et token **ét felt** væk. Flyt tokenet hen til den, eller gør rækkevidden
+  bunken. En bunke åbner som standard kun for et token ét gitterfelt væk (**Interaction Distance** er 1). Flyt tokenet hen til den, eller gør rækkevidden
   længere: åbn bunken, klik **Configure Pile**, ret **Interaction Distance** (tomt betyder alle steder
   fra) og klik **Config Update**.
 - **De kan ikke finde den.** Brug **Show To Players** (trin 4); vinduet åbner på deres skærm.

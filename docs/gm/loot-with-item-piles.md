@@ -94,6 +94,9 @@ When the pile has players with a character online, the limit next to the coins i
 **share**: with two players, 30 gold shows as "1 / 15", so nobody can empty the purse alone. Items
 are first come, first served.
 
+**Done when it looks like this:** the item is on the player's character sheet and a chat card names who
+took it.
+
 **If it fails:** the player cannot get the window open at all. See [If a player cannot open the pile](#if-a-player-cannot-open-the-pile).
 
 ## 6. Split the coins
@@ -125,7 +128,7 @@ new pile (step 1) and set **Delete when empty** before the players start taking.
 ## If a player cannot open the pile
 
 - **"You're too far away to interact with this pile."** The player's token is not next to the
-  pile. A pile only opens for a token **one square** away. Move the token next to it, or make the
+  pile. A pile opens, by default, only for a token one grid unit away (**Interaction Distance** is 1). Move the token next to it, or make the
   reach longer: open the pile, click **Configure Pile**, change **Interaction Distance** (empty means
   from anywhere) and click **Config Update**.
 - **They cannot find it.** Use **Show To Players** (step 4); the window opens on their screen.

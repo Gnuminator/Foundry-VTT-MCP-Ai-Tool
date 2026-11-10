@@ -425,7 +425,7 @@ class FoundryMCPBridge {
           // example at the daily restart) is not a failed ready: start() already warned, the
           // reconnect timer keeps dialling, and the index warm-ups below must still run.
           console.warn(
-            `[${MODULE_ID}] The first connect to the AI Tool server did not work; retrying in the background:`,
+            `[${MODULE_ID}] The first connect to the AI Tool server did not work (if it was the server, the bridge keeps dialling in the background):`,
             error
           );
         }
@@ -545,8 +545,16 @@ class FoundryMCPBridge {
 
       const config = this.settings.getBridgeConfig();
       config.onLinkChange = (up): void => {
-        if (up) this.linkNotifier.up();
-        else this.linkNotifier.down();
+        if (up) {
+          this.linkNotifier.up();
+          // A reconnect after a failed first connect: start() threw, so its own heartbeat
+          // start never ran. Only for the bridge that is still current.
+          if (this.socketBridge === bridge && this.heartbeatInterval === null) {
+            this.lastConnectionState = 'connected';
+            this.updateLastActivity();
+            this.startHeartbeat();
+          }
+        } else this.linkNotifier.down();
       };
 
       // Validate configuration
@@ -556,7 +564,8 @@ class FoundryMCPBridge {
       }
 
       // Create and connect socket bridge
-      this.socketBridge = new SocketBridge(config);
+      const bridge = new SocketBridge(config);
+      this.socketBridge = bridge;
       setBridgeLink(this.socketBridge);
       dialled = true;
       await this.socketBridge.connect();

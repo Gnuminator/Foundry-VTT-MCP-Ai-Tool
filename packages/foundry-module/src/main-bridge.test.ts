@@ -265,6 +265,36 @@ describe('main: no world writes for connection state (PB-03)', () => {
     expect(world.settings.get(`${MODULE_ID}.autoReconnectEnabled`)).toBe(true);
   });
 
+  it('a reconnect after a failed first connect starts the heartbeat and marks the state connected', async () => {
+    vi.useFakeTimers();
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    expect(bridge.getStatus().heartbeatActive).toBe(false);
+    expect(bridge.getStatus().lastConnectionState).toBe('error');
+
+    // The SocketBridge's own retry opens the link later.
+    fake.state.lastConfig.onLinkChange(true);
+
+    expect(bridge.getStatus().heartbeatActive).toBe(true);
+    expect(bridge.getStatus().lastConnectionState).toBe('connected');
+    await bridge.stop();
+    expect(bridge.getStatus().heartbeatActive).toBe(false);
+  });
+
+  it('a link-up from a replaced bridge does not start a heartbeat', async () => {
+    vi.useFakeTimers();
+    fake.state.connectOk = false;
+    await expect(bridge.start()).rejects.toThrow();
+    const staleConfig = fake.state.lastConfig;
+    fake.state.connectOk = true;
+    await bridge.start();
+    await bridge.stop();
+
+    staleConfig.onLinkChange(true);
+
+    expect(bridge.getStatus().heartbeatActive).toBe(false);
+  });
+
   it('keeps the connection state in memory for getStatus()', async () => {
     await bridge.start();
     expect(bridge.getStatus().lastConnectionState).toBe('connected');

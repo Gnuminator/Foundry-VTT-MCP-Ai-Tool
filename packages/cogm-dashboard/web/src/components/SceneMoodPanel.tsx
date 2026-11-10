@@ -79,7 +79,9 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
   // The preset whose plan or apply runs: every button waits, the one clicked says so once applying.
   const [running, setRunning] = useState<{ preset: string; applying: boolean } | null>(null);
   const lock = useRef(false);
-  const refocus = useRef(false);
+  // Set when the scene changed under the buttons: the list that must be on screen before the focus
+  // moves to its first mood.
+  const [refocusFor, setRefocusFor] = useState<unknown>(null);
 
   const applyMood = async (preset: string): Promise<void> => {
     if (lock.current || off.names.length > 0) return;
@@ -95,7 +97,7 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       if (fresh && shown) {
         const sceneMoved = fresh.sceneId !== shown.sceneId || fresh.sceneName !== shown.sceneName;
         if (sceneMoved || !fresh.presets.some(p => p.name === preset)) {
-          refocus.current = true;
+          setRefocusFor(fresh);
           toast(
             sceneMoved
               ? `The scene changed to ${fresh.sceneName}. The moods are updated; pick again.`
@@ -151,18 +153,6 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
     } finally {
       lock.current = false;
       setRunning(null);
-      // The scene changed under the buttons: the list was read again and the pressed button may
-      // be gone, so the focus goes to the first mood of the new list once the buttons are free.
-      if (refocus.current) {
-        refocus.current = false;
-        requestAnimationFrame(() => {
-          // Only when the focus fell to the page: a GM who moved on during the refetch keeps it.
-          const active = document.activeElement;
-          if (active === null || active === document.body || rootRef.current?.contains(active)) {
-            focusFirstPreset();
-          }
-        });
-      }
     }
   };
 
@@ -172,6 +162,18 @@ export function SceneMoodPanel({ onClose }: { onClose: () => void }): JSX.Elemen
       ?.querySelector<HTMLElement>('[data-preset]:not([aria-disabled="true"])')
       ?.focus();
   useEffect(focusFirstPreset, [moods.isSuccess]);
+  // The pressed button may be gone after the scene-changed reload. Wait for a commit that shows the
+  // new list with the buttons free (an effect runs after the DOM is updated, a frame callback can
+  // run before), then focus its first mood.
+  useEffect(() => {
+    if (refocusFor === null || running !== null || moods.data !== refocusFor) return;
+    setRefocusFor(null);
+    // Only when the focus fell to the page: a GM who moved on during the refetch keeps it.
+    const active = document.activeElement;
+    if (active === null || active === document.body || rootRef.current?.contains(active)) {
+      focusFirstPreset();
+    }
+  }, [refocusFor, running, moods.data]);
 
   return (
     <div

@@ -1494,7 +1494,7 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) **or a non-GM
   player is connected** (an unmarked night: the newest `user-join`/`user-leave` per user in the 3 newest
   `sessions/<date>.play.jsonl`; a join younger than 14 hours with no later leave counts; the GM and the TV table
-  viewer do not; a record with no `isGM` field counts as a player, so the runners stay stopped when in doubt; a join
+  viewer do not; a record with no `isGM` field counts as a player, so the board runner stays stopped when in doubt; a join
   older than the newest `session-end` of that world is ignored, since a Foundry stop or a world switch can end a
   session without a leave) it stops the
   `board` runner when it runs no job. The `vault` runner (it rebuilds the PM board on every vault push) is never held: the
@@ -1502,7 +1502,7 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   is left alone, so it can delay the stop until it ends. Board-repo builds wait on GitHub's side and run when the session ends; vault pushes keep building.
   Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
   be read, the board runner stays stopped for up to 14 hours in a row, then the gate lets it run and logs it. The runners are
-  not enabled at boot: the gate starts them (within a minute) when no session is marked. A rerun that changes a unit
+  not enabled at boot: the gate starts the vault runner within a minute in every state, and the board runner when no session is marked. A rerun that changes a unit
   file does not touch a running runner: stop it (`systemctl stop`) and the gate starts it with the new file.
 - **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
   nothing of it is on the Pi). A runner is registered with a one-hour registration token that

@@ -17,8 +17,8 @@
 # and a gate timer (every minute) that keeps the `board` runner STOPPED (the `vault` runner is never held, so the PM board
 # rebuilds during play: 2026-11-10, the user) while a play session is marked (the same signal the Cast worker
 # uses: the newest session-start/session-end marker in the world vaults' sessions/<date>.jsonl, OR a connected non-GM player: the newest user-join/user-leave per user in sessions/<date>.play.jsonl, a join younger than 14 h counts, so an unmarked night is covered). A job waits on GitHub's
-# side while the runners are stopped. A job already running is never killed by the gate. Unknown state (the vault folder
-# cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS (14) hours in a row, then the gate lets the runners run again
+# side while the board runner is stopped. A job already running is never killed by the gate. Unknown state (the vault folder
+# cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS (14) hours in a row, then the gate lets the board runner run again
 # and logs it (a broken signal must not freeze the board for good). The runners are not enabled at boot: the gate starts them.
 
 require_root
@@ -309,12 +309,16 @@ for unit in $units; do
   st="$(systemctl is-active "$unit" 2>/dev/null || true)"
   # A kept unit (the vault runner, which builds the PM board) is never held: it is treated as idle whatever the state.
   unit_decision="$decision"
-  case " $keep_units " in *" $unit "*) unit_decision=idle ;; esac
+  start_flag=""
+  case " $keep_units " in *" $unit "*) unit_decision=idle start_flag="--no-block" ;; esac
   if [ "$unit_decision" = idle ]; then
     case "$st" in
     active | activating) ;;
     *)
-      if systemctl start "$unit"; then echo "gh-runner-gate: $unit_decision: started $unit"; else
+      # A kept unit starts with --no-block (a stalled start must not delay the board stop) and is logged as kept.
+      if [ -n "$start_flag" ]; then label="$state$reason (kept)"; else label="$unit_decision"; fi
+      # shellcheck disable=SC2086
+      if systemctl start $start_flag "$unit"; then echo "gh-runner-gate: $label: started $unit"; else
         echo "gh-runner-gate: could not start $unit" >&2
         rc=1
       fi
@@ -386,7 +390,7 @@ Nice=10
 CPUWeight=20
 MemoryMax=2G
 TasksMax=512
-# No [Install]: the gate timer starts the runner when no play session is marked."
+# No [Install]: the gate timer starts the runner (the vault runner always, the board runner when no play session is marked)."
   write_file "/etc/systemd/system/foundry-ai-tool-gh-runner-$name.service" 0644 "$unit_body" || true
 done
 

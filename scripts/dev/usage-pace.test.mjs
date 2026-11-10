@@ -13,6 +13,7 @@ import {
   paceNow,
   smooth,
   steps,
+  weekStartFor,
 } from './usage-pace.mjs';
 
 const HOUR = 3_600_000;
@@ -123,6 +124,17 @@ test('idle days with readings count; the weekend share stays near its true share
   const p = buildProfile(quiet, { weekStartMs: WEEK4 });
   // 8 weekend days spend 9 each in weeks 3 and 4 only: 4 of 8 days, so 4.5 a day on average
   assert.ok(Math.abs(p.weekendPerDay - 4.5) < 0.6, `weekend ${p.weekendPerDay}`);
+  // the share of the week's points on the weekend: 9 of 69 (13%), not the full 18 of 78 (23%)
+  const share = (p.weekendPerDay * 2) / (p.weekdayPerDay * 5 + p.weekendPerDay * 2);
+  assert.ok(Math.abs(share - 9 / 69) < 0.03, `weekend share ${share}`);
+  const full = buildProfile(log(), { weekStartMs: WEEK4 });
+  assert.ok(share < (full.weekendPerDay * 2) / (full.weekdayPerDay * 5 + full.weekendPerDay * 2) - 0.05);
+});
+
+test('weekStartFor: the reset passed in wins, else the Saturday 05:00Z reset', () => {
+  const now = Date.UTC(2026, 9, 23, 14, 5);
+  assert.equal(weekStartFor(now), lastReset(now));
+  assert.equal(weekStartFor(now, '2026-10-24T05:00:00.111Z'), Date.UTC(2026, 9, 17, 5, 0, 0, 111));
 });
 
 test('a short log uses the fallback table', () => {

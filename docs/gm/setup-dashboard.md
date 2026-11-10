@@ -54,5 +54,10 @@ The dashboard opens from your bookmark, the Live Feed and Recent Changes show, t
 - **No code arrives:** look in the spam folder, then ask for a new code.
 - **"Connection lost" or Pre-flight says Foundry is not connected:** see
   [Troubleshooting](troubleshooting.md).
+- **GM buttons are refused although the dashboard is connected:** the browser does not have the GM
+  token yet. Open the address the person who built the tool gave you for the GM (it ends in
+  `?token=` and a long string) once, in the browser you use for the dashboard; the browser
+  remembers it for that address. Then use your bookmark. A second browser or a changed address needs
+  the link once more.
 - **The card "Pick your During layout" is not there:** use **Advanced ▾**, **▦ Try the During
   layouts** instead.

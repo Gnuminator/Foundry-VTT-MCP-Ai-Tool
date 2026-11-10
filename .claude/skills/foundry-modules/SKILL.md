@@ -18,7 +18,7 @@ the version on test server A (the pinned set) when the page was written or refre
 
 | Module id                  | Version          | Page                                     | Verdict  |
 | -------------------------- | ---------------- | ---------------------------------------- | -------- |
-| `foundryvtt-actor-studio`  | 2.10.5-aitool.10 | `references/foundryvtt-actor-studio.md`  | keep     |
+| `foundryvtt-actor-studio`  | 2.10.5-aitool.12 | `references/foundryvtt-actor-studio.md`  | keep     |
 | `ddb-importer`             | 7.5.9            | `references/ddb-importer.md`             | optional |
 | `dnd-players-handbook`     | 2.2.0            | `references/dnd-players-handbook.md`     | keep     |
 | `token-action-hud-core`    | 2.1.2            | `references/token-action-hud-core.md`    | keep     |

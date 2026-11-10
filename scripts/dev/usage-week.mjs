@@ -36,7 +36,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { contextOf } from '../../.claude/hooks/context-alert.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
-import { activeHours, buildProfile, lastReset, paceNow } from './usage-pace.mjs';
+import { activeHours, buildProfile, paceNow, weekStartFor } from './usage-pace.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
@@ -234,6 +234,9 @@ export function usageLogFile(vaultDir) {
 
 // Readings { t, v } from every markdown table with the columns "When (local)" and
 // "Weekly % (all)" (one section per PC), in time order. Rows without a weekly value are skipped.
+// The "When (local)" times are read in the zone of the machine running this script (the log is
+// written on PCs in Europe/Copenhagen, the pace profile in usage-pace.mjs is read in that zone
+// too). Run on a machine in another zone, the profile's hours shift by the difference.
 export function parseUsageLog(text) {
   const readings = [];
   let cols = null;
@@ -393,7 +396,7 @@ function sessionStats(list) {
   return { startup: median(list.map(s => s.turns[0].ctx)), share: all ? base / all : null };
 }
 
-export async function buildReport({ root, now, days, prs = null, usageLog = null }) {
+export async function buildReport({ root, now, days, prs = null, usageLog = null, weeklyResets }) {
   const { startMs, keys } = windowDays(now, days);
   const files = findTranscripts(root, startMs);
   const { responses, sessions, advisorCalls } = await readTranscripts(files, startMs);
@@ -469,7 +472,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   }
 
   const lanes = laneStats(qualifying, prs ? total.prs : null);
-  const pace = paceFor(readings, now);
+  const pace = paceFor(readings, now, 4, weeklyResets);
 
   return {
     pace,
@@ -488,10 +491,10 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
 
 // The pace profile from the log and, when the newest reading is from this week, the pace as of
 // that reading (reset = Saturday 05:00Z). Null without readings.
-export function paceFor(readings, now, weeks = 4) {
+export function paceFor(readings, now, weeks = 4, weeklyResets) {
   if (!readings.length) return null;
   const nowMs = now.getTime();
-  const weekStartMs = lastReset(nowMs);
+  const weekStartMs = weekStartFor(nowMs, weeklyResets);
   const profile = buildProfile(readings, { weekStartMs, weeks });
   const last = readings[readings.length - 1];
   // As of the newest reading of this week (its time is `asOf`), so a stale log still gives a number.

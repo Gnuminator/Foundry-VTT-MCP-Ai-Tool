@@ -35,6 +35,8 @@ import {
   weeklyPoints,
 } from './usage-week.mjs';
 import { sectionFor } from './weekly-check-note.mjs';
+import { main as nowMain } from './usage-now.mjs';
+import { localParts } from './usage-pace.mjs';
 
 const NOW = new Date(2026, 9, 10, 12, 0); // local noon, 10 Oct 2026
 const at = (day, hour = 10, minute = 0) => new Date(2026, 9, day, hour, minute);
@@ -804,5 +806,60 @@ test('paceFor: a reading of this week more than 6 hours old still gives a projec
   assert.equal(old.now, null);
   assert.match(formatPace(old), /no reading for this week/);
   assert.equal(paceFor([], now), null);
+  // a weekly-resets time passed in moves the week start (reset minus 7 days) for the profile too
+  assert.equal(paceFor([reading], now, 4, '2026-10-24T05:00:00.111Z').now, null);
   assert.match(formatPace(null), /no usage log readings/);
+});
+
+test('a measured profile runs through paceFor, usage:week --json and usage:now', async () => {
+  // Five weeks of hourly readings (weekday evenings 2 points an hour, weekend mornings 3), the
+  // count restarting each Saturday 05:00Z. Times are written in the machine zone, as the log is.
+  const HOUR = 3_600_000;
+  const start = Date.UTC(2026, 9, 10, 5);
+  const nowMs = start + 5 * 7 * 24 * HOUR + 3 * 24 * HOUR + 7 * HOUR; // Tuesday 12:00Z
+  const pad = n => String(n).padStart(2, '0');
+  const rows = ['| When (local) | Weekly % (all) |', '| --- | --- |'];
+  let v = 0;
+  for (let t = start; t <= nowMs; t += HOUR) {
+    if ((t - start) % (7 * 24 * HOUR) === 0) v = 0;
+    else {
+      const p = localParts(t - HOUR / 2);
+      v += p.weekend ? (p.hour >= 9 && p.hour <= 11 ? 3 : 0) : p.hour >= 17 && p.hour <= 22 ? 2 : 0;
+    }
+    const d = new Date(t);
+    rows.push(
+      `| ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())} | ${v} |`
+    );
+  }
+  const text = rows.join('\n');
+  const now = new Date(nowMs);
+  const pace = paceFor(parseUsageLog(text), now);
+  assert.equal(pace.profile.source, 'measured');
+  assert.equal(pace.profile.weeks, 4);
+  assert.ok(Number.isFinite(pace.now.expected) && Number.isFinite(pace.now.projected), JSON.stringify(pace.now));
+
+  const root = mkdtempSync(path.join(os.tmpdir(), 'usage-week-measured-'));
+  try {
+    const dir = path.join(root, 'Dev', 'Foundry AI Tool');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'Usage log (measured).md'), text);
+    const env = {
+      USAGE_WEEK_ROOT: path.join(root, 'projects'),
+      USAGE_WEEK_VAULT: root,
+      USAGE_WEEK_GH: 'off',
+      USAGE_WEEK_NOW: now.toISOString(),
+    };
+    let buf = '';
+    await main(['--json'], env, { write: s => (buf += s) });
+    const j = JSON.parse(buf);
+    assert.equal(j.pace.profile.source, 'measured');
+    assert.equal(j.pace.profile.weeks, 4);
+    assert.equal(j.pace.now.expected, pace.now.expected);
+    buf = '';
+    await nowMain(['--weekly', '30', '--stdout'], env, { write: s => (buf += s) });
+    assert.match(buf, /pace-profile-weeks: 4\n/);
+    assert.match(buf, /pace-expected-percent: \d/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

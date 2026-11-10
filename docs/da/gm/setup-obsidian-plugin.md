@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: 69cc0afea9b8
+sourceHash: 1a633c93ea14
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -30,7 +30,9 @@ dem aldrig i en chat eller en note.
 ## Forbind det
 
 1. Klik på tandhjulet ved siden af **Foundry AI Tool** i pluginlisten.
-2. **Dashboard address:** skriv dashboardets https-adresse.
+2. **Dashboard address:** skriv dashboardets https-adresse. Brug https: pluginet sender de to
+   Cloudflare-værdier kun til en https-adresse, aldrig til en almindelig http-adresse (så
+   `http://localhost` kommer ikke igennem Cloudflare-loginet). GM-token'et følger med hvert kald.
 3. Klik på feltet **GM token**, derefter **Add secret**. I **ID** skriv `foundry-gm-token`, i **Secret**
    indsæt kun selve token'et, **Save**. Vælg den i listen.
 4. Gør det samme for **Cloudflare Access Client ID** (ID `cf-access-client-id`) og **Cloudflare Access

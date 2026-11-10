@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildReport, fetchMergedPrs, usageLogFile, vaultDirFor } from './usage-week.mjs';
-import { lastReset, paceNow, WEEK_MS } from './usage-pace.mjs';
+import { paceNow, weekStartFor } from './usage-pace.mjs';
 
 const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -107,8 +107,7 @@ export function paceLines(report, opts, now) {
   const profile = report?.pace?.profile;
   if (!profile || opts.weekly === undefined) return [];
   const nowMs = now.getTime();
-  const weekStartMs =
-    opts.weeklyResets !== undefined ? Date.parse(opts.weeklyResets) - WEEK_MS : lastReset(nowMs);
+  const weekStartMs = weekStartFor(nowMs, opts.weeklyResets);
   const pace = paceNow({ profile, weekStartMs, nowMs, actual: percent(opts.weekly, '--weekly') });
   const rows = [
     ['pace-expected-percent', pace.expected],
@@ -151,7 +150,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
     const logFile = usageLogFile(vaultDirFor(env));
     const usageLog = existsSync(logFile) ? readFileSync(logFile, 'utf8') : null;
     const root = env.USAGE_WEEK_ROOT || path.join(os.homedir(), '.claude', 'projects');
-    const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
+    const report = await buildReport({ root, now, days: opts.days, prs, usageLog, weeklyResets: opts.weeklyResets });
     lines.push(...checkLines(report), ...paceLines(report, opts, now));
   }
   const text = renderNote(lines);

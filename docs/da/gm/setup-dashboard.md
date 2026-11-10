@@ -1,6 +1,6 @@
 ---
 source: gm/setup-dashboard.md
-sourceHash: 1492129469f6
+sourceHash: 4a4ebb1be74c
 title: 'Engangsopsætning: dashboardet'
 description: Åbn dashboardet på din anden skærm for første gang, log ind gennem Cloudflare, sæt et bogmærke og vælg dit During-layout. Cirka 10 minutter, én gang.
 ---
@@ -56,5 +56,9 @@ lost"-markering, og **Layout** øverst på During-skærmen viser det layout, du 
 - **Der kommer ingen kode:** kig i spam-mappen, og bed så om en ny kode.
 - **"Connection lost", eller Pre-flight siger, at Foundry ikke er forbundet:** se
   [Fejlfinding](troubleshooting.md).
+- **GM-knapper bliver afvist, selv om dashboardet er forbundet:** browseren har ikke GM-token'et endnu.
+  Åbn den adresse, den, der byggede værktøjet, gav dig til GM'en (den ender på `?token=` og en lang
+  tekststreng), én gang i den browser, du bruger til dashboardet; browseren husker den for den adresse.
+  Brug derefter dit bogmærke. En anden browser eller en ændret adresse kræver linket igen.
 - **Kortet "Pick your During layout" er der ikke:** brug **Advanced ▾**, **▦ Try the During layouts** i
   stedet.

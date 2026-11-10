@@ -137,6 +137,16 @@ After changing code:
 - Backend or dashboard: `npm run build`, then `stop.ps1 -Only bridge` / `-Only dashboard`
   and `start.ps1 -Only ...` again.
 
+### Small Obsidian vault (plugin and Library checks)
+
+`C:\FoundryTest\obsidian` is the bridge's output vault and holds thousands of test notes; do not
+open it in Obsidian for plugin checks. For the plugin's graph commands (Hide/Show the Library,
+Apply graph colours) build a small throwaway vault: `npm run build -w packages/obsidian-plugin`,
+then `node scripts/test-env/small-obsidian-vault.mjs` (default `C:\FoundryTest\obsidian-small`;
+about 55 made-up notes, the built plugin enabled, 36 Library notes in 3 books). In Obsidian:
+vault switcher, **Open folder as vault**, trust and enable community plugins, open the graph,
+Ctrl+P "Hide the Library in the graph". Safe to run again; it refuses a folder holding other files.
+
 ## Test server lock
 
 Several sessions share this one test server. Before any live test (starting services, joining the

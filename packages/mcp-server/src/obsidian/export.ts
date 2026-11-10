@@ -52,6 +52,8 @@ import {
   renderCampaignStatsNote,
   renderChangesBase,
   renderChangesNote,
+  splitChangeNotes,
+  type ChangeNotePart,
   renderPcStatsBase,
   renderPcStatsNote,
   renderSessionNote,
@@ -291,6 +293,27 @@ export async function exportWorldToObsidian(options: {
   const stats = buildStats({ worldId, logEvents: events, playRecords });
   const groups = groupWithPlayRecords(events, playRecords);
   const notesLinks = await loadSessionNotesLinks(store, worldId, root);
+
+  // Change log: merge the append-only history with the audit ring, one note
+  // per month.
+  const ring: AuditEntry[] = await audit.list(worldId, 500);
+  const jsonl = await store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
+  const merged = mergeChangeHistory(ring, jsonl);
+  const byMonth = new Map<string, ChangeEntry[]>();
+  for (const e of merged) {
+    const month = e.appliedAt.slice(0, 7);
+    const list = byMonth.get(month) ?? [];
+    list.push(e);
+    byMonth.set(month, list);
+  }
+  const changeParts = new Map<string, ChangeNotePart[]>();
+  const changeNotes = new Map<string, string>();
+  for (const [month, list] of byMonth) {
+    const parts = splitChangeNotes(month, list);
+    changeParts.set(month, parts);
+    for (const part of parts) for (const e of part.entries) changeNotes.set(e.changeId, part.name);
+  }
+
   const sessionNotes = new Set<string>();
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i];
@@ -310,7 +333,8 @@ export async function exportWorldToObsidian(options: {
           endedBy: group.endedBy,
         },
         sessionStats,
-        sessionNotesLines(notesLinks.filter(link => link.date === sessionStats.date))
+        sessionNotesLines(notesLinks.filter(link => link.date === sessionStats.date)),
+        changeNotes
       ),
       checkMarkdownOwnership
     );
@@ -324,24 +348,15 @@ export async function exportWorldToObsidian(options: {
     await store.write(worldId, 'gm', SEEN_INDEX_FILE, seen);
   }
 
-  // Change log: merge the append-only history with the audit ring, one note
-  // per month.
-  const ring: AuditEntry[] = await audit.list(worldId, 500);
-  const jsonl = await store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
-  const merged = mergeChangeHistory(ring, jsonl);
-  const byMonth = new Map<string, ChangeEntry[]>();
-  for (const e of merged) {
-    const month = e.appliedAt.slice(0, 7);
-    const list = byMonth.get(month) ?? [];
-    list.push(e);
-    byMonth.set(month, list);
-  }
-  for (const [month, list] of byMonth) {
-    await writer.owned(
-      `AI Tool/Changes/${month}.md`,
-      renderChangesNote(worldId, month, list),
-      checkMarkdownOwnership
-    );
+  for (const [month, parts] of changeParts) {
+    const all = parts.map(p => p.name);
+    for (const part of parts) {
+      await writer.owned(
+        `AI Tool/Changes/${part.name}.md`,
+        renderChangesNote(worldId, month, part.entries, { name: part.name, all }),
+        checkMarkdownOwnership
+      );
+    }
   }
 
   // Tarokka (only when the world has used it).

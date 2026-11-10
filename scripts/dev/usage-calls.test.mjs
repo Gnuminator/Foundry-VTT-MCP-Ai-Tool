@@ -19,7 +19,8 @@ test('readCallsPi runs one fixed read-only ssh command with a large buffer', () 
     'foundry-pi',
   ]);
   assert.ok(seen.opts.maxBuffer >= 16 * 1024 * 1024);
-  assert.doesNotMatch(seen.args[5], /\brm\b|\bmv\b|\btee\b|>|\bsudo\b/);
+  // the only redirect allowed is stderr to /dev/null
+  assert.doesNotMatch(seen.args[5].replace('2>/dev/null', ''), /\brm\b|\bmv\b|\btee\b|>|\bsudo\b/);
 });
 
 test('parsePiOutput: a file without a trailing newline does not swallow the next header', () => {

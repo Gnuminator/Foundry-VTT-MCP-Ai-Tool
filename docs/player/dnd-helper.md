@@ -216,7 +216,8 @@ Nothing you say to the helper is sent to the other players.
 
 **Claude does not mention Foundry at all, or says it has no tool for that.**
 Open Settings, Desktop, Extensions and check the Foundry extension is switched on. Then quit
-Claude Desktop completely and reopen it. Start a **new** chat: an old chat does not pick up new tools.
+Claude Desktop completely and reopen it. Start a **new** chat: an old chat does not pick up new
+tools.
 
 **It says "not found" about my character.**
 Check how the name is spelled on your sheet and ask again with the exact name. If you have no
@@ -227,8 +228,8 @@ that you own it.
 **An error, "unauthorized", "forbidden" or "could not connect".**
 Almost always the two values. Open Settings, Desktop, Extensions, the Foundry extension, and
 check that the Client ID and Client Secret were pasted whole, with no space at the start or end
-and nothing missing. Paste them again from your **My character** page with the copy buttons. If they are right,
-the game server may be down. Ask the person who runs the tool.
+and nothing missing. Paste them again from your **My character** page with the copy
+buttons. If they are right, the game server may be down. Ask the person who runs the tool.
 
 **It answers from memory and does not name a book.**
 Ask: "Look that up in the books first and name the entry." If the lookup fails, it should say so

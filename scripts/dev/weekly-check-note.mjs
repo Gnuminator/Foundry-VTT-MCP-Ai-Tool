@@ -55,6 +55,13 @@ export function sectionFor(report) {
   if (Number.isFinite(report.advisorPerPr)) {
     lines.push(`- advisor-per-pr: ${round(report.advisorPerPr, 1)}`);
   }
+  const calls = report.toolCalls;
+  if (calls && calls.total > 0) {
+    lines.push(`- tool-calls: ${calls.total}`);
+    lines.push(`- tool-errors: ${calls.errors}`);
+    lines.push(`- tools-used: ${calls.used}`);
+    if (Number.isInteger(calls.never)) lines.push(`- tools-never-used: ${calls.never}`);
+  }
   return lines.join('\n');
 }
 

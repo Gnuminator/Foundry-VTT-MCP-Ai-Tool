@@ -37,6 +37,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { contextOf } from '../../.claude/hooks/context-alert.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
 import { activeHours, buildProfile, paceNow, weekStartFor } from './usage-pace.mjs';
+import { dataDir, loadCatalog, readCalls, summarize, weekLine } from './usage-calls.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
@@ -502,7 +503,11 @@ export function paceFor(readings, now, weeks = 4, weeklyResets) {
   return {
     profile: { ...profile, activeHours: activeHours(profile) },
     now: thisWeek
-      ? { asOf: new Date(last.t).toISOString(), actual: last.v, ...paceNow({ profile, weekStartMs, nowMs: last.t, actual: last.v }) }
+      ? {
+          asOf: new Date(last.t).toISOString(),
+          actual: last.v,
+          ...paceNow({ profile, weekStartMs, nowMs: last.t, actual: last.v }),
+        }
       : null,
   };
 }
@@ -623,6 +628,7 @@ export function formatReport(report, notes = []) {
         ? ` (${num(report.advisorPerPr, 1)} per merged PR, target 1)`
         : ''
     }`,
+    ...(report.toolCalls ? [report.toolCalls.line] : []),
     ...notes.map(n => `Note: ${n}`),
   ];
   return lines.join('\n');
@@ -666,6 +672,16 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
 
   const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
   report.notes = notes;
+  // Real tool usage (I-113): the MCP tool call log on this PC (USAGE_WEEK_CALLS_DIR overrides).
+  const callsDir = env.USAGE_WEEK_CALLS_DIR || path.join(dataDir(env), '_usage');
+  const callSummary = summarize(readCalls(callsDir, opts.days, now), await loadCatalog());
+  report.toolCalls = {
+    total: callSummary.total,
+    errors: callSummary.errors,
+    used: callSummary.tools.length,
+    never: callSummary.never ? callSummary.never.length : null,
+    line: weekLine(callSummary, opts.days),
+  };
   report.runMs = Date.now() - started;
   if (argv.includes('--write-vault')) {
     const file = noteFile(vaultDirFor(env));

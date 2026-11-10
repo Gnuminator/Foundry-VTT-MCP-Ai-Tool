@@ -2,10 +2,21 @@
 // check- numbers from a usage:week report and the written file.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { checkLines, main, noteFile, parseArgs, planLines, renderNote } from './usage-now.mjs';
+import {
+  checkLines,
+  main,
+  noteFile,
+  paceLines,
+  parseArgs,
+  planLines,
+  renderNote,
+} from './usage-now.mjs';
+import { FALLBACK } from './usage-pace.mjs';
+
+const FALLBACK_PROFILE = { ...FALLBACK, weeks: 0, source: 'fallback' };
 
 const NOW = new Date('2026-10-23T14:05:00Z');
 const base = ['--weekly', '79', '--weekly-resets', '2026-10-24T05:00:00.111Z'];
@@ -92,6 +103,55 @@ test('main with the check reads an empty transcript folder without failing', asy
       { write: s => (said += s) }
     );
     assert.match(said, /check-from: 2026-10-17/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('pace lines: expected, delta, projection, active hours left and profile weeks', () => {
+  const now = new Date('2026-10-23T14:05:00Z'); // Friday 16:05 CEST
+  const opts = parseArgs(base);
+  const lines = paceLines({ pace: { profile: FALLBACK_PROFILE } }, opts, now);
+  const get = k => Number(lines.find(l => l.startsWith(`${k}:`))?.split(': ')[1]);
+  assert.deepEqual(
+    lines.map(l => l.split(':')[0]),
+    [
+      'pace-expected-percent',
+      'pace-delta',
+      'pace-projected-percent',
+      'pace-active-hours-left',
+      'pace-profile-weeks',
+    ]
+  );
+  // late Friday afternoon: nearly the whole week is expected, so 79 is well behind
+  assert.ok(get('pace-expected-percent') > 85, lines.join('\n'));
+  assert.equal(get('pace-delta'), Math.round((79 - get('pace-expected-percent')) * 10) / 10);
+  assert.ok(get('pace-active-hours-left') > 0 && get('pace-active-hours-left') < 12);
+  assert.equal(get('pace-profile-weeks'), 0);
+  // too early in the week: no projection line; no profile or no weekly value: no lines at all
+  const early = paceLines({ pace: { profile: FALLBACK_PROFILE } }, opts, new Date('2026-10-17T08:00:00Z'));
+  assert.ok(!early.some(l => l.startsWith('pace-projected-percent')));
+  assert.deepEqual(paceLines({ pace: null }, opts, now), []);
+  assert.deepEqual(paceLines({ pace: { profile: FALLBACK_PROFILE } }, parseArgs([]), now), []);
+});
+
+test('main with the check writes the pace lines from the usage log', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'usage-now-pace-'));
+  try {
+    const dir = path.join(root, 'Dev', 'Foundry AI Tool');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path.join(dir, 'Usage log (measured).md'),
+      '| When (local) | Weekly % (all) |\n| --- | --- |\n| 2026-10-22 20:00 | 60 |\n| 2026-10-22 21:00 | 62 |\n'
+    );
+    let said = '';
+    await main(
+      [...base, '--stdout'],
+      { USAGE_WEEK_ROOT: root, USAGE_WEEK_VAULT: root, USAGE_WEEK_GH: 'off', USAGE_WEEK_NOW: NOW.toISOString() },
+      { write: s => (said += s) }
+    );
+    assert.match(said, /pace-expected-percent: \d/);
+    assert.match(said, /pace-profile-weeks: 0\n/); // one day of log: the fallback table
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

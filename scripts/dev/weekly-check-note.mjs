@@ -9,6 +9,7 @@
 //   - startup-limit: 75000
 //   - startup-ok: no
 //   ... the same three lines for tokens-m-per-pr, sessions-a-day and weekly-points-a-day
+//   - pace-profile-weeks / pace-active-hours-weekday / pace-active-hours-weekend (usage-pace.mjs)
 
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -43,6 +44,12 @@ export function sectionFor(report) {
     const known = t.value !== null && t.value !== undefined;
     const ok = known ? round(t.value, digits) <= t.limit : t.ok;
     lines.push(`- ${key}-ok: ${ok === null || ok === undefined ? 'unknown' : ok ? 'yes' : 'no'}`);
+  }
+  const profile = report.pace?.profile;
+  if (profile) {
+    lines.push(`- pace-profile-weeks: ${profile.weeks}`);
+    lines.push(`- pace-active-hours-weekday: ${profile.activeHours.weekday}`);
+    lines.push(`- pace-active-hours-weekend: ${profile.activeHours.weekend}`);
   }
   if (Number.isInteger(report.advisorCalls)) lines.push(`- advisor-calls: ${report.advisorCalls}`);
   if (Number.isFinite(report.advisorPerPr)) {

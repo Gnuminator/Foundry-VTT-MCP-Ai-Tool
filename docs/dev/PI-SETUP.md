@@ -1768,7 +1768,7 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
     and counts links to world packs with no copy (they stay as they are, and the check does not call them half-finished).
 - **Grave Domain content patch (MODE=grave-patch):** `grave-domain-patch.js` (scp it with the other GM scripts) patches the module packs
   `aitool-content.classes` and `.spells` so Circle of Mortality grants Spare the Dying (Wisdom, always prepared; the granted copy shows 30 ft and a
-  bonus action) and Channel Divinity: Path to the Grave has a Use activity that spends one Channel Divinity use (the curse stays by hand). The
+  bonus action), the five Domain Spells grants on the Grave Domain subclass are always prepared (the import left them at not prepared), and Channel Divinity: Path to the Grave has a Use activity that spends one Channel Divinity use (the curse stays by hand). The
   Spare the Dying copy is made from the Players Handbook spell at run time, so no spell text is in the repo. Pi sitting: snapshot, `MODE=grave-patch`
   dry run, `MODE=grave-patch APPLY=1` (it adds to shared module packs, which is harmless for other worlds), then `MODE=baseline` dry run and
   `APPLY=1 OTHER_WORLDS_OK=1` (REFRESH should list only the patched entries), then stage 13 (as after every baseline), then `MODE=grave-check`

@@ -12,6 +12,9 @@
 //   2. Channel Divinity: Path to the Grave gets a utility activity (a Use button) that spends one use of the cleric's
 //      Channel Divinity feature (identifier channel-divinity). The Cursed effect stays on
 //      the feature to be applied by hand.
+//   3. The Grave Domain subclass (MNyZVxdtyB9spWr8) has five Domain Spells ItemGrants (levels 1, 3, 5, 7, 9). The D&D Beyond
+//      import left them at spell.prepared 0, so a cleric rebuilt through Actor Studio got the domain spells unprepared.
+//      They are set to 2 (always prepared), like the book says.
 // Nothing else in the packs changes. The copies in world.player-classes and world.player-spells are not touched here:
 // run the baseline (stage 22 MODE=baseline) afterwards and it copies the patched entries over and re-points the links.
 // Module packs are locked again at the end of every real run, also after a failure. A module update that rewrites
@@ -29,6 +32,7 @@ const PHB_SPARE = 'phbsplSparetheDy';
 // it spends the use from the Channel Divinity item on the actor; a compendium uuid here did not on a bare copy).
 const CD_TARGET = 'feat:channel-divinity';
 const CIRCLE = 'cVLrkyhsPzELan6D';
+const DOMAIN = 'MNyZVxdtyB9spWr8';
 const PATH = 'RC9A6n8RjP4gtPoF';
 const SPARE_ID = 'aitGraveSpareDy1';
 const ADV_ID = 'aitGraveSpare001';
@@ -47,6 +51,14 @@ const covers = (have, want) =>
   want && typeof want === 'object'
     ? have && typeof have === 'object' && Object.keys(want).every(k => covers(have[k], want[k]))
     : plain(have) === plain(want);
+
+// The domain spell grants on the subclass: every ItemGrant that carries a spell configuration (the other grants are features).
+const domainGrants = doc =>
+  Object.entries(doc?.toObject().system.advancement ?? {}).filter(
+    ([, a]) => a.type === 'ItemGrant' && a.configuration?.spell
+  );
+const unpreparedGrants = doc =>
+  domainGrants(doc).filter(([, a]) => a.configuration.spell.prepared !== 2);
 
 const wantedAdvancement = () => ({
   _id: ADV_ID,
@@ -95,6 +107,16 @@ const wantedActivity = () => ({
   roll: { prompt: false, visible: false },
   img: null,
 });
+
+// The Use activity: what we wrote, and no extra consumption target (covers() only checks what we wrote, so a second
+// thing spent is checked by count). Used for the module pack entry and the world.player-classes copy.
+const actCovers = doc => {
+  const have = doc?.toObject().system.activities?.[ACT_ID];
+  return (
+    covers(have, wantedActivity()) &&
+    have.consumption?.targets?.length === wantedActivity().consumption.targets.length
+  );
+};
 
 // The Spare the Dying copy: the book spell with the feature's range and activation.
 const spareFrom = book => {
@@ -166,12 +188,16 @@ const spareOk =
     { system: wantSpare.system, flags: wantSpare.flags[FLAG] }
   );
 const advOk = covers(circle.toObject().system.advancement?.[ADV_ID], wantedAdvancement());
-const haveAct = path.toObject().system.activities?.[ACT_ID];
-// covers() only checks what we wrote, so an extra consumption target (a second thing spent) is checked by count.
-const actOk =
-  covers(haveAct, wantedActivity()) &&
-  haveAct.consumption?.targets?.length === wantedActivity().consumption.targets.length;
+const actOk = actCovers(path);
+const domain = await classes.getDocument(DOMAIN);
+if (!domain || domain.name !== 'Grave Domain')
+  throw new Error(`${CLASSES} ${DOMAIN} is not Grave Domain. Nothing was changed`);
+if (!domainGrants(domain).length)
+  throw new Error(`${CLASSES} ${DOMAIN} has no domain spell grants. Nothing was changed`);
+const unprepared = unpreparedGrants(domain);
 const todo = [];
+if (unprepared.length)
+  todo.push(`make the ${unprepared.length} Grave Domain spell grants always prepared`);
 if (!spareOk)
   todo.push(haveSpare ? 'refresh the Spare the Dying copy' : 'make the Spare the Dying copy');
 if (!advOk) todo.push('add the Spare the Dying grant to Circle of Mortality');
@@ -180,6 +206,7 @@ log(todo.length ? `to do: ${todo.join('; ')}` : 'already patched, nothing to do'
 
 if (CHECK) {
   // Once the baseline exists, the copies players use must carry the patch too (a skipped or reverted baseline refresh).
+  const moduleTodo = [...todo];
   const playerClasses = game.packs.get('world.player-classes');
   const playerSpells = game.packs.get('world.player-spells');
   if (playerClasses && playerSpells) {
@@ -187,17 +214,25 @@ if (CHECK) {
     const pp = await playerClasses.getDocument(PATH);
     if (!pc || !covers(pc.toObject().system.advancement?.[ADV_ID], { type: 'ItemGrant', level: 1 }))
       todo.push('world.player-classes: Circle of Mortality lacks the grant (run the baseline)');
-    if (!pp || !covers(pp.toObject().system.activities?.[ACT_ID], wantedActivity()))
+    if (!pp || !actCovers(pp))
       todo.push(
         'world.player-classes: Path to the Grave lacks the Use activity (run the baseline)'
+      );
+    const pd = await playerClasses.getDocument(DOMAIN);
+    if (!pd || !domainGrants(pd).length || unpreparedGrants(pd).length)
+      todo.push(
+        'world.player-classes: Grave Domain spell grants are not always prepared (run the baseline)'
       );
     if (!(await playerSpells.getDocument(SPARE_ID)))
       todo.push('world.player-spells: the Spare the Dying copy is missing (run the baseline)');
   }
-  if (todo.length)
-    throw new Error(
-      `grave domain patch missing (the file is uploaded but the patch is not applied: MODE=grave-patch APPLY=1, then MODE=baseline): ${todo.join('; ')}`
-    );
+  if (todo.length) {
+    // Only the player copies behind: the patch itself is applied, so the next step is the baseline, not the patch.
+    const hint = moduleTodo.length
+      ? 'the file is uploaded but the patch is not applied: MODE=grave-patch APPLY=1, then MODE=baseline'
+      : 'the module packs are patched but the player copies are not: run the baseline (MODE=baseline APPLY=1 OTHER_WORLDS_OK=1)';
+    throw new Error(`grave domain patch missing (${hint}): ${todo.join('; ')}`);
+  }
   return { patched: true };
 }
 if (args.dryRun || !todo.length) return { todo };
@@ -211,8 +246,15 @@ try {
     });
     log(`Spare the Dying copy ${SPARE_ID} in ${SPELLS}`);
   }
-  if (!advOk || !actOk) {
+  if (!advOk || !actOk || unprepared.length) {
     await unlocked(classes, async () => {
+      if (unprepared.length) {
+        const changes = {};
+        for (const [id] of unprepared)
+          changes[`system.advancement.${id}.configuration.spell.prepared`] = 2;
+        await domain.update(changes);
+        log(`Grave Domain: ${unprepared.length} spell grants now always prepared`);
+      }
       if (!advOk) {
         await circle.update({ [`system.advancement.${ADV_ID}`]: wantedAdvancement() });
         log(`Circle of Mortality now grants ${SPARE_ID} (Wisdom, always prepared)`);

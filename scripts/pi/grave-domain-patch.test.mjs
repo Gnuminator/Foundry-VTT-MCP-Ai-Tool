@@ -47,8 +47,31 @@ function makePack(collection, entries, locked = true) {
   return pack;
 }
 
+const domainEntry = prepared => ({
+  _id: 'MNyZVxdtyB9spWr8',
+  name: 'Grave Domain',
+  system: {
+    advancement: {
+      feat1: { _id: 'feat1', type: 'ItemGrant', level: 1, configuration: { items: [] } },
+      sp1: {
+        _id: 'sp1',
+        type: 'ItemGrant',
+        level: 1,
+        configuration: { items: [], spell: { method: 'spell', prepared } },
+      },
+      sp3: {
+        _id: 'sp3',
+        type: 'ItemGrant',
+        level: 3,
+        configuration: { items: [], spell: { method: 'spell', prepared } },
+      },
+    },
+  },
+});
+
 function makeWorld() {
   const classes = makePack('aitool-content.classes', [
+    domainEntry(0),
     {
       _id: 'cVLrkyhsPzELan6D',
       name: 'Circle of Mortality',
@@ -96,10 +119,10 @@ async function run(world, { dryRun, mode } = {}) {
 }
 
 describe('grave-domain-patch.js', () => {
-  test('a dry run lists the three changes and writes nothing', async () => {
+  test('a dry run lists the four changes and writes nothing', async () => {
     const w = makeWorld();
     const { result } = await run(w, { dryRun: true });
-    assert.equal(result.todo.length, 3);
+    assert.equal(result.todo.length, 4);
     assert.equal(w.spells.docs.size, 0);
     assert.deepEqual(w.classes.docs.get('cVLrkyhsPzELan6D').system.advancement, {});
   });
@@ -130,6 +153,26 @@ describe('grave-domain-patch.js', () => {
     assert.equal(act.consumption.targets[0].value, '1');
     assert.equal(w.classes.locked, true);
     assert.equal(w.spells.locked, true);
+  });
+
+  test('the Domain Spells grants become always prepared and the feature grant is left alone', async () => {
+    const w = makeWorld();
+    await run(w);
+    const adv = w.classes.docs.get('MNyZVxdtyB9spWr8').system.advancement;
+    assert.equal(adv.sp1.configuration.spell.prepared, 2);
+    assert.equal(adv.sp3.configuration.spell.prepared, 2);
+    assert.equal(adv.feat1.configuration.spell, undefined);
+    assert.equal(w.classes.locked, true);
+  });
+
+  test('a stored <hr /> in the Spare the Dying copy counts as the same text as <hr>', async () => {
+    const w = makeWorld();
+    w.phb.docs.get('phbsplSparetheDy').system.description = { value: '<p>a</p><hr>' };
+    await run(w);
+    // Foundry stores <hr /> as <hr>: a copy holding the other form is not drift
+    w.spells.docs.get('aitGraveSpareDy1').system.description = { value: '<p>a</p><hr />' };
+    const ok = await run(w, { dryRun: true, mode: 'check' });
+    assert.equal(ok.result.patched, true);
   });
 
   test('a second run changes nothing', async () => {
@@ -215,6 +258,7 @@ describe('grave-domain-patch.js', () => {
     const w = makeWorld();
     await run(w);
     const pc = makePack('world.player-classes', [
+      domainEntry(0),
       {
         _id: 'cVLrkyhsPzELan6D',
         name: 'Circle of Mortality',
@@ -226,7 +270,13 @@ describe('grave-domain-patch.js', () => {
     w.packs.set(pc.collection, pc);
     w.packs.set(ps.collection, ps);
     await assert.rejects(run(w, { dryRun: true, mode: 'check' }), /run the baseline/);
+    // the module packs are patched, only the player copies are behind: the error says run the baseline, not the patch
+    await assert.rejects(
+      run(w, { dryRun: true, mode: 'check' }),
+      /module packs are patched but the player copies are not: run the baseline/
+    );
     // a baseline refresh copies the patched entries over
+    pc.docs.set('MNyZVxdtyB9spWr8', structuredClone(w.classes.docs.get('MNyZVxdtyB9spWr8')));
     pc.docs.set('cVLrkyhsPzELan6D', structuredClone(w.classes.docs.get('cVLrkyhsPzELan6D')));
     pc.docs.set('RC9A6n8RjP4gtPoF', structuredClone(w.classes.docs.get('RC9A6n8RjP4gtPoF')));
     ps.docs.set('aitGraveSpareDy1', structuredClone(w.spells.docs.get('aitGraveSpareDy1')));

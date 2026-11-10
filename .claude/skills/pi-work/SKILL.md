@@ -15,7 +15,7 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 - **Every change only from a reviewed stage script** in `scripts/pi/remote/` (Opus review: Pi
   scripts are a risky category), tested in the ARM64 container first (`scripts/pi/container-test/`),
   each run after the user's explicit OK. Any other change is shown to the user first and runs only
-  after an OK.
+  after an OK. Every OK is asked through `AskUserQuestion`, never in prose or via the planner.
 - **Explicit OK every time, never bundled:** deleting outside our folders (`/opt/foundry*`,
   `/opt/node24`, `/var/lib/foundry*`, `/etc/foundry-ai-tool`, `/tmp`), users and groups, disks,
   partitions, filesystems, the bootloader, removing packages, firewall, SSH and network settings,

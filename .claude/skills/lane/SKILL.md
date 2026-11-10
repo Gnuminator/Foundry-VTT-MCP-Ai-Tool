@@ -7,7 +7,12 @@ description: How a Foundry AI Tool coding lane works from claim to merge - claim
 
 A lane is one session with one outcome: one Backlog item, one branch, one PR. Vault paths below are
 under `C:\Users\chris\Documents\Obsidian\vault\Dev\Foundry AI Tool\` (pull before writing, push
-after). Dated history of these rules is in the vault `Decisions/Decisions log.md`.
+after). History: vault `Decisions/Decisions log.md`.
+
+**Asking the user:** any OK, pick, value or input the lane needs from the user goes through
+`AskUserQuestion` in that same turn, recommended option first, each question standing on its own.
+Not prose, not only the wrap-up box's ask, and never a message asking the planner to get the answer
+(the planner is no relay). Pi OKs count.
 
 ## Start
 
@@ -19,17 +24,15 @@ tells you to Read it again when it changed it.
    brief, write `claimed: <session title> <date>` under it and, on the next line,
    `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
    the board's lane card opens your session from it), commit and push the vault (the board reads
-   PR, CI and review state from GitHub, so a lane writes no heartbeat). If the item has
+   PR, CI and review state from GitHub; no heartbeat). If the item has
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
    the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
-   own worktree: the context lines (250k and 300k for a lane) are fixed at session start from the
-   project dir and transcript folder, so a session that only `cd`s into a worktree later keeps the
-   planner's 200k and 250k lines.
+   own worktree: the context lines are fixed at session start, so a session that only `cd`s into a
+   worktree later keeps the planner's 200k and 250k lines.
 2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
-3. Read only what the item names. Reading more than about eight files to understand code goes to an
-   Explore subagent (`model: "haiku"`) that returns a summary with file:line; you read only the few
-   files you will edit.
+3. Read only what the item names. More than about eight files to read goes to an Explore subagent
+   (`model: "haiku"`) that returns a summary with file:line; you read only what you edit.
 
 ## Work
 
@@ -46,7 +49,7 @@ tells you to Read it again when it changed it.
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
   status. Queue on A only when all three are taken; kit runs default to B. Verify a feature live
   before calling it done. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534). Stopping a background task may leave its node child running: check the PID.
+31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child running: check the PID.
 - **Commands over 2 minutes** run in the background, never polled. On Windows never call
   `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
   or regex through Write/Edit.
@@ -55,17 +58,16 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 
 ## Before the PR
 
-- **CI on the PR head is the green.** A lane does not run the full `npm run green` before a PR.
-  Quick local checks of what you touched, push, let CI run, fix what it reports, also after review
-  fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
-  - **Quick checks:** `npm run green -- --quick` (seconds to a couple of minutes, no heavy lock). It
+- **CI on the PR head is the green.** A lane runs quick local checks of what
+  it touched, pushes, lets CI run and fixes what it reports, also after review fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
+  - **Quick checks:** `npm run green -- --quick` (seconds to minutes, no heavy lock). It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
-    changed scripts and hooks (`foo.mjs` runs `foo.test.mjs`), dashboard e2e specs, and for
+    changed scripts and hooks, dashboard e2e specs, and for
     dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`. Screenshots
-    (`dashboard-visual`) run on CI only. It never writes `.git/green-ok`.
-  - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure that is already on main
-    is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not fixed by guessing.
+    (`dashboard-visual`) run on CI only.
+  - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure already on main
+    is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not guessed at.
   - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; lower
     the lint and em-dash baselines when the CI ratchet reports a drop (`npm run lint:ratchet --
 --update`).
@@ -79,8 +81,7 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
   them, push, and only then open the PR. The helper takes only its own run (branch, nonce and the
   branch head sha at dispatch) and refuses an artifact from another sha; it logs to
-  `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (slashes become `_`, lower case, a short hash of the exact branch name; printed on the first line), so lanes running it at once do
-  not share a log. If it writes nothing, read that log and the run log. Never copy
+  `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (printed on the first line). If it writes nothing, read that log and the run log. Never copy
   baselines from a failed PR run; re-run after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives,
   audio, `.env` or downloads.
@@ -143,17 +144,14 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 - The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
   lane, a session whose project dir (`CLAUDE_PROJECT_DIR`) is under `.claude/worktrees/`, or whose transcript sits in a worktree project folder (`...--claude-worktrees-<name>`; desktop-app worktree sessions have the main checkout as project dir). Both are fixed at session start, so a `cd` does not change it (the user, 2026-11-04); the planner and
   other sessions keep 200k and 250k. `get_usage "self"` gives the exact number. An advisor call's
-  top-level usage reads about twice the real context; the hook reads the last pass.
+  top-level usage reads about twice the real context.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
-  vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts when
-  the context is under the line again.
-- **Handover:** write it once, when you hand over (no per-milestone rewrites; the vault sees only
-  the claim and the `- progress:` line per PR). Half a page to vault `Handoff/<lane> prompt
+  vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop.
+- **Handover:** write it once, when you hand over. Half a page to vault `Handoff/<lane> prompt
   <date>.md` and in full in the chat in
   a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
-  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before saying a session can be closed, no background run it owns is still going. Push the note and a `- progress:` line (`handed over at <context>, no PR
-yet` or the PR state, plus the note path); the planner reads it and starts the successor. Start no
-  successor and message nobody.
+  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before closing, no background run of yours may still go. Push the note and a `- progress:` line (`handed over at <context>, no PR
+yet` or the PR state, plus the note path); the planner reads it and starts the successor. Start no successor, message nobody.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

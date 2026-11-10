@@ -5,27 +5,25 @@ description: The on-demand planner for Foundry AI Tool - answering "what's next"
 
 # Planner
 
-The planner runs on Opus, on demand, for one outcome (a plan, started lanes, a decision), then
-ends (see Waking). Vault paths are under
+The planner runs on Opus, on demand, for one outcome, then ends (see Waking). Vault paths are under
 `C:\Users\chris\Documents\Obsidian\vault\Dev\Foundry AI Tool\` (pull first, push after). History: vault `Decisions/Decisions log.md`.
 
-## Read the state (measured, never from memory)
+## Read the state (measured)
 
 - `Backlog.md`, `Waiting.md`, CLAUDE.md "Holds now". The `- progress:` line on a claimed item is
   the lane's ready state; lanes message nobody, so read it on every wake for every claimed item,
   inherited lanes included. Never message an idle lane. A lane that stopped with a handover and no
-  running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt
-<date>.md`; a card if the turn cannot start sessions), and the stopped lane is archived first (git refuses a branch another worktree holds; if the folder stays, `git checkout --detach` there once clean).
+  running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start), and the stopped lane is archived first (if the folder stays, `git checkout --detach` there once clean).
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
   start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red: see Main is red).
 - `list_sessions` without `linked` (lanes start their own successors), then `get_usage` with each
-  running lane's id (lanes underreport their context) and `"self"` for yours and the plan
+  running lane's id (lanes underreport) and `"self"` for yours and the plan
   percentages.
 
 ## "What's next"
 
 Answer with: due Waiting items (what, minutes, what it settles), running lanes and open PRs, and
-the top Backlog items with a bold recommended pick. Decisions go through the question tool, after the answer.
+the top Backlog items with a bold recommended pick. Decisions: question tool, after the answer.
 
 ## Backlog upkeep
 
@@ -34,18 +32,18 @@ never changed or reused: the live board, D-124, links by it), `- board: <area>`,
 `- area:`, `- progress:` (the lane's ready state), optional `- gate:`, `- blocked by:` (`W21` or
 `item:<id>`), `- pi: yes` (needs a Pi day and the user's OK), `- source:`, `- touches: path,
 folder/`, `- depends on: #380, item:<id>`, and `- claimed:` once a lane takes it. The board's Lanes
-zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names a before and after number; the lane puts both in the PR. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
+zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
 (triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`). The board rewrites
 `Backlog.md`: pull first, keep each item's lines together.
 
 ## Starting lanes
 
-- Turn Remote Control on for this session (`set_remote_control` "self" true) so the phone reaches it.
+- Turn Remote Control on for this session (`set_remote_control` "self" true) for the phone.
 - At most 3 lanes, each owning its own files and test server. Respect every hold in CLAUDE.md.
 - Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md", write your `claude://` link (`get_session "self"`, field `link`) as a
   `- link:` line under your claim, report "ready to merge" as a `- progress:` line on the item and
-  message nobody. Pi work carries its rules (`pi-work`).
+  message nobody, ask the user through `AskUserQuestion` (never via you). Pi work carries `pi-work`.
 - `start_session` takes `model` as a full id (e.g. `claude-sonnet-5-5`): Sonnet for coding, Haiku for read-only work,
   Opus only for risky design. Every start, Agent and Workflow `agent()` call sets it (unset inherits
   Opus). If the app refuses a start (automated turn, phone, session started by a session), propose a card.

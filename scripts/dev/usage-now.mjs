@@ -150,7 +150,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
     const logFile = usageLogFile(vaultDirFor(env));
     const usageLog = existsSync(logFile) ? readFileSync(logFile, 'utf8') : null;
     const root = env.USAGE_WEEK_ROOT || path.join(os.homedir(), '.claude', 'projects');
-    const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
+    const report = await buildReport({ root, now, days: opts.days, prs, usageLog, weeklyResets: opts.weeklyResets });
     lines.push(...checkLines(report), ...paceLines(report, opts, now));
   }
   const text = renderNote(lines);

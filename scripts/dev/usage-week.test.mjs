@@ -806,6 +806,8 @@ test('paceFor: a reading of this week more than 6 hours old still gives a projec
   assert.equal(old.now, null);
   assert.match(formatPace(old), /no reading for this week/);
   assert.equal(paceFor([], now), null);
+  // a weekly-resets time passed in moves the week start (reset minus 7 days) for the profile too
+  assert.equal(paceFor([reading], now, 4, '2026-10-24T05:00:00.111Z').now, null);
   assert.match(formatPace(null), /no usage log readings/);
 });
 

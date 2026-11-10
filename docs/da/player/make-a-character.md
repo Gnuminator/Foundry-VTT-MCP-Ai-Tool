@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 556304b008f8
+sourceHash: 27f4aaac27a5
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -51,10 +51,10 @@ To små ting, der sparer dig besvær:
 
 ![Fanen Actors med Actor Studio logo-knappen under Create Actor](../../images/guides/studio-button.png)
 
-Første gang du logger ind, åbner to vinduer af sig selv: velkomstvinduet fra Actor Studio og
-Foundrys **User Configuration**. Sæt flueben i **Don't show this message again** i velkomstvinduet
-og luk det. Luk også User Configuration: du vælger din karakter dér i
-[trin 11](#11-gør-den-til-din-karakter), og indtil du gør det, åbner den igen hver gang du joiner.
+Første gang du logger ind, åbner Foundrys **User Configuration** måske af sig selv. Luk den: Actor
+Studio gør din nye karakter til din, når du klikker Create Character (se
+[trin 11](#11-gør-den-til-din-karakter)). Der er intet velkomstvindue fra Actor Studio at tage dig
+af.
 
 Builder-vinduet har fanerne **Abilities**, **Species**, **Background** og **Class**, en boks
 **Character Name** nederst og en bar, der viser, hvor langt du er.
@@ -136,8 +136,9 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
 - **Size:** trinnet kan stå på **Small**, selv for en species, der er Medium (en human, for
   eksempel). Åbn listen og vælg **Medium**, medmindre din species virkelig er small.
 - **Valg med en tæller**, som Divine Order for en cleric: trinnet viser **Chosen 0 of 1**.
-  Next lader dig komme videre ved 0, så vent, til der står **Chosen 1 of 1** (eller hvad det andet
-  tal nu er). Har du klikket forbi et, så tryk **Previous** for at gå tilbage og vælge.
+  Vent, til der står **Chosen 1 of 1** (eller hvad det andet tal nu er). Klikker du Next eller
+  Complete for tidligt, siger en boks **Choices still open**: klik **Go back** og vælg. **Continue
+  anyway** er kun til et trin, hvor der ikke er mere at vælge.
 - **Background ability scores:** hæv de tre scores, der er nævnt: én med 2 og en anden med 1, eller
   alle tre med 1. Klik på **+** ved scorerne, til der står **0 Points Remaining**.
 
@@ -231,8 +232,9 @@ Dit sheet er åbent og viser level 1. Vores kampagne starter på level 3, så du
      klik **Next**.
 5. Klik **Complete** på det sidste trin. **På level 3 åbner der så et andet vindue med din
    subclassens features (for eksempel "Champion • Level 2 -> 3, Step 1 of 1"). Klik Complete i det
-   også.** Springer du det over, viser sheetet det nye level, men ingen subclass og ingen subclass
-   features.
+   også.** Lukker du Studio før det, viser dit sheet en bjælke **The level-up is not finished:
+   (subclass) was not added** med en knap **Add the subclass**. Klik på den og klik Complete i det
+   vindue, der åbner.
 6. Gør det to gange: først level 1 til 2 (ingen subclass da, så gå direkte til **Add Character
    Level**), derefter level 2 til 3.
 
@@ -277,7 +279,10 @@ Det er dit job at vide, hvad din karakter kan, så spillet ikke går i stå, men
 
 ## 11. Gør den til din karakter
 
-Foundry skal vide, hvilken karakter der er din, så den bruger den til dine rolls og tokens.
+Foundry skal vide, hvilken karakter der er din, så den bruger den til dine rolls og tokens. Actor
+Studio gør det for dig, når du klikker **Create Character**, og listen Players viser så dit navn
+med karakterens navn i parentes. Kun hvis det ikke skete (for eksempel hvis du allerede havde en
+karakter valgt), gør du det selv:
 
 1. I listen **Players** nederst til venstre højreklikker du på dit eget navn og vælger **User
    Configuration**.
@@ -314,14 +319,14 @@ eller som er for stor, bliver afvist med en kort besked; send den til GM'en på 
 | Du lukkede builderen halvvejs, eller siden blev genindlæst | Genindlæs siden (F5). En boks spørger, om du vil fortsætte din karakter: klik **Resume** og svar igen på de valg, der ikke var færdige. Missede du boksen, så åbn den halvfærdige karakter i fanen Actors og klik **Resume in Actor Studio** i den orange bjælke. En karakter uden orange bjælke kan ikke fortsættes: bed GM'en slette den, og start så forfra. |
 | Actor Studio siger, at den er "already open and busy"      | Den halvfærdige karakter blokerer. Genindlæs siden (F5). Spillere kan ikke slette karakterer, så bed GM'en slette den halvfærdige.                                                                                                                                                                                                                              |
 | AC er lavere, end den burde være                           | Equip din rustning og dit skjold i fanen **Inventory** på dit sheet.                                                                                                                                                                                                                                                                                            |
-| Next lader dig forbi et trin uden et valg                  | Tryk **Previous** og vælg. Tjek tælleren **Chosen x of y**, før du klikker Next hver gang.                                                                                                                                                                                                                                                                      |
+| En boks siger "Choices still open"                         | Du klikkede Next eller Complete med en tæller **Chosen x of y**, der ikke er fuld. Klik **Go back** og vælg. **Continue anyway** kun når der ikke er mere at vælge.                                                                                                                                                                                             |
 | Der er ingen knap **Level Up** på dit sheet                | GM'en skal slå Milestone Levelling til eller give dig XP. Sig det til dem.                                                                                                                                                                                                                                                                                      |
-| Level 3 vises, men ingen subclass på sheetet               | Du sprang det andet **Complete** over (vinduet med subclassens features). Sig det til GM'en, som kan tilføje subclass.                                                                                                                                                                                                                                          |
-| Du sprang et valg over med Next                            | Gør dig færdig og fortæl så GM'en, hvad der mangler. GM'en kan tilføje det eller slette karakteren, så du kan lave den om.                                                                                                                                                                                                                                      |
+| Level 3 vises, men ingen subclass på sheetet               | Du lukkede Studio, før subclass-vinduet var færdigt. Åbn dit sheet og klik **Add the subclass** i bjælken øverst, derefter Complete.                                                                                                                                                                                                                            |
+| Du sprang et valg over med Continue anyway                 | Gør dig færdig og fortæl så GM'en, hvad der mangler. GM'en kan tilføje det eller slette karakteren, så du kan lave den om.                                                                                                                                                                                                                                      |
 | Equipment bliver under 100 %                               | Klik på guldbeløbene og vælg i hver **Select focus** liste, til alt er grønt.                                                                                                                                                                                                                                                                                   |
 | Panelet er tomt, efter du har klikket Complete             | Vent cirka 5 sekunder. Det næste trin dukker op af sig selv.                                                                                                                                                                                                                                                                                                    |
 | En liste er ikke, som GM'en beskrev                        | GM'en har måske ændret indstillingerne, efter du åbnede siden. Genindlæs siden (F5).                                                                                                                                                                                                                                                                            |
-| Din karakter hedder det samme som dig                      | Du lod Character Name stå, som det var. Sig det til GM'en, som kan omdøbe den.                                                                                                                                                                                                                                                                                  |
+| Din karakter hedder det samme som dig                      | Studio spørger, før den laver karakteren: klik **Go back** og skriv navnet. Slap den igennem, så sig det til GM'en, som kan omdøbe den.                                                                                                                                                                                                                         |
 | Du valgte en forkert spell eller den samme spell to gange  | Sig det til GM'en. GM'en kan bytte den på dit sheet.                                                                                                                                                                                                                                                                                                            |
 
 ## Hvad du kan spørge din GM om

@@ -39,6 +39,7 @@ import type {
 } from './library-index.js';
 import type { PlayRecordsResponse } from './play-log.js';
 import type { PageForPlayers } from './player-view.js';
+import type { PcCreationPlan, PcCreationRequest } from './pc-creation.js';
 import type { RoomSetupPlan, RoomSetupRequest } from './room-setup.js';
 import type { SceneMoodPlan, SceneMoodPlanRequest, SceneMoodsReply } from './scene-mood.js';
 import type { TokenRingsPlan, TokenRingsPlanRequest } from './token-rings.js';
@@ -200,6 +201,7 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.planNpcTurn': { request: NpcTurnRequest; reply: NpcTurnPlan };
   'foundry-mcp-bridge.planPaperSync': { request: PaperSyncRequest; reply: PaperSyncPlan };
   'foundry-mcp-bridge.planRoomSetup': { request: RoomSetupRequest; reply: RoomSetupPlan };
+  'foundry-mcp-bridge.planPcCreation': { request: PcCreationRequest; reply: PcCreationPlan };
   'foundry-mcp-bridge.characterSheet': {
     request: { userId: string };
     reply: CharacterSheetsResult;

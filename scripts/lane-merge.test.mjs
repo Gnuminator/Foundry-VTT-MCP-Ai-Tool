@@ -658,10 +658,64 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
     rollupProblems([check(100, 'lint', 'FAILURE'), check(200, 'lint', 'CANCELLED')]).failing,
     ['lint (CANCELLED)']
   );
-  assert.deepEqual(rollupProblems([...older, check(200, 'lint', 'FAILURE')]).failing, [
+  assert.deepEqual(rollupProblems([...older, ...newer, check(200, 'lint', 'FAILURE')]).failing, [
     'lint (FAILURE)',
   ]);
-  // only a non-dispatch run supersedes: a newer dispatch run leaves the cancelled pull_request check blocking
+  // a newer run that has not reported that very check yet (the screenshot summary comes after its
+  // shards) does not excuse the old cancelled one: no screenshot result must never pass
+  assert.deepEqual(rollupProblems([...older, check(200, 'lint', 'SUCCESS')]).failing, [
+    raw + ' (CANCELLED)',
+  ]);
+  // the newer run's same check, still running, replaces it and is reported as pending
+  assert.deepEqual(
+    rollupProblems([
+      ...older,
+      check(200, 'dashboard-visual (screenshots)', '', { status: 'IN_PROGRESS' }),
+      check(200, 'lint', 'SUCCESS'),
+    ]),
+    { failing: [], pending: ['dashboard-visual (screenshots) (IN_PROGRESS)'], missing: [] }
+  );
+  // an older cancelled dispatch check still blocks next to a newer green pull_request run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, 'python-tests [dispatch]', 'CANCELLED'),
+      check(100, 'lint [dispatch]', 'SUCCESS'),
+      check(200, 'python-tests', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    ['python-tests [dispatch] (CANCELLED)']
+  );
+  // a dispatch run whose only other check is a raw name does not supersede a cancelled pull_request check
+  assert.deepEqual(
+    rollupProblems([
+      check(200, 'python-tests', 'CANCELLED'),
+      check(300, 'lint [dispatch]', 'SUCCESS'),
+      check(300, raw, 'CANCELLED'),
+    ]).failing,
+    ['python-tests (CANCELLED)', raw + ' (CANCELLED)']
+  );
+  // a raw cancelled dispatch check without a start time is not hidden by the pull_request run's green check
+  assert.deepEqual(
+    rollupProblems([
+      check(300, 'lint [dispatch]', 'SUCCESS'),
+      check(300, raw, 'CANCELLED', { startedAt: '0001-01-01T00:00:00Z' }),
+      check(200, 'dashboard-visual (screenshots)', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    [raw + ' (CANCELLED)']
+  );
+  // a raw matrix name is replaced by a newer run's expanded leg of the same job
+  const rawShard = 'dashboard-visual shard ${{ matrix.shard }}/4${{ x }}';
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, 'dashboard-visual shard 1/4', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    []
+  );
+  // only a run of the same check supersedes: a newer dispatch run leaves the cancelled pull_request check blocking
   const dispatch = check(300, 'lint [dispatch]', 'SUCCESS');
   assert.deepEqual(rollupProblems([check(100, 'lint', 'CANCELLED'), dispatch]).failing, [
     'lint (CANCELLED)',

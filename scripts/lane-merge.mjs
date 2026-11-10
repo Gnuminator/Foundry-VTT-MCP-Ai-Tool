@@ -529,34 +529,87 @@ function stripExpression(name) {
   return i < 0 ? t : t.slice(0, i).trim();
 }
 
-/** The Actions run id in a check's detailsUrl (.../actions/runs/<id>/job/<id>), or null. @param {any} c */
+/** The Actions run id in a check's detailsUrl (github.com/<owner>/<repo>/actions/runs/<id>/job/<id>), or null. @param {any} c */
 function runIdOf(c) {
-  const m = /\/actions\/runs\/(\d+)/.exec(String(c.detailsUrl ?? ''));
+  const m = /github\.com\/[^/]+\/[^/]+\/actions\/runs\/(\d+)/.exec(String(c.detailsUrl ?? ''));
   return m ? Number(m[1]) : null;
 }
 
+/** Whether a job name still holds an unexpanded expression (the job never started). @param {any} name */
+const isRaw = name => String(name ?? '').includes('${{');
+
 /**
- * Drops each CANCELLED check run whose run was superseded: another check of the same workflow, not a
- * " [dispatch]" one, comes from a run with a higher id. Such a run is the one the concurrency group
- * cancelled when a newer run started on the same head; its leftover checks say nothing about the head.
- * A cancelled check without a run id, or with no newer run, stays and blocks as before.
+ * Which runs are hand-dispatched: a run is told apart by the names of its jobs that did expand (a
+ * " [dispatch]" suffix or none). A run with no expanded name is unknown and is neither.
+ * @param {any[]} rollup @returns {{ dispatch: Set<number>, normal: Set<number> }}
+ */
+function runClasses(rollup) {
+  const dispatch = new Set();
+  const normal = new Set();
+  for (const c of rollup) {
+    const id = runIdOf(c);
+    if (id === null || c.status === undefined || isRaw(c.name)) continue;
+    (/\[dispatch\]/.test(String(c.name)) ? dispatch : normal).add(id);
+  }
+  return { dispatch, normal };
+}
+
+/**
+ * Gives each check run the name it is keyed by. An expanded name is kept. A raw name (cancelled
+ * before it started) loses everything from "${{" on, with " [dispatch]" appended when its run is a
+ * dispatch run, so it meets the same check of a newer run. A raw name of a run that cannot be
+ * classified stays whole (fail closed: it keeps blocking).
+ * @param {any[]} rollup @returns {(c: any) => string}
+ */
+function checkNamer(rollup) {
+  const { dispatch, normal } = runClasses(rollup);
+  return c => {
+    const name = String(c.name ?? c.context ?? '');
+    if (!isRaw(name)) return name;
+    const id = runIdOf(c);
+    if (id !== null && dispatch.has(id)) return `${stripExpression(name)} [dispatch]`;
+    if (id !== null && normal.has(id)) return stripExpression(name);
+    return name;
+  };
+}
+
+/**
+ * Drops each CANCELLED check run that a newer run replaced: a run of the same workflow with a
+ * higher id, not a dispatch run, reports the same check (by key name; for a raw matrix name, a name
+ * starting with its text before the expression). That is the run the concurrency group cancelled
+ * when a newer run started on the same head. The newer run must report that very check: a newer run
+ * that has only some jobs in the rollup yet (the screenshot summary appears after its shards) does
+ * not excuse the old one. A cancelled check without a run id, from a dispatch run, or with no newer
+ * check of its own stays and blocks.
  * @param {any[]} rollup @returns {any[]}
  */
 export function supersededCancelled(rollup) {
-  /** @type {Map<string, number>} */
-  const newest = new Map();
-  for (const c of rollup) {
-    const id = runIdOf(c);
-    if (id === null || c.status === undefined || /\[dispatch\]/.test(stripExpression(c.name)))
-      continue;
-    const w = String(c.workflowName ?? '');
-    if (id > (newest.get(w) ?? 0)) newest.set(w, id);
-  }
+  const { dispatch } = runClasses(rollup);
+  const nameOf = checkNamer(rollup);
+  /** newer, replaceable candidates: finished or not, from non-dispatch runs of a named workflow */
+  const candidates = rollup
+    .map(c => ({ c, id: runIdOf(c) }))
+    .filter(
+      ({ c, id }) =>
+        id !== null &&
+        c.status !== undefined &&
+        c.workflowName &&
+        !dispatch.has(id) &&
+        !isRaw(c.name)
+    );
   return rollup.filter(c => {
     if (c.status === undefined || String(c.conclusion ?? '').toUpperCase() !== 'CANCELLED')
       return true;
     const id = runIdOf(c);
-    return id === null || id >= (newest.get(String(c.workflowName ?? '')) ?? 0);
+    if (id === null || dispatch.has(id) || !c.workflowName) return true;
+    const mine = nameOf(c);
+    const prefix = isRaw(c.name) ? stripExpression(c.name) : null;
+    return !candidates.some(
+      n =>
+        n.id > id &&
+        n.c.workflowName === c.workflowName &&
+        (prefix === null ? String(n.c.name) === mine : String(n.c.name).startsWith(prefix))
+    );
   });
 }
 
@@ -579,15 +632,18 @@ export function supersededCancelled(rollup) {
  * purpose; `gh run rerun <id> --failed` on the dispatch run (a newer start under the same key wins)
  * or a new push clears it.
  *
- * Two more rules, both for a run that a newer run of the same workflow replaced on the same head
- * (the concurrency group cancels the older one): a job cancelled before it started keeps the raw
- * expression in its name ("dashboard-visual (screenshots)${{ ... }}"), so the newer run's green check
- * never shared its key. The key drops everything from "${{" on, and `supersededCancelled` drops a
- * CANCELLED check whose run id is lower than the run id of a non-dispatch check of the same workflow.
+ * Two more rules, both for a run that a newer pull_request run of the same workflow replaced on the
+ * same head (the concurrency group cancels the older one): a job cancelled before it started keeps
+ * the raw expression in its name ("dashboard-visual (screenshots)${{ ... }}"), so the newer run's
+ * green check never shared its key. A raw name is keyed without the expression (with " [dispatch]"
+ * added when its run is a dispatch run; a run that cannot be classified keeps the raw name), and
+ * `supersededCancelled` drops a CANCELLED check when a newer non-dispatch run reports that check.
+ * A cancelled check of a dispatch run is never dropped, so the "[dispatch] blocks" rule above holds.
  * @param {any[]} rollup @returns {any[]}
  */
 export function latestChecks(rollup) {
   rollup = supersededCancelled(rollup);
+  const keyName = checkNamer(rollup);
   const byKey = new Map();
   const isStatusEntry = c => c.state !== undefined && c.status === undefined;
   const unfinished = c =>
@@ -607,7 +663,7 @@ export function latestChecks(rollup) {
   for (const c of rollup) {
     const key = isStatusEntry(c)
       ? `status\u0000${c.context ?? c.name}`
-      : `run\u0000${c.workflowName ?? ''}\u0000${stripExpression(c.name ?? c.context)}`;
+      : `run\u0000${c.workflowName ?? ''}\u0000${keyName(c)}`;
     const seen = byKey.get(key);
     if (!seen) {
       byKey.set(key, c);

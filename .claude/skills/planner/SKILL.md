@@ -34,15 +34,15 @@ never changed or reused: the live board, D-124, links by it), `- board: <area>`,
 `- area:`, `- progress:` (the lane's ready state), optional `- gate:`, `- blocked by:` (`W21` or
 `item:<id>`), `- pi: yes` (needs a Pi day and the user's OK), `- source:`, `- touches: path,
 folder/`, `- depends on: #380, item:<id>`, and `- claimed:` once a lane takes it. The board's Lanes
-zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority. A speed item's `done when` names a before and an after number, and the lane puts both in the PR body. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
+zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names a before and after number; the lane puts both in the PR. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
 (triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`). The board rewrites
-`Backlog.md` in place: pull first, keep each item's lines together.
+`Backlog.md`: pull first, keep each item's lines together.
 
 ## Starting lanes
 
 - Turn Remote Control on for this session (`set_remote_control` "self" true) so the phone reaches it.
 - At most 3 lanes, each owning its own files and test server. Respect every hold in CLAUDE.md.
-- Brief (half a page): the Backlog item, state, open PRs, links, done-when, "load the `lane`
+- Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md", write your `claude://` link (`get_session "self"`, field `link`) as a
   `- link:` line under your claim, report "ready to merge" as a `- progress:` line on the item and
   message nobody. Pi work carries its rules (`pi-work`).
@@ -91,24 +91,23 @@ a check failed, 4 head moved (re-review), 5 timed out.
 Merge train: the gate refuses a module, bridge link or guarded-write PR once 4 such merges wait;
 then run `npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through
 the test server lock, and on green `npm run lane:merge -- --train-reset <main sha>`; bisect if red
-(`--train` shows the count). Run it before any Pi deploy too. Tell the user what merged.
+(`--train` shows the count). Run it before any Pi deploy. Tell the user what merged.
 
 ## Main is red
 
 Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31.md`).
 
 1. **Open the unblock PR within 15 minutes:** **revert the merge that turned main red** (the
-   `since` sha in the alert, not simply the newest merge; the user's OK first, one line through the
-   question tool), or, when the break is a limit (a bundle or tool-set budget, a ratchet baseline),
+   alert's `since` sha, not the newest merge; the user's OK first, by question), or, when the break is a limit (a bundle or tool-set budget, a ratchet baseline),
    **a one-line temporary limit raise** (no OK) with a Backlog item for the proper fix. It is a
    normal PR through the gate. A flaky red: `gh run rerun <id> --failed`.
 2. **No other merges while main is red.** Lanes may keep building and pushing.
-3. The proper fix is a normal lane (red commit, step and unblock PR in `- source:`).
+3. The proper fix is a normal lane (red commit, step and unblock PR in `- source:`); tell the user in one line.
 
 ## Session cleanup
 
 Archive only when certain: not running, worktree clean and pushed (`git worktree list` first), no
-process or background run from it, no other lane on that branch. Subagent worktrees (`agent-*`) can hold uncommitted work. Archiving deletes side-session notes.
+process or background run from it, no other lane on that branch. Subagent worktrees (`agent-*`) can hold uncommitted work. Archiving deletes side-session notes, so a successor's needs live in the vault.
 
 ## Weekly check
 
@@ -119,7 +118,7 @@ targets. A rule or tool that does not move them is removed. **Pace** is judged b
 60): offer an extra lane by question, best Thursday or Friday afternoon; no projection, no offer.
 The reset is Saturday 06:00 local in winter. On the Saturday after it run `npm run usage:week -- --write-vault --days 7`
 and push vault `Weekly check.md` (the board's Week page).
-Glance at upstream Actor Studio releases after 2.10.5: a lane rebases a new one onto our fork,
+Glance at upstream Actor Studio releases after 2.10.5: a lane rebases it onto our fork,
 the module kit passes, then stage 13 installs it.
 
 **`Usage now.md` (the board's usage card):** at each planner start and before each lane start, read

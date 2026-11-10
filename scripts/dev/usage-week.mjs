@@ -486,19 +486,21 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   };
 }
 
-// The pace profile from the log and, when the newest reading is from the last 6 hours of this
-// week, the pace now (reset = Saturday 05:00Z). Null without readings.
-const RECENT_READING_MS = 6 * 3_600_000;
+// The pace profile from the log and, when the newest reading is from this week, the pace as of
+// that reading (reset = Saturday 05:00Z). Null without readings.
 export function paceFor(readings, now, weeks = 4) {
   if (!readings.length) return null;
   const nowMs = now.getTime();
   const weekStartMs = lastReset(nowMs);
   const profile = buildProfile(readings, { weekStartMs, weeks });
   const last = readings[readings.length - 1];
-  const fresh = last.t >= weekStartMs && nowMs - last.t <= RECENT_READING_MS && last.t <= nowMs;
+  // As of the newest reading of this week (its time is `asOf`), so a stale log still gives a number.
+  const thisWeek = last.t >= weekStartMs && last.t <= nowMs;
   return {
     profile: { ...profile, activeHours: activeHours(profile) },
-    now: fresh ? { actual: last.v, ...paceNow({ profile, weekStartMs, nowMs, actual: last.v }) } : null,
+    now: thisWeek
+      ? { asOf: new Date(last.t).toISOString(), actual: last.v, ...paceNow({ profile, weekStartMs, nowMs: last.t, actual: last.v }) }
+      : null,
   };
 }
 
@@ -562,10 +564,10 @@ export function formatPace(pace) {
   if (!pace) return 'Pace: no usage log readings';
   const { profile, now } = pace;
   const base = `Pace profile: ${profile.source} (${profile.weeks} weeks), active hours ${profile.activeHours.weekday} weekday / ${profile.activeHours.weekend} weekend`;
-  if (!now) return `${base}; no fresh reading for this week`;
+  if (!now) return `${base}; no reading for this week`;
   const sign = now.delta > 0 ? '+' : '';
   const proj = now.projected === null ? 'too early' : `${now.projected}%`;
-  return `${base}; weekly ${now.actual}% vs expected ${now.expected}% (${sign}${now.delta}, ${now.onPace ? 'on pace' : now.delta > 0 ? 'ahead' : 'behind'}), projected ${proj}, ${now.activeHoursLeft} active hours left`;
+  return `${base}; as of ${now.asOf.slice(0, 16)}Z weekly ${now.actual}% vs expected ${now.expected}% (${sign}${now.delta}, ${now.onPace ? 'on pace' : now.delta > 0 ? 'ahead' : 'behind'}), projected ${proj}, ${now.activeHoursLeft} active hours left`;
 }
 
 // Turns per model family with their share of the weighted cost; "main" and "sub" split the

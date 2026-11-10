@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Combatant, CombatState } from './combat';
-import { GLANCE_HREF, ageText, combatRows, isOld, partyRows, sceneName, turnLine } from './glance';
+import {
+  GLANCE_HREF,
+  ageText,
+  combatRows,
+  isOld,
+  latestOf,
+  partyRows,
+  sceneName,
+  turnLine,
+} from './glance';
 import { optInScreen } from './liveScreen';
 
 describe('ageText', () => {
@@ -16,6 +25,17 @@ describe('ageText', () => {
     expect(isOld(0, 40_000)).toBe(false);
     expect(isOld(0, 46_000)).toBe(true);
     expect(isOld(null, 0)).toBe(true);
+  });
+});
+
+describe('latestOf', () => {
+  it('takes the later time, so a quiet fight on a heard stream is not old', () => {
+    expect(latestOf(1000, 50_000)).toBe(50_000);
+    expect(latestOf(50_000, 1000)).toBe(50_000);
+    expect(latestOf(null, 7)).toBe(7);
+    expect(latestOf(7, null)).toBe(7);
+    expect(latestOf(null, null)).toBeNull();
+    expect(isOld(latestOf(0, 100_000), 110_000)).toBe(false);
   });
 });
 

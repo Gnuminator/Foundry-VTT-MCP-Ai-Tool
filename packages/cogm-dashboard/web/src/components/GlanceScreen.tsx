@@ -13,12 +13,13 @@ import {
   ageText,
   combatRows,
   isOld,
+  latestOf,
   partyRows,
   sceneName,
   turnLine,
 } from '../lib/glance';
 import { STANDARD_HREF } from '../lib/liveScreen';
-import { useCombat, useDashboardStream } from '../lib/stream';
+import { useCombat, useDashboardStream, useStreamHeardAt } from '../lib/stream';
 import { useWorldTheme } from '../lib/worldTheme';
 import { HealthLine } from './HealthLine';
 import { RoleNotice } from './RoleNotice';
@@ -95,6 +96,8 @@ function PartyPanel({ now }: { now: number }): JSX.Element {
 
 function CombatPanel({ now }: { now: number }): JSX.Element {
   const combat = useCombat();
+  // The fight is as fresh as the stream: it sends changes only, so a quiet fight is not an old one.
+  const heardAt = useStreamHeardAt();
   // The stream says when the fight changes; the page notes the time it saw each change.
   const [seenAt, setSeenAt] = useState(() => Date.now());
   useEffect(() => setSeenAt(Date.now()), [combat]);
@@ -103,7 +106,7 @@ function CombatPanel({ now }: { now: number }): JSX.Element {
     <section className={styles['panel']} id="glance-combat" aria-labelledby="glance-combat-h">
       <header className={styles['panel-head']}>
         <h2 id="glance-combat-h">Fight</h2>
-        <Fresh at={seenAt} now={now} />
+        <Fresh at={latestOf(seenAt, heardAt)} now={now} />
       </header>
       {rows === null ? (
         <p className={styles['empty']}>No fight right now.</p>

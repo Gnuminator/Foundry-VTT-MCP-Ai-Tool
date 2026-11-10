@@ -27,6 +27,13 @@ export function isOld(updatedAt: number | null, now: number): boolean {
   return updatedAt === null || now - updatedAt > GLANCE_OLD_MS;
 }
 
+/** The later of two times, either of which may be missing (the stream has not been heard yet). */
+export function latestOf(a: number | null, b: number | null): number | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Math.max(a, b);
+}
+
 export interface PartyRow {
   id: string;
   name: string;
@@ -54,6 +61,8 @@ export function partyRows(raw: unknown): PartyRow[] {
   const rows: PartyRow[] = [];
   for (const m of group['members']) {
     if (!isRecord(m) || typeof m['name'] !== 'string') continue;
+    // Vehicles and other non-characters in the group are not party members to watch.
+    if (typeof m['type'] === 'string' && m['type'] !== 'character') continue;
     const hp = isRecord(m['hp'])
       ? { value: num(m['hp']['value']), max: num(m['hp']['max']), temp: num(m['hp']['temp']) }
       : null;

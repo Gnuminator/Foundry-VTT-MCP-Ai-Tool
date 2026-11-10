@@ -39,8 +39,8 @@ itself, about every 15 seconds for Party and Scene and at once for the fight, an
 connector. It only reads: nothing on it changes the game.
 
 It is for you only. It shows exact hit points, including the enemies', so keep it off any screen
-the players can see. A player who opens the dashboard goes to the player page, which has its own,
-smaller view.
+the players can see. Players do not get this page: a player who types its address ends up on the
+player page, which shows only what a player already sees.
 
 ## The header
 

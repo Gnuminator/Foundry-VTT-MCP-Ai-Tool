@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 33dd594c1978
+sourceHash: 045649169d44
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -42,8 +42,8 @@ opdaterer sig selv, cirka hvert 15. sekund for Party og Scene og med det samme f
 kræver ingen Claude-connector. Den læser kun: intet på den ændrer spillet.
 
 Den er kun til dig. Den viser præcis HP, også fjendernes, så hold den væk fra alle skærme, som
-spillerne kan se. En spiller, der åbner dashboardet, kommer til spillersiden, som har sin egen,
-mindre visning.
+spillerne kan se. Spillere får ikke denne side: en spiller, der skriver dens adresse, havner på
+spillersiden, som kun viser det, en spiller allerede kan se.
 
 ## Headeren
 

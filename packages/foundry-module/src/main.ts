@@ -37,6 +37,7 @@ import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
+import { PC_CREATION_FEATURE_ID } from './pc-creation.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
@@ -300,6 +301,11 @@ class FoundryMCPBridge {
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
         hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a world backup, after you confirm.",
+      });
+      registerGuardedFeature({
+        id: PC_CREATION_FEATURE_ID,
+        name: 'AI Tool: Character creation (writes)',
+        hint: 'Lets the AI create a player character and copy pack items onto it, after you confirm.',
       });
       registerGuardedFeature({
         id: ROOM_SETUP_FEATURE_ID,

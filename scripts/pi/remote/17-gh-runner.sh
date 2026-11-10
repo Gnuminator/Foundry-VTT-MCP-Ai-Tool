@@ -170,14 +170,14 @@ for pair in $RUNNERS; do
   fi
 done
 
-say "the gate (stops the runners while a play session is marked or a player is connected)"
+say "the gate (stops the board runner, never the vault runner, while a play session is marked or a player is connected)"
 # Quoted heredoc: nothing in it is expanded here; it runs every minute from a timer. Environment, for tests only:
-# GATE_VAULT_ROOT, GATE_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
+# GATE_VAULT_ROOT, GATE_UNITS, GATE_KEEP_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
 script_body="$(
   cat <<'GATE_SCRIPT_BODY'
 #!/usr/bin/env bash
 # Keeps the GitHub runners off the Pi while a play session is marked or a player is connected (written by scripts/pi/remote/17-gh-runner.sh; edit it there).
-# Idle: start the runners that are stopped. Playing, or unknown: stop the runners that run no job.
+# Idle: start the runners that are stopped. Playing, or unknown: stop the board runner when it runs no job; the vault runner (GATE_KEEP_UNITS) is started in every state.
 set -euo pipefail
 vault_root="${GATE_VAULT_ROOT:-/var/lib/foundry-ai-tool/vault}"
 units="${GATE_UNITS:-foundry-ai-tool-gh-runner-vault.service foundry-ai-tool-gh-runner-board.service}"
@@ -437,7 +437,12 @@ if have_systemd; then
   for pair in $RUNNERS; do
     unit="foundry-ai-tool-gh-runner-${pair%%:*}.service"
     if ! systemctl is-active --quiet "$unit"; then
-      ok "$unit is stopped (a play session is marked, a player is connected, or the state is unknown)"
+      if [ "$unit" = foundry-ai-tool-gh-runner-vault.service ]; then
+        # The gate starts the vault runner in every state, so a stopped one means the start failed.
+        warn "$unit is stopped, but the gate never holds it: journalctl -u $unit -n 30"
+      else
+        ok "$unit is stopped (a play session is marked, a player is connected, or the state is unknown)"
+      fi
       continue
     fi
     online=""

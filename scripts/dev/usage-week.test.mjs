@@ -17,7 +17,9 @@ import {
   confirmedPeak,
   formatLanes,
   formatModels,
+  formatPace,
   formatReport,
+  paceFor,
   isLaneFile,
   laneStats,
   formatTargets,
@@ -785,4 +787,22 @@ test('advisor calls: main-session tool_use items by their own id, once, inside t
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('paceFor: a reading of this week more than 6 hours old still gives a projection, with its time', () => {
+  const reading = { t: Date.UTC(2026, 9, 14, 16), v: 30 }; // Wednesday 18:00 local
+  const now = new Date(Date.UTC(2026, 9, 15, 6)); // Thursday, 14 hours later
+  const pace = paceFor([reading], now);
+  assert.equal(pace.profile.source, 'fallback'); // one reading: the short-log table
+  assert.equal(pace.now.asOf, '2026-10-14T16:00:00.000Z');
+  assert.equal(pace.now.actual, 30);
+  assert.ok(Number.isFinite(pace.now.projected), JSON.stringify(pace.now));
+  assert.ok(pace.now.activeHoursLeft > 0);
+  assert.match(formatPace(pace), /projected \d+(\.\d+)?%/);
+  // a reading from before this week's reset gives the profile only
+  const old = paceFor([{ t: Date.UTC(2026, 9, 9, 16), v: 90 }], now);
+  assert.equal(old.now, null);
+  assert.match(formatPace(old), /no reading for this week/);
+  assert.equal(paceFor([], now), null);
+  assert.match(formatPace(null), /no usage log readings/);
 });

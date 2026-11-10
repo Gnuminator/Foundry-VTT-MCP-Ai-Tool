@@ -18,6 +18,13 @@ const report = (from, to, over = {}) => ({
   ...over,
 });
 
+test('a section carries the pace profile numbers when the report has them', () => {
+  const pace = { profile: { weeks: 4, activeHours: { weekday: 12, weekend: 10 } } };
+  const text = sectionFor(report('2026-10-17', '2026-10-23', { pace }));
+  assert.match(text, /- pace-profile-weeks: 4\n- pace-active-hours-weekday: 12\n- pace-active-hours-weekend: 10/);
+  assert.doesNotMatch(sectionFor(report('2026-10-17', '2026-10-23')), /pace-/);
+});
+
 test('a section lists numbers, limits and ok; unknown values are left out, not 0', () => {
   assert.equal(
     sectionFor(report('2026-10-17', '2026-10-23')),

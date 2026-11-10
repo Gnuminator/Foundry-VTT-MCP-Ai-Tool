@@ -36,6 +36,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { contextOf } from '../../.claude/hooks/context-alert.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
+import { activeHours, buildProfile, lastReset, paceNow } from './usage-pace.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
@@ -468,8 +469,10 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   }
 
   const lanes = laneStats(qualifying, prs ? total.prs : null);
+  const pace = paceFor(readings, now);
 
   return {
+    pace,
     window: { days, from: keys[0], to: keys[keys.length - 1] },
     lanes,
     files: files.length,
@@ -480,6 +483,24 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     advisorCalls,
     advisorPerPr,
     targets: targetsFor(total, days),
+  };
+}
+
+// The pace profile from the log and, when the newest reading is from this week, the pace as of
+// that reading (reset = Saturday 05:00Z). Null without readings.
+export function paceFor(readings, now, weeks = 4) {
+  if (!readings.length) return null;
+  const nowMs = now.getTime();
+  const weekStartMs = lastReset(nowMs);
+  const profile = buildProfile(readings, { weekStartMs, weeks });
+  const last = readings[readings.length - 1];
+  // As of the newest reading of this week (its time is `asOf`), so a stale log still gives a number.
+  const thisWeek = last.t >= weekStartMs && last.t <= nowMs;
+  return {
+    profile: { ...profile, activeHours: activeHours(profile) },
+    now: thisWeek
+      ? { asOf: new Date(last.t).toISOString(), actual: last.v, ...paceNow({ profile, weekStartMs, nowMs: last.t, actual: last.v }) }
+      : null,
   };
 }
 
@@ -539,6 +560,16 @@ export function formatTargets(targets) {
   return `Targets (D-122): ${targets.map(t => text[t.name](t)).join(' | ')}`;
 }
 
+export function formatPace(pace) {
+  if (!pace) return 'Pace: no usage log readings';
+  const { profile, now } = pace;
+  const base = `Pace profile: ${profile.source} (${profile.weeks} weeks), active hours ${profile.activeHours.weekday} weekday / ${profile.activeHours.weekend} weekend`;
+  if (!now) return `${base}; no reading for this week`;
+  const sign = now.delta > 0 ? '+' : '';
+  const proj = now.projected === null ? 'too early' : `${now.projected}%`;
+  return `${base}; as of ${now.asOf.slice(0, 16)}Z weekly ${now.actual}% vs expected ${now.expected}% (${sign}${now.delta}, ${now.onPace ? 'on pace' : now.delta > 0 ? 'ahead' : 'behind'}), projected ${proj}, ${now.activeHoursLeft} active hours left`;
+}
+
 // Turns per model family with their share of the weighted cost; "main" and "sub" split the
 // turns between main-thread sessions and subagents. CLAUDE.md "Models": lanes on Sonnet.
 export function formatModels(models) {
@@ -583,6 +614,7 @@ export function formatReport(report, notes = []) {
     formatTargets(report.targets),
     formatModels(report.models),
     formatLanes(report.lanes),
+    formatPace(report.pace),
     `Advisor calls (main sessions): ${report.advisorCalls}${
       Number.isFinite(report.advisorPerPr)
         ? ` (${num(report.advisorPerPr, 1)} per merged PR, target 1)`

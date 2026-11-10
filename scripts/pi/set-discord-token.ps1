@@ -55,7 +55,7 @@ if ($guild -and $guild -notmatch '^[0-9]{15,22}$') {
 # CR line would fail as a command under set -e).
 $script = ($lib + "`nTOKEN_IN='$token'`nGUILD_IN='$guild'`n" + $body + "`nexit 0`n") -replace "`r`n", "`n"
 try {
-  # `-- no-log`: the Pi's SSH log (stage 9) records this command by name but never saves its input.
+  # `-- no-log`: the Pi's SSH log (stage 9) records this command by kind (no command text) and never saves its input.
   # -Force: FORCE=1 in front of bash makes the Pi's players-online and recording checks only warn (lib.sh, refuse).
   $remoteCommand = if ($Force) { 'FORCE=1 bash -s -- no-log' } else { 'bash -s -- no-log' }
   $script | & $Ssh $PiHost $remoteCommand

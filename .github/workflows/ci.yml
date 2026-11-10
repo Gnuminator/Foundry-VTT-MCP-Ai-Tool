@@ -291,6 +291,10 @@ jobs:
         # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
         run: node --test scripts/pi/pi-stage-safety.test.mjs
 
+      - name: Pi ssh log keeps no token command text
+        # Stage 9's generated wrapper, run for real: token script commands are logged by kind, everything else keeps its text.
+        run: node --test scripts/pi/ssh-log-secrets.test.mjs
+
       - name: Pi deployed-state check
         # deploy/pi/deployed-state.sh (backlog pi-deployed-state-check): the read-only check of units, containers, env names,
         # packages and the deployed ref, with stand-in systemctl, docker and ldconfig.

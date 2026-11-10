@@ -84,7 +84,7 @@ export class Logger {
       transports,
     });
 
-    if (config.level === 'debug') {
+    if (config.level === 'debug' || config.level === 'silly') {
       const where =
         config.enableFile && config.filePath
           ? `; the log file ${config.filePath} may hold them`
@@ -114,6 +114,7 @@ export class Logger {
   }
 
   debug(message: string, meta?: unknown): void {
+    if (!this.logger.isDebugEnabled()) return;
     this.logger.debug(message, capPayload(meta));
   }
 

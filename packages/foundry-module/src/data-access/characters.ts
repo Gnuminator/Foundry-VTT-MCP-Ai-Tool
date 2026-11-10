@@ -12,6 +12,7 @@ import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version
 import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
 import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
 import { itemEntityDetails } from './item-entity.js';
+import { findAttackActivity } from './attack-activity.js';
 
 /** One `searchCharacterItems` match: an item, a spell or an effect. */
 interface SearchMatch {
@@ -34,6 +35,8 @@ interface SearchMatch {
   invested?: boolean;
   // For actions
   actionType?: string;
+  /** dnd5e weapon or spell with a usable attack activity (use-item rollAttack works on it). */
+  hasAttack?: boolean;
 }
 
 /**
@@ -142,6 +145,7 @@ export class CharacterDataAccess {
       invested?: boolean;
       // For actions
       actionType?: string;
+      hasAttack?: boolean;
     }>;
     totalMatches: number;
   }> {
@@ -196,6 +200,11 @@ export class CharacterDataAccess {
           continue;
       } else if (this.isEquipmentType(item.type)) {
         if (!this.applyEquipmentFields(result, itemSystem, searchCategory)) continue;
+      }
+
+      // dnd5e: a weapon or spell with a usable attack activity can be rolled as an attack.
+      if (systemId === 'dnd5e' && (item.type === 'weapon' || item.type === 'spell')) {
+        if (findAttackActivity(item)) result.hasAttack = true;
       }
 
       matches.push(result);

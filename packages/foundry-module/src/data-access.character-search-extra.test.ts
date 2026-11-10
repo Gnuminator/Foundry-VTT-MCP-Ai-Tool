@@ -203,3 +203,46 @@ describe('searchCharacterItems — dnd5e equipment categories', () => {
     expect(names(result)).toEqual(['Ring of Protection', 'Spare Cloak']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// hasAttack: a weapon or spell with a usable attack activity (the Attack form's list)
+// ---------------------------------------------------------------------------
+
+describe('searchCharacterItems hasAttack', () => {
+  const attack = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    type: 'attack',
+    use: async () => undefined,
+    rollAttack: async () => undefined,
+    ...over,
+  });
+
+  it('marks spells and weapons with an attack activity, and no others', async () => {
+    world.actors.add(
+      makeActor({
+        name: 'Cleric',
+        type: 'character',
+        items: [
+          makeItem({
+            name: 'Toll the Dead',
+            type: 'spell',
+            system: { level: 0, activities: [attack()] },
+          }),
+          makeItem({
+            name: 'Sacred Flame',
+            type: 'spell',
+            system: { level: 0, activities: [{ type: 'save' }] },
+          }),
+          makeItem({
+            name: 'Locked Bolt',
+            type: 'spell',
+            system: { level: 1, activities: [attack({ canUse: false })] },
+          }),
+          makeItem({ name: 'Mace', type: 'weapon', system: { activities: [attack()] } }),
+        ],
+      })
+    );
+    const result = await da.searchCharacterItems({ characterIdentifier: 'Cleric' });
+    const marked = result.matches.filter(m => m.hasAttack).map(m => m.name);
+    expect(marked.sort()).toEqual(['Mace', 'Toll the Dead']);
+  });
+});

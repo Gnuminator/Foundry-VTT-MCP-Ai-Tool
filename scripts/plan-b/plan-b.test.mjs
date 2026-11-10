@@ -247,20 +247,26 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         if ($hadApp) { New-Item -ItemType Directory -Force -Path $app | Out-Null }
         if ($newExists) { New-Item -ItemType Directory -Force -Path $new | Out-Null }
         if ($oldExists) { New-Item -ItemType Directory -Force -Path $old | Out-Null }
-        try { Install-AppFolder $new $app $old 0; 'ok' } catch { $_.Exception.Message }
+        $msg = try { Install-AppFolder $new $app $old 0; 'ok' } catch { $_.Exception.Message }
+        @{ msg = $msg; app = (Test-Path -LiteralPath $app); old = (Test-Path -LiteralPath $old); new = (Test-Path -LiteralPath $new) }
       }
       @{
         ok = Case 'ok' $true $true $false
         nothing_before = Case 'nothing' $false $false $false
         back = Case 'back' $true $false $false
       }`);
-    assert.equal(r.ok, 'ok');
-    assert.match(r.nothing_before, /there was no app folder before, so .*app does not exist/);
+    assert.equal(r.ok.msg, 'ok');
+    assert.match(r.nothing_before.msg, /there was no app folder before, so .*app does not exist/);
+    assert.equal(r.nothing_before.app, false);
     assert.match(
-      r.back,
+      r.back.msg,
       /could not move the new app folder into place.*the old app folder is back/
     );
-    assert.match(r.back, /the unpacked new one is in .*app\.new/);
+    assert.match(r.back.msg, /the unpacked new one is in .*app\.new/);
+    // the folders really are where the message says: the old app is back, nothing is left at app-old or app.new
+    assert.equal(r.back.app, true);
+    assert.equal(r.back.old, false);
+    assert.equal(r.back.new, false);
   });
 
   test('restore.ps1 swaps the app through Install-AppFolder, which retries and names every folder', () => {

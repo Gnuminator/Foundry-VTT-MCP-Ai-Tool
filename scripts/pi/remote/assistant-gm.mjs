@@ -389,6 +389,8 @@ async function run() {
     watchLink(linkPort, context, join(env('GM_BROWSER_PROFILE'), 'link-restarts.json'));
   }
   if (process.env.GM_PAGE_WATCH !== '0') {
+    // Stage 28 reads this line from the journal to prove the watchdog is armed, not only that the browser joined.
+    log(`page watchdog armed (ping every ${PAGE_POLL_MS / 1000} s, restart after ${PAGE_GRACE_MS / 1000} s of silence)`);
     watchPage(page, context, join(env('GM_BROWSER_PROFILE'), 'page-restarts.json'));
   }
   // Stay. Foundry sends a client back to /join when the world stops or the user is kicked;

@@ -16,7 +16,8 @@
 #     (no temp file is left behind)
 #  12 (inside scenario 10's fake systemd) players online: a clean rerun is not refused (it restarts nothing); a rerun that
 #     needs the restart is refused with "player(s) are online" and leaves the bot alone
-#  UNDO branches on grep's own exit status (0 restore, 1 drop, else stop); an unreadable copy is not testable as root
+#  13 UNDO branches on grep's own exit status (0 restore, 1 drop, else stop): a grep stand-in that exits 2 for the saved
+#     copy (an unreadable file cannot be made as root) stops it with the env file unchanged and no temp file left
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage26-scenarios.sh
 # (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE26_CONTAINER=1.) STAGE=<file> runs the scenarios against
@@ -270,5 +271,25 @@ if [ "$rc" -eq 0 ] && grep -q "^DISCORD_TOKEN=$new_token$" "$env_file" && grep -
   [ "$(get DISCORD_GUILD_ID)" = "$silvera" ] && [ -z "$(get DISCORD_SESSION_POST_CHANNEL_ID)" ] && [ -z "$(get FOUNDRY_AI_PLAYER_PAGE_URL)" ] &&
   ! echo "$OUT" | grep -q "$new_token"; then
   pass "UNDO puts back only the stage's keys: a token changed since stays"; else fail "partial undo: rc=$rc $OUT"; fi
+
+# 13. A saved copy grep cannot read: the stand-in exits 2 for that file only (root can read any file, so a real unreadable
+# copy cannot be made here). UNDO must stop before any key changes.
+fresh_env
+run PLAYER_PAGE_URL=https://cogm.example.com/player
+mkdir -p /tmp/gs/bin
+real_grep="$(command -v grep)"
+cat >/tmp/gs/bin/grep <<SH
+#!/usr/bin/env bash
+for a in "\$@"; do [ "\$a" = "$saved" ] && exit 2; done
+exec $real_grep "\$@"
+SH
+chmod +x /tmp/gs/bin/grep
+before="$(sha256sum <"$env_file")"
+run PATH="/tmp/gs/bin:$PATH" UNDO=1
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'cannot be read by grep' && [ "$(sha256sum <"$env_file")" = "$before" ] &&
+  [ -z "$(find "$TOOL_ETC" -maxdepth 1 -name '.discord-bot.env.*' 2>/dev/null)" ]; then
+  pass "an unreadable saved copy stops UNDO: env file unchanged, no temp file"; else fail "unreadable saved copy: rc=$rc $OUT"; fi
+rm -rf /tmp/gs
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

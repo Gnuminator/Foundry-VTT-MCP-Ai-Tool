@@ -36,6 +36,8 @@
   --warn: #7a4a00;
   --bad: #b3202c;
   --bad-text: #8f1a24;
+  --bad-soft: color-mix(in srgb, #b3202c 12%, transparent);
+  --spark: #b45309;
   --grey: #6b7385;
 
   --hp-high-a: #1f9d8a;
@@ -62,7 +64,8 @@
   color-scheme: light;
 }
 
-:root[data-scheme='light'] body {
+/* brand.css gives the neutral body a dark gradient and hex grid; the light ground is flat. */
+:root[data-scheme='light'] body:not(.paper) {
   background: var(--bg);
 }
 

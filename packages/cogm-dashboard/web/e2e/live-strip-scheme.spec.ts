@@ -68,7 +68,9 @@ async function open(page: Page, theme: string, query: string): Promise<void> {
 }
 
 /** The worst contrast ratio of any shown text on the page, with the element that has it. */
-async function worstContrast(page: Page): Promise<{ ratio: number; where: string }> {
+async function worstContrast(
+  page: Page
+): Promise<{ ratio: number; where: string; measured: number }> {
   return page.evaluate(() => {
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
     const rgba = (css: string): [number, number, number, number] => {
@@ -90,17 +92,23 @@ async function worstContrast(page: Page): Promise<{ ratio: number; where: string
       };
       return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
     };
-    const backdrop = (el: Element): [number, number, number] => {
-      const chain: Element[] = [];
-      for (let e: Element | null = el; e; e = e.parentElement) chain.push(e);
-      let base: [number, number, number] = [255, 255, 255];
-      for (const e of chain.reverse()) {
-        const bg = rgba(getComputedStyle(e).backgroundColor);
-        if (bg[3] > 0) base = over(bg, base);
+    // What is behind the text: the layers from the element up to the first opaque one. Null when
+    // an image (a gradient, the hex grid) lies in those layers: there is no one colour to measure.
+    const backdrop = (el: Element): [number, number, number] | null => {
+      const layers: number[][] = [];
+      for (let e: Element | null = el; e; e = e.parentElement) {
+        const style = getComputedStyle(e);
+        if (style.backgroundImage !== 'none') return null;
+        const bg = rgba(style.backgroundColor);
+        if (bg[3] > 0) layers.push(bg);
+        if (bg[3] >= 0.99) break;
       }
+      let base: [number, number, number] = [255, 255, 255];
+      for (const bg of layers.reverse()) base = over(bg, base);
       return base;
     };
-    let worst = { ratio: 99, where: '' };
+    let measured = 0;
+    let worst = { ratio: 99, where: '', measured: 0 };
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement;
@@ -110,13 +118,9 @@ async function worstContrast(page: Page): Promise<{ ratio: number; where: string
       if (el.getClientRects().length === 0 || el.closest('[disabled],[aria-disabled="true"]'))
         continue;
       if (el.closest('.sr-only,[hidden]')) continue;
-      // A gradient fill (the primary button) has no one backdrop colour to measure against.
-      let gradient = false;
-      for (let e: Element | null = el; e; e = e.parentElement) {
-        if (getComputedStyle(e).backgroundImage !== 'none') gradient = true;
-      }
-      if (gradient) continue;
       const bg = backdrop(el);
+      if (bg === null) continue;
+      measured += 1;
       const fg = over(rgba(style.color), bg);
       const [l1, l2] = [lum(fg), lum(bg)].sort((a, b) => b - a);
       const ratio = (l1 + 0.05) / (l2 + 0.05);
@@ -124,10 +128,11 @@ async function worstContrast(page: Page): Promise<{ ratio: number; where: string
         worst = {
           ratio,
           where: `${el.tagName.toLowerCase()}.${el.className}: ${n.textContent.trim().slice(0, 30)}`,
+          measured: 0,
         };
       }
     }
-    return worst;
+    return { ...worst, measured };
   });
 }
 
@@ -138,13 +143,16 @@ for (const theme of ['neutral', 'veil']) {
     await open(page, theme, '&scheme=light');
     await expect(page.locator('html')).toHaveAttribute('data-scheme', 'light');
     const color = await page.evaluate(() => getComputedStyle(document.body).color);
-    const bg = await page.evaluate(
-      () => getComputedStyle(document.documentElement).backgroundColor
-    );
-    // Dark text; the page ground is not the dark graphite of the default look.
+    const ground = await page.evaluate(() => {
+      const s = getComputedStyle(document.body);
+      return { color: s.backgroundColor, image: s.backgroundImage };
+    });
+    // Dark text on a flat light ground (no hex grid, no mist).
     expect(color).not.toMatch(/^rgb\((2[0-9]{2}|1[5-9][0-9]),/);
-    expect(bg).not.toBe('rgb(15, 17, 21)');
+    expect(ground.image).toBe('none');
+    expect(ground.color).not.toBe('rgb(15, 17, 21)');
     const worst = await worstContrast(page);
+    expect(worst.measured).toBeGreaterThan(8);
     expect(worst.ratio, worst.where).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -152,6 +160,7 @@ for (const theme of ['neutral', 'veil']) {
     await open(page, theme, '');
     await expect(page.locator('html')).not.toHaveAttribute('data-scheme', /.+/);
     const worst = await worstContrast(page);
+    expect(worst.measured).toBeGreaterThan(8);
     expect(worst.ratio, worst.where).toBeGreaterThanOrEqual(4.5);
   });
 }

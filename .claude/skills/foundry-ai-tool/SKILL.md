@@ -225,8 +225,9 @@ pass:
   the 10-minute reconcile.
 - From PowerShell, call the dashboard at `127.0.0.1`, not `localhost`: `localhost` tries IPv6 first
   and adds about 2 s per request, so 11 opens never fit in the rate limit's 10 s.
-- The test bridge logs nothing to a file unless `LOG_FILE_PATH` is set; use `get-obsidian-mirror`
-  (`status.lastError`, `skipped`, `errors`) and `Foundry\_status.md` instead.
+- The test bridge logs to `%TEMP%\foundry-mcp-server\mcp-server.log` unless `LOG_FILE_PATH` names
+  another file (the wrapper writes `wrapper.log` in the same folder); `get-obsidian-mirror`
+  (`status.lastError`, `skipped`, `errors`) and `Foundry\_status.md` are quicker for the mirror.
 - Hand-made test data needs its own cleanup list (ids in a scratchpad file); a PC created by script
   has `hp_max: 0` unless HP is set.
 

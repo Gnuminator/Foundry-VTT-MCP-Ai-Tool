@@ -228,10 +228,23 @@ describe('captured shapes', () => {
     it('keeps activities an object keyed by id, not an array', () => {
       expect(typeAt('Actor.Item.weapon', 'system.activities')).toBe('object');
       expect(typeAt('Actor.Item.weapon', 'system.activities.<id>')).toBe('object');
+      // The fake holds to it as soon as it makes activities at all.
+      const activities = (
+        makeItem({ type: 'weapon' }).system as Record<string, unknown> | undefined
+      )?.activities;
+      if (activities !== undefined) {
+        expect(Array.isArray(activities)).toBe(false);
+        expect(typeof activities).toBe('object');
+      }
     });
 
     it('moves a token with x, y and rotation as numbers', () => {
       for (const p of ['x', 'y', 'rotation']) expect(typeAt('Scene.Token', p)).toBe('number');
+      // The fake's token has numbers for each of these it makes (rotation not yet: a known gap).
+      const token = makeToken() as Record<string, unknown>;
+      for (const p of ['x', 'y', 'rotation']) {
+        if (token[p] !== undefined) expect(typeof token[p]).toBe('number');
+      }
     });
 
     it("stores an effect's statuses as an array; the fake makes a Set", () => {

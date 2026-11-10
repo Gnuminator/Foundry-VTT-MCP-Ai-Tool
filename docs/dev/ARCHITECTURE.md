@@ -191,10 +191,8 @@ run as a `call_tool`.
 {"id":"<same id>","error":{"message":"..."}}
 ```
 
-The five core verbs (`CONTROL_METHODS` in `shared/src/protocol.ts`). The backend also dispatches
-dashboard control methods outside that list: `record_handout_seen`, `live_sweep`,
-`session_switches`, `feature_switches`, `character_sheet`, `player_roll` and `session_notes`
-(see `backend.ts`).
+The five core verbs (`CONTROL_METHODS` in `shared/src/protocol.ts`). The backend also answers
+methods outside that list; they are listed below the table.
 
 | Method         | `params`                                                                                     | `result`                                                                     |
 | -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

@@ -620,9 +620,6 @@ Wire contracts: module id, socket channel, settings namespace, method prefix and
   toast's bottom edge sits on a fraction of a pixel and Chromium put it on either of two rows from
   run to run, however long the story waited.
 - **Clearer error messages for Claude:** one shared helper now words the errors the tools send back. A feature that is switched off says so, names the setting and tells Claude to stop and ask the GM instead of working around it. "Not found" errors name the tool that lists what exists, the connector's "not connected" error says to tell the GM and not retry, an expired plan says to check Recent Changes and then list plans, and an unknown tool says to check the name or restart the bridge. The "Received args" dump is gone from compendium validation errors.
-- **The Docker template builds on Node 24:** `deploy/Dockerfile` uses `node:24.22.2-slim` (pinned by
-  digest) in both stages. Node 24.15.0 on Windows crashes the dashboard tests natively ("Channel
-  closed", 17 of 30 runs); 24.22.2 passed 30 of 30.
 - **Plan B restore installs Foundry on a fresh root:** Windows `tar.exe` cannot create the
   `node_modules/.bin` links in the Foundry zip and exited 1, so `restore.ps1` threw before it wrote
   its state. It now tolerates complaints that name a `.bin` path (the app never uses them on
@@ -676,6 +673,9 @@ Wire contracts: module id, socket channel, settings namespace, method prefix and
 
 ### Tooling
 
+- **The Docker template moves to Node 24 to match the Pi:** `deploy/Dockerfile` uses
+  `node:24.22.2-slim` (pinned by digest) in both stages. It is pinned to 24.22.2 because 24.15.0
+  crashed the dashboard tests on Windows (17 of 30 runs); 24.22.2 and 22.22.2 passed 30 of 30.
 - **Dashboard browser tests use 4 workers in CI:** the runner has 4 vCPUs and Playwright used 2.
   The x64 job should finish closer to the ARM job.
 - **The wiki build gets a Node that Astro accepts:** the wiki workflow asks for Node 22.23.4

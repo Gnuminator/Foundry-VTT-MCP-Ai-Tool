@@ -107,8 +107,9 @@ Open PowerShell 7 in the repo's main checkout.
    address; Windows asks once whether Node.js may use private networks: allow it). Same user
    names and passwords as always.
 6. **Claude for you (optional).** Your Claude Desktop connectors point at the Pi. To point them at
-   Plan B: `.\scripts\plan-b\connectors.ps1 -To planb`, then quit Claude Desktop from the tray icon
-   and start it again (this also ends any Claude Code session in the app). The GM's own Claude
+   Plan B: quit Claude Desktop from the tray icon first (it rewrites its settings when it quits),
+   run `.\scripts\plan-b\connectors.ps1 -To planb` in a terminal, then start Claude Desktop again
+   (quitting also ends any Claude Code session in the app). The GM's own Claude
    (D-095) does not reach Plan B; the GM plays by hand.
 
 The dashboard runs at `http://localhost:3000` on your PC only. The GM does not get it on a Plan B
@@ -117,7 +118,8 @@ night; changes made by hand in Foundry need no dashboard.
 ## After the night
 
 1. **Stop:** `.\scripts\plan-b\stop.ps1`. The data stays.
-2. **Claude back to the Pi:** `.\scripts\plan-b\connectors.ps1 -To pi`, then restart Claude Desktop.
+2. **Claude back to the Pi:** quit Claude Desktop, run `.\scripts\plan-b\connectors.ps1 -To pi`,
+   then start Claude Desktop again.
 3. **The world goes back to the Pi before anyone plays there again.** Otherwise the Pi starts from
    its old backup and the Plan B night is lost. Until it is back, tell the players not to use the
    Pi's address. First build and check the bundle on your PC (nothing goes to the Pi):

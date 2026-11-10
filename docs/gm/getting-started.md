@@ -115,7 +115,9 @@ Steps 4 to 6 are done once, by whoever set up the tool for you. They need Node.j
 the tool built once, and a terminal; the [README](../../README.md#installation) has the commands.
 
 4. **Connect Claude Desktop.** The bridge is added to Claude Desktop's configuration file
-   (`claude_desktop_config.json`), as five entries: `foundry-mcp` (core) and `foundry-mcp-play`,
+   (`claude_desktop_config.json`; the Store version of Claude Desktop keeps it in
+   `%LOCALAPPDATA%\Claude-Data\claude_<package id>\`, older versions in `%APPDATA%\Claude\`; the
+   installer finds the right one and says which it wrote), as five entries: `foundry-mcp` (core) and `foundry-mcp-play`,
    `-prep`, `-build`, `-admin`. Quit and restart Claude Desktop. From then on, Claude Desktop starts
    the bridge when it starts. Then pick which tool sets are on: see
    [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on).

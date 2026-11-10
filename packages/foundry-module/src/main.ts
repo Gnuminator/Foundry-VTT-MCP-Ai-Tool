@@ -33,6 +33,7 @@ import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
+import { ACTOR_IMAGE_FEATURE_ID } from './actor-image.js';
 import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
@@ -289,6 +290,12 @@ class FoundryMCPBridge {
         id: 'player-portrait',
         name: 'AI Tool: Player portraits (writes)',
         hint: "Lets a player change the picture of their own character from the dashboard's player page (the file goes into their own folder under assets/players).",
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: ACTOR_IMAGE_FEATURE_ID,
+        name: 'AI Tool: Actor images (writes)',
+        hint: "Lets the AI set an actor's portrait and token picture from a file in an allowed folder on the GM's PC, after you confirm (the file goes into assets/ai-art).",
         defaultEnabled: true,
       });
       registerGuardedFeature({

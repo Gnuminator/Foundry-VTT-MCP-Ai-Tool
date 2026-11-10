@@ -28,6 +28,7 @@ import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { TokenRingsTools } from './tools/token-rings.js';
+import type { ActorImageTools } from './tools/actor-image.js';
 import type { RulesCheckTools } from './tools/rules-check.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { NpcTurnTools } from './tools/npc-turn.js';
@@ -86,6 +87,7 @@ export interface ToolRouterDeps {
   pcCreationTools: PcCreationTools;
   sceneMoodTools: SceneMoodTools;
   tokenRingsTools: TokenRingsTools;
+  actorImageTools: ActorImageTools;
   rulesCheckTools: RulesCheckTools;
   tableViewerTools: TableViewerTools;
   foundrySetupTools: FoundrySetupTools;
@@ -240,6 +242,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-npc-turn': args => deps.npcTurnTools.handleToolCall('plan-npc-turn', args),
     'plan-paper-sync': args => deps.paperSyncTools.handleToolCall('plan-paper-sync', args),
     'plan-token-rings': args => deps.tokenRingsTools.handleToolCall('plan-token-rings', args),
+    'plan-actor-image': args => deps.actorImageTools.handleToolCall('plan-actor-image', args),
     'plan-room-setup': args => deps.roomSetupTools.handleToolCall('plan-room-setup', args),
     'plan-pc-creation': args => deps.pcCreationTools.handleToolCall('plan-pc-creation', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
@@ -286,6 +289,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.roomSetupTools.getToolDefinitions(),
     ...deps.pcCreationTools.getToolDefinitions(),
     ...deps.tokenRingsTools.getToolDefinitions(),
+    ...deps.actorImageTools.getToolDefinitions(),
     ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.rulesCheckTools.getToolDefinitions(),
     ...deps.tableViewerTools.getToolDefinitions(),

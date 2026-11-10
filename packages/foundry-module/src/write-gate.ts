@@ -61,6 +61,8 @@ export const WRITE_METHODS: readonly string[] = [
   'playerRoll',
   // "Upload my portrait": stores a player's picture file under assets/players/<slug>/
   'uploadPlayerPortrait',
+  // plan-actor-image: stores an actor's picture file under assets/ai-art/<actor>/ (GM only)
+  'uploadActorImage',
   'request-player-rolls',
   'requestAbilityCheck',
   'requestAttackRoll',
@@ -91,6 +93,7 @@ export const RECORDLESS_WRITE_METHODS: readonly string[] = [
   'rollSavingThrows',
   'sendChatMessage',
   'showJournalPage',
+  'uploadActorImage',
   'uploadPlayerPortrait',
 ];
 

@@ -43,7 +43,7 @@ zone warns on two lanes on one path or a claim before its dependency is done; ch
 - Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md", write your `claude://` link (`get_session "self"`, field `link`) as a
   `- link:` line under your claim, report "ready to merge" as a `- progress:` line on the item and
-  message nobody, ask the user through `AskUserQuestion` (never via you). Pi work carries `pi-work`.
+  message nobody, ask the user through `AskUserQuestion`, never through the planner. Pi work carries `pi-work`.
 - `start_session` takes `model` as a full id (e.g. `claude-sonnet-5-5`): Sonnet for coding, Haiku for read-only work,
   Opus only for risky design. Every start, Agent and Workflow `agent()` call sets it (unset inherits
   Opus). If the app refuses a start (automated turn, phone, session started by a session), propose a card.

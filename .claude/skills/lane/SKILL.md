@@ -11,8 +11,7 @@ after). History: vault `Decisions/Decisions log.md`.
 
 **Asking the user:** any OK, pick, value or input the lane needs from the user goes through
 `AskUserQuestion` in that same turn, recommended option first, each question standing on its own.
-Not prose, not only the wrap-up box's ask, and never a message asking the planner to get the answer
-(the planner is no relay). Pi OKs count.
+Not prose, not only the wrap-up ask, never a message asking the planner to get it (no relay). Pi OKs too.
 
 ## Start
 
@@ -58,14 +57,14 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 
 ## Before the PR
 
-- **CI on the PR head is the green.** A lane runs quick local checks of what
-  it touched, pushes, lets CI run and fixes what it reports, also after review fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
+- **CI on the PR head is the green.** No full `npm run green` before a PR: quick
+  local checks, push, fix what CI reports, also after review fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
   - **Quick checks:** `npm run green -- --quick` (seconds to minutes, no heavy lock). It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
     changed scripts and hooks, dashboard e2e specs, and for
     dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`. Screenshots
-    (`dashboard-visual`) run on CI only.
+    (`dashboard-visual`) run on CI only. It never writes `.git/green-ok`.
   - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure already on main
     is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not guessed at.
   - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; lower
@@ -147,8 +146,8 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   top-level usage reads about twice the real context.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
-  vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop.
-- **Handover:** write it once, when you hand over. Half a page to vault `Handoff/<lane> prompt
+  vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts below the line.
+- **Handover:** write it once, when you hand over. Half a page in vault `Handoff/<lane> prompt
   <date>.md` and in full in the chat in
   a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
   CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before closing, no background run of yours may still go. Push the note and a `- progress:` line (`handed over at <context>, no PR

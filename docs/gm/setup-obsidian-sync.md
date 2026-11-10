@@ -37,7 +37,11 @@ set this up once. What the vault holds and how to use it is in [Your Obsidian va
 
 ## 4. Accept the server and the folder
 
-1. A yellow bar says **foundry-pi** wants to connect. Click **Add Device**, then **Save**.
+1. A yellow bar says **foundry-pi** wants to connect. Click **Add Device**, then **Save**. (The bar
+   may show a long device ID, a string of letters and digits in groups, instead of the name
+   **foundry-pi**. It is the server if it shows up right after the person who built the tool told you
+   they added your PC; ask them to read you the first seven characters of the server's ID and check
+   that they match. Do not add a device you cannot match.)
 2. A second bar offers the folder **Foundry GM vault**. Click **Add**.
 3. In the window that opens, set **Folder Path** to
    `C:\Users\<your name>\Documents\Obsidian\Foundry GM vault` (Syncthing creates it).

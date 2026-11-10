@@ -234,6 +234,9 @@ export function usageLogFile(vaultDir) {
 
 // Readings { t, v } from every markdown table with the columns "When (local)" and
 // "Weekly % (all)" (one section per PC), in time order. Rows without a weekly value are skipped.
+// The "When (local)" times are read in the zone of the machine running this script (the log is
+// written on PCs in Europe/Copenhagen, the pace profile in usage-pace.mjs is read in that zone
+// too). Run on a machine in another zone, the profile's hours shift by the difference.
 export function parseUsageLog(text) {
   const readings = [];
   let cols = null;

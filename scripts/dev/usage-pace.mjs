@@ -193,6 +193,13 @@ export function lastReset(nowMs) {
   return t;
 }
 
+// The one source for the start of the week being measured: the reset time the caller passes
+// (`--weekly-resets`, the weekly limit's own reset, minus 7 days) when there is one, else the
+// last Saturday 05:00Z reset at or before `nowMs`.
+export function weekStartFor(nowMs, weeklyResets) {
+  return weeklyResets === undefined ? lastReset(nowMs) : Date.parse(weeklyResets) - WEEK_MS;
+}
+
 // Hours of a day type the profile calls active, for the notes.
 export function activeHours(profile) {
   const count = shape => shape.filter(v => v >= ACTIVE_SHARE).length;

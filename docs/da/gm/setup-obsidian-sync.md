@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 52c90897d4ac
+sourceHash: 870849216dc5
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -40,6 +40,10 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 ## 4. Tag imod serveren og mappen
 
 1. En gul bjælke siger, at **foundry-pi** vil forbinde. Klik på **Add Device**, derefter **Save**.
+   (Bjælken kan vise et langt enheds-ID, en række bogstaver og tal i grupper, i stedet for navnet
+   **foundry-pi**. Det er serveren, hvis det dukker op lige efter, at den, der byggede værktøjet, sagde,
+   at din pc er tilføjet; bed vedkommende læse de første syv tegn af serverens ID op, og tjek at de
+   passer. Tilføj ikke en enhed, du ikke kan genkende.)
 2. En ny bjælke tilbyder mappen **Foundry GM vault**. Klik på **Add**.
 3. I vinduet, der åbner, sæt **Folder Path** til
    `C:\Users\<dit navn>\Documents\Obsidian\Foundry GM vault` (Syncthing opretter den).

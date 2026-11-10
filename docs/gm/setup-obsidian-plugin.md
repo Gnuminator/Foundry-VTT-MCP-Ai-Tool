@@ -28,7 +28,9 @@ give you those privately; never paste them in a chat or a note.
 ## Connect it
 
 1. Click the gear next to **Foundry AI Tool** in the plugin list.
-2. **Dashboard address:** type the dashboard's https address.
+2. **Dashboard address:** type the dashboard's https address. Use https: the plugin sends the two
+   Cloudflare values only to an https address, never to a plain http one (so `http://localhost`
+   will not get through the Cloudflare login). The GM token goes with every request.
 3. Click the **GM token** field, then **Add secret**. In **ID** type `foundry-gm-token`, in **Secret**
    paste the token only, **Save**. Pick it in the list.
 4. Do the same for **Cloudflare Access Client ID** (ID `cf-access-client-id`) and **Cloudflare

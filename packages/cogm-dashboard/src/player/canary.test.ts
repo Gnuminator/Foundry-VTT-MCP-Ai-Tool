@@ -358,10 +358,13 @@ beforeAll(async () => {
     ],
     { initial: true }
   );
-  // World info and the player view context arrive asynchronously.
+  // World info and the player view context (what the players may see) arrive asynchronously:
+  // ready once the player state has the world and the projected events.
   await vi.waitFor(async () => {
     const res = await get('/api/player/state', GM_TOKEN);
-    expect((JSON.parse(res.text) as { world?: unknown }).world).toBeTruthy();
+    const state = JSON.parse(res.text) as { world?: unknown; events?: unknown[] };
+    expect(state.world).toBeTruthy();
+    expect(state.events?.length ?? 0).toBeGreaterThan(0);
   });
 });
 

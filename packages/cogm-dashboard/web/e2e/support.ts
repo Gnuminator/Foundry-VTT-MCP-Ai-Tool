@@ -6,8 +6,9 @@ export const GM_TOKEN = 'e2e-gm-token';
 
 /**
  * Lets what the page has already started finish, for a check that something did NOT happen:
- * two animation frames (React has rendered and run its effects) and one answered request (a
- * request the page sent earlier has reached its route first). A condition, not a fixed pause.
+ * two animation frames (React has rendered and run its effects) and one answered request to the
+ * server. It does not wait for requests the page sent to a faked route in the test process; where
+ * that matters, wait on the fake itself. A condition, not a fixed pause.
  */
 export async function settle(page: Page): Promise<void> {
   await page.evaluate(async () => {

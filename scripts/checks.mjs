@@ -187,6 +187,7 @@ export const CHECKS = [
   nodeTest('pi-world-switch', 'pi', 'scripts/pi/switch-world.test.mjs'),
   nodeTest('pi-control-port-check', 'pi', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'pi', 'scripts/pi/pi-stage-safety.test.mjs'),
+  nodeTest('pi-ssh-log-secrets', 'pi', 'scripts/pi/ssh-log-secrets.test.mjs'),
   nodeTest('pi-deployed-state', 'pi', 'deploy/pi/deployed-state.test.mjs'),
   nodeTest('tunnel-client', 'scripts', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('plan-b', 'scripts', 'scripts/plan-b/plan-b.test.mjs'),

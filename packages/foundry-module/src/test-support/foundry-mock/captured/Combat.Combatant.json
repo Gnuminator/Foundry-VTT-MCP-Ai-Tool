@@ -1,0 +1,32 @@
+{
+  "kind": "Combat.Combatant",
+  "foundry": "14.370",
+  "system": "dnd5e 6.0.6",
+  "samples": 6,
+  "paths": {
+    "_id": "string:6",
+    "_stats": "object:6",
+    "_stats.compendiumSource": "null:6",
+    "_stats.coreVersion": "string:6",
+    "_stats.createdTime": "number:6",
+    "_stats.duplicateSource": "null:6",
+    "_stats.exportSource": "null:6",
+    "_stats.lastModifiedBy": "string:6",
+    "_stats.modifiedTime": "number:6",
+    "_stats.systemId": "string:6",
+    "_stats.systemVersion": "string:6",
+    "actorId": "string:6",
+    "defeated": "boolean:6",
+    "flags": "object:6",
+    "group": "null:6",
+    "hidden": "boolean:6",
+    "img": "null:6",
+    "initiative": "number:6",
+    "name": "undefined:6",
+    "roundJoined": "number:6",
+    "sceneId": "string:6",
+    "system": "object:6",
+    "tokenId": "string:6",
+    "type": "string:6"
+  }
+}

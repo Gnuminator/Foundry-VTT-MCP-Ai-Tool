@@ -300,6 +300,10 @@ jobs:
         # installer/nsis/tunnel-client.ps1 (D-095): the order of the Install steps and the quoted -NoTask start.
         run: node --test installer/nsis/tunnel-client.test.mjs
 
+      - name: Claude Desktop config path
+        # installer/nsis/configure-claude.ps1: which Claude Desktop config file the connector installer writes (Windows only; skips elsewhere).
+        run: node --test installer/nsis/configure-claude.test.mjs
+
       - name: Plan B scripts
         # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
         # newest-backup choice, the version match, the module port flag, the stop and clean decisions and

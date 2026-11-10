@@ -37,6 +37,16 @@ describe('rollLogIfLarge', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe('y'.repeat(20));
   });
 
+  it('does not let a second connector roll over a log that was just rolled from an old one', () => {
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    fs.writeFileSync(file, 'x'.repeat(20));
+    fs.utimesSync(file, hourAgo, hourAgo); // big log last written an hour ago
+    rollLogIfLarge(file, 10); // connector A rolls it
+    fs.writeFileSync(file, 'w'.repeat(20)); // a new big file appears before B looks
+    rollLogIfLarge(file, 10); // connector B had also seen the big file
+    expect(fs.readFileSync(`${file}.1`, 'utf8')).toBe('x'.repeat(20));
+  });
+
   it('replaces an old .1', () => {
     fs.writeFileSync(`${file}.1`, 'old');
     fs.writeFileSync(file, 'z'.repeat(20));

@@ -26,5 +26,10 @@ export function rollLogIfLarge(
       // no .1 yet
     }
     fs.renameSync(file, rolled);
+    // A rename keeps the old mtime; stamp the roll time so the next connector sees it as recent.
+    try {
+      const stamp = new Date(now);
+      fs.utimesSync(rolled, stamp, stamp);
+    } catch {}
   } catch {}
 }

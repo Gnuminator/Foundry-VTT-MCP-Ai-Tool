@@ -301,7 +301,7 @@ jobs:
         run: node --test installer/nsis/tunnel-client.test.mjs
 
       - name: Claude Desktop config path
-        # installer/nsis/configure-claude.ps1: which Claude Desktop config file the connector installer writes (Windows only; skips elsewhere).
+        # installer/nsis/configure-claude.ps1: which Claude Desktop config file the connector installer writes (the runtime tests are Windows only); source checks on every platform that the Plan B and repoint scripts default to the same file.
         run: node --test installer/nsis/configure-claude.test.mjs
 
       - name: Plan B scripts

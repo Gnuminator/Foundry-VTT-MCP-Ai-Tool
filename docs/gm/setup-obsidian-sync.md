@@ -33,15 +33,16 @@ set this up once. What the vault holds and how to use it is in [Your Obsidian va
 1. On the Syncthing page, click **Actions** (top right), then **Show ID**.
 2. Click **Copy** and paste it in a private message to the person who built the tool. Say it is for
    the GM vault.
-3. Wait for their answer ("added"). Keep the Syncthing page open.
+3. Wait for their answer ("added"). It also gives you the first seven characters of the server's
+   ID; you use them in step 4. Keep the Syncthing page open.
 
 ## 4. Accept the server and the folder
 
 1. A yellow bar says **foundry-pi** wants to connect. Click **Add Device**, then **Save**. (The bar
    may show a long device ID, a string of letters and digits in groups, instead of the name
-   **foundry-pi**. It is the server if it shows up right after the person who built the tool told you
-   they added your PC; ask them to read you the first seven characters of the server's ID and check
-   that they match. Do not add a device you cannot match.)
+   **foundry-pi**. Check that its first seven characters match the ones in their answer. Do not add a
+   device you cannot match.) The first connection goes over the internet and can take a few minutes:
+   leave the page open and wait for the bar.
 2. A second bar offers the folder **Foundry GM vault**. Click **Add**.
 3. In the window that opens, set **Folder Path** to
    `C:\Users\<your name>\Documents\Obsidian\Foundry GM vault` (Syncthing creates it).
@@ -81,13 +82,24 @@ Syncthing starts on its own.
 
 - In Syncthing, the **Foundry GM vault** folder says **Up to Date**, and under **Remote Devices**
   **foundry-pi** says **Up to Date**.
-- In Obsidian the file list shows folders such as `AI Tool` and `Prep`.
+- In Obsidian the file list shows the folders `Campaigns` and `Prep`. Yours is `Campaigns`, then
+  `curse-of-strahd`: its `Home.md` is your start page. The other folders under `Campaigns` belong to
+  test worlds; leave them alone.
 - **A note travels both ways.** In Obsidian, right-click the `Prep` folder, **New note**, call it
   `Sync test` and type a line. Within a minute Syncthing shows the change going out, and then
   **foundry-pi** says **Up to Date** again: the server has your note. In the other direction,
-  everything the server wrote before you joined (for example `Home.md`) is already on your PC.
+  everything the server wrote before you joined (for example `Campaigns\curse-of-strahd\Home.md`) is
+  already on your PC.
   Message the person who built the tool the name `Sync test`; they confirm it is on the server.
   Then delete `Sync test`.
+
+## Good to know
+
+- Your PC now holds a full copy of the vault. A copy on a second disk is a backup, but it is not a
+  separate one: if you delete a note in Obsidian, Syncthing deletes it on the server too. The server
+  also keeps a nightly backup, so a note deleted by mistake can be brought back: tell the person who
+  built the tool which note and roughly when.
+- Syncthing only syncs while your PC is on and signed in. Nothing is lost when it is off.
 
 ## If it does not work
 

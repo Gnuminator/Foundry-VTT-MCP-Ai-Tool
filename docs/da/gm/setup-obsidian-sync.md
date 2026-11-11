@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 870849216dc5
+sourceHash: 2031e7a6b912
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -35,15 +35,16 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 1. På Syncthing-siden klik på **Actions** (øverst til højre), derefter **Show ID**.
 2. Klik på **Copy** og indsæt det i en privat besked til den, der byggede værktøjet. Skriv, at det er til
    GM-vaulten.
-3. Vent på svaret ("tilføjet"). Lad Syncthing-siden stå åben.
+3. Vent på svaret ("tilføjet"). Det giver dig også de første syv tegn af serverens ID; dem bruger du i
+   trin 4. Lad Syncthing-siden stå åben.
 
 ## 4. Tag imod serveren og mappen
 
 1. En gul bjælke siger, at **foundry-pi** vil forbinde. Klik på **Add Device**, derefter **Save**.
    (Bjælken kan vise et langt enheds-ID, en række bogstaver og tal i grupper, i stedet for navnet
-   **foundry-pi**. Det er serveren, hvis det dukker op lige efter, at den, der byggede værktøjet, sagde,
-   at din pc er tilføjet; bed vedkommende læse de første syv tegn af serverens ID op, og tjek at de
-   passer. Tilføj ikke en enhed, du ikke kan genkende.)
+   **foundry-pi**. Tjek, at de første syv tegn passer med dem i svaret. Tilføj ikke en enhed, du ikke kan
+   genkende.) Den første forbindelse går over internettet og kan tage et par minutter: lad siden stå
+   åben og vent på bjælken.
 2. En ny bjælke tilbyder mappen **Foundry GM vault**. Klik på **Add**.
 3. I vinduet, der åbner, sæt **Folder Path** til
    `C:\Users\<dit navn>\Documents\Obsidian\Foundry GM vault` (Syncthing opretter den).
@@ -83,12 +84,22 @@ sig selv.
 
 - I Syncthing siger mappen **Foundry GM vault** **Up to Date**, og under **Remote Devices** siger
   **foundry-pi** **Up to Date**.
-- I Obsidian viser fillisten mapper som `AI Tool` og `Prep`.
+- I Obsidian viser fillisten mapperne `Campaigns` og `Prep`. Din er `Campaigns`, derefter
+  `curse-of-strahd`: dens `Home.md` er din startside. De andre mapper under `Campaigns` hører til
+  testverdener; lad dem være.
 - **En note rejser begge veje.** I Obsidian højreklik på mappen `Prep`, **New note**, kald den
   `Sync test` og skriv en linje. Inden for et minut viser Syncthing ændringen på vej ud, og så siger
   **foundry-pi** **Up to Date** igen: serveren har din note. Den anden vej ligger alt, serveren skrev, før
-  du kom med (for eksempel `Home.md`), allerede på din pc. Skriv navnet `Sync test` til den, der byggede
+  du kom med (for eksempel `Campaigns\curse-of-strahd\Home.md`), allerede på din pc. Skriv navnet `Sync test` til den, der byggede
   værktøjet; de bekræfter, at den ligger på serveren. Slet så `Sync test`.
+
+## Godt at vide
+
+- Din pc har nu en fuld kopi af vaulten. En kopi på en anden disk er en backup, men ikke en adskilt
+  en: sletter du en note i Obsidian, sletter Syncthing den også på serveren. Serveren tager også en
+  natlig backup, så en note, du kommer til at slette, kan hentes tilbage: sig til den, der byggede
+  værktøjet, hvilken note og cirka hvornår.
+- Syncthing synkroniserer kun, mens din pc er tændt og logget ind. Intet går tabt, når den er slukket.
 
 ## Hvis det ikke virker
 

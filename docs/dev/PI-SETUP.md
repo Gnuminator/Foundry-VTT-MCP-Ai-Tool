@@ -1641,6 +1641,39 @@ Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night
 - Tests: `scripts/pi/vault-sync.test.mjs` (the stage as text, and with `PI_STAGE20_CONTAINER=1` two real Syncthings in a
   Debian 13 ARM64 container: a note each way, a forced conflict, the zone checks).
 
+## Who the GM vault is shared with (stage 31)
+
+`scripts/pi/remote/31-gm-vault-peers.sh` (backlog `r1-gm-vault`, D-139) adds a PC to the GM vault and takes one off, touching
+only Syncthing's device list on the folder `foundry-gm-vault` (stage 7 does the first PC with `PEER_ID`, but it rewrites the
+bridge and dashboard settings on every run and cannot remove a PC). It never writes, moves or deletes a vault file.
+
+- **Report** (no settings, read-only, any time): the devices on the vault, which are connected and how much of the vault each
+  holds. `cat scripts/pi/remote/lib.sh scripts/pi/remote/31-gm-vault-peers.sh | ssh foundry-pi 'bash -s'`
+- **Add:** `ADD=1 DEVICE_ID=<id> DEVICE_NAME=danni-pc`. The device is no introducer and does not auto-accept folders. Refused for
+  a device that is on a player folder (D-067). The PC then sees a yellow bar for the Pi and for the folder
+  ([the GM's guide](../gm/setup-obsidian-sync.md)).
+- **Remove:** `REMOVE=1 DEVICE_ID=<id>`. Refused unless another device on the vault holds all of it (100 %), so the Pi is never the
+  only copy; `FORCE=1` skips that one check. The device is forgotten when it is on no other folder. The PC keeps its own copy of
+  the folder: whoever owns it deletes that by hand.
+- Add and remove need a `dietpi-backup` snapshot from today and the user's OK. Nothing restarts. Test:
+  `scripts/pi/gm-vault-peers.test.mjs` (text, and with `PI_STAGE31_CONTAINER=1` three real Syncthings in a container).
+
+**Giving the GM his own vault (D-139), in this order:**
+
+1. The GM installs Obsidian and Syncthing from the guide and sends his device ID to the user.
+2. Snapshot, then `ADD=1` with his ID. He accepts the Pi and the folder; the report shows him at 100 %.
+3. Only then take this PC off: `REMOVE=1` with this PC's device ID (the report names it). The nightly restic backup of the Pi is
+   the restore; there is no file versioning on the folder (the user's choice, D-139).
+4. Delete the vault copy on this PC by hand, so the user's disk holds no campaign text.
+5. Rotate the plugin credentials (below), so the test vault's token stops working.
+
+**Rotating the plugin credentials** (`partc-leftovers`): the plugin uses two things, the Cloudflare service token
+`obsidian-gm-plugin` (Client ID and Secret, [REMOTE-ACCESS.md](REMOTE-ACCESS.md) Part C step 11) and the dashboard's GM token
+(`set-dashboard-access.sh --rotate-token`). In Cloudflare One, Service credentials, rotate `obsidian-gm-plugin` and give the new
+Client ID and Secret to the GM privately; run `set-dashboard-access.sh --rotate-token` on the Pi and give him the new GM token the
+same way. Both go into the plugin's settings as in [the plugin guide](../gm/setup-obsidian-plugin.md). Afterwards every browser
+that used the old GM token (the user's own, over Tailscale) opens the new link once.
+
 ## Player vault share (stage 21)
 
 The co-GM dashboard writes one Obsidian vault per player (O7) into

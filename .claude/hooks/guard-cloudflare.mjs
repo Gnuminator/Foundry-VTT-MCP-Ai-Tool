@@ -49,6 +49,7 @@ const PROP_ESCAPES = new Set([
   'constructor', 'prototype', '__proto__', '__defineGetter__', '__defineSetter__', 'defineProperty',
   'defineProperties', 'setPrototypeOf', 'getPrototypeOf', 'getOwnPropertyDescriptor',
   'getOwnPropertyDescriptors', 'prepareStackTrace', 'captureStackTrace', 'getThis', 'getFunction',
+  '__lookupGetter__', '__lookupSetter__', 'assign',
 ]);
 
 function children(node) {
@@ -68,6 +69,21 @@ const textOf = n => {
   return '(computed)';
 };
 
+/** Names bound by a list of binding patterns (identifiers, destructuring, defaults, rest). */
+function declaredIds(patterns) {
+  const out = [];
+  const visit = n => {
+    if (!n) return;
+    if (n.type === 'Identifier') out.push(n.name);
+    else if (n.type === 'ObjectPattern') n.properties.forEach(p => visit(p.type === 'RestElement' ? p.argument : p.value));
+    else if (n.type === 'ArrayPattern') n.elements.forEach(visit);
+    else if (n.type === 'AssignmentPattern') visit(n.left);
+    else if (n.type === 'RestElement') visit(n.argument);
+  };
+  patterns.forEach(visit);
+  return out;
+}
+
 const keyName = p => {
   if (p.computed) return null;
   if (p.key.type === 'Identifier') return p.key.name;
@@ -86,8 +102,8 @@ export function classify(code) {
   try {
     ast = acorn.parse(code, {
       ecmaVersion: 'latest',
-      // Module mode sees at least as much code as script mode, whichever the runtime uses
-      // (script mode reads "<!--" as a comment start, module mode does not).
+      // Module mode (script mode reads "<!--" as a comment start). Cloudflare code must also be
+      // exactly one async arrow function (checked below), so top-level parsing quirks do not apply.
       sourceType: 'module',
       allowReturnOutsideFunction: true,
       allowAwaitOutsideFunction: true,
@@ -98,7 +114,9 @@ export function classify(code) {
   const problems = [];
   const calls = [];
   let mentions = false;
-  const walk = (node, parent, grand) => {
+  const assigned = [];
+  const declared = new Set();
+  const walk =(node, parent, grand) => {
     if (node.type === 'Identifier' || node.type === 'PrivateIdentifier') {
       // `p.require` is a data field, not the global; only `.constructor` is dangerous as a property.
       const asProperty =
@@ -122,20 +140,40 @@ export function classify(code) {
         if (!isCallee) problems.push('cloudflare is used other than as a direct cloudflare.request(...) call');
         else checkCall(grand);
       }
-    } else if (node.type === 'ThisExpression') {
-      problems.push('the code uses this');
-    } else if (node.type === 'MemberExpression' && node.computed && !(node.property.type === 'Literal' && typeof node.property.value === 'number')) {
+    }
+    if (node.type === 'ThisExpression') problems.push('the code uses this');
+    if (node.type === 'ImportExpression') problems.push('the code uses import()');
+    if (node.type === 'MetaProperty') problems.push(`the code uses ${node.meta.name}.${node.property.name}`);
+    // One generic rule for every computed key (member access, destructuring, object and class keys).
+    if (
+      node.computed === true &&
+      !(node.type === 'MemberExpression' && node.property.type === 'Literal' && typeof node.property.value === 'number')
+    ) {
       problems.push('the code uses a computed property name');
-    } else if (node.type === 'Literal' && typeof node.value === 'string' && (ESCAPES.has(node.value) || PROP_ESCAPES.has(node.value))) {
-      problems.push(`the code names ${node.value} in a string`);
-    } else if (node.type === 'ImportExpression' || node.type === 'MetaProperty') {
-      problems.push('the code uses import()');
-    } else if (node.type === 'Literal' && typeof node.value === 'string' && /cloudflare/i.test(node.value)) {
-      // A string that spells the name could feed a dynamic lookup; the lookup itself is blocked by
-      // ESCAPES, so this only marks the code as Cloudflare-related.
-      mentions = true;
-    } else if (node.type === 'TemplateLiteral' && node.quasis.some(q => /cloudflare/i.test(q.value.raw))) {
-      mentions = true;
+    }
+    if (node.type === 'Literal' && typeof node.value === 'string') {
+      if (ESCAPES.has(node.value) || PROP_ESCAPES.has(node.value)) problems.push(`the code names ${node.value} in a string`);
+      // A string that spells the name only marks the code as Cloudflare-related; lookups are blocked above.
+      if (/cloudflare/i.test(node.value)) mentions = true;
+    }
+    if (node.type === 'TemplateLiteral') {
+      for (const q of node.quasis) {
+        const t = q.value.cooked ?? q.value.raw;
+        if (ESCAPES.has(t) || PROP_ESCAPES.has(t)) problems.push(`the code names ${t} in a template`);
+        if (/cloudflare/i.test(q.value.raw)) mentions = true;
+      }
+    }
+    // Writes to anything that is not a local variable can change what a later call does.
+    if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
+      const target = node.type === 'AssignmentExpression' ? node.left : node.argument;
+      if (target.type !== 'Identifier') problems.push('the code assigns to a property or pattern');
+      else assigned.push(target.name);
+    }
+    if (node.type === 'UnaryExpression' && node.operator === 'delete') problems.push('the code uses delete');
+    if (node.type === 'VariableDeclarator' || /Function/.test(node.type)) {
+      for (const id of declaredIds(node.type === 'VariableDeclarator' ? [node.id] : [...(node.params ?? []), node.id].filter(Boolean))) {
+        declared.add(id);
+      }
     }
     for (const c of children(node)) walk(c, node, parent);
   };
@@ -176,6 +214,17 @@ export function classify(code) {
     calls.push({ method, path: pathText });
   };
   walk(ast, null, null);
+  for (const name of assigned) {
+    if (!declared.has(name)) problems.push(`the code assigns to ${name}, which it does not declare`);
+  }
+  if (mentions) {
+    // The connector wants one async arrow function; anything else around it is not what we analysed.
+    const only = ast.body.length === 1 ? ast.body[0] : null;
+    const fn = only?.type === 'ExpressionStatement' ? only.expression : null;
+    if (!fn || fn.type !== 'ArrowFunctionExpression' || !fn.async) {
+      problems.push('the code is not exactly one async arrow function');
+    }
+  }
   if (problems.length) return { kind: 'ask', calls, problems: [...new Set(problems)] };
   return { kind: mentions ? 'read' : 'other', calls, problems: [] };
 }

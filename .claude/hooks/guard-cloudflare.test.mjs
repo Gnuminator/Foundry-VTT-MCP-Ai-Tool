@@ -10,7 +10,9 @@ import { classify, decide, run } from './guard-cloudflare.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const HOOK = path.join(here, 'guard-cloudflare.mjs');
 const TOOL = 'mcp__abc-123__execute';
-const call = code => decide(TOOL, { code });
+// The connector takes one async arrow function; test snippets are statements, so wrap them.
+const wrap = code => (typeof code === 'string' && !/^async \(\) =>/.test(code) ? `async () => {\n${code}\n}` : code);
+const call = code => decide(TOOL, { code: wrap(code) });
 
 test('GET-only code runs (single and double quotes, several calls)', () => {
   assert.equal(call("return await cloudflare.request({ method: 'GET', path: '/accounts' });"), null);
@@ -86,12 +88,28 @@ test('review H1 bypass shapes all ask', () => {
     "[]['constructor']['constructor'](\"return cloudflare.request({method:'DELETE',path:'/x'})\")()",
     "[]['cons' + 'tructor']['constructor']('return 1')()",
     "Object.getOwnPropertyDescriptor(Object.getPrototypeOf(async () => {}), 'constructor').value('x')",
+    // round 3: computed keys in destructuring patterns, lookup getters, assignments, shape
+    "const { ['constr' + 'uctor']: A } = []; const { [`constructor`]: F } = A; await F('return 1')()",
+    "const SP = ({}).__lookupGetter__('__pro' + 'to__').call(''); await cloudflare.request({ method: 'GET', path: '/x' })",
+    "JSON.stringify = () => 'x'; await cloudflare.request({ method: 'GET', path: '/x' })",
+    "Request = class {}; await cloudflare.request({ method: 'GET', path: '/x' })",
+    "delete Object.x; await cloudflare.request({ method: 'GET', path: '/x' })",
+    "Object.assign(String, {}); await cloudflare.request({ method: 'GET', path: '/x' })",
+    "async () => 1; cloudflare.request({ method: 'DELETE', path: '/x' })",
     // round 2: changing the realm before a literal GET
     "String.prototype.toUpperCase = () => 'DELETE'; await cloudflare.request({ method: 'GET', path: '/x' })",
     "fetch = (u, o) => g(u, { ...o, method: 'DELETE' }); await cloudflare.request({ method: 'GET', path: '/x' })",
     "Object.defineProperty(Object.prototype, 'headers', { value: {} }); await cloudflare.request({ method: 'GET', path: '/x' })",
   ];
   for (const s of shapes) assert.ok(call(s), s);
+});
+
+test('Cloudflare code that is not exactly one async arrow function asks', () => {
+  const g = "cloudflare.request({ method: 'GET', path: '/x' })";
+  for (const code of [g, `(function () { return ${g} })()`, `async function f() { return ${g} } f()`, `async () => ${g};\nasync () => 1`]) {
+    assert.ok(decide(TOOL, { code }), code);
+  }
+  assert.equal(decide(TOOL, { code: `async () => ${g}` }), null);
 });
 
 test('a missing parser or unparseable code asks', () => {
@@ -126,7 +144,7 @@ test('run prints an ask decision for a write and nothing for a read', () => {
   assert.equal(j.hookSpecificOutput.hookEventName, 'PreToolUse');
   assert.equal(j.hookSpecificOutput.permissionDecision, 'ask');
   assert.match(j.hookSpecificOutput.permissionDecisionReason, /POST \/nope/);
-  assert.equal(run({ tool_name: TOOL, tool_input: { code: "cloudflare.request({ method: 'GET', path: '/a' })" } }), '');
+  assert.equal(run({ tool_name: TOOL, tool_input: { code: wrap("cloudflare.request({ method: 'GET', path: '/a' })") } }), '');
 });
 
 test('the hook as a process: write asks, read is silent, garbage stdin asks', () => {
@@ -134,7 +152,7 @@ test('the hook as a process: write asks, read is silent, garbage stdin asks', ()
   const w = go(JSON.stringify({ tool_name: TOOL, tool_input: { code: "cloudflare.request({ method: 'PUT', path: '/a' })" } }));
   assert.equal(w.status, 0);
   assert.equal(JSON.parse(w.stdout).hookSpecificOutput.permissionDecision, 'ask');
-  const r = go(JSON.stringify({ tool_name: TOOL, tool_input: { code: "cloudflare.request({ method: 'GET', path: '/a' })" } }));
+  const r = go(JSON.stringify({ tool_name: TOOL, tool_input: { code: wrap("cloudflare.request({ method: 'GET', path: '/a' })") } }));
   assert.equal(r.status, 0);
   assert.equal(r.stdout, '');
   const g = go('not json');

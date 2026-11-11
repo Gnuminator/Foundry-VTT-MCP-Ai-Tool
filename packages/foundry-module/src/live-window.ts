@@ -25,6 +25,8 @@ export const LIVE_PICK_MESSAGE = 'fmb-live-pick';
 export const LIVE_HELLO_MESSAGE = 'fmb-live-hello';
 /** The `type` the strip page posts back once it listens (the first pick can come before that). */
 export const LIVE_READY_MESSAGE = 'fmb-live-ready';
+/** The `type` of the message that tells the frame Foundry's light or dark setting changed. */
+export const LIVE_SCHEME_MESSAGE = 'fmb-live-scheme';
 /** The dashboard's port on the machine that runs the bridge. */
 export const DEFAULT_DASHBOARD_PORT = 3100;
 /** Browser storage key for the window's place and open state (per browser, like the window). */
@@ -88,7 +90,8 @@ export function canOpenLiveWindow(): boolean {
  */
 export function liveFrameUrl(
   setting: string,
-  location: { protocol: string; hostname: string }
+  location: { protocol: string; hostname: string },
+  scheme?: LiveScheme
 ): string | null {
   const text = setting.trim();
   const base =
@@ -97,11 +100,44 @@ export function liveFrameUrl(
     const url = new URL(base);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
     url.search = '?strip=1';
+    if (scheme !== undefined) url.searchParams.set('scheme', scheme);
     url.hash = '';
     return url.toString();
   } catch {
     return null;
   }
+}
+
+export type LiveScheme = 'light' | 'dark';
+
+/**
+ * Light or dark as Foundry shows it: the colour scheme chosen for applications (windows), else
+ * for the interface; "default" or nothing follows the browser's own setting.
+ */
+export function pickScheme(uiConfig: unknown, browserPrefersLight: boolean): LiveScheme {
+  const cs = (uiConfig as { colorScheme?: { applications?: unknown; interface?: unknown } } | null)
+    ?.colorScheme;
+  for (const value of [cs?.applications, cs?.interface]) {
+    if (value === 'light' || value === 'dark') return value;
+  }
+  return browserPrefersLight ? 'light' : 'dark';
+}
+
+/** Foundry's scheme right now. */
+export function foundryScheme(): LiveScheme {
+  let uiConfig: unknown = null;
+  try {
+    uiConfig = game.settings.get('core', 'uiConfig');
+  } catch {
+    // No such setting (an older core): follow the browser.
+  }
+  let light = false;
+  try {
+    light = window.matchMedia?.('(prefers-color-scheme: light)')?.matches === true;
+  } catch {
+    // No matchMedia: dark, the dashboard's own look.
+  }
+  return pickScheme(uiConfig, light);
 }
 
 function configuredUrl(): string | null {
@@ -112,7 +148,7 @@ function configuredUrl(): string | null {
   } catch {
     // A setting that is not registered counts as empty.
   }
-  return liveFrameUrl(setting, window.location);
+  return liveFrameUrl(setting, window.location, foundryScheme());
 }
 
 /** The ids of the tokens this GM controls on the map. */
@@ -197,6 +233,73 @@ export function postPickTo(
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not send the token pick to the live window:`, error);
   }
+}
+
+/** Send the scheme to a frame, to the frame's own origin only. */
+export function postSchemeTo(
+  frame: {
+    src: string;
+    contentWindow: { postMessage(data: unknown, origin: string): void } | null;
+  },
+  scheme: LiveScheme
+): void {
+  if (!frame.contentWindow || !frame.src) return;
+  try {
+    frame.contentWindow.postMessage(
+      { type: LIVE_SCHEME_MESSAGE, scheme },
+      new URL(frame.src).origin
+    );
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not send the colour scheme to the live window:`, error);
+  }
+}
+
+let schemeWatch: { stop(): void } | null = null;
+let lastScheme: LiveScheme | null = null;
+
+/** Send the scheme when it differs from the last one sent (the address already carries the first). */
+function syncScheme(force = false): void {
+  const scheme = foundryScheme();
+  if (!force && scheme === lastScheme) return;
+  lastScheme = scheme;
+  const frame = frameOf();
+  if (frame) postSchemeTo(frame, scheme);
+}
+
+/**
+ * Follow Foundry's light/dark setting while the window is open: Foundry puts a theme class on the
+ * page when the setting changes, and the browser's own setting counts when Foundry says "default".
+ */
+function startSchemeWatch(): void {
+  if (schemeWatch) return;
+  lastScheme = foundryScheme();
+  const observer =
+    typeof MutationObserver === 'function' ? new MutationObserver(() => syncScheme()) : null;
+  const options = { attributes: true, attributeFilter: ['class', 'data-theme'] };
+  if (document.body) observer?.observe(document.body, options);
+  if (document.documentElement) observer?.observe(document.documentElement, options);
+  let media: MediaQueryList | null = null;
+  const onMedia = (): void => syncScheme();
+  try {
+    media = window.matchMedia?.('(prefers-color-scheme: light)') ?? null;
+    media?.addEventListener?.('change', onMedia);
+  } catch {
+    media = null;
+  }
+  const hookId = Hooks.on('closeSettingsConfig', onMedia);
+  schemeWatch = {
+    stop: (): void => {
+      observer?.disconnect();
+      media?.removeEventListener?.('change', onMedia);
+      Hooks.off('closeSettingsConfig', hookId);
+    },
+  };
+}
+
+function stopSchemeWatch(): void {
+  schemeWatch?.stop();
+  schemeWatch = null;
+  lastScheme = null;
 }
 
 /** Tell the frame which tokens the GM controls now. */
@@ -438,6 +541,7 @@ function onFrameMessage(event: MessageEvent): void {
   if (frame && isReadyFromFrame(event, frame)) {
     hideWhy();
     postPick();
+    syncScheme(true);
   }
 }
 
@@ -490,6 +594,7 @@ function define(): new () => AppV2Instance {
     _onRender(): void {
       hookId ??= Hooks.on('controlToken', () => postPick());
       window.addEventListener('message', onFrameMessage);
+      startSchemeWatch();
       this.remember(true);
     }
 
@@ -497,6 +602,7 @@ function define(): new () => AppV2Instance {
       if (hookId !== null) Hooks.off('controlToken', hookId);
       hookId = null;
       window.removeEventListener('message', onFrameMessage);
+      stopSchemeWatch();
       hideWhy();
       // A close from the switch or a reload is not the GM closing it: keep "open" as it was.
       this.remember(closing ? loadState().open : false);
@@ -612,5 +718,6 @@ export function resetLiveWindow(): void {
   hookId = null;
   closing = false;
   relayStarted = false;
+  stopSchemeWatch();
   document.getElementById(PIN_ID)?.remove();
 }

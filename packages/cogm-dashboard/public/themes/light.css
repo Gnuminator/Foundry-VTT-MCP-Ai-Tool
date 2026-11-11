@@ -1,0 +1,102 @@
+/* =============================================================================
+   Light scheme (item live-screen-b-foundry). The live strip in a Foundry window follows Foundry's
+   own light/dark setting: the module puts ?scheme=light on the frame address and posts a message
+   when the setting changes (web/src/lib/scheme.ts sets <html data-scheme="light">). Dark is the
+   dashboard's normal look and needs nothing here. Tokens only, the same names styles.css
+   defines; text pairs below keep at least 4.5:1 on their surfaces. It sits on top of either
+   world theme (neutral or The Veil), so the selector is more specific than veil.css.
+   ============================================================================= */
+
+:root[data-scheme='light'],
+:root[data-theme][data-scheme='light'] {
+  --bg: #f3f4f7;
+  --bg-sunken: #e9ebf0;
+  --bg-panel: #ffffff;
+  --bg-elev: #f0f2f6;
+  --bg-elev-2: #e3e7ee;
+  --bg-input: #ffffff;
+
+  --border: #cfd4de;
+  --border-soft: #e1e5ec;
+  --border-strong: #aab2c1;
+
+  --text: #181c25;
+  --text-mid: #333b4b;
+  --text-dim: #485165;
+  --text-faint: #5a6477;
+
+  --accent: #1459c4;
+  --accent-bright: #0b3f93;
+
+  --pc: #1f5fbf;
+  --enemy: #b3202c;
+  --npc: #7a3fb0;
+
+  --good: #17773a;
+  --warn: #7a4a00;
+  --bad: #b3202c;
+  --bad-text: #8f1a24;
+  --bad-soft: color-mix(in srgb, #b3202c 12%, transparent);
+  --spark: #b45309;
+  --grey: #6b7385;
+
+  --hp-high-a: #1f9d8a;
+  --hp-high-b: #1f9d63;
+  --hp-mid-a: #d9a029;
+  --hp-mid-b: #cf8a0c;
+  --hp-low-a: #d9533a;
+  --hp-low-b: #c93030;
+
+  --on-accent: #ffffff;
+  --on-warn: #ffffff;
+  --on-strong: #ffffff;
+
+  --shadow-card: 0 1px 2px rgba(20, 28, 45, 0.12), 0 8px 24px -14px rgba(20, 28, 45, 0.25);
+  --shadow-row: 0 1px 1px rgba(20, 28, 45, 0.1);
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* Player page tokens veil.css sets, for the pages that share this file's tokens. */
+  --panel: #ffffff;
+  --panel-2: #f0f2f6;
+  --line: #cfd4de;
+  --muted: #485165;
+
+  color-scheme: light;
+}
+
+/* brand.css gives the neutral body a dark gradient and hex grid; the light ground is flat. */
+:root[data-scheme='light'] body:not(.paper) {
+  background: var(--bg);
+}
+
+/* The Veil draws a dark ground, a mist layer and ink chips with its own colour names; on the
+   light scheme the ground is flat, the mist is off and the danger chip is a red tint with the
+   word on it (never colour alone). The lamplit primary button keeps its warm fill. */
+:root[data-theme='veil'][data-scheme='light'] {
+  background: var(--bg);
+}
+:root[data-theme='veil'][data-scheme='light'] body {
+  background: transparent;
+}
+:root[data-theme='veil'][data-scheme='light'] body::before {
+  display: none;
+}
+:root[data-theme='veil'][data-scheme='light'] .btn-primary {
+  background: #f0c45a;
+  border-color: #c99a2a;
+  color: #181c25;
+  box-shadow: none;
+}
+:root[data-theme='veil'][data-scheme='light'] .btn-primary:hover {
+  background: #f6d27e;
+  border-color: #c99a2a;
+}
+:root[data-theme='veil'][data-scheme='light'] .pane {
+  border-top-color: #c99a2a;
+}
+:root[data-theme='veil'][data-scheme='light'] .chip.bad,
+:root[data-theme='veil'][data-scheme='light'] .tag.bad {
+  background: #fdecea;
+  color: #8f1a24;
+  border: 1px solid #d9a3a8;
+}

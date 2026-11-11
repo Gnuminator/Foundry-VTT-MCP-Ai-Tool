@@ -8,6 +8,7 @@ import { useCallback, useEffect, type JSX, type MouseEvent } from 'react';
 
 import { GateTextContext, GmActionsGateContext } from '../lib/guarded';
 import { listenForMapPick } from '../lib/mapPick';
+import { followFrameScheme } from '../lib/scheme';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
 import { HealthLine } from './HealthLine';
@@ -40,6 +41,8 @@ function backToGmPage(event: MouseEvent<HTMLAnchorElement>): void {
 export function LiveStripPage(): JSX.Element {
   useDashboardStream();
   useEffect(() => listenForMapPick(), []);
+  // Light or dark as Foundry has it (the address says which, a message when it changes).
+  useEffect(() => followFrameScheme(), []);
   // This page has no header or Pre-flight drawer: a refused click sends the focus to the strip's
   // own Turn on button.
   const openGate = useCallback((): void => {

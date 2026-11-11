@@ -1,5 +1,5 @@
 // Tests for `npm run usage:week` (usage-week.mjs): fixture transcripts in a temp dir, the Usage log
-// parsing with a weekly reset, price weighting, startup share, the targets line and --json.
+// parsing with a weekly reset, price weighting, startup share, the figures line and --json.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -568,7 +568,7 @@ test('buildReport: a response outside the window is not counted in the models', 
   }
 });
 
-test('formatReport: a fixed-width row per day, a window total row and the targets line', async () => {
+test('formatReport: a fixed-width row per day, a window total row and the figures line', async () => {
   const f = fixture();
   try {
     const r = await buildReport({ root: f.projects, now: NOW, days: 7, prs, usageLog: LOG });

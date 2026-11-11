@@ -88,7 +88,7 @@ export function upsert(existing, report) {
   // sections from before 2026-11-11 carry `-limit` and `-ok` lines: drop them as they pass through
   const rest = splitSections(existing || '')
     .filter(([d]) => d !== id)
-    .map(([d, s]) => [d, s.replace(/^- [a-z-]+-(?:limit|ok): .*\n?/gm, '').trimEnd()]);
+    .map(([d, s]) => [d, s.replace(/^- [a-z-]+-(?:limit|ok): .*(?:\r?\n|$)/gm, '').trimEnd()]);
   const all = [[id, sectionFor(report)], ...rest].sort((a, b) =>
     a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0
   );

@@ -11,15 +11,16 @@ import { describe, expect, it } from 'vitest';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** Counts `app.<method>(` calls on code lines (comment-only lines are skipped). */
+/**
+ * Counts `app.<method>(` calls (routes and middleware alike, so `app.use(router)` counts too) in
+ * the source with comments stripped; whitespace and line breaks around the dot are allowed.
+ * Also counts `Router(` so a router defined inside `app.ts` cannot hide new endpoints.
+ */
 function countInlineRoutes(source: string): number {
-  let count = 0;
-  for (const line of source.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
-    if (/\bapp\.[a-z]+\(/.test(trimmed)) count += 1;
-  }
-  return count;
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const calls = code.match(/\bapp\s*\.\s*[A-Za-z]+\s*\(/g) ?? [];
+  const routers = code.match(/\bRouter\s*\(/g) ?? [];
+  return calls.length + routers.length;
 }
 
 describe('app.ts inline route ratchet', () => {
@@ -43,7 +44,8 @@ describe('app.ts inline route ratchet', () => {
   });
 
   it('counts calls and skips comments', () => {
-    const sample = "  app.get('/x', h);\n  // app.post('/y')\n * app.use(z)\n  app.use(a);";
-    expect(countInlineRoutes(sample)).toBe(2);
+    const sample =
+      "  app.get('/x', h);\n  // app.post('/y')\n /* app.use(z)\n app.use(q) */\n  app.use(a);\n  app\n    .post('/z', h);\n  const r = Router();";
+    expect(countInlineRoutes(sample)).toBe(4);
   });
 });

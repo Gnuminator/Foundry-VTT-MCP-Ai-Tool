@@ -191,7 +191,9 @@ export class GuardedChangeTools {
     const { limit } = z
       .object({ limit: z.number().int().min(1).max(500).optional() })
       .parse(args ?? {});
-    return { changes: await this.guardedWrites.listRecentChanges(limit ?? 20) };
+    return {
+      changes: await this.guardedWrites.listRecentChanges(limit ?? 20, { noteParts: true }),
+    };
   }
 
   /** `requestedBy`: who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard). */

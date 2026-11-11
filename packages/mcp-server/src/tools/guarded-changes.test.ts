@@ -92,9 +92,9 @@ describe('GuardedChangeTools handlers', () => {
   it('lists recent changes with a bounded limit', async () => {
     const { tools, guardedWrites } = makeTools();
     expect(await tools.handleListRecentChanges({})).toEqual({ changes: [{ changeId: 'c1' }] });
-    expect(guardedWrites.listRecentChanges).toHaveBeenCalledWith(20);
+    expect(guardedWrites.listRecentChanges).toHaveBeenCalledWith(20, { noteParts: true });
     await tools.handleListRecentChanges({ limit: 5 });
-    expect(guardedWrites.listRecentChanges).toHaveBeenLastCalledWith(5);
+    expect(guardedWrites.listRecentChanges).toHaveBeenLastCalledWith(5, { noteParts: true });
     await expect(tools.handleListRecentChanges({ limit: 501 })).rejects.toThrow();
   });
 

@@ -400,6 +400,8 @@ export function renderChangesNote(
     worldId,
     {
       month,
+      // 1 for `<month>`, 2 for `<month>-p2`, ...: the Changes base sorts a split month by it.
+      part: Number(part?.name.match(/-p(\d+)$/)?.[1] ?? 1),
       changes: sorted.length,
       applied: sorted.filter(e => e.mode === 'apply').length,
       undone: sorted.filter(e => e.mode === 'apply' && e.undoneBy).length,
@@ -753,11 +755,14 @@ export function renderChangesBase(worldId: string): string {
       '    order:',
       '      - file.name',
       '      - month',
+      '      - part',
       '      - changes',
       '      - applied',
       '      - undone',
       '    sort:',
       '      - property: month',
+      '        direction: DESC',
+      '      - property: part',
       '        direction: DESC',
     ])
   );

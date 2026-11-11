@@ -75,7 +75,9 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints one line when
     CI has finished for the pushed HEAD. `SKIP_PREPUSH=1 git push ...` skips the em-dash pre-push.
 - **Dashboard change (anything under `packages/cogm-dashboard/` or a `package-lock.json` change such
-  as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (about 15
+  as a Playwright bump):** full-page shots are not committed (CI uploads them as the artifacts
+  `dashboard-page-shots-N`; look there). Only a change to a component with a story moves a story
+  baseline: then push the branch, run `npm run visual:baselines -- <branch>` (about 15
   minutes on GitHub; a branch cut before the workflow merged needs `git merge aitool/main` first),
   look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
   them, push, and only then open the PR. The helper takes only its own run (branch, nonce and the

@@ -243,16 +243,20 @@ Serious and critical axe findings fail; the ones already there are listed with t
 
 ### Screenshot tests
 
-`web/visual` photographs the React page with Playwright's `toHaveScreenshot`: the three moments
+`web/visual` photographs the React page with Playwright: the three moments
 (Before, During, After), every ported drawer and pane open over the page, the Advanced menu and
 the version banner, each in the neutral theme at 1440, 1080 and 390 pixels wide (axe checks the Veil theme
-too, at 1440). That is 42 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fakes are the e2e
+too, at 1440). These are page shots: every run renders them (54 PNGs, written to `page-shots/<width>/`, which git
+ignores) and CI uploads them as the artifacts `dashboard-page-shots-1` to `-4`, but nothing compares them and no PNG
+of a page is committed, so adding a control to a page changes no committed file. Look at the artifact to see the
+page. The pixel guard is the story shots (see "Stories"); `src/visual-page-shots.test.ts` fails if a page PNG
+returns to `web/visual/__screenshots__/`. The fakes are the e2e
 helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
 fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
 screens also go through axe at 1440 (serious and critical violations fail; the ones already there
 are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails; an entry that
 no longer matches on its screen and theme also fails, so the list shrinks as causes are fixed).
-The comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
+The story comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
 default is 0.2, which lets a nudged grey pass; at 0 the rounded edge of one pill, the Player links
 header, flickered between runs). The dashboard screens use no `mask` because the clock is fixed and all data
 is faked (a port with values that move on their own, such as Combat Tracker or Live Feed, adds a
@@ -274,7 +278,7 @@ wide in the neutral theme; axe runs on them at 1440 with no known-violations lis
   `storybook-static/` from the repo; the Storybook is for the story shots, see "Stories"), then
   `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
   Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
-- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
+- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new story baselines after a change
   you meant. Look at the PNGs in the diff, then commit them with the change.
 - The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
   volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
@@ -284,8 +288,9 @@ wide in the neutral theme; axe runs on them at 1440 with no known-violations lis
   written into the repo.
 - `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
   `dashboard-visual-shard`, 4 parallel shards; the check `dashboard-visual (screenshots)` sums
-  them up). A diff fails a shard. The report with the expected, actual and diff
-  images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days). The
+  them up). A story diff fails a shard. The report with the expected, actual and diff
+  images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days);
+  the page shots are `dashboard-page-shots-1` to `-4` there. The
   checks are not in the ruleset's required list, but the merge gate refuses any red check, so a
   red shard blocks the merge. After a Playwright bump, change the image
   tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they

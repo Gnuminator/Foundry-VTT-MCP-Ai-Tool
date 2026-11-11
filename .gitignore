@@ -126,3 +126,4 @@ docs/wiki/src/assets/
 docs/wiki/src/sidebar.generated.json
 docs/wiki/public/
 docs/wiki/.astro/
+packages/cogm-dashboard/page-shots/

@@ -96,6 +96,15 @@ test('review H1 bypass shapes all ask', () => {
     "delete Object.x; await cloudflare.request({ method: 'GET', path: '/x' })",
     "Object.assign(String, {}); await cloudflare.request({ method: 'GET', path: '/x' })",
     "async () => 1; cloudflare.request({ method: 'DELETE', path: '/x' })",
+    // round 4: loop targets, scope-blind declarations, code carried in the options object
+    "for (JSON.stringify of [() => 'x']); await cloudflare.request({ method: 'GET', path: '/x' })",
+    "const R = Request; for (Request of [function () {}]); await cloudflare.request({ method: 'GET', path: '/x' })",
+    "for ({ a: JSON.stringify } of [{}]); await cloudflare.request({ method: 'GET', path: '/x' })",
+    "{ let Request } Request = class {}; await cloudflare.request({ method: 'GET', path: '/x' })",
+    "const f = (Request) => 0; Request = class {}; await cloudflare.request({ method: 'GET', path: '/x' })",
+    "await cloudflare.request({ method: 'GET', path: '/x', toJSON() { return { method: 'DELETE' } } })",
+    "await cloudflare.request({ method: 'GET', get path() { return '/x' } })",
+    "await cloudflare.request({ method: 'GET', path: '/x', toJSON: () => ({ method: 'DELETE' }) })",
     // round 2: changing the realm before a literal GET
     "String.prototype.toUpperCase = () => 'DELETE'; await cloudflare.request({ method: 'GET', path: '/x' })",
     "fetch = (u, o) => g(u, { ...o, method: 'DELETE' }); await cloudflare.request({ method: 'GET', path: '/x' })",

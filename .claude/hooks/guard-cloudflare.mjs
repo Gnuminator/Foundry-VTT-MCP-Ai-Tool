@@ -10,6 +10,10 @@
 // (acorn) and only this shape runs without a prompt:
 //   - every use of the name `cloudflare` is the callee object of `cloudflare.request(<one inline
 //     object>)` (no alias, destructuring, bracket access, optional call or spread of it);
+//   - the code is exactly one async arrow function; it does not assign to properties, patterns,
+//     globals or undeclared names (also not through for-of/for-in targets) and does not `delete`;
+//   - the options object has only plain method/path/query/body/headers properties (no getters,
+//     methods, toJSON or other keys), and
 //   - that object has exactly one `method` property, written plainly (not computed, not a getter,
 //     not shorthand, not a spread, no escaped name) with the string literal 'GET';
 //   - the code does not use a blocklist of escape hatches (eval, Function, globalThis, this,
@@ -51,6 +55,15 @@ const PROP_ESCAPES = new Set([
   'getOwnPropertyDescriptors', 'prepareStackTrace', 'captureStackTrace', 'getThis', 'getFunction',
   '__lookupGetter__', '__lookupSetter__', 'assign',
 ]);
+
+// Built-in globals (this runtime's) plus the web globals a sandbox is likely to have.
+const GLOBAL_NAMES = new Set([
+  ...Object.getOwnPropertyNames(globalThis),
+  'Request', 'Response', 'Headers', 'URL', 'URLSearchParams', 'fetch', 'crypto', 'caches',
+  'FormData', 'Blob', 'TextEncoder', 'TextDecoder', 'console', 'setTimeout', 'structuredClone',
+]);
+// The only option keys a read may carry; each must be a plain `key: value` (or shorthand) property.
+const OPTION_KEYS = new Set(['method', 'path', 'query', 'body', 'headers']);
 
 function children(node) {
   const out = [];
@@ -169,6 +182,11 @@ export function classify(code) {
       if (target.type !== 'Identifier') problems.push('the code assigns to a property or pattern');
       else assigned.push(target.name);
     }
+    if ((node.type === 'ForOfStatement' || node.type === 'ForInStatement') && node.left.type !== 'VariableDeclaration') {
+      // `for (X of ...)` writes X on every pass.
+      if (node.left.type !== 'Identifier') problems.push('the code assigns to a property or pattern');
+      else assigned.push(node.left.name);
+    }
     if (node.type === 'UnaryExpression' && node.operator === 'delete') problems.push('the code uses delete');
     if (node.type === 'VariableDeclarator' || /Function/.test(node.type)) {
       for (const id of declaredIds(node.type === 'VariableDeclarator' ? [node.id] : [...(node.params ?? []), node.id].filter(Boolean))) {
@@ -197,7 +215,11 @@ export function classify(code) {
         continue;
       }
       const name = keyName(p);
-      if (name === 'path' || name === 'url') pathText = textOf(p.value);
+      if (!OPTION_KEYS.has(name) || p.kind !== 'init' || p.method) {
+        problems.push(`a cloudflare.request option that is not a plain ${[...OPTION_KEYS].join('/')} property`);
+        continue;
+      }
+      if (name === 'path') pathText = textOf(p.value);
       if (name !== 'method') continue;
       methodCount++;
       const ok = p.kind === 'init' && !p.shorthand && !p.method && p.value.type === 'Literal' && typeof p.value.value === 'string';
@@ -215,7 +237,10 @@ export function classify(code) {
   };
   walk(ast, null, null);
   for (const name of assigned) {
-    if (!declared.has(name)) problems.push(`the code assigns to ${name}, which it does not declare`);
+    // `declared` is one flat set, so a name that is also a global is refused whatever its scope.
+    if (!declared.has(name) || GLOBAL_NAMES.has(name)) {
+      problems.push(`the code assigns to ${name}, which is global or not declared`);
+    }
   }
   if (mentions) {
     // The connector wants one async arrow function; anything else around it is not what we analysed.

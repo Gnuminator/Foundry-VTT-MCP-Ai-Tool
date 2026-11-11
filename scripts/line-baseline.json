@@ -27,7 +27,7 @@
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1210,
-    "scripts/lane-merge.mjs": 2167,
+    "scripts/lane-merge.mjs": 2175,
     "scripts/live-write-sweep.mjs": 1690,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
     "scripts/test-kit/lib/fake/origins.mjs": 1057,
@@ -37,5 +37,12 @@
     "scripts/test-kit/lib/origins.mjs": 1038,
     "scripts/test-kit/lib/spells-deep.mjs": 1020
   },
-  "exceptions": []
+  "exceptions": [
+    {
+      "file": "scripts/lane-merge.mjs",
+      "lines": 2175,
+      "reason": "Temporary: #961 and #959 crossed (main red unblock); proper fix moves code out, item lane-merge-split",
+      "pr": ""
+    }
+  ]
 }

@@ -76,8 +76,7 @@ describe('buildToolRouter', () => {
     const router = buildToolRouter(makeDeps());
     // Every tool but the player set's, which runs only through the player_tool message.
     expect(Object.keys(router)).toHaveLength(
-      TOOL_MODULES.flatMap(m => Object.values(m.tools)).filter(meta => meta.set !== 'player')
-        .length
+      TOOL_MODULES.flatMap(m => Object.values(m.tools)).filter(meta => meta.set !== 'player').length
     );
   });
 

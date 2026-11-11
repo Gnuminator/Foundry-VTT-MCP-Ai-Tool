@@ -157,7 +157,7 @@ function readRun(io, id) {
 function waitForRerun(io, id) {
   const deadline = io.now() + 50 * 60 * 1000;
   while (io.now() < deadline) {
-    io.sleep(30000);
+    io.sleep(30 * 1000);
     const r = readRun(io, id);
     if (!r) {
       io.log('could not read the run state: trying again');

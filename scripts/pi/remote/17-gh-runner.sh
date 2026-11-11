@@ -317,8 +317,10 @@ for unit in $units; do
     *)
       # A kept unit starts with --no-block (a stalled start must not delay the board stop) and is logged as kept.
       if [ -n "$start_flag" ]; then label="$state$reason (kept)"; else label="$unit_decision"; fi
+      # --no-block returns once the job is queued, so a kept unit is logged as "start queued", not "started".
+      if [ -n "$start_flag" ]; then verb="start queued for"; else verb=started; fi
       # shellcheck disable=SC2086
-      if systemctl start $start_flag "$unit"; then echo "gh-runner-gate: $label: started $unit"; else
+      if systemctl start $start_flag "$unit"; then echo "gh-runner-gate: $label: $verb $unit"; else
         echo "gh-runner-gate: could not start $unit" >&2
         rc=1
       fi

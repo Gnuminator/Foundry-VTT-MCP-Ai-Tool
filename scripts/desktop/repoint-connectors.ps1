@@ -40,7 +40,7 @@ if ($Rollback) {
   $tmpRestore = "$Config.restore-tmp"
   Copy-Item $Rollback $tmpRestore -Force
   Move-Item $tmpRestore $Config -Force
-  Write-Host "Config restored from $Rollback. Restart Claude Desktop to use it."
+  Write-Host "Config restored from $Rollback. Start Claude Desktop when it suits."
   return
 }
 

@@ -8,6 +8,8 @@ export const FOUNDRY_TARGETS = 'foundry';
 export interface Weapon {
   id: string;
   name: string;
+  /** What the dropdown shows: the name, with "(cantrip)" or "(level N)" on a spell. */
+  label: string;
 }
 
 /** Combatants that can attack: they need a token. */
@@ -32,9 +34,28 @@ export function weaponsOf(result: unknown): Weapon[] {
   if (!Array.isArray(matches)) return [];
   return matches.flatMap((m: unknown) => {
     const r = (m ?? {}) as Record<string, unknown>;
-    return typeof r['id'] === 'string' && typeof r['name'] === 'string'
-      ? [{ id: r['id'], name: r['name'] }]
+    // The module marks an item it found no attack on with hasAttack: false; leave those out.
+    return typeof r['id'] === 'string' && typeof r['name'] === 'string' && r['hasAttack'] !== false
+      ? [{ id: r['id'], name: r['name'], label: r['name'] }]
       : [];
+  });
+}
+
+/**
+ * The spells from search-character-items that have an attack activity: cantrips and prepared
+ * spells (an unprepared one cannot be cast). The module marks them `hasAttack`.
+ */
+export function spellAttacksOf(result: unknown): Weapon[] {
+  const matches = (result as { matches?: unknown } | null)?.matches;
+  if (!Array.isArray(matches)) return [];
+  return matches.flatMap((m: unknown) => {
+    const r = (m ?? {}) as Record<string, unknown>;
+    if (typeof r['id'] !== 'string' || typeof r['name'] !== 'string') return [];
+    const level = typeof r['level'] === 'number' ? r['level'] : 0;
+    // A cantrip is never "unprepared" in play.
+    if (r['hasAttack'] !== true || (level > 0 && r['prepared'] === false)) return [];
+    const label = `${r['name']} (${level === 0 ? 'cantrip' : `level ${level}`})`;
+    return [{ id: r['id'], name: r['name'], label }];
   });
 }
 
@@ -56,8 +77,13 @@ export function attackArgs(
 export const NO_TARGET_NOTE =
   'Nothing is targeted in Foundry. Target a token there or pick one in the list.';
 
+export const SPELL_READ_NOTE = 'Spells could not be read.';
+
+/** The button text while no weapon or spell is picked. */
+export const PICK_NOTE = 'Pick a weapon or spell';
+
 export const LANDED_NOTE = 'It may have landed. Check the feed before you attack again.';
 
 export function attackLabel(attacker: string, weapon: string, target: string): string {
-  return weapon ? `${attacker} attacks ${target} with ${weapon}` : 'Pick a weapon';
+  return weapon ? `${attacker} attacks ${target} with ${weapon}` : PICK_NOTE;
 }

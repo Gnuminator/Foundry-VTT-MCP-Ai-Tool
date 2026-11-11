@@ -81,7 +81,11 @@ function PartyPanel({ now }: { now: number }): JSX.Element {
       ) : null}
       <ul className={styles['list']}>
         {rows.map(r => (
-          <li key={r.id} className={styles['row']} data-down={r.down ? 'true' : 'false'}>
+          <li
+            key={r.id}
+            className={`${styles['row']} ${styles['party-row']}`}
+            data-down={r.down ? 'true' : 'false'}
+          >
             <span className={styles['name']}>{r.name}</span>
             <span className={styles['hp']}>{r.down ? `Down ${r.hp}` : r.hp}</span>
             <HpBar percent={r.percent} tone={r.tone} />

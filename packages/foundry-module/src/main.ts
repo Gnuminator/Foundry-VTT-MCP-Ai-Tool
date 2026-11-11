@@ -33,10 +33,12 @@ import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
+import { ACTOR_IMAGE_FEATURE_ID } from './actor-image.js';
 import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
+import { PC_CREATION_FEATURE_ID } from './pc-creation.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
@@ -291,6 +293,12 @@ class FoundryMCPBridge {
         defaultEnabled: true,
       });
       registerGuardedFeature({
+        id: ACTOR_IMAGE_FEATURE_ID,
+        name: 'AI Tool: Actor images (writes)',
+        hint: "Lets the AI set an actor's portrait and token picture from a file in an allowed folder on the GM's PC, after you confirm (the file goes into assets/ai-art).",
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
         id: 'table-viewer',
         name: 'AI Tool: Table viewer (writes)',
         hint: 'Lets the AI create the Table user that the TV at the table signs in as, after you confirm.',
@@ -300,6 +308,11 @@ class FoundryMCPBridge {
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
         hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a world backup, after you confirm.",
+      });
+      registerGuardedFeature({
+        id: PC_CREATION_FEATURE_ID,
+        name: 'AI Tool: Character creation (writes)',
+        hint: 'Lets the AI create a player character and copy pack items onto it, after you confirm.',
       });
       registerGuardedFeature({
         id: ROOM_SETUP_FEATURE_ID,
@@ -423,9 +436,9 @@ class FoundryMCPBridge {
         } catch (error) {
           // A first connect that fails or times out (the backend restarting beside Foundry, for
           // example at the daily restart) is not a failed ready: start() already warned, the
-          // reconnect timer keeps dialling, and the index warm-ups below must still run.
+          // reconnect timer keeps dialling (unless auto-reconnect is off), and the index warm-ups below must still run.
           console.warn(
-            `[${MODULE_ID}] The first connect to the AI Tool server did not work (if it was the server, the bridge keeps dialling in the background):`,
+            `[${MODULE_ID}] The first connect to the AI Tool server did not work (if it was the server, the bridge keeps dialling in the background unless auto-reconnect is off):`,
             error
           );
         }
@@ -539,6 +552,7 @@ class FoundryMCPBridge {
 
     this.isConnecting = true;
     let dialled = false;
+    let bridge: SocketBridge | undefined;
 
     try {
       logInfo(`[${MODULE_ID}] Starting MCP bridge...`);
@@ -548,11 +562,12 @@ class FoundryMCPBridge {
         if (up) {
           this.linkNotifier.up();
           // A reconnect after a failed first connect: start() threw, so its own heartbeat
-          // start never ran. Only for the bridge that is still current.
-          if (this.socketBridge === bridge && this.heartbeatInterval === null) {
+          // start never ran. Only for the bridge that is still current, and not while start()
+          // is still connecting (it sets the state and starts the heartbeat itself).
+          if (this.socketBridge === bridge && !this.isConnecting) {
             this.lastConnectionState = 'connected';
             this.updateLastActivity();
-            this.startHeartbeat();
+            if (this.heartbeatInterval === null) this.startHeartbeat();
           }
         } else this.linkNotifier.down();
       };
@@ -564,11 +579,17 @@ class FoundryMCPBridge {
       }
 
       // Create and connect socket bridge
-      const bridge = new SocketBridge(config);
+      bridge = new SocketBridge(config);
       this.socketBridge = bridge;
-      setBridgeLink(this.socketBridge);
+      setBridgeLink(bridge);
       dialled = true;
-      await this.socketBridge.connect();
+      await bridge.connect();
+
+      // stop() ran while the connect was pending: this bridge is gone, so leave the state alone.
+      if (this.socketBridge !== bridge) {
+        logInfo(`[${MODULE_ID}] Bridge was stopped while connecting`);
+        return;
+      }
 
       // Log connection details for debugging
       const connectionInfo = this.socketBridge.getConnectionInfo();
@@ -594,6 +615,11 @@ class FoundryMCPBridge {
         `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
       );
     } catch (error) {
+      // stop() ran while the connect was pending and cancelled it: not a failure, nothing to report.
+      if (bridge && this.socketBridge !== bridge) {
+        logInfo(`[${MODULE_ID}] Bridge was stopped while connecting`);
+        return;
+      }
       // Log as warning instead of error for initial connection failures
       console.warn(`[${MODULE_ID}] Failed to start bridge:`, error);
 
@@ -615,7 +641,8 @@ class FoundryMCPBridge {
       this.lastConnectionState = 'error';
       throw error;
     } finally {
-      this.isConnecting = false;
+      // A stop() already cleared the flag, and a newer start() may own it now.
+      if (!bridge || this.socketBridge === bridge) this.isConnecting = false;
     }
   }
 
@@ -638,6 +665,8 @@ class FoundryMCPBridge {
 
       // Stop heartbeat monitoring
       this.stopHeartbeat();
+      // A connect still pending on this bridge must not keep start() locked out.
+      this.isConnecting = false;
 
       this.socketBridge.disconnect();
       this.socketBridge = null;

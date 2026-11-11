@@ -4,11 +4,11 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 105 tools. Their definitions are about 118,500 characters of JSON, about 28,200 to
+The bridge has 107 tools. Their definitions are about 119,900 characters of JSON, about 28,200 to
 37,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
-tools also look alike, which makes Claude pick the wrong one more often. Five of the 105 are the
+tools also look alike, which makes Claude pick the wrong one more often. Five of the 107 are the
 player set (see below), which no Claude Desktop entry carries: the GM's Claude Desktop can load at
-most the other 100, about 116,600 characters.
+most the other 102, about 118,000 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
 configuration, so Claude Desktop shows one switch per set in the **Search and tools** menu. Turn on
@@ -19,7 +19,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **core**   | `foundry-mcp`             | 24    | about 18,400      | Looking things up, and reviewing, applying or undoing planned changes. Always on.                            |
 | **play**   | `foundry-mcp-play`        | 37    | about 39,700      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.                         |
 | **prep**   | `foundry-mcp-prep`        | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats.                 |
-| **build**  | `foundry-mcp-build`       | 8     | about 25,400      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.                              |
+| **build**  | `foundry-mcp-build`       | 10    | about 27,600      | Making NPCs, monsters and items, from a compendium or from scratch; room setup; characters; pictures.        |
 | **admin**  | `foundry-mcp-admin`       | 11    | about 10,500      | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.                  |
 | **player** | none (`/mcp/player` only) | 5     | about 1,900       | A player's own read-only view: their character, level-up advice, short passages from the books they can see. |
 
@@ -64,7 +64,7 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `list-ref-choices`, `get-session-log`, `get-play-session`, `get-play-stats`, `get-preflight`, `get-prep-digest`
 - **build:** `list-creatures-by-criteria`, `get-compendium-entry-full`,
   `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
-  `dnd5e-add-features-from-compendium`, `manage-world-items`, `plan-room-setup`
+  `dnd5e-add-features-from-compendium`, `manage-world-items`, `plan-room-setup`, `plan-pc-creation`, `plan-actor-image`
 - **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
   `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `plan-foundry-setup`,
   `plan-token-rings`, `get-obsidian-mirror`, `plan-obsidian-mirror`

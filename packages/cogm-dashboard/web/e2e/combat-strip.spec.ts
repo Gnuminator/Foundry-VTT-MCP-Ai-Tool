@@ -1172,6 +1172,93 @@ test.describe('picking combatants', () => {
     });
   });
 
+  test('Attack: a failed spell read still lists the weapons and says spells could not be read', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items' && type === 'spell') {
+          return failed('spell list unavailable');
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-weapon option')).toHaveText(['Handaxe']);
+    await expect(page.locator('#attack-note')).toHaveText('Spells could not be read.');
+  });
+
+  test('Attack: no weapons and a failed spell read says the spells could not be read', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items') {
+          return type === 'spell'
+            ? failed('spell list unavailable')
+            : ok({ matches: [], totalMatches: 0 });
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-note')).toHaveText('Spells could not be read.');
+  });
+
+  test('Attack: a cantrip with an attack is listed next to the weapons and rolls through use-item', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items' && type === 'spell') {
+          return ok({
+            matches: [
+              { id: 's-toll', name: 'Toll the Dead', level: 0, hasAttack: true },
+              { id: 's-bless', name: 'Bless', level: 1, prepared: true },
+              {
+                id: 's-wounds',
+                name: 'Inflict Wounds',
+                level: 1,
+                prepared: false,
+                hasAttack: true,
+              },
+            ],
+            totalMatches: 3,
+          });
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    const weaponList = page.locator('#attack-weapon option');
+    await expect(weaponList).toHaveText(['Handaxe', 'Toll the Dead (cantrip)']);
+    await page.locator('#attack-weapon').selectOption('s-toll');
+    await expect(page.locator('#attack-go')).toHaveText('Brannoc attacks Wolf with Toll the Dead');
+    expect(
+      calls.find(
+        c => c.name === 'search-character-items' && (c.args as { type?: string }).type === 'spell'
+      )?.args
+    ).toEqual({ characterIdentifier: 'tok-brannoc', type: 'spell', limit: 200 });
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.find(c => c.name === 'use-item')?.args).toEqual({
+      actorIdentifier: 'tok-brannoc',
+      itemIdentifier: 's-toll',
+      targets: ['tok-wolf-2'],
+      rollAttack: true,
+    });
+  });
+
   test('Attack: Foundry targets are read when the button is pressed', async ({ page }) => {
     const { calls } = await setup(page, {
       initial: [fight(ATTACKERS, { turn: 1 })],

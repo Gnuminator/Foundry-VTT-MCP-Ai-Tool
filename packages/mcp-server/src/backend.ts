@@ -50,10 +50,12 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { SceneMoodTools } from './tools/scene-mood.js';
 import { TokenRingsTools } from './tools/token-rings.js';
+import { ActorImageTools } from './tools/actor-image.js';
 import { RulesCheckTools } from './tools/rules-check.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
 import { NpcTurnTools } from './tools/npc-turn.js';
 import { PaperSyncTools } from './tools/paper-sync.js';
+import { PcCreationTools } from './tools/pc-creation.js';
 import { RoomSetupTools } from './tools/room-setup.js';
 import { TableViewerTools } from './tools/table-viewer.js';
 import { FoundrySetupTools } from './tools/foundry-setup.js';
@@ -484,6 +486,7 @@ async function startBackend(): Promise<void> {
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
   const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
   const roomSetupTools = new RoomSetupTools({ foundryClient, guardedWrites, logger });
+  const pcCreationTools = new PcCreationTools({ foundryClient, guardedWrites, logger });
   const npcTurnTools = new NpcTurnTools({ foundryClient, guardedWrites, logger });
   const paperSyncTools = new PaperSyncTools({ foundryClient, guardedWrites, logger });
   const sceneRestoreTools = new SceneRestoreTools({
@@ -494,6 +497,7 @@ async function startBackend(): Promise<void> {
   });
   const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
   const tokenRingsTools = new TokenRingsTools({ foundryClient, guardedWrites, logger });
+  const actorImageTools = new ActorImageTools({ foundryClient, guardedWrites, logger });
   const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
   const foundrySetupTools = new FoundrySetupTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({
@@ -551,8 +555,10 @@ async function startBackend(): Promise<void> {
     npcTurnTools,
     paperSyncTools,
     roomSetupTools,
+    pcCreationTools,
     sceneMoodTools,
     tokenRingsTools,
+    actorImageTools,
     rulesCheckTools,
     tableViewerTools,
     foundrySetupTools,

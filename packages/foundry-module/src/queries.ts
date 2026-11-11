@@ -57,11 +57,13 @@ import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
 import { NPC_TURN_QUERY } from './npc-turn.js';
 import { planNpcTurnWithDamage } from './npc-turn-damage.js';
 import { PAPER_SYNC_QUERY, planPaperSync } from './paper-sync-plan.js';
+import { planPcCreation, PC_CREATION_QUERY } from './pc-creation.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
 import { PLAYER_READ_QUERY, playerRead } from './player-read.js';
+import { UPLOAD_ACTOR_IMAGE_QUERY, uploadActorImage } from './actor-image.js';
 import { UPLOAD_PLAYER_PORTRAIT_QUERY, uploadPlayerPortrait } from './player-portrait.js';
 import { gateWriteHandlers } from './write-gate.js';
 import { getSetupInfo } from './data-access/setup-info.js';
@@ -320,6 +322,11 @@ export class QueryHandlers {
       this.withGmGate('Failed to plan the room setup', () => planRoomSetup(data))
     );
 
+    // Player-character creation (pc-creation-tool, read-only): one Actor create op with items. GM only.
+    handlers.on(`${modulePrefix}.${PC_CREATION_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the character', () => planPcCreation(data))
+    );
+
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for
     // `scripts/live-write-sweep.mjs`, in the test world only (live-sweep.ts refuses any other
     // world). Not an MCP tool.
@@ -371,10 +378,17 @@ export class QueryHandlers {
     );
 
     // "Upload my portrait": store a picture a player sent for a character they own, in
-    // assets/players/<their slug>/ (player-portrait.ts checks ownership and the bytes). A write
+    // assets/players/<slug>-<user id>/, only while the player-portrait switch is on (player-portrait.ts checks ownership and the bytes). A write
     // (write-gate.ts); not an MCP tool (the control method `player_portrait`). GM client only.
     handlers.on(`${modulePrefix}.${UPLOAD_PLAYER_PORTRAIT_QUERY}`, (data: unknown) =>
       this.withGmGate('Portrait upload failed', () => uploadPlayerPortrait(data))
+    );
+
+    // plan-actor-image: store a picture the backend read from an allowed PC folder, in
+    // assets/ai-art/<actor>/ (actor-image.ts checks the bytes and finds the actor). A write
+    // (write-gate.ts); the actor change itself is a guarded plan. GM client only.
+    handlers.on(`${modulePrefix}.${UPLOAD_ACTOR_IMAGE_QUERY}`, (data: unknown) =>
+      this.withGmGate('Actor image upload failed', () => uploadActorImage(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

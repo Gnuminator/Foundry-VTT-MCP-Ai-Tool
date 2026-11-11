@@ -225,6 +225,39 @@ describe('grave-domain-patch.js', () => {
     assert.equal(w.spells.docs.size, 0);
   });
 
+  test('a subclass that is not Grave Domain stops the run before any write', async () => {
+    const w = makeWorld();
+    w.classes.docs.get('MNyZVxdtyB9spWr8').name = 'Something else';
+    await assert.rejects(run(w), /is not Grave Domain\. Nothing was changed/);
+    assert.equal(w.spells.docs.size, 0);
+  });
+
+  test('a Grave Domain without spell grants stops the run before any write', async () => {
+    const w = makeWorld();
+    w.classes.docs.get('MNyZVxdtyB9spWr8').system.advancement = {};
+    await assert.rejects(run(w), /has no domain spell grants\. Nothing was changed/);
+    assert.equal(w.spells.docs.size, 0);
+  });
+
+  test('check mode flags a player-classes subclass copy with an empty advancement', async () => {
+    const w = makeWorld();
+    await run(w);
+    const empty = { ...domainEntry(0), system: { advancement: {} } };
+    const pi = makePack('world.player-items', [
+      structuredClone(w.classes.docs.get('cVLrkyhsPzELan6D')),
+      structuredClone(w.classes.docs.get('RC9A6n8RjP4gtPoF')),
+    ]);
+    const pc = makePack('world.player-classes', [empty]);
+    const ps = makePack('world.player-spells', [
+      structuredClone(w.spells.docs.get('aitGraveSpareDy1')),
+    ]);
+    for (const p of [pc, pi, ps]) w.packs.set(p.collection, p);
+    await assert.rejects(
+      run(w, { dryRun: true, mode: 'check' }),
+      /world\.player-classes: Grave Domain spell grants are not always prepared/
+    );
+  });
+
   test('a failure while writing still locks the packs and names what was done', async () => {
     const w = makeWorld();
     const original = w.classes.getDocument;

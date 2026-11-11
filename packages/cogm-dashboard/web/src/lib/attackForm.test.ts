@@ -7,6 +7,7 @@ import {
   attackers,
   defaultAttacker,
   defaultTarget,
+  spellAttacksOf,
   weaponsOf,
 } from './attackForm';
 import type { Combatant } from './combat';
@@ -50,9 +51,38 @@ describe('weaponsOf', () => {
   it('keeps matches with an id and a name', () => {
     expect(
       weaponsOf({ matches: [{ id: 'w1', name: 'Scimitar' }, { id: 3 }, null, { name: 'x' }] })
-    ).toEqual([{ id: 'w1', name: 'Scimitar' }]);
+    ).toEqual([{ id: 'w1', name: 'Scimitar', label: 'Scimitar' }]);
+    expect(
+      weaponsOf({
+        matches: [
+          { id: 'w1', name: 'Scimitar', hasAttack: true },
+          { id: 'w2', name: 'Shield', hasAttack: false },
+          { id: 'w3', name: 'Dagger' },
+        ],
+      }).map(w => w.id)
+    ).toEqual(['w1', 'w3']);
     expect(weaponsOf(null)).toEqual([]);
     expect(weaponsOf({})).toEqual([]);
+  });
+});
+
+describe('spellAttacksOf', () => {
+  it('keeps cantrips and prepared spells that have an attack, labelled by level', () => {
+    expect(
+      spellAttacksOf({
+        matches: [
+          { id: 's1', name: 'Toll the Dead', level: 0, hasAttack: true },
+          { id: 's2', name: 'Guiding Bolt', level: 1, prepared: true, hasAttack: true },
+          { id: 's3', name: 'Inflict Wounds', level: 1, prepared: false, hasAttack: true },
+          { id: 's4', name: 'Bless', level: 1, prepared: true },
+          { name: 'no id', hasAttack: true },
+        ],
+      })
+    ).toEqual([
+      { id: 's1', name: 'Toll the Dead', label: 'Toll the Dead (cantrip)' },
+      { id: 's2', name: 'Guiding Bolt', label: 'Guiding Bolt (level 1)' },
+    ]);
+    expect(spellAttacksOf(null)).toEqual([]);
   });
 });
 
@@ -76,6 +106,6 @@ describe('attackArgs', () => {
 describe('attackLabel', () => {
   it('says what the button does', () => {
     expect(attackLabel('Randal', 'Scimitar', 'Wolf 1')).toBe('Randal attacks Wolf 1 with Scimitar');
-    expect(attackLabel('Randal', '', 'Wolf 1')).toBe('Pick a weapon');
+    expect(attackLabel('Randal', '', 'Wolf 1')).toBe('Pick a weapon or spell');
   });
 });

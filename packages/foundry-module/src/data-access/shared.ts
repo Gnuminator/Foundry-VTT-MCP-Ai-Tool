@@ -42,6 +42,9 @@ export function sanitizeData(data: unknown): Record<string, unknown> {
   }
 }
 
+/** Most objects one sanitize call walks; guards against heavily shared reference graphs. */
+const MAX_SANITIZE_NODES = 50000;
+
 /**
  * Remove sensitive fields from a data object with circular-reference protection.
  * Returns a sanitized copy instead of modifying the original.
@@ -49,7 +52,8 @@ export function sanitizeData(data: unknown): Record<string, unknown> {
 export function removeSensitiveFields(
   obj: unknown,
   visited: WeakSet<object> = new WeakSet(),
-  depth: number = 0
+  depth: number = 0,
+  budget: { left: number } = { left: MAX_SANITIZE_NODES }
 ): unknown {
   // Handle primitives
   if (obj === null || typeof obj !== 'object') {
@@ -67,6 +71,11 @@ export function removeSensitiveFields(
     return '[Circular Reference]';
   }
 
+  // Shared references are walked once per path, so cap the total work of one call.
+  if (--budget.left < 0) {
+    return '[Truncated]';
+  }
+
   // Mark this object as visited
   visited.add(obj);
 
@@ -74,7 +83,7 @@ export function removeSensitiveFields(
     // Handle arrays
     if (Array.isArray(obj)) {
       return (obj as unknown[]).map((item): unknown =>
-        removeSensitiveFields(item, visited, depth + 1)
+        removeSensitiveFields(item, visited, depth + 1, budget)
       );
     }
 
@@ -83,12 +92,12 @@ export function removeSensitiveFields(
     // `toJSON()`, so a document's parent links are never walked).
     if (obj instanceof Set) {
       return [...(obj as Set<unknown>)].map((item): unknown =>
-        removeSensitiveFields(item, visited, depth + 1)
+        removeSensitiveFields(item, visited, depth + 1, budget)
       );
     }
     if (obj instanceof Map) {
       return [...(obj as Map<unknown, unknown>).values()].map((item): unknown =>
-        removeSensitiveFields(toJSONOrSelf(item), visited, depth + 1)
+        removeSensitiveFields(toJSONOrSelf(item), visited, depth + 1, budget)
       );
     }
 
@@ -130,13 +139,17 @@ export function removeSensitiveFields(
       }
 
       // Recursively sanitize the value (read only after filter to avoid getter-triggered warnings)
-      sanitized[key] = removeSensitiveFields(source[key], visited, depth + 1);
+      sanitized[key] = removeSensitiveFields(source[key], visited, depth + 1, budget);
     }
 
     return sanitized;
   } catch (error) {
     console.warn(`[${MODULE_ID}] Error during sanitization at depth ${depth}:`, error);
     return '[Sanitization failed]';
+  } finally {
+    // Only the ancestors of the current node count as a cycle. An object reached twice by
+    // different paths (a species item in both `details.race` and `items`) is not circular.
+    visited.delete(obj);
   }
 }
 

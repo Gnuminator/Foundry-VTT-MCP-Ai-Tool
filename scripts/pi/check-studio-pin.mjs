@@ -9,7 +9,7 @@
 //   node scripts/pi/check-studio-pin.mjs --base <url>     (another release host, for tests)
 //
 // Exit codes: 0 pin matches (or the pin is PENDING-RELEASE, which stage 13 refuses on its own),
-// 1 the checksum differs, 2 the stage file has no readable pin, 3 the download failed (network, 404).
+// 1 the checksum differs, 2 the stage file is missing or has no readable pin, or a flag has no value, 3 the download failed (network, 404).
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -19,6 +19,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const STAGE_13 = path.join(here, 'remote', '13-player-creation.sh');
 /** The same cap as stage 13's MAX_ZIP_BYTES: a release far above it is not the module. */
 const MAX_BYTES = 209715200;
+/** The whole download, body included, gets five minutes. */
+const FETCH_TIMEOUT_MS = 300_000;
 
 /**
  * The three pin values of stage 13: plain NAME=value lines at the start of a line.
@@ -46,7 +48,14 @@ export function readPin(text) {
  */
 export async function checkPin(opts = {}) {
   const log = opts.log ?? (s => console.log(s));
-  const pin = readPin(readFileSync(opts.stage ?? STAGE_13, 'utf8'));
+  let text;
+  try {
+    text = readFileSync(opts.stage ?? STAGE_13, 'utf8');
+  } catch (e) {
+    log(`studio pin check: cannot read the stage file: ${e instanceof Error ? e.message : String(e)}`);
+    return 2;
+  }
+  const pin = readPin(text);
   if ('error' in pin) {
     log(`studio pin check: ${pin.error}`);
     return 2;
@@ -58,7 +67,7 @@ export async function checkPin(opts = {}) {
   const url = `${opts.base ?? pin.base}/${pin.version}/module.zip`;
   let digest;
   try {
-    const res = await (opts.fetchImpl ?? fetch)(url, { redirect: 'follow' });
+    const res = await (opts.fetchImpl ?? fetch)(url, { redirect: 'follow', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) {
       log(`studio pin check: ${url} answered ${res.status}`);
       return 3;
@@ -91,10 +100,22 @@ export async function checkPin(opts = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
+  /** A flag without a value is a usage error, not a quiet fall back to the real stage 13. */
+  let usageError = false;
   /** @param {string} flag */
   const arg = flag => {
     const i = args.indexOf(flag);
-    return i >= 0 ? args[i + 1] : undefined;
+    if (i < 0) return undefined;
+    const v = args[i + 1];
+    if (v === undefined || v.startsWith('--')) {
+      console.log(`studio pin check: ${flag} needs a value`);
+      usageError = true;
+      return undefined;
+    }
+    return v;
   };
-  checkPin({ stage: arg('--stage'), base: arg('--base') }).then(code => process.exit(code));
+  const stage = arg('--stage');
+  const base = arg('--base');
+  if (usageError) process.exit(2);
+  checkPin({ stage, base }).then(code => process.exit(code));
 }

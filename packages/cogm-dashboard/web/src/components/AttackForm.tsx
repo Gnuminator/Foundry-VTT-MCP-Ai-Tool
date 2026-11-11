@@ -9,11 +9,14 @@ import {
   FOUNDRY_TARGETS,
   LANDED_NOTE,
   NO_TARGET_NOTE,
+  PICK_NOTE,
+  SPELL_READ_NOTE,
   attackArgs,
   attackLabel,
   attackers,
   defaultAttacker,
   defaultTarget,
+  spellAttacksOf,
   weaponsOf,
   type Weapon,
 } from '../lib/attackForm';
@@ -60,6 +63,9 @@ export function AttackForm({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [weaponError, setWeaponError] = useState('');
+  const [spellError, setSpellError] = useState('');
+  // The spell read is still out: an empty weapon list is not the final answer yet.
+  const [spellsPending, setSpellsPending] = useState(false);
   const ownLock = useRef(false);
   const attackerRef = useRef<HTMLSelectElement>(null);
 
@@ -80,6 +86,8 @@ export function AttackForm({
     setWeapons(null);
     setWeaponId('');
     setWeaponError('');
+    setSpellError('');
+    setSpellsPending(!!attackerToken);
     if (!attackerToken) {
       // Nobody left who can attack: say so instead of waiting for weapons that will not come.
       setWeapons([]);
@@ -87,11 +95,12 @@ export function AttackForm({
       return;
     }
     let live = true;
-    void callTool('search-character-items', {
+    const weaponRead = callTool('search-character-items', {
       characterIdentifier: attackerToken,
       type: 'weapon',
       limit: 50,
-    })
+    });
+    void weaponRead
       .then(r => {
         if (!live) return;
         const found = weaponsOf(r);
@@ -103,6 +112,32 @@ export function AttackForm({
         setWeapons([]);
         setWeaponError(e instanceof Error ? errorText(e) : 'Could not read the weapons.');
       });
+    // Spells are a bonus and do not hold the weapons back: they join the list once both reads are
+    // in, and when the spell read fails the weapons still list, with a note.
+    const spellRead = callTool('search-character-items', {
+      characterIdentifier: attackerToken,
+      type: 'spell',
+      limit: 200,
+    })
+      .then(spellAttacksOf)
+      .catch((): null => null);
+    void Promise.all([
+      weaponRead.then(
+        () => true,
+        () => false
+      ),
+      spellRead,
+    ]).then(([weaponsOk, spells]) => {
+      if (!live) return;
+      setSpellsPending(false);
+      if (spells === null) {
+        setSpellError(SPELL_READ_NOTE);
+        return;
+      }
+      if (!weaponsOk) return;
+      setWeapons(w => (w ? [...w, ...spells] : w));
+      setWeaponId(id => id || spells[0]?.id || '');
+    });
     return (): void => {
       live = false;
     };
@@ -182,8 +217,9 @@ export function AttackForm({
   };
 
   const targetName = targetRow ? targetRow.name : 'the Foundry targets';
-  let buttonText = 'Pick a weapon';
-  if (weapons === null) buttonText = 'Loading weapons...';
+  let buttonText = PICK_NOTE;
+  if (weapons === null || (weapons.length === 0 && spellsPending && !weaponError))
+    buttonText = 'Loading attacks...';
   else if (weapon && attacker) buttonText = attackLabel(attacker.name, weapon.name, targetName);
 
   return (
@@ -216,7 +252,7 @@ export function AttackForm({
           </select>
         </label>
         <label className={styles['field']}>
-          <span>Weapon</span>
+          <span>Weapon or spell</span>
           <select
             id="attack-weapon"
             data-track="dash.attack.weapon"
@@ -229,7 +265,7 @@ export function AttackForm({
           >
             {(weapons ?? []).map(w => (
               <option key={w.id} value={w.id}>
-                {w.name}
+                {w.label}
               </option>
             ))}
           </select>
@@ -256,8 +292,10 @@ export function AttackForm({
       </div>
       <p role="status" className={styles['note']} id="attack-note">
         {weapons !== null && weapons.length === 0
-          ? weaponError || 'This one has no weapons to attack with.'
-          : note}
+          ? weaponError ||
+            spellError ||
+            (spellsPending ? '' : 'This one has no weapons or spell attacks.')
+          : note || spellError}
       </p>
       <div className={styles['row']}>
         <Button

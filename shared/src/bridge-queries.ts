@@ -22,6 +22,7 @@ import type {
   PlayerRollRequestBody,
 } from './character-sheet.js';
 import type { ExportIndexRequest, ExportIndexResponse } from './export-index.js';
+import type { UploadActorImageReply, UploadActorImageRequest } from './actor-image.js';
 import type { UploadPlayerPortraitReply, UploadPlayerPortraitRequest } from './player-portrait.js';
 import type {
   GuardedApplyOutcome,
@@ -39,6 +40,7 @@ import type {
 } from './library-index.js';
 import type { PlayRecordsResponse } from './play-log.js';
 import type { PageForPlayers } from './player-view.js';
+import type { PcCreationPlan, PcCreationRequest } from './pc-creation.js';
 import type { RoomSetupPlan, RoomSetupRequest } from './room-setup.js';
 import type { SceneMoodPlan, SceneMoodPlanRequest, SceneMoodsReply } from './scene-mood.js';
 import type { TokenRingsPlan, TokenRingsPlanRequest } from './token-rings.js';
@@ -200,6 +202,7 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.planNpcTurn': { request: NpcTurnRequest; reply: NpcTurnPlan };
   'foundry-mcp-bridge.planPaperSync': { request: PaperSyncRequest; reply: PaperSyncPlan };
   'foundry-mcp-bridge.planRoomSetup': { request: RoomSetupRequest; reply: RoomSetupPlan };
+  'foundry-mcp-bridge.planPcCreation': { request: PcCreationRequest; reply: PcCreationPlan };
   'foundry-mcp-bridge.characterSheet': {
     request: { userId: string };
     reply: CharacterSheetsResult;
@@ -211,6 +214,10 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.uploadPlayerPortrait': {
     request: UploadPlayerPortraitRequest;
     reply: UploadPlayerPortraitReply;
+  };
+  'foundry-mcp-bridge.uploadActorImage': {
+    request: UploadActorImageRequest;
+    reply: UploadActorImageReply;
   };
   'foundry-mcp-bridge.getCharacterEntity': {
     request: { characterIdentifier: string; entityIdentifier: string };

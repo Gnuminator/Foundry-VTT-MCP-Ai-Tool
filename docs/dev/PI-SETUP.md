@@ -1011,7 +1011,7 @@ nothing and does not fail the stage. Without the extra file the stage warns that
   stop, the old module folder moves to `/var/lib/foundry-import/prev-<time>/modules/` (never deleted;
   put back by itself if the swap fails) and the new one takes its place, owned by `foundry`.
   The pinned build is the fork's `2.10.5-aitool.12` release. It adds the edition filter (the species, subclass, feat and spell pickers hide a 2014 entry when a 2024 version is offered) over `aitool.11`, which adds the Wisdom default for the spell ability, starting armor and shield equipped, the gold-tile Equipment cue and the cosmetics from fork PR 4 (no "Level 1 -> 2" header at level 1, no welcome window on every join, "7 GP" instead of "7 Award", no raw `@abilities.wis.mod` in text) over `aitool.10`; `aitool.10` is `aitool.9` plus the Equipment tab fix, and `aitool.9` carries the `aitool.8` review fixes (one native event for Take Average, a tidier spell ability carry-over, a leftover debug log removed). The zip is built by hand (the fork runs no release workflow, see its `FORK-SYNC.md`) and uses forward-slash paths, which the stage requires; its `module.zip` checksum is in the
-  script. A pinned checksum of `PENDING-RELEASE` (for a newer build whose release does not exist
+  script. `npm run studio:pin-check` downloads that release and compares its sha256 with the pin before the Pi run (read-only; CI runs it as the `studio-pin` job when stage 13 or the check changes). A pinned checksum of `PENDING-RELEASE` (for a newer build whose release does not exist
   yet) makes the stage refuse to run unless it is given `STUDIO_ZIP` (a `.zip` under `/var/lib/foundry-import/`) and
   `STUDIO_SHA256` (and `STUDIO_VERSION` when the zip is not the pinned version). `STUDIO_VERSION` and
   `STUDIO_SHA256` together, without a zip, download that release instead (both or neither).
@@ -1805,26 +1805,39 @@ A frozen Assistant GM page keeps its module socket for a while, so the 2 minute 
 (`scripts/pi/remote/assistant-gm.mjs`) now asks its own page for a trivial value every 15 s; a page that has not answered
 within 10 s counts as silent, and 120 s of silence restarts the browser (the driver exits 1 and systemd, the Kit GM unit's `Restart=always`, Plan B's loop or Docker's
 `restart: unless-stopped` starts it again). It is on for every caller of the driver, including the Kit GM and the Assistant GM during
-stage 14's dnd5e migration; the 120 s and the cap of three restarts bound a slow migration, and stage 28 should not be applied during a trial. It shares the link check's cap of three restarts in six hours
-(`page-restarts.json` in the browser profile). It is on by default; `GM_PAGE_WATCH=0` turns it off. No module change.
+stage 14's dnd5e migration; the 120 s and the cap of three restarts bound a slow migration, and stage 28 should not be applied during a trial. It has the same cap as the link check
+(three restarts in six hours) but counts its own restarts in `page-restarts.json` in the browser profile, apart from the link check's `link-restarts.json`, so up to six restarts in six hours are possible under compose. It is on by default; `GM_PAGE_WATCH=0` turns it off. No module change.
 
 - **Run it (a Pi sitting):** `scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/`, then
   `cat lib.sh 28-gm-watchdog.sh | ssh foundry-pi 'bash -s'` (a dry run), a snapshot, the user's OK, the same with `APPLY=1`. The stage
   checks the new driver names `page-ping` and parses, keeps the old one as `assistant-gm.mjs.prev-<time>`, installs the new one,
-  restarts the Assistant GM browser and reads back that it joined; a failed join puts the old driver back. `UNDO=1` puts the
-  newest `.prev-*` back. The bridge link is down for the minute the browser takes to rejoin; Foundry is not restarted.
-- **Compose:** the driver is baked into the `gm-browser` image, so the stage refuses there (no systemd unit, "rebuild the image");
-  after a cutover the image rebuild (`pi-images.yml`) carries the watchdog.
+  restarts the Assistant GM browser and reads back that it joined and, in the same run of the unit, logged `page watchdog armed`
+  (a join without that line, such as `GM_PAGE_WATCH=0` in the unit, counts as a failure); a failed read-back puts the old driver
+  back. `UNDO=1` puts the newest `.prev-*` back; when that file is the deployed driver already it changes and restarts nothing.
+  The bridge link is down for the minute the browser takes to rejoin; Foundry is not restarted.
+- **Compose:** the driver is baked into the `gm-browser` image, so the stage refuses there: when the unit is missing or disabled
+  (the stage 24 cutover disables it and leaves the unit files, so "disabled" is the usual case) it says "rebuild the image";
+  after a cutover the image rebuild (`pi-images.yml`) carries the watchdog. The line `was not running: left stopped` and the
+  `Assistant GM is stopped, so the watchdog starts with its next start` line are not a pass: nothing was read back.
 - Tests: `scripts/pi/gm-watchdog.test.mjs` (the ping decision, the real driver against a stand-in `playwright-core` whose page freezes,
   the stage as text; with `PI_GM_WATCHDOG_CONTAINER=1` the same plus the stage's scenarios in a Debian 13 ARM64 container, run by the
   ARM job in CI).
 - **Pi run plan (not run yet):** (1) `deploy/pi/deployed-state.ps1` for the deployed driver's hash; (2) snapshot, the user's OK;
-  (3) the dry run, then `APPLY=1`; the pass line is `joined the world again with the page watchdog on`; (4) the real-Chromium check
-  (the container test uses a stand-in browser), only with the user's OK because it is a change outside a stage script: freeze
+  (3) the dry run, then `APPLY=1`; the pass line is `joined the world again with the page watchdog on` (the stopped-unit line is not
+  a pass); (4) the real-Chromium check (the container test uses a stand-in browser), only with the user's OK because it is a change
+  outside a stage script and drops the bridge link. First read-only preconditions: `page-restarts.json` in the browser profile has
+  fewer than 3 entries from the last 6 h (else the cap refuses the restart), the cgroup v2 file
+  `/sys/fs/cgroup/system.slice/foundry-ai-tool-gm-browser.service/cgroup.procs` exists, and nobody is online. Freeze
   the Assistant GM's Chromium processes but not the driver, by pid from the unit's cgroup:
   `ssh foundry-pi 'main=$(systemctl show -p MainPID --value foundry-ai-tool-gm-browser.service); for p in $(cat /sys/fs/cgroup/system.slice/foundry-ai-tool-gm-browser.service/cgroup.procs); do [ "$p" = "$main" ] || kill -STOP "$p"; done'`;
   watch `journalctl -u foundry-ai-tool-gm-browser -f` for `the page has not answered a ping for 120 s; restarting the browser`
-  and the rejoin (the unit restart kills the frozen processes; nothing needs `kill -CONT`); (5) `UNDO=1` only if the browser does not come back.
+  and the rejoin, expected about 2.5 minutes after the freeze (the watchdog restarts the browser; the unit restart kills the frozen
+  processes, nothing needs `kill -CONT`). If it does not come back, recover by hand first with
+  `systemctl restart foundry-ai-tool-gm-browser` (ask for the user's OK: the guard hook does not ask for this command); (5) `UNDO=1`
+  only if the browser still does not come back with the new driver.
+- **Test environment:** the container scenarios run Debian 13's packaged `nodejs` (20.x) as a stand-in for the Pi's Node 24
+  (`$NODE_DIR/bin/node` is a link to it), so they prove the stage and the driver's logic, not Node 24 behaviour; the frozen-page
+  scenario prints the Node version it ran on.
 
 ## Game-night watch on the Pi (stage 29)
 

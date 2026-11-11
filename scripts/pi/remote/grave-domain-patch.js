@@ -15,7 +15,7 @@
 //   3. The Grave Domain subclass (MNyZVxdtyB9spWr8) has five Domain Spells ItemGrants (levels 1, 3, 5, 7, 9). The D&D Beyond
 //      import left them at spell.prepared 0, so a cleric rebuilt through Actor Studio got the domain spells unprepared.
 //      They are set to 2 (always prepared), like the book says.
-// Nothing else in the packs changes. The copies in world.player-classes and world.player-spells are not touched here:
+// Nothing else in the packs changes. The copies in world.player-classes, world.player-items and world.player-spells are not touched here:
 // run the baseline (stage 22 MODE=baseline) afterwards and it copies the patched entries over and re-points the links.
 // Module packs are locked again at the end of every real run, also after a failure. A module update that rewrites
 // aitool-content.classes undoes the patch: run this again (MODE=grave-check says when).
@@ -109,7 +109,7 @@ const wantedActivity = () => ({
 });
 
 // The Use activity: what we wrote, and no extra consumption target (covers() only checks what we wrote, so a second
-// thing spent is checked by count). Used for the module pack entry and the world.player-classes copy.
+// thing spent is checked by count). Used for the module pack entry and the world.player-items copy.
 const actCovers = doc => {
   const have = doc?.toObject().system.activities?.[ACT_ID];
   return (

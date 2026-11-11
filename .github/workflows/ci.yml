@@ -418,8 +418,16 @@ jobs:
         # redaction (GM vs player) + the write-surface auth gate over HTTP.
         run: node scripts/cogm-split-smoke-test.mjs
 
+      - name: Cache Playwright's browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Chromium for the dashboard browser tests
-        run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
+        # Retries the apt/browser install on a runner DNS blip; see the script.
+        timeout-minutes: 30
+        run: bash scripts/ci-install-chromium.sh
 
       - name: Dashboard browser tests (React dashboard)
         # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
@@ -446,6 +454,7 @@ jobs:
     # commit, and its first parent is the base). A push to main or a manual run always checks. The same check
     # by hand: npm run studio:pin-check. No npm ci: the script needs nothing installed.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: studio-pin (stage 13 checksum)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -464,7 +473,8 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git diff --name-only HEAD^1 HEAD | grep -qE '^(scripts/pi/remote/13-player-creation\.sh|scripts/pi/check-studio-pin\.mjs|\.github/workflows/ci\.yml)$'; then
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          if echo "$changed" | grep -qE '^(scripts/pi/remote/13-player-creation\.sh|scripts/pi/check-studio-pin\.mjs|\.github/workflows/ci\.yml)$'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "Stage 13 did not change: skip the download."

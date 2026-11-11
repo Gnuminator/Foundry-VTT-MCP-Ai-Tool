@@ -28,10 +28,12 @@ import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { TokenRingsTools } from './tools/token-rings.js';
+import type { ActorImageTools } from './tools/actor-image.js';
 import type { RulesCheckTools } from './tools/rules-check.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { NpcTurnTools } from './tools/npc-turn.js';
 import type { PaperSyncTools } from './tools/paper-sync.js';
+import type { PcCreationTools } from './tools/pc-creation.js';
 import type { RoomSetupTools } from './tools/room-setup.js';
 import type { TableViewerTools } from './tools/table-viewer.js';
 import type { FoundrySetupTools } from './tools/foundry-setup.js';
@@ -82,8 +84,10 @@ export interface ToolRouterDeps {
   npcTurnTools: NpcTurnTools;
   paperSyncTools: PaperSyncTools;
   roomSetupTools: RoomSetupTools;
+  pcCreationTools: PcCreationTools;
   sceneMoodTools: SceneMoodTools;
   tokenRingsTools: TokenRingsTools;
+  actorImageTools: ActorImageTools;
   rulesCheckTools: RulesCheckTools;
   tableViewerTools: TableViewerTools;
   foundrySetupTools: FoundrySetupTools;
@@ -238,7 +242,9 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-npc-turn': args => deps.npcTurnTools.handleToolCall('plan-npc-turn', args),
     'plan-paper-sync': args => deps.paperSyncTools.handleToolCall('plan-paper-sync', args),
     'plan-token-rings': args => deps.tokenRingsTools.handleToolCall('plan-token-rings', args),
+    'plan-actor-image': args => deps.actorImageTools.handleToolCall('plan-actor-image', args),
     'plan-room-setup': args => deps.roomSetupTools.handleToolCall('plan-room-setup', args),
+    'plan-pc-creation': args => deps.pcCreationTools.handleToolCall('plan-pc-creation', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'get-token-details': args => deps.tokenManipulationTools.handleGetTokenDetails(args),
@@ -281,7 +287,9 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.npcTurnTools.getToolDefinitions(),
     ...deps.paperSyncTools.getToolDefinitions(),
     ...deps.roomSetupTools.getToolDefinitions(),
+    ...deps.pcCreationTools.getToolDefinitions(),
     ...deps.tokenRingsTools.getToolDefinitions(),
+    ...deps.actorImageTools.getToolDefinitions(),
     ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.rulesCheckTools.getToolDefinitions(),
     ...deps.tableViewerTools.getToolDefinitions(),

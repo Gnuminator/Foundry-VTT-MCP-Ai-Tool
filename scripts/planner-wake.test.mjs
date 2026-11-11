@@ -209,9 +209,9 @@ const walk = (dir, out = []) => {
   return out;
 };
 
-// A "## Done" section heading (not "## Done when it looks like this" in the GM guides).
-const DONE_SECTION = /^\s*(?:[-*]\s+)?`?##\s+Done`?(?!\s+when)\b/m;
-const INLINE = /(?:to|under|into|in)\s+`##\s+Done`/i;
+// Any mention of a "## Done" heading or "the Done section/heading" (not "## Done when it looks like this" in the GM guides),
+// in any wording, case or quoting.
+const DONE_MENTION = /##\s*Done\b(?!\s+when\b)|\bDone\s+(?:section|heading)\b/i;
 
 test('Done list: no skill, hook or script (outside tests) names a `## Done` section of Backlog.md', () => {
   const files = [
@@ -230,7 +230,7 @@ test('Done list: no skill, hook or script (outside tests) names a `## Done` sect
     } catch {
       continue;
     }
-    if (DONE_SECTION.test(text) || INLINE.test(text)) bad.push(path.relative(repoRoot, f));
+    if (DONE_MENTION.test(text)) bad.push(path.relative(repoRoot, f));
   }
   assert.deepEqual(bad, [], 'a writer is told to put Done lines in Backlog.md; use vault Backlog done.md');
 });
@@ -241,7 +241,8 @@ test('Done list: the planner skill says Done lines go to Backlog done.md', () =>
 });
 
 test('Done list: the matcher catches the old wording', () => {
-  assert.ok(INLINE.test('add a line to `## Done`, and'));
-  assert.ok(DONE_SECTION.test('x\n## Done\n- a'));
-  assert.ok(!DONE_SECTION.test('## Done when it looks like this'));
+  for (const s of ['add a line to `## Done`, and', 'x\n## Done\n- a', 'put it in the ## done list', 'under the `## Done` heading', 'the Done section of Backlog.md']) {
+    assert.ok(DONE_MENTION.test(s), s);
+  }
+  assert.ok(!DONE_MENTION.test('## Done when it looks like this'));
 });

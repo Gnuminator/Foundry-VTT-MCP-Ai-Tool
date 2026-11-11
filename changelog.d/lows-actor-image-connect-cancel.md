@@ -1,0 +1,4 @@
+### Fixes
+
+- **Actor picture tool, review follow-ups:** `plan-actor-image` is now marked as a write (it stores the picture file when you plan); a link or junction to a network share is refused without being followed; the Windows path rules are tested on every platform; the picture's size and path are checked again when the file is read; the module refuses on its own when the "Actor images" switch is off; an older module gets "update the module" instead of "switched off"; an actor whose name has no letters or digits gets the folder `actor-<id>`. A plan that is never applied still leaves its picture file in `assets/ai-art` (Foundry cannot delete files from a module) (Backlog `actor-image-lows`).
+- **Module link:** a connect that was replaced no longer clears the cancel handle of the newer connect; tests cover stop then start in one tick and the single heartbeat start (Backlog `connect-cancel-lows`).

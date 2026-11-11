@@ -68,6 +68,10 @@ let restore: () => void;
 let bridge: any;
 let setSpy: ReturnType<typeof vi.fn>;
 
+/** The first argument of every info log line so far (`logInfo` writes to the console). */
+// eslint-disable-next-line no-console
+const logged = (): string[] => vi.mocked(console.log).mock.calls.map(args => String(args[0]));
+
 /** Instances that were created and never disconnected: the ones still "running". */
 const live = (): any[] => fake.state.instances.filter(i => !i.disconnected);
 
@@ -347,6 +351,8 @@ describe('main: no world writes for connection state (PB-03)', () => {
     await bridge.start();
     expect(bridge.getStatus().heartbeatActive).toBe(true);
     expect(vi.getTimerCount()).toBe(1);
+    // The heartbeat is started once, not again by the link-up and the end of start().
+    expect(logged().filter(line => line.includes('Heartbeat monitoring started'))).toHaveLength(1);
     await bridge.stop();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -377,6 +383,32 @@ describe('main: no world writes for connection state (PB-03)', () => {
     await bridge.start();
     expect(bridge.getStatus().lastConnectionState).toBe('connected');
     expect(live()).toHaveLength(1);
+    await bridge.stop();
+  });
+
+  it('stop() then start() in one tick: the old start does not unlock a third start()', async () => {
+    vi.useFakeTimers();
+    fake.state.hold = true;
+    const first = bridge.start();
+    await Promise.resolve();
+    // Same tick: no await between the stop and the new start.
+    const stopping = bridge.stop();
+    const second = bridge.start();
+    await stopping;
+    await first;
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    const before = logged().length;
+    await bridge.start();
+    const newLogs = logged()
+      .slice(before)
+      .filter(line => line.includes('already running or connecting'));
+    expect(newLogs).toHaveLength(1);
+    expect(live()).toHaveLength(1);
+
+    // Let the second connect finish and clean up.
+    fake.state.instances.at(-1)?.pendingReject?.(new Error('done'));
+    await second.catch(() => undefined);
     await bridge.stop();
   });
 

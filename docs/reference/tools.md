@@ -1387,9 +1387,9 @@ Parameters:
 
 ### plan-actor-image
 
-Plan a new portrait and/or token picture for an actor from a PNG, JPG or WebP file (max 5 MB) in an allowed folder on the GM's PC. The file is stored in the world's assets/ai-art folder; apply with apply-planned-change, revert with undo-change (the old paths come back, the file stays). Tokens already placed on scenes keep their picture.
+Plan a new portrait and/or token picture for an actor from a PNG, JPG or WebP file (max 5 MB) in an allowed folder on the GM's PC. The file is stored in the world's assets/ai-art folder; apply with apply-planned-change, revert with undo-change (the old paths come back, the file stays; a plan that is never applied also leaves its file there). Tokens already placed on scenes keep their picture.
 
-Kind: read-only. Title: Plan a new portrait and token picture for an actor.
+Kind: changes something. Title: Plan a new portrait and token picture for an actor.
 
 Parameters:
 

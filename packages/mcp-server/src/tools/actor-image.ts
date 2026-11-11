@@ -1,6 +1,6 @@
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { lstat, open, readlink, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import path, { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 import {
   ACTOR_IMAGE_FEATURE_ID,
@@ -28,6 +28,8 @@ export interface ActorImageToolsOptions {
 
 const UPLOAD_TIMEOUT_MS = 60_000;
 const SWITCH_OFF = featureSwitchOff('Actor images', 'AI Tool: Actor images (writes)');
+const MODULE_TOO_OLD =
+  'The Foundry AI Tool module in this world is older than this tool; update the module and reload Foundry.';
 
 const planParams = z.object({
   actor: z.string().min(1),
@@ -45,9 +47,68 @@ export function defaultImageRoots(env: NodeJS.ProcessEnv = process.env): string[
   return listed.length > 0 ? listed : [join(homedir(), 'Documents', 'Foundry Art')];
 }
 
-function inside(root: string, file: string): boolean {
-  const rel = relative(root, file);
-  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+/** The parts of `node:path` the text checks use; `path.win32` and `path.posix` both fit. */
+export type PathModule = Pick<typeof path, 'isAbsolute' | 'relative' | 'resolve' | 'sep'>;
+
+/** A network (UNC) or device path: Windows connects out just by looking such a path up. */
+export function isNetworkPath(p: string): boolean {
+  return p.startsWith('\\\\') || p.startsWith('//') || p.startsWith('\\??\\');
+}
+
+function inside(mod: PathModule, root: string, file: string): boolean {
+  const rel = mod.relative(root, file);
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${mod.sep}`) && !mod.isAbsolute(rel);
+}
+
+/**
+ * The text-only part of the folder check, before any file system call: 'relative' when the path
+ * is not absolute, 'denied' for a network or device path (unless a folder is one) and for a path
+ * outside every folder, else 'ok'. Pure, with the path module passed in, so the Windows cases
+ * run on every platform (`path.win32`).
+ */
+export function checkPathText(
+  file: string,
+  roots: string[],
+  mod: PathModule = path
+): 'ok' | 'relative' | 'denied' {
+  if (!mod.isAbsolute(file)) return 'relative';
+  if (isNetworkPath(file) && !roots.some(isNetworkPath)) return 'denied';
+  const wanted = mod.resolve(file);
+  return roots.some(root => inside(mod, mod.resolve(root), wanted)) ? 'ok' : 'denied';
+}
+
+/**
+ * Walk the path one part at a time with `lstat`, never following a link by itself: a link (or
+ * junction) whose target is a network path is refused before `realpath` could connect to it.
+ * Other links are followed by hand (at most 40), so a chain is checked hop by hop.
+ */
+async function refuseNetworkLinks(file: string, notAllowed: Error): Promise<void> {
+  const split = (p: string): { root: string; parts: string[] } => {
+    const root = path.parse(p).root;
+    return { root, parts: p.slice(root.length).split(path.sep).filter(Boolean) };
+  };
+  let { root: acc, parts } = split(path.resolve(file));
+  let hops = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const next = path.join(acc, parts[i] ?? '');
+    let link: boolean;
+    try {
+      link = (await lstat(next)).isSymbolicLink();
+    } catch {
+      return; // missing: the realpath that follows reports it
+    }
+    if (!link) {
+      acc = next;
+      continue;
+    }
+    if (++hops > 40) throw notAllowed;
+    const target = await readlink(next);
+    if (isNetworkPath(target)) throw notAllowed;
+    const resolved = split(path.resolve(acc, target));
+    acc = resolved.root;
+    parts = [...resolved.parts, ...parts.slice(i + 1)];
+    i = -1;
+  }
 }
 
 /**
@@ -55,19 +116,18 @@ function inside(root: string, file: string): boolean {
  * Symlinks, junctions and `..` are resolved first, so a link cannot point out of a folder.
  */
 export async function checkImagePath(file: string, roots: string[]): Promise<string> {
-  if (!isAbsolute(file)) throw new Error('file must be an absolute path on this PC.');
+  const text = checkPathText(file, roots);
+  if (text === 'relative') throw new Error('file must be an absolute path on this PC.');
   const notAllowed = new Error(
     `That file is not in an allowed folder. Allowed: ${roots.join('; ')}. Put the picture there, or list more folders in ${ACTOR_IMAGE_ROOTS_ENV}.`
   );
-  // Before any filesystem call: a network (UNC) or device path would make Windows connect out
-  // just by being looked at, and a path outside every folder must not even be probed.
-  const isNetwork = (p: string): boolean => p.startsWith('\\\\') || p.startsWith('//');
-  if (isNetwork(file) && !roots.some(isNetwork)) throw notAllowed;
-  const wanted = resolve(file);
-  if (!roots.some(root => inside(resolve(root), wanted))) throw notAllowed;
+  // Before any filesystem call: a path outside every folder must not even be probed.
+  if (text === 'denied') throw notAllowed;
+  // A link to a network share would make realpath connect out (and send the Windows login hash).
+  if (!roots.some(isNetworkPath)) await refuseNetworkLinks(file, notAllowed);
   let real: string;
   try {
-    real = await realpath(resolve(file));
+    real = await realpath(path.resolve(file));
   } catch {
     throw new Error(`No such file: ${file}`);
   }
@@ -78,12 +138,38 @@ export async function checkImagePath(file: string, roots: string[]): Promise<str
     } catch {
       continue;
     }
-    if (inside(realRoot, real)) {
+    if (inside(path, realRoot, real)) {
       if (!(await stat(real)).isFile()) throw new Error('file must be a picture file.');
       return real;
     }
   }
   throw notAllowed;
+}
+
+const TOO_BIG = 'That picture is too big. The limit is 5 MB.';
+
+/**
+ * Read the checked file. The size is taken from the open file and again from the bytes, and the
+ * path is resolved again after the open, so a file swapped after `checkImagePath` is refused.
+ */
+async function readPicture(requested: string, real: string, roots: string[]): Promise<Uint8Array> {
+  const handle = await open(real, 'r');
+  try {
+    const info = await handle.stat();
+    if (!info.isFile()) throw new Error('file must be a picture file.');
+    if (info.size > PORTRAIT_MAX_BYTES) throw new Error(TOO_BIG);
+    // The path the caller named, not the resolved one: a folder reached through a link resolves
+    // to text outside its configured name. The open handle must also be the checked file.
+    const changed = new Error('The picture changed while it was being read. Try again.');
+    if ((await checkImagePath(requested, roots)) !== real) throw changed;
+    const again = await stat(real);
+    if (again.ino !== info.ino || again.dev !== info.dev) throw changed;
+    const bytes = await handle.readFile();
+    if (bytes.length > PORTRAIT_MAX_BYTES) throw new Error(TOO_BIG);
+    return new Uint8Array(bytes);
+  } finally {
+    await handle.close();
+  }
 }
 
 /**
@@ -114,7 +200,7 @@ export class ActorImageTools {
       {
         name: 'plan-actor-image',
         description:
-          "Plan a new portrait and/or token picture for an actor from a PNG, JPG or WebP file (max 5 MB) in an allowed folder on the GM's PC. The file is stored in the world's assets/ai-art folder; apply with apply-planned-change, revert with undo-change (the old paths come back, the file stays). Tokens already placed on scenes keep their picture.",
+          "Plan a new portrait and/or token picture for an actor from a PNG, JPG or WebP file (max 5 MB) in an allowed folder on the GM's PC. The file is stored in the world's assets/ai-art folder; apply with apply-planned-change, revert with undo-change (the old paths come back, the file stays; a plan that is never applied also leaves its file there). Tokens already placed on scenes keep their picture.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -147,10 +233,9 @@ export class ActorImageTools {
 
   private async plan(args: unknown): Promise<PlanView & Record<string, unknown>> {
     const params = planParams.parse(args ?? {});
-    const real = await checkImagePath(params.file, this.roots ?? defaultImageRoots());
-    const size = (await stat(real)).size;
-    if (size > PORTRAIT_MAX_BYTES) throw new Error('That picture is too big. The limit is 5 MB.');
-    const bytes = new Uint8Array(await readFile(real));
+    const roots = this.roots ?? defaultImageRoots();
+    const real = await checkImagePath(params.file, roots);
+    const bytes = await readPicture(params.file, real, roots);
     const type = sniffPortraitType(bytes);
     if (!type) throw new Error('Only PNG, JPG or WebP pictures work.');
 
@@ -159,23 +244,30 @@ export class ActorImageTools {
       await this.foundryClient.query('foundry-mcp-bridge.listGuardedFeatures'),
       'Feature list refused'
     );
-    if (!features.find(f => f.id === ACTOR_IMAGE_FEATURE_ID)?.enabled) {
-      throw new Error(SWITCH_OFF);
-    }
+    const feature = features.find(f => f.id === ACTOR_IMAGE_FEATURE_ID);
+    if (!feature) throw new Error(MODULE_TOO_OLD);
+    if (!feature.enabled) throw new Error(SWITCH_OFF);
     if (features.some(f => f.writesAllowed === false)) {
       throw new Error(
         'Changes to Foundry are switched off ("AI Tool: Allow Write Operations"). Ask the GM to turn it on.'
       );
     }
 
-    const stored = unwrapBridgeReply(
-      (await this.foundryClient.query(
+    let reply: UploadActorImageReply;
+    try {
+      reply = await this.foundryClient.query(
         'foundry-mcp-bridge.uploadActorImage',
         { actor: params.actor, type, data: Buffer.from(bytes).toString('base64') },
         { timeoutMs: UPLOAD_TIMEOUT_MS }
-      )) as UploadActorImageReply,
-      'Could not store the picture'
-    );
+      );
+    } catch (error) {
+      // A module from before this tool has no handler for the query.
+      if (error instanceof Error && /No handler found for query/i.test(error.message)) {
+        throw new Error(MODULE_TOO_OLD, { cause: error });
+      }
+      throw error;
+    }
+    const stored = unwrapBridgeReply(reply, 'Could not store the picture');
     if (stored.success !== true || !stored.path || !stored.actorId) {
       throw new Error(stored.error || 'Could not store the picture.');
     }

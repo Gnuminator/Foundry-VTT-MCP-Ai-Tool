@@ -111,7 +111,11 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
     kind: 'read',
   },
   'plan-pc-creation': { title: 'Plan a new player character with pack items', kind: 'read' },
-  'plan-actor-image': { title: 'Plan a new portrait and token picture for an actor', kind: 'read' },
+  // 'write': the picture file is stored in the world's assets/ai-art folder when the plan is made.
+  'plan-actor-image': {
+    title: 'Plan a new portrait and token picture for an actor',
+    kind: 'write',
+  },
   'plan-token-rings': {
     title: 'Plan dynamic token rings for actors or placed tokens',
     kind: 'read',

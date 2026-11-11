@@ -13,6 +13,7 @@
  */
 import type { UploadActorImageReply, UploadActorImageRequest } from '@gnuminator/shared';
 
+import { featureName, featureOffMessage, isFeatureEnabled } from './guarded-features.js';
 import {
   PORTRAIT_MAX_BYTES,
   playerSlug,
@@ -39,6 +40,8 @@ export interface ImageActor {
   prototypeToken?: { texture?: { src?: string } };
 }
 export interface ActorImageEnv {
+  /** Whether the "Actor images" feature switch is on. */
+  enabled(): boolean;
   actors(): ImageActor[];
   picker(): PortraitPicker;
   now(): Date;
@@ -51,6 +54,7 @@ function liveEnv(): ActorImageEnv {
     foundry?: { applications?: { apps?: { FilePicker?: { implementation?: PortraitPicker } } } };
   };
   return {
+    enabled: () => isFeatureEnabled(ACTOR_IMAGE_FEATURE_ID),
     actors: () => (g.game?.actors ? Array.from(g.game.actors) : []),
     picker: (): PortraitPicker => {
       const picker = g.foundry?.applications?.apps?.FilePicker?.implementation;
@@ -97,6 +101,16 @@ export function findActor(
   return { error: `No actor "${wanted}". Use list-characters to find the right one.` };
 }
 
+/**
+ * The actor's folder name: name slug and id. A name with no letters or digits has no slug, so it
+ * is `actor-<id>` (not the player fallback twice).
+ */
+export function actorFolderName(name: string, id: string): string {
+  const lowerId = id.toLowerCase();
+  const slug = playerSlug(name, id);
+  return slug === `player-${lowerId}` ? `actor-${lowerId}` : `${slug}-${lowerId}`;
+}
+
 /** Make `assets/ai-art/<folder>` (each level; "already there" is fine). */
 async function ensureFolder(picker: PortraitPicker, folder: string): Promise<string> {
   let path = '';
@@ -116,6 +130,8 @@ export async function uploadActorImage(
   data: unknown,
   env: ActorImageEnv = liveEnv()
 ): Promise<UploadActorImageReply> {
+  // The switch is checked here too, so the query refuses on its own and not only through the plan.
+  if (!env.enabled()) return refuse(featureOffMessage(featureName(ACTOR_IMAGE_FEATURE_ID)));
   const body = (data ?? {}) as Partial<UploadActorImageRequest>;
   const { actor: wanted, data: base64 } = body;
   if (typeof wanted !== 'string' || wanted.trim() === '') return refuse('An actor is required.');
@@ -142,10 +158,7 @@ export async function uploadActorImage(
   if (!type) return refuse('Only PNG, JPG or WebP pictures work.');
 
   const picker = env.picker();
-  const folder = await ensureFolder(
-    picker,
-    `${playerSlug(String(actor.name ?? ''), actor.id)}-${actor.id.toLowerCase()}`
-  );
+  const folder = await ensureFolder(picker, actorFolderName(String(actor.name ?? ''), actor.id));
   const name = artFileName(type, env.now(), env.random());
   const file = new File([bytes as BlobPart], name, { type: TYPES[type] });
   const stored = (await picker.upload('data', folder, file, {}, { notify: false })) as

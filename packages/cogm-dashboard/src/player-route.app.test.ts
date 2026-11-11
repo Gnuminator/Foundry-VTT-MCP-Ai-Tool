@@ -708,7 +708,7 @@ describe('/me: Your Claude connector', () => {
     };
     expect(m.user_config).toBeUndefined();
     expect(m.display_name).toBe('Foundry (Alice)');
-    expect(m.name).toBe('foundry-player-alice');
+    expect(m.name).toBe('foundry-player-alice00000000001');
     expect(m.server.mcp_config.env).toEqual({
       FOUNDRY_PLAYER_ENDPOINT: 'https://player-ai.example.com/mcp/player',
       FOUNDRY_PLAYER_CLIENT_ID: ID_A,

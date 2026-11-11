@@ -201,7 +201,9 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       return;
     }
     const build = options.buildPreset ?? loadPresetBuilder;
-    void Promise.resolve()
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
       .then(() =>
         build({
           endpoint: own.endpoint as string,

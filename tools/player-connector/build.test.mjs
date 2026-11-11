@@ -436,16 +436,31 @@ test('a player preset has literals, no user_config, its own name and display nam
     FOUNDRY_PLAYER_CLIENT_ID: PRESET.clientId,
     FOUNDRY_PLAYER_CLIENT_SECRET: PRESET.clientSecret,
   });
-  assert.equal(m.name, 'foundry-player-ebbe-thistle');
+  assert.equal(m.name, 'foundry-player-abcdef0123456789');
   assert.equal(m.display_name, 'Foundry (Ebbe Thistle)');
   assert.ok(!JSON.stringify(m).includes('${user_config'));
+  // The name follows the user id: a renamed user still replaces the old install, two users differ.
+  const renamed = JSON.parse(
+    unzip(buildPreset({ ...PRESET, playerName: 'Ebbe!' })).get('manifest.json')
+  );
+  assert.equal(renamed.name, m.name);
   const other = JSON.parse(
-    unzip(buildPreset({ ...PRESET, playerName: 'Tamsin' })).get('manifest.json')
+    unzip(buildPreset({ ...PRESET, playerName: 'Tamsin', userId: 'ZzYyXx9876543210' })).get(
+      'manifest.json'
+    )
   );
   assert.notEqual(other.name, m.name);
-  // A name with nothing usable still gets a unique, valid name.
-  const odd = JSON.parse(unzip(buildPreset({ ...PRESET, playerName: '***' })).get('manifest.json'));
-  assert.equal(odd.name, 'foundry-player-player-abcdef');
+  // Without a usable id the name falls back to the player's name, then to "player".
+  const noId = JSON.parse(
+    unzip(buildPreset({ ...PRESET, userId: undefined, playerName: 'Ebbe Thistle' })).get(
+      'manifest.json'
+    )
+  );
+  assert.equal(noId.name, 'foundry-player-ebbe-thistle');
+  const odd = JSON.parse(
+    unzip(buildPreset({ ...PRESET, userId: undefined, playerName: '***' })).get('manifest.json')
+  );
+  assert.equal(odd.name, 'foundry-player-player');
 });
 
 test('a player preset refuses a plain-http endpoint and missing values', () => {

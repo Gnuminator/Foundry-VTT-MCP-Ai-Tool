@@ -71,12 +71,12 @@ export function collectPresetFiles(p) {
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .trim()
     .slice(0, 40);
-  const slug =
-    presetSlug(label) ||
-    `player-${String(p.userId ?? '')
-      .slice(0, 6)
-      .toLowerCase()}`;
-  manifest.name = `foundry-player-${slug}`;
+  // The extension name comes from the Foundry user id, not the display name: it stays the same when
+  // the user is renamed (a reinstall replaces the old one) and two players never share it.
+  const id = String(p.userId ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  manifest.name = `foundry-player-${id || presetSlug(label) || 'player'}`;
   manifest.display_name = `Foundry (${label || 'player'})`;
   manifest.long_description =
     "Connects Claude Desktop to the table's read-only player endpoint over HTTPS, already set up for you. " +

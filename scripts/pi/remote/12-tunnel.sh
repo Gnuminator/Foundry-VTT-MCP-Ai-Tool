@@ -30,6 +30,7 @@
 
 require_root
 require_recent_snapshot
+refuse_when_cut_over "stage 12 (tunnel)"
 require_arm64
 
 # ---- no GM without a password (#273) ----------------------------------------------------------------

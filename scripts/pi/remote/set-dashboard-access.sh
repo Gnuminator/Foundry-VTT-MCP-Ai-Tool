@@ -49,6 +49,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 require_root
+refuse_when_cut_over "set-dashboard-access (it restarts the dashboard)"
 # Before anything is asked or checked: a refusal costs nothing then (a stopped dashboard needs no check).
 require_quiet_if_active "$unit" "restarting the dashboard (it drops the dashboard pages that are open)"
 [ -d "$TOOL_ETC" ] || die "$TOOL_ETC is missing: run stage 1 first"

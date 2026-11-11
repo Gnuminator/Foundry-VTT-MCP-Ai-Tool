@@ -34,6 +34,7 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/21-player-vault.sh | ssh foundry-pi 'PLAYER="Mira" DEVICE_ID=ABCDEFG-... DEVICE_NAME=mira-pc bash -s'
 
 require_root
+refuse_when_cut_over "stage 21 (player vault)"
 PATH="$PATH:/usr/sbin:/sbin"
 
 players_dir="$TOOL_DATA/obsidian/players"

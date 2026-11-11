@@ -18,6 +18,7 @@
 # again, also when the script fails.
 
 require_root
+refuse_when_cut_over "gm-script (it stops and starts Foundry and the Assistant GM)"
 require_arm64
 have_systemd || die "needs systemd (the Pi, not a test container)"
 

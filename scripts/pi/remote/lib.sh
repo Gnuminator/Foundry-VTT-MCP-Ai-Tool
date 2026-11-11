@@ -66,6 +66,90 @@ have_systemd() {
   [ -d /run/systemd/system ]
 }
 
+# ---- The Docker stack (stage 24) ------------------------------------------------------------------------------
+# After the cutover (stage 24 MODE=cutover) Foundry, the bridge, the dashboard and the Assistant GM browser run as the
+# containers of compose project foundry-ai-tool-pi and their systemd units are disabled. A stage that starts, restarts or
+# enables one of those units would start a second copy next to the container, so it calls refuse_when_cut_over first.
+# Containers are found by label: that needs neither the compose file nor deploy/pi/.env.
+COMPOSE_LIVE_PROJECT=foundry-ai-tool-pi
+
+# containers_of PROJECT [SERVICE] [-a]: the container ids of a compose project (-a: stopped ones too). Prints nothing and
+# returns 0 when docker is not installed; returns 1 (nothing printed) when docker is installed but its daemon does not
+# answer: the state is then unknown and every caller treats that as "containers may exist".
+containers_of() {
+  command -v docker >/dev/null 2>&1 || return 0
+  timeout 20 docker info >/dev/null 2>&1 || return 1
+  local args=(ps -q)
+  [ "${3:-}" != -a ] || args=(ps -aq)
+  args+=(--filter "label=com.docker.compose.project=$1")
+  [ -z "${2:-}" ] || args+=(--filter "label=com.docker.compose.service=$2")
+  docker "${args[@]}" 2>/dev/null
+}
+# True when docker is not installed or its daemon answers.
+daemon_known() { ! command -v docker >/dev/null 2>&1 || timeout 20 docker info >/dev/null 2>&1; }
+
+# docker_cannot_return: 0 when docker is installed, its daemon is down AND systemd will not bring it back (docker.service
+# and docker.socket are neither enabled nor active: stage 24's FORCE=1 rollback does that on purpose), so no container can
+# be there. Anything else about a silent daemon stays "unknown".
+docker_cannot_return() {
+  local u
+  have_systemd || return 1
+  for u in docker.service docker.socket; do
+    if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
+    [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
+  done
+  return 0
+}
+
+# refuse_when_cut_over WHAT: die when a container of the live project exists (also a stopped one: the backup stops the
+# Foundry container each night, and a container that restart: unless-stopped brings back is still a second copy). Docker not
+# installed = never cut over. Docker installed but silent = unknown, and unknown refuses (fail closed), unless
+# docker_cannot_return. Never overridden by FORCE=1. Call it right after require_root (and the snapshot check), before the
+# first change, in every stage that starts, restarts or enables Foundry, the bridge, the dashboard or the Assistant GM
+# (scripts/pi/cutover-guard.test.mjs fails for a stage that touches a unit without it).
+refuse_when_cut_over() {
+  local what="$1" ids
+  command -v docker >/dev/null 2>&1 || return 0
+  if ! ids="$(containers_of "$COMPOSE_LIVE_PROJECT" "" -a)"; then
+    docker_cannot_return && return 0
+    die "the Docker daemon does not answer, so whether the stack runs as containers is unknown: $what is refused (it would start a systemd unit next to a container). Look at: systemctl status docker. Nothing was changed"
+  fi
+  [ -z "$ids" ] || die "the stack runs as containers (compose project $COMPOSE_LIVE_PROJECT): $what would start a second copy of a systemd unit next to them. Go back first: stage 24 with MODE=rollback (deploy/pi/README.md, Cutover and rollback). Nothing was changed"
+}
+
+# env_file_value FILE NAME: the value a compose .env FILE gives NAME, read the way compose reads it ("" when the file or the
+# name is absent): the last assignment wins, whitespace around the name and the value is dropped, an unquoted value ends at a
+# whitespace-then-# comment, one pair of matching quotes is removed (what is inside them is kept as it is). The one reader
+# for deploy/pi/.env (stage 24); scripts/pi/cutover-guard.test.mjs tests it.
+env_file_value() {
+  local v=""
+  if [ -f "$1" ]; then
+    v="$(sed -n "s/^[[:space:]]*$2[[:space:]]*=//p" "$1" | tail -n 1)"
+    v="${v#"${v%%[![:space:]]*}"}"
+    case "$v" in
+      \"*) v="${v#\"}" v="${v%%\"*}" ;;
+      \'*) v="${v#\'}" v="${v%%\'*}" ;;
+      *) v="$(printf '%s' "$v" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
+    esac
+  fi
+  printf '%s' "$v"
+}
+
+# live_container SERVICE: the id of the RUNNING container of a service of the live project (empty when none or unknown).
+live_container() {
+  containers_of "$COMPOSE_LIVE_PROJECT" "$1" 2>/dev/null | head -n 1 || true
+}
+
+# gm_container_joined: 0 when the Assistant GM container joined the world in its current run (its logs since its last start).
+gm_container_joined() {
+  local cid started
+  cid="$(live_container gm-browser)"
+  [ -n "$cid" ] || return 1
+  started="$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)"
+  [ -n "$started" ] || return 1
+  [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # Install Debian packages that are missing.
 apt_install() {
   local missing=()
@@ -265,6 +349,8 @@ gm_browsers_joined() {
   for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
     if browser_joined "$unit"; then n=$((n + 1)); fi
   done
+  # The Assistant GM as a container (after the cutover) holds a Foundry user the same way.
+  if gm_container_joined; then n=$((n + 1)); fi
   printf '%s' "$n"
 }
 
@@ -274,7 +360,8 @@ gm_browsers_joined() {
 require_quiet() {
   local what="$1" online assistant=0
   have_systemd || return 0
-  if systemctl is-active --quiet foundry.service; then
+  # Foundry runs as the unit, or (after the cutover) as the container of the live project.
+  if systemctl is-active --quiet foundry.service || [ -n "$(live_container foundry)" ]; then
     online="$(users_online)"
     assistant="$(gm_browsers_joined)"
     if [ "$online" = "?" ]; then

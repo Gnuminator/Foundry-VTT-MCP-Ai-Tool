@@ -1,0 +1,4 @@
+{
+  "note": "Number of app.<method>( calls in src/app.ts. It may only go down. New endpoints go in src/routes/. Lower it in the PR that moves routes out.",
+  "count": 25
+}

@@ -106,6 +106,7 @@ export const CHECKS = [
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },
   }),
+  npmRun('unused-ratchet', 'static', 'unused:ratchet'),
   npmRun('docs-lint', 'docs', 'docs:lint', { drift: { name: 'docs lint', order: 6 } }),
   npmRun('docs-links', 'docs', 'docs:links', { drift: { name: 'docs links', order: 7 } }),
   npmRun('docs-ui', 'docs', 'docs:ui'),
@@ -140,7 +141,8 @@ export const CHECKS = [
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
-    'scripts/main-red-revert.test.mjs'
+    'scripts/main-red-revert.test.mjs',
+    'scripts/unused-ratchet.test.mjs'
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),

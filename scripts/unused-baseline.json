@@ -1,0 +1,15 @@
+{
+  "total": 837,
+  "counts": {
+    "packages/cogm-dashboard: exports": 74,
+    "packages/cogm-dashboard: types": 132,
+    "packages/discord-bot: exports": 26,
+    "packages/discord-bot: types": 38,
+    "packages/foundry-module: exports": 92,
+    "packages/foundry-module: types": 162,
+    "packages/mcp-server: exports": 105,
+    "packages/mcp-server: types": 193,
+    "packages/obsidian-plugin: exports": 6,
+    "packages/obsidian-plugin: types": 9
+  }
+}

@@ -33,6 +33,72 @@ export function collectFiles(endpoint = process.env.FOUNDRY_PLAYER_ENDPOINT) {
   return files;
 }
 
+/** A file-name and extension-name piece from a player's name: lowercase letters, digits, hyphens. */
+export function presetSlug(name) {
+  return String(name ?? '')
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24);
+}
+
+/**
+ * The files of one player's own extension (the "Download my helper" file): the generic template
+ * with that player's endpoint, Client ID and Client Secret written as literals in
+ * `mcp_config.env`, `user_config` removed (Desktop shows no form), a display name
+ * "Foundry (<player>)" and a name of its own so two players' files can sit side by side. The result
+ * holds a secret: it goes only to that player, never to a log, the repo or a release.
+ * @param {{ endpoint: string, clientId: string, clientSecret: string, playerName: string, userId?: string }} p
+ */
+export function collectPresetFiles(p) {
+  const endpoint = String(p.endpoint ?? '').trim();
+  const clientId = String(p.clientId ?? '').trim();
+  const clientSecret = String(p.clientSecret ?? '').trim();
+  if (!clientId || !clientSecret) throw new Error('a Client ID and a Client Secret are needed');
+  let url;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error('the endpoint is not an address');
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback))
+    throw new Error('the endpoint must be an https:// address');
+  const manifest = JSON.parse(readFileSync(path.join(here, 'manifest.json'), 'utf8'));
+  const label = String(p.playerName ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .trim()
+    .slice(0, 40);
+  const slug =
+    presetSlug(label) ||
+    `player-${String(p.userId ?? '')
+      .slice(0, 6)
+      .toLowerCase()}`;
+  manifest.name = `foundry-player-${slug}`;
+  manifest.display_name = `Foundry (${label || 'player'})`;
+  manifest.long_description =
+    "Connects Claude Desktop to the table's read-only player endpoint over HTTPS, already set up for you. " +
+    'Nothing to paste. Claude can read your own character and short book passages, and cannot change anything. ' +
+    'This file holds your personal login: treat it like a password and do not share it.';
+  manifest.server.mcp_config.env = {
+    FOUNDRY_PLAYER_ENDPOINT: url.toString(),
+    FOUNDRY_PLAYER_CLIENT_ID: clientId,
+    FOUNDRY_PLAYER_CLIENT_SECRET: clientSecret,
+  };
+  delete manifest.user_config;
+  const files = new Map();
+  files.set('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8'));
+  files.set('server/index.js', readFileSync(path.join(here, 'server', 'index.js')));
+  return files;
+}
+
+/** The player's own extension as zip bytes (see collectPresetFiles). */
+export function buildPreset(p) {
+  return zip([...collectPresetFiles(p)].map(([name, data]) => ({ name, data })));
+}
+
 /** Build the .mcpb into `outDir`; returns its path. */
 export function build(outDir, endpoint) {
   const files = collectFiles(endpoint);

@@ -1,7 +1,7 @@
 // node --test tools/player-connector/build.test.mjs
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { after, before, mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
-import { build } from './build.mjs';
+import { build, buildPreset } from './build.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(here, 'server', 'index.js');
@@ -398,6 +398,99 @@ test('the .mcpb is a zip with a valid manifest and the server, secrets marked se
     }
     assert.equal(entries.get('server/index.js'), readFileSync(SERVER, 'utf8'));
     assert.throws(() => build(dir, 'http://plain.example.org/'), /https/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function unzip(buf) {
+  const entries = new Map();
+  let at = 0;
+  while (buf.readUInt32LE(at) === 0x04034b50) {
+    const packed = buf.readUInt32LE(at + 18);
+    const nameLen = buf.readUInt16LE(at + 26);
+    const extraLen = buf.readUInt16LE(at + 28);
+    const name = buf.toString('utf8', at + 30, at + 30 + nameLen);
+    const start = at + 30 + nameLen + extraLen;
+    entries.set(name, inflateRawSync(buf.subarray(start, start + packed)).toString('utf8'));
+    at = start + packed;
+  }
+  return entries;
+}
+
+const PRESET = {
+  endpoint: 'https://player.example.org/mcp/player',
+  clientId: 'preset-id-0001.access',
+  clientSecret: 'preset-secret-0123456789abcdef',
+  playerName: 'Ebbe Thistle',
+  userId: 'AbCdEf0123456789',
+};
+
+test('a player preset has literals, no user_config, its own name and display name', () => {
+  const entries = unzip(buildPreset(PRESET));
+  assert.deepEqual([...entries.keys()].sort(), ['manifest.json', 'server/index.js']);
+  const m = JSON.parse(entries.get('manifest.json'));
+  assert.equal(m.user_config, undefined);
+  assert.deepEqual(m.server.mcp_config.env, {
+    FOUNDRY_PLAYER_ENDPOINT: PRESET.endpoint,
+    FOUNDRY_PLAYER_CLIENT_ID: PRESET.clientId,
+    FOUNDRY_PLAYER_CLIENT_SECRET: PRESET.clientSecret,
+  });
+  assert.equal(m.name, 'foundry-player-ebbe-thistle');
+  assert.equal(m.display_name, 'Foundry (Ebbe Thistle)');
+  assert.ok(!JSON.stringify(m).includes('${user_config'));
+  const other = JSON.parse(
+    unzip(buildPreset({ ...PRESET, playerName: 'Tamsin' })).get('manifest.json')
+  );
+  assert.notEqual(other.name, m.name);
+  // A name with nothing usable still gets a unique, valid name.
+  const odd = JSON.parse(unzip(buildPreset({ ...PRESET, playerName: '***' })).get('manifest.json'));
+  assert.equal(odd.name, 'foundry-player-player-abcdef');
+});
+
+test('a player preset refuses a plain-http endpoint and missing values', () => {
+  assert.throws(() => buildPreset({ ...PRESET, endpoint: 'http://plain.example.org/' }), /https/);
+  assert.throws(() => buildPreset({ ...PRESET, endpoint: 'not a url' }), /address/);
+  assert.throws(() => buildPreset({ ...PRESET, clientSecret: ' ' }), /Secret/);
+  assert.doesNotThrow(() => buildPreset({ ...PRESET, endpoint: 'http://127.0.0.1:3100/mcp' }));
+});
+
+test('npm run player-preset writes the file and prints no secret', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'player-preset-'));
+  try {
+    const cfg = path.join(dir, 'connector.json');
+    writeFileSync(
+      cfg,
+      JSON.stringify({
+        endpoint: PRESET.endpoint,
+        players: [
+          {
+            clientId: PRESET.clientId,
+            clientSecret: PRESET.clientSecret,
+            userId: PRESET.userId,
+            name: 'Ebbe',
+          },
+        ],
+      })
+    );
+    const script = path.join(here, '..', '..', 'scripts', 'player-preset.mjs');
+    const out = path.join(dir, 'out');
+    const run = player =>
+      spawnSync(process.execPath, [script, '--player', player, '--config', cfg, '--out', out], {
+        encoding: 'utf8',
+      });
+    const ok = run('ebbe');
+    assert.equal(ok.status, 0, ok.stderr);
+    for (const value of [PRESET.clientSecret, PRESET.clientId]) {
+      assert.ok(!(ok.stdout + ok.stderr).includes(value));
+    }
+    const m = JSON.parse(
+      unzip(readFileSync(path.join(out, 'foundry-player-ebbe.mcpb'))).get('manifest.json')
+    );
+    assert.equal(m.server.mcp_config.env.FOUNDRY_PLAYER_CLIENT_SECRET, PRESET.clientSecret);
+    const bad = run('nobody');
+    assert.equal(bad.status, 1);
+    assert.ok(!(bad.stdout + bad.stderr).includes(PRESET.clientSecret));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

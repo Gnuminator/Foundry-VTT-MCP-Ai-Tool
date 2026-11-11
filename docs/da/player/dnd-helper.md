@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: cb875b1e2e4b
+sourceHash: 047fd84ed592
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -61,32 +61,35 @@ Du skal bruge:
 Anthropic ændrer menuerne en gang imellem. Hvis en knap ikke står, hvor guiden siger, så led efter
 det samme ord i nærheden, eller brug søgefeltet i Settings.
 
-## Trin 2: hent de to filer
+## Trin 2: hent din hjælper og skillen
 
-Klik på hvert link. Din browser gemmer filen i din **Downloads**-mappe.
+1. Åbn din **My character**-side (det private link, du fik), åbn **Your Claude connector** og tryk
+   på **Download my helper**. Din browser gemmer `foundry-player.mcpb` i din **Downloads**-mappe.
+   Filen er lavet til dig og indeholder dit eget login, så del den ikke, og slet den gerne efter
+   trin 3.
+2. Hent skillen:
+   [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
 
-- **Extension:**
-  [foundry-player.mcpb](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-player.mcpb)
-- **Skillen:**
-  [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
+Spørger din browser, om den skal beholde en fil, den ikke kender, så vælg **Keep**. Pak ikke skillen
+ud.
 
-Linkene giver dig altid den nyeste version. Spørger din browser, om den skal beholde en fil, den ikke
-kender, så vælg **Keep**. Åbn eller pak ingen af filerne ud endnu.
+## Trin 3: tilføj extension
 
-## Trin 3: tilføj extension og indsæt dine to værdier
-
-1. Åbn **Settings** i Claude Desktop, derefter **Desktop**, derefter **Extensions**.
-2. Træk `foundry-player.mcpb` fra din Downloads-mappe ind i det vindue. (Et dobbeltklik på filen i
-   Downloads virker også på Windows: Claude Desktop åbner med det samme
-   installationsvindue.)
-3. Klik på **Install**. Claude advarer måske om, at extensions kører på din computer. Denne her
-   taler kun med vores spilserver, og selve filen indeholder ingen bogtekst og ingen hemmelighed.
-4. En formular beder om to ting. Indsæt dit **Client ID** i det første felt og din **Client Secret**
-   i det andet. Secret-feltet skjuler det, du skriver.
-5. Sørg for, at extension er slået **til** (en kontakt ved siden af navnet i Settings, Desktop,
+1. Dobbeltklik på `foundry-player.mcpb` i din Downloads-mappe. Claude Desktop åbner med et
+   installationsvindue. (Du kan også trække filen ind i **Settings**, **Desktop**,
+   **Extensions**.)
+2. Klik på **Install**. Claude advarer måske om, at extensions kører på din computer. Denne her
+   taler kun med vores spilserver og kan ikke ændre noget. Der er intet at indsætte: dine værdier
+   ligger allerede i filen. Den vises som **Foundry (dit navn)**.
+3. Sørg for, at extension er slået **til** (en kontakt ved siden af navnet i Settings, Desktop,
    Extensions).
-6. Luk Claude Desktop helt (højreklik på dets ikon ved uret og vælg Quit, det er ikke nok at lukke
+4. Luk Claude Desktop helt (højreklik på dets ikon ved uret og vælg Quit, det er ikke nok at lukke
    vinduet) og åbn det igen.
+
+**Virker den hentede fil ikke**, så brug den generiske fil og indsæt dine to værdier selv: hent
+[foundry-player.mcpb](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-player.mcpb),
+installér den på samme måde, og når en formular spørger, så indsæt dit **Client ID** i det første
+felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
 For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
 beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med fem tools. Gør du det,
@@ -256,7 +259,7 @@ Desktop, Extensions.
 
 **Jeg vil starte forfra.**
 Fjern extension i Settings, Desktop, Extensions, og installer den igen fra filen (hent den igen fra
-trin 2, hvis den er væk). Du bliver bedt om dine værdier igen.
+trin 2, hvis den er væk: tryk på **Download my helper** igen).
 
 ## Få nye værdier
 

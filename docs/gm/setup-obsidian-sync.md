@@ -83,12 +83,12 @@ Syncthing starts on its own.
 - In Syncthing, the **Foundry GM vault** folder says **Up to Date**, and under **Remote Devices**
   **foundry-pi** says **Up to Date**.
 - In Obsidian the file list shows the folders `Campaigns` and `Prep`. Yours is `Campaigns`, then
-  `curse-of-strahd`: its `Home.md` is your start page. The other folders under `Campaigns` belong to
-  test worlds; leave them alone.
+  the folder named after the Strahd world: its `Home.md` is your start page. The other folders under
+  `Campaigns` belong to test worlds; leave them alone.
 - **A note travels both ways.** In Obsidian, right-click the `Prep` folder, **New note**, call it
   `Sync test` and type a line. Within a minute Syncthing shows the change going out, and then
   **foundry-pi** says **Up to Date** again: the server has your note. In the other direction,
-  everything the server wrote before you joined (for example `Campaigns\curse-of-strahd\Home.md`) is
+  everything the server wrote before you joined (for example the `Home.md` in your world's folder) is
   already on your PC.
   Message the person who built the tool the name `Sync test`; they confirm it is on the server.
   Then delete `Sync test`.

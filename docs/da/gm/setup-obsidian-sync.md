@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 8b58809de9c8
+sourceHash: 4700aadf5763
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -85,12 +85,12 @@ sig selv.
 - I Syncthing siger mappen **Foundry GM vault** **Up to Date**, og under **Remote Devices** siger
   **foundry-pi** **Up to Date**.
 - I Obsidian viser fillisten mapperne `Campaigns` og `Prep`. Din er `Campaigns`, derefter
-  `curse-of-strahd`: dens `Home.md` er din startside. De andre mapper under `Campaigns` hører til
-  testverdener; lad dem være.
+  mappen opkaldt efter Strahd-verdenen: dens `Home.md` er din startside. De andre mapper under
+  `Campaigns` hører til testverdener; lad dem være.
 - **En note rejser begge veje.** I Obsidian højreklik på mappen `Prep`, **New note**, kald den
   `Sync test` og skriv en linje. Inden for et minut viser Syncthing ændringen på vej ud, og så siger
   **foundry-pi** **Up to Date** igen: serveren har din note. Den anden vej ligger alt, serveren skrev, før
-  du kom med (for eksempel `Campaigns\curse-of-strahd\Home.md`), allerede på din pc. Skriv navnet `Sync test` til den, der byggede
+  du kom med (for eksempel `Home.md` i din verdens mappe), allerede på din pc. Skriv navnet `Sync test` til den, der byggede
   værktøjet; de bekræfter, at den ligger på serveren. Slet så `Sync test`.
 
 ## Godt at vide

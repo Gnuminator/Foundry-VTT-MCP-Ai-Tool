@@ -178,8 +178,8 @@ export const CHECKS = [
   nodeTest('pi-discord-game-server', 'pi', 'scripts/pi/discord-game-server.test.mjs'),
   nodeTest('pi-join-page-look', 'pi', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'pi', 'scripts/pi/vault-sync.test.mjs'),
-  nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
   nodeTest('pi-gm-vault-peers', 'pi', 'scripts/pi/gm-vault-peers.test.mjs'),
+  nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
   nodeTest(
     'pi-seven-books',
     'pi',

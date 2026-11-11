@@ -377,7 +377,11 @@ describe('FoundryDataAccess — useItem', () => {
   });
 
   describe('slot spells with no slot at their level', () => {
-    const wizard = (slots: Record<string, number>, method = 'spell', level = 1) => {
+    const wizard = (
+      slots: Record<string, number>,
+      method = 'spell',
+      level = 1
+    ): ReturnType<typeof vi.fn> => {
       const use = vi.fn(() => Promise.resolve());
       const item = makeItem({
         id: 'gb',

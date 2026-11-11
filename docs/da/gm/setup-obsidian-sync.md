@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 2031e7a6b912
+sourceHash: 8b58809de9c8
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -95,9 +95,8 @@ sig selv.
 
 ## Godt at vide
 
-- Din pc har nu en fuld kopi af vaulten. En kopi på en anden disk er en backup, men ikke en adskilt
-  en: sletter du en note i Obsidian, sletter Syncthing den også på serveren. Serveren tager også en
-  natlig backup, så en note, du kommer til at slette, kan hentes tilbage: sig til den, der byggede
+- Din pc har nu en fuld kopi af vaulten. Denne kopi er ikke en separat backup: sletter du en
+  note i Obsidian, sletter Syncthing den også på serveren. Serveren tager en natlig backup, så en note, du kommer til at slette, kan hentes tilbage: sig til den, der byggede
   værktøjet, hvilken note og cirka hvornår.
 - Syncthing synkroniserer kun, mens din pc er tændt og logget ind. Intet går tabt, når den er slukket.
 

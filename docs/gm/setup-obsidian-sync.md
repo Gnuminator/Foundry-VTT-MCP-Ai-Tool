@@ -95,9 +95,8 @@ Syncthing starts on its own.
 
 ## Good to know
 
-- Your PC now holds a full copy of the vault. A copy on a second disk is a backup, but it is not a
-  separate one: if you delete a note in Obsidian, Syncthing deletes it on the server too. The server
-  also keeps a nightly backup, so a note deleted by mistake can be brought back: tell the person who
+- Your PC now holds a full copy of the vault. This copy is not a separate backup: if you
+  delete a note in Obsidian, Syncthing deletes it on the server too. The server does keep a nightly backup, so a note deleted by mistake can be brought back: tell the person who
   built the tool which note and roughly when.
 - Syncthing only syncs while your PC is on and signed in. Nothing is lost when it is off.
 

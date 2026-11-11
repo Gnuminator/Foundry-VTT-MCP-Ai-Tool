@@ -79,7 +79,7 @@ echo "    notes: $(find "$vault" -type f -name '*.md' -not -path '*/.stversions/
 say "devices"
 shared="$(st config folders "$folder_id" devices list | grep -vx "${my_id:-none}" || true)"
 if [ -z "$shared" ]; then
-  warn "the vault is not shared with any PC yet: on a PC run scripts/pi/setup-syncthing-pc.ps1, then stage 7 with PEER_ID"
+  warn "the vault is not shared with any PC yet: the GM's PC follows docs/gm/setup-obsidian-sync.md, then stage 31 with ADD=1 (this PC does not get the GM vault, D-139)"
   problems=$((problems + 1))
 else
   connections="$(st show connections 2>/dev/null || true)"

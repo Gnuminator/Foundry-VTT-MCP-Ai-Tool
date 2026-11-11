@@ -126,7 +126,7 @@ add)
   fi
   st config folders "$folder_id" devices list | grep -x "$device_id" >/dev/null || die "the device is not on the folder after the change"
   report
-  say "stage 31 done: the PC is added. It sees a yellow bar for the Pi and for the folder; the vault starts to sync when it accepts both"
+  say "stage 31 done: the PC is added. It sees a yellow bar for the Pi and for the folder; the vault starts to sync when it accepts both. The Pi's ID starts with ${my_id%%-*} (the first seven characters the PC's owner checks)"
   ;;
 
 remove)

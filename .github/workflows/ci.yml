@@ -418,8 +418,16 @@ jobs:
         # redaction (GM vs player) + the write-surface auth gate over HTTP.
         run: node scripts/cogm-split-smoke-test.mjs
 
+      - name: Cache Playwright's browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Chromium for the dashboard browser tests
-        run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
+        # Retries the apt/browser install on a runner DNS blip; see the script.
+        timeout-minutes: 30
+        run: bash scripts/ci-install-chromium.sh
 
       - name: Dashboard browser tests (React dashboard)
         # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):

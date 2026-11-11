@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  playerFolder,
   playerSlug,
   portraitFileName,
   sniffType,
@@ -21,7 +22,9 @@ function env(): {
   e: PortraitEnv;
   uploads: Array<{ source: string; path: string; name: string; type: string }>;
   dirs: string[];
+  setSwitch: (on: boolean) => void;
 } {
+  let switchOn = true;
   const uploads: Array<{ source: string; path: string; name: string; type: string }> = [];
   const dirs: string[] = [];
   const users: Record<string, { id: string; isGM?: boolean; name: string }> = {
@@ -52,10 +55,13 @@ function env(): {
         return Promise.resolve({ path: `${path}/${file.name}`, status: 'success' });
       },
     }),
+    featureEnabled: () => switchOn,
+    placedTokens: actorId =>
+      actorId === MINE ? [`Scene.scene00000000001.Token.tok0000000001`] : [],
     now: () => new Date('2026-11-04T19:46:05Z'),
     random: () => 'abc12345',
   };
-  return { e, uploads, dirs };
+  return { e, uploads, dirs, setSwitch: (on: boolean) => (switchOn = on) };
 }
 
 describe('sniffType', () => {
@@ -77,6 +83,11 @@ describe('names', () => {
     expect(playerSlug('../../Évil  Name/', USER)).toBe('evil-name');
     expect(playerSlug('!!!', USER)).toBe(`player-${USER}`);
   });
+  it('keeps two users with the same name apart by the user id', () => {
+    expect(playerFolder('Test Player 1', USER)).toBe(`test-player-1-${USER}`);
+    expect(playerFolder('Test Player 1', OTHER)).not.toBe(playerFolder('Test Player 1', USER));
+    expect(playerFolder('!!!', USER)).toBe(`player-${USER}`);
+  });
   it('makes the file name from the time and a random part', () => {
     expect(portraitFileName('png', new Date('2026-11-04T19:46:05Z'), 'abc12345')).toBe(
       'portrait-20261104194605-abc12345.png'
@@ -90,20 +101,33 @@ describe('uploadPlayerPortrait', () => {
     const reply = await uploadPlayerPortrait({ userId: USER, actorId: MINE, data: b64(PNG) }, e);
     expect(reply).toMatchObject({
       success: true,
-      path: 'assets/players/test-player-1/portrait-20261104194605-abc12345.png',
+      path: `assets/players/test-player-1-${USER}/portrait-20261104194605-abc12345.png`,
       actorUuid: `Actor.${MINE}`,
       actorName: 'Brenna',
       userName: 'Test Player 1',
+      placedTokens: ['Scene.scene00000000001.Token.tok0000000001'],
     });
-    expect(dirs).toEqual(['assets', 'assets/players', 'assets/players/test-player-1']);
+    expect(dirs).toEqual(['assets', 'assets/players', `assets/players/test-player-1-${USER}`]);
     expect(uploads).toEqual([
       {
         source: 'data',
-        path: 'assets/players/test-player-1',
+        path: `assets/players/test-player-1-${USER}`,
         name: 'portrait-20261104194605-abc12345.png',
         type: 'image/png',
       },
     ]);
+  });
+
+  it('refuses and stores nothing while the player-portrait switch is off', async () => {
+    const { e, uploads, dirs, setSwitch } = env();
+    setSwitch(false);
+    const r = await uploadPlayerPortrait({ userId: USER, actorId: MINE, data: b64(PNG) }, e);
+    expect(r).toMatchObject({
+      success: false,
+      error: 'Changing your picture from this page is switched off. Ask your GM.',
+    });
+    expect(uploads).toEqual([]);
+    expect(dirs).toEqual([]);
   });
 
   it('refuses a character the player does not own, an NPC and an unknown one, and stores nothing', async () => {
@@ -148,7 +172,7 @@ describe('uploadPlayerPortrait', () => {
     );
     expect(r.success).toBe(true);
     expect(uploads).toHaveLength(1);
-    expect(uploads[0].path).toBe('assets/players/test-player-1');
+    expect(uploads[0].path).toBe(`assets/players/test-player-1-${USER}`);
     expect(uploads[0].name).toMatch(/^portrait-\d{14}-[a-z0-9]{8}\.png$/);
   });
 

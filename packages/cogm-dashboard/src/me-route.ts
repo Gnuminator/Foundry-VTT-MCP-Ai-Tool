@@ -38,6 +38,8 @@ export interface MeClient {
     target: 'portrait' | 'both',
     data: string
   ): Promise<unknown>;
+  /** The feature cards; read here only for the `player-portrait` switch. */
+  featureSwitches?(): Promise<unknown>;
 }
 
 export interface MeRouteOptions {
@@ -102,14 +104,31 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       res.status(501).json({ error: 'Your sheet is not available here. Ask your GM.' });
       return;
     }
-    client
-      .characterSheet(userId)
-      .then(result =>
+    // Is "Player portraits" on? The page hides the upload control when it is off. null when the
+    // bridge cannot say (an old backend): the page keeps the control and the refusal explains.
+    const portraitEnabled: Promise<boolean | null> =
+      typeof client.featureSwitches === 'function'
+        ? client
+            .featureSwitches()
+            .then(raw => {
+              const list = (raw as { features?: unknown } | null)?.features;
+              const entry = Array.isArray(list)
+                ? (list as Array<{ id?: unknown; enabled?: unknown }>).find(
+                    f => f.id === 'player-portrait'
+                  )
+                : undefined;
+              return entry && typeof entry.enabled === 'boolean' ? entry.enabled : null;
+            })
+            .catch(() => null)
+        : Promise.resolve(null);
+    Promise.all([client.characterSheet(userId), portraitEnabled])
+      .then(([result, portraitOn]) =>
         res.json({
           ...(result as object),
           rollRequests: openRollRequests(result),
           theme: options.theme(),
           privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
+          portraitEnabled: portraitOn,
         })
       )
       .catch(() => {

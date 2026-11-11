@@ -16,6 +16,7 @@ import {
   TRAIN_SIZE,
   acquireLock,
   announceSource,
+  carriedReviews,
   defaultAnnounce,
   defaultRun,
   entryDecision,
@@ -32,6 +33,7 @@ import {
   parseNameStatus,
   opusNotesForHead,
   parseReviewNote,
+  patchIdAt,
   publishTrainNote,
   refusalBody,
   refusedBecause,
@@ -136,9 +138,30 @@ function gate(o = {}) {
   let clockMs = 0;
   /** @type {number[]} */
   const sleeps = [];
-  const run = (cmd, args) => {
+  const run = (cmd, args, input) => {
     calls.push([cmd, ...args]);
     const key = `${cmd} ${args.slice(0, 2).join(' ')}`;
+    // the review carry (carriedReviews): `patchIds` maps a commit to its patch id; a commit not in
+    // it has no patch id (git patch-id fails), `missing` commits are not in the clone
+    if (key === 'git rev-parse --is-shallow-repository')
+      return ok(o.shallow ? 'true\n' : 'false\n');
+    if (key === 'git cat-file -e') {
+      const sha = args[2].replace('^{commit}', '');
+      return o.missing?.includes(sha) ? { status: 1, stdout: '', stderr: 'missing' } : ok();
+    }
+    if (key === 'git fetch -q') return { status: 128, stdout: '', stderr: 'not our ref' };
+    if (key === 'git merge-base aitool/main' && args[2] !== 'HEAD')
+      return ok(`${'b'.repeat(40)}\n`);
+    if (key === 'git diff --binary') return ok(`patch ${args.at(-1)}\n`);
+    if (key === 'git patch-id --verbatim') {
+      const id =
+        o.patchIds?.[
+          String(input)
+            .replace(/^patch /, '')
+            .trim()
+        ];
+      return id ? ok(`${id} ${'0'.repeat(40)}\n`) : { status: 1, stdout: '', stderr: 'no id' };
+    }
     // vault git calls (the merge train note): answered by `vaultRun`, a failure by default
     if (cmd === 'git' && args[0] === '-C') {
       return o.vaultRun?.(args.slice(2)) ?? { status: 1, stdout: '', stderr: 'no vault git' };
@@ -486,7 +509,15 @@ test('risky categories: every category has patterns and the real paths match', (
   }
   assert.deepEqual(category('.claude/agents/review-pi-ci.md'), []);
   // The narrowed shared list: contract files are risky, the rest of shared/src is not.
-  for (const f of ['protocol', 'schemas', 'constants', 'bridge-queries', 'types', 'version', 'ports']) {
+  for (const f of [
+    'protocol',
+    'schemas',
+    'constants',
+    'bridge-queries',
+    'types',
+    'version',
+    'ports',
+  ]) {
     assert.deepEqual(category(`shared/src/${f}.ts`), ['wire contracts'], f);
   }
   assert.deepEqual(category('shared/src/party.ts'), []);
@@ -595,9 +626,11 @@ test('guard hooks stay registered: every .claude/hooks/guard-*.mjs is a command 
 test('feature switch ids are pinned: they form the module setting keys, so a rename needs a migration (shared/src is Sonnet-reviewed outside the contract files)', () => {
   const found = sharedSourceFiles()
     .flatMap(f =>
-      [...fs.readFileSync(path.join(REPO_ROOT, f), 'utf8').matchAll(/export const (\w+_FEATURE_ID) = '([^']+)'/g)].map(
-        m => `${m[1]}=${m[2]}`
-      )
+      [
+        ...fs
+          .readFileSync(path.join(REPO_ROOT, f), 'utf8')
+          .matchAll(/export const (\w+_FEATURE_ID) = '([^']+)'/g),
+      ].map(m => `${m[1]}=${m[2]}`)
     )
     .sort();
   assert.deepEqual(found, [
@@ -635,10 +668,18 @@ test('--risky-list prints every category and pattern and exits 0', () => {
   }
   assert.ok(!lines.some(l => l.includes('the merge gate:')));
   assert.equal(
-    runEntry({ argv: ['--risky-list', '5'], relaunch: () => assert.fail(), runMain: () => assert.fail(), log: () => {} }),
+    runEntry({
+      argv: ['--risky-list', '5'],
+      relaunch: () => assert.fail(),
+      runMain: () => assert.fail(),
+      log: () => {},
+    }),
     2
   );
-  assert.deepEqual(riskyHits(['packages/discord-bot/announce/announce.mjs']).map(h => h.name), ['Pi scripts']);
+  assert.deepEqual(
+    riskyHits(['packages/discord-bot/announce/announce.mjs']).map(h => h.name),
+    ['Pi scripts']
+  );
 });
 
 test('globToRegExp: ** crosses folders, * does not', () => {
@@ -3022,4 +3063,327 @@ test('changelog: a release PR passes without --no-changelog; anything more is re
   const away = gate({ vault, files: paths, changeTypes, show: f.read, localHead: OTHER });
   assert.equal(away.code, 1);
   assert.ok(!away.calls.some(c => c[0] === 'git' && c[1] === 'show' && /^basesha:/.test(c[2])));
+});
+
+// --- review-carry-over: a verdict carries when the PR's own patch did not change (pick P3) ---
+
+/**
+ * A real git repo for the carry tests: `main` at M0 with a.txt (30 lines) and main.txt, a PR branch
+ * `pr` with B (line 3 of a.txt changed), and `aitool/main` as a remote-tracking ref set by setMain.
+ */
+function carryRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-carry-'));
+  const g = (/** @type {string[]} */ ...args) =>
+    execFileSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  const run = (
+    /** @type {string} */ cmd,
+    /** @type {string[]} */ args,
+    /** @type {string} */ input
+  ) => {
+    const r = spawnSync(cmd, args, {
+      cwd: dir,
+      encoding: 'utf8',
+      ...(input === undefined ? {} : { input }),
+    });
+    return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  };
+  const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
+  const write = (/** @type {string} */ file, /** @type {string[]} */ content) =>
+    fs.writeFileSync(path.join(dir, file), `${content.join('\n')}\n`);
+  const commit = (/** @type {string} */ msg) => {
+    g('add', '-A');
+    g('commit', '-q', '-m', msg);
+    return g('rev-parse', 'HEAD');
+  };
+  const setMain = (/** @type {string} */ sha) => g('update-ref', 'refs/remotes/aitool/main', sha);
+  g('init', '-q', '-b', 'main');
+  for (const [k, v] of [
+    ['core.autocrlf', 'false'],
+    ['user.name', 'Lane Test'],
+    ['user.email', 'lane@example.invalid'],
+    ['commit.gpgsign', 'false'],
+  ]) {
+    g('config', k, v);
+  }
+  write('a.txt', lines);
+  write('main.txt', ['main 1']);
+  const M0 = commit('base');
+  g('checkout', '-q', '-b', 'pr');
+  write(
+    'a.txt',
+    lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : l))
+  );
+  const B = commit('the PR');
+  setMain(M0);
+  return { dir, g, run, lines, write, commit, setMain, M0, B };
+}
+
+/** A note (Sonnet unless `opus`) for one reviewed sha, parsed as the gate reads it. */
+const reviewed = (/** @type {string} */ sha, opus = false, verdict = '**Merge.** Fine.') =>
+  parseReviewNote(
+    opus ? '312-opus-review.md' : '312-review.md',
+    note({ head: sha, verdict, title: opus ? 'PR #312 Opus review' : 'PR #312 review' }),
+    312
+  );
+
+/** Move main on with a change in main.txt only (far from the PR's lines). */
+function mainMovesOn(/** @type {ReturnType<typeof carryRepo>} */ r) {
+  r.g('checkout', '-q', 'main');
+  r.write('main.txt', ['main 1', 'main 2']);
+  const M1 = r.commit('main moves on');
+  r.g('checkout', '-q', 'pr');
+  return M1;
+}
+
+test('carry (1): a clean merge of main into the branch carries the verdict', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const a = patchIdAt(r.run, r.B);
+  const b = patchIdAt(r.run, C);
+  assert.ok('id' in a && 'id' in b && a.id === b.id, JSON.stringify({ a, b }));
+  const notes = [reviewed(r.B)];
+  const carry = carriedReviews(r.run, notes, C);
+  assert.deepEqual(carry, { carried: [r.B], carryError: null });
+  const verdict = judgeReviews(notes, C, false, carry);
+  assert.equal(verdict.ok, true, verdict.detail);
+  assert.deepEqual(verdict.carriedFrom, [r.B]);
+});
+
+test('carry (2): a merge with a conflict resolution does NOT carry', () => {
+  const r = carryRepo();
+  r.g('checkout', '-q', 'main');
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed on main' : l))
+  );
+  const M1 = r.commit('main changes the same line');
+  r.g('checkout', '-q', 'pr');
+  const merged = r.run('git', ['merge', '-q', '--no-edit', 'main']);
+  assert.notEqual(merged.status, 0, 'the merge must conflict');
+  // resolved to the PR's own line: the PR's patch now replaces main's line, not the old one
+  r.g('checkout', '--ours', 'a.txt');
+  r.g('add', 'a.txt');
+  r.g('commit', '-q', '--no-edit');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const notes = [reviewed(r.B)];
+  const carry = carriedReviews(r.run, notes, C);
+  assert.deepEqual(carry, { carried: [], carryError: null });
+  const verdict = judgeReviews(notes, C, false, carry);
+  assert.equal(verdict.ok, false);
+  assert.match(
+    verdict.detail,
+    /^no review note for head .*; not carried: the patch changed since every reviewed commit/
+  );
+});
+
+test('carry (3): a new commit that changes one line does not carry', () => {
+  const r = carryRepo();
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : i === 19 ? 'line 20 too' : l))
+  );
+  const B2 = r.commit('one more line');
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], B2), { carried: [], carryError: null });
+  // whitespace counts (patch-id --verbatim): an indentation-only change does not carry either
+  r.g('reset', '-q', '--hard', r.B);
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? '  line 3 changed by the PR' : l))
+  );
+  const ws = r.commit('indent only');
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], ws), { carried: [], carryError: null });
+});
+
+test('carry (4): a rebase onto a newer main with no change carries', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('checkout', '-q', '-b', 'pr-rebased', M1);
+  r.g('cherry-pick', r.B);
+  const B1 = r.g('rev-parse', 'HEAD');
+  assert.notEqual(B1, r.B);
+  r.setMain(M1);
+  const notes = [reviewed(r.B)];
+  const carry = carriedReviews(r.run, notes, B1);
+  assert.deepEqual(carry, { carried: [r.B], carryError: null });
+  assert.equal(judgeReviews(notes, B1, false, carry).ok, true);
+});
+
+test('carry (5): an Opus-required PR with a carried Sonnet note still refuses', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const sonnet = [reviewed(r.B)];
+  const verdict = judgeReviews(sonnet, C, true, carriedReviews(r.run, sonnet, C));
+  assert.equal(verdict.ok, false);
+  assert.equal(
+    verdict.detail,
+    `only a Sonnet review (312-review.md) says Merge for ${C.slice(0, 7)} (verdict carried from ${r.B}), and this PR needs an Opus review`
+  );
+  // a carried Opus Merge clears it; a carried Do not merge on the same patch still vetoes
+  const opus = [reviewed(r.B, true)];
+  assert.equal(judgeReviews(opus, C, true, carriedReviews(r.run, opus, C)).ok, true);
+  const veto = [reviewed(r.B, true), reviewed(r.B, false, '**Do not merge.** Broken.')];
+  const v = judgeReviews(veto, C, true, carriedReviews(r.run, veto, C));
+  assert.equal(v.ok, false);
+  assert.match(v.detail, /says "Do not merge\." for head .* \(verdict carried from /);
+});
+
+test('carry: any error carries nothing (unknown commit, shallow clone, old git, no main)', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  // a reviewed commit this clone does not have and cannot fetch (no aitool remote here)
+  const gone = 'abcdef0123456789abcdef0123456789abcdef01';
+  const lost = carriedReviews(r.run, [reviewed(r.B), reviewed(gone, true)], C);
+  assert.deepEqual(lost.carried, []);
+  assert.match(lost.carryError ?? '', /^commit abcdef0 is not in this clone and cannot be fetched/);
+  const verdict = judgeReviews([reviewed(r.B)], C, false, lost);
+  assert.equal(verdict.ok, false);
+  assert.match(
+    verdict.detail,
+    /; not carried: commit abcdef0 .*; a review note for the head is needed$/
+  );
+  /** A run that answers one git subcommand itself and passes the rest to the real repo. */
+  const faking =
+    (/** @type {(args: string[]) => any} */ fake) =>
+    (/** @type {string} */ cmd, /** @type {string[]} */ args, /** @type {string} */ input) =>
+      fake(args) ?? r.run(cmd, args, input);
+  const shallow = faking(a =>
+    a[1] === '--is-shallow-repository' ? { status: 0, stdout: 'true\n', stderr: '' } : null
+  );
+  assert.match(carriedReviews(shallow, [reviewed(r.B)], C).carryError ?? '', /shallow/);
+  const oldGit = faking(a =>
+    a[0] === 'patch-id'
+      ? { status: 129, stdout: '', stderr: "error: unknown option `verbatim'" }
+      : null
+  );
+  assert.match(
+    carriedReviews(oldGit, [reviewed(r.B)], C).carryError ?? '',
+    /git patch-id for .* failed \(error: unknown option/
+  );
+  r.g('update-ref', '-d', 'refs/remotes/aitool/main');
+  assert.match(carriedReviews(r.run, [reviewed(r.B)], C).carryError ?? '', /no merge base of /);
+  // only the head reviewed: nothing to compare, no git call at all
+  const none = () => {
+    throw new Error('no call expected');
+  };
+  assert.deepEqual(carriedReviews(none, [reviewed(C)], C), { carried: [], carryError: null });
+});
+
+const PATCH_A = 'a'.repeat(40);
+const PATCH_B = 'c'.repeat(40);
+
+test('gate: a note for an earlier commit with the same patch carries; the output says so', () => {
+  const vault = vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]);
+  const r = gate({ vault, argv: ['--dry-run'], patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A } });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(
+    r.lines.includes(
+      `lane:merge: review: verdict carried from ${OTHER} (312-review.md): the PR's patch at head 3d24f70 is the same (git patch-id)`
+    ),
+    r.text
+  );
+  assert.equal(
+    r.lines.at(-1),
+    'lane:merge: OK #312 at 3d24f70 (dry run, nothing merged); merge train 0/4; verdict carried from fffffff'
+  );
+  // each merge base is taken from aitool/main and an explicit commit, never main itself or HEAD
+  const bases = r.calls.filter(c => c[1] === 'merge-base').map(c => c.slice(2));
+  assert.deepEqual(bases, [
+    ['aitool/main', 'HEAD'],
+    ['aitool/main', HEAD],
+    ['aitool/main', OTHER],
+  ]);
+});
+
+test('gate: a changed patch, a missing commit, a shallow clone or no fetch refuses', () => {
+  const vault = vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]);
+  const same = { [HEAD]: PATCH_A, [OTHER]: PATCH_A };
+  const changed = gate({ vault, patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_B } });
+  assert.equal(changed.code, 1);
+  assert.match(
+    changed.text,
+    /^review: no review note for head 3d24f70 \(found 312-review\.md reviewed fffffff\); not carried: the patch changed since every reviewed commit; a review note for the head is needed; the gate reads files named/m
+  );
+  assert.ok(!changed.merged);
+  const missing = gate({ vault, missing: [OTHER], patchIds: same });
+  assert.equal(missing.code, 1);
+  assert.match(
+    missing.text,
+    /not carried: commit fffffff is not in this clone and cannot be fetched \(not our ref\)/
+  );
+  const shallow = gate({ vault, shallow: true, patchIds: same });
+  assert.equal(shallow.code, 1);
+  assert.match(shallow.text, /not carried: this clone is shallow/);
+  const noFetch = gate({ vault, fetchFail: true, patchIds: same });
+  assert.equal(noFetch.code, 1);
+  assert.match(noFetch.text, /not carried: git fetch aitool main failed: no network/);
+});
+
+test('gate: a note for the head itself computes no patch id; a malformed note never carries', () => {
+  const r = gate({ argv: ['--dry-run'] });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(!r.calls.some(c => c[1] === 'patch-id' || c[1] === 'cat-file'));
+  const bad = vaultWith([
+    { name: '312-review.md', text: `${note({ head: OTHER })}\nHead reviewed: ${HEAD}\n` },
+  ]);
+  const m = gate({ vault: bad, patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A } });
+  assert.equal(m.code, 1);
+  assert.ok(!m.calls.some(c => c[1] === 'patch-id'));
+  assert.match(m.text, /is malformed/);
+});
+
+test('gate: a risky PR with a carried Opus note says found; a merge writes the carry to the train note', () => {
+  const vault = vaultWith([
+    { name: '312-opus-review.md', text: note({ head: OTHER, title: 'PR #312 Opus review' }) },
+  ]);
+  fs.mkdirSync(path.join(vault, '.git'));
+  /** @type {string[][]} */
+  const vaultGit = [];
+  // the write gate is risky (Opus) and train-relevant (the note is written on a merge)
+  const r = gate({
+    vault,
+    files: ['packages/foundry-module/src/write-gate.ts', 'changelog.d/thing.md'],
+    patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A },
+    vaultRun: a => {
+      vaultGit.push(a);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(r.merged);
+  assert.match(r.text, /Opus note for head 3d24f70: found \(312-opus-review\.md\)/);
+  assert.match(r.text, /merged #312 at 3d24f70; merge train 1\/4; verdict carried from fffffff/);
+  const text = fs.readFileSync(NOTE_FILE(vault), 'utf8');
+  assert.match(
+    text,
+    new RegExp(`last-event-pr: 312\\nlast-event-verdict-carried-from: ${OTHER}\\nlast-event-at: `)
+  );
+  const commit = vaultGit.find(a => a[0] === 'commit');
+  assert.deepEqual(commit?.slice(1, 5), [
+    '-m',
+    'Merge train: merge #312, 1/4',
+    '-m',
+    `verdict carried from ${OTHER}`,
+  ]);
+});
+
+test('merge train note: a carried verdict is one sha line, which the board parser accepts', async () => {
+  const event = { kind: 'merge', pr: 461, at: NOTE_NOW, carriedFrom: [OTHER, 'not a sha'] };
+  const text = renderTrainNote(TRAIN_STATE, /** @type {any} */ (event), NOTE_NOW);
+  assert.match(text, new RegExp(`\\nlast-event-verdict-carried-from: ${OTHER}\\nlast-event-at: `));
+  const board = await boardParser();
+  if (board) assert.deepEqual(board.parseMergeTrain(text).problems, []);
 });

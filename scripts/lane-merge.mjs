@@ -24,7 +24,10 @@
  * The checks, in order: (a) the PR is open, not a draft, based on main and mergeable; (b) every CI
  * check passed, including each check the branch ruleset requires (read from the GitHub API);
  * (c) every review note for the head commit says Merge (full 40-character sha), and one of them is
- * an Opus review when the PR touches a risky area (RISKY_CATEGORIES, D-101); (d) a changelog.d
+ * an Opus review when the PR touches a risky area (RISKY_CATEGORIES, D-101); when no note names the
+ * head, the verdicts of reviewed commits whose patch is unchanged carry (carriedReviews: the
+ * `git patch-id --verbatim` of the diff from the merge base with main, at both commits; any error
+ * refuses, never carries); (d) a changelog.d
  * fragment; (e) this checkout is the PR head, clean, and drift-check passes; (f) the merge train
  * (D-121) has room. The merge is `gh pr merge --merge --match-head-commit <head>`.
  *
@@ -425,22 +428,114 @@ export function unreadPrNotes(vault, prNumber) {
 /**
  * The Opus notes that give a verdict for this head (any verdict), for the risky notice: it says
  * whether the Opus review it asks for is there. Mirrors judgeReviews: `opus` plus an entry tied to
- * the full head sha.
- * @param {ReviewNote[]} notes @param {string} headSha @returns {string[]}
+ * the full head sha, or to a sha whose verdict carries to the head (`carried`).
+ * @param {ReviewNote[]} notes @param {string} headSha @param {string[]} [carried]
+ * @returns {string[]}
  */
-export function opusNotesForHead(notes, headSha) {
+export function opusNotesForHead(notes, headSha, carried = []) {
   const head = headSha.toLowerCase();
-  return notes.filter(n => n.opus && n.entries.some(e => e.head === head)).map(n => n.name);
+  const tied = (/** @type {string | null} */ h) => h === head || (!!h && carried.includes(h));
+  return notes.filter(n => n.opus && n.entries.some(e => tied(e.head))).map(n => n.name);
+}
+
+/**
+ * The `git patch-id --verbatim` of a PR's own patch at one commit: the diff from its merge base
+ * with main to the commit. Equal ids at two commits mean the PR changes exactly the same lines
+ * (whitespace counts; the order of files and hunks and the line numbers do not), so a clean merge
+ * of main into the branch or a rebase without changes keeps the id, and a conflict resolution or
+ * any edit of the PR's lines changes it. Plain `git` from the current folder, explicit shas only.
+ * A commit this clone lacks is fetched from the remote once. Every problem is an error, never an id.
+ * @param {(cmd: string, args: string[], input?: string) => { status: number, stdout: string, stderr: string }} run
+ * @param {string} sha full commit sha @param {string} [mainRef]
+ * @returns {{ id: string } | { error: string }}
+ */
+export function patchIdAt(run, sha, mainRef = MAIN) {
+  const s = sha.slice(0, 7);
+  const why = (/** @type {{ stderr: string, stdout: string }} */ r) =>
+    firstLine(r.stderr || r.stdout) || 'failed';
+  if (!/^[0-9a-f]{40}$/.test(sha)) return { error: `${sha} is not a full commit sha` };
+  const isCommit = () => run('git', ['cat-file', '-e', `${sha}^{commit}`]).status === 0;
+  if (!isCommit()) {
+    const f = run('git', ['fetch', '-q', REMOTE, sha]);
+    if (f.status !== 0 || !isCommit()) {
+      return { error: `commit ${s} is not in this clone and cannot be fetched (${why(f)})` };
+    }
+  }
+  const base = run('git', ['merge-base', mainRef, sha]);
+  const baseSha = base.stdout.trim();
+  if (base.status !== 0 || !/^[0-9a-f]{40}$/.test(baseSha)) {
+    return { error: `no merge base of ${s} with ${mainRef} (${why(base)})` };
+  }
+  // Fixed flags, so local diff settings (renames, prefixes, drivers) cannot change the patch text.
+  const diff = run('git', [
+    'diff',
+    '--binary',
+    '--full-index',
+    '--no-renames',
+    '--no-color',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--no-relative',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+    baseSha,
+    sha,
+  ]);
+  if (diff.status !== 0) return { error: `git diff for ${s} failed (${why(diff)})` };
+  if (diff.stdout.trim() === '') return { error: `the patch at ${s} is empty` };
+  const pid = run('git', ['patch-id', '--verbatim'], diff.stdout);
+  const id = /^([0-9a-f]{40})\s/.exec(pid.stdout)?.[1];
+  if (pid.status !== 0 || !id) return { error: `git patch-id for ${s} failed (${why(pid)})` };
+  return { id };
+}
+
+/**
+ * Which reviewed commits carry their verdicts to the head: those whose PR patch id equals the
+ * head's (patchIdAt). Every full sha any note names is compared, so a Do not merge on the same
+ * patch carries too. Any error (a shallow clone, a commit that cannot be fetched, a failing git)
+ * returns the error as `carryError` and carries nothing. The result is judgeReviews' `carry`.
+ * @param {(cmd: string, args: string[], input?: string) => { status: number, stdout: string, stderr: string }} run
+ * @param {ReviewNote[]} notes @param {string} headSha @param {string} [mainRef]
+ * @returns {{ carried: string[], carryError: string | null }}
+ */
+export function carriedReviews(run, notes, headSha, mainRef = MAIN) {
+  const head = headSha.toLowerCase();
+  const reviewed = [
+    ...new Set(notes.flatMap(n => n.entries.map(e => e.head)).filter(h => h && h !== head)),
+  ];
+  if (reviewed.length === 0) return { carried: [], carryError: null };
+  const fail = (/** @type {string} */ carryError) => ({ carried: [], carryError });
+  const shallow = run('git', ['rev-parse', '--is-shallow-repository']);
+  if (shallow.status !== 0 || shallow.stdout.trim() !== 'false') {
+    return fail(
+      shallow.status === 0
+        ? 'this clone is shallow (git fetch --unshallow first)'
+        : 'git rev-parse failed'
+    );
+  }
+  const at = patchIdAt(run, head, mainRef);
+  if ('error' in at) return fail(at.error);
+  /** @type {string[]} */
+  const carried = [];
+  for (const sha of /** @type {string[]} */ (reviewed)) {
+    const r = patchIdAt(run, sha, mainRef);
+    if ('error' in r) return fail(r.error);
+    if (r.id === at.id) carried.push(sha);
+  }
+  return { carried, carryError: null };
 }
 
 /**
  * Do the review notes clear this head commit? Every verdict any note gives for the head must be
  * Merge (a Merge after fixes or Do not merge in any note refuses), at least one must be a Merge,
- * and when the PR is risky at least one Merge must come from an Opus review.
+ * and when the PR is risky at least one Merge must come from an Opus review. When no note names the
+ * head, the verdicts for the `carried` shas (carriedReviews: the same patch) stand in for it, under
+ * the same rules; `carriedFrom` lists the shas that cleared it.
  * @param {ReviewNote[]} notes @param {string} headSha @param {boolean} needOpus
- * @returns {{ ok: boolean, detail: string }}
+ * @param {{ carried?: string[], carryError?: string | null }} [carry]
+ * @returns {{ ok: boolean, detail: string, carriedFrom?: string[] }}
  */
-export function judgeReviews(notes, headSha, needOpus) {
+export function judgeReviews(notes, headSha, needOpus, carry = {}) {
   const head = headSha.toLowerCase();
   const short = head.slice(0, 7);
   const bad = notes.filter(n => n.malformed.length > 0);
@@ -463,10 +558,27 @@ export function judgeReviews(notes, headSha, needOpus) {
       detail: `${shortHit.join('; ')}; it could hide a verdict for head ${short}`,
     };
   }
-  const forHead = notes.flatMap(note =>
+  const named = notes.flatMap(note =>
     note.entries.filter(e => e.head === head).map(entry => ({ note, entry }))
   );
+  const carriedShas = named.length === 0 ? (carry.carried ?? []) : [];
+  const forHead =
+    named.length > 0
+      ? named
+      : notes.flatMap(note =>
+          note.entries
+            .filter(e => !!e.head && carriedShas.includes(e.head))
+            .map(entry => ({ note, entry }))
+        );
+  const carriedFrom = [...new Set(forHead.map(x => /** @type {string} */ (x.entry.head)))];
+  const via = named.length > 0 ? '' : ` (verdict carried from ${carriedFrom.join(', ')})`;
   if (forHead.length === 0) {
+    const reviewedOther = notes.some(n => n.entries.some(e => e.head && e.head !== head));
+    const notCarried = carry.carryError
+      ? `; not carried: ${carry.carryError}; a review note for the head is needed`
+      : reviewedOther && carry.carried
+        ? '; not carried: the patch changed since every reviewed commit; a review note for the head is needed'
+        : '';
     const seen = notes.map(n => {
       const heads = [...new Set(n.entries.map(e => e.head).filter(Boolean))].map(h =>
         h.slice(0, 7)
@@ -478,7 +590,7 @@ export function judgeReviews(notes, headSha, needOpus) {
     });
     return {
       ok: false,
-      detail: `no review note for head ${short}${seen.length ? ` (found ${seen.join('; ')})` : ''}`,
+      detail: `no review note for head ${short}${seen.length ? ` (found ${seen.join('; ')})` : ''}${notCarried}`,
     };
   }
   const blocking = forHead.filter(x => !x.entry.merge);
@@ -486,17 +598,21 @@ export function judgeReviews(notes, headSha, needOpus) {
     const said = blocking.map(x => `${x.note.name} says "${x.entry.verdict ?? 'no verdict'}"`);
     return {
       ok: false,
-      detail: `${said.join('; ')} for head ${short}; every review must say Merge`,
+      detail: `${said.join('; ')} for head ${short}${via}; every review must say Merge`,
     };
   }
   if (needOpus && !forHead.some(x => x.note.opus)) {
     const names = [...new Set(forHead.map(x => x.note.name))].join(', ');
     return {
       ok: false,
-      detail: `only a Sonnet review (${names}) says Merge for ${short}, and this PR needs an Opus review`,
+      detail: `only a Sonnet review (${names}) says Merge for ${short}${via}, and this PR needs an Opus review`,
     };
   }
-  return { ok: true, detail: forHead.map(x => x.note.name).join(', ') };
+  return {
+    ok: true,
+    detail: forHead.map(x => x.note.name).join(', '),
+    ...(named.length > 0 ? {} : { carriedFrom }),
+  };
 }
 
 /**
@@ -1033,7 +1149,7 @@ export function writeTrain(file, state) {
 /** Vault note the PM board reads for the merge train (board README, "Merge train.md"). */
 export const TRAIN_NOTE_PATH = 'Dev/Foundry AI Tool/Merge train.md';
 
-/** @typedef {{ kind: 'merge' | 'reset' | 'refusal', pr?: number, at: string, reasons?: string[], driftGuards?: string[] }} TrainEvent */
+/** @typedef {{ kind: 'merge' | 'reset' | 'refusal', pr?: number, at: string, reasons?: string[], driftGuards?: string[], carriedFrom?: string[] }} TrainEvent */
 
 /** Longest reason line kept in a train commit body. */
 const REASON_MAX = 160;
@@ -1114,6 +1230,9 @@ export function renderTrainNote(state, event, updated) {
   }
   lines.push(`last-event: ${event.kind}`);
   if (event.pr !== undefined) lines.push(`last-event-pr: ${event.pr}`);
+  // A merge whose review note named an earlier commit with the same patch (carriedReviews).
+  const carried = (event.carriedFrom ?? []).filter(s => /^[0-9a-f]{40}$/.test(s));
+  if (carried.length > 0) lines.push(`last-event-verdict-carried-from: ${carried.join(' ')}`);
   lines.push(`last-event-at: ${event.at}`);
   return `---\n${lines.join('\n')}\n---\n\nWritten by scripts/lane-merge.mjs on every merge, --train-reset and refusal. Do not edit by hand.\n`;
 }
@@ -1148,7 +1267,12 @@ export function publishTrainNote({ vault, state, event, run, now }) {
     const subject = `Merge train: ${label}, ${state.since.length}/${TRAIN_SIZE}${
       causes.length > 0 ? ` [${causes.join(', ')}]` : ''
     }`;
-    const body = event.kind === 'refusal' ? refusalBody(event.reasons ?? []) : '';
+    const body =
+      event.kind === 'refusal'
+        ? refusalBody(event.reasons ?? [])
+        : event.carriedFrom?.length
+          ? `verdict carried from ${event.carriedFrom.join(', ')}`
+          : '';
     let pushError = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       const synced = sync();
@@ -1325,10 +1449,11 @@ export function announceSource(cwd) {
 /**
  * The real `run`: gh, git, node and npm. `npm` is a .cmd file on Windows, so it goes through the
  * shell as one command string (an args array under a shell is deprecated, DEP0190).
- * @param {string} cmd @param {string[]} args
+ * `input` is written to the command's stdin (git patch-id reads the diff there).
+ * @param {string} cmd @param {string[]} args @param {string} [input]
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-export function defaultRun(cmd, args) {
+export function defaultRun(cmd, args, input) {
   const r =
     cmd === 'npm' && process.platform === 'win32'
       ? spawnSync(['npm', ...args].join(' '), {
@@ -1339,6 +1464,7 @@ export function defaultRun(cmd, args) {
       : spawnSync(cmd, args, {
           encoding: 'utf8',
           maxBuffer: 256 * 1024 * 1024,
+          ...(input === undefined ? {} : { input }),
           // one hung gh call must not hang a background --wait-ci forever
           ...(cmd === 'gh' ? { timeout: GH_TIMEOUT_MS } : {}),
           // the vault's git (the merge train note) must neither hang nor ask for a login
@@ -1702,9 +1828,9 @@ export function main(options = {}) {
     args.vault ?? env.FOUNDRY_AI_OBSIDIAN_DIR ?? path.join(home, 'Documents', 'Obsidian', 'vault');
   /**
    * Write the train state to the vault note. A failure is a warning text, never a failed merge.
-   * @param {TrainState} state @param {TrainEvent['kind']} kind @param {number} [pr] @param {string[]} [reasons] @param {string[]} [driftGuards]
+   * @param {TrainState} state @param {TrainEvent['kind']} kind @param {number} [pr] @param {string[]} [reasons] @param {string[]} [driftGuards] @param {string[]} [carriedFrom]
    */
-  const recordTrain = (state, kind, pr, reasons, driftGuards) => {
+  const recordTrain = (state, kind, pr, reasons, driftGuards, carriedFrom) => {
     const warn = publishTrainNote({
       vault,
       state,
@@ -1713,6 +1839,7 @@ export function main(options = {}) {
         ...(pr === undefined ? {} : { pr }),
         ...(reasons === undefined ? {} : { reasons }),
         ...(driftGuards === undefined ? {} : { driftGuards }),
+        ...(carriedFrom?.length ? { carriedFrom } : {}),
         at: now().toISOString(),
       },
       run,
@@ -1955,6 +2082,8 @@ export function main(options = {}) {
   const paths = files.map(f => f.path);
 
   // c. Review notes for the head commit.
+  /** The reviewed shas whose verdict carried to the head, when no note names it. @type {string[]} */
+  let carriedFrom = [];
   const hits = riskyHits(paths);
   /** @type {ReviewNote[] | null} */
   let reviews = null;
@@ -1963,9 +2092,26 @@ export function main(options = {}) {
   } catch (e) {
     failures.push(`review: cannot read the vault ${vault}: ${message(e)}`);
   }
+  // No note names the head: an earlier reviewed commit with the same patch carries its verdict.
+  // Only for well-formed notes (a malformed one refuses anyway); any error carries nothing.
+  /** @type {{ carried?: string[], carryError?: string | null }} */
+  let carry = {};
+  const namesHead = (reviews ?? []).some(r => r.entries.some(e => e.head === head));
+  if (reviews && !namesHead && !reviews.some(r => r.malformed.length > 0)) {
+    const mainError = fetchMain();
+    if (mainError) {
+      carry = { carried: [], carryError: `git fetch ${REMOTE} main failed: ${mainError}` };
+    } else {
+      try {
+        carry = carriedReviews(run, reviews, head);
+      } catch (e) {
+        carry = { carried: [], carryError: message(e) };
+      }
+    }
+  }
   // The notice says whether the Opus note it asks for is there, so it never reads as a refusal
   // when it is (the review: line, if any, says what is wrong).
-  const opusFound = opusNotesForHead(reviews ?? [], head);
+  const opusFound = opusNotesForHead(reviews ?? [], head, carry.carried ?? []);
   const opusState = opusFound.length ? `found (${opusFound.join(', ')})` : 'missing';
   for (const h of hits) {
     notes.push(
@@ -1977,7 +2123,13 @@ export function main(options = {}) {
       failures.push(`review: vault not found at ${vault} (pass --vault DIR)`);
     }
   } else {
-    const verdict = judgeReviews(reviews, head, hits.length > 0);
+    const verdict = judgeReviews(reviews, head, hits.length > 0, carry);
+    if (verdict.ok && verdict.carriedFrom?.length) {
+      carriedFrom = verdict.carriedFrom;
+      notes.push(
+        `review: verdict carried from ${carriedFrom.join(', ')} (${verdict.detail}): the PR's patch at head ${short(head)} is the same (git patch-id)`
+      );
+    }
     if (!verdict.ok) {
       let hint = '';
       // No note counted: say how a note must be named, and which notes of this PR were not read.
@@ -2082,7 +2234,9 @@ export function main(options = {}) {
 
   // g. Merge.
   const sha7 = short(head);
-  const extras = args.noChangelog === null ? '' : `; no changelog: ${args.noChangelog}`;
+  const extras = `${args.noChangelog === null ? '' : `; no changelog: ${args.noChangelog}`}${
+    carriedFrom.length ? `; verdict carried from ${carriedFrom.map(short).join(', ')}` : ''
+  }`;
   if (args.dryRun) {
     log(
       `lane:merge: OK #${n} at ${sha7} (dry run, nothing merged); merge train ${train.since.length}/${TRAIN_SIZE}${extras}`
@@ -2133,7 +2287,7 @@ export function main(options = {}) {
     `lane:merge: merged #${n} at ${sha7}; merge train ${k}/${TRAIN_SIZE}${advice}${extras}${warning}`
   );
   // After the merged line, so a slow or hanging vault push never hides a merge that happened.
-  const noteWarning = recordTrain(train, 'merge', n);
+  const noteWarning = recordTrain(train, 'merge', n, undefined, undefined, carriedFrom);
   if (noteWarning) log(`lane:merge: ${noteWarning}`);
   // The Discord post is a courtesy: a failure is a warning line and never changes the exit code.
   try {

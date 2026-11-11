@@ -114,7 +114,9 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 - **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
   give the same reviewer one delta check. Lows are not fixed in the PR: each becomes an S item in
   the Backlog. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
-  that sha instead of a round 3; a third round for anything else needs the planner.
+  that sha instead of a round 3; a third round for anything else needs the planner. A clean merge
+  of main or a rebase that leaves the PR's own patch unchanged needs no new note: the gate carries
+  the verdict (`verdict carried from <sha>`, same `git patch-id`); any other change needs one.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`). When merging `aitool/main` into the branch, a conflict
   in a generated tools file (`docs/reference/tools*`) is never hand-merged: take either side and rerun

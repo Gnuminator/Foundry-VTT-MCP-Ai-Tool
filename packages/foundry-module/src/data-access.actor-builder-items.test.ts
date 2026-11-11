@@ -376,6 +376,153 @@ describe('FoundryDataAccess — useItem', () => {
     expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
   });
 
+  describe('slot spells with no slot at their level', () => {
+    const wizard = (
+      slots: Record<string, number>,
+      method = 'spell',
+      level = 1
+    ): ReturnType<typeof vi.fn> => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level, method },
+      });
+      (item as any).use = use;
+      const spells = Object.fromEntries(
+        Object.entries(slots).map(([k, value]) => [k, { value, max: 2 }])
+      );
+      world.addActor({ id: 'w1', name: 'Wizard', items: [item], system: { spells } });
+      return use;
+    };
+
+    it('casts normally while a slot at the spell level is left', async () => {
+      const use = wizard({ spell1: 1, spell2: 2 });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('upcasts into the lowest higher slot when the level slot is empty', async () => {
+      const use = wizard({ spell1: 0, spell2: 0, spell3: 1 });
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+      });
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
+      expect(result.success).toBe(true);
+    });
+
+    it('refuses before anything is used when no slot at that level or above is left', async () => {
+      const use = wizard({ spell1: 0, spell2: 0 });
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('an attack-form cast (rollAttack) upcasts through the attack activity too', async () => {
+      const use = vi.fn(() => Promise.resolve(undefined));
+      const rollAttack = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell', activities: [{ type: 'attack', use, rollAttack }] },
+      });
+      (item as any).use = vi.fn();
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell2: { value: 1 } } },
+      });
+      goblinScene();
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      });
+      await flush();
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell2' } });
+      expect(result.message).toContain('at level 2');
+    });
+
+    it('treats an explicit empty spellLevel as a refusal, not an upcast', async () => {
+      const use = wizard({ spell1: 1, spell2: 0, spell3: 1 });
+      await expect(
+        da.useItem({
+          actorIdentifier: 'Wizard',
+          itemIdentifier: 'Guiding Bolt',
+          options: { spellLevel: 2 },
+        })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('leaves a spell granted by a Cast activity (cachedFor) alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'co',
+        name: 'Chromatic Orb',
+        type: 'spell',
+        system: { level: 1, method: 'spell' },
+        flags: { dnd5e: { cachedFor: 'x' } },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell3: { value: 1 } } },
+      });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Chromatic Orb' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('leaves an activity that spends no slot (consumption.spellSlot false) alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'ns',
+        name: 'Free Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell', activities: [{ consumption: { spellSlot: false } }] },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 } } },
+      });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Free Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a cantrip alone', async () => {
+      const use = wizard({ spell1: 0 }, 'spell', 0);
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves other casting methods (pact, innate, at will) alone', async () => {
+      const use = wizard({ spell1: 0 }, 'innate');
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves consume:false alone', async () => {
+      const use = wizard({ spell1: 0 });
+      await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        options: { consume: false },
+      });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('honors consume:false to disable consumption (omitted otherwise, letting dnd5e default it)', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Shield', type: 'spell' });

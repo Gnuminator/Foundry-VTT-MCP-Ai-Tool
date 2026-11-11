@@ -245,4 +245,32 @@ describe('searchCharacterItems hasAttack', () => {
     const marked = result.matches.filter(m => m.hasAttack).map(m => m.name);
     expect(marked.sort()).toEqual(['Mace', 'Toll the Dead']);
   });
+
+  it('marks an NPC weapon with an attack activity too', async () => {
+    world.actors.add(
+      makeActor({
+        name: 'Goblin',
+        type: 'npc',
+        items: [makeItem({ name: 'Scimitar', type: 'weapon', system: { activities: [attack()] } })],
+      })
+    );
+    const result = await da.searchCharacterItems({ characterIdentifier: 'Goblin' });
+    expect(result.matches.filter(m => m.hasAttack).map(m => m.name)).toEqual(['Scimitar']);
+  });
+
+  it('marks nothing on a system other than dnd5e', async () => {
+    restore();
+    world = createTestWorld({ systemId: 'pf2e' });
+    restore = world.install();
+    da = new FoundryDataAccess();
+    world.actors.add(
+      makeActor({
+        name: 'Fighter',
+        type: 'character',
+        items: [makeItem({ name: 'Mace', type: 'weapon', system: { activities: [attack()] } })],
+      })
+    );
+    const result = await da.searchCharacterItems({ characterIdentifier: 'Fighter' });
+    expect(result.matches.some(m => m.hasAttack)).toBe(false);
+  });
 });

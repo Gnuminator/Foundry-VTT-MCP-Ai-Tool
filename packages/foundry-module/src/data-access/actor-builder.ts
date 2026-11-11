@@ -222,9 +222,10 @@ export class ActorBuilderDataAccess {
       return typeof v === 'number' ? v : 0;
     };
     const from = Math.max(wanted ?? level, level);
-    for (let n = from; n <= 9; n++) {
-      if (left(n) > 0) return n === (wanted ?? level) ? undefined : n;
-    }
+    if (left(from) > 0) return undefined;
+    // An explicit level is the caller's choice: no silent switch to a bigger slot.
+    if (wanted !== undefined) return 'none';
+    for (let n = from + 1; n <= 9; n++) if (left(n) > 0) return n;
     return 'none';
   }
 
@@ -268,6 +269,7 @@ export class ActorBuilderDataAccess {
     // A slot spell with no slot at its level: upcast into the lowest higher slot, or refuse before
     // anything is targeted. dnd5e itself only warns and casts nothing, which would read as "initiated".
     let upcastLevel = options.spellLevel;
+    let autoUpcast: number | undefined;
     if (systemId === 'dnd5e' && options.consume !== false) {
       const slotLevel = this.slotLevelFor(actor, item, options.spellLevel);
       if (slotLevel === 'none') {
@@ -275,7 +277,10 @@ export class ActorBuilderDataAccess {
           `${actor.name} has no spell slot left to cast ${item.name}; nothing was used or rolled`
         );
       }
-      if (slotLevel !== undefined) upcastLevel = slotLevel;
+      if (slotLevel !== undefined) {
+        upcastLevel = slotLevel;
+        autoUpcast = slotLevel;
+      }
     }
 
     // Handle targeting if targets are specified
@@ -490,7 +495,7 @@ export class ActorBuilderDataAccess {
       const result: UseItemResult = {
         success: true,
         status: 'initiated',
-        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. ${
+        message: `Item use initiated for ${actor.name} using ${item.name}${autoUpcast ? ` at level ${autoUpcast} (no slot left at its own level)` : ''}${targetInfo}. ${
           attackActivity
             ? 'The attack is rolled without a dialog; the roll appears in chat.'
             : headless && systemId === 'dnd5e'

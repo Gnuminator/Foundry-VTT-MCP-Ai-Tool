@@ -421,8 +421,34 @@ describe('FoundryDataAccess — useItem', () => {
       expect(use).not.toHaveBeenCalled();
     });
 
-    it('treats an explicit empty spellLevel the same way', async () => {
-      const use = wizard({ spell1: 1, spell2: 0 });
+    it('an attack-form cast (rollAttack) upcasts through the attack activity too', async () => {
+      const use = vi.fn(() => Promise.resolve(undefined));
+      const rollAttack = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell', activities: [{ type: 'attack', use, rollAttack }] },
+      });
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell2: { value: 1 } } },
+      });
+      goblinScene();
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      });
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell2' } });
+      expect(result.message).toContain('at level 2');
+    });
+
+    it('treats an explicit empty spellLevel as a refusal, not an upcast', async () => {
+      const use = wizard({ spell1: 1, spell2: 0, spell3: 1 });
       await expect(
         da.useItem({
           actorIdentifier: 'Wizard',

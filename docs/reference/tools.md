@@ -312,7 +312,7 @@ Parameters:
 
 ### use-item
 
-Direct write. Use an item on a character (cast a spell, use an ability or feature, consume an item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Targets are optional. Returns "initiated" at once. Find items with get-character or search-character-items first.
+Direct write. Use an item on a character (cast a spell, use an ability or feature, consume an item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Targets are optional. A slot spell with no slot at its level is cast at the lowest higher slot; with no slot left it is refused and nothing is used. Otherwise returns "initiated" at once. Find items with get-character or search-character-items first.
 
 Kind: changes something and can delete or overwrite. Title: Use item.
 

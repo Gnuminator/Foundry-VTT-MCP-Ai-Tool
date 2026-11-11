@@ -64,6 +64,21 @@ describe('sanitizeData: shared references versus real cycles', () => {
     expect(out.items[0]).toEqual(species);
   });
 
+  it('marks an indirect cycle (a to b to a)', () => {
+    const a: Record<string, unknown> = { name: 'a' };
+    a.b = { name: 'b', back: a };
+    expect(sanitizeData(a)).toEqual({ name: 'a', b: { name: 'b', back: '[Circular Reference]' } });
+  });
+
+  it('stops a heavily shared graph instead of walking every path', () => {
+    let node: Record<string, unknown> = { leaf: true };
+    for (let i = 0; i < 40; i++) node = { left: node, right: node };
+    const started = Date.now();
+    const out = JSON.stringify(sanitizeData(node));
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(out).toContain('[Truncated]');
+  });
+
   it('still marks a real cycle', () => {
     const a: Record<string, unknown> = { name: 'a' };
     a.self = a;

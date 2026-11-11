@@ -56,7 +56,7 @@ const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import { mergeChangeHistory } from '../obsidian/audit-merge.js';
-import { changeNoteNames } from '../obsidian/change-note-parts.js';
+import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
 import { AUDIT_FILE, AUDIT_HISTORY_FILE, AUDIT_RING_SIZE } from '../vault/audit.js';
 import { assertFileName } from '../vault/paths.js';
@@ -906,7 +906,7 @@ export class GuardedWriteService {
     let noteNames = new Map<string, string>();
     try {
       const jsonl = await this.store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
-      noteNames = changeNoteNames(mergeChangeHistory(ring, jsonl));
+      noteNames = changeNoteNames(changeNoteParts(mergeChangeHistory(ring, jsonl)));
     } catch {
       // the link falls back to the month's first note
     }

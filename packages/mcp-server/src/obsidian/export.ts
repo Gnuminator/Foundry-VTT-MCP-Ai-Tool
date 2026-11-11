@@ -38,7 +38,8 @@ import { buildUsageModel } from '../stats/usage.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
 
-import { mergeChangeHistory, type ChangeEntry } from './audit-merge.js';
+import { mergeChangeHistory } from './audit-merge.js';
+import { changeNoteNames, changeNoteParts } from './change-note-parts.js';
 import { isUntouchedLegacyHome } from './campaign-home-legacy.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, NoteWriter } from './note-writer.js';
@@ -52,8 +53,6 @@ import {
   renderCampaignStatsNote,
   renderChangesBase,
   renderChangesNote,
-  splitChangeNotes,
-  type ChangeNotePart,
   renderPcStatsBase,
   renderPcStatsNote,
   renderSessionNote,
@@ -299,20 +298,8 @@ export async function exportWorldToObsidian(options: {
   const ring: AuditEntry[] = await audit.list(worldId, 500);
   const jsonl = await store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
   const merged = mergeChangeHistory(ring, jsonl);
-  const byMonth = new Map<string, ChangeEntry[]>();
-  for (const e of merged) {
-    const month = e.appliedAt.slice(0, 7);
-    const list = byMonth.get(month) ?? [];
-    list.push(e);
-    byMonth.set(month, list);
-  }
-  const changeParts = new Map<string, ChangeNotePart[]>();
-  const changeNotes = new Map<string, string>();
-  for (const [month, list] of byMonth) {
-    const parts = splitChangeNotes(month, list);
-    changeParts.set(month, parts);
-    for (const part of parts) for (const e of part.entries) changeNotes.set(e.changeId, part.name);
-  }
+  const changeParts = changeNoteParts(merged);
+  const changeNotes = changeNoteNames(changeParts);
 
   const sessionNotes = new Set<string>();
   for (let i = 0; i < groups.length; i++) {

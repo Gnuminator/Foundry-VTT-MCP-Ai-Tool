@@ -87,7 +87,7 @@ in the list. Ask them to double-click the pile on the map instead.
 The player sees the items and coins with a **Take** button on each. For several of one thing, the
 small box says how many to take. Click **Take**. The item lands on their character sheet, and a
 card in the chat says who took what, for everyone to see. The window also has **Config Update** and
-**Leave** buttons at the bottom; a player only needs **Leave**, which closes the window.
+**Leave** buttons at the bottom next to **Split currency**; players can ignore them.
 
 ![A player's view of the pile: Take buttons, and the chat card after Test Hero took the dagger](../images/guides/loot-9-took.png)
 

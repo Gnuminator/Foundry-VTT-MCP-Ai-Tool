@@ -167,7 +167,7 @@ docs/images/brand/
 ```
 
 (Done: the README already shows the banner at the very top, so there is no `BRAND SLOT` block left to
-replace. A new banner only has to replace the image file.) The line first used there was:
+replace. A new banner only has to replace the image file.) The banner line looked like this (the README now points at `banner@2x.png`):
 
 ```html
 <p align="center"><img src="docs/images/brand/banner.png" alt="Foundry AI Tool" width="100%" /></p>

@@ -1,6 +1,6 @@
 ---
 source: gm/loot-with-item-piles.md
-sourceHash: be015a276671
+sourceHash: 3d002258f7ef
 title: Del loot ud med Item Piles
 description: Sådan laver du en bunke loot på kortet, lægger items og mønter i den, lader spillerne tage det, de vil have, deler mønterne og hvad du gør, når en spiller ikke kan åbne den.
 ---
@@ -22,7 +22,7 @@ potion). Din skærm ser ud på samme måde, med dine egne items.
 - Spillerne skal have deres **eget token på scenen**, og Foundry skal vide, hvilken karakter hver
   spiller har. En spiller skal stå **lige ved siden af bunken** for at åbne den (se
   [Hvis en spiller ikke kan åbne bunken](#hvis-en-spiller-ikke-kan-åbne-bunken)).
-- Åbn fanen **Items** i sidebaren (briefcase-ikonet). Det, du vil dele ud, skal være et item der, eller
+- Åbn fanen **Items** i sidebaren (ikonet med en dokumentmappe). Det, du vil dele ud, skal være et item der, eller
   du laver det: **Create Item**, giv det et navn og et billede.
 
 ## 1. Lav bunken
@@ -89,7 +89,7 @@ i listen. Bed dem dobbeltklikke på bunken på kortet i stedet.
 Spilleren ser items og mønter med en **Take**-knap ved hver. Ved flere af det samme siger det lille
 felt, hvor mange der tages. Klik **Take**. Itemet lander på karakterarket, og et kort i chatten
 fortæller, hvem der tog hvad, så alle kan se det. Vinduet har også knapperne **Config Update** og
-**Leave** nederst; en spiller har kun brug for **Leave**, som lukker vinduet.
+**Leave** nederst ved siden af **Split currency**; spillerne kan lade dem være.
 
 ![En spillers udsyn til bunken: Take-knapper, og chatkortet efter Test Hero tog dolken](../../images/guides/loot-9-took.png)
 

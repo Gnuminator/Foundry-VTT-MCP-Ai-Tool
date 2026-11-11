@@ -1145,7 +1145,7 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 `lib/contract.mjs`. In short:
 
 - `id` (kebab-case), `title`, `sizes`, `tags`, `needs` (which parts of the manifest it uses).
-- `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run last: they
+- `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run near the end (`module-load` has 200 and `dashboard-login-split` 1000, so those two run after them): they
   post thousands of chat cards.
 - `t.size` (read only): the kit size of the run, for a scenario that samples.
 - `tools`: every bridge tool it calls. `kit check` fails if a tool is not in `tool-sets.ts`.

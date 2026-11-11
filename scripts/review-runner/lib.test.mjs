@@ -42,9 +42,9 @@ test('parseArgs reads PRs and flags and refuses bad input', () => {
 
 test('pickModel follows the merge gate risky list (D-101)', () => {
   assert.deepEqual(pickModel(['docs/gm/x.md']), { model: 'sonnet', categories: [] });
-  const gate = pickModel(['scripts/lane-merge.mjs', 'shared/src/index.ts']);
+  const gate = pickModel(['scripts/pi/remote/5-tool.sh', 'shared/src/protocol.ts']);
   assert.equal(gate.model, 'opus');
-  assert.ok(gate.categories.includes('the merge gate'));
+  assert.ok(gate.categories.includes('Pi scripts'));
   assert.ok(gate.categories.includes('wire contracts'));
 });
 
@@ -182,7 +182,7 @@ test('buildPrompts names the round, the sha and the checklists', () => {
     title: 'T',
     model: /** @type {const} */ ('opus'),
     round: 1,
-    categories: ['the merge gate'],
+    categories: ['Pi scripts'],
     previousNote: null,
     diffPath: 'D:/x/pr.diff',
     bodyPath: 'D:/x/body.md',
@@ -321,9 +321,9 @@ test('plan --delta: small commits after a Merge skip the round 3 flag, code does
     t.write('docs/more.md', 'm\n');
     const head4 = t.commit('docs again');
     t.publish(head4);
-    assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, ['scripts/lane-merge.mjs'])), /needs an Opus review/);
+    assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, ['scripts/pi/remote/x.sh'])), /needs an Opus review/);
     // L2: a Sonnet override on a risky PR is refused before any git work
-    assert.throws(() => plan(5, { ...o3, round: 4, model: 'sonnet' }, 0, t.repo, info(head4, ['scripts/lane-merge.mjs'])), /would be wasted/);
+    assert.throws(() => plan(5, { ...o3, round: 4, model: 'sonnet' }, 0, t.repo, info(head4, ['scripts/pi/remote/x.sh'])), /would be wasted/);
     // M1: another note (any *review* name the gate reads) with an open verdict on the reviewed sha
     fs.writeFileSync(path.join(dir, '5-subagent-review.md'), NOTE(head).replace('**Merge.**', '**Merge after fixes.**'));
     assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, [])), /not clear at the gate.*Merge after fixes/);

@@ -37,6 +37,7 @@ jobs:
     # Foundry 14 all run it. This is the one full x64 job, so the bundle budget, the zip upload
     # and the browser tests live here.
     name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -669,8 +670,11 @@ jobs:
   build-test-arm:
     # The Orange Pi is ARM (aarch64) and runs Node 24: the same steps on an ARM runner
     # catch native-module or architecture problems before the tool moves there.
+    # The Pi container tests are the pi-container matrix; the job build-test-arm-summary at the end
+    # of this file reports the required check `build-test (ARM, Node 24)` for both.
     runs-on: ubuntu-24.04-arm
-    name: build-test (ARM, Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    name: build-test-arm (steps)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -714,126 +718,9 @@ jobs:
         # Recorder file format, Ogg writer and the silence-padding timeline.
         run: npm test -w @gnuminator/discord-bot
 
-      - name: Pi stage 13 in an ARM64 container
-        # scripts/pi/container-test/stage13-scenarios.sh: stage 13 on Debian 13 ARM64 with stand-ins for systemd
-        # (the downgrade guard, an unreadable /api/status, services that were off, a failed GM browser start).
-        env:
-          PI_STAGE13_CONTAINER: 1
-        run: node --test scripts/pi/player-creation.test.mjs
-
-      - name: Pi stage 22 in an ARM64 container
-        # scripts/pi/container-test/stage22-scenarios.sh: the seven-book trim stage's checks in front of gm-script.sh
-        # (dry run first, the wrong world, players online, the delete needing the user's OK).
-        env:
-          PI_STAGE22_CONTAINER: 1
-        run: node --test scripts/pi/seven-books.test.mjs
-
-      - name: Pi stage 25 (modules) in an ARM64 container
-        # scripts/pi/container-test/stage25-scenarios.sh: the pinned module install on Debian 13 ARM64 with stand-ins for
-        # systemd (a dry run, the real run and a rerun, UNDO=1, a failed start or move putting the old folders back, the refusals).
-        env:
-          PI_STAGE25_CONTAINER: 1
-        run: node --test scripts/pi/modules-stage.test.mjs
-
-      - name: Pi stage 28 (Assistant GM hang watchdog) in an ARM64 container
-        # scripts/pi/container-test/stage28-scenarios.sh: the driver against a page that stops answering (it must exit for a
-        # restart), then the stage that installs the new driver (dry run, apply, rerun, UNDO=1, a failed join putting the old
-        # driver back, the refusals).
-        env:
-          PI_GM_WATCHDOG_CONTAINER: 1
-        run: node --test scripts/pi/gm-watchdog.test.mjs
-
-      - name: Pi kit session in an ARM64 container
-        # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins
-        # for systemd (the refusals, a failed driver putting everything back, a second run).
-        env:
-          PI_KIT_SESSION_CONTAINER: 1
-        run: node --test scripts/pi/kit-session.test.mjs
-
-      - name: Pi stage 11 in an ARM64 container
-        # scripts/pi/container-test/stage11-scenarios.sh: stage 11 on Debian 13 ARM64 with stand-ins for systemd
-        # and the Assistant GM (the training world with an extra GM, a rerun, the refusals before anything stops).
-        env:
-          PI_STAGE11_CONTAINER: 1
-        run: node --test scripts/pi/stage11-world.test.mjs
-
-      - name: Pi stage 15 in an ARM64 container
-        # scripts/pi/container-test/ssh-keys-only-scenarios.sh: stage 15 on Debian 13 ARM64 with the real OpenSSH server (sshd -t,
-        # sshd -T) and stand-ins for systemd (the drop-in, every refusal and rollback, the reload and the safety timer).
-        env:
-          PI_SSH_KEYS_ONLY_CONTAINER: 1
-        run: node --test scripts/pi/ssh-keys-only.test.mjs
-
-      - name: Pi stage 7 in an ARM64 container
-        # scripts/pi/container-test/stage7-scenarios.sh: the dashboard.env step of stage 7 on Debian 13 ARM64 (no address,
-        # a given one, a rerun that keeps it, the refusals, a replacement).
-        env:
-          PI_STAGE7_CONTAINER: 1
-        run: node --test scripts/pi/stage7-foundry-url.test.mjs
-
-      - name: Pi stage 20 in an ARM64 container
-        # scripts/pi/container-test/stage20-scenarios.sh: stage 20 on Debian 13 ARM64 with two real Syncthings (a note each way, a
-        # forced .sync-conflict file, STRICT, the zone checks, a missing folder).
-        env:
-          PI_STAGE20_CONTAINER: 1
-        run: node --test scripts/pi/vault-sync.test.mjs
-
-      - name: Pi stage 21 in an ARM64 container
-        # scripts/pi/container-test/stage21-scenarios.sh: stage 21 on Debian 13 ARM64 with three real Syncthings (a note reaches only
-        # its player, a player's change never reaches the Pi, one device per player, remove and off keep the files).
-        env:
-          PI_STAGE21_CONTAINER: 1
-        run: node --test scripts/pi/player-vault.test.mjs
-
-      - name: Pi stage 26 in an ARM64 container
-        # scripts/pi/container-test/stage26-scenarios.sh: stage 26 on Debian 13 ARM64 with the real lib.sh (dry run, the four lines
-        # set and the token kept, the saved copy, rerun, check, duplicates, the snapshot rule, undo).
-        env:
-          PI_STAGE26_CONTAINER: 1
-        run: node --test scripts/pi/discord-game-server.test.mjs
-
-      - name: Pi stage 29 in an ARM64 container
-        # scripts/pi/container-test/stage29-scenarios.sh: stage 29 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, install,
-        # rerun, kept settings file, public check on or off, check, the snapshot rule, undo).
-        env:
-          PI_STAGE29_CONTAINER: 1
-        run: node --test scripts/pi/gamenight-watch-stage.test.mjs
-
-      - name: Pi stage 32 in an ARM64 container
-        # scripts/pi/container-test/stage32-scenarios.sh: stage 32 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, drop-ins,
-        # rerun, the alert post, the clock check's debounce, check, the snapshot rule, undo).
-        env:
-          PI_STAGE32_CONTAINER: 1
-        run: node --test scripts/pi/crash-guard-stage.test.mjs
-
-      - name: Pi stage 30 in an ARM64 container
-        # scripts/pi/container-test/stage30-scenarios.sh: stage 30 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, install,
-        # rerun, replaced table, check, the snapshot rule, undo).
-        env:
-          PI_STAGE30_CONTAINER: 1
-        run: node --test scripts/pi/player-connector-stage.test.mjs
-
-      - name: Pi stage 31 in an ARM64 container
-        # scripts/pi/container-test/stage31-scenarios.sh: stage 31 on Debian 13 ARM64 with three real Syncthings (report, the remove guard,
-        # add, remove once another PC holds the vault, the refusals).
-        env:
-          PI_STAGE31_CONTAINER: 1
-        run: node --test scripts/pi/gm-vault-peers.test.mjs
-
-      - name: Pi stage 16 in an ARM64 container
-        # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic
-        # (every token file refusal, the install and first report, a rerun, a board that answers 403).
-        env:
-          PI_STAGE16_CONTAINER: 1
-        run: node --test scripts/pi/board-status.test.mjs
-
-      - name: Pi stage 14 in an ARM64 container
-        # scripts/pi/container-test/system-trial-scenarios.sh: stage 14 on Debian 13 ARM64 with stand-ins for systemd
-        # and a fake Foundry (the dnd5e trial, switch and rollback, the refusals before anything stops, a failed trial
-        # that puts everything back, a rollback that stops halfway and is finished by a rerun).
-        env:
-          PI_SYSTEM_TRIAL_CONTAINER: 1
-        run: node --test scripts/pi/system-trial.test.mjs
+      # The Pi container tests (Debian 13 ARM64, scripts/pi/container-test/*-scenarios.sh) are the
+      # `pi-container` matrix job below, not steps here: they used to run one after another and took
+      # about 11 of this job's 14 minutes.
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
@@ -850,3 +737,111 @@ jobs:
 
       - name: Validate Foundry module manifest
         run: node scripts/validate-manifest.js
+
+  pi-changes:
+    # Decides whether the Pi container tests are worth their minutes: only when something they mount
+    # or read changed. Same plain-git filter as visual-changes (on a pull request the checkout is the
+    # merge commit, its first parent is the base). A push to main and a manual run always run them.
+    # The patterns are pinned by scripts/pi/ci-pi-filter.test.mjs: every path the container tests
+    # mount or read must match one, so a new input cannot slip past the filter.
+    runs-on: ubuntu-latest
+    name: pi-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Did a Pi input change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: run the Pi container tests."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          echo "Changed files against the base:"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the Pi container tests depend on changed: skip them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  pi-container:
+    # One shard per container test (scripts/pi/*.test.mjs with its PI_*_CONTAINER switch, which runs
+    # scripts/pi/container-test/*-scenarios.sh in Debian 13 ARM64 with stand-ins for systemd). They
+    # run in parallel and only when pi-changes says so. A new scenario is one line in the matrix; the
+    # `build-test (ARM, Node 24)` summary below goes red when any shard fails or is cancelled.
+    needs: pi-changes
+    if: needs.pi-changes.outputs.run == 'true'
+    runs-on: ubuntu-24.04-arm
+    name: pi-container (${{ matrix.name }})${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: stage 13, env: PI_STAGE13_CONTAINER, test: player-creation.test.mjs }
+          - { name: stage 22, env: PI_STAGE22_CONTAINER, test: seven-books.test.mjs }
+          - { name: stage 25 modules, env: PI_STAGE25_CONTAINER, test: modules-stage.test.mjs }
+          - { name: stage 28 GM watchdog, env: PI_GM_WATCHDOG_CONTAINER, test: gm-watchdog.test.mjs }
+          - { name: kit session, env: PI_KIT_SESSION_CONTAINER, test: kit-session.test.mjs }
+          - { name: stage 11, env: PI_STAGE11_CONTAINER, test: stage11-world.test.mjs }
+          - { name: stage 15, env: PI_SSH_KEYS_ONLY_CONTAINER, test: ssh-keys-only.test.mjs }
+          - { name: stage 7, env: PI_STAGE7_CONTAINER, test: stage7-foundry-url.test.mjs }
+          - { name: stage 20, env: PI_STAGE20_CONTAINER, test: vault-sync.test.mjs }
+          - { name: stage 21, env: PI_STAGE21_CONTAINER, test: player-vault.test.mjs }
+          - { name: stage 26, env: PI_STAGE26_CONTAINER, test: discord-game-server.test.mjs }
+          - { name: stage 29, env: PI_STAGE29_CONTAINER, test: gamenight-watch-stage.test.mjs }
+          - { name: stage 32, env: PI_STAGE32_CONTAINER, test: crash-guard-stage.test.mjs }
+          - { name: stage 30, env: PI_STAGE30_CONTAINER, test: player-connector-stage.test.mjs }
+          - { name: stage 31, env: PI_STAGE31_CONTAINER, test: gm-vault-peers.test.mjs }
+          - { name: stage 16, env: PI_STAGE16_CONTAINER, test: board-status.test.mjs }
+          - { name: stage 14 system trial, env: PI_SYSTEM_TRIAL_CONTAINER, test: system-trial.test.mjs }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ${{ matrix.name }} in an ARM64 container
+        run: ${{ matrix.env }}=1 node --test scripts/pi/${{ matrix.test }}
+
+  build-test-arm-summary:
+    # The required check keeps its old name, `build-test (ARM, Node 24)` (the ruleset names it):
+    # green when the ARM steps passed and every Pi container shard passed or was skipped by the
+    # filter, red when either failed or was cancelled. !cancelled() so it still runs, and fails,
+    # after a red job. Same shape as dashboard-visual.
+    needs: [build-test-arm, pi-changes, pi-container]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: build-test (ARM, Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: The ARM steps passed, and so did every Pi container shard (or the filter skipped them)
+        run: |
+          echo "build-test-arm: ${{ needs.build-test-arm.result }}"
+          echo "pi-changes: ${{ needs.pi-changes.result }}"
+          echo "pi-container: ${{ needs.pi-container.result }}"
+          if [ "${{ needs.build-test-arm.result }}" != "success" ]; then
+            echo "The ARM build and tests did not pass."
+            exit 1
+          fi
+          if [ "${{ needs.pi-changes.result }}" != "success" ]; then
+            echo "The Pi path filter did not finish."
+            exit 1
+          fi
+          case "${{ needs.pi-container.result }}" in
+            success|skipped) ;;
+            *) echo "A Pi container shard failed or was cancelled: see the pi-container jobs."; exit 1 ;;
+          esac

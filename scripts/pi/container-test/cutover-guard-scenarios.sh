@@ -18,7 +18,8 @@ pass() { echo "ok: $*"; }
 fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 # stage file => the WHAT text its guard call carries (a fragment is enough)
-STAGES="3-foundry 5-tool 5-check-world 7-vault 11-world 12-tunnel 13-player-creation 14-system-trial 19-join-page-look 21-player-vault 25-modules 27-bot-status 28-gm-watchdog 30-player-connector kit-session switch-world set-dashboard-access gm-script"
+STAGES="$(cd "$REMOTE" && grep -l '^refuse_when_cut_over "' ./*.sh | sed 's|^\./||; s|\.sh$||' | grep -v '^lib$' | sort | tr '\n' ' ')"
+[ "$(echo "$STAGES" | wc -w)" -ge 18 ] || { echo "FAIL: found only: $STAGES"; exit 1; }
 
 root="$(mktemp -d)"
 trap 'rm -rf "${root:?}"' EXIT
@@ -86,7 +87,15 @@ run_stage() {
   CALLS="$(cat "$SB/calls")"
 }
 
-mutating() { echo "$CALLS" | grep -E '^systemctl .*(start|restart|enable|stop|disable|daemon-reload)' >/dev/null; }
+# mutating: a systemctl change was called, or something was written into the sandbox's config, data or tool folders.
+mutating() {
+  echo "$CALLS" | grep -E '^systemctl .*(start|restart|enable|stop|disable|daemon-reload)' >/dev/null && return 0
+  local d
+  for d in etc data tool; do
+    [ -z "$(ls -A "$SB/$d" 2>/dev/null)" ] || return 0
+  done
+  return 1
+}
 
 for s in $STAGES; do
   for mode in running stopped; do

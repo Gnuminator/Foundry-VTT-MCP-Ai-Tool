@@ -501,6 +501,15 @@ mode_cutover() {
     return 1
   fi
   need_daemon "cutting over"
+  # The nightly backup script is a file stage 6 wrote on the Pi, not this checkout: an old one only knows foundry.service and
+  # would copy the worlds under the running container (or start the unit next to it). Refuse until stage 6 ran again.
+  local nightly="$TOOL_DIR/backup/foundry-backup.sh"
+  if [ -f "$nightly" ]; then
+    grep -q 'label=com.docker.compose.project' "$nightly" ||
+      die "the nightly backup script ($nightly) does not know the containers yet: run stage 6 again first. Nothing was changed"
+  else
+    warn "no nightly backup script at $nightly (stage 6 not run?): the cutover goes on, but nothing backs the worlds up at night"
+  fi
   stack_running && die "containers of the stack run while systemd units are enabled or active (${was[*]}): a mixed state. MODE=rollback first, or MODE=down. Nothing was changed"
   if [ "$dry" = 1 ]; then
     say "dry run: would stop and disable (in this order): $(for ((i = ${#existing[@]} - 1; i >= 0; i--)); do printf '%s ' "${existing[i]}"; done)"

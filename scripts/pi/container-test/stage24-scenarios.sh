@@ -396,6 +396,18 @@ run_stage MODE=rollback TEST_ALLOW_CUTOVER=0
 after="$(for u in $all_units; do unit_on "$u" && echo "$u on" || echo "$u off"; done)"
 if [ "$RC" -eq 0 ] && stack_gone && [ "$before" = "$after" ]; then pass "cutover then rollback returns the same enabled and active units"; else fail "round trip (rc $RC): before [$before] after [$after] $OUT"; fi
 
+# 12b. an installed nightly backup script that predates the containers refuses the cutover (and a dry run); a current one passes
+new_pi
+mkdir -p "$SB/tool/backup"
+echo 'systemctl stop foundry.service' >"$SB/tool/backup/foundry-backup.sh"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'run stage 6 again first' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable|compose.* up'; then pass "a nightly backup script that does not know the containers refuses the cutover"; else fail "stale nightly (rc $RC): $OUT"; fi
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0 DRY_RUN=1
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'run stage 6 again first'; then pass "the dry run says so too"; else fail "stale nightly dry (rc $RC): $OUT"; fi
+echo 'docker ps -q --filter "label=com.docker.compose.project=foundry-ai-tool-pi"' >"$SB/tool/backup/foundry-backup.sh"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 0 ] && all_off $all_units; then pass "a nightly backup script that knows the containers lets the cutover run"; else fail "current nightly (rc $RC): $OUT"; fi
+
 # 13. the Docker daemon is down: containers may exist and come back with it, so nothing is assumed
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done

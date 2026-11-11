@@ -85,19 +85,20 @@ runner.
 - **The nightly backup follows the stack.** `6-backup.sh` writes a nightly script that, after the cutover, stops the
   Foundry **container** (not `foundry.service`), checks that it is stopped, copies the worlds with restic and starts it
   again. The Assistant GM container is not counted as a player. If the daemon is silent and `foundry.service` is not
-  running either, the backup reports an error instead of copying a data folder that may be in use. Run stage 6 again once
-  so the Pi has the new nightly script (before or after the cutover; it works for both).
+  running either, the backup reports an error instead of copying a data folder that may be in use. Run stage 6 again
+  **before** the cutover so the Pi has the new nightly script (it is a file on the Pi, not in the checkout): `MODE=cutover`
+  refuses, dry run too, while the installed script does not know the containers.
 
 ### Two sittings
 
 Never on a game-night day, never with players online, a `dietpi-backup` snapshot first and the OK each time
 (`pi-work`). Commands go over `ssh foundry-pi` with `lib.sh` and `24-compose.sh` joined (see above).
 
-1. **Rehearsal** (at least a week before session 0). Stage 23 (Docker, `.env`, images), then `MODE=up` on the `test.env`
+1. **Rehearsal.** Stage 23 (Docker, `.env`, images), then `MODE=up` on the `test.env`
    ports with its own data folders (command above), then look at `deploy/pi/deployed-state.sh`, open the rehearsal
    dashboard on port 3300 and join the rehearsal Foundry on 30100 from the Tailscale name. End with `MODE=down` and the
    same ports. The live units never stop in this sitting.
-2. **Cutover.** Snapshot, then `MODE=cutover DRY_RUN=1` (prints the plan, changes nothing), then `MODE=cutover`. Check
+2. **Cutover**, at least 7 days before session 0, otherwise after G2 (D-142). Stage 6 again, snapshot, then `MODE=cutover DRY_RUN=1` (prints the plan, changes nothing), then `MODE=cutover`. Check
    `MODE=status` and `deploy/pi/deployed-state.sh` (no unit and container running together), join Foundry, and let one
    backup run (`systemctl start foundry-backup.service`, on a quiet table; it stops the Foundry container for the copy)
    before calling it done. **Rollback** at any

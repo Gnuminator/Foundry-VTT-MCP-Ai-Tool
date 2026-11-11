@@ -77,7 +77,10 @@ describe('Pi scripts', { skip: !hasBash && 'bash is not available' }, () => {
       writeFileSync(fake, `#!/usr/bin/env bash\n${body}\n`);
       chmodSync(fake, 0o755);
       const text = section.replace('space_check=/opt/foundry-ai-tool/space/space-check.sh', `space_check=${slash(fake)}`).replace('timeout 60', 'timeout 1');
-      return spawnSync('bash', ['-c', `set -euo pipefail\n${text}\necho REACHED`], { encoding: 'utf8' });
+      // A file, not `bash -c`: on Windows an argument with quotes and backslashes (the container code in the section) is mangled.
+      const runner = path.join(tmp, 'precheck-run.sh');
+      writeFileSync(runner, `set -euo pipefail\n${text}\necho REACHED\n`);
+      return spawnSync('bash', [slash(runner)], { encoding: 'utf8' });
     };
     let r = precheck('exit 0');
     assert.equal(r.status, 0, r.stderr);

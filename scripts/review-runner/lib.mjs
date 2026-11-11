@@ -28,7 +28,7 @@ export const AGENT_BY_CATEGORY = {
   'the write gate': 'review-guarded-writes',
   'wire contracts': 'review-wire-contracts',
   'Pi scripts': 'review-pi-ci',
-  'the merge gate': 'review-pi-ci',
+  security: 'review-pi-ci',
 };
 
 export const defaultLedgerPath = () => path.join(os.homedir(), '.review-runner', 'ledger.jsonl');

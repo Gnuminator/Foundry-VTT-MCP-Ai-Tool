@@ -34,7 +34,8 @@ export function weaponsOf(result: unknown): Weapon[] {
   if (!Array.isArray(matches)) return [];
   return matches.flatMap((m: unknown) => {
     const r = (m ?? {}) as Record<string, unknown>;
-    return typeof r['id'] === 'string' && typeof r['name'] === 'string'
+    // The module marks an item it found no attack on with hasAttack: false; leave those out.
+    return typeof r['id'] === 'string' && typeof r['name'] === 'string' && r['hasAttack'] !== false
       ? [{ id: r['id'], name: r['name'], label: r['name'] }]
       : [];
   });
@@ -76,8 +77,13 @@ export function attackArgs(
 export const NO_TARGET_NOTE =
   'Nothing is targeted in Foundry. Target a token there or pick one in the list.';
 
+export const SPELL_READ_NOTE = 'Spells could not be read.';
+
+/** The button text while no weapon or spell is picked. */
+export const PICK_NOTE = 'Pick a weapon or spell';
+
 export const LANDED_NOTE = 'It may have landed. Check the feed before you attack again.';
 
 export function attackLabel(attacker: string, weapon: string, target: string): string {
-  return weapon ? `${attacker} attacks ${target} with ${weapon}` : 'Pick a weapon';
+  return weapon ? `${attacker} attacks ${target} with ${weapon}` : PICK_NOTE;
 }

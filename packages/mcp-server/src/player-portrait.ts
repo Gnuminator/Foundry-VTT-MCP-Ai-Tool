@@ -4,7 +4,7 @@
  *
  * 1. The bytes are checked here (type by content, size cap), whatever the dashboard did.
  * 2. The module query `uploadPlayerPortrait` checks the player owns the character and stores the
- *    file in `assets/players/<slug>/` under a name it makes (a write behind the write gate).
+ *    file in `assets/players/<slug>-<user id>/` under a name it makes (a write behind the write gate).
  * 3. The actor change (`img`, and the prototype token's picture when the player picked it) is a
  *    guarded write under the `player-portrait` feature: it shows in Recent Changes and Undo puts
  *    the old picture path back. The file stays in the player's folder.
@@ -94,11 +94,23 @@ export async function handlePlayerPortrait(
     pathLabels['prototypeToken.texture.src'] = 'token picture';
   }
   const ops: GuardedOp[] = [{ kind: 'update', uuid, changes }];
+  // Tokens already on a scene keep their own picture unless they are changed too; the same plan
+  // does it, so one Undo puts them all back.
+  const placed =
+    target === 'both' && Array.isArray(stored.placedTokens)
+      ? stored.placedTokens.filter(
+          (t): t is string => typeof t === 'string' && /^Scene\.\w+\.Token\.\w+$/.test(t)
+        )
+      : [];
+  for (const tokenUuid of placed) {
+    ops.push({ kind: 'update', uuid: tokenUuid, changes: { 'texture.src': stored.path } });
+  }
+  if (placed.length > 0) pathLabels['texture.src'] = 'placed token picture';
   const who = typeof stored.userName === 'string' && stored.userName ? stored.userName : 'A player';
   const name = stored.actorName || 'a character';
   const plan = await guardedWrites.createPlan({
     feature: PLAYER_PORTRAIT_FEATURE_ID,
-    summary: `${who} set a new ${target === 'both' ? 'portrait and token picture' : 'portrait'} for ${name} (${stored.path})`,
+    summary: `${who} set a new ${target === 'both' ? 'portrait and token picture' : 'portrait'} for ${name} (${stored.path})${placed.length > 0 ? `, also on ${placed.length} placed token${placed.length === 1 ? '' : 's'}` : ''}`,
     ops,
     pathLabels,
   });

@@ -293,7 +293,9 @@ closed to players, so this is the way in.
    Discord). In the **You** card, press **Upload my portrait**.
 2. Pick one PNG, JPG or WebP file, at most 5 MB.
 3. The list next to the button says **Portrait and token**, so the same picture is also your token
-   on the map. Choose **Portrait only** to change just the portrait.
+   on the map, and tokens of your character that are already placed on a scene get it too. Choose
+   **Portrait only** to change just the portrait. If the **Upload my portrait** button is missing,
+   your GM has switched it off.
 4. Wait for "Done". Your character now has the new picture in Foundry. If you have more than one
    character, pick which one first.
 

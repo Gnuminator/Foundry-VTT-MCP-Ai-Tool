@@ -103,6 +103,14 @@ test('the hook as a process: write asks, read is silent, garbage stdin asks', ()
   assert.equal(JSON.parse(g.stdout).hookSpecificOutput.permissionDecision, 'ask');
 });
 
+test('the skill\'s read-only drift code is classified as a read and has no trailing semicolon', () => {
+  const skill = readFileSync(path.join(here, '..', 'skills', 'cloudflare-work', 'SKILL.md'), 'utf8');
+  const m = /```text\n(async \(\) => \{[\s\S]*?\n\})\n```/.exec(skill);
+  assert.ok(m, 'the skill holds the code in a text fence');
+  assert.equal(classify(m[1]).kind, 'read');
+  assert.equal(call(m[1]), null);
+});
+
 test('.claude/settings.json wires the hook as PreToolUse on every mcp execute tool', () => {
   const settings = JSON.parse(readFileSync(path.join(here, '..', 'settings.json'), 'utf8'));
   const entry = (settings.hooks?.PreToolUse ?? []).find(e =>

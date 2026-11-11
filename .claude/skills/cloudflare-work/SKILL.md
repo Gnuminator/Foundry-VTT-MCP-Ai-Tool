@@ -7,34 +7,32 @@ description: How to read and change the Cloudflare setup (Access applications, t
 
 The connector's `execute` tool runs `cloudflare.request({ method, path, ... })`. The hook
 `.claude/hooks/guard-cloudflare.mjs` lets code with only literal `method: 'GET'` calls run and makes
-the app ask the user for everything else (writes, a method in a variable, no method, options built
-elsewhere, unreadable input). The prompt is the user's approval. If no prompt appears for a write,
-the tool is still on the allow list in `.claude/settings.local.json` (the user's file): stop and
-tell the user, do not edit it.
+the app ask the user for everything else. The prompt is the user's approval. If no prompt appears
+for a write, tell the user; never edit `.claude/settings.local.json`.
 
 ## Rules
 
 - **Reads are free.** Write the method as the literal `'GET'` inline in each call.
-- **A change is proposed first**, in chat, as: what, why, the exact call (method, path, body) and
-  what could go wrong. Then make the call; the app's prompt shows the same code. Approve only what
-  was shown.
-- **Access applications take only PUT (the whole object).** Read the app, change one field, send
-  the whole object back with `policies` as `[{ id, precedence }]`, then read it again and compare
-  every other field. A dropped policy fails closed (nobody gets in), so check the policy list first.
-- **After each change** add one line to vault `Dev/Foundry AI Tool/Cloudflare changes.md`: date,
-  app, field, before, after, who approved. Update `Cloudflare expected state.json` in the vault to
-  the new intended state, then run the compare script (below) and expect no drift.
-- **Never print tokens, emails or account ids.** Reduce every read to names, hostnames, settings and
-  counts before it reaches the chat. Nothing about the domain goes into the public repo or this skill.
-- The connector has no token access (403 on token endpoints); do not try.
+- **Propose a change first**, in chat: what, why, the exact call and what could go wrong. Then make
+  the call; approve only what was shown.
+- **Access applications take only PUT (the whole object).** Read the app, change one field, send it
+  back with `policies` as `[{ id, precedence }]`, read it again and compare every other field. A
+  dropped policy fails closed, so check the policy list first.
+- **After each change** add one line to vault `Dev/Foundry AI Tool/Cloudflare changes.md` (date,
+  app, field, before, after, who approved), update `Cloudflare expected state.json` there, and run
+  the drift check.
+- **Never print tokens, emails or account ids.** Reduce reads to names, settings and counts.
+  Nothing about the domain goes into the public repo.
+- The connector has no token access (403); do not try.
 
 ## Drift check
 
-1. Run the read-only code below through `execute`; save its result as a JSON file outside the repo.
+1. Run the read-only code below through `execute` (no trailing `;`: the connector rejects it, so the
+   block is fenced as `text` to keep prettier from adding one); save the result outside the repo.
 2. `node scripts/cloudflare-compare.mjs <live.json> "<vault>/Dev/Foundry AI Tool/Cloudflare expected state.json"`
    prints every difference and exits 1 on any.
 
-```js
+```text
 async () => {
   const get = async (path, query) =>
     (await cloudflare.request({ method: 'GET', path, query })).result;
@@ -68,6 +66,6 @@ async () => {
   for (const z of await get('/zones', { per_page: 50 }))
     for (const r of await get(`/zones/${z.id}/dns_records`, { per_page: 200 }))
       dns.push({ name: r.name, proxied: !!r.proxied });
-  return { apps, tunnel: { routes }, dns };
-};
+  return JSON.stringify({ apps, tunnel: { routes }, dns });
+}
 ```

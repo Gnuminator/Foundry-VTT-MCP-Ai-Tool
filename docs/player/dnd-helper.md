@@ -60,32 +60,35 @@ You need:
 Anthropic changes the menus now and then. If a button is not where this guide says, look for the
 same word nearby, or use the search box in Settings.
 
-## Step 2: download the two files
+## Step 2: download your helper and the skill
 
-Click each link. Your browser saves the file in your **Downloads** folder.
+1. Open your **My character** page (the private link you were sent), open **Your Claude
+   connector** and press **Download my helper**. Your browser saves `foundry-player.mcpb` in
+   your **Downloads** folder. This file is made for you and holds your own login, so do not
+   share it, and delete it after step 3 if you like.
+2. Download the skill:
+   [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
 
-- **The extension:**
-  [foundry-player.mcpb](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-player.mcpb)
-- **The skill:**
-  [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
+If your browser asks whether to keep a file it does not know, choose **Keep**. Do not unzip the
+skill.
 
-The links always give you the newest version. If your browser asks whether to keep a file it
-does not know, choose **Keep**. Do not open or unzip either file yet.
+## Step 3: add the extension
 
-## Step 3: add the extension and paste your two values
-
-1. In Claude Desktop open **Settings**, then **Desktop**, then **Extensions**.
-2. Drag `foundry-player.mcpb` from your Downloads folder into that window. (Double-clicking the
-   file in Downloads also works on Windows: Claude Desktop opens with the same install
-   window.)
-3. Click **Install**. Claude may warn that extensions run on your computer. This one only talks
-   to our game server, and the file itself holds no book text and no secret.
-4. A form asks for two things. Paste your **Client ID** into the first box and your **Client
-   Secret** into the second. The secret box hides what you type.
-5. Make sure the extension is switched **on** (a toggle next to its name in Settings, Desktop,
+1. Double-click `foundry-player.mcpb` in your Downloads folder. Claude Desktop opens with an
+   install window. (You can also drag the file into **Settings**, **Desktop**, **Extensions**.)
+2. Click **Install**. Claude may warn that extensions run on your computer. This one only talks
+   to our game server and cannot change anything. There is nothing to paste: your values are
+   already inside. It shows as **Foundry (your name)**.
+3. Make sure the extension is switched **on** (a toggle next to its name in Settings, Desktop,
    Extensions).
-6. Quit Claude Desktop completely (right-click its icon by the clock and choose Quit, closing the
+4. Quit Claude Desktop completely (right-click its icon by the clock and choose Quit, closing the
    window is not enough) and open it again.
+
+**If the downloaded file does not work**, use the generic file and paste your two values yourself:
+download
+[foundry-player.mcpb](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-player.mcpb),
+install it the same way, and when a form asks, paste your **Client ID** into the first box and
+your **Client Secret** into the second (the **My character** page has both with copy buttons).
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
 You should see **Foundry** (or **foundry-player**) listed with five tools. If you do, the plug is
@@ -253,7 +256,7 @@ Extensions.
 
 **I want to start over.**
 Remove the extension in Settings, Desktop, Extensions, and install it again from the file
-(download it again from step 2 if it is gone). Your values are asked for again.
+(press **Download my helper** again from step 2 if the file is gone).
 
 ## Getting new values
 

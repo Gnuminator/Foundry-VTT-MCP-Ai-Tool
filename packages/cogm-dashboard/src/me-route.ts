@@ -20,6 +20,9 @@
  * The key maps to a Foundry user id on this side only; the bridge's control method
  * `character_sheet` then returns only the character actors that user OWNS.
  */
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+
 import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
@@ -51,6 +54,8 @@ export interface MeRouteOptions {
   logger?: Pick<Logger, 'warn'>;
   /** The player connector's login table (D-136), or null when the connector is off. */
   connector?: Pick<import('./player-connector.js').ConnectorStore, 'credentialsFor'> | null;
+  /** Builds one player's extension file; the real one loads tools/player-connector. For tests. */
+  buildPreset?: (p: PresetInput) => Buffer | Promise<Buffer>;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
@@ -61,6 +66,31 @@ export interface MeRouteOptions {
   theme: () => string;
   publicDir: string;
   pageHeaders: (res: Response) => void;
+}
+
+export interface PresetInput {
+  endpoint: string;
+  clientId: string;
+  clientSecret: string;
+  playerName: string;
+  userId: string;
+}
+
+/** The real builder: tools/player-connector/build.mjs, three folders above dist/ (or src/). */
+async function loadPresetBuilder(p: PresetInput): Promise<Buffer> {
+  const file = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '..',
+    'tools',
+    'player-connector',
+    'build.mjs'
+  );
+  const mod = (await import(pathToFileURL(file).href)) as {
+    buildPreset: (input: PresetInput) => Buffer;
+  };
+  return mod.buildPreset(p);
 }
 
 const ME_KEY_HEADER = 'x-cogm-me';
@@ -163,6 +193,58 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       clientId: own.clientId,
       clientSecret: own.clientSecret,
     });
+  });
+
+  // "Download my helper": the player's own extension file, built for this request from the generic
+  // template with their pair as literals (tools/player-connector). The key goes in a header like
+  // every /me call, so the page fetches it and saves the bytes; nothing is stored or logged here.
+  app.get('/api/me/helper.mcpb', (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return;
+    }
+    const own = options.connector?.credentialsFor(userId) ?? null;
+    if (!own) {
+      res.status(404).json({ error: 'There is no helper set up for you yet. Ask your GM.' });
+      return;
+    }
+    if (!own.endpoint) {
+      res.status(503).json({ error: 'The helper address is not set yet. Ask your GM.' });
+      return;
+    }
+    const build = options.buildPreset ?? loadPresetBuilder;
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
+      .then(() =>
+        build({
+          endpoint: own.endpoint as string,
+          clientId: own.clientId,
+          clientSecret: own.clientSecret,
+          playerName: directory.get(userId)?.name ?? '',
+          userId,
+        })
+      )
+      .then(bytes => {
+        res.set({
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': 'attachment; filename="foundry-player.mcpb"',
+          'Content-Length': String(bytes.length),
+          'X-Content-Type-Options': 'nosniff',
+        });
+        res.end(bytes);
+      })
+      .catch(() => {
+        // Never the error text: it could carry a value. A fixed sentence only.
+        res.status(503).json({ error: 'Could not make your helper file. Ask your GM.' });
+      });
   });
 
   // One roll at a time per player: a second press while the first is rolling is refused.

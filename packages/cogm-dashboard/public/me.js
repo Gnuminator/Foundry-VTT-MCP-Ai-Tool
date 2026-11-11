@@ -256,6 +256,7 @@ async function loadConnector() {
     $('mc-id').value = body.clientId || '';
     $('mc-secret').value = body.clientSecret || '';
     $('mc-hint').hidden = !!body.endpoint;
+    $('mc-download-row').hidden = !body.endpoint;
     setConnectorError('');
     connectorLoaded = true;
     $('me-connector').hidden = false;
@@ -266,6 +267,39 @@ async function loadConnector() {
     $('me-connector').open = true; // an alert inside a closed details is not announced
   } finally {
     connectorLoading = false;
+  }
+}
+
+/**
+ * "Download my helper": the key is sent as a header (never in the address), so the page fetches the
+ * file and saves the bytes itself. The file holds the player's login and is never kept here.
+ */
+async function downloadHelper() {
+  const button = $('mc-download');
+  const live = $('mc-live');
+  if (!key || button.disabled) return;
+  button.disabled = true;
+  live.textContent = '';
+  try {
+    const res = await fetch('/api/me/helper.mcpb', { headers: { 'X-CoGM-Me': key } });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      live.textContent = body.error || 'Could not make your helper file. Ask your GM.';
+      return;
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'foundry-player.mcpb';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    live.textContent = 'Downloaded. Open the file, then restart Claude Desktop.';
+  } catch {
+    live.textContent = 'Could not download. Check your connection and try again.';
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -318,6 +352,7 @@ document.addEventListener('click', e => {
     });
   }
   if (e.target.closest('#mc-retry')) void loadConnector();
+  if (e.target.closest('#mc-download')) void downloadHelper();
   if (e.target.closest('#mc-show')) {
     const secret = $('mc-secret');
     const show = secret.type === 'password';

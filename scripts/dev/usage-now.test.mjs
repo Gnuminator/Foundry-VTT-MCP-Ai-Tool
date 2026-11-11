@@ -52,10 +52,10 @@ test('refuses missing, out of range and offset-less input', () => {
   assert.throws(() => parseArgs(['--model', 'sonnet']), /name=percent/);
 });
 
-test('check lines come from the targets and skip unknown values', () => {
+test('check lines come from the figures and skip unknown values', () => {
   const report = {
     window: { from: '2026-10-17', to: '2026-10-23' },
-    targets: [
+    figures: [
       { name: 'startup', value: 74321.4 },
       { name: 'M tokens per PR', value: 16.44 },
       { name: 'sessions a day', value: 14.84 },

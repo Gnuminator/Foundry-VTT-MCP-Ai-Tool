@@ -304,7 +304,19 @@
         flex-wrap: wrap;
         padding: 6px 0 2px;
       }
+      .mine-portrait[hidden],
+      .mine-portrait .portrait-field[hidden] {
+        display: none;
+      }
+      .mine-portrait .portrait-field {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 0.9em;
+      }
       .mine-portrait button {
+        min-height: 2.25rem;
         background: var(--pc);
         color: #000;
         border: 0;
@@ -325,6 +337,7 @@
         border-radius: 6px;
         padding: 4px 6px;
         font-size: 0.9em;
+        min-height: 2.25rem;
       }
       .mine-char a {
         margin-left: auto;
@@ -437,14 +450,20 @@
           <div id="mine-rolls"></div>
           <div id="mine-chars"></div>
           <div id="mine-portrait" class="mine-portrait">
-            <select id="portrait-actor" aria-label="Character" hidden></select>
+            <label class="portrait-field" id="portrait-actor-field" hidden>
+              <span>Character</span>
+              <select id="portrait-actor" class="portrait-token"></select>
+            </label>
             <button type="button" id="portrait-pick" data-track="player.mine.portrait">
               Upload my portrait
             </button>
-            <select id="portrait-token" class="portrait-token" aria-label="Use the picture for">
-              <option value="both">Portrait and token</option>
-              <option value="portrait">Portrait only</option>
-            </select>
+            <label class="portrait-field">
+              <span>Use the picture for</span>
+              <select id="portrait-token" class="portrait-token">
+                <option value="both">Portrait and token</option>
+                <option value="portrait">Portrait only</option>
+              </select>
+            </label>
             <input type="file" id="portrait-file" accept="image/png,image/jpeg,image/webp" hidden />
             <span id="portrait-note" class="roll-note" role="status"></span>
           </div>

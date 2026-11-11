@@ -378,7 +378,7 @@ export class QueryHandlers {
     );
 
     // "Upload my portrait": store a picture a player sent for a character they own, in
-    // assets/players/<their slug>/ (player-portrait.ts checks ownership and the bytes). A write
+    // assets/players/<slug>-<user id>/, only while the player-portrait switch is on (player-portrait.ts checks ownership and the bytes). A write
     // (write-gate.ts); not an MCP tool (the control method `player_portrait`). GM client only.
     handlers.on(`${modulePrefix}.${UPLOAD_PLAYER_PORTRAIT_QUERY}`, (data: unknown) =>
       this.withGmGate('Portrait upload failed', () => uploadPlayerPortrait(data))

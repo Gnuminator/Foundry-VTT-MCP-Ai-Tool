@@ -27,7 +27,12 @@ afterEach(async () => {
 });
 
 async function start(
-  options: { shared?: boolean; failFor?: string; bare?: boolean } = {}
+  options: {
+    shared?: boolean;
+    failFor?: string;
+    bare?: boolean;
+    portrait?: 'on' | 'off' | 'unknown';
+  } = {}
 ): Promise<{ base: string; asked: string[]; rolled: string[][]; portraits: string[][] }> {
   const asked: string[] = [];
   const rolled: string[][] = [];
@@ -78,6 +83,13 @@ async function start(
       if (actorId === 'boom000000000000') return Promise.reject(new Error('raw internal detail'));
       return Promise.resolve({ ok: true, path: 'assets/players/x/p.png', actorName: 'Brenna' });
     },
+    featureSwitches: (): Promise<unknown> =>
+      options.portrait === 'unknown'
+        ? Promise.reject(new Error('no features'))
+        : Promise.resolve({
+            features: [{ id: 'player-portrait', enabled: options.portrait !== 'off' }],
+            writesAllowed: true,
+          }),
     characterSheet: (userId: string): Promise<unknown> => {
       asked.push(userId);
       if (userId === options.failFor) return Promise.reject(new Error('gone'));
@@ -158,6 +170,22 @@ describe('/api/me and the player links', () => {
       theme: 'neutral',
     });
     expect(asked).toEqual([PLAYER]);
+  });
+
+  it('says whether the portrait switch is on, so the page can hide the upload control', async () => {
+    for (const [portrait, expected] of [
+      ['on', true],
+      ['off', false],
+      ['unknown', null],
+    ] as const) {
+      const { base } = await start({ portrait });
+      const res = await me(base, keyOf(await makeLink(base, PLAYER)));
+      expect(((await res.json()) as { portraitEnabled: unknown }).portraitEnabled).toBe(expected);
+      dashboard?.close();
+      await new Promise<void>(resolve => server!.close(() => resolve()));
+      dashboard = null;
+      server = null;
+    }
   });
 
   it('lists the open roll requests as a button id and a label, nothing more', async () => {

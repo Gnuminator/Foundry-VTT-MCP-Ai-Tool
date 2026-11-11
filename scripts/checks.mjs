@@ -343,8 +343,8 @@ export function driftChecks() {
  * @type {Record<string, string>}
  */
 export const CI_ONLY = {
-  'npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium':
-    'Installs Chromium and its system packages on the CI runner; on a PC it is a one-time `npx playwright install chromium`.',
+  'bash scripts/ci-install-chromium.sh':
+    'Installs Chromium and its system packages on the CI runner, retrying on a DNS blip; on a PC it is a one-time `npx playwright install chromium`.',
 };
 
 /**

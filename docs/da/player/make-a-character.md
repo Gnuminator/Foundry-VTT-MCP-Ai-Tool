@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 556304b008f8
+sourceHash: 950eb356952b
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -297,7 +297,9 @@ for spillere, så det er vejen ind.
    Tryk på **Upload my portrait** i kortet **You**.
 2. Vælg én PNG-, JPG- eller WebP-fil på højst 5 MB.
 3. Listen ved siden af knappen står på **Portrait and token**, så det samme billede også bliver dit
-   token på kortet. Vælg **Portrait only** for kun at ændre portrættet.
+   token på kortet, og de tokens af din karakter, der allerede står på en scene, får det også. Vælg
+   **Portrait only** for kun at ændre portrættet. Mangler knappen **Upload my portrait**, har GM'en
+   slået den fra.
 4. Vent på "Done". Din karakter har nu det nye billede i Foundry. Har du mere end én karakter,
    vælger du først hvilken.
 

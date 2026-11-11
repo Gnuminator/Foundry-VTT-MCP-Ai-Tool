@@ -52,6 +52,15 @@ describe('weaponsOf', () => {
     expect(
       weaponsOf({ matches: [{ id: 'w1', name: 'Scimitar' }, { id: 3 }, null, { name: 'x' }] })
     ).toEqual([{ id: 'w1', name: 'Scimitar', label: 'Scimitar' }]);
+    expect(
+      weaponsOf({
+        matches: [
+          { id: 'w1', name: 'Scimitar', hasAttack: true },
+          { id: 'w2', name: 'Shield', hasAttack: false },
+          { id: 'w3', name: 'Dagger' },
+        ],
+      }).map(w => w.id)
+    ).toEqual(['w1', 'w3']);
     expect(weaponsOf(null)).toEqual([]);
     expect(weaponsOf({})).toEqual([]);
   });
@@ -97,6 +106,6 @@ describe('attackArgs', () => {
 describe('attackLabel', () => {
   it('says what the button does', () => {
     expect(attackLabel('Randal', 'Scimitar', 'Wolf 1')).toBe('Randal attacks Wolf 1 with Scimitar');
-    expect(attackLabel('Randal', '', 'Wolf 1')).toBe('Pick a weapon');
+    expect(attackLabel('Randal', '', 'Wolf 1')).toBe('Pick a weapon or spell');
   });
 });

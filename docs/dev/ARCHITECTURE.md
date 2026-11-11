@@ -155,7 +155,9 @@ fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
 ### Safety (`permissions.ts`, `transaction-manager.ts`)
 
 See §6. These two files are the older safety layer. Today they guard actor creation and journals
-only: `permissions.ts` classifies those writes by risk and checks quantity limits, and
+only (actor creation includes placing the new actors on a scene; the `validateWritePermissions`
+query is an advisory check on the same two operations): `permissions.ts` classifies those writes
+by risk and checks quantity limits, and
 `transaction-manager.ts` wraps the multi-step actor creation in a transaction that rolls itself
 back. Every other write is guarded by the write gate and by guarded writes (§4). Retiring the
 older layer is a parked backlog item (`permission-path-retirement`).

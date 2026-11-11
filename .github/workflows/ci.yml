@@ -53,7 +53,7 @@ jobs:
         # must still fail CI. Runs before build to fail fast. Every lint rule is an
         # error now (D-109), so the lint ratchet fails on any finding; the baseline
         # scripts/lint-baseline.json stays at 0.
-        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
+        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run line:ratchet && npm run version:check
 
       - name: Usage catalogue is current
         # shared/src/usage-catalog.generated.ts lists every control that reports usage

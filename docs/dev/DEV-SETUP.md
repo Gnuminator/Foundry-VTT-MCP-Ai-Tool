@@ -33,6 +33,7 @@ npm run build          # composite build of all workspaces
 npm run typecheck      # strict TS, all workspaces
 npm run lint:ratchet   # any ESLint error fails (baseline 0)
 npm run emdash:ratchet # em dashes may only go down
+npm run line:ratchet   # source files over 1,000 lines may not grow (--update lowers, --except "<reason>" for a named exception)
 CI=true npm test       # every workspace
 npm run docs:lint      # markdownlint (.markdownlint-cli2.jsonc)
 npm run docs:links     # every relative link and #anchor in the tracked Markdown

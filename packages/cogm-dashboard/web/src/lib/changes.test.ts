@@ -221,6 +221,27 @@ describe('obsidianChangePath', () => {
     );
   });
 
+  it('opens the -pN part the bridge names, and ignores one from another month', () => {
+    expect(obsidianChangePath({ appliedAt: '2026-10-06T19:05:00Z', notePart: '2026-10-p2' })).toBe(
+      'AI Tool/Changes/2026-10-p2'
+    );
+    expect(obsidianChangePath({ appliedAt: '2026-10-06T19:05:00Z', notePart: '2026-09-p2' })).toBe(
+      'AI Tool/Changes/2026-10'
+    );
+  });
+
+  it('reads notePart from list-recent-changes and drops a malformed one', () => {
+    const row = { changeId: 'c1', appliedAt: '2026-10-06T19:05:00Z' };
+    const [a, b] = readAiChanges({
+      changes: [
+        { ...row, notePart: '2026-10-p3' },
+        { ...row, changeId: 'c2', notePart: '../x' },
+      ],
+    });
+    expect(a?.notePart).toBe('2026-10-p3');
+    expect(b?.notePart).toBeUndefined();
+  });
+
   it('is null for a missing or bad date', () => {
     expect(obsidianChangePath({ appliedAt: '' })).toBeNull();
     expect(obsidianChangePath({ appliedAt: 'yesterday' })).toBeNull();

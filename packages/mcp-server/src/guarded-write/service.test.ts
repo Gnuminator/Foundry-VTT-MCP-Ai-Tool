@@ -353,6 +353,8 @@ describe('applyPlan (Foundry ops)', () => {
     expect(() => service.getPlan(p.planId)).toThrow(/No pending plan/);
     const [recent] = await service.listRecentChanges();
     expect(recent).toMatchObject({ changeId: applied.changeId, canUndo: true });
+    // The Obsidian Changes/ note that holds it (a small month is one note, named by the month).
+    expect(recent?.notePart).toMatch(/^\d{4}-\d{2}$/);
   });
 
   it('keeps the plan and records nothing when Foundry refuses or conflicts', async () => {

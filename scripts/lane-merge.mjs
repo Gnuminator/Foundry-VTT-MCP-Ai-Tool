@@ -153,7 +153,13 @@ export const RISKY_CATEGORIES = [
   {
     // Pi scripts: they run as root on the Pi and change the real campaign host.
     name: 'Pi scripts',
-    patterns: ['scripts/pi/**', 'scripts/plan-b/**', 'deploy/**'],
+    // The Discord announce sender runs with the bot token from Pi stage 5 and after every merge.
+    patterns: [
+      'scripts/pi/**',
+      'scripts/plan-b/**',
+      'deploy/**',
+      'packages/discord-bot/announce/**',
+    ],
   },
   {
     // Wire contracts: the named contract files of the shared package and the module manifest. A new
@@ -1512,6 +1518,11 @@ export function verdictLine(code, reason) {
  */
 export function runEntry({ argv, relaunch, runMain, log }) {
   if (argv.includes('--risky-list')) {
+    if (argv.length !== 1) {
+      log('lane:merge: --risky-list takes no other argument');
+      return 2;
+    }
+    log('lane:merge: the Opus list of this checkout (the gate judges by main copy):');
     for (const line of riskyListLines()) log(line);
     return 0;
   }

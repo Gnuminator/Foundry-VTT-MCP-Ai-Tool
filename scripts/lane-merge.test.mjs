@@ -583,6 +583,43 @@ test('shared/src: every file is a risky contract file or named in NOT_CONTRACT (
   assert.deepEqual(stale, [], 'NOT_CONTRACT entries that are gone or are risky after all');
 });
 
+test('guard hooks stay registered: every .claude/hooks/guard-*.mjs is a command in settings.json (Sonnet-reviewed file, so CI pins it)', () => {
+  const settings = fs.readFileSync(path.join(REPO_ROOT, '.claude', 'settings.json'), 'utf8');
+  const guards = fs
+    .readdirSync(path.join(REPO_ROOT, '.claude', 'hooks'))
+    .filter(f => /^guard-.*\.mjs$/.test(f) && !f.endsWith('.test.mjs'));
+  assert.ok(guards.length >= 4, 'guard hooks found');
+  for (const g of guards) assert.ok(settings.includes(`.claude/hooks/${g}`), `${g} is registered`);
+});
+
+test('feature switch ids are pinned: they form the module setting keys, so a rename needs a migration (shared/src is Sonnet-reviewed outside the contract files)', () => {
+  const found = sharedSourceFiles()
+    .flatMap(f =>
+      [...fs.readFileSync(path.join(REPO_ROOT, f), 'utf8').matchAll(/export const (\w+_FEATURE_ID) = '([^']+)'/g)].map(
+        m => `${m[1]}=${m[2]}`
+      )
+    )
+    .sort();
+  assert.deepEqual(found, [
+    'ACTOR_IMAGE_FEATURE_ID=actor-image',
+    'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
+    'LIVE_PLAY_FEATURE_ID=live-play',
+    'NPC_TURN_FEATURE_ID=npc-turn',
+    'OWNERSHIP_FEATURE_ID=ownership',
+    'PAPER_SYNC_FEATURE_ID=paper-sync',
+    'PARTY_FEATURE_ID=party',
+    'PC_CREATION_FEATURE_ID=pc-creation',
+    'PLAYER_PORTRAIT_FEATURE_ID=player-portrait',
+    'ROOM_SETUP_FEATURE_ID=room-setup',
+    'RULES_CHECK_FEATURE_ID=rules-check',
+    'SCENE_MOOD_FEATURE_ID=scene-mood',
+    'SCENE_RESTORE_FEATURE_ID=scene-restore',
+    'TABLE_VIEWER_FEATURE_ID=table-viewer',
+    'TOKEN_RINGS_FEATURE_ID=token-rings',
+    'WHO_NOTICES_FEATURE_ID=who-notices',
+  ]);
+});
+
 test('--risky-list prints every category and pattern and exits 0', () => {
   const lines = [];
   const code = runEntry({
@@ -596,7 +633,12 @@ test('--risky-list prints every category and pattern and exits 0', () => {
     assert.ok(lines.includes(`${c.name}:`), c.name);
     for (const p of c.patterns) assert.ok(lines.includes(`  ${p}`), p);
   }
-  assert.ok(!lines.some(l => l.includes('the merge gate')));
+  assert.ok(!lines.some(l => l.includes('the merge gate:')));
+  assert.equal(
+    runEntry({ argv: ['--risky-list', '5'], relaunch: () => assert.fail(), runMain: () => assert.fail(), log: () => {} }),
+    2
+  );
+  assert.deepEqual(riskyHits(['packages/discord-bot/announce/announce.mjs']).map(h => h.name), ['Pi scripts']);
 });
 
 test('globToRegExp: ** crosses folders, * does not', () => {

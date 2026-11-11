@@ -64,6 +64,8 @@ export function AttackForm({
   const [note, setNote] = useState('');
   const [weaponError, setWeaponError] = useState('');
   const [spellError, setSpellError] = useState('');
+  // The spell read is still out: an empty weapon list is not the final answer yet.
+  const [spellsPending, setSpellsPending] = useState(false);
   const ownLock = useRef(false);
   const attackerRef = useRef<HTMLSelectElement>(null);
 
@@ -85,6 +87,7 @@ export function AttackForm({
     setWeaponId('');
     setWeaponError('');
     setSpellError('');
+    setSpellsPending(!!attackerToken);
     if (!attackerToken) {
       // Nobody left who can attack: say so instead of waiting for weapons that will not come.
       setWeapons([]);
@@ -126,6 +129,7 @@ export function AttackForm({
       spellRead,
     ]).then(([weaponsOk, spells]) => {
       if (!live) return;
+      setSpellsPending(false);
       if (spells === null) {
         setSpellError(SPELL_READ_NOTE);
         return;
@@ -214,7 +218,8 @@ export function AttackForm({
 
   const targetName = targetRow ? targetRow.name : 'the Foundry targets';
   let buttonText = PICK_NOTE;
-  if (weapons === null) buttonText = 'Loading attacks...';
+  if (weapons === null || (weapons.length === 0 && spellsPending && !weaponError))
+    buttonText = 'Loading attacks...';
   else if (weapon && attacker) buttonText = attackLabel(attacker.name, weapon.name, targetName);
 
   return (
@@ -287,7 +292,9 @@ export function AttackForm({
       </div>
       <p role="status" className={styles['note']} id="attack-note">
         {weapons !== null && weapons.length === 0
-          ? weaponError || 'This one has no weapons or spell attacks.'
+          ? weaponError ||
+            spellError ||
+            (spellsPending ? '' : 'This one has no weapons or spell attacks.')
           : note || spellError}
       </p>
       <div className={styles['row']}>

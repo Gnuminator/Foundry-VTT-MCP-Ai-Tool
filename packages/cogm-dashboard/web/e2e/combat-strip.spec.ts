@@ -1191,6 +1191,26 @@ test.describe('picking combatants', () => {
     await expect(page.locator('#attack-note')).toHaveText('Spells could not be read.');
   });
 
+  test('Attack: no weapons and a failed spell read says the spells could not be read', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items') {
+          return type === 'spell'
+            ? failed('spell list unavailable')
+            : ok({ matches: [], totalMatches: 0 });
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-note')).toHaveText('Spells could not be read.');
+  });
+
   test('Attack: a cantrip with an attack is listed next to the weapons and rolls through use-item', async ({
     page,
   }) => {

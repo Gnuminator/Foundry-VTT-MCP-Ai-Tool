@@ -58,13 +58,13 @@ export function matchPath(path, names) {
 
 // JS `\b` is ASCII only, so it never matches next to å, æ, ø: use Unicode-aware lookarounds.
 const DANISH = /(?<![\p{L}\p{N}_])(har|hvor|er|og|af|ikke|han|hans|lige nu|aktuelle|nuværende)(?![\p{L}\p{N}_])/iu;
-const NORWEGIAN = /(?<![\p{L}\p{N}_])(av|nå|hvor mye|også|ikke noe|dessverre|treffpoeng|livspoeng)(?![\p{L}\p{N}_])/iu;
+const NORWEGIAN = /(?<![\p{L}\p{N}_])(av|nå|hvor mye|ikke noe|dessverre|treffpoeng|livspoeng|gjelder)(?![\p{L}\p{N}_])/iu;
 
 /** The reply names the Play set: "Play" within about 60 characters of "connector", "switch" or "set". */
 export function namesPlaySet(text) {
   return (
-    /\bplay\b[^.\n]{0,60}\b(connector|switch|set|toggle|menu)\b/i.test(text) ||
-    /\b(connector|switch|set|toggle|turn on|enable)\b[^.\n]{0,60}\bplay\b/i.test(text)
+    /\bplay\b[^.\n]{0,60}\b(connector|switch\w*|set|toggl\w*|menu|tools|enabl\w*|turn\w*)\b/i.test(text) ||
+    /\b(connector|switch\w*|set|toggl\w*|turn\w*|enabl\w*)\b[^.\n]{0,60}\bplay\b/i.test(text)
   );
 }
 

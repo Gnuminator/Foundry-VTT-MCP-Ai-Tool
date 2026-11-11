@@ -112,6 +112,13 @@ function tokenTotal(usage) {
   );
 }
 
+/** Subscription only (D-066): drop the API key and any Bedrock/Vertex/Foundry switch, any case. */
+export function scrubEnv(env) {
+  const out = { ...env };
+  for (const k of Object.keys(out)) if (/^(ANTHROPIC_|CLAUDE_CODE_USE_)/i.test(k)) delete out[k];
+  return out;
+}
+
 function runClaude(args, env, cwd, timeoutS) {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(CLAUDE, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -199,9 +206,7 @@ async function runChat(chain, model, sample, ctx) {
       SYSTEM_PROMPT,
     ];
     if (sessionId) args.push('--resume', sessionId);
-    const env = { ...process.env, ENABLE_TOOL_SEARCH: 'false' };
-    // Subscription only (D-066): no API key, no Bedrock/Vertex/Foundry switch, any case.
-    for (const k of Object.keys(env)) if (/^(ANTHROPIC_|CLAUDE_CODE_USE_)/i.test(k)) delete env[k];
+    const env = scrubEnv({ ...process.env, ENABLE_TOOL_SEARCH: 'false' });
     const run = await runClaude(args, env, ctx.cwd, ctx.timeout);
     const parsed = parseStream(run.out);
     sessionId = parsed.sessionId ?? sessionId;

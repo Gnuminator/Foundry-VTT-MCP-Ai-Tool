@@ -289,7 +289,9 @@ node scripts/gamenight-watch.mjs --url http://<pi-address>:30000 --post     # po
 Posting is opt-in (`--post`). It uses the bot token already in `%APPDATA%\foundry-ai-tool\discord-bot.env`
 (never printed) plus `GAMENIGHT_WATCH_CHANNEL_ID=<channel>` in the same file, and optionally
 `GAMENIGHT_WATCH_MENTION_IDS=<your id>,<GM id>` to ping you both. The bot must be in that server and
-allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-ms`, `--fail`, `--slow`,
+allowed to post in the channel. Another env file: `--env-files a.env,b.env` (comma separated, a later file wins; the old
+`--env-file` still works but warns, because Node itself reads `--env-file` from the whole command line and stops on a
+file it cannot open). Tune with `--interval`, `--slow-ms`, `--timeout-ms`, `--fail`, `--slow`,
 `--recover`. For a test, point `--url` at the test server (`http://localhost:30001`) and stop it with
 `scripts/test-env/stop.ps1 -Only foundry`.
 
@@ -1862,13 +1864,16 @@ ended (2 closed readings in a row) or the service stops. A bridge that does not 
 session (watch on stays on, off stays off), but the bridge check itself then reports. Posts hold no address, no
 query string and no token; the log shows host names only.
 
-A session that is still marked open but has had no event for 2 hours, with Foundry down (the 04:30 backup on a late
-night), raises no alarm and no start post. The end post reads "the session has ended or has gone quiet", because
+A session that is still marked open but has had no event for 2 hours, with Foundry or the bridge link down (the 04:30
+backup on a late night), raises no alarm and no start post. A session whose last event came between 02:30 and 04:30 is
+not quiet yet at 04:30, so the backup can still raise an alarm that night. The end post reads "the session has ended or has gone quiet", because
 nobody may have marked the end. A recorder check that cannot read `systemctl` as the `foundry` user counts as "cannot
 tell" in the log, not as a down recorder. A settings problem (a bad number or address, no token, Discord refusing the
 channel, or a public address on plain http while the Access token is set) exits 2 and the service stays stopped;
-fix the file, then restart it. `set-discord-token.ps1` and stage 26 restart the watch for you, and stage 29 waits for the
-watch's "watching" line after a start or restart and fails when it never comes.
+fix the file, then restart it. `set-discord-token.ps1` and stage 26 restart the watch for you (stage 26 also on a rerun
+when its settings file is newer than the running watch) and warn when no "watching" line follows; stage 29 waits for
+that line after a start or restart and fails when it never comes. A stop signal while a round runs waits for the round
+and posts "the service is stopping" once.
 
 **Install (user OK and a `dietpi-backup` snapshot first; never on a game night).** Step 1, read-only, before anything
 else: check that the `foundry` user can ask systemd about the recorder, the way the watch does:

@@ -206,7 +206,7 @@ if have_systemd; then
     # files were written, the restart never happened). Only the watch itself restarts; it holds no player and no recording.
     started="$(unit_started_epoch "$unit")"
     restart=0
-    for f in "$unit_file" "$dest/gamenight-watch.mjs" "$dest/gamenight-watch-pi.mjs" "$watch_env"; do
+    for f in "$unit_file" "$dest/gamenight-watch.mjs" "$dest/gamenight-watch-pi.mjs" "$watch_env" "$bot_env"; do
       if file_changed "$f"; then
         restart=1
       elif [ -n "$started" ] && [ -f "$f" ] && [ "$(stat -c %Y "$f")" -gt "$started" ]; then
@@ -223,15 +223,9 @@ if have_systemd; then
   if [ "$acted" = 1 ]; then
     # "Running" is not "watching": a settings problem (no token, Discord refuses #gm-bot, an http public address with the
     # Access token) exits 2 within seconds and the unit stays down. Wait for the watch's own "watching" line (the journal
-    # holds log lines, never a token or an address) and fail loudly when the unit stopped first. Only after a start or
-    # restart of this run: a clean rerun writes no new line.
-    seen=0
-    for _ in $(seq 1 20); do
-      journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -q ' watching ' && { seen=1; break; }
-      systemctl is-active --quiet "$unit" || break
-      sleep 1
-    done
-    if [ "$seen" != 1 ]; then
+    # holds log lines, never a token; the watching line names the Foundry host only, no full address) and fail loudly
+    # when the unit stopped first. Only after a start or restart of this run: a clean rerun writes no new line.
+    if ! wait_for_watching "$unit" "$since"; then
       journalctl -u "$unit" -n 5 --no-pager 2>/dev/null | sed 's/^/    /' || true
       die "$unit did not reach its 'watching' line (a settings problem stops it for good): journalctl -u $unit -n 30"
     fi

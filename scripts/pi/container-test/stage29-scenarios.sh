@@ -206,7 +206,9 @@ esac
 EOF
 cat >/tmp/fakebin/journalctl <<'EOF'
 #!/usr/bin/env bash
-[ -f /tmp/fake-acted ] && [ ! -f /tmp/fake-nowatch ] && echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
+# A unit that dies on its first journal read (a settings problem: exit 2 before any watching line).
+[ -f /tmp/fake-diesoon ] && touch /tmp/fake-dead
+[ -f /tmp/fake-acted ] && [ ! -f /tmp/fake-nowatch ] && [ ! -f /tmp/fake-diesoon ] && echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
 EOF
 chmod 0755 /tmp/fakebin/systemctl /tmp/fakebin/journalctl
 rm -f /tmp/systemctl.log /tmp/fake-active /tmp/fake-dead /tmp/fake-nowatch /tmp/fake-started
@@ -229,6 +231,11 @@ rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
 rc=$?
 rm -f /tmp/fake-nowatch
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that never reaches its watching line fails the stage"; else fail "no watching line: rc=$rc $OUT"; fi
+touch /tmp/fake-diesoon; echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
+rm -f /tmp/fake-acted /tmp/fake-dead; run PATH="/tmp/fakebin:$PATH"
+rc=$?
+rm -f /tmp/fake-diesoon /tmp/fake-dead
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that stops before its watching line fails the stage at once"; else fail "unit stops first: rc=$rc $OUT"; fi
 rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/fake-acted /tmp/systemctl.log
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

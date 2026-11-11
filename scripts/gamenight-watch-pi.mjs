@@ -59,6 +59,8 @@ export const END_AFTER = 2;
  * anyone marking it (or the 04:30 backup stopping Foundry): that round alarms and posts nothing. The session gate itself
  * lets go after 3 h without events; this is shorter so a late night does not alarm at the backup, and long enough that a
  * quiet stretch of play followed by a crash is still caught. A crash after 2 h of no events at all is not alarmed.
+ * Remaining window: a session whose last event came between 02:30 and 04:30 is not quiet yet at 04:30, so the backup
+ * can still raise an alarm that night.
  */
 export const QUIET_MS = 2 * 60 * 60 * 1000;
 
@@ -309,15 +311,15 @@ export async function tick(rt) {
   );
   // Still marked open, nothing happened for a long while and Foundry is down: the table has gone home (or the nightly
   // backup stopped Foundry). No alarm and no start post; the gate ends the watch by itself when the session closes.
-  const foundryProbe = results.find(r => r.check.key === 'foundry')?.probe;
+  // The bridge counts too: after the backup restarts Foundry, the module socket reconnects a little later.
+  const downProbe = results.find(r => (r.check.key === 'foundry' || r.check.key === 'bridge') && !r.probe.ok);
   if (
     !rt.always &&
-    foundryProbe &&
-    !foundryProbe.ok &&
+    downProbe &&
     typeof rt.lastEventAt === 'number' &&
     now() - rt.lastEventAt > QUIET_MS
   ) {
-    rt.log('quiet night and Foundry is down: nothing alarmed');
+    rt.log(`quiet night and ${downProbe.check.key} is down: nothing alarmed`);
     return { failed: 0 };
   }
   if (gated.event === 'started') {
@@ -467,33 +469,24 @@ async function main() {
     probes,
     log,
   };
-  let stopping = false;
-  /** The loop's flush in flight: the stop handler waits for it, so one text is never posted twice. */
-  let flushing = Promise.resolve();
-  const stop = async () => {
-    if (stopping) return;
-    stopping = true;
-    await flushing.catch(() => {});
-    if (target && rt.gate.active) {
-      rt.pending.push({ text: 'Game-night watch stopped: the service is stopping.', at: Date.now() });
-      await flushPending(rt.pending, a => postToChannel(target, a.text), () => {}).catch(() => {});
-    }
-    process.exit(0);
-  };
-  process.on('SIGTERM', stop);
-  process.on('SIGINT', stop);
+  const life = createLifecycle(rt, target, { exit: code => process.exit(code) });
+  process.on('SIGTERM', life.stop);
+  process.on('SIGINT', life.stop);
 
   for (;;) {
-    const round = await tick(rt);
+    const round = await life.track(tick(rt));
+    // A stop during the round: the stop handler flushes everything (this round's texts included) exactly once.
+    if (life.stopping()) return;
     if (target && rt.pending.length > 0) {
-      flushing = flushPending(
-        rt.pending,
-        a => postToChannel(target, withLateNote(a)),
-        m => console.error(`${stamp()} ${m}`)
-      ).then(left => {
-        rt.pending = left;
-      });
-      await flushing;
+      await life.trackFlush(
+        flushPending(
+          rt.pending,
+          a => postToChannel(target, withLateNote(a)),
+          m => console.error(`${stamp()} ${m}`)
+        ).then(left => {
+          rt.pending = left;
+        })
+      );
     }
     if (args.once) {
       // Exit 1 when a probe failed this round or a post is still unsent, so a stage check can tell.
@@ -502,6 +495,34 @@ async function main() {
     }
     await new Promise(r => setTimeout(r, cfg.intervalSec * 1000));
   }
+}
+
+/**
+ * Stop handling. The stop waits for the round and the flush in flight, then posts "stopping" and everything still
+ * pending once; the loop returns as soon as it sees `stopping`, so a text is never posted twice.
+ * @param {{ gate: {active:boolean}, pending: {text:string, at:number}[] }} rt
+ */
+export function createLifecycle(rt, target, { exit, post = postToChannel }) {
+  let stopping = false;
+  let round = Promise.resolve();
+  let flushing = Promise.resolve();
+  const stop = async () => {
+    if (stopping) return;
+    stopping = true;
+    await round.catch(() => {});
+    await flushing.catch(() => {});
+    if (target && rt.gate.active) {
+      rt.pending.push({ text: 'Game-night watch stopped: the service is stopping.', at: Date.now() });
+      await flushPending(rt.pending, a => post(target, a.text), () => {}).catch(() => {});
+    }
+    exit(0);
+  };
+  return {
+    stop,
+    stopping: () => stopping,
+    track: p => (round = p),
+    trackFlush: p => (flushing = p),
+  };
 }
 
 const isMain = () => {

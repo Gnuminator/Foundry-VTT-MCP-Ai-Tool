@@ -418,8 +418,30 @@ jobs:
         # redaction (GM vs player) + the write-surface auth gate over HTTP.
         run: node scripts/cogm-split-smoke-test.mjs
 
+      - name: Find the Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright's browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
       - name: Install Chromium for the dashboard browser tests
-        run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
+        # The runner sometimes cannot resolve the Ubuntu apt mirrors for a minute or two, which
+        # failed whole runs. Retry with backoff; the last attempt skips apt (--with-deps) and
+        # relies on the system libraries the runner image already has.
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::playwright install --with-deps failed (attempt $attempt of 4)"
+            sleep $((attempt * 20))
+          done
+          echo "::warning::falling back to playwright install without apt"
+          npm exec -w @gnuminator/cogm-dashboard -- playwright install chromium
 
       - name: Dashboard browser tests (React dashboard)
         # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):

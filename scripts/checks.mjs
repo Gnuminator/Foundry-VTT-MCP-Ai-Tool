@@ -106,7 +106,9 @@ export const CHECKS = [
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },
   }),
-  npmRun('unused-ratchet', 'static', 'unused:ratchet'),
+  npmRun('unused-ratchet', 'static', 'unused:ratchet', {
+    drift: { name: 'unused baseline', order: 13, heavy: true },
+  }),
   npmRun('docs-lint', 'docs', 'docs:lint', { drift: { name: 'docs lint', order: 6 } }),
   npmRun('docs-links', 'docs', 'docs:links', { drift: { name: 'docs links', order: 7 } }),
   npmRun('docs-ui', 'docs', 'docs:ui'),

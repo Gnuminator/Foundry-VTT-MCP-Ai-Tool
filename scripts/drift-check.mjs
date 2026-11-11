@@ -82,6 +82,8 @@ export const CHECKS = [
     heavy: true,
     when: ['shared/'],
   },
+  // Two PRs can each stay under the unused-code baseline, or one lowers it under the other.
+  { name: 'unused baseline', command: 'npm run unused:ratchet', heavy: true },
 ];
 
 const REPO_URL = /github\.com[/:]Gnuminator\/Foundry-VTT-MCP-Ai-Tool(\.git)?$/i;

@@ -206,6 +206,11 @@ only after you confirm a plan, and it shows in Recent Changes with Undo.
 - **Table viewer** ("AI Tool: Table viewer (writes)"): lets Claude create the **Table** player that
   the TV at the table signs in as. Starts on. You use it once; see
   [The TV at the table](tv-table-viewer.md).
+- **Player portraits** ("AI Tool: Player portraits (writes)"): lets a player change the picture of
+  their own character from the player page (**Upload my portrait**). The file goes into their own
+  folder under `assets/players`, and a second change updates the tokens already placed on
+  scenes when the player chose "Portrait and token". Both show in Recent Changes with Undo. Starts
+  on. Turn it off and the button disappears from the player page.
 - **Undo for everything** ("AI Tool: Undo for everything"): lets the tool undo and redo anyone's
   changes (players', yours and Claude's) from the Changes list, one change or everything since on
   the same thing. Starts on.

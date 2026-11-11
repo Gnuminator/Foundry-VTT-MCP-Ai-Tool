@@ -83,6 +83,75 @@ describe('handlePlayerPortrait', () => {
     });
   });
 
+  it('also updates the tokens already placed, in the same plan, when the token picture is chosen', async () => {
+    const tok = 'Scene.scene00000000001.Token.tok0000000001';
+    const s = setup({
+      upload: {
+        success: true,
+        path: 'assets/players/p/portrait-1.png',
+        actorName: 'Brenna',
+        userName: 'Player',
+        placedTokens: [tok, 'Scene.bad/../x', 42],
+      },
+    });
+    await run(s, { userId: USER, actorId: ACTOR, target: 'both', data: PNG.toString('base64') });
+    // Two separate changes: the character first, then the tokens, so a deleted token never
+    // blocks the Undo of the character's own picture.
+    expect(s.writes.createPlan).toHaveBeenCalledTimes(2);
+    const first = s.writes.createPlan.mock.calls[0][0] as { ops: unknown[] };
+    expect(first.ops).toHaveLength(1);
+    const plan = s.writes.createPlan.mock.calls[1][0] as {
+      summary: string;
+      ops: Array<{ uuid: string; changes: object }>;
+    };
+    expect(plan.ops).toEqual([
+      {
+        kind: 'update',
+        uuid: tok,
+        changes: { 'texture.src': 'assets/players/p/portrait-1.png' },
+      },
+    ]);
+    expect(plan.summary).toContain('1 placed token');
+  });
+
+  it('still succeeds when the placed-token change fails', async () => {
+    const s = setup({
+      upload: {
+        success: true,
+        path: 'assets/players/p/portrait-1.png',
+        placedTokens: ['Scene.scene00000000001.Token.tok0000000001'],
+      },
+    });
+    s.writes.applyPlan.mockResolvedValueOnce({ changeId: 'chg1' });
+    s.writes.applyPlan.mockRejectedValueOnce(new Error('Conflict'));
+    const r = await run(s, {
+      userId: USER,
+      actorId: ACTOR,
+      target: 'both',
+      data: PNG.toString('base64'),
+    });
+    expect(r).toMatchObject({ ok: true, changeId: 'chg1' });
+  });
+
+  it('leaves placed tokens alone when only the portrait is chosen', async () => {
+    const s = setup({
+      upload: {
+        success: true,
+        path: 'assets/players/p/portrait-1.png',
+        placedTokens: ['Scene.scene00000000001.Token.tok0000000001'],
+      },
+    });
+    await run(s, {
+      userId: USER,
+      actorId: ACTOR,
+      target: 'portrait',
+      data: PNG.toString('base64'),
+    });
+    expect(s.writes.createPlan).toHaveBeenCalledTimes(1);
+    const plan = s.writes.createPlan.mock.calls[0][0] as { ops: unknown[] };
+    expect(plan.ops).toHaveLength(1);
+  });
+
   it('refuses bytes that are not a picture before anything reaches Foundry', async () => {
     const s = setup();
     await expect(

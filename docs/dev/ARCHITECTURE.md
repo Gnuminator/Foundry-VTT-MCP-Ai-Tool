@@ -103,9 +103,12 @@ This is the only component with direct access to Foundry's live API (`game`, `ca
 is to be a **disciplined gateway**: expose exactly the operations the tools need, enforce
 who's allowed to call them, and make writes safe and reversible.
 
-### Lifecycle (`main.ts`)
+### Lifecycle (`main.ts` and `bridge-link-lifecycle.ts`)
 
-The module hooks Foundry's lifecycle:
+The module hooks Foundry's lifecycle in `main.ts`. The link itself (starting and stopping the
+socket bridge, its state, the heartbeat, the "server not found" notice and the GM link toasts with
+their `linkState` relay) lives in `bridge-link-lifecycle.ts`; `main.ts` hands over to it, and a
+test keeps it that way.
 
 - **`init`** — register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register

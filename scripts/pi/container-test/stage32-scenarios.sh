@@ -164,6 +164,10 @@ chmod 0755 /tmp/sc-bin/systemctl
 echo timeout >/tmp/sc-result
 OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit foundry.service 2>&1)"
 if echo "$OUT" | grep -q "not start-limit-hit" && [ ! -s /tmp/curl.log ]; then pass "a unit that failed another way posts nothing"; else fail "result timeout: $OUT"; fi
+: >/tmp/sc-result
+: >/tmp/curl.log
+OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit foundry.service 2>&1)"
+if echo "$OUT" | grep -q 'alert: posted' && grep -q 'keeps failing' /tmp/curl.log; then pass "an unreadable Result still posts"; else fail "empty result: $OUT"; fi
 echo start-limit-hit >/tmp/sc-result
 OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit foundry.service 2>&1)"
 if echo "$OUT" | grep -q 'alert: posted' && grep -q 'keeps failing' /tmp/curl.log; then pass "start-limit-hit posts"; else fail "result limit: $OUT"; fi

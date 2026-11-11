@@ -9,7 +9,7 @@
 # What it changes (all of it under /etc/systemd/system, $TOOL_DIR/crash-guard and one state folder; no unit file written by
 # an earlier stage is edited, so a later run of stage 3 or 5 keeps the guard):
 #   1. drop-ins  <unit>.d/10-crash-guard.conf  for foundry, foundry-ai-tool-bridge, foundry-ai-tool-dashboard and, when it
-#      is a systemd unit that is enabled, foundry-ai-tool-gm-browser: StartLimitIntervalSec and StartLimitBurst (a crash loop
+#      is a systemd unit that is enabled (each of the four must be), foundry-ai-tool-gm-browser:StartLimitIntervalSec and StartLimitBurst (a crash loop
 #      stops after a few minutes instead of for ever), OnFailure=foundry-ai-tool-alert@%n.service (the stop is announced) and,
 #      for Foundry only, Restart=always (a clean exit no longer leaves the world down). A unit that is not there is skipped
 #      with a note (the stack may run as containers: the compose stage owns those).
@@ -78,8 +78,9 @@ case "$kind" in
       # (not for a stop that timed out, say).
       if command -v systemctl >/dev/null 2>&1; then
         result="$(systemctl show -p Result --value "$name" 2>/dev/null || true)"
-        if [ "$result" != start-limit-hit ]; then
-          echo "alert: $name result is '${result:-unknown}', not start-limit-hit: journal only"
+        # An unreadable Result (empty) still posts: for an alarm the safe default is to speak.
+        if [ -n "$result" ] && [ "$result" != start-limit-hit ]; then
+          echo "alert: $name result is '$result', not start-limit-hit: journal only"
           exit 0
         fi
       fi
@@ -240,13 +241,14 @@ if [ "$check" = 1 ]; then
       bad=1
     fi
   done
-  for u in $absent; do ok "$u: not a systemd unit here, skipped"; done
+  for u in $absent; do ok "$u: not here or disabled, skipped"; done
   [ -x "$dest/alert.sh" ] && [ -x "$dest/clock-check.sh" ] || { warn "the scripts in $dest are missing"; bad=1; }
   [ -f "$unit_dir/$alert_unit" ] && [ -f "$unit_dir/$clock_service" ] && [ -f "$unit_dir/$clock_timer" ] || { warn "the alert or clock units are missing in $unit_dir"; bad=1; }
   if have_systemd; then
     systemctl is-active --quiet "$clock_timer" && ok "$clock_timer is active" || { warn "$clock_timer is not active"; bad=1; }
     # The unit itself (sandbox, state folder, user) has to have run at least once: its journal holds the clock line.
-    if journalctl -u "$clock_service" -n 20 --no-pager -o cat 2>/dev/null | grep -q 'clock: NTP service='; then
+    journalctl --sync >/dev/null 2>&1 || true
+    if journalctl -u "$clock_service" -n 20 --no-pager -o cat 2>/dev/null | grep -Eq 'clock: NTP service=(yes|no) '; then
       ok "$clock_service has run under systemd as $FOUNDRY_USER"
     else
       warn "$clock_service has not run yet (the timer fires within 10 minutes of boot or install): journalctl -u $clock_service"
@@ -343,14 +345,19 @@ if have_systemd; then
   # The clock service exits 1 on an unsynchronized clock, which is a finding and not a failure of the unit: its journal line decides.
   since="$(date '+%Y-%m-%d %H:%M:%S')"
   systemctl start "$clock_service" >/dev/null 2>&1 || true
-  journalctl -u "$clock_service" --since "$since" --no-pager -o cat 2>/dev/null | grep -q 'clock: NTP service=' ||
+  sleep 1
+  journalctl --sync >/dev/null 2>&1 || true
+  journalctl -u "$clock_service" --since "$since" --no-pager -o cat 2>/dev/null | grep -Eq 'clock: NTP service=(yes|no) ' ||
     die "$clock_service did not run under systemd (sandbox, state folder or user problem): journalctl -u $clock_service -n 30"
   ok "$clock_service ran as $FOUNDRY_USER"
   systemctl start foundry-ai-tool-alert@crash-guard-test.service >/dev/null 2>&1 || true
+  sleep 1
+  journalctl --sync >/dev/null 2>&1 || true
   alert_log="$(journalctl -u foundry-ai-tool-alert@crash-guard-test.service --since "$since" --no-pager -o cat 2>/dev/null || true)"
   case "$alert_log" in
     *"alert: posted"*) ok "the test alert was posted to #gm-bot (one line: the crash guard is installed)" ;;
-    *"journal only"*) warn "the test alert reached the journal only (no bot token or #gm-bot line): crash alerts will not reach Discord until stages 8 and 26 are done" ;;
+    *"post failed"* | *"looks wrong"*) die "the test alert was not posted (Discord refused it, no route out, or the channel id is wrong): journalctl -u foundry-ai-tool-alert@crash-guard-test.service -n 30" ;;
+    *"no Discord token"*) warn "the test alert reached the journal only (no bot token or #gm-bot line): crash alerts will not reach Discord until stages 8 and 26 are done" ;;
     *) die "the test alert did not run or its post failed: journalctl -u foundry-ai-tool-alert@crash-guard-test.service -n 30" ;;
   esac
 else

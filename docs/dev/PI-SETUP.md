@@ -1927,8 +1927,8 @@ the vault note `Handoff/Pi sitting 2026-11-08 player connector.md`.
 ## Crash guard and clock check (stage 32)
 
 `scripts/pi/remote/32-crash-guard.sh` (backlog `pi-crash-loops-clock`) makes a crash loop and a drifting clock visible.
-Drop-ins `10-crash-guard.conf` on `foundry`, the bridge, the dashboard and (while it is an enabled systemd unit) the
-Assistant GM browser set a start limit (Foundry 10 starts in 300 s, the Assistant GM browser 10 in 600 s, bridge and
+Drop-ins `10-crash-guard.conf` on `foundry`, the bridge, the dashboard and the
+Assistant GM browser (each only while it is an enabled systemd unit, not after a compose cut-over) set a start limit (Foundry 10 starts in 300 s, the Assistant GM browser 10 in 600 s, bridge and
 dashboard 30 in 600 s), `RestartMode=direct` and `OnFailure=foundry-ai-tool-alert@%n.service`; Foundry also gets
 `Restart=always`, so a clean exit no longer leaves it down. When a unit trips its limit, the alert unit (as `foundry`,
 bot token from `discord-bot.env`) posts one fixed line to #gm-bot. A timer runs the clock check every 15 minutes: two

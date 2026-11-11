@@ -55,6 +55,14 @@ describe('stage 32 as text', () => {
     assert.match(stage, /RestartMode=direct\\n/);
     assert.match(stage, /!= start-limit-hit/);
     assert.match(stage, /crash-guard-test/);
+    assert.match(stage, /\[ -n "\$result" \] && \[ "\$result" != start-limit-hit \]/);
+  });
+
+  test('the install read-back stops on a failed test post before it accepts "no token" as a warning', () => {
+    const failed = stage.indexOf('*"post failed"*');
+    const noToken = stage.indexOf('*"no Discord token"*');
+    assert.ok(failed > 0 && noToken > failed);
+    assert.match(stage, /\*"post failed"\* \| \*"looks wrong"\*\) die/);
   });
 
   test('the alert never puts the token on a command line and the units hold no secret', () => {

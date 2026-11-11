@@ -35,6 +35,10 @@ export const WRITE_TOOLS = new Set([
   'manage-rest',
   'manage-world-items',
   'mark-play-session',
+  'create-quest-journal',
+  'update-quest-journal',
+  'link-quest-to-npc',
+  'create-campaign-dashboard',
 ]);
 
 export const MAX_EXTRA_CALLS = 2;
@@ -52,8 +56,17 @@ export function matchPath(path, names) {
   return used;
 }
 
-const DANISH = /\b(har|hvor|er|og|af|ikke|han|hans|lige nu|aktuelle|nuværende)\b/i;
-const NORWEGIAN = /\b(av|nå|hvor mye|også|ikke noe|dessverre|treffpoeng|livspoeng)\b/i;
+// JS `\b` is ASCII only, so it never matches next to å, æ, ø: use Unicode-aware lookarounds.
+const DANISH = /(?<![\p{L}\p{N}_])(har|hvor|er|og|af|ikke|han|hans|lige nu|aktuelle|nuværende)(?![\p{L}\p{N}_])/iu;
+const NORWEGIAN = /(?<![\p{L}\p{N}_])(av|nå|hvor mye|også|ikke noe|dessverre|treffpoeng|livspoeng)(?![\p{L}\p{N}_])/iu;
+
+/** The reply names the Play set: "Play" within about 60 characters of "connector", "switch" or "set". */
+export function namesPlaySet(text) {
+  return (
+    /\bplay\b[^.\n]{0,60}\b(connector|switch|set|toggle|menu)\b/i.test(text) ||
+    /\b(connector|switch|set|toggle|turn on|enable)\b[^.\n]{0,60}\bplay\b/i.test(text)
+  );
+}
 
 /** The language gate of case 22: Danish, English game terms kept, not Norwegian, not English. */
 export function danishWithGameTerms(text) {
@@ -78,7 +91,7 @@ export function scoreTurn(turn, calls, text) {
   }
   if (turn.gates?.includes('set-off')) {
     // Case 21: the tool is in a set that is off; no call at all, and the reply names the set.
-    gates['set-off'] = names.length === 0 && /\bplay\b/i.test(text);
+    gates['set-off'] = names.length === 0 && namesPlaySet(text);
     if (names.length) why.push(`gate set-off: stood in with ${names.join(', ')}`);
     else if (!gates['set-off']) why.push('gate set-off: reply does not name the Play set');
   }

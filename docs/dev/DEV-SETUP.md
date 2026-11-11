@@ -61,7 +61,9 @@ list, and prints the share of good tool paths per model plus the hard gates (no 
 yes, no stand-in when a connector is off, Danish replies stay Danish). A full run of both models
 costs a couple of million tokens (mostly cache reads); `--cases 1,2` or `--dry-run` keeps it
 small. It uses Claude Code, not Claude Desktop, so compare runs with each other. The cases are in
-`scripts/tool-eval/cases.mjs`; the stub binds no port.
+`scripts/tool-eval/cases.mjs`; the stub binds no port. Each `claude -p` call keeps its session
+transcript under `~/.claude/projects` like any other run; delete the folders it makes there if
+you do not want them.
 
 A pull request adds its CHANGELOG entry as its own file in [changelog.d/](../../changelog.d/README.md),
 never by editing `CHANGELOG.md`, and lowers the lint and em-dash baselines itself when its counts

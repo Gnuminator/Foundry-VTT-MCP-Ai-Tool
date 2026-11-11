@@ -103,9 +103,12 @@ This is the only component with direct access to Foundry's live API (`game`, `ca
 is to be a **disciplined gateway**: expose exactly the operations the tools need, enforce
 who's allowed to call them, and make writes safe and reversible.
 
-### Lifecycle (`main.ts`)
+### Lifecycle (`main.ts` and `bridge-link-lifecycle.ts`)
 
-The module hooks Foundry's lifecycle:
+The module hooks Foundry's lifecycle in `main.ts`. The link itself (starting and stopping the
+socket bridge, its state, the heartbeat, the "server not found" notice and the GM link toasts with
+their `linkState` relay) lives in `bridge-link-lifecycle.ts`; `main.ts` hands over to it, and a
+test keeps it that way.
 
 - **`init`** — register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
@@ -365,7 +368,11 @@ The long-lived workhorse. Responsibilities:
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
-   class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
+   class's `getToolDefinitions()`; that union is what `list_tools` returns. Each class is
+   wired in by a small tool module (`tools/modules/<family>.ts`: how to build it, its
+   definitions, its routes), and `tools/index.ts` lists every module once, in `list_tools`
+   order. The backend, the router, the tool list and the test stub are all built from that
+   list, so a new tool family is one module file plus one line in the index. Every tool also
    belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
    feature gets one tool with an `action` parameter rather than several small tools.
 4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts`).

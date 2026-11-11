@@ -46,6 +46,7 @@ export const CHECKS = [
   { name: 'version sync', command: 'npm run version:check' },
   { name: 'docs lint', command: 'npm run docs:lint' },
   { name: 'docs links', command: 'npm run docs:links' },
+  { name: 'line baseline', command: 'npm run line:ratchet' },
   {
     name: 'mcp-server tests (tool counts, tool reference, tool sets)',
     // The probe test runs the built dist/index.js, which the merged worktree never builds;

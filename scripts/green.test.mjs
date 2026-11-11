@@ -225,6 +225,7 @@ test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY
   const lightNpm = new Set([
     'emdash:ratchet',
     'unused:ratchet',
+    'line:ratchet',
     'version:check',
     'usage:catalog:check',
     'docs:lint',

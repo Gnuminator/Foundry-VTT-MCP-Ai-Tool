@@ -102,6 +102,9 @@ export const CHECKS = [
   npmRun('emdash-ratchet', 'static', 'emdash:ratchet', {
     drift: { name: 'em-dash baseline', order: 2 },
   }),
+  npmRun('line-ratchet', 'static', 'line:ratchet', {
+    drift: { name: 'line baseline', order: 7.5 },
+  }),
   npmRun('version-check', 'static', 'version:check', { drift: { name: 'version sync', order: 5 } }),
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },
@@ -144,6 +147,7 @@ export const CHECKS = [
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
     'scripts/main-red-revert.test.mjs',
+    'scripts/line-ratchet.test.mjs',
     'scripts/unused-ratchet.test.mjs'
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },

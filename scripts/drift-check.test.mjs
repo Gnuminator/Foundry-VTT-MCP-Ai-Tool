@@ -590,3 +590,33 @@ test('a guard that needs a failed guard is skipped, not counted as a second fail
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// ---- the shared unit tests guard ----
+
+test('the real shared unit tests guard: runs when shared/ changed, a failing run refuses, skipped otherwise', async () => {
+  const { CHECKS } = await import('./drift-check.mjs');
+  const real = CHECKS.find(c => c.name === 'shared unit tests');
+  assert.ok(real, 'drift-check holds a shared unit tests guard');
+  assert.deepEqual(real.when, ['shared/']);
+  assert.equal(real.command, 'npm test -w @gnuminator/shared');
+  // same name and `when`, with a stand-in command that fails like a broken shared test would
+  const failing = { name: real.name, when: real.when, command: 'node -e "process.exit(1)"' };
+  const touched = repos();
+  try {
+    fs.mkdirSync(path.join(touched.lane, 'shared'));
+    commit(touched.lane, 'shared/x.txt', 'changed\n', 'lane changes shared');
+    const { code, out } = run(touched.lane, [failing]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL shared unit tests/);
+  } finally {
+    fs.rmSync(touched.tmp, { recursive: true, force: true });
+  }
+  const untouched = repos();
+  try {
+    const { code, out } = run(untouched.lane, [failing]);
+    assert.equal(code, 0, out);
+    assert.match(out, /skip shared unit tests \(nothing under shared\/ changed\)/);
+  } finally {
+    fs.rmSync(untouched.tmp, { recursive: true, force: true });
+  }
+});

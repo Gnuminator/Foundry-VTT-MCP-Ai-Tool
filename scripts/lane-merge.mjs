@@ -580,7 +580,10 @@ function checkNamer(rollup) {
  * when a newer run started on the same head. The newer run must report that very check: a newer run
  * that has only some jobs in the rollup yet (the screenshot summary appears after its shards) does
  * not excuse the old one. A cancelled check without a run id, from a dispatch run, or with no newer
- * check of its own stays and blocks.
+ * check of its own stays and blocks. So does a cancelled check of an unclassified run (every job of
+ * it cancelled before it started, so no name expanded and its kind is unknown: it may be a dispatch
+ * run) and of a mixed run (some jobs expanded with " [dispatch]", some without). A rerun
+ * (`gh run rerun <id> --failed`) or a new push replaces such a check; a newer run alone does not.
  * @param {any[]} rollup @returns {any[]}
  */
 export function supersededCancelled(rollup) {
@@ -595,15 +598,19 @@ export function supersededCancelled(rollup) {
         c.status !== undefined &&
         c.workflowName &&
         !dispatch.has(id) &&
-        !isRaw(c.name)
+        // a matrix leg skipped by `if:` in the newer run keeps its raw name (it never expanded);
+        // from a run known to be normal it still counts as that run's answer for the leg
+        (!isRaw(c.name) ||
+          (String(c.conclusion ?? '').toUpperCase() === 'SKIPPED' && normal.has(id)))
     );
   return rollup.filter(c => {
     if (c.status === undefined || String(c.conclusion ?? '').toUpperCase() !== 'CANCELLED')
       return true;
     const id = runIdOf(c);
     // only a run known to be a normal (pull_request) run can be superseded; an unclassified run
-    // (every job cancelled before it started) may be a dispatch run, so it keeps blocking
-    if (id === null || !normal.has(id) || !c.workflowName) return true;
+    // (every job cancelled before it started) may be a dispatch run, so it keeps blocking. A run
+    // with both kinds of expanded names (a mixed run) is not purely normal: it keeps blocking too.
+    if (id === null || !normal.has(id) || dispatch.has(id) || !c.workflowName) return true;
     const mine = nameOf(c);
     const prefix = isRaw(c.name) ? stripExpression(c.name) : null;
     if (prefix === '') return true;
@@ -642,6 +649,8 @@ export function supersededCancelled(rollup) {
  * added when its run is a dispatch run; a run that cannot be classified keeps the raw name), and
  * `supersededCancelled` drops a CANCELLED check when a newer non-dispatch run reports that check.
  * A cancelled check of a dispatch run is never dropped, so the "[dispatch] blocks" rule above holds.
+ * Nor is one of an unclassified run (all its jobs cancelled before they started, so its kind is
+ * unknown) or of a mixed run: those keep blocking until a rerun or a push replaces them.
  * @param {any[]} rollup @returns {any[]}
  */
 export function latestChecks(rollup) {

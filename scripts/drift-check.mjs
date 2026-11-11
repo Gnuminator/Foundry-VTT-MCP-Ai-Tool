@@ -75,6 +75,13 @@ export const CHECKS = [
     when: DASHBOARD_PATH,
     needs: 'dashboard build',
   },
+  // A shared change can break shared's own unit tests together with another PR's change to shared.
+  {
+    name: 'shared unit tests',
+    command: 'npm test -w @gnuminator/shared',
+    heavy: true,
+    when: ['shared/'],
+  },
 ];
 
 const REPO_URL = /github\.com[/:]Gnuminator\/Foundry-VTT-MCP-Ai-Tool(\.git)?$/i;

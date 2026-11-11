@@ -22,7 +22,7 @@ const base = () => ({
     },
   ],
   tunnel: { routes: [{ hostname: 'a.example.test', service: 'http://localhost:1' }] },
-  dns: [{ name: 'a.example.test', proxied: true }],
+  dns: [{ name: 'a.example.test', type: 'CNAME', proxied: true }],
 });
 
 test('identical states have no drift', () => {
@@ -46,14 +46,29 @@ test('a dropped or an added policy, app, route and DNS record are reported', () 
   live.apps[0].policies = [{ name: 'extra', kind: 'bypass', count: 0 }];
   live.apps.push({ name: 'app-b', hostname: 'b.example.test', policies: [] });
   live.tunnel.routes = [];
-  live.dns = [{ name: 'a.example.test', proxied: false }, { name: 'c.example.test', proxied: true }];
+  live.dns = [
+    { name: 'a.example.test', type: 'CNAME', proxied: false },
+    { name: 'c.example.test', type: 'CNAME', proxied: true },
+  ];
   const d = compare(live, base());
   assert.ok(d.includes('app app-a: policy friends missing in live'));
   assert.ok(d.includes('app app-a: policy extra is in live but not expected'));
   assert.ok(d.includes('app app-b: in live but not expected'));
   assert.ok(d.includes('tunnel route a.example.test: missing in live'));
-  assert.ok(d.some(x => /dns a\.example\.test: proxied is false/.test(x)));
-  assert.ok(d.includes('dns c.example.test: in live but not expected'));
+  assert.ok(d.some(x => /dns a\.example\.test CNAME: proxied is false/.test(x)));
+  assert.ok(d.includes('dns c.example.test CNAME: in live but not expected'));
+});
+
+test('several DNS records with one name (different types) are not a duplicate', () => {
+  const both = base();
+  both.dns.push({ name: 'a.example.test', type: 'TXT', proxied: false });
+  assert.deepEqual(compare(both, both), []);
+  assert.ok(compare(base(), both).some(x => /dns a\.example\.test TXT: missing in live/.test(x)));
+});
+
+test('an expected file with no apps is an error', () => {
+  const empty = { apps: [], tunnel: { routes: [] }, dns: [] };
+  assert.ok(compare(empty, empty).length > 0);
 });
 
 test('bad input is a difference, not a pass', () => {
@@ -77,7 +92,7 @@ test('the command exits 0 on no drift, 1 on drift, 2 on usage or unreadable inpu
   assert.equal(run(a, a).status, 0);
   const r = run(b, a);
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /DRIFT dns a\.example\.test/);
+  assert.match(r.stdout, /DRIFT dns a\.example\.test CNAME/);
   assert.equal(run(a).status, 2);
   assert.equal(run(a, path.join(dir, 'missing.json')).status, 2);
 });

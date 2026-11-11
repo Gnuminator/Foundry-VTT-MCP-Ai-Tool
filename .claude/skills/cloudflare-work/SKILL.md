@@ -7,8 +7,9 @@ description: How to read and change the Cloudflare setup (Access applications, t
 
 The connector's `execute` tool runs `cloudflare.request({ method, path, ... })`. The hook
 `.claude/hooks/guard-cloudflare.mjs` lets code with only literal `method: 'GET'` calls run and makes
-the app ask the user for everything else. The prompt is the user's approval. If no prompt appears
-for a write, tell the user; never edit `.claude/settings.local.json`.
+the app ask the user for everything else it cannot read as GET-only. The prompt is the user's
+approval. The hook only exists in a session started after it was merged, from a checkout that has
+it. If no prompt appears for a write, tell the user; never edit `.claude/settings.local.json`.
 
 ## Rules
 
@@ -65,7 +66,7 @@ async () => {
   const dns = [];
   for (const z of await get('/zones', { per_page: 50 }))
     for (const r of await get(`/zones/${z.id}/dns_records`, { per_page: 200 }))
-      dns.push({ name: r.name, proxied: !!r.proxied });
+      dns.push({ name: r.name, type: r.type, proxied: !!r.proxied });
   return JSON.stringify({ apps, tunnel: { routes }, dns });
 }
 ```

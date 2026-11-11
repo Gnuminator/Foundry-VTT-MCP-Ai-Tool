@@ -58,8 +58,35 @@ test('mixed code (a GET and a write) asks', () => {
   assert.match(reason, /DELETE/);
 });
 
-test('a GET call with a body that mentions a write method as data still asks (conservative)', () => {
-  assert.ok(call("await cloudflare.request({ method: 'GET', path: '/a', body: { method: 'POST' } })"));
+test('a nested body key called method is data, not the HTTP method', () => {
+  assert.equal(call("await cloudflare.request({ method: 'GET', path: '/a', body: { method: 'POST' } })"), null);
+});
+
+test('review H1 bypass shapes all ask', () => {
+  const shapes = [
+    "cloudflare.request({ method: 'GET'\n  && 'POST', path: '/x' })",
+    "const method = 'POST'; cloudflare.request({ method: 'GET', path: '/x', method })",
+    "cloudflare.request({ method: 'GET', path: '/x', get method() { return 'POST' } })",
+    "cloudflare.request({ method: 'GET', '\\u006dethod': 'POST', path: '/x' })",
+    "cloudflare.request({ method: 'GET', \\u006dethod: 'POST', path: '/x' })",
+    "cloudflare.request({ method: 'GET', /**/method:/**/'POST', path: '/x' })",
+    "const m = 'DELETE'; cloudflare.request({ /* { */ method: m /* } */, path: '/x' })",
+    "\\u0063loudflare.request({ method: 'POST', path: '/x' })",
+    "globalThis['cloud' + 'flare'].request({ method: 'POST', path: '/x' })",
+    "eval(\"cloudflare.request({method:'POST',path:'/x'})\")",
+    "new Function('return 1')()",
+    "const f = async () => (await import('x'))",
+    "cloudflare.request({ method: 'GET', path: '/x', method() { return 'POST' } })",
+    "cloudflare?.request({ method: 'GET', path: '/x' })",
+    "cloudflare.request?.({ method: 'GET', path: '/x' })",
+    'cloudflare.request({ method: `GET`, path: "/x" })',
+  ];
+  for (const s of shapes) assert.ok(call(s), s);
+});
+
+test('a missing parser or unparseable code asks', () => {
+  assert.ok(call('async () => {'));
+  assert.ok(call('this is not javascript'));
 });
 
 test('a nested method key cannot stand in for the top-level one', () => {

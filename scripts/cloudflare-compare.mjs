@@ -42,7 +42,8 @@ export function compare(live, expected) {
   for (const [label, v] of [['live', live], ['expected', expected]]) {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return [`${label}: not a JSON object`];
   }
-  const diffMaps = (what, key, l, e, fields) => {
+  if (!Array.isArray(expected.apps) || expected.apps.length === 0) return ['expected: no apps listed (a wrong or empty file)'];
+  const diffMaps =(what, key, l, e, fields) => {
     const lm = byKey(l, key, `${what} (live)`, out);
     const em = byKey(e, key, `${what} (expected)`, out);
     for (const [k, ev] of em) {
@@ -71,7 +72,9 @@ export function compare(live, expected) {
     for (const k of lm.keys()) if (!em.has(k)) out.push(`${what} ${k}: in live but not expected`);
   };
   diffMaps('app', 'name', live.apps, expected.apps, APP_FIELDS);
-  diffMaps('dns', 'name', live.dns, expected.dns, ['proxied']);
+  // A name can have several records (A, MX, TXT), so DNS is keyed on name and type.
+  const keyed = list => (Array.isArray(list) ? list.map(x => ({ ...x, key: `${x?.name} ${x?.type}` })) : list);
+  diffMaps('dns', 'key', keyed(live.dns), keyed(expected.dns), ['proxied']);
   diffMaps('tunnel route', 'hostname', live.tunnel?.routes, expected.tunnel?.routes, ['service']);
   return out;
 }

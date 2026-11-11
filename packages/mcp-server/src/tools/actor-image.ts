@@ -152,15 +152,18 @@ const TOO_BIG = 'That picture is too big. The limit is 5 MB.';
  * Read the checked file. The size is taken from the open file and again from the bytes, and the
  * path is resolved again after the open, so a file swapped after `checkImagePath` is refused.
  */
-async function readPicture(real: string, roots: string[]): Promise<Uint8Array> {
+async function readPicture(requested: string, real: string, roots: string[]): Promise<Uint8Array> {
   const handle = await open(real, 'r');
   try {
     const info = await handle.stat();
     if (!info.isFile()) throw new Error('file must be a picture file.');
     if (info.size > PORTRAIT_MAX_BYTES) throw new Error(TOO_BIG);
-    if ((await checkImagePath(real, roots)) !== real) {
-      throw new Error('The picture changed while it was being read. Try again.');
-    }
+    // The path the caller named, not the resolved one: a folder reached through a link resolves
+    // to text outside its configured name. The open handle must also be the checked file.
+    const changed = new Error('The picture changed while it was being read. Try again.');
+    if ((await checkImagePath(requested, roots)) !== real) throw changed;
+    const again = await stat(real);
+    if (again.ino !== info.ino || again.dev !== info.dev) throw changed;
     const bytes = await handle.readFile();
     if (bytes.length > PORTRAIT_MAX_BYTES) throw new Error(TOO_BIG);
     return new Uint8Array(bytes);
@@ -232,7 +235,7 @@ export class ActorImageTools {
     const params = planParams.parse(args ?? {});
     const roots = this.roots ?? defaultImageRoots();
     const real = await checkImagePath(params.file, roots);
-    const bytes = await readPicture(real, roots);
+    const bytes = await readPicture(params.file, real, roots);
     const type = sniffPortraitType(bytes);
     if (!type) throw new Error('Only PNG, JPG or WebP pictures work.');
 

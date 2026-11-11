@@ -149,7 +149,7 @@ describe('plan-actor-image', () => {
     // A symlink whose target text is a network path; it dangles here, and must not be resolved.
     let made = true;
     try {
-      symlinkSync('//198.51.100.7/share/pic.png', join(root, 'unc.png'));
+      symlinkSync('//198.51.100.7/share/pic.png', join(root, 'unc.png'), 'file');
     } catch {
       made = false; // no symlink right on this PC
     }
@@ -158,6 +158,20 @@ describe('plan-actor-image', () => {
       /not in an allowed folder/
     );
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it.runIf(linked)('reads a picture from an allowed folder that is itself a link', async () => {
+    const via = join(base, 'via-link');
+    symlinkSync(root, via, 'junction');
+    tools = new ActorImageTools({
+      foundryClient: { query },
+      guardedWrites: { createPlan },
+      logger: logger(),
+      roots: [via],
+    });
+    await expect(call({ actor: 'Ebbe', file: join(via, 'ebbe.png') })).resolves.toMatchObject({
+      planId: 'p1',
+    });
   });
 
   it('says to update the module when the module has no handler or no switch for it', async () => {

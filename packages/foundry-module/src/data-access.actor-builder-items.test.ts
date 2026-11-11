@@ -430,6 +430,7 @@ describe('FoundryDataAccess — useItem', () => {
         type: 'spell',
         system: { level: 1, method: 'spell', activities: [{ type: 'attack', use, rollAttack }] },
       });
+      (item as any).use = vi.fn();
       world.addActor({
         id: 'w1',
         name: 'Wizard',
@@ -443,6 +444,7 @@ describe('FoundryDataAccess — useItem', () => {
         targets: ['Goblin'],
         options: { rollAttack: true },
       });
+      await flush();
       expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell2' } });
       expect(result.message).toContain('at level 2');
     });

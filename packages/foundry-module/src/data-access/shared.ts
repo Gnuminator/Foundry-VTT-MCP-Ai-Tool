@@ -137,6 +137,10 @@ export function removeSensitiveFields(
   } catch (error) {
     console.warn(`[${MODULE_ID}] Error during sanitization at depth ${depth}:`, error);
     return '[Sanitization failed]';
+  } finally {
+    // Only the ancestors of the current node count as a cycle. An object reached twice by
+    // different paths (a species item in both `details.race` and `items`) is not circular.
+    visited.delete(obj);
   }
 }
 

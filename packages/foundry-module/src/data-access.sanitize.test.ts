@@ -51,3 +51,22 @@ describe('sanitizeData: save keys', () => {
     });
   });
 });
+
+describe('sanitizeData: shared references versus real cycles', () => {
+  it('keeps the species item when details.race and items point at the same object', () => {
+    const species = { _id: 'sp1', name: 'Hill Dwarf', type: 'race' };
+    const actor = { name: 'Test PC', system: { details: { race: species } }, items: [species] };
+    const out = sanitizeData(actor) as {
+      system: { details: { race: unknown } };
+      items: unknown[];
+    };
+    expect(out.system.details.race).toEqual(species);
+    expect(out.items[0]).toEqual(species);
+  });
+
+  it('still marks a real cycle', () => {
+    const a: Record<string, unknown> = { name: 'a' };
+    a.self = a;
+    expect(sanitizeData(a)).toEqual({ name: 'a', self: '[Circular Reference]' });
+  });
+});

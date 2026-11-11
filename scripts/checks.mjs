@@ -102,7 +102,9 @@ export const CHECKS = [
   npmRun('emdash-ratchet', 'static', 'emdash:ratchet', {
     drift: { name: 'em-dash baseline', order: 2 },
   }),
-  npmRun('line-ratchet', 'static', 'line:ratchet', { drift: { name: 'line baseline', order: 7.5 } }),
+  npmRun('line-ratchet', 'static', 'line:ratchet', {
+    drift: { name: 'line baseline', order: 7.5 },
+  }),
   npmRun('version-check', 'static', 'version:check', { drift: { name: 'version sync', order: 5 } }),
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },

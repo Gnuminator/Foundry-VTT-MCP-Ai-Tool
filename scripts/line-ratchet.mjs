@@ -140,7 +140,8 @@ function main() {
     const prAt = args.indexOf('--pr');
     const pr = prAt >= 0 ? (args[prAt + 1] ?? '') : '';
     try {
-      if (!file || file.startsWith('--')) throw new Error('usage: --except <file> "<reason>" [--pr <n>]');
+      if (!file || file.startsWith('--'))
+        throw new Error('usage: --except <file> "<reason>" [--pr <n>]');
       if (reason.startsWith('--')) throw new Error('the reason must come right after the file');
       if (pr && !/^\d+$/.test(pr)) throw new Error('--pr takes a number');
       write(addException(counts, baseline, file, reason, pr));

@@ -21,7 +21,10 @@ const report = (from, to, over = {}) => ({
 test('a section carries the pace profile numbers when the report has them', () => {
   const pace = { profile: { weeks: 4, activeHours: { weekday: 12, weekend: 10 } } };
   const text = sectionFor(report('2026-10-17', '2026-10-23', { pace }));
-  assert.match(text, /- pace-profile-weeks: 4\n- pace-active-hours-weekday: 12\n- pace-active-hours-weekend: 10/);
+  assert.match(
+    text,
+    /- pace-profile-weeks: 4\n- pace-active-hours-weekday: 12\n- pace-active-hours-weekend: 10/
+  );
   assert.doesNotMatch(sectionFor(report('2026-10-17', '2026-10-23')), /pace-/);
 });
 
@@ -45,6 +48,30 @@ test('a section lists numbers, limits and ok; unknown values are left out, not 0
       '- weekly-points-a-day-ok: unknown',
     ].join('\n')
   );
+});
+
+test('a section carries advisor and tool call numbers only when they are known', () => {
+  const text = sectionFor(
+    report('2026-10-17', '2026-10-23', {
+      advisorCalls: 6,
+      advisorPerPr: 1.234,
+      toolCalls: { total: 40, errors: 2, used: 9, never: 31 },
+    })
+  );
+  assert.match(text, /- advisor-calls: 6\n- advisor-per-pr: 1\.2\n/);
+  assert.match(
+    text,
+    /- tool-calls: 40\n- tool-errors: 2\n- tools-used: 9\n- tools-never-used: 31$/
+  );
+  const noCatalog = sectionFor(
+    report('2026-10-17', '2026-10-23', { toolCalls: { total: 3, errors: 0, used: 2, never: null } })
+  );
+  assert.match(noCatalog, /- tools-used: 2$/);
+  assert.doesNotMatch(noCatalog, /tools-never-used/);
+  const none = sectionFor(
+    report('2026-10-17', '2026-10-23', { toolCalls: { total: 0, errors: 0, used: 0, never: 5 } })
+  );
+  assert.doesNotMatch(none, /tool-calls|advisor/);
 });
 
 test('ok is judged on the rounded number the note shows', () => {

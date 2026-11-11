@@ -175,6 +175,18 @@ jobs:
         # stage 14 dnd5e trial is open, and stage 5's check world never replaces an installed dnd5e.
         run: node --test scripts/pi/system-trial-guard.test.mjs
 
+      - name: Pi container tests, CI path filter covers what they read
+        # pi-changes in this file skips the pi-container matrix on a pull request that touches no Pi input; this test
+        # fails when a path a container test mounts or reads is outside the filter, or the matrix or the required
+        # check `build-test (ARM, Node 24)` changes shape.
+        run: node --test scripts/pi/ci-pi-filter.test.mjs
+
+      - name: Pi container tests, the parts that need no container
+        # The stage 28, 25, 11 and 14 tests also run their non-container checks here (their container scenarios
+        # are shards of the pi-container job). Without a literal path in a run: command here, test-coverage-check
+        # would call them unrun, as the matrix names its tests through a variable.
+        run: node --test scripts/pi/gm-watchdog.test.mjs scripts/pi/modules-stage.test.mjs scripts/pi/stage11-world.test.mjs scripts/pi/system-trial.test.mjs
+
       - name: Pi stage 13 settings driver
         # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
         # every user. The stage itself runs in a container on the ARM runner (build-test-arm).

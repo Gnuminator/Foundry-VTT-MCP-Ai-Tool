@@ -90,6 +90,9 @@ test('the filter always covers the workflow, the lockfile and its own inputs', (
 function pathsIn(text) {
   const found = new Set();
   for (const m of text.matchAll(/\/repo\/([\w./-]+)/g)) found.add(m[1]);
+  for (const m of text.matchAll(/\$\{repo\}\/([\w./-]+)/g)) found.add(m[1]);
+  // A relative import out of scripts/pi (from '../x.mjs', from '../../shared/x') names a repo file too.
+  for (const m of text.matchAll(/from '((?:\.\.\/)+[\w./-]+)'/g)) found.add(`REL:${m[1]}`);
   for (const m of text.matchAll(/['"`]((?:scripts|deploy|packages|shared|docs|tools)\/[\w./-]+)/g)) found.add(m[1]);
   // path.join(repo, 'a', 'b', 'c') and path.resolve(repo, 'a', ...)
   for (const m of text.matchAll(/(?:join|resolve)\(\s*repo\s*,((?:\s*'[^']+',?)+)\s*\)/g)) {
@@ -102,17 +105,34 @@ function pathsIn(text) {
 test('every path the container tests mount or read is inside the filter', () => {
   const files = new Set();
   for (const e of matrix) files.add(`scripts/pi/${e.test}`);
-  for (const dir of ['scripts/pi/container-test']) {
-    for (const f of readdirSync(path.join(repo, dir))) {
-      if (/\.(sh|mjs)$/.test(f)) files.add(`${dir}/${f}`);
-    }
+  // The scenario scripts and the stage scripts and helpers they run under /repo (remote/lib.sh and the
+  // stages), and the game-night watch the stage 29 test reads from scripts/.
+  for (const f of readdirSync(path.join(repo, 'scripts/pi/container-test'))) {
+    if (/\.(sh|mjs)$/.test(f)) files.add(`scripts/pi/container-test/${f}`);
   }
-  // The stage scripts and helpers the scenarios run under /repo are named in the files above; the whole
-  // scripts/pi/ folder is in the filter, so the stage files are covered as long as they live there.
+  // Of scripts/pi/remote only the files the tests and scenarios name (a stage, lib.sh and its helpers). The other
+  // stages are not inputs of a container test, and some name build output in text the tests only read.
+  const remote = readdirSync(path.join(repo, 'scripts/pi/remote')).filter(f => /\.(sh|mjs|js)$/.test(f));
+  const named = text => remote.filter(f => text.includes(f));
+  const direct = new Set(['lib.sh']);
+  for (const file of [...files]) {
+    // The scenarios run the stages; a test that only reads a stage as text (kit-session reads 5-tool.sh) does not.
+    if (file.startsWith('scripts/pi/container-test/')) for (const f of named(read(file))) direct.add(f);
+  }
+  for (const f of [...direct]) {
+    // lib.sh and its helpers source each other; follow only those, not every stage a comment names.
+    if (/^lib/.test(f)) for (const g of named(read(`scripts/pi/remote/${f}`))) if (/^lib/.test(g)) direct.add(g);
+  }
+  for (const f of direct) files.add(`scripts/pi/remote/${f}`);
+  for (const f of readdirSync(path.join(repo, 'scripts'))) {
+    if (/^gamenight-watch.*\.mjs$/.test(f)) files.add(`scripts/${f}`);
+  }
   const outside = [];
   let checked = 0;
   for (const file of files) {
-    for (const p of pathsIn(read(file))) {
+    for (let p of pathsIn(read(file))) {
+      // A relative import is resolved against the file that has it.
+      if (p.startsWith('REL:')) p = path.posix.normalize(path.posix.join(path.posix.dirname(file), p.slice(4)));
       // Skip things the tests build in a temporary folder or on the container's own disk.
       if (/^(tmp|etc|usr|var|home|opt)\b/.test(p)) continue;
       // Paths with a shell or template variable in them are built at run time from a covered folder.

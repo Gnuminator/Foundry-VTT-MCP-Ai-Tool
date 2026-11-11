@@ -131,6 +131,11 @@ jobs:
         # scripts/pi/player-connector-cloudflare.mjs against a fake Cloudflare API: plan, apply, secrets never printed.
         run: node --test scripts/pi/player-connector-cloudflare.test.mjs
 
+      - name: Pi stage 32 crash guard and clock check
+        # 32-crash-guard.sh (backlog pi-crash-loops-clock) as text: snapshot before the write, drop-ins only, no secret on a command line.
+        # The scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/crash-guard-stage.test.mjs
+
       - name: Pi stage 29 game-night watch
         # 29-gamenight-watch.sh (backlog watch-on-pi) as text: snapshot before the write, guarded rm, no secret in the unit.
         # The scenarios run in a container on the ARM runner (build-test-arm).
@@ -793,6 +798,13 @@ jobs:
         env:
           PI_STAGE29_CONTAINER: 1
         run: node --test scripts/pi/gamenight-watch-stage.test.mjs
+
+      - name: Pi stage 32 in an ARM64 container
+        # scripts/pi/container-test/stage32-scenarios.sh: stage 32 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, drop-ins,
+        # rerun, the alert post, the clock check's debounce, check, the snapshot rule, undo).
+        env:
+          PI_STAGE32_CONTAINER: 1
+        run: node --test scripts/pi/crash-guard-stage.test.mjs
 
       - name: Pi stage 30 in an ARM64 container
         # scripts/pi/container-test/stage30-scenarios.sh: stage 30 on Debian 13 ARM64 with the real lib.sh (refusals, dry run, install,

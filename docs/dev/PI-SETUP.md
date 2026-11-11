@@ -1975,30 +1975,57 @@ exit 1 (the install stays; `CHECK=1` repeats the checks). It stops if `dashboard
 the Pi; the stage refuses if it is. Modes: `DRY_RUN=1`, `CHECK=1`, `UNDO=1` (keeps the table). The ordered sitting steps are in
 the vault note `Handoff/Pi sitting 2026-11-08 player connector.md`.
 
+## Crash guard and clock check (stage 32)
+
+`scripts/pi/remote/32-crash-guard.sh` (backlog `pi-crash-loops-clock`) makes a crash loop and a drifting clock visible.
+Drop-ins `10-crash-guard.conf` on `foundry`, the bridge, the dashboard and the
+Assistant GM browser (each only while it is an enabled systemd unit, not after a compose cut-over) set a start limit (Foundry 10 starts in 300 s, the Assistant GM browser 10 in 600 s, bridge and
+dashboard 30 in 600 s), `RestartMode=direct` and `OnFailure=foundry-ai-tool-alert@%n.service`; Foundry also gets
+`Restart=always`, so a clean exit no longer leaves it down. When a unit trips its limit, the alert unit (as `foundry`,
+bot token from `discord-bot.env`) posts one fixed line to #gm-bot. A timer runs the clock check every 15 minutes: two
+bad checks in a row post once, the first good one posts "synchronized again".
+
+**A tripped unit stays down.** Before this stage a Foundry fault of a few minutes cleared by itself; now, after the limit,
+Foundry stays failed until someone runs this over ssh (the alert text says so):
+
+```bash
+systemctl reset-failed foundry.service && systemctl start foundry.service
+```
+
+On game night with Foundry down, Plan B (`docs/dev/PLAN-B.md`) is the fallback while that is fixed. Systemd 257 also has
+`RestartSteps=` and `RestartMaxDelaySec=` (a back-off that never gives up) if the user prefers that for Foundry.
+
+The sitting, after the user's OK, on a day without a game: `DRY_RUN=1`, a `dietpi-backup` snapshot, the real run (it
+restarts nothing, runs the clock service (the timer also fires once on enable) and posts one test line to #gm-bot, plus a
+clock alert if the clock is not synchronized), then `CHECK=1`. `UNDO=1` removes
+everything it installed.
+
 ## Where things live on the Pi
 
-| What                                                           | Where                                                                                                                         |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Foundry program                                                | `/opt/foundry`                                                                                                                |
-| Foundry data (worlds, modules, assets)                         | `/var/lib/foundry`                                                                                                            |
-| Node.js                                                        | `/opt/node24`                                                                                                                 |
-| The tool (release builds)                                      | `/opt/foundry-ai-tool`                                                                                                        |
-| Settings and secrets for the tool                              | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                           |
-| The tool's storage (bridge vault)                              | `/var/lib/foundry-ai-tool`                                                                                                    |
-| Backups                                                        | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                        |
-| Recorder bot                                                   | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                    |
-| Recordings (until this PC has copied them, then 7 more days)   | `/var/lib/foundry-ai-tool/recordings`                                                                                         |
-| GM vault (Syncthing shares it)                                 | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                        |
-| Player vaults (one folder per player, Send Only; stage 21)     | `/var/lib/foundry-ai-tool/obsidian/players/<Player name>`                                                                     |
-| Space check status (hourly)                                    | `/var/lib/foundry-ai-tool/space/status.json`                                                                                  |
-| Board status report (stage 16): script, token file, timer      | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`         |
-| GitHub runners for the PM board (stage 17): runners, gate      | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer`    |
-| Game-night watch (stage 29): files, settings, service          | `/opt/foundry-ai-tool/gamenight-watch`, `/etc/foundry-ai-tool/gamenight-watch.env`, `foundry-ai-tool-gamenight-watch.service` |
-| Player connector (stage 30): login table, switch file          | `/etc/foundry-ai-tool/player-connector.json` (foundry, 0600), `/etc/foundry-ai-tool/player-connector.env`                     |
-| Player connector: unit drop-ins, table waiting to be installed | `/etc/systemd/system/foundry-ai-tool-{dashboard,bridge}.service.d/player-connector.conf`, `/root/player-connector.json.new`   |
-| Copy of the allowed hosts before stage 30 changed them         | `/etc/foundry-ai-tool/dashboard-access.env.before-player-connector`                                                           |
-| When this PC last copied the backups (restic, snapshot)        | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                   |
-| A dnd5e trial (the old version, world copies; stage 14)        | `/var/lib/foundry-import/system-trial`                                                                                        |
+| What                                                           | Where                                                                                                                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundry program                                                | `/opt/foundry`                                                                                                                              |
+| Foundry data (worlds, modules, assets)                         | `/var/lib/foundry`                                                                                                                          |
+| Node.js                                                        | `/opt/node24`                                                                                                                               |
+| The tool (release builds)                                      | `/opt/foundry-ai-tool`                                                                                                                      |
+| Settings and secrets for the tool                              | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                                         |
+| The tool's storage (bridge vault)                              | `/var/lib/foundry-ai-tool`                                                                                                                  |
+| Backups                                                        | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                                      |
+| Recorder bot                                                   | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                                  |
+| Recordings (until this PC has copied them, then 7 more days)   | `/var/lib/foundry-ai-tool/recordings`                                                                                                       |
+| GM vault (Syncthing shares it)                                 | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                                      |
+| Player vaults (one folder per player, Send Only; stage 21)     | `/var/lib/foundry-ai-tool/obsidian/players/<Player name>`                                                                                   |
+| Space check status (hourly)                                    | `/var/lib/foundry-ai-tool/space/status.json`                                                                                                |
+| Board status report (stage 16): script, token file, timer      | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`                       |
+| GitHub runners for the PM board (stage 17): runners, gate      | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer`                  |
+| Game-night watch (stage 29): files, settings, service          | `/opt/foundry-ai-tool/gamenight-watch`, `/etc/foundry-ai-tool/gamenight-watch.env`, `foundry-ai-tool-gamenight-watch.service`               |
+| Player connector (stage 30): login table, switch file          | `/etc/foundry-ai-tool/player-connector.json` (foundry, 0600), `/etc/foundry-ai-tool/player-connector.env`                                   |
+| Player connector: unit drop-ins, table waiting to be installed | `/etc/systemd/system/foundry-ai-tool-{dashboard,bridge}.service.d/player-connector.conf`, `/root/player-connector.json.new`                 |
+| Copy of the allowed hosts before stage 30 changed them         | `/etc/foundry-ai-tool/dashboard-access.env.before-player-connector`                                                                         |
+| Crash guard (stage 32): drop-ins, alert unit, clock timer      | `/etc/systemd/system/<unit>.service.d/10-crash-guard.conf`, `foundry-ai-tool-alert@.service`, `foundry-ai-tool-clock-check.{service,timer}` |
+| Crash guard: scripts, clock state                              | `/opt/foundry-ai-tool/crash-guard`, `/var/lib/foundry-ai-tool-crash-guard`                                                                  |
+| When this PC last copied the backups (restic, snapshot)        | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                                 |
+| A dnd5e trial (the old version, world copies; stage 14)        | `/var/lib/foundry-import/system-trial`                                                                                                      |
 
 ## Sources
 

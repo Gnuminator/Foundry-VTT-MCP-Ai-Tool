@@ -85,7 +85,10 @@ export function splitSections(text) {
 // The note with this report's section added, or replacing the one for the same first day.
 export function upsert(existing, report) {
   const id = report.window.from;
-  const rest = splitSections(existing || '').filter(([d]) => d !== id);
+  // sections from before 2026-11-11 carry `-limit` and `-ok` lines: drop them as they pass through
+  const rest = splitSections(existing || '')
+    .filter(([d]) => d !== id)
+    .map(([d, s]) => [d, s.replace(/^- [a-z-]+-(?:limit|ok): .*\n?/gm, '').trimEnd()]);
   const all = [[id, sectionFor(report)], ...rest].sort((a, b) =>
     a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0
   );

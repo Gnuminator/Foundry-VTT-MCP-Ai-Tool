@@ -92,6 +92,25 @@ test('upsert keeps weeks newest first and replaces the section of the same windo
   assert.match(again, /^---\ntype: weekly-check\n---/);
 });
 
+test('upsert drops the old -limit and -ok lines from sections it carries over', () => {
+  const old = [
+    '---\ntype: weekly-check\n---\n',
+    '## 2026-10-10',
+    '- from: 2026-10-10',
+    '- startup: 80000',
+    '- startup-limit: 75000',
+    '- startup-ok: no',
+    '- weekly-points-a-day: 10.3',
+    '- weekly-points-a-day-limit: 14',
+    '- weekly-points-a-day-ok: yes',
+    '- advisor-calls: 4',
+    '',
+  ].join('\n');
+  const text = upsert(old, report('2026-10-17', '2026-10-23'));
+  assert.doesNotMatch(text, /-limit|-ok/);
+  assert.match(text, /## 2026-10-10\n- from: 2026-10-10\n- startup: 80000\n- weekly-points-a-day: 10\.3\n- advisor-calls: 4/);
+});
+
 test('--write-vault writes the note into the vault', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'weekly-check-'));
   try {

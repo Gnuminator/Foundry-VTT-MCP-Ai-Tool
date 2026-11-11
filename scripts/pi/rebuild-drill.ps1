@@ -128,7 +128,9 @@ $run = @('run', '-d', '--name', $Name, '--hostname', 'foundry-pi', '--platform',
   '-v', "${remoteDir}:/stages:ro", '-v', "${drillDir}:/drill-scripts:ro",
   '-v', "${Repo}:/drill/pc-repo:ro", '-v', "${PassFile}:/drill/restic-pc.pass:ro")
 if ($HostPort -gt 0) {
-  if ($HostPort -in 3000, 3100, 3101, 3102, 3190, 30000, 30001, 30002, 30003, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535) { throw "port $HostPort is not free to use" }
+  # The forbidden list lives in shared/ports.json (generated from shared/src/ports.ts); 3190 is the drill's own.
+  $forbiddenPorts = @((Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden) + 3190
+  if ($HostPort -in $forbiddenPorts) { throw "port $HostPort is not free to use" }
   $run += @('-p', "127.0.0.1:${HostPort}:30000")
 }
 $run += @($Image, 'sleep', 'infinity')

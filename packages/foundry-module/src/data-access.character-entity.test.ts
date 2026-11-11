@@ -156,6 +156,7 @@ describe('getCharacterEntity — item branch', () => {
         description: 'A trusty blade.',
         equipped: true,
         system: {
+          activities: {}, // a weapon always has the (here empty) map, as dnd5e does
           description: {}, // the HTML goes out once, as entity.description
           equipped: true,
         },

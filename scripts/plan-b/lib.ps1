@@ -55,24 +55,26 @@ function Get-PlanBPorts([switch]$GameNight) {
 
 # Ports other parts of this PC own. The live bridge ports belong to Plan B only on game night.
 # A plain hashtable: an ordered one reads an int index as a position.
-$PlanBReservedPorts = @{
-  30001 = 'the test server''s Foundry'
-  31514 = 'the test bridge'
-  31515 = 'the test bridge''s Foundry link'
-  31516 = 'the test bridge'
-  3100  = 'the test dashboard'
-  30002 = 'test server B''s Foundry'
-  31524 = 'test server B''s bridge'
-  31525 = 'test server B''s Foundry link'
-  3101  = 'test server B''s dashboard'
-  30003 = 'test server C''s Foundry'
-  31534 = 'test server C''s bridge'
-  31535 = 'test server C''s Foundry link'
-  3102  = 'test server C''s dashboard'
-  3200  = 'the Control Center'
-  31414 = 'the live bridge (Plan B uses it only with -GameNight)'
-  31415 = 'the live bridge (Plan B uses it only with -GameNight)'
-  31416 = 'the live bridge (Plan B uses it only with -GameNight)'
+$PlanBPortTable = Get-Content (Join-Path $PlanBRepoRoot 'shared/ports.json') -Raw | ConvertFrom-Json  # generated from shared/src/ports.ts
+$PlanBReservedPorts = @{}
+foreach ($server in 'A', 'B', 'C') {
+  $row = $PlanBPortTable.ports."test$server"
+  if ($server -eq 'A') {
+    $PlanBReservedPorts[[int]$row.foundry] = "the test server's Foundry"
+    $PlanBReservedPorts[[int]$row.control] = 'the test bridge'
+    $PlanBReservedPorts[[int]$row.link] = "the test bridge's Foundry link"
+    $PlanBReservedPorts[[int]$row.dashboard] = 'the test dashboard'
+  } else {
+    $PlanBReservedPorts[[int]$row.foundry] = "test server $server's Foundry"
+    $PlanBReservedPorts[[int]$row.control] = "test server $server's bridge"
+    $PlanBReservedPorts[[int]$row.link] = "test server $server's Foundry link"
+    $PlanBReservedPorts[[int]$row.dashboard] = "test server $server's dashboard"
+  }
+}
+$PlanBReservedPorts[[int]$PlanBPortTable.extra.testReserved] = 'the test bridge'
+$PlanBReservedPorts[[int]$PlanBPortTable.extra.controlCenter] = 'the Control Center'
+foreach ($livePort in $PlanBPortTable.ports.live.control, $PlanBPortTable.ports.live.link, $PlanBPortTable.extra.liveReserved) {
+  $PlanBReservedPorts[[int]$livePort] = 'the live bridge (Plan B uses it only with -GameNight)'
 }
 
 # Why these ports cannot be used, as one line each; empty when they can. IsOpen is a scriptblock

@@ -67,6 +67,14 @@ describe('weaponsOf', () => {
 });
 
 describe('spellAttacksOf', () => {
+  it('gives a spell with an unknown level no suffix', () => {
+    expect(
+      spellAttacksOf({
+        matches: [{ id: 's9', name: 'Odd Bolt', level: 'x', hasAttack: true }],
+      })
+    ).toEqual([{ id: 's9', name: 'Odd Bolt', label: 'Odd Bolt' }]);
+  });
+
   it('keeps cantrips and prepared spells that have an attack, labelled by level', () => {
     expect(
       spellAttacksOf({

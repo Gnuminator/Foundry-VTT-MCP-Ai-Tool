@@ -200,6 +200,34 @@ export class ActorBuilderDataAccess {
     }
   }
 
+  /**
+   * The leveled slot a slot-cast spell (dnd5e method "spell", level 1+) needs: undefined when the
+   * item is not one or the slot at its wanted level has a use left (nothing to change), the lowest
+   * higher level with a slot when it is empty, 'none' when no slot at that level or above is left.
+   */
+  private slotLevelFor(
+    actor: Actor,
+    item: Item,
+    wanted: number | undefined
+  ): number | 'none' | undefined {
+    const sys = item.system as { level?: unknown; method?: unknown } | undefined;
+    const level = sys?.level;
+    if (item.type !== 'spell' || typeof level !== 'number' || level < 1) return undefined;
+    if (sys?.method !== 'spell') return undefined;
+    const spells = (actor.system as { spells?: Record<string, { value?: unknown } | undefined> })
+      ?.spells;
+    if (!spells) return undefined;
+    const left = (n: number): number => {
+      const v = spells[`spell${n}`]?.value;
+      return typeof v === 'number' ? v : 0;
+    };
+    const from = Math.max(wanted ?? level, level);
+    for (let n = from; n <= 9; n++) {
+      if (left(n) > 0) return n === (wanted ?? level) ? undefined : n;
+    }
+    return 'none';
+  }
+
   async useItem(params: UseItemInput): Promise<UseItemResult> {
     shared.validateFoundryState();
 
@@ -235,6 +263,19 @@ export class ActorBuilderDataAccess {
       if (!targets || targets.length === 0) {
         throw new Error('rollAttack needs at least one target; nothing was used or rolled');
       }
+    }
+
+    // A slot spell with no slot at its level: upcast into the lowest higher slot, or refuse before
+    // anything is targeted. dnd5e itself only warns and casts nothing, which would read as "initiated".
+    let upcastLevel = options.spellLevel;
+    if (systemId === 'dnd5e' && options.consume !== false) {
+      const slotLevel = this.slotLevelFor(actor, item, options.spellLevel);
+      if (slotLevel === 'none') {
+        throw new Error(
+          `${actor.name} has no spell slot left to cast ${item.name}; nothing was used or rolled`
+        );
+      }
+      if (slotLevel !== undefined) upcastLevel = slotLevel;
     }
 
     // Handle targeting if targets are specified
@@ -377,8 +418,8 @@ export class ActorBuilderDataAccess {
           // Upcast slot for spells. Best-effort: assumes a leveled slot key
           // (`spellN`); pact-caster slot ids aren't derivable without the
           // item's casting method, same limitation the old `slotLevel` had.
-          if (options.spellLevel !== undefined) {
-            usage.spell = { slot: `spell${options.spellLevel}` };
+          if (upcastLevel !== undefined) {
+            usage.spell = { slot: `spell${upcastLevel}` };
           }
           // Show the dialog so the GM can make choices, except in a headless browser (the Pi's
           // Assistant GM): nobody can click it, the card would never be made, so dnd5e's defaults apply.

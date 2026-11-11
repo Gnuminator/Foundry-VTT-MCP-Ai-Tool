@@ -376,6 +376,82 @@ describe('FoundryDataAccess — useItem', () => {
     expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
   });
 
+  describe('slot spells with no slot at their level', () => {
+    const wizard = (slots: Record<string, number>, method = 'spell', level = 1) => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level, method },
+      });
+      (item as any).use = use;
+      const spells = Object.fromEntries(
+        Object.entries(slots).map(([k, value]) => [k, { value, max: 2 }])
+      );
+      world.addActor({ id: 'w1', name: 'Wizard', items: [item], system: { spells } });
+      return use;
+    };
+
+    it('casts normally while a slot at the spell level is left', async () => {
+      const use = wizard({ spell1: 1, spell2: 2 });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('upcasts into the lowest higher slot when the level slot is empty', async () => {
+      const use = wizard({ spell1: 0, spell2: 0, spell3: 1 });
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+      });
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
+      expect(result.success).toBe(true);
+    });
+
+    it('refuses before anything is used when no slot at that level or above is left', async () => {
+      const use = wizard({ spell1: 0, spell2: 0 });
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('treats an explicit empty spellLevel the same way', async () => {
+      const use = wizard({ spell1: 1, spell2: 0 });
+      await expect(
+        da.useItem({
+          actorIdentifier: 'Wizard',
+          itemIdentifier: 'Guiding Bolt',
+          options: { spellLevel: 2 },
+        })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('leaves a cantrip alone', async () => {
+      const use = wizard({ spell1: 0 }, 'spell', 0);
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves other casting methods (pact, innate, at will) alone', async () => {
+      const use = wizard({ spell1: 0 }, 'innate');
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves consume:false alone', async () => {
+      const use = wizard({ spell1: 0 });
+      await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        options: { consume: false },
+      });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('honors consume:false to disable consumption (omitted otherwise, letting dnd5e default it)', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Shield', type: 'spell' });

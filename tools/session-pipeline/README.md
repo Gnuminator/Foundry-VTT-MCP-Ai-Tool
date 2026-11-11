@@ -67,7 +67,7 @@ Output in `--out`:
 - `filters.py`: drops segments with `no_speech_prob > 0.85` or `compression_ratio > 2.4`, stock
   caption phrases (Danish and English), recited vocabulary lists and a name repeated 4+ times;
   collapses repetition loops (same sentence 3+ times, word n-grams 4+ times, `hahahaha` inside one
-  token) and 3+ identical segments in a row; drops segments under 200 ms; lists low-confidence words.
+  token) and 3+ identical segments in a row; drops segments under 0.1 s (`FilterConfig.min_segment_s`); lists low-confidence words.
 - `merge.py`: all words of all speakers sorted by `(start, speaker, end)`, one open clause buffer per
   speaker, a speaker's line reaches the output only when its clause closes (terminal punctuation or a
   word gap over 0.8 s), buffers open longer than 9 s are closed at their largest gap, a line that
@@ -86,8 +86,9 @@ Every threshold is a field of `FilterConfig`, `MergeConfig` or `EchoConfig`.
 ### Tuning notes
 
 - `FilterConfig.min_word_s` is off by default (0). On real Danish tracks more than half of all words
-  are shorter than 200 ms ("og", "i", "at"), so a per-word 200 ms rule would wreck the text. The 200 ms
-  rule applies to whole segments.
+  are shorter than 200 ms ("og", "i", "at"), so a per-word 200 ms rule would wreck the text. The segment
+  rule is separate and much shorter: `min_segment_s` drops segments under 0.1 s (it was 0.2 s, which
+  dropped a real 160 ms "Sorry.").
 - The near-name suggester is only as good as its name list. Feed it proper names (characters, NPCs,
   places), not game terms: English game terms produce false hits against Danish words.
 

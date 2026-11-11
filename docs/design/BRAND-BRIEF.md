@@ -36,8 +36,8 @@ time. Send Pass 0 first to set the brief, then Pass 1, etc. After each result:
   (use the canvas's export/download control). Ask explicitly: _"export this as an SVG"_ /
   _"export at 2560×800 PNG."_
 
-**Where the results go** in this repo — see §5. (TL;DR: `docs/images/brand/`, then uncomment the
-banner slot in `README.md`.)
+**Where the results go** in this repo: see §5. (TL;DR: `docs/images/brand/`, the README banner is
+already wired to them.)
 
 ---
 
@@ -166,8 +166,8 @@ docs/images/brand/
   favicon-32.png  favicon-16.png   ← Pass 4
 ```
 
-Then wire the banner into the README: open `README.md` and **replace the `BRAND SLOT` comment block at
-the very top** with:
+(Done: the README already shows the banner at the very top, so there is no `BRAND SLOT` block left to
+replace. A new banner only has to replace the image file.) The line first used there was:
 
 ```html
 <p align="center"><img src="docs/images/brand/banner.png" alt="Foundry AI Tool" width="100%" /></p>

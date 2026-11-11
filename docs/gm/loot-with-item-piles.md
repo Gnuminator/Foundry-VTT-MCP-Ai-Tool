@@ -60,12 +60,12 @@ Silver and so on) and click **Submit**.
 
 ![The Editing Currencies window with 30 Gold and 40 Silver typed in](../images/guides/loot-4-coins.png)
 
+![The pile as the GM sees it: items with quantities, coins, and the buttons Open Sheet, Show To Players and Configure Pile](../images/guides/loot-5-gm-window.png)
+
 **Done when it looks like this:** the pile window has a **Currencies** list with your amounts.
 
 **If it fails:** an amount shows 0 or the wrong coin has it. Click **Add currency** again, check you typed in
 the right box (Gold, not Platinum) and click **Submit**.
-
-![The pile as the GM sees it: items with quantities, coins, and the buttons Open Sheet, Show To Players and Configure Pile](../images/guides/loot-5-gm-window.png)
 
 The numbers next to the items are how many are in the pile, and you can change them right there.
 The pile is yours to edit. The players see a version with **Take** buttons.
@@ -86,7 +86,8 @@ in the list. Ask them to double-click the pile on the map instead.
 
 The player sees the items and coins with a **Take** button on each. For several of one thing, the
 small box says how many to take. Click **Take**. The item lands on their character sheet, and a
-card in the chat says who took what, for everyone to see.
+card in the chat says who took what, for everyone to see. The window also has **Config Update** and
+**Leave** buttons at the bottom; a player only needs **Leave**, which closes the window.
 
 ![A player's view of the pile: Take buttons, and the chat card after Test Hero took the dagger](../images/guides/loot-9-took.png)
 
@@ -102,8 +103,8 @@ took it.
 ## 6. Split the coins
 
 At the bottom of the pile window is **Split currency 2 ways** (the number is how many players are
-online with a character). Anyone can press it, you included. Every coin is divided equally, and a
-chat card says so.
+online with a character). You press it; the players' window shows the same button, so agree who
+does. Every coin is divided equally, and a chat card says so.
 
 ![After splitting: each player got 15 Gold and 20 Silver, and the items are still in the pile](../images/guides/loot-10-split.png)
 
@@ -120,7 +121,8 @@ party comes back to), open **Configure Pile**, change **Delete when empty** to *
 **Config Update**. The settings window is shown under
 [If a player cannot open the pile](#if-a-player-cannot-open-the-pile).
 
-**Done when it looks like this:** the token is still on the map after the last item and coin are taken.
+**Done when it looks like this:** after **Config Update**, **Delete when empty** reads **No, don't
+delete when empty**. The token then stays on the map after the last item and coin are taken.
 
 **If it fails:** the pile vanished and you wanted it to stay. It deleted itself when it was empty. Make a
 new pile (step 1) and set **Delete when empty** before the players start taking.
@@ -155,7 +157,7 @@ open or fill piles; for a pile, use the steps above.
 
 ## Good to know
 
-- Item Piles posts a welcome card in the chat the first time you load it, and the players can see
-  it. Delete it before the players join.
+- Item Piles may post a welcome card in the chat the first time it loads, and the players can see
+  it. If you see one, delete it before the players join.
 - Coins and items in a pile are not in the Loot window until somebody takes them: the window shows
   player characters, not piles.

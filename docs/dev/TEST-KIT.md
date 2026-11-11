@@ -120,7 +120,8 @@ Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no
    ```
 
    `host` must be the Pi's full Tailscale name (`tailscale status` on the Pi, or the address of the
-   dashboard link; the Pi's is `foundry-pi.tailf949aa.ts.net`), not the short name `foundry-pi`: the
+   dashboard link; the Pi's is `foundry-pi.tailf949aa.ts.net`), not the short name `foundry-pi` (which is what the kit
+   falls back to when `host` is missing, so always set it): the
    Pi dashboard only answers the host names in its `DASHBOARD_ALLOWED_HOSTS` and refuses any other with
    HTTP 421 (`host-not-allowed`), which the kit reports as "answered HTTP 421".
 
@@ -230,7 +231,7 @@ npm run kit:run -- --nightly                 # the overnight run: full, waits up
 
 | Option             | Meaning                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------- |
-| `--server A\|B`    | The test server (default B; A stays free for quick checks).                           |
+| `--server A\|B\|C` | The test server (default B; A stays free for quick checks).                           |
 | `--size`           | `smoke` (default), `full` or `long`.                                                  |
 | `--profile <id>`   | The content profile (default `srd`); it picks the kit world.                          |
 | `--wait <minutes>` | Queue for the lock and wait this long. Default 0.                                     |
@@ -860,7 +861,7 @@ packs of `packs.monsters` (the `srd` profile lists `dnd5e.actors24` and the lega
 lists theirs). Characters and vehicles in those packs are left out and counted. The GM action `listMonsters` reads them as facts
 (names, numbers and flags, never text); a probe copy is made with `createMonster` and removed with `deleteMonsters`, which refuses an
 actor without the kit flag. A probe is always deleted, also when a step fails, and carries the kit flag, so a rebuild wipes one a
-dead run left behind. All three scenarios run last (`order` 100), like the feature scenarios.
+dead run left behind. `monsters-every` and `monsters-odd` run last (`order` 100), like the feature scenarios; `monsters-matrix` has no `order` (0), so it runs with the early ones.
 
 A creature with no challenge rating (what a spell makes or summons: a steed, an animated object, a familiar) is a **stat block**.
 It is copied and used like any monster, but it is not held to the data a creature needs (a rating, a known type, hit points, armor
@@ -890,8 +891,8 @@ coverage attachment counts it) and fails the other: a monster that has spells th
 #### monsters-matrix
 
 Reads the packs and changes nothing. Steps: the packs are installed and have monsters, the counts add up, then the counts by CR
-band (9 bands), creature type (the 14 types), size, book and trait (28 traits: resistance, immunity, vulnerability, condition
-immunity, the four senses, languages, spells, innate spellcasting, legendary actions and resistance, lair, the five movement modes,
+band (9 bands), creature type (the 14 types), size, book and trait (29 traits: resistance, immunity, vulnerability, condition
+immunity, damage modification, the four senses, languages, spells, innate spellcasting, legendary actions and resistance, lair and lair actions, the five movement modes,
 regeneration, shapechanger, damage threshold, multiattack, recharge, summon, transform), the damage types and conditions and
 languages, and **the gaps**: a band, type, size or trait nobody in the profile has. The counts and gaps are attached
 (`matrix`) and do not fail the scenario. The last step checks the data every creature needs (`judgeRow`, CONTENT): a valid
@@ -1144,7 +1145,7 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 `lib/contract.mjs`. In short:
 
 - `id` (kebab-case), `title`, `sizes`, `tags`, `needs` (which parts of the manifest it uses).
-- `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run last: they
+- `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run near the end (`module-load` has 200 and `dashboard-login-split` 1000, so those two run after them): they
   post thousands of chat cards.
 - `t.size` (read only): the kit size of the run, for a scenario that samples.
 - `tools`: every bridge tool it calls. `kit check` fails if a tool is not in `tool-sets.ts`.
@@ -1286,7 +1287,7 @@ When you change a tool's result shape, change the fake with it.
   rebuild deletes only documents with that flag.
 - **Live ports are refused.** The bridge ports 31414 to 31416 are never used, also with `--fake`.
   The only real targets are a test server's dashboard and Foundry: `127.0.0.1:3100` and `:30001`
-  (A), `:3101` and `:30002` (B). Anything not on this machine is refused.
+  (A), `:3101` and `:30002` (B), `:3102` and `:30003` (C). Anything not on this machine is refused.
 - **Wrong world, no run.** If the connected world is not the profile's kit world, the run stops
   with exit code 2 before it changes anything.
 - **GM Actions are turned on for the run and put back** as they were found.
@@ -1295,7 +1296,7 @@ When you change a tool's result shape, change the fake with it.
   that is already there keeps its password: a lower-role `Claude` is promoted to Gamemaster, and
   a password someone gave it stays.
 - **Passwordless GMs only on the PC's test Foundry.** `init` provisions only `http://127.0.0.1:30001`
-  (server A) or `:30002` (server B), any loopback spelling, on Windows, because its passwordless GMs would be an open GM login on a
+  (server A), `:30002` (B) or `:30003` (C), any loopback spelling, on Windows, because its passwordless GMs would be an open GM login on a
   host others can reach. A loopback address alone is not enough: on the Pi `127.0.0.1:30000` is the
   port the tunnel serves, and an SSH forward makes the Pi look local, so both are refused. An SSH
   forward onto port 30001 or 30002 itself cannot be told apart; never forward the Pi there. The

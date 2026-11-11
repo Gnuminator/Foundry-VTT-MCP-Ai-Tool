@@ -43,7 +43,7 @@ to exist even when you only transcribe. Edit `FVTT_SESSIONS_DIR` in `.env` if yo
 `transcribe` options: `-Model <name|path>` (default `large-v3`), `-Force` (redo finished tracks),
 `-NoPipeline`, `-NoAutoFix`, `-Hotwords` (pass `<session>/names.txt`, or `vocab.txt` when there is no
 names file, to Whisper as hotwords; off by default, see the results below; `-NoHotwords` is kept and
-does nothing). `<session>/names.txt` goes to the pipeline as the known names for automatic name
+cancels `-Hotwords` when both are given, and does nothing alone). `<session>/names.txt` goes to the pipeline as the known names for automatic name
 fixes (every fix is listed in `timeline/fixes.json`; `-NoAutoFix` turns them into suggestions).
 
 `names` options: `-Dashboard <url>` (default `http://127.0.0.1:3100`, the co-GM dashboard of the

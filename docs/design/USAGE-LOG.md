@@ -20,7 +20,7 @@ field.
   known non-GM user, else `who` is unknown). No read route for players. The dashboard forwards to the
   bridge with the control method `record_usage` (`{events}` → `{accepted, dropped}`); an old backend
   answers "Unknown method" and the dashboard logs one warning and drops the batch. The stdio wrapper
-  never forwards `record_usage`, so Claude's tool list (91) and context are unchanged.
+  never forwards `record_usage`, so Claude's tool list and context are unchanged.
 - **Player name pick:** `GET /api/player/names` lists non-GM users (union of non-GM `activeUsers`
   from `get-world-info` seen since the dashboard started). `player.js` asks once, stores the pick in
   `localStorage` (`cogm_player_who`), and shows a "not you?" link.
@@ -63,5 +63,5 @@ On the test server: GM dashboard actions, a tool run, a failing tool, the Tarokk
 shortcut; `/player` name pick and "not you?"; as Player in Foundry a roll button; as Claude the
 module settings menu. Then: the day's `.usage.jsonl` has GM and player `who`, no typed text or
 argument values, no duplicates after F5; `POST /api/usage` with the player token is 403 and no read
-route exists; the MCP schema smoke test still lists 91 tools; the Obsidian note shows every section;
+route exists; the MCP schema smoke test still lists every tool (the count is in `docs/reference/tools.md`); the Obsidian note shows every section;
 with `FOUNDRY_AI_USAGE_LOG=off` nothing is written.

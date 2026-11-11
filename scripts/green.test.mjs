@@ -224,6 +224,7 @@ test('lightFirst: --from a light step still runs typecheck and the other heavy s
 test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY_STEPS fails here, not unlocked', () => {
   const lightNpm = new Set([
     'emdash:ratchet',
+    'line:ratchet',
     'version:check',
     'usage:catalog:check',
     'docs:lint',

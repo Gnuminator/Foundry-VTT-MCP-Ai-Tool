@@ -492,7 +492,8 @@ export function patchIdAt(run, sha, mainRef = MAIN) {
 /**
  * Which reviewed commits carry their verdicts to the head: those whose PR patch id equals the
  * head's (patchIdAt). Every full sha any note names is compared, so a Do not merge on the same
- * patch carries too. Any error (a shallow clone, a commit that cannot be fetched, a failing git)
+ * patch carries too; and a reviewed commit with another patch that is newer (committer time) than
+ * every carried one refuses the carry, so a later review is never skipped. Any error (a shallow clone, a commit that cannot be fetched, a failing git)
  * returns the error as `carryError` and carries nothing. The result is judgeReviews' `carry`.
  * @param {(cmd: string, args: string[], input?: string) => { status: number, stdout: string, stderr: string }} run
  * @param {ReviewNote[]} notes @param {string} headSha @param {string} [mainRef]
@@ -517,10 +518,33 @@ export function carriedReviews(run, notes, headSha, mainRef = MAIN) {
   if ('error' in at) return fail(at.error);
   /** @type {string[]} */
   const carried = [];
+  /** Committer time of each reviewed commit (seconds). @type {Map<string, number>} */
+  const time = new Map();
   for (const sha of /** @type {string[]} */ (reviewed)) {
     const r = patchIdAt(run, sha, mainRef);
     if ('error' in r) return fail(r.error);
     if (r.id === at.id) carried.push(sha);
+    const t = run('git', ['show', '-s', '--format=%ct', sha]);
+    const seconds = Number(t.stdout.trim());
+    if (t.status !== 0 || !/^\d+$/.test(t.stdout.trim())) {
+      return fail(`cannot read the commit time of ${sha.slice(0, 7)}`);
+    }
+    time.set(sha, seconds);
+  }
+  // Only the newest review counts (the brief: the newest counting note's sha). A reviewed commit with
+  // another patch that is as new as or newer than every carried one (a later change that was reviewed,
+  // maybe vetoed, then dropped again) refuses the carry. A tie counts as newer.
+  if (carried.length > 0) {
+    const newestCarried = Math.max(...carried.map(s => /** @type {number} */ (time.get(s))));
+    const later = reviewed.filter(
+      s =>
+        !carried.includes(/** @type {string} */ (s)) &&
+        /** @type {number} */ (time.get(/** @type {string} */ (s))) >= newestCarried
+    );
+    if (later.length > 0) {
+      const names = later.map(s => /** @type {string} */ (s).slice(0, 7)).join(', ');
+      return fail(`the newest reviewed commit (${names}) has a different patch from the head`);
+    }
   }
   return { carried, carryError: null };
 }
@@ -561,7 +585,17 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
   const named = notes.flatMap(note =>
     note.entries.filter(e => e.head === head).map(entry => ({ note, entry }))
   );
-  const carriedShas = named.length === 0 ? (carry.carried ?? []) : [];
+  let carriedShas = named.length === 0 ? (carry.carried ?? []) : [];
+  let carryError = carry.carryError;
+  // A short sha ties to no commit, so on the carry path it could hide a verdict on the same patch
+  // (a commit no note names in full): any short sha in any note turns the carry off.
+  const shortNamed = notes
+    .filter(n => n.shortHeads.length > 0)
+    .map(n => `${n.name} reviewed ${n.shortHeads.join(', ')}`);
+  if (carriedShas.length > 0 && shortNamed.length > 0) {
+    carriedShas = [];
+    carryError = `${shortNamed.join('; ')} by a short sha, which could hide a verdict on the same patch (Head reviewed needs the full 40-character sha)`;
+  }
   const forHead =
     named.length > 0
       ? named
@@ -574,8 +608,8 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
   const via = named.length > 0 ? '' : ` (verdict carried from ${carriedFrom.join(', ')})`;
   if (forHead.length === 0) {
     const reviewedOther = notes.some(n => n.entries.some(e => e.head && e.head !== head));
-    const notCarried = carry.carryError
-      ? `; not carried: ${carry.carryError}; a review note for the head is needed`
+    const notCarried = carryError
+      ? `; not carried: ${carryError}; a review note for the head is needed`
       : reviewedOther && carry.carried
         ? '; not carried: the patch changed since every reviewed commit; a review note for the head is needed'
         : '';

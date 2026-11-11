@@ -153,6 +153,7 @@ function gate(o = {}) {
     if (key === 'git merge-base aitool/main' && args[2] !== 'HEAD')
       return ok(`${'b'.repeat(40)}\n`);
     if (key === 'git diff --binary') return ok(`patch ${args.at(-1)}\n`);
+    if (key === 'git show -s') return ok(`${o.commitTimes?.[args[3]] ?? 1000}\n`);
     if (key === 'git patch-id --verbatim') {
       const id =
         o.patchIds?.[
@@ -3073,11 +3074,19 @@ test('changelog: a release PR passes without --no-changelog; anything more is re
  */
 function carryRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-carry-'));
+  // A fake clock: every git call is one minute later, so commits made in order have rising
+  // committer times (the carry reads them to find the newest review).
+  let tick = 0;
+  const env = () => {
+    const at = `@${1_800_000_000 + 60 * tick++} +0000`;
+    return { ...process.env, GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at };
+  };
   const g = (/** @type {string[]} */ ...args) =>
     execFileSync('git', args, {
       cwd: dir,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: env(),
     }).trim();
   const run = (
     /** @type {string} */ cmd,
@@ -3087,6 +3096,7 @@ function carryRepo() {
     const r = spawnSync(cmd, args, {
       cwd: dir,
       encoding: 'utf8',
+      env: env(),
       ...(input === undefined ? {} : { input }),
     });
     return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
@@ -3280,6 +3290,74 @@ test('carry: any error carries nothing (unknown commit, shallow clone, old git, 
     throw new Error('no call expected');
   };
   assert.deepEqual(carriedReviews(none, [reviewed(C)], C), { carried: [], carryError: null });
+});
+
+test('carry (review M2): a later review on another patch, then that change dropped, does not carry', () => {
+  const r = carryRepo();
+  // X = B was reviewed Merge; Y adds a line and gets Do not merge; the lane drops Y's change again
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : i === 19 ? 'line 20 too' : l))
+  );
+  const Y = r.commit('a change the review vetoed');
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : l))
+  );
+  const Z = r.commit('drop it again');
+  const notes = [
+    reviewed(r.B, true),
+    parseReviewNote(
+      '312-opus-review-round2.md',
+      note({ head: Y, verdict: '**Do not merge.** Broken.', title: 'PR #312 Opus review' }),
+      312
+    ),
+  ];
+  const carry = carriedReviews(r.run, notes, Z);
+  assert.deepEqual(carry.carried, []);
+  assert.equal(
+    carry.carryError,
+    `the newest reviewed commit (${Y.slice(0, 7)}) has a different patch from the head`
+  );
+  assert.equal(judgeReviews(notes, Z, true, carry).ok, false);
+  // the usual order (an older veto, then fixes reviewed Merge) still carries after a merge of main
+  const M1 = mainMovesOn(r);
+  r.g('checkout', '-q', 'pr');
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const fixed = [
+    parseReviewNote(
+      '312-opus-review.md',
+      note({ head: Y, verdict: '**Do not merge.** Broken.', title: 'PR #312 Opus review' }),
+      312
+    ),
+    parseReviewNote(
+      '312-opus-review-round2.md',
+      note({ head: Z, title: 'PR #312 Opus review' }),
+      312
+    ),
+  ];
+  const ok = carriedReviews(r.run, fixed, C);
+  assert.deepEqual(ok, { carried: [Z], carryError: null });
+  assert.equal(judgeReviews(fixed, C, true, ok).ok, true);
+});
+
+test('carry (review M1): any short sha in a note turns the carry off', () => {
+  const merge = reviewed(OTHER);
+  const veto = parseReviewNote(
+    '312-review-round2.md',
+    note({ head: 'abcdef1', verdict: '**Do not merge.** Broken.' }),
+    312
+  );
+  const verdict = judgeReviews([merge, veto], HEAD, false, { carried: [OTHER], carryError: null });
+  assert.equal(verdict.ok, false);
+  assert.match(
+    verdict.detail,
+    /^no review note for head 3d24f70 .*; not carried: 312-review-round2\.md reviewed abcdef1 by a short sha, which could hide a verdict on the same patch/
+  );
+  // without the short sha the same carry passes
+  assert.equal(judgeReviews([merge], HEAD, false, { carried: [OTHER], carryError: null }).ok, true);
 });
 
 const PATCH_A = 'a'.repeat(40);

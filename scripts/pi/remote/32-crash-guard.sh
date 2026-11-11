@@ -21,7 +21,11 @@
 #      that posts "clock back"; while bad the service shows as failed in systemctl.
 # It restarts nothing: the daemon is reloaded (the new limits apply to running units at once), no service stops, so it needs
 # no quiet check and drops no player. It does not touch a world or a Foundry setting. A snapshot first.
-# A unit that trips its start limit stays down until `systemctl reset-failed <unit> && systemctl start <unit>`; the alert says so.
+# RestartMode=direct in every drop-in keeps automatic restarts from firing OnFailure (systemd 254 and newer); the alert also
+# posts only when the unit's Result is start-limit-hit. A unit that trips its start limit stays down until
+# `systemctl reset-failed <unit> && systemctl start <unit>`; the alert says so (docs/dev/PI-SETUP.md, "Crash guard").
+# A real run also starts the clock service once and posts ONE test line to #gm-bot ("the crash guard is installed"), to prove
+# the sandboxed units work as $FOUNDRY_USER; that is part of the user's OK for the run.
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1  print what a real run would do; changes nothing, needs no snapshot
@@ -67,7 +71,20 @@ name="${2:-}"
 case "$kind" in
   unit)
     [[ "$name" =~ ^[A-Za-z0-9@:._-]{1,100}$ ]] || { echo "alert: refusing odd unit name"; exit 0; }
-    text="Pi: $name keeps failing and systemd stopped restarting it. Look at journalctl -u $name, then: systemctl reset-failed $name && systemctl start $name"
+    if [ "$name" = crash-guard-test ]; then
+      text="Pi: the crash guard is installed; alerts reach this channel."
+    else
+      # RestartMode=direct keeps the automatic restarts from firing OnFailure; still post only for a real start-limit trip
+      # (not for a stop that timed out, say).
+      if command -v systemctl >/dev/null 2>&1; then
+        result="$(systemctl show -p Result --value "$name" 2>/dev/null || true)"
+        if [ "$result" != start-limit-hit ]; then
+          echo "alert: $name result is '${result:-unknown}', not start-limit-hit: journal only"
+          exit 0
+        fi
+      fi
+      text="Pi: $name keeps failing and systemd stopped restarting it. Look at journalctl -u $name, then: systemctl reset-failed $name && systemctl start $name"
+    fi
     ;;
   clock-bad) text="Pi: the clock is not synchronized with NTP (Cloudflare Access tokens and backup timestamps depend on it). Run stage 18 with CHECK=1." ;;
   clock-ok) text="Pi: the clock is synchronized with NTP again." ;;
@@ -79,7 +96,7 @@ if [ -z "${DISCORD_TOKEN:-}" ] || [ -z "${GAMENIGHT_WATCH_CHANNEL_ID:-}" ]; then
   exit 0
 fi
 [[ "$GAMENIGHT_WATCH_CHANNEL_ID" =~ ^[0-9]{5,25}$ ]] || { echo "alert: the channel id looks wrong: journal only"; exit 0; }
-api="${DISCORD_API:-https://discord.com/api/v10}"
+api="https://discord.com/api/v10"
 body="$(printf '{"content":"%s"}' "$text")"
 if printf 'header = "Authorization: Bot %s"\nheader = "Content-Type: application/json"\n' "$DISCORD_TOKEN" |
   curl -sS -o /dev/null -f --max-time 20 -K - -X POST --data "$body" "$api/channels/$GAMENIGHT_WATCH_CHANNEL_ID/messages"; then
@@ -131,6 +148,8 @@ ProtectHome=true"
 
 want_alert="[Unit]
 Description=Foundry AI Tool: say in #gm-bot that %i keeps failing
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
@@ -162,21 +181,33 @@ AccuracySec=1min
 [Install]
 WantedBy=timers.target"
 
+limits_for() { # $1 unit: "burst interval"
+  case "$1" in
+    foundry.service) echo "10 300" ;;
+    foundry-ai-tool-gm-browser.service) echo "10 600" ;;
+    *) echo "30 600" ;;
+  esac
+}
+
 dropin_text() { # $1 unit
-  local burst=30 interval=600
-  case "$1" in foundry.service) burst=10 interval=300 ;; foundry-ai-tool-gm-browser.service) burst=10 interval=600 ;; esac
+  local lim burst interval
+  lim="$(limits_for "$1")"
+  burst="${lim% *}"
+  interval="${lim#* }"
   printf '%s\n' "# Written by stage 32 (scripts/pi/remote/32-crash-guard.sh): a crash loop stops after $burst starts in $interval s and is announced."
   printf '[Unit]\nStartLimitIntervalSec=%s\nStartLimitBurst=%s\nOnFailure=foundry-ai-tool-alert@%%n.service\n' "$interval" "$burst"
+  # RestartMode=direct: an automatic restart does not pass through the failed state, so OnFailure fires only when the limit trips.
+  printf '\n[Service]\nRestartMode=direct\n'
   if [ "$1" = foundry.service ]; then
-    printf '\n[Service]\n# a clean exit (code 0) used to leave Foundry down; a stop on purpose (the nightly backup) is still respected\nRestart=always\n'
+    printf '# a clean exit (code 0) used to leave Foundry down; a stop on purpose (the nightly backup) is still respected\nRestart=always\n'
   fi
 }
 
-# Which guarded units exist here. gm-browser also has to be enabled when systemd runs (a compose cut-over disables it).
+# Which guarded units exist here. Each also has to be enabled when systemd runs (a compose cut-over disables all four).
 present=""
 absent=""
 for u in $guarded; do
-  if [ -f "$unit_dir/$u" ] && { ! have_systemd || [ "$u" != foundry-ai-tool-gm-browser.service ] || systemctl is-enabled --quiet "$u" 2>/dev/null; }; then
+  if [ -f "$unit_dir/$u" ] && { ! have_systemd || systemctl is-enabled --quiet "$u" 2>/dev/null; }; then
     present="$present $u"
   else
     absent="$absent $u"
@@ -194,7 +225,15 @@ if [ "$check" = 1 ]; then
     if [ -f "$f" ] && [ "$(cat "$f")" = "$(dropin_text "$u")" ]; then
       ok "$u: drop-in in place"
       if have_systemd; then
-        systemctl show -p Restart -p StartLimitBurst -p OnFailure "$u" 2>/dev/null | sed 's/^/    /' || true
+        lim="$(limits_for "$u")"
+        got="$(systemctl show -p Restart -p RestartMode -p StartLimitBurst -p OnFailure "$u" 2>/dev/null | tr '\n' ' ' || true)"
+        echo "    $got" | sed 's/  */ /g'
+        case "$got" in *"StartLimitBurst=${lim% *} "*) ;; *) warn "$u: StartLimitBurst is not ${lim% *} (the drop-in is not loaded: systemctl daemon-reload)"; bad=1 ;; esac
+        case "$got" in *"OnFailure=foundry-ai-tool-alert@"*) ;; *) warn "$u: OnFailure is not set"; bad=1 ;; esac
+        case "$got" in *"RestartMode=direct"*) ;; *) warn "$u: RestartMode is not direct"; bad=1 ;; esac
+        if [ "$u" = foundry.service ]; then
+          case "$got" in *"Restart=always"*) ;; *) warn "$u: Restart is not always"; bad=1 ;; esac
+        fi
       fi
     else
       warn "$u: drop-in missing or changed"
@@ -206,6 +245,13 @@ if [ "$check" = 1 ]; then
   [ -f "$unit_dir/$alert_unit" ] && [ -f "$unit_dir/$clock_service" ] && [ -f "$unit_dir/$clock_timer" ] || { warn "the alert or clock units are missing in $unit_dir"; bad=1; }
   if have_systemd; then
     systemctl is-active --quiet "$clock_timer" && ok "$clock_timer is active" || { warn "$clock_timer is not active"; bad=1; }
+    # The unit itself (sandbox, state folder, user) has to have run at least once: its journal holds the clock line.
+    if journalctl -u "$clock_service" -n 20 --no-pager -o cat 2>/dev/null | grep -q 'clock: NTP service='; then
+      ok "$clock_service has run under systemd as $FOUNDRY_USER"
+    else
+      warn "$clock_service has not run yet (the timer fires within 10 minutes of boot or install): journalctl -u $clock_service"
+      bad=1
+    fi
   fi
   if [ -x "$dest/clock-check.sh" ]; then
     DRY=1 "$dest/clock-check.sh" | sed 's/^/    /' || bad=1
@@ -218,7 +264,6 @@ fi
 # ---- UNDO ------------------------------------------------------------------------------------------------------
 if [ "$undo" = 1 ]; then
   say "undo: remove the guard"
-  if [ "$dry" = 1 ]; then say "DRY_RUN=1: nothing changed"; exit 0; fi
   if have_systemd; then
     systemctl stop "$clock_timer" 2>/dev/null || true
     systemctl disable "$clock_timer" >/dev/null 2>&1 || true
@@ -293,7 +338,21 @@ if have_systemd; then
     esac
   done
   systemd-analyze verify "$unit_dir/$alert_unit" "$unit_dir/$clock_service" "$unit_dir/$clock_timer" 2>&1 | sed 's/^/    /' || true
-  ok "$clock_timer active; the first clock check runs within minutes"
+  ok "$clock_timer active"
+  # Run both units once under systemd, as $FOUNDRY_USER, so a sandbox or permission problem shows now and not in a crash loop.
+  # The clock service exits 1 on an unsynchronized clock, which is a finding and not a failure of the unit: its journal line decides.
+  since="$(date '+%Y-%m-%d %H:%M:%S')"
+  systemctl start "$clock_service" >/dev/null 2>&1 || true
+  journalctl -u "$clock_service" --since "$since" --no-pager -o cat 2>/dev/null | grep -q 'clock: NTP service=' ||
+    die "$clock_service did not run under systemd (sandbox, state folder or user problem): journalctl -u $clock_service -n 30"
+  ok "$clock_service ran as $FOUNDRY_USER"
+  systemctl start foundry-ai-tool-alert@crash-guard-test.service >/dev/null 2>&1 || true
+  alert_log="$(journalctl -u foundry-ai-tool-alert@crash-guard-test.service --since "$since" --no-pager -o cat 2>/dev/null || true)"
+  case "$alert_log" in
+    *"alert: posted"*) ok "the test alert was posted to #gm-bot (one line: the crash guard is installed)" ;;
+    *"journal only"*) warn "the test alert reached the journal only (no bot token or #gm-bot line): crash alerts will not reach Discord until stages 8 and 26 are done" ;;
+    *) die "the test alert did not run or its post failed: journalctl -u foundry-ai-tool-alert@crash-guard-test.service -n 30" ;;
+  esac
 else
   warn "no systemd here (a test container?): files written, nothing started"
 fi

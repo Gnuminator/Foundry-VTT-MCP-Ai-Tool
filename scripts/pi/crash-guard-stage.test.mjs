@@ -36,7 +36,7 @@ describe('stage 32 as text', () => {
       .filter(l => !l.includes('text="') && !/^\s*(ok|warn|say|die) /.test(l))
       .join('\n');
     for (const r of noText.match(/systemctl (restart|stop|start|enable|disable)[^\n]*/g) ?? []) {
-      assert.match(r, /"\$clock_timer"/, r);
+      assert.match(r, /"\$clock_timer"|"\$clock_service"|alert@crash-guard-test/, r);
     }
   });
 
@@ -48,7 +48,13 @@ describe('stage 32 as text', () => {
   test('every guarded drop-in has a start limit and OnFailure, and only Foundry gets Restart=always', () => {
     assert.match(stage, /StartLimitIntervalSec=%s\\nStartLimitBurst=%s\\nOnFailure=foundry-ai-tool-alert@%%n\.service/);
     assert.match(stage, /if \[ "\$1" = foundry\.service \]/);
-    assert.equal((code.match(/Restart=always/g) ?? []).length, 1);
+    assert.equal((code.match(/printf '[^\n]*Restart=always/g) ?? []).length, 1);
+  });
+
+  test('automatic restarts do not fire OnFailure: RestartMode=direct, and the alert wants start-limit-hit', () => {
+    assert.match(stage, /RestartMode=direct\\n/);
+    assert.match(stage, /!= start-limit-hit/);
+    assert.match(stage, /crash-guard-test/);
   });
 
   test('the alert never puts the token on a command line and the units hold no secret', () => {

@@ -151,6 +151,27 @@ rc=$?
 rm -f /tmp/curl-fail
 if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'post failed'; then pass "a failing post still exits 0"; else fail "failing post: rc=$rc $OUT"; fi
 
+grep -q '^RestartMode=direct$' "$unit_dir/foundry-ai-tool-bridge.service.d/10-crash-guard.conf" && grep -q '^RestartMode=direct$' "$d" &&
+  pass "every drop-in sets RestartMode=direct" || fail "RestartMode"
+# A stand-in systemctl that reports a Result: only start-limit-hit posts; the install test line always does.
+mkdir -p /tmp/sc-bin
+cat >/tmp/sc-bin/systemctl <<'EOF'
+#!/usr/bin/env bash
+cat /tmp/sc-result
+EOF
+chmod 0755 /tmp/sc-bin/systemctl
+: >/tmp/curl.log
+echo timeout >/tmp/sc-result
+OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit foundry.service 2>&1)"
+if echo "$OUT" | grep -q "not start-limit-hit" && [ ! -s /tmp/curl.log ]; then pass "a unit that failed another way posts nothing"; else fail "result timeout: $OUT"; fi
+echo start-limit-hit >/tmp/sc-result
+OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit foundry.service 2>&1)"
+if echo "$OUT" | grep -q 'alert: posted' && grep -q 'keeps failing' /tmp/curl.log; then pass "start-limit-hit posts"; else fail "result limit: $OUT"; fi
+echo timeout >/tmp/sc-result
+: >/tmp/curl.log
+OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit crash-guard-test 2>&1)"
+if echo "$OUT" | grep -q 'alert: posted' && grep -q 'crash guard is installed' /tmp/curl.log; then pass "the install test line posts whatever the Result"; else fail "test line: $OUT"; fi
+
 # 6.
 rm -rf "$state" /tmp/clock-alerts
 cat >"$dest/alert.sh" <<'EOF'

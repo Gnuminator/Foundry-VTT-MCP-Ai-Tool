@@ -116,9 +116,11 @@ skip_marker="${FOUNDRY_BACKUP_SKIP_MARKER:-/var/lib/foundry-backup/skipped-last-
 live_project=foundry-ai-tool-pi
 stack=systemd
 foundry_cid=""
-docker_off() { # 0 when systemd runs and docker.service and docker.socket are neither enabled nor active
+docker_off() { # 0 when systemd runs, docker.service and docker.socket are neither enabled nor active, and no container is left
   local u
   [ -d "$systemd_dir" ] || return 1
+  # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped
+  ! pgrep -f containerd-shim >/dev/null 2>&1 || return 1
   for u in docker.service docker.socket; do
     if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
     [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
@@ -126,7 +128,12 @@ docker_off() { # 0 when systemd runs and docker.service and docker.socket are ne
 }
 if command -v docker >/dev/null 2>&1; then
   if timeout 20 docker info >/dev/null 2>&1; then
-    if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$live_project" 2>/dev/null)" ]; then stack=containers; fi
+    # A failing docker ps is an unknown state, not "no containers" (a failure inside [ -n "$(...)" ] would be invisible).
+    if ! ids="$(docker ps -aq --filter "label=com.docker.compose.project=$live_project" 2>/dev/null)"; then
+      echo "ERROR: backup failed: docker ps failed, so it is unknown whether Foundry runs as a container that may be writing its data. Nothing was copied. Look at: systemctl status docker" >&2
+      exit 1
+    fi
+    [ -z "$ids" ] || stack=containers
   elif [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
     echo "WARNING: the Docker daemon does not answer, but foundry.service runs: backing up the unit's Foundry" >&2
   elif ! docker_off; then
@@ -138,7 +145,12 @@ fi
 # foundry_running: 0 when Foundry runs now (and sets foundry_cid in the containers case).
 foundry_running() {
   if [ "$stack" = containers ]; then
-    foundry_cid="$(docker ps -q --filter "label=com.docker.compose.project=$live_project" --filter "label=com.docker.compose.service=foundry" 2>/dev/null | head -n 1 || true)"
+    local ids
+    if ! ids="$(docker ps -q --filter "label=com.docker.compose.project=$live_project" --filter "label=com.docker.compose.service=foundry" 2>/dev/null)"; then
+      echo "ERROR: backup failed: docker ps failed, so it is unknown whether the foundry container runs. Nothing was copied" >&2
+      exit 1
+    fi
+    foundry_cid="$(printf '%s\n' "$ids" | head -n 1)"
     [ -n "$foundry_cid" ]
   else
     [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service

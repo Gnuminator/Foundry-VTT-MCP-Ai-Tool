@@ -98,7 +98,7 @@ Never on a game-night day, never with players online, a `dietpi-backup` snapshot
    ports with its own data folders (command above), then look at `deploy/pi/deployed-state.sh`, open the rehearsal
    dashboard on port 3300 and join the rehearsal Foundry on 30100 from the Tailscale name. End with `MODE=down` and the
    same ports. The live units never stop in this sitting.
-2. **Cutover**, at least 7 days before session 0, otherwise after G2 (D-142). Stage 6 again, snapshot, then `MODE=cutover DRY_RUN=1` (prints the plan, changes nothing), then `MODE=cutover`. Check
+2. **Cutover**, at least 7 days before session 0, otherwise after G2 (D-142). A snapshot (quiet table), then stage 6 again (it needs both itself), then `MODE=cutover DRY_RUN=1` (prints the plan, changes nothing), then `MODE=cutover`. Check
    `MODE=status` and `deploy/pi/deployed-state.sh` (no unit and container running together), join Foundry, and let one
    backup run (`systemctl start foundry-backup.service`, on a quiet table; it stops the Foundry container for the copy)
    before calling it done. **Rollback** at any
@@ -112,7 +112,10 @@ unit and its container both run.
 - Each container has a health check (`healthcheck.mjs`): Foundry `/api/status`, the bridge control port, the dashboard
   `/api/health`, and for gm-browser the bridge's `link_status` (the module's socket is connected). gm-browser is
   reported but is not part of the gate that decides whether the stack is up: it needs the world, its login and the module.
-- `restart: unless-stopped` restarts a container that exits, also after a clean exit. A restart count of 5 or more
+- `restart: unless-stopped` restarts a container that exits, also after a clean exit; the foundry service uses `restart:
+always`, because the nightly backup stops that container with `docker stop` and a reboot in that window must still bring
+  it back (the backup's own exit path starts it again otherwise). If Foundry is ever down after a cutover night:
+  `docker start $(docker ps -aq --filter label=com.docker.compose.service=foundry)`. A restart count of 5 or more
   is a crash loop in `deployed-state.sh`.
 
 ## Docker on the host

@@ -936,13 +936,14 @@ case "$1" in
   info) [ "$DOCKER" != down ] || exit 1; exit 0 ;;
   ps)
     svc=""; for a in "$@"; do case "$a" in label=com.docker.compose.service=*) svc="\${a#label=com.docker.compose.service=}" ;; esac; done
+    [ "$DOCKER" != pserr ] || exit 1
     [ "$DOCKER" = live ] || exit 0
     case "$svc" in
       foundry) [ -f "$LOG.cstopped" ] || echo cid-foundry ;;
       gm-browser) echo cid-gm ;;
       "") echo cid-foundry; echo cid-gm ;;
     esac ;;
-  stop) [ "\${STOP_FAILS:-0}" = 1 ] || touch "$LOG.cstopped" ;;
+  stop) [ "\${STOP_EXIT:-0}" != 1 ] || exit 1; [ "\${STOP_FAILS:-0}" = 1 ] || touch "$LOG.cstopped" ;;
   start) touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.cstopped" ;;
   inspect)
     case "$*" in
@@ -1143,6 +1144,20 @@ exit 0`
       assert.match(r.out, /the foundry container is not running, not answering/);
       assert.match(r.out, /docker start cid-foundry/);
       assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('a docker stop that exits non-zero: no copy, status 1, and the start still follows', () => {
+      const r = cut({ users: [0], env: { STOP_EXIT: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.doesNotMatch(r.calls, /restic/);
+      assert.match(r.calls, /docker start/);
+    });
+
+    test('docker info answers but docker ps fails: an unknown state, nothing is stopped or copied', () => {
+      const r = nightly({ docker: 'pserr', users: [0] });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /docker ps failed/);
+      assert.doesNotMatch(r.calls, /restic|systemctl stop|docker stop/);
     });
 
     test('a silent Docker daemon and no running foundry.service is an unknown state: nothing is stopped or copied', () => {

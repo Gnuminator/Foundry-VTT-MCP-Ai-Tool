@@ -300,6 +300,11 @@ jobs:
         # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
         run: node --test scripts/pi/pi-stage-safety.test.mjs
 
+      - name: Pi cut-over guard (every stage that starts a unit)
+        # lib.sh refuse_when_cut_over and env_file_value, and the check that no stage under scripts/pi/remote starts, restarts
+        # or enables a stack unit without calling the guard (or a NO_GUARD reason).
+        run: node --test scripts/pi/cutover-guard.test.mjs
+
       - name: Pi ssh log keeps no token command text
         # Stage 9's generated wrapper, run for real: token script commands are logged by kind, everything else keeps its text.
         run: node --test scripts/pi/ssh-log-secrets.test.mjs

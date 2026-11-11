@@ -1739,8 +1739,8 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   of the live project stopped, found by label, then the units enabled and started in order). `status` is read-only. Containers
   are always found by label, and a Docker daemon that does not answer makes the stage refuse. **`MODE=cutover`** (Backlog
   `pi-compose-cutover`) switches the live stack to containers. It is two sittings: a rehearsal (snapshot, stage 23, `MODE=up`
-  on the `test.env` ports, `MODE=down`), then the cutover, at least 7 days before session 0, otherwise after G2 (D-142): stage 6
-  again (the cutover refuses while the installed nightly script does not know the containers), snapshot, `MODE=cutover DRY_RUN=1`,
+  on the `test.env` ports, `MODE=down`), then the cutover, at least 7 days before session 0, otherwise after G2 (D-142): a snapshot
+  (quiet table), stage 6 again (the cutover refuses while the installed nightly script does not know the containers), `MODE=cutover DRY_RUN=1`,
   `MODE=cutover`, a nightly backup run by hand, `MODE=rollback` at any time. The exact steps are in `deploy/pi/README.md`, "Cutover
   and rollback".
 - **After a cutover every stage that would start, restart or enable `foundry.service`, the bridge, the dashboard or the Assistant

@@ -94,6 +94,9 @@ daemon_known() { ! command -v docker >/dev/null 2>&1 || timeout 20 docker info >
 docker_cannot_return() {
   local u
   have_systemd || return 1
+  # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped: a container process left
+  # means "unknown", whatever systemd says about the docker units.
+  ! pgrep -f containerd-shim >/dev/null 2>&1 || return 1
   for u in docker.service docker.socket; do
     if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
     [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1

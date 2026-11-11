@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseArgs, parseStream, planChats } from './run.mjs';
+import { parseArgs, parseStream, planChats, scrubEnv } from './run.mjs';
+
+test('scrubEnv drops every ANTHROPIC_ and CLAUDE_CODE_USE_ key in any case and keeps the rest', () => {
+  const out = scrubEnv({
+    ANTHROPIC_API_KEY: 'x',
+    anthropic_auth_token: 'x',
+    ANTHROPIC_BASE_URL: 'x',
+    CLAUDE_CODE_USE_BEDROCK: '1',
+    claude_code_use_vertex: '1',
+    PATH: 'p',
+    ENABLE_TOOL_SEARCH: 'false',
+  });
+  assert.deepEqual(out, { PATH: 'p', ENABLE_TOOL_SEARCH: 'false' });
+});
 
 test('parseArgs reads models, samples and cases', () => {
   const o = parseArgs(['--models', 'sonnet,haiku', '--samples', '2', '--cases', '1,4', '--dry-run']);

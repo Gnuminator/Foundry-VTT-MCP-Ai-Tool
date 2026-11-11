@@ -8,8 +8,8 @@
 #
 # What it changes (all of it under /etc/systemd/system, $TOOL_DIR/crash-guard and one state folder; no unit file written by
 # an earlier stage is edited, so a later run of stage 3 or 5 keeps the guard):
-#   1. drop-ins  <unit>.d/10-crash-guard.conf  for foundry, foundry-ai-tool-bridge, foundry-ai-tool-dashboard and, when it
-#      is a systemd unit that is enabled (each of the four must be), foundry-ai-tool-gm-browser:StartLimitIntervalSec and StartLimitBurst (a crash loop
+#   1. drop-ins  <unit>.d/10-crash-guard.conf  for foundry, foundry-ai-tool-bridge, foundry-ai-tool-dashboard and
+#      foundry-ai-tool-gm-browser, each only when it is an enabled systemd unit: StartLimitIntervalSec and StartLimitBurst (a crash loop
 #      stops after a few minutes instead of for ever), OnFailure=foundry-ai-tool-alert@%n.service (the stop is announced) and,
 #      for Foundry only, Restart=always (a clean exit no longer leaves the world down). A unit that is not there is skipped
 #      with a note (the stack may run as containers: the compose stage owns those).
@@ -24,8 +24,9 @@
 # RestartMode=direct in every drop-in keeps automatic restarts from firing OnFailure (systemd 254 and newer); the alert also
 # posts only when the unit's Result is start-limit-hit. A unit that trips its start limit stays down until
 # `systemctl reset-failed <unit> && systemctl start <unit>`; the alert says so (docs/dev/PI-SETUP.md, "Crash guard").
-# A real run also starts the clock service once and posts ONE test line to #gm-bot ("the crash guard is installed"), to prove
-# the sandboxed units work as $FOUNDRY_USER; that is part of the user's OK for the run.
+# A real run also starts the clock service (the timer fires once on enable too) and posts one test line to #gm-bot ("the crash
+# guard is installed"), plus a clock alert if the clock is not synchronized, to prove the sandboxed units work as $FOUNDRY_USER;
+# that is part of the user's OK for the run.
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1  print what a real run would do; changes nothing, needs no snapshot

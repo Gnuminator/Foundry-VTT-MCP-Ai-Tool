@@ -151,6 +151,7 @@ export const CHECKS = [
     'pi',
     'scripts/pi/player-connector-cloudflare.test.mjs'
   ),
+  nodeTest('pi-crash-guard-stage', 'pi', 'scripts/pi/crash-guard-stage.test.mjs'),
   nodeTest('pi-gamenight-watch-stage', 'pi', 'scripts/pi/gamenight-watch-stage.test.mjs'),
   nodeTest('pi-space-check', 'pi', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'pi', 'scripts/pi/backup-pull-record.test.mjs'),

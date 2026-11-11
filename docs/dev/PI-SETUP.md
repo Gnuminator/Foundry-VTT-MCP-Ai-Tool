@@ -1945,7 +1945,8 @@ On game night with Foundry down, Plan B (`docs/dev/PLAN-B.md`) is the fallback w
 `RestartSteps=` and `RestartMaxDelaySec=` (a back-off that never gives up) if the user prefers that for Foundry.
 
 The sitting, after the user's OK, on a day without a game: `DRY_RUN=1`, a `dietpi-backup` snapshot, the real run (it
-restarts nothing, starts the clock service once and posts ONE test line to #gm-bot), then `CHECK=1`. `UNDO=1` removes
+restarts nothing, runs the clock service (the timer also fires once on enable) and posts one test line to #gm-bot, plus a
+clock alert if the clock is not synchronized), then `CHECK=1`. `UNDO=1` removes
 everything it installed.
 
 ## Where things live on the Pi

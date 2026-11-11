@@ -266,6 +266,10 @@ jobs:
         # 20-vault-sync.sh (Obsidian O8) as text: read-only unless SET_TIMEZONE=1, the zone name check, the conflict search. The
         # stage itself runs with two real Syncthings in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/vault-sync.test.mjs
+      - name: Pi stage 31 GM vault peers
+        # 31-gm-vault-peers.sh (r1-gm-vault) as text: read-only report, snapshot before ADD or REMOVE, no vault file touched. The stage
+        # itself runs with three real Syncthings in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/gm-vault-peers.test.mjs
 
       - name: Pi stage 21 player vault share
         # 21-player-vault.sh (player-vault-sync, D-134) as text: snapshot before every change, Send Only folders, no introducer,
@@ -796,6 +800,13 @@ jobs:
         env:
           PI_STAGE30_CONTAINER: 1
         run: node --test scripts/pi/player-connector-stage.test.mjs
+
+      - name: Pi stage 31 in an ARM64 container
+        # scripts/pi/container-test/stage31-scenarios.sh: stage 31 on Debian 13 ARM64 with three real Syncthings (report, the remove guard,
+        # add, remove once another PC holds the vault, the refusals).
+        env:
+          PI_STAGE31_CONTAINER: 1
+        run: node --test scripts/pi/gm-vault-peers.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

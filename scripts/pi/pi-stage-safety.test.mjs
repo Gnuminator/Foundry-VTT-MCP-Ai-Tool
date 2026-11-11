@@ -464,7 +464,8 @@ describe('the stages', () => {
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
   // (scripts/pi/time-sync.test.mjs covers the refusal). 20-vault-sync is read-only and asks for a snapshot only with
   // SET_TIMEZONE=1 (scripts/pi/vault-sync.test.mjs). 21-player-vault is read-only in its report mode and asks for the snapshot in
-  // every mode that changes something (scripts/pi/player-vault.test.mjs).
+  // every mode that changes something (scripts/pi/player-vault.test.mjs). 31-gm-vault-peers works the same way (report is
+  // read-only, ADD and REMOVE ask for the snapshot; scripts/pi/gm-vault-peers.test.mjs).
   const stages = [
     '1-health',
     '2-node',

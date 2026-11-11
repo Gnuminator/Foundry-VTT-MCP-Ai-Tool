@@ -136,7 +136,9 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
   `drift:check` and the merge train. `--wait-ci` waits for CI first; exit codes: 0 ok or merged, 1
   refused, 2 usage, 3 a check failed, 4 head moved, 5 timed out. **Do not pipe the gate through
-  `tail` or `head`** (it hides the exit code): run it plain and read its last line.
+  `tail` or `head`** (it hides the exit code): run it plain and read its last line. A blocking CANCELLED check of an unclassified or mixed CI
+  run (all its jobs cancelled before they started, or both `[dispatch]` and plain names) is not
+  cleared by a newer run: rerun it (`gh run rerun <id> --failed`) or push.
 
 ## Context and handover
 

@@ -239,7 +239,13 @@ export const CHECKS = [
     args: ['scripts/test-kit/kit.mjs', 'all', '--fake'],
     env: { TEST_KIT_HOME: path.join(os.tmpdir(), 'green-test-kit') },
   },
-  workspaceTest('test-shared', 'shared'),
+  // The shared unit tests also run in the merge gate's drift check, on the merged tree, whenever
+  // the branch or main since the merge base touched shared/: a shared change that breaks them
+  // is refused before merge, not found on main afterwards.
+  {
+    ...workspaceTest('test-shared', 'shared'),
+    drift: { name: 'shared unit tests', order: 12, heavy: true, when: ['shared/'] },
+  },
   workspaceTest('test-foundry-module', 'foundry-module'),
   workspaceTest('test-mcp-server', 'mcp-server'),
   workspaceTest('test-cogm-dashboard', 'cogm-dashboard'),

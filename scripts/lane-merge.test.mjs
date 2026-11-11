@@ -715,6 +715,17 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
     ]).failing,
     [rawBuild + ' (CANCELLED)']
   );
+  // a mixed run (one expanded job with [dispatch], one without) is not purely normal: its cancelled
+  // check keeps blocking next to a newer green pull_request run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, 'lint [dispatch]', 'SUCCESS'),
+      check(100, 'python-tests', 'SUCCESS'),
+      check(100, 'build-test', 'CANCELLED'),
+      check(200, 'build-test', 'SUCCESS'),
+    ]).failing,
+    ['build-test (CANCELLED)']
+  );
   // a raw name that starts with the expression has no text to match and keeps blocking
   assert.deepEqual(
     rollupProblems([
@@ -731,6 +742,16 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
       check(100, rawShard, 'CANCELLED'),
       check(100, 'lint', 'CANCELLED'),
       check(200, 'dashboard-visual shard 1/4', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    []
+  );
+  // a matrix leg skipped by `if:` in the newer run (raw name, SKIPPED) clears the older raw shard check
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, rawShard, 'SKIPPED'),
       check(200, 'lint', 'SUCCESS'),
     ]).failing,
     []

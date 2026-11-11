@@ -84,6 +84,45 @@ describe('Diagnostics.bindWorld', () => {
     expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('strahd');
   });
 
+  it('does not write errors captured before the bind under the previous world', () => {
+    store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
+    store.set('foundry-mcp-bridge.diagnosticsWorld', 'strahd');
+    const d = new Diagnostics();
+    d.install();
+    (
+      d as unknown as {
+        capture: (p: object) => void;
+      }
+    ).capture({ level: 'error', kind: 'console', message: 'early', stack: null, source: null });
+
+    // Storage is untouched while the world is unknown: no mix of old marker and new error.
+    expect(JSON.parse(store.get('foundry-mcp-bridge.diagnostics') ?? '[]')).toHaveLength(1);
+    expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('strahd');
+
+    d.bindWorld('test-world');
+    const saved = JSON.parse(store.get('foundry-mcp-bridge.diagnostics') ?? '[]') as {
+      message: string;
+    }[];
+    expect(saved.map(e => e.message)).toEqual(['early']);
+    expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('test-world');
+  });
+
+  it('persists the early errors on bind when the world is unchanged', () => {
+    store.set('foundry-mcp-bridge.diagnosticsWorld', 'strahd');
+    const d = new Diagnostics();
+    d.install();
+    (d as unknown as { capture: (p: object) => void }).capture({
+      level: 'warn',
+      kind: 'console',
+      message: 'early',
+      stack: null,
+      source: null,
+    });
+    expect(store.has('foundry-mcp-bridge.diagnostics')).toBe(false);
+    d.bindWorld('strahd');
+    expect(JSON.parse(store.get('foundry-mcp-bridge.diagnostics') ?? '[]')).toHaveLength(1);
+  });
+
   it('keeps the errors when the world is the same', () => {
     store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
     store.set('foundry-mcp-bridge.diagnosticsWorld', 'strahd');

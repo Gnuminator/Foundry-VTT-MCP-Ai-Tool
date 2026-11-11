@@ -8,7 +8,8 @@
 # The exact commands the token scripts send (`bash -s -- no-log` from scripts/pi/set-discord-token.ps1,
 # `bash /tmp/set-tunnel-token.sh`, `bash /tmp/set-dashboard-access.sh ...`, and put-runner-token.sh's
 # write) are logged by kind without their text ("command text not saved"); their input is never saved.
-# Any other command, whatever it ends with, keeps its full text. Root only (0700 folder, 0600 files), 12 weeks kept.
+# Only those exact strings count (no wildcard tails): any other command, including one that holds ; & | a
+# backtick, $( or a newline after a token script's name, keeps its full text. Root only (0700 folder, 0600 files), 12 weeks kept.
 #
 # An SSH settings change (the dangerous list): run it only after the user's OK, a dietpi-backup
 # snapshot, and with the user in default permission mode. Safety net: when this run changes
@@ -62,6 +63,11 @@ install -d -m 0700 -o root -g root "$log_dir" "$log_dir/scripts"
 ok "$log_dir (root only)"
 
 say "the wrapper"
+# The exact command put-runner-token.sh sends for runner NAME (vault or board), as the Pi receives it.
+runner_tpl="$(cat <<'EOF'
+set -e; umask 077; f=/etc/foundry-ai-tool/gh-runner-NAME.reg; t=$f.tmp; trap 'rm -f "$t"' EXIT; cat > "$t"; [ "$(wc -c < "$t")" -ge 20 ]; chown root:root "$t"; chmod 600 "$t"; mv -f "$t" "$f"
+EOF
+)"
 wrapper_body="#!/bin/bash
 # Written by scripts/pi/remote/9-ssh-log.sh; edit it there. Runs for every SSH login with a key whose
 # authorized_keys line starts with command=\"$wrapper\". Logs, then runs the command unchanged.
@@ -92,7 +98,7 @@ sftp | internal-sftp | /usr/lib/openssh/sftp-server)
   tee \"\$script\" 2>/dev/null | { umask \"\$session_umask\"; \"\${SHELL:-/bin/bash}\" -s; }
   exit \"\${PIPESTATUS[1]}\"
   ;;
-'bash -s -- no-log' | 'FORCE=1 bash -s -- no-log' | 'bash /tmp/set-tunnel-token.sh' | 'FORCE=1 bash /tmp/set-tunnel-token.sh' | 'bash /tmp/set-dashboard-access.sh'* | 'FORCE=1 bash /tmp/set-dashboard-access.sh'* | 'set -e; umask 077; f=/etc/foundry-ai-tool/gh-runner-'*)
+'bash -s -- no-log' | 'FORCE=1 bash -s -- no-log' | 'bash /tmp/set-tunnel-token.sh' | 'FORCE=1 bash /tmp/set-tunnel-token.sh' | 'bash /tmp/set-dashboard-access.sh' | 'FORCE=1 bash /tmp/set-dashboard-access.sh' | $(printf '%q' "${runner_tpl//NAME/vault}") | $(printf '%q' "${runner_tpl//NAME/board}"))
   # Only the exact shapes the token scripts send (anything else keeps its text): the log names the kind, never the text.
   case \"\$cmd\" in
   *set-tunnel-token*) kind='set-tunnel-token' ;;

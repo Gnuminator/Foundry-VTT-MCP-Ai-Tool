@@ -160,7 +160,9 @@ class FoundryMCPBridge {
     this.publishingLinkState = state;
     const seq = ++this.linkStateWriteSeq;
     const done = (error?: unknown): void => {
-      if (this.publishingLinkState === state) this.publishingLinkState = null;
+      // Only the newest write clears the marker: an older write of the same state settling late
+      // must not clear the marker of a newer one still under way (up, lost, up).
+      if (seq === this.linkStateWriteSeq) this.publishingLinkState = null;
       if (error !== undefined) {
         console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
       } else if (seq === this.linkStateWriteSeq) {

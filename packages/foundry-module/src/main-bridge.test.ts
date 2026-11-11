@@ -257,6 +257,22 @@ describe('main: no world writes for connection state (PB-03)', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       expect(bridge['lastPublishedLinkState']).toBe('lost');
     });
+
+    it('up, lost, up with the first settling first: a later "lost" is still written', async () => {
+      asGm();
+      bridge['lastPublishedLinkState'] = 'lost';
+      const resolvers = holdWrites();
+      bridge['publishLinkState']('up');
+      bridge['publishLinkState']('lost');
+      bridge['publishLinkState']('up');
+      expect(resolvers).toHaveLength(3);
+      // The first "up" settles while the newer "up" is still under way.
+      resolvers[0]();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(bridge['publishingLinkState']).toBe('up');
+      bridge['publishLinkState']('lost');
+      expect(resolvers).toHaveLength(4);
+    });
   });
 
   it('a stored link state change reaches the hook and applyStoredLinkState', async () => {

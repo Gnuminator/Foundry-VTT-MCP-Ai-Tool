@@ -49,10 +49,13 @@ function isTimerDelay(text: string, index: number): boolean {
 
 /** A millisecond value named by an option, a parameter or a sleep command is not a port. */
 const DURATION_BEFORE = [
-  /(timeout|delay|interval|duration|wait|sleep|ttl|ms|millis|milliseconds)\w*['"]?\s*[:=]\s*$/i,
+  // The key ENDS in a duration word (itemsPort and formsPort do not, so they still count).
+  /\b(?:timeout|delay|interval|duration|wait|sleep|ttl|millis|milliseconds|ms)['"]?\s*[:=]\s*$/i,
+  /(?:Timeout|Delay|Interval|Duration|Wait|Sleep|Ttl|TTL|Millis|Milliseconds|Ms|_MS|_ms|TIMEOUT|DELAY|INTERVAL|DURATION|WAIT|SLEEP|TTL|MILLIS)['"]?\s*[:=]\s*$/,
   /-(Milliseconds|TimeoutSec|Timeout)\s+$/i,
   /\bStart-Sleep\s+(-\w+\s+)?$/i,
-  /\b(sleep|delay|wait\w*)\(\s*$/i,
+  /\b(sleep|delay|wait)\(\s*$/i,
+  /\.(WaitOne|WaitForExit)\(\s*$/,
 ];
 
 /** How many known port numbers `text` holds, leaving out durations (3000 ms and similar). */
@@ -104,6 +107,13 @@ describe('ports', () => {
     expect(countInText('const delay = 3000;')).toBe(0);
     expect(countInText('Start-Sleep -Milliseconds 3000')).toBe(0);
     expect(countInText('await sleep(3000)')).toBe(0);
+    expect(countInText('const CAP_MS = 30000; slowMs: 3000, connectTimeout: 3100')).toBe(0);
+    expect(countInText('if (-not $p.WaitForExit(30000)) {')).toBe(0);
+    // a key or call that only contains a duration word is not a duration
+    expect(countInText('await waitForPort(31514)')).toBe(1);
+    expect(countInText('itemsPort: 3100')).toBe(1);
+    expect(countInText('const formsPort = 3200')).toBe(1);
+    expect(countInText('awaitingPort: 31514')).toBe(1);
     expect(countInText('port = 3000')).toBe(1);
     expect(countInText('PORT=3100')).toBe(1);
   });

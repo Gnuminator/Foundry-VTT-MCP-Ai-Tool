@@ -210,10 +210,27 @@ export class ActorBuilderDataAccess {
     item: Item,
     wanted: number | undefined
   ): number | 'none' | undefined {
-    const sys = item.system as { level?: unknown; method?: unknown } | undefined;
+    const sys = item.system as
+      | { level?: unknown; method?: unknown; activities?: unknown; linkedActivity?: unknown }
+      | undefined;
     const level = sys?.level;
     if (item.type !== 'spell' || typeof level !== 'number' || level < 1) return undefined;
     if (sys?.method !== 'spell') return undefined;
+    // dnd5e spends no slot for a spell granted by a Cast activity (it uses the linked item's uses),
+    // for a fixed-level spell, or for an activity whose "consume spell slot" box is off: leave those
+    // to dnd5e (and its dialog) instead of refusing or forcing a slot.
+    const flags = item.flags as
+      | { dnd5e?: { cachedFor?: unknown; spellLevel?: unknown } }
+      | undefined;
+    if (flags?.dnd5e?.cachedFor || flags?.dnd5e?.spellLevel || sys.linkedActivity) return undefined;
+    const acts = sys.activities as { values?: () => Iterable<unknown> } | unknown[] | undefined;
+    const list = Array.isArray(acts) ? acts : acts?.values ? Array.from(acts.values()) : [];
+    if (
+      list.some(
+        a => (a as { consumption?: { spellSlot?: unknown } })?.consumption?.spellSlot === false
+      )
+    )
+      return undefined;
     const spells = (actor.system as { spells?: Record<string, { value?: unknown } | undefined> })
       ?.spells;
     if (!spells) return undefined;

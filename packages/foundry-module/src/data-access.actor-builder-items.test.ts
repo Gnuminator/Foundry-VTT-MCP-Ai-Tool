@@ -461,6 +461,45 @@ describe('FoundryDataAccess — useItem', () => {
       expect(use).not.toHaveBeenCalled();
     });
 
+    it('leaves a spell granted by a Cast activity (cachedFor) alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'co',
+        name: 'Chromatic Orb',
+        type: 'spell',
+        system: { level: 1, method: 'spell' },
+        flags: { dnd5e: { cachedFor: 'x' } },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell3: { value: 1 } } },
+      });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Chromatic Orb' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('leaves an activity that spends no slot (consumption.spellSlot false) alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'ns',
+        name: 'Free Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell', activities: [{ consumption: { spellSlot: false } }] },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 } } },
+      });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Free Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
     it('leaves a cantrip alone', async () => {
       const use = wizard({ spell1: 0 }, 'spell', 0);
       await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });

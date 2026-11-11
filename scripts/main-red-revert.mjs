@@ -19,6 +19,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const BRANCH_PREFIX = 'auto-revert/';
@@ -38,21 +39,52 @@ export function rerunState(r) {
  * @param {Array<{ head_sha: string, conclusion: string | null }>} runs completed CI push runs on
  *   main, newest first
  * @param {string} failedSha
- * @returns {{ culprit: string | null, reason: string }} culprit null when nothing should be done
+ * @returns {{ culprit: string | null, reason: string, streak: Array<{ head_sha: string, conclusion: string | null }> }}
+ *   culprit null when nothing should be done; streak is the whole red run, newest first (a
+ *   cancelled run counts as red and is marked in the PR body)
  */
 export function findCulprit(runs, failedSha) {
+  const none = reason => ({ culprit: null, reason, streak: [] });
   const at = runs.findIndex(r => r.head_sha === failedSha);
-  if (at < 0) return { culprit: null, reason: 'the failed run is not in the recent main runs' };
-  if (runs[at].conclusion === 'success') return { culprit: null, reason: 'that run is green' };
+  if (at < 0) return none('the failed run is not in the recent main runs');
+  if (runs[at].conclusion === 'success') return none('that run is green');
   if (runs.slice(0, at).some(r => r.conclusion === 'success')) {
-    return { culprit: null, reason: 'a newer main run is green: main already healed' };
+    return none('a newer main run is green: main already healed');
   }
-  let culprit = failedSha;
+  const streak = [runs[at]];
   for (let i = at + 1; i < runs.length; i++) {
-    if (runs[i].conclusion === 'success') return { culprit, reason: 'ok' };
-    culprit = runs[i].head_sha;
+    if (runs[i].conclusion === 'success') {
+      return { culprit: streak[streak.length - 1].head_sha, reason: 'ok', streak };
+    }
+    streak.push(runs[i]);
   }
-  return { culprit: null, reason: 'no green run in the recent history: cannot name a culprit' };
+  return none('no green run in the recent history: cannot name a culprit');
+}
+
+/**
+ * The streak as a markdown list for the PR body, oldest first; a cancelled run never finished, so
+ * it is no proof that its commit broke anything.
+ * @param {Array<{ head_sha: string, conclusion: string | null }>} streak
+ */
+export function streakLines(streak) {
+  return [...streak].reverse().map(r => {
+    const note = r.conclusion === 'cancelled' ? ' (cancelled: no verdict, may be innocent)' : '';
+    return `- ${r.head_sha.slice(0, 7)}: ${r.conclusion ?? 'unknown'}${note}`;
+  });
+}
+
+/**
+ * A readable name for a commit: a squash subject as is; a merge commit's subject ("Merge pull
+ * request #1 from ...") is replaced by the PR title, which is the first line of its body.
+ * @param {string} subject @param {string} body
+ */
+export function commitTitle(subject, body) {
+  let t = subject;
+  if (/^Merge (pull request|branch)/.test(subject)) {
+    t = body.split('\n').find(l => l.trim()) ?? '';
+  }
+  t = t.replace(/\s*\(?#\d+\)?/g, '').trim();
+  return t || 'a merge to main';
 }
 
 /** @param {string[]} args @param {{ allowFail?: boolean }} [opt] */
@@ -63,8 +95,6 @@ function run(cmd, args, opt = {}) {
   }
   return { ok: r.status === 0, out: (r.stdout ?? '').trim(), err: (r.stderr ?? '').trim() };
 }
-const gh = (args, opt) => run('gh', args, opt);
-const git = (args, opt) => run('git', args, opt);
 
 /** @param {string[]} argv */
 export function parseArgs(argv) {
@@ -78,22 +108,64 @@ export function parseArgs(argv) {
   return o;
 }
 
-/** Polls the run until attempt 2 has finished. True when it ended red. @param {string} id */
-function waitForRerun(id) {
-  const deadline = Date.now() + 50 * 60 * 1000;
-  while (Date.now() < deadline) {
-    spawnSync('node', ['-e', 'setTimeout(()=>{},30000)']);
-    const r = JSON.parse(
-      gh([
-        'api',
-        `repos/{owner}/{repo}/actions/runs/${id}`,
-        '--jq',
-        '{status, run_attempt, conclusion}',
-      ]).out
-    );
+/**
+ * Everything main() touches outside itself, so a test can pass fakes.
+ * @typedef {object} Io
+ * @property {(args: string[], opt?: { allowFail?: boolean }) => { ok: boolean, out: string, err: string }} gh
+ * @property {(args: string[], opt?: { allowFail?: boolean }) => { ok: boolean, out: string, err: string }} git
+ * @property {(ms: number) => void} sleep
+ * @property {() => number} now
+ * @property {(p: string, text: string) => void} writeFile
+ * @property {(m: string) => void} log
+ * @property {Record<string, string | undefined>} env
+ * @returns {Io}
+ */
+export function realIo() {
+  return {
+    gh: (args, opt) => run('gh', args, opt),
+    git: (args, opt) => run('git', args, opt),
+    sleep: ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms),
+    now: () => Date.now(),
+    writeFile: (p, text) => {
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      fs.writeFileSync(p, text);
+    },
+    log: m => console.log(m),
+    env: process.env,
+  };
+}
+
+/** The run as the API reports it now, or null when the call failed. @param {Io} io @param {string} id */
+function readRun(io, id) {
+  const r = io.gh(
+    ['api', `repos/{owner}/{repo}/actions/runs/${id}`, '--jq', '{status, run_attempt, conclusion}'],
+    { allowFail: true }
+  );
+  if (!r.ok) return null;
+  try {
+    return JSON.parse(r.out);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Polls the run until attempt 2 has finished. True when it ended red. A failed or unreadable poll
+ * is retried until the deadline: one API blip must not end the wait.
+ * @param {Io} io @param {string} id
+ */
+function waitForRerun(io, id) {
+  const deadline = io.now() + 50 * 60 * 1000;
+  while (io.now() < deadline) {
+    io.sleep(30000);
+    const r = readRun(io, id);
+    if (!r) {
+      io.log('could not read the run state: trying again');
+      continue;
+    }
     const state = rerunState(r);
     if (state === 'green') {
-      console.log('the rerun passed: a flaky red, nothing to revert');
+      io.log('the rerun passed: a flaky red, nothing to revert');
       return false;
     }
     if (state === 'red') return true;
@@ -101,21 +173,31 @@ function waitForRerun(id) {
   throw new Error('the rerun did not finish within 50 minutes');
 }
 
-function main() {
-  const o = parseArgs(process.argv.slice(2));
+/** @param {string[]} argv @param {Io} [io] */
+export function main(argv, io = realIo()) {
+  const { gh, git } = io;
+  const o = parseArgs(argv);
   if (!o.run || !o.sha || !Number.isInteger(o.attempt)) {
     console.error('usage: main-red-revert.mjs --run <id> --attempt <n> --sha <sha> [--dry-run]');
-    process.exitCode = 2;
-    return;
+    return 2;
   }
   if (o.attempt > 1) {
-    console.log(`attempt ${o.attempt} is a manual rerun: nothing to do`);
-    return;
+    io.log(`attempt ${o.attempt} is a manual rerun: nothing to do`);
+    return 0;
   }
   if (!o.dryRun) {
-    console.log(`attempt 1 failed on ${o.sha.slice(0, 7)}: rerunning the failed jobs once`);
-    gh(['run', 'rerun', o.run, '--failed']);
-    if (!waitForRerun(o.run)) return;
+    // The event is minutes old: someone may have rerun it by hand since. Read the run first.
+    const live = readRun(io, o.run);
+    if (live && live.run_attempt > 1) {
+      io.log('the run was already rerun by hand: waiting for that attempt instead of rerunning');
+    } else if (live && live.status !== 'completed') {
+      io.log('the run is not finished (attempt 1 still going): nothing to do');
+      return 0;
+    } else {
+      io.log(`attempt 1 failed on ${o.sha.slice(0, 7)}: rerunning the failed jobs once`);
+      gh(['run', 'rerun', o.run, '--failed']);
+    }
+    if (!waitForRerun(io, o.run)) return 0;
   }
   const listed = JSON.parse(
     gh([
@@ -125,10 +207,10 @@ function main() {
       '[.workflow_runs[] | {head_sha, conclusion}]',
     ]).out
   );
-  const { culprit, reason } = findCulprit(listed, o.sha);
+  const { culprit, reason, streak } = findCulprit(listed, o.sha);
   if (!culprit) {
-    console.log(`no revert PR: ${reason}`);
-    return;
+    io.log(`no revert PR: ${reason}`);
+    return 0;
   }
   const short = culprit.slice(0, 7);
   const branch = `${BRANCH_PREFIX}${short}`;
@@ -145,13 +227,14 @@ function main() {
     `[.[] | select(.headRefName | startswith("${BRANCH_PREFIX}"))] | length`,
   ]).out;
   if (Number(open) > 0) {
-    console.log('no revert PR: an auto-revert PR is already open');
-    return;
+    io.log('no revert PR: an auto-revert PR is already open');
+    return 0;
   }
   const subject = git(['log', '-1', '--format=%s', culprit]).out;
+  const title = commitTitle(subject, git(['log', '-1', '--format=%b', culprit]).out);
   const parents = git(['rev-list', '--parents', '-n', '1', culprit]).out.split(' ').length - 1;
-  console.log(`main red since ${short} (${subject}); reverting on ${branch}`);
-  if (o.dryRun) return;
+  io.log(`main red since ${short} (${title}); reverting on ${branch}`);
+  if (o.dryRun) return 0;
 
   git(['config', 'user.name', 'github-actions[bot]']);
   git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
@@ -160,8 +243,7 @@ function main() {
   const branchExists = git(['ls-remote', '--exit-code', '--heads', 'origin', branch], {
     allowFail: true,
   }).ok;
-  if (!branchExists) pushRevertBranch();
-  function pushRevertBranch() {
+  if (!branchExists) {
     git(['fetch', 'origin', 'main']);
     git(['checkout', '-b', branch, 'origin/main']);
     const revert = git(['revert', '--no-edit', ...(parents > 1 ? ['-m', '1'] : []), culprit], {
@@ -171,18 +253,20 @@ function main() {
       git(['revert', '--abort'], { allowFail: true });
       throw new Error(`the revert of ${short} conflicts (later merges build on it): ${revert.err}`);
     }
-    fs.mkdirSync('changelog.d', { recursive: true });
-    fs.writeFileSync(
+    io.writeFile(
       `changelog.d/auto-revert-${short}.md`,
-      `### Fixes\n\n- **Main reverted:** reverted ${short} (${subject.replace(/#\d+/g, '').trim()}) because main CI was red.\n`
+      `### Fixes\n\n- **Main reverted:** reverted ${short} (${title}) because main CI was red.\n`
     );
     git(['add', `changelog.d/auto-revert-${short}.md`]);
     git(['commit', '-m', `Add changelog fragment for the revert of ${short}`]);
     git(['push', 'origin', `${branch}:${branch}`]);
   }
-  const url = `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${o.run}`;
+  const url = `${io.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${io.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${o.run}`;
   const body = [
-    `Main CI is red since ${culprit} (${subject}); the failed run was rerun once and failed again: ${url}`,
+    `Main CI is red since ${culprit} (${title}); the failed run was rerun once and failed again: ${url}`,
+    '',
+    'The red streak, oldest first (the first one is reverted here):',
+    ...streakLines(streak),
     '',
     '**Draft on purpose, never merged automatically.** The planner decides: a revert needs the',
     "user's OK (planner skill, Main is red). A pushed token starts no CI here: close and reopen",
@@ -211,7 +295,10 @@ function main() {
       `branch ${branch} is pushed but the draft PR could not open (is "Allow GitHub Actions to create pull requests" on?): ${created.err}`
     );
   }
-  console.log(created.out);
+  io.log(created.out);
+  return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  process.exitCode = main(process.argv.slice(2));
+}

@@ -462,10 +462,7 @@ test('risky categories: every category has patterns and the real paths match', (
   assert.deepEqual(category('packages/cogm-dashboard/web/src/lib/guarded.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/handouts/strip-secrets.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/obsidian/licensed-guard.ts'), ['security']);
-  assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), [
-    'security',
-    'the merge gate',
-  ]);
+  assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), ['security']);
   assert.deepEqual(category('scripts/pi/remote/5-tool.sh'), ['Pi scripts']);
   assert.deepEqual(category('scripts/plan-b/start.ps1'), ['Pi scripts']);
   assert.deepEqual(category('deploy/Dockerfile'), ['Pi scripts']);
@@ -484,8 +481,16 @@ test('risky categories: every category has patterns and the real paths match', (
     '.claude/hooks/context-alert.mjs',
     '.claude/settings.json',
   ]) {
-    assert.ok(category(gateInput).includes('the merge gate'), gateInput);
+    // D-101 as narrowed by one-opus-pass: the gate, CI and hooks get a Sonnet review plus CI.
+    assert.deepEqual(category(gateInput), [], gateInput);
   }
+  assert.deepEqual(category('.claude/agents/review-pi-ci.md'), []);
+  // The narrowed shared list: contract files are risky, the rest of shared/src is not.
+  for (const f of ['protocol', 'schemas', 'constants', 'bridge-queries', 'types', 'version', 'ports']) {
+    assert.deepEqual(category(`shared/src/${f}.ts`), ['wire contracts'], f);
+  }
+  assert.deepEqual(category('shared/src/party.ts'), []);
+  assert.deepEqual(category('shared/src/guarded-write.ts'), ['guarded writes']);
   for (const calm of [
     'docs/guide.md',
     'packages/cogm-dashboard/web/src/App.tsx',
@@ -515,6 +520,83 @@ test('risky categories: every pattern still matches a tracked file (a rename can
     ({ p }) => !tracked.some(f => matchesAny(f, [p])) && !fs.existsSync(path.join(REPO_ROOT, p))
   );
   assert.deepEqual(dead, [], 'patterns that match no file in the repository');
+});
+
+/** shared/src files that are deliberately not wire contracts. A new file must be added here or to a risky pattern. */
+const NOT_CONTRACT = [
+  'actor-image',
+  'character-entity',
+  'character-sheet',
+  'combat-change',
+  'export-index',
+  'foundry-setup',
+  'index',
+  'library-index',
+  'live-play',
+  'npc-turn',
+  'ownership',
+  'paper-sync',
+  'party',
+  'pc-creation',
+  'play-log',
+  'player-portrait',
+  'player-view',
+  'preflight',
+  'prep-digest',
+  'room-setup',
+  'rules-check',
+  'scene-change',
+  'scene-mood',
+  'scene-restore',
+  'sessions-dir',
+  'space-status',
+  'switch-off',
+  'table-viewer',
+  'token-rings',
+  'tool-refs',
+  'usage-catalog.generated',
+  'usage',
+  'util/errors',
+].map(n => `shared/src/${n}.ts`);
+
+function sharedSourceFiles(dir = path.join(REPO_ROOT, 'shared', 'src')) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) return sharedSourceFiles(full);
+    return /\.[cm]?[jt]sx?$/.test(e.name) && !/\.(test|spec)\./.test(e.name)
+      ? [path.relative(REPO_ROOT, full).replace(/\\/g, '/')]
+      : [];
+  });
+}
+
+test('shared/src: every file is a risky contract file or named in NOT_CONTRACT (a new file forces a decision)', () => {
+  const unclassified = sharedSourceFiles().filter(
+    f => riskyHits([f]).length === 0 && !NOT_CONTRACT.includes(f)
+  );
+  assert.deepEqual(
+    unclassified,
+    [],
+    'add each to a RISKY_CATEGORIES pattern in scripts/lane-merge.mjs or to NOT_CONTRACT in this test'
+  );
+  const files = sharedSourceFiles();
+  const stale = NOT_CONTRACT.filter(f => !files.includes(f) || riskyHits([f]).length > 0);
+  assert.deepEqual(stale, [], 'NOT_CONTRACT entries that are gone or are risky after all');
+});
+
+test('--risky-list prints every category and pattern and exits 0', () => {
+  const lines = [];
+  const code = runEntry({
+    argv: ['--risky-list'],
+    relaunch: () => assert.fail('must not relaunch'),
+    runMain: () => assert.fail('must not run the gate'),
+    log: l => lines.push(l),
+  });
+  assert.equal(code, 0);
+  for (const c of RISKY_CATEGORIES) {
+    assert.ok(lines.includes(`${c.name}:`), c.name);
+    for (const p of c.patterns) assert.ok(lines.includes(`  ${p}`), p);
+  }
+  assert.ok(!lines.some(l => l.includes('the merge gate')));
 });
 
 test('globToRegExp: ** crosses folders, * does not', () => {
@@ -1016,7 +1098,7 @@ test('risky files need an Opus review, and the category is printed', () => {
   );
 });
 
-test('H1: edits to the gate or what it executes need an Opus review', () => {
+test('H1: edits to the gate, CI and hooks take a Sonnet note; security hooks and contracts need Opus', () => {
   for (const file of [
     'scripts/lane-merge.mjs',
     'scripts/drift-check.mjs',
@@ -1024,6 +1106,10 @@ test('H1: edits to the gate or what it executes need an Opus review', () => {
     '.claude/settings.json',
     '.github/workflows/ci.yml',
   ]) {
+    const r = gate({ files: [file, 'changelog.d/x.md'] });
+    assert.ok(!/needs an Opus review/.test(r.text), file);
+  }
+  for (const file of ['.claude/hooks/guard-shell-edits.mjs', 'shared/src/protocol.ts']) {
     const r = gate({ files: [file, 'changelog.d/x.md'] });
     assert.equal(r.code, 1, file);
     assert.match(r.text, /needs an Opus review/, file);
@@ -2657,12 +2743,12 @@ test('a refusal ends with one "refused because" line holding every reason, after
 });
 
 test('risky notice: says found or missing for the head Opus note, so a merge never reads as a refusal', () => {
-  const files = ['.github/workflows/ci.yml', 'changelog.d/x.md'];
+  const files = ['shared/src/protocol.ts', 'changelog.d/x.md'];
   const merged = gate({ files, vault: vaultWith([{ name: '312-opus-review.md', text: note() }]) });
   assert.equal(merged.code, 0, merged.text);
   assert.ok(
     merged.lines.includes(
-      'lane:merge: risky (the merge gate): .github/workflows/ci.yml; an Opus review is required; Opus note for head 3d24f70: found (312-opus-review.md)'
+      'lane:merge: risky (wire contracts): shared/src/protocol.ts; an Opus review is required; Opus note for head 3d24f70: found (312-opus-review.md)'
     ),
     merged.text
   );
@@ -2709,7 +2795,7 @@ test('review refusal: names the naming rule, and lists notes of the PR that were
   assert.deepEqual(unreadPrNotes(vault, 312), ['Reviews 2026-10-10/312-merge-delta-3d24f70a.md']);
   assert.deepEqual(unreadPrNotes(path.join(os.tmpdir(), 'no-such-vault-xyz'), 312), []);
   // Only a Sonnet note for a risky PR gets the rule too; a Do not merge does not (the note was read).
-  const sonnet = gate({ files: ['.github/workflows/ci.yml', 'changelog.d/x.md'] });
+  const sonnet = gate({ files: ['shared/src/protocol.ts', 'changelog.d/x.md'] });
   assert.ok(sonnet.text.includes(`this PR needs an Opus review; ${reviewNamingRule(312)}`));
   const veto = gate({
     vault: vaultWith([{ name: '312-review.md', text: note({ verdict: '**Do not merge.**' }) }]),

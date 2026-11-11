@@ -353,8 +353,40 @@ describe('applyPlan (Foundry ops)', () => {
     expect(() => service.getPlan(p.planId)).toThrow(/No pending plan/);
     const [recent] = await service.listRecentChanges();
     expect(recent).toMatchObject({ changeId: applied.changeId, canUndo: true });
+    // The Obsidian note part is only worked out when asked (it reads the whole history file).
+    expect(recent?.notePart).toBeUndefined();
     // The Obsidian Changes/ note that holds it (a small month is one note, named by the month).
-    expect(recent?.notePart).toMatch(/^\d{4}-\d{2}$/);
+    const [withPart] = await service.listRecentChanges(20, { noteParts: true });
+    expect(withPart?.notePart).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('names the -pN Obsidian note for a month with more than 400 changes, and survives an unreadable history', async () => {
+    const line = (i: number): Record<string, unknown> => ({
+      v: 1,
+      changeId: `big-${i}`,
+      planId: null,
+      feature: 'actor',
+      summary: `Change ${i}`,
+      risk: 'low',
+      target: 'Actor.abc',
+      mode: 'apply',
+      appliedAt: new Date(Date.UTC(2026, 8, 28, 8, 0, i)).toISOString(),
+      diff: ['hp: 1 -> 2'],
+    });
+    const lines = Array.from({ length: 401 }, (_, i) => line(i));
+    await store.appendLines('curse-of-strahd', 'gm', 'audit-log.jsonl', lines);
+    await store.write('curse-of-strahd', 'gm', 'audit.json', {
+      entries: [lines[0], lines[400]].map(l => ({ ...l, mode: 'apply' })),
+    });
+    const rows = await service.listRecentChanges(20, { noteParts: true });
+    expect(rows.find(r => r.changeId === 'big-400')?.notePart).toBe('2026-09-p2');
+    expect(rows.find(r => r.changeId === 'big-0')?.notePart).toBe('2026-09');
+
+    vi.spyOn(store, 'readLines').mockRejectedValue(new Error('EACCES'));
+    const again = await service.listRecentChanges(20, { noteParts: true });
+    expect(again).toHaveLength(2);
+    expect(again[0]?.notePart).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalled();
   });
 
   it('keeps the plan and records nothing when Foundry refuses or conflicts', async () => {

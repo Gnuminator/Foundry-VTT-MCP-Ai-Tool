@@ -896,7 +896,11 @@ export class GuardedWriteService {
     return computeUndoState(await this.audit.ring(await this.worldIds.current()));
   }
 
-  async listRecentChanges(limit = 20): Promise<RecentChange[]> {
+  /** `noteParts`: add the Obsidian Changes/ note of each change; it reads the whole history file, so only the tool that shows it asks. */
+  async listRecentChanges(
+    limit = 20,
+    options: { noteParts?: boolean } = {}
+  ): Promise<RecentChange[]> {
     const worldId = await this.worldIds.current();
     const ring = await this.audit.ring(worldId);
     const state = computeUndoState(ring);
@@ -904,11 +908,15 @@ export class GuardedWriteService {
     // Which Changes/ note the Obsidian export files each change in (a long month rolls over to
     // -p2, -p3): the same split as the export, over the full history. Best effort.
     let noteNames = new Map<string, string>();
-    try {
-      const jsonl = await this.store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
-      noteNames = changeNoteNames(changeNoteParts(mergeChangeHistory(ring, jsonl)));
-    } catch {
-      // the link falls back to the month's first note
+    if (options.noteParts) {
+      try {
+        const jsonl = await this.store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
+        noteNames = changeNoteNames(changeNoteParts(mergeChangeHistory(ring, jsonl)));
+      } catch (error) {
+        this.logger.warn('Changes note parts unavailable; links open the month note', {
+          error: errorMessage(error),
+        });
+      }
     }
     return shown.map(e => {
       const undone = state.get(e.changeId);

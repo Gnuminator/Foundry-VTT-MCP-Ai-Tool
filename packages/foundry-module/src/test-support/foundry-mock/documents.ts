@@ -243,16 +243,41 @@ export interface MakeItemOptions {
   [extra: string]: any;
 }
 
+/**
+ * An empty activities map as dnd5e has it: a plain object keyed by id, with the Collection reads
+ * the module code calls (find, filter, some, map) as non-enumerable methods so it still compares
+ * equal to `{}` and stays out of JSON.
+ */
+function makeActivities(): Record<string, any> {
+  const map: Record<string, any> = {};
+  const list = (): any[] => Object.values(map);
+  const methods: Record<string, (...args: any[]) => unknown> = {
+    find: fn => list().find(fn),
+    filter: fn => list().filter(fn),
+    some: fn => list().some(fn),
+    map: fn => list().map(fn),
+  };
+  for (const [name, value] of Object.entries(methods)) {
+    Object.defineProperty(map, name, { value, enumerable: false });
+  }
+  return map;
+}
+
 export function makeItem(opts: MakeItemOptions = {}): AnyDoc {
   const {
     id = randomId('item'),
     name = 'Item',
     type = 'loot',
     img,
-    system = {},
+    system: givenSystem = {},
     _source,
     ...rest
   } = opts;
+  // dnd5e keeps activities as an object keyed by id (never an array); a weapon always has the map.
+  const system =
+    type === 'weapon' && givenSystem.activities === undefined
+      ? { ...givenSystem, activities: makeActivities() }
+      : givenSystem;
   return withDocumentMethods({
     id,
     name,

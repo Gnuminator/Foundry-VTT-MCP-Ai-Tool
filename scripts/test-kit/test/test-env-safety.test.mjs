@@ -31,25 +31,74 @@ test('servers.json: A, B and C all have four distinct ports', () => {
   assert.equal(new Set(serverPorts.map(p => p.port)).size, 12);
 });
 
-test('Plan B reserves every test server port (scripts/plan-b/lib.ps1)', () => {
-  const lib = read('scripts/plan-b/lib.ps1');
-  const block = /\$PlanBReservedPorts\s*=\s*@\{([\s\S]*?)\n\}/.exec(lib)?.[1];
-  assert.ok(block, '$PlanBReservedPorts block not found');
-  const reserved = new Set([...block.matchAll(/^\s*(\d+)\s*=/gm)].map(m => Number(m[1])));
-  for (const { name, key, port } of serverPorts)
-    assert.ok(reserved.has(port), `server ${name} ${key} ${port} is not in $PlanBReservedPorts`);
-});
+const hasPwsh = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], {
+  encoding: 'utf8',
+}).stdout?.trim();
 
-// The forbidden-port lists of the scripts that choose their own ports (L4).
-const FORBIDDEN = [['scripts/pi/rebuild-drill.ps1', /\$HostPort -in ([\d, ]+)\)/]];
-
-// voice-stack and livekit read their list from shared/ports.json; that file has to cover the
-// test servers in servers.json field by field and the live bridge ports.
+// voice-stack, livekit, the Pi drill and Plan B read their lists from shared/ports.json; that
+// file has to cover the test servers in servers.json field by field and the live bridge ports.
 const portsJson = JSON.parse(read('shared/ports.json'));
-for (const file of ['scripts/voice-stack.ps1', 'tools/livekit/scripts/livekit-poc.ps1']) {
+
+test(
+  'Plan B reserves every test server port and the live bridge ports (scripts/plan-b/lib.ps1)',
+  { skip: !hasPwsh },
+  () => {
+    assert.match(read('scripts/plan-b/lib.ps1'), /shared\/ports\.json/);
+    const lib = path.join(root, 'scripts', 'plan-b', 'lib.ps1').replace(/'/g, "''");
+    const r = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `. '${lib}'; ConvertTo-Json -InputObject @($PlanBReservedPorts.Keys | Sort-Object) -Compress`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    const reserved = new Set(JSON.parse(r.stdout));
+    for (const { name, key, port } of serverPorts)
+      assert.ok(reserved.has(port), `server ${name} ${key} ${port} is not in $PlanBReservedPorts`);
+    for (const port of [31414, 31415, 31416, 3200])
+      assert.ok(reserved.has(port), `${port} is not in $PlanBReservedPorts`);
+    // the rehearsal row is Plan B's own: it must stay free
+    for (const port of Object.values(portsJson.ports.rehearsal))
+      assert.ok(!reserved.has(port), `rehearsal port ${port} is reserved against Plan B itself`);
+  }
+);
+
+for (const file of [
+  'scripts/voice-stack.ps1',
+  'tools/livekit/scripts/livekit-poc.ps1',
+  'scripts/pi/rebuild-drill.ps1',
+]) {
   test(`${file} reads its forbidden ports from shared/ports.json`, () => {
-    assert.match(read(file), /\$ForbiddenPorts\s*=\s*@\(.*shared\/ports\.json/);
+    assert.match(read(file), /\$ForbiddenPorts\s*=\s*@\(.*shared\/ports\.json/i);
   });
+  // The text check above would pass after a change to the number of Split-Path hops; this one
+  // evaluates the path chain with the script's own $PSScriptRoot and $Root and wants the real file.
+  test(
+    `${file}: the ports.json path chain resolves to shared/ports.json`,
+    { skip: !hasPwsh },
+    () => {
+      const expr = /\(Join-Path (.+?) 'shared\/ports\.json'\)/.exec(read(file))?.[1];
+      assert.ok(expr, `no Join-Path ... 'shared/ports.json' in ${file}`);
+      const dir = path.dirname(path.join(root, file)).replace(/'/g, "''");
+      const r = spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          `$PSScriptRoot = '${dir}'; $Root = Split-Path -Parent $PSScriptRoot; [IO.Path]::GetFullPath((Join-Path ${expr} 'shared/ports.json'))`,
+        ],
+        { encoding: 'utf8' }
+      );
+      assert.equal(r.status, 0, r.stderr);
+      const got = path.normalize(r.stdout.trim());
+      assert.equal(got.toLowerCase(), path.join(root, 'shared', 'ports.json').toLowerCase());
+    }
+  );
 }
 test('shared/ports.json matches servers.json and forbids every test and live port', () => {
   const forbidden = new Set(portsJson.forbidden);
@@ -66,20 +115,6 @@ test('shared/ports.json matches servers.json and forbids every test and live por
   for (const live of [31414, 31415, 31416]) assert.ok(forbidden.has(live), `live ${live}`);
 });
 
-for (const [file, pattern] of FORBIDDEN) {
-  test(`${file} forbids every test server port and the live bridge ports`, () => {
-    const list = pattern.exec(read(file))?.[1];
-    assert.ok(list, `forbidden-port list not found in ${file}`);
-    const ports = new Set(list.split(',').map(s => Number(s.trim())));
-    for (const { name, key, port } of serverPorts)
-      assert.ok(ports.has(port), `${file}: server ${name} ${key} ${port} is not forbidden`);
-    for (const live of [31414, 31415, 31416]) assert.ok(ports.has(live), `${file}: live ${live}`);
-  });
-}
-
-const hasPwsh = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], {
-  encoding: 'utf8',
-}).stdout?.trim();
 
 /** Get-RootProblems from config.ps1 for one server over a name-to-path table. */
 function rootProblems(name, roots) {

@@ -135,11 +135,15 @@ function main() {
 
   const exceptAt = args.indexOf('--except');
   if (exceptAt >= 0) {
-    const file = args[exceptAt + 1];
+    const file = (args[exceptAt + 1] ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
     const reason = args[exceptAt + 2] ?? '';
     const prAt = args.indexOf('--pr');
+    const pr = prAt >= 0 ? (args[prAt + 1] ?? '') : '';
     try {
-      write(addException(counts, baseline, file, reason, prAt >= 0 ? args[prAt + 1] : ''));
+      if (!file || file.startsWith('--')) throw new Error('usage: --except <file> "<reason>" [--pr <n>]');
+      if (reason.startsWith('--')) throw new Error('the reason must come right after the file');
+      if (pr && !/^\d+$/.test(pr)) throw new Error('--pr takes a number');
+      write(addException(counts, baseline, file, reason, pr));
     } catch (error) {
       console.error(`line-ratchet: ${error instanceof Error ? error.message : error}`);
       process.exit(2);
@@ -184,4 +188,7 @@ function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+// Fail toward running: any start whose script file has this file's name is the check itself, even if
+// the path spelling differs (drive-letter case, symlink); an import from a test has another name.
+const started = process.argv[1] ? path.basename(process.argv[1]).toLowerCase() : '';
+if (started === path.basename(fileURLToPath(import.meta.url)).toLowerCase()) main();

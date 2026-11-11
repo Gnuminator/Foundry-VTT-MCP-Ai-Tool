@@ -12,8 +12,10 @@
 //     object>)` (no alias, destructuring, bracket access, optional call or spread of it);
 //   - that object has exactly one `method` property, written plainly (not computed, not a getter,
 //     not shorthand, not a spread, no escaped name) with the string literal 'GET';
-//   - nothing in the code reaches for eval, Function, globalThis, import() and the like, which
-//     could build the call another way.
+//   - the code does not use a blocklist of escape hatches (eval, Function, globalThis, this,
+//     import(), prototype and descriptor tricks, fetch, computed property names, HTML-style
+//     comment markers). The blocklist is best effort on top of the strict shape above; it also
+//     makes other connectors' execute code that uses these names ask.
 // Code that never mentions "cloudflare" and has none of those escapes (another connector's execute)
 // passes. A parse error, a missing parser, a non-string `code` or an odd payload asks (fail closed).
 // The reason lists the methods and paths found.
@@ -39,8 +41,14 @@ try {
 const MAX_CODE = 200_000;
 // Names that can reach the Cloudflare object, or build a call, without writing `cloudflare.request(`.
 const ESCAPES = new Set([
-  'eval', 'Function', 'AsyncFunction', 'globalThis', 'global', 'self', 'window', 'this', 'Reflect',
-  'Proxy', 'constructor', 'process', 'require', 'module', 'arguments', 'with',
+  'eval', 'Function', 'AsyncFunction', 'globalThis', 'global', 'self', 'window', 'Reflect',
+  'Proxy', 'process', 'require', 'module', 'arguments', 'fetch',
+]);
+// Dangerous even as a property name (`x.constructor`, `Object.getPrototypeOf`, `String.prototype`).
+const PROP_ESCAPES = new Set([
+  'constructor', 'prototype', '__proto__', '__defineGetter__', '__defineSetter__', 'defineProperty',
+  'defineProperties', 'setPrototypeOf', 'getPrototypeOf', 'getOwnPropertyDescriptor',
+  'getOwnPropertyDescriptors', 'prepareStackTrace', 'captureStackTrace', 'getThis', 'getFunction',
 ]);
 
 function children(node) {
@@ -73,11 +81,14 @@ export function classify(code) {
   if (typeof code !== 'string') return ask('the code is not a string');
   if (code.length > MAX_CODE) return ask('the code is too long to check');
   if (!acorn) return ask('the parser (acorn) is not installed, run npm ci');
+  if (code.includes('<!--') || code.includes('-->')) return ask('the code has an HTML-style comment marker');
   let ast;
   try {
     ast = acorn.parse(code, {
       ecmaVersion: 'latest',
-      sourceType: 'script',
+      // Module mode sees at least as much code as script mode, whichever the runtime uses
+      // (script mode reads "<!--" as a comment start, module mode does not).
+      sourceType: 'module',
       allowReturnOutsideFunction: true,
       allowAwaitOutsideFunction: true,
     });
@@ -93,7 +104,7 @@ export function classify(code) {
       const asProperty =
         (parent?.type === 'MemberExpression' && parent.property === node && !parent.computed) ||
         (parent?.type === 'Property' && parent.key === node && !parent.computed);
-      if (ESCAPES.has(node.name) && (!asProperty || node.name === 'constructor')) {
+      if ((ESCAPES.has(node.name) && !asProperty) || PROP_ESCAPES.has(node.name)) {
         problems.push(`the code uses ${node.name}`);
       }
       if (node.name === 'cloudflare') {
@@ -113,6 +124,10 @@ export function classify(code) {
       }
     } else if (node.type === 'ThisExpression') {
       problems.push('the code uses this');
+    } else if (node.type === 'MemberExpression' && node.computed && !(node.property.type === 'Literal' && typeof node.property.value === 'number')) {
+      problems.push('the code uses a computed property name');
+    } else if (node.type === 'Literal' && typeof node.value === 'string' && (ESCAPES.has(node.value) || PROP_ESCAPES.has(node.value))) {
+      problems.push(`the code names ${node.value} in a string`);
     } else if (node.type === 'ImportExpression' || node.type === 'MetaProperty') {
       problems.push('the code uses import()');
     } else if (node.type === 'Literal' && typeof node.value === 'string' && /cloudflare/i.test(node.value)) {

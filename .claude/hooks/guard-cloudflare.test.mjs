@@ -80,6 +80,16 @@ test('review H1 bypass shapes all ask', () => {
     "cloudflare?.request({ method: 'GET', path: '/x' })",
     "cloudflare.request?.({ method: 'GET', path: '/x' })",
     'cloudflare.request({ method: `GET`, path: "/x" })',
+    // round 2: HTML-style comment hides a write in script mode only
+    "async () => { let b = 1; 0 <!--b, cloudflare.request({ method: 'DELETE', path: '/x' })\n}",
+    // round 2: string-keyed access to the constructor, no identifiers
+    "[]['constructor']['constructor'](\"return cloudflare.request({method:'DELETE',path:'/x'})\")()",
+    "[]['cons' + 'tructor']['constructor']('return 1')()",
+    "Object.getOwnPropertyDescriptor(Object.getPrototypeOf(async () => {}), 'constructor').value('x')",
+    // round 2: changing the realm before a literal GET
+    "String.prototype.toUpperCase = () => 'DELETE'; await cloudflare.request({ method: 'GET', path: '/x' })",
+    "fetch = (u, o) => g(u, { ...o, method: 'DELETE' }); await cloudflare.request({ method: 'GET', path: '/x' })",
+    "Object.defineProperty(Object.prototype, 'headers', { value: {} }); await cloudflare.request({ method: 'GET', path: '/x' })",
   ];
   for (const s of shapes) assert.ok(call(s), s);
 });
@@ -102,7 +112,8 @@ test('an unbalanced or unreadable call asks', () => {
 });
 
 test('a non-Cloudflare execute and other tools pass', () => {
-  assert.equal(call("return await fetch('https://example.com', { method: 'POST' })"), null);
+  assert.equal(call("return await other.send({ method: 'POST', url: 'https://example.com' })"), null);
+  assert.ok(call("return await fetch('https://example.com', { method: 'POST' })"), 'fetch is on the blocklist, so it asks');
   assert.equal(call('return 1 + 1'), null);
   assert.equal(decide('Bash', { command: "cloudflare.request({method:'POST'})" }), null);
   assert.equal(decide('mcp__abc__search', { code: "cloudflare.request({method:'POST'})" }), null);

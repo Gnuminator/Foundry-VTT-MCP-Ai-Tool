@@ -177,6 +177,41 @@ unit_started_epoch() {
   date -d "$ts" +%s 2>/dev/null || true
 }
 
+# wait_for_watching UNIT SINCE [SECONDS]: 0 when the game-night watch logged its "watching" line since SINCE (a
+# "YYYY-MM-DD HH:MM:SS" time), 1 when the unit stopped first or the time ran out (default 20 s). "Running" is not
+# "watching": a settings problem exits 2 within seconds and the unit stays down. The journal holds log lines (the
+# Foundry host name, never a token or a full address). Read-only.
+wait_for_watching() {
+  local unit="$1" since="$2" secs="${3:-20}" _
+  for _ in $(seq 1 "$secs"); do
+    journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -q ' watching ' && return 0
+    systemctl is-active --quiet "$unit" || return 1
+    sleep 1
+  done
+  return 1
+}
+
+# restart_gamenight_watch REASON [FILE]: restarts the game-night watch (stage 29) so a changed bot env file reaches it,
+# then waits for its "watching" line (a restart that stopped on exit 2 is a warning, not a success). With FILE, only
+# when FILE is newer than the running watch (a rerun after a cut-off run still repairs it). It holds no recording and
+# no player, so no quiet check. Does nothing without systemd or without the unit installed.
+restart_gamenight_watch() {
+  local reason="$1" file="${2:-}" watch_unit=foundry-ai-tool-gamenight-watch.service started since
+  have_systemd && [ -f "/etc/systemd/system/$watch_unit" ] || return 0
+  if [ -n "$file" ]; then
+    started="$(unit_started_epoch "$watch_unit")"
+    if [ -n "$started" ] && [ -f "$file" ] && [ "$(stat -c %Y "$file")" -le "$started" ]; then return 0; fi
+  fi
+  since="$(date '+%Y-%m-%d %H:%M:%S')"
+  if ! systemctl restart "$watch_unit"; then
+    warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
+  elif wait_for_watching "$watch_unit" "$since"; then
+    ok "restarted $watch_unit for $reason; it is watching"
+  else
+    warn "restarted $watch_unit for $reason but it did not reach its 'watching' line: journalctl -u $watch_unit -n 20"
+  fi
+}
+
 # recording_active [DIR]: 0 when a Discord recording seems to run: a session folder under DIR (default
 # $TOOL_DATA/recordings) whose raw/ has no session.json yet (the bot writes it when the recording stops) and either
 # has a file changed in the last 10 minutes or, while the bot service runs, was last changed after the bot last

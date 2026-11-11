@@ -7,7 +7,9 @@
  *
  * Options: --url (or GAMENIGHT_WATCH_URL), --interval seconds (60), --slow-ms (3000), --timeout-ms
  * (10000), --fail N misses in a row before "down" (2), --slow N slow answers in a row before "slow"
- * (3), --recover N good answers in a row before "back" (2), --env-file, --once (one probe, exit).
+ * (3), --recover N good answers in a row before "back" (2), --env-files (one or more env files, comma
+ * separated, a later one wins), --once (one probe, exit). The old --env-file still works but warns:
+ * Node itself reads --env-file from the whole command line and stops on a file it cannot open.
  *
  * Posting is opt-in (--post). Settings come from the bot's env file
  * (%APPDATA%\foundry-ai-tool\discord-bot.env), overridden by real environment variables:
@@ -234,12 +236,31 @@ export function withLateNote({ text, at }, now = Date.now()) {
   return `${text} (noticed ${new Date(at).toISOString().slice(11, 19)} UTC)`;
 }
 
+/** The env files to read: --env-files (comma separated), else the old --env-file, else the bot's default file. */
+export function envFileList(args) {
+  const raw = typeof args['env-files'] === 'string' ? args['env-files'] : args['env-file'];
+  if (typeof raw !== 'string') return [defaultEnvFile()];
+  return raw
+    .split(',')
+    .map(f => f.trim())
+    .filter(Boolean);
+}
+
+/** Reads the files in order (a later file wins); a missing file is skipped. */
+export function loadEnvFiles(files) {
+  const out = {};
+  for (const f of files) if (existsSync(f)) Object.assign(out, parseEnv(readFileSync(f, 'utf8')));
+  return out;
+}
+
 const stamp = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const envFile = typeof args['env-file'] === 'string' ? args['env-file'] : defaultEnvFile();
-  const fromFile = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : {};
+  if (typeof args['env-file'] === 'string' && typeof args['env-files'] !== 'string') {
+    console.error('--env-file is deprecated here (Node reads it itself); use --env-files.');
+  }
+  const fromFile = loadEnvFiles(envFileList(args));
   const get = key => [process.env[key], fromFile[key]].find(v => v);
   const num = (name, dflt) => {
     if (args[name] === undefined) return dflt;

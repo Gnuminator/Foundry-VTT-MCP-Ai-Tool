@@ -154,15 +154,18 @@ class FoundryMCPBridge {
   /** Writes the holder's notice state to the world so every other GM browser can show it. */
   private publishLinkState(state: LinkRelayStateName): void {
     // One write per change of notice: a repeated "lost" (a failed start() while the outage lasts) writes nothing.
-    if (state === this.lastPublishedLinkState || state === this.publishingLinkState) return;
+    // A write under way is the newest intent: compare with it first, so "lost" after "up" went out is not skipped as a repeat.
+    if (state === (this.publishingLinkState ?? this.lastPublishedLinkState)) return;
     if (!this.canPublishLinkState()) return;
     this.publishingLinkState = state;
     const seq = ++this.linkStateWriteSeq;
     const done = (error?: unknown): void => {
       if (this.publishingLinkState === state) this.publishingLinkState = null;
-      if (error === undefined && seq === this.linkStateWriteSeq)
+      if (error !== undefined) {
+        console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+      } else if (seq === this.linkStateWriteSeq) {
         this.lastPublishedLinkState = state;
-      else console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
+      }
     };
     try {
       const result = game.settings.set(MODULE_ID, 'linkState', { state, at: Date.now() });

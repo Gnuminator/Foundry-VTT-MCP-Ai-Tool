@@ -29,8 +29,9 @@
 #                  refuses (the containers come back with the daemon) unless FORCE=1, which first disables docker.service.
 # FOUNDRY_DATA_DIR and TOOL_DATA_DIR must be absolute paths for up and cutover (compose and this script would resolve a
 # relative one against different folders); down, rollback and status ignore the rule so the way out is never blocked.
-# A .env value of those names with a $ (compose would expand it) or a backslash is refused for up and cutover too (the
-# key is named, not the value): write the plain path. Down, rollback and status ignore that rule as well.
+# A .env value of FOUNDRY_HTTP_PORT, BRIDGE_CONTROL_PORT, BRIDGE_LINK_PORT, DASHBOARD_PORT, FOUNDRY_DATA_DIR,
+# TOOL_DATA_DIR or FOUNDRY_APP_DIR with a $ (compose would expand it) or a backslash is refused for up and cutover too
+# (the key is named, not the value): write the plain value. Down, rollback and status ignore that rule as well.
 # Without MODE it is status. DRY_RUN=1 with any other mode checks everything and prints the plan.
 #
 # Not touched in any mode: Syncthing, cloudflared, Tailscale (serve), the Discord bot, the GitHub runner, the env files,

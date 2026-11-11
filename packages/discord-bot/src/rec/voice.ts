@@ -59,7 +59,7 @@ export function redactVoiceDebug(message: string): string {
       .replace(/\b(token|session_?id)=[^\s&,;"']+/gi, '$1=[redacted]')
       // The key written as a list (`secret_key=9,8,7`, `= 9, 8`, `: [9, 8, 7]`) or a quoted string must not stop at the first comma.
       .replace(
-        /\b(secret_?key)\s*[:=]\s*(?:\[[^\]]*\]|"[^"]*"|[^\s&,;"'\]]+(?:\s*,\s*[^\s&,;"'\]]+)*)/gi,
+        /\b(secret_?key)\s*[:=]\s*(?:\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s&,;"'\]]+(?:\s*,\s*[^\s&,;"'\]]+)*)/gi,
         '$1=[redacted]'
       )
   );

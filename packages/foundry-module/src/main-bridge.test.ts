@@ -208,6 +208,53 @@ describe('main: no world writes for connection state (PB-03)', () => {
     expect(setSpy.mock.calls.filter(c => c[1] === 'linkState')).toHaveLength(2);
   });
 
+  describe('link state writes that overlap', () => {
+    /** Makes `linkState` writes stay pending; returns the resolvers in call order. */
+    const holdWrites = (): Array<() => void> => {
+      const resolvers: Array<() => void> = [];
+      setSpy.mockImplementation(
+        () => new Promise<void>(resolve => resolvers.push(() => resolve()))
+      );
+      return resolvers;
+    };
+    const asGm = (): void => {
+      world.setSetting(MODULE_ID, 'enableNotifications', true);
+      world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
+    };
+
+    it('two writes settling in reverse order warn nothing and record the newest state', async () => {
+      asGm();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const resolvers = holdWrites();
+      bridge['publishLinkState']('up');
+      bridge['publishLinkState']('lost');
+      expect(resolvers).toHaveLength(2);
+      resolvers[1]();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      resolvers[0]();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(
+        warn.mock.calls.filter(c => String(c[0]).includes('Could not share the link state'))
+      ).toHaveLength(0);
+      expect(bridge['lastPublishedLinkState']).toBe('lost');
+      // "lost" is recorded as published, so another "lost" writes nothing.
+      bridge['publishLinkState']('lost');
+      expect(resolvers).toHaveLength(2);
+    });
+
+    it('a "lost" after "up" went out is written, not skipped as a repeat of the last record', async () => {
+      asGm();
+      bridge['lastPublishedLinkState'] = 'lost';
+      const resolvers = holdWrites();
+      bridge['publishLinkState']('up');
+      bridge['publishLinkState']('lost');
+      expect(resolvers).toHaveLength(2);
+      resolvers.forEach(r => r());
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(bridge['lastPublishedLinkState']).toBe('lost');
+    });
+  });
+
   it('a stored link state change reaches the hook and applyStoredLinkState', async () => {
     const hooks = (globalThis as any).Hooks;
     const handlers: Array<() => void> = [];

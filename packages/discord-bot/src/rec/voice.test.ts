@@ -40,6 +40,7 @@ describe('redactVoiceDebug other forms', () => {
     expect(redactVoiceDebug('secret_key: [9, 8, 7] next')).toBe('secret_key=[redacted] next');
     expect(redactVoiceDebug('secret_key= 1,2 next')).toBe('secret_key=[redacted] next');
     expect(redactVoiceDebug('secret_key="abc" next')).toBe('secret_key=[redacted] next');
+    expect(redactVoiceDebug("secret_key='abc' next")).toBe('secret_key=[redacted] next');
   });
 
   it('removes a value that starts with digits but is not a list', () => {

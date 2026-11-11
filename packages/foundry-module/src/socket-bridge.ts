@@ -132,8 +132,10 @@ export class SocketBridge {
     const wsUrl = `${protocol}://${host}:${this.config.serverPort}${this.config.namespace}`;
 
     return new Promise((resolveConnect, rejectConnect) => {
+      // Clear the cancel handle only when it is still this connect's own: a newer connect may
+      // have registered its handle since, and an old promise must not take it away.
       const settle = (): void => {
-        this.cancelPendingConnect = null;
+        if (this.cancelPendingConnect === reject) this.cancelPendingConnect = null;
       };
       const resolve = (): void => {
         settle();

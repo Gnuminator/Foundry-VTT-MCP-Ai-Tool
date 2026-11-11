@@ -4,12 +4,12 @@
  */
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import path, { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACTOR_IMAGE_FEATURE_ID } from '@gnuminator/shared';
 
-import { ActorImageTools, defaultImageRoots } from './actor-image.js';
+import { ActorImageTools, checkPathText, defaultImageRoots } from './actor-image.js';
 
 function logger(): any {
   const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -145,6 +145,40 @@ describe('plan-actor-image', () => {
     );
   });
 
+  it('refuses a link to a network share without following it', async () => {
+    // A symlink whose target text is a network path; it dangles here, and must not be resolved.
+    let made = true;
+    try {
+      symlinkSync('//198.51.100.7/share/pic.png', join(root, 'unc.png'));
+    } catch {
+      made = false; // no symlink right on this PC
+    }
+    if (!made) return;
+    await expect(call({ actor: 'Ebbe', file: join(root, 'unc.png') })).rejects.toThrow(
+      /not in an allowed folder/
+    );
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('says to update the module when the module has no handler or no switch for it', async () => {
+    query.mockImplementation((method: string) =>
+      method === 'foundry-mcp-bridge.listGuardedFeatures'
+        ? Promise.resolve([{ id: 'other-feature', enabled: true }])
+        : Promise.reject(new Error(`No handler found for query: ${method}`))
+    );
+    await expect(call({ actor: 'Ebbe', file: join(root, 'ebbe.png') })).rejects.toThrow(
+      /older than this tool; update the module/
+    );
+    query.mockImplementation((method: string) =>
+      method === 'foundry-mcp-bridge.listGuardedFeatures'
+        ? Promise.resolve([{ id: ACTOR_IMAGE_FEATURE_ID, enabled: true }])
+        : Promise.reject(new Error(`Query ${method} failed: No handler found for query: ${method}`))
+    );
+    await expect(call({ actor: 'Ebbe', file: join(root, 'ebbe.png') })).rejects.toThrow(
+      /older than this tool; update the module/
+    );
+  });
+
   it('refuses a non-picture and an oversized picture before anything is sent', async () => {
     await expect(call({ actor: 'Ebbe', file: join(root, 'notes.png') })).rejects.toThrow(
       /Only PNG, JPG or WebP/
@@ -181,6 +215,43 @@ describe('plan-actor-image', () => {
     );
     await expect(call({ actor: 'Ebbe', file: join(root, 'ebbe.png') })).rejects.toThrow(/No actor/);
     expect(createPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkPathText (Windows paths on every platform)', () => {
+  const roots = ['C:\\Users\\gm\\Documents\\Foundry Art', 'D:\\Pics'];
+  const verdict = (file: string): string => checkPathText(file, roots, path.win32);
+
+  it('accepts files inside a folder, any case, either slash', () => {
+    expect(verdict('C:\\Users\\gm\\Documents\\Foundry Art\\ebbe.png')).toBe('ok');
+    expect(verdict('c:/users/gm/documents/foundry art/sub/ebbe.png')).toBe('ok');
+    expect(verdict('D:\\Pics\\a.webp')).toBe('ok');
+  });
+
+  it('refuses UNC, device and extended-length paths', () => {
+    for (const file of [
+      '\\\\server\\share\\a.png',
+      '\\\\?\\C:\\Users\\gm\\Documents\\Foundry Art\\a.png',
+      '\\\\?\\UNC\\host\\share\\a.png',
+      '\\\\.\\pipe\\x',
+      '//server/share/a.png',
+      '\\/host/share/a.png',
+    ]) {
+      expect(verdict(file)).toBe('denied');
+    }
+  });
+
+  it('refuses drive-relative, relative, other-drive, parent and root-itself paths', () => {
+    expect(verdict('C:ebbe.png')).toBe('relative');
+    expect(verdict('ebbe.png')).toBe('relative');
+    expect(verdict('E:\\Pics\\a.png')).toBe('denied');
+    expect(verdict('C:\\Users\\gm\\Documents\\Foundry Art\\..\\secret.png')).toBe('denied');
+    expect(verdict('C:\\Users\\gm\\Documents\\Foundry Art')).toBe('denied');
+    expect(verdict('C:\\Users\\gm\\Documents\\Foundry Art Extra\\a.png')).toBe('denied');
+  });
+
+  it('lets a network path through when a folder is itself a network path', () => {
+    expect(checkPathText('\\\\nas\\art\\a.png', ['\\\\nas\\art'], path.win32)).toBe('ok');
   });
 });
 

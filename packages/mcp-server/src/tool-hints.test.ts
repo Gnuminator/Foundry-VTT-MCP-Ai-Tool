@@ -30,6 +30,7 @@ const WRITES = [
   'manage-rest',
   'manage-world-items',
   'mark-play-session',
+  'plan-actor-image', // a plan tool, but it stores the picture file in the world when planned
   'play-playlist',
   'request-ability-check',
   'request-attack-roll',

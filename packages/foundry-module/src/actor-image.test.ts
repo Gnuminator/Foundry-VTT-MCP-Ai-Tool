@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  actorFolderName,
   artFileName,
   findActor,
   uploadActorImage,
@@ -30,6 +31,7 @@ function env(): {
   const uploads: Array<{ path: string; name: string }> = [];
   const dirs: string[] = [];
   const e: ActorImageEnv = {
+    enabled: () => true,
     actors: () => ACTORS,
     picker: () => ({
       createDirectory: (_s, target): Promise<void> => {
@@ -64,7 +66,27 @@ describe('artFileName', () => {
   });
 });
 
+describe('actorFolderName', () => {
+  it('is the name slug and the id, and actor-<id> when the name has no letters or digits', () => {
+    expect(actorFolderName('Ebbe Thistlebottom', 'ACTOR1')).toBe('ebbe-thistlebottom-actor1');
+    expect(actorFolderName('???', 'ACTOR1')).toBe('actor-actor1');
+    expect(actorFolderName('', 'ACTOR1')).toBe('actor-actor1');
+  });
+});
+
 describe('uploadActorImage', () => {
+  it('refuses on its own when the Actor images switch is off, before any folder or upload', async () => {
+    const { e, uploads, dirs } = env();
+    const reply = await uploadActorImage(
+      { actor: 'Ebbe Thistlebottom', data: b64(PNG) },
+      { ...e, enabled: () => false }
+    );
+    expect(reply).toMatchObject({ success: false });
+    expect((reply as { error: string }).error).toMatch(/switched off/);
+    expect(uploads).toEqual([]);
+    expect(dirs).toEqual([]);
+  });
+
   it('stores the picture in the actor folder under a made-up name and reports the old paths', async () => {
     const { e, uploads, dirs } = env();
     const reply = await uploadActorImage({ actor: 'Ebbe Thistlebottom', data: b64(PNG) }, e);

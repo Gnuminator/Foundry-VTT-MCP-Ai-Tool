@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 344b77cc53b4
+sourceHash: b2484c010971
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -217,8 +217,8 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
   [TV'et ved bordet](tv-table-viewer.md).
 - **Player portraits** ("AI Tool: Player portraits (writes)"): lader en spiller skifte billedet på
   sin egen karakter fra spillersiden (**Upload my portrait**). Filen lægges i spillerens egen mappe
-  under `assets/players`, og samme ændring opdaterer også de tokens, der allerede står på scener,
-  når spilleren valgte "Portrait and token". Den vises i Recent Changes med Undo. Starter slået
+  under `assets/players`, og en ekstra ændring opdaterer de tokens, der allerede står på scener,
+  når spilleren valgte "Portrait and token". Begge vises i Recent Changes med Undo. Starter slået
   til. Slår du den fra, forsvinder knappen fra spillersiden.
 - **Undo for everything** ("AI Tool: Undo for everything"): lader værktøjet fortryde og gentage
   alles ændringer (spillernes, dine og Claudes) fra Changes-listen, én ændring ad gangen eller alt

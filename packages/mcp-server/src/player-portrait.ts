@@ -26,6 +26,9 @@ export interface PortraitFoundry {
   query(method: string, data?: unknown, options?: { timeoutMs?: number }): Promise<unknown>;
 }
 
+/** Most placed tokens one picture change reaches (the module caps its list the same way). */
+const MAX_PLACED_TOKENS = 100;
+
 const ID = /^[A-Za-z0-9]{16}$/;
 const UPLOAD_TIMEOUT_MS = 60_000;
 
@@ -94,23 +97,20 @@ export async function handlePlayerPortrait(
     pathLabels['prototypeToken.texture.src'] = 'token picture';
   }
   const ops: GuardedOp[] = [{ kind: 'update', uuid, changes }];
-  // Tokens already on a scene keep their own picture unless they are changed too; the same plan
-  // does it, so one Undo puts them all back.
+  // Tokens already on a scene keep their own picture unless they are changed too. They are a
+  // second change, so a token the GM deleted later never blocks the Undo of the character's own
+  // picture (an Undo refuses when any of its documents is gone).
   const placed =
     target === 'both' && Array.isArray(stored.placedTokens)
-      ? stored.placedTokens.filter(
-          (t): t is string => typeof t === 'string' && /^Scene\.\w+\.Token\.\w+$/.test(t)
-        )
+      ? stored.placedTokens
+          .filter((t): t is string => typeof t === 'string' && /^Scene\.\w+\.Token\.\w+$/.test(t))
+          .slice(0, MAX_PLACED_TOKENS)
       : [];
-  for (const tokenUuid of placed) {
-    ops.push({ kind: 'update', uuid: tokenUuid, changes: { 'texture.src': stored.path } });
-  }
-  if (placed.length > 0) pathLabels['texture.src'] = 'placed token picture';
   const who = typeof stored.userName === 'string' && stored.userName ? stored.userName : 'A player';
   const name = stored.actorName || 'a character';
   const plan = await guardedWrites.createPlan({
     feature: PLAYER_PORTRAIT_FEATURE_ID,
-    summary: `${who} set a new ${target === 'both' ? 'portrait and token picture' : 'portrait'} for ${name} (${stored.path})${placed.length > 0 ? `, also on ${placed.length} placed token${placed.length === 1 ? '' : 's'}` : ''}`,
+    summary: `${who} set a new ${target === 'both' ? 'portrait and token picture' : 'portrait'} for ${name} (${stored.path})`,
     ops,
     pathLabels,
   });
@@ -119,5 +119,25 @@ export async function handlePlayerPortrait(
     { confirm: true },
     `${who} (player page)`
   );
+  if (placed.length > 0) {
+    try {
+      const tokenPlan = await guardedWrites.createPlan({
+        feature: PLAYER_PORTRAIT_FEATURE_ID,
+        summary: `${who} set the new picture on ${placed.length} placed token${placed.length === 1 ? '' : 's'} of ${name} (${stored.path})`,
+        ops: placed.map(
+          (tokenUuid): GuardedOp => ({
+            kind: 'update',
+            uuid: tokenUuid,
+            changes: { 'texture.src': stored.path },
+          })
+        ),
+        pathLabels: { 'texture.src': 'placed token picture' },
+      });
+      await guardedWrites.applyPlan(tokenPlan.planId, { confirm: true }, `${who} (player page)`);
+    } catch {
+      // The character already has its picture; a token that moved or went away is not an error
+      // the player can act on. The GM sees the first change in Recent Changes either way.
+    }
+  }
   return { ok: true, path: stored.path, actorName: name, changeId: applied.changeId };
 }

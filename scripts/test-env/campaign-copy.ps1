@@ -112,18 +112,28 @@ function Invoke-Refresh {
   try {
     Move-Item $new $DataRoot
   } catch {
+    $swapError = $_
     # The final move failed: put the old copy back so the copy is never left without data.
     if ($movedPrev -and -not (Test-Path $DataRoot) -and (Test-Path $prev)) {
-      Move-Item $prev $DataRoot
-      Write-Warning "Swapping in the new data failed; the previous copy was moved back to $DataRoot."
+      try {
+        Move-Item $prev $DataRoot
+        Write-Warning "Swapping in the new data failed; the previous copy was moved back to $DataRoot."
+      } catch {
+        throw "Swapping in the new data failed ($($swapError.Exception.Message)) and restoring the previous copy from $prev also failed ($($_.Exception.Message)); move $prev back to $DataRoot by hand."
+      }
     }
-    throw
+    throw $swapError
   }
   # Every user of the copy gets an empty password, so the GM can join as "Gamemaster" in the browser.
   & (Get-NodeExe) (Join-Path $PSScriptRoot 'campaign-copy-users.mjs') $TestEnv.AppDir (Join-Path $DataRoot 'Data' 'worlds' $World)
   if ($LASTEXITCODE -ne 0) { throw 'Clearing the copy''s user passwords failed.' }
   Write-Host "Refreshed. Start it with: pwsh scripts/test-env/campaign-copy.ps1 start"
   if (Test-Path $prev) { Write-Host "Previous copy kept in $prev (deleted at the next refresh)." }
+}
+
+# Stop the cmd shell Invoke-Start launched and its children (no-op when it already exited).
+function Stop-LaunchedShell($shell) {
+  if ($shell -and -not $shell.HasExited) { & taskkill.exe /PID $shell.Id /T /F | Out-Null }
 }
 
 function Invoke-Start {
@@ -142,7 +152,10 @@ function Invoke-Start {
   $cmd = "`"$nodeExe`" `"$main`" --dataPath=`"$DataRoot`" --port=$Port --noupnp --noupdate --world=$World"
   $shell = Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden -WorkingDirectory $appRoot -PassThru `
     -ArgumentList '/d', '/s', '/c', "`"$cmd 1>`"$out`" 2>`"$err`" <nul`""
-  if (-not (Wait-PortOpen $Port 90)) { throw "Foundry did not open port $Port; see $err" }
+  if (-not (Wait-PortOpen $Port 90)) {
+    Stop-LaunchedShell $shell
+    throw "Foundry did not open port $Port; the shell we started was stopped. See $err"
+  }
   # The node process that was started with this data folder and port (the port table is not
   # always readable from every shell).
   $owner = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
@@ -150,7 +163,7 @@ function Invoke-Start {
     Select-Object -First 1 -ExpandProperty ProcessId
   if (-not $owner) {
     # Do not leave an unrecorded Foundry running: stop the shell we started and its children.
-    if ($shell -and -not $shell.HasExited) { & taskkill.exe /PID $shell.Id /T /F | Out-Null }
+    Stop-LaunchedShell $shell
     throw "Foundry listens on $Port but its process could not be found; the shell we started was stopped."
   }
   Write-Host "Foundry pid $owner"

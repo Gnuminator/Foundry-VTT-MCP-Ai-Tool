@@ -252,4 +252,4 @@ for img in $images; do
   docker image inspect "$img" >/dev/null 2>&1 || die "image $img is missing after the build (log: $build_log)"
   ok "image $img"
 done
-ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports; the cutover is not supported yet)"
+ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports first, then MODE=cutover; deploy/pi/README.md, Cutover and rollback)"

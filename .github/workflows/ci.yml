@@ -835,6 +835,14 @@ jobs:
           PI_SYSTEM_TRIAL_CONTAINER: 1
         run: node --test scripts/pi/system-trial.test.mjs
 
+      - name: Pi cut-over guard in an ARM64 container
+        # scripts/pi/container-test/cutover-guard-scenarios.sh: refuse_when_cut_over in front of each of the 18 stages that start
+        # a stack unit, on Debian 13 ARM64 with stand-ins for systemctl and docker (a running or a stopped container of the
+        # live project, a silent Docker daemon, FORCE=1: each refuses and changes nothing; no docker: no refusal).
+        env:
+          PI_CUTOVER_CONTAINER: 1
+        run: node --test scripts/pi/cutover-guard-container.test.mjs
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 

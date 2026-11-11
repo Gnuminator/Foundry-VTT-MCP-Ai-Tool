@@ -66,11 +66,42 @@ runner.
 
 `24-compose.sh` takes `MODE=up|down|cutover|rollback`. Run it like the other stages, after the snapshot and the OK.
 
-- `MODE=up` starts a **rehearsal** stack on other ports and its own data folders. On the live ports (any one of them) or the live data folders it is refused until the cutover is supported (Backlog `pi-compose-cutover`).
-- `MODE=cutover` is **refused for now**: the nightly backup and the stages that start `foundry.service` do not know the
-  stack yet (Backlog `pi-compose-cutover`). The code stays for that item.
+- `MODE=up` starts a **rehearsal** stack on other ports and its own data folders. On the live ports (any one of them) or
+  the live data folders it is refused: the live stack is started by `MODE=cutover` only.
+- `MODE=cutover` is the switch: it stops and disables the four units, starts the live project on the live ports and
+  waits for healthy; an unhealthy stack rolls back by itself. It asks for a quiet table and a snapshot from today.
 - `MODE=rollback` stops every container of the live project and starts the units again: one command, nothing to rebuild.
 - `MODE=down` stops the stack and leaves the units as they are.
+
+### What changes after the cutover
+
+- **Every other stage refuses.** A stage that would start, restart or enable `foundry.service`, the bridge, the dashboard
+  or the Assistant GM (3, 5, 7, 11, 12, 13, 14, 19, 21, 25, 27, 28, 30, `gm-script`, `kit-session`, `switch-world`,
+  `set-dashboard-access`) stops at once with "the stack runs as containers", before it changes anything, because it would
+  start a second copy next to the containers. `FORCE=1` does not lift it. It looks for any container of the live
+  project, a stopped one too, and a Docker daemon that does not answer counts as "containers may exist". The way back is
+  `MODE=rollback`. The Discord bot is not a container (`compose.yml` has four services), so its stages (8, 26,
+  `set-discord-token`) are not guarded.
+- **The nightly backup follows the stack.** `6-backup.sh` writes a nightly script that, after the cutover, stops the
+  Foundry **container** (not `foundry.service`), checks that it is stopped, copies the worlds with restic and starts it
+  again. The Assistant GM container is not counted as a player. If the daemon is silent and `foundry.service` is not
+  running either, the backup reports an error instead of copying a data folder that may be in use. Run stage 6 again once
+  so the Pi has the new nightly script (before or after the cutover; it works for both).
+
+### Two sittings
+
+Never on a game-night day, never with players online, a `dietpi-backup` snapshot first and the OK each time
+(`pi-work`). Commands go over `ssh foundry-pi` with `lib.sh` and `24-compose.sh` joined (see above).
+
+1. **Rehearsal** (at least a week before session 0). Stage 23 (Docker, `.env`, images), then `MODE=up` on the `test.env`
+   ports with its own data folders (command above), then look at `deploy/pi/deployed-state.sh`, open the rehearsal
+   dashboard on port 3300 and join the rehearsal Foundry on 30100 from the Tailscale name. End with `MODE=down` and the
+   same ports. The live units never stop in this sitting.
+2. **Cutover.** Snapshot, then `MODE=cutover DRY_RUN=1` (prints the plan, changes nothing), then `MODE=cutover`. Check
+   `MODE=status` and `deploy/pi/deployed-state.sh` (no unit and container running together), join Foundry, and let one
+   backup run (`systemctl start foundry-backup.service`, on a quiet table; it stops the Foundry container for the copy)
+   before calling it done. **Rollback** at any
+   time: `MODE=rollback` (no quiet table needed), then the units run as before.
 
 `deploy/pi/deployed-state.sh` (or `deployed-state.ps1` from the PC) shows which side is running and fails when a
 unit and its container both run.

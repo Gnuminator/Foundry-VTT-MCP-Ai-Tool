@@ -95,7 +95,7 @@ describe('24-compose.sh as text', () => {
     assert.ok(record < mv && mv < stop);
     // The mode_up refusals (live project without the test switch, rehearsal on live data) come before the daemon check.
     const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
-    const liveRefusal = up.indexOf('is the cutover, which is not supported yet');
+    const liveRefusal = up.indexOf('would start the live stack next to the units');
     const dataRefusal = up.indexOf('would use a live data folder');
     assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
     // The first start does not build (stage 23 does) and comes before the --wait start.

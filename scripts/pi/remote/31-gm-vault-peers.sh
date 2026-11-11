@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stage 31: who the GM vault is shared with (backlog r1-gm-vault, D-139). Stage 7 adds a first PC with PEER_ID, but it
-# rewrites the bridge and dashboard settings on every run and cannot take a PC away again. This stage only touches
+# re-derives (and can change) the bridge and dashboard settings and cannot take a PC away again. This stage only touches
 # Syncthing's list of devices on the folder foundry-gm-vault, so Danni's PC can be added, and the user's own PC taken off,
 # without touching anything else. It never writes, moves or deletes a vault file: the notes stay on the Pi, and a PC that
 # is taken off keeps its own copy of the folder (the user deletes that on the PC).
@@ -14,8 +14,10 @@
 #                    vault folder (D-067: a player's device never gets the GM vault).
 #   REMOVE=1 DEVICE_ID=<id>
 #                    stop sharing the vault with that device and forget the device when no other folder uses it. Refused
-#                    unless another device on the vault holds all of it (completion 100 %), so the vault is never left
-#                    with the Pi as its only copy; FORCE=1 skips that one check.
+#                    unless another device on the vault is connected and holds all of it (completion 100 %, nothing left
+#                    to fetch, its index known), and the device to remove is connected and the Pi has pulled everything
+#                    it announced, so the vault is never left with the Pi as its only copy and nothing is lost with the
+#                    removed PC; FORCE=1 skips these checks.
 # Every mode that changes something needs a dietpi-backup snapshot from today and the user's OK. Nothing restarts.
 # Run from the PC (bash, not PowerShell):
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/31-gm-vault-peers.sh | ssh foundry-pi 'bash -s'
@@ -69,15 +71,36 @@ my_id="$(st show system | sed -n 's/.*"myID": "\([A-Z0-9-]*\)".*/\1/p')"
 
 # peers: the devices the vault is shared with, without the Pi itself.
 peers() { st config folders "$folder_id" devices list | grep -vx "$my_id" || true; }
-# completion DEVICE: how much of the vault that device holds, in percent, or "?" when Syncthing does not say. The REST
-# call goes to the GUI address on this Pi (loopback) with the folder's own API key, which is never printed.
+# rest PATH: a GET on Syncthing's REST API on this Pi (loopback) with the GUI's API key (never printed, and passed on stdin so
+# it is not in curl's argument list). Prints the body, or nothing when the call fails.
 api_key="$(st config gui apikey get 2>/dev/null || true)"
+rest() {
+  [ -n "$api_key" ] || return 0
+  printf 'X-API-Key: %s\n' "$api_key" | curl -fs --max-time 5 -H @- "http://$st_gui/rest/$1" 2>/dev/null || true
+}
+flat() { tr -d ' \n'; }
+# completion DEVICE: how much of the vault that device holds, in percent, or "?" when Syncthing does not say.
 completion() {
-  local body pct
-  [ -n "$api_key" ] || { printf '?'; return 0; }
-  body="$(curl -fs --max-time 5 -H "X-API-Key: $api_key" "http://$st_gui/rest/db/completion?folder=$folder_id&device=$1" 2>/dev/null || true)"
-  pct="$(printf '%s' "$body" | tr -d ' \n' | sed -n 's/.*"completion":\([0-9]*\).*/\1/p')"
+  local pct
+  pct="$(rest "db/completion?folder=$folder_id&device=$1" | flat | sed -n 's/.*"completion":\([0-9]*\).*/\1/p')"
   printf '%s' "${pct:-?}"
+}
+# holds_all DEVICE: succeeds only when that device really holds the whole vault: completion 100, nothing left to fetch, its
+# index known to this Pi (remoteState valid, sequence above 0), and connected now. A device that never accepted the folder
+# or never connected shows none of that, however its percentage reads.
+holds_all() {
+  local body seq
+  body="$(rest "db/completion?folder=$folder_id&device=$1" | flat)"
+  seq="$(printf '%s' "$body" | sed -n 's/.*"sequence":\([0-9]*\).*/\1/p')"
+  [ "$(completion "$1")" = 100 ] &&
+    printf '%s' "$body" | grep -q '"needItems":0' &&
+    printf '%s' "$body" | grep -q '"remoteState":"valid"' &&
+    [ "${seq:-0}" -gt 0 ] &&
+    [ "$(connected "$1")" -gt 0 ]
+}
+# pi_needs_nothing: the Pi has pulled everything its devices announced (no files left to fetch for the vault folder).
+pi_needs_nothing() {
+  rest "db/status?folder=$folder_id" | flat | grep -q '"needTotalItems":0'
 }
 connected() {
   st show connections 2>/dev/null | tr -d ' \n' | grep -c "\"$1\":{[^}]*\"connected\":true" || true
@@ -136,10 +159,14 @@ remove)
     safe=""
     for d in $(peers); do
       [ "$d" != "$device_id" ] || continue
-      [ "$(completion "$d")" = 100 ] && safe="$safe $d"
+      if holds_all "$d"; then safe="$safe $d"; fi
     done
-    [ -n "$safe" ] || die "no other device holds all of the vault yet (see the report); take this one off when another PC shows 100 %, or run again with FORCE=1"
+    [ -n "$safe" ] || die "no other device holds all of the vault yet (see the report); take this one off when another PC is connected and shows 100 %, or run again with FORCE=1"
     ok "another device holds all of the vault:$(for d in $safe; do printf ' %s' "$(dev_name "$d")"; done)"
+    # The other direction: whatever the device being removed still holds that the Pi has not pulled would be lost with it.
+    [ "$(connected "$device_id")" -gt 0 ] || die "the device to remove is not connected right now, so the Pi cannot know it has everything it holds: start that PC's Syncthing and wait for Up to Date, or run again with FORCE=1"
+    pi_needs_nothing || die "the Pi still has files to fetch for the vault (or Syncthing did not say): wait until the report is quiet and run again, or use FORCE=1"
+    ok "the Pi has pulled everything the device announced"
   fi
   name="$(dev_name "$device_id")"
   st config folders "$folder_id" devices "$device_id" delete

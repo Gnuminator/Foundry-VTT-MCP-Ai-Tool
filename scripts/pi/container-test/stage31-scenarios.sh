@@ -136,6 +136,21 @@ else
   fail "guard (exit $rc): $out"
 fi
 
+# 2b. A device that was added but never connected or accepted the folder is no safe copy, whatever its percentage reads.
+mkdir -p /tmp/pc3-st
+HOME=/root syncthing generate --home=/tmp/pc3-st >/dev/null 2>&1
+pc3_id="$(HOME=/root syncthing device-id --home=/tmp/pc3-st 2>/dev/null | head -n 1)"
+out="$(run_stage ADD=1 DEVICE_ID="$pc3_id" DEVICE_NAME=never-connects)"
+out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
+rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'no other device holds all of the vault' &&
+  pi config folders foundry-gm-vault devices list | grep -qx "$pc1_id"; then
+  pass "a device that never connected does not count as a copy"
+else
+  fail "never-connected guard (exit $rc): $out"
+fi
+run_stage REMOVE=1 DEVICE_ID="$pc3_id" FORCE=1 >/dev/null
+
 # 3.
 out="$(run_stage ADD=1 DEVICE_ID="$pc2_id" DEVICE_NAME=danni-pc)"
 rc=$?

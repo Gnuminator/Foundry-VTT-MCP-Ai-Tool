@@ -518,7 +518,7 @@ both scripts write it). The Pi runs Syncthing 1.x (Debian 13) and a PC installed
 2.x; they speak the same protocol and should sync with each other (the container test used 1.x on both
 sides; the first sync with a real PC is the check).
 
-**Add a PC** (the GM's PC; since D-139 this PC no longer gets the GM vault, so the GM cannot be read by the user):
+**Add a PC** (the GM's PC; since D-139 this PC no longer gets the GM vault, so the user cannot read the GM's campaign text):
 
 1. On that PC: `winget install Syncthing.Syncthing`, then in PowerShell 7
    `.\scripts\pi\setup-syncthing-pc.ps1 -PiDeviceId <the Pi's device ID>` (Claude prints the ID
@@ -1646,15 +1646,16 @@ Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night
 
 `scripts/pi/remote/31-gm-vault-peers.sh` (backlog `r1-gm-vault`, D-139) adds a PC to the GM vault and takes one off, touching
 only Syncthing's device list on the folder `foundry-gm-vault` (stage 7 does the first PC with `PEER_ID`, but it rewrites the
-bridge and dashboard settings on every run and cannot remove a PC). It never writes, moves or deletes a vault file.
+bridge and dashboard settings and cannot remove a PC). It never writes, moves or deletes a vault file.
 
 - **Report** (no settings, read-only, any time): the devices on the vault, which are connected and how much of the vault each
   holds. `cat scripts/pi/remote/lib.sh scripts/pi/remote/31-gm-vault-peers.sh | ssh foundry-pi 'bash -s'`
 - **Add:** `ADD=1 DEVICE_ID=<id> DEVICE_NAME=danni-pc`. The device is no introducer and does not auto-accept folders. Refused for
   a device that is on a player folder (D-067). The PC then sees a yellow bar for the Pi and for the folder
   ([the GM's guide](../gm/setup-obsidian-sync.md)).
-- **Remove:** `REMOVE=1 DEVICE_ID=<id>`. Refused unless another device on the vault holds all of it (100 %), so the Pi is never the
-  only copy; `FORCE=1` skips that one check. The device is forgotten when it is on no other folder. The PC keeps its own copy of
+- **Remove:** `REMOVE=1 DEVICE_ID=<id>`. Refused unless another connected device on the vault holds all of it (100 %, nothing left to
+  fetch, its index known), the device to remove is connected and the Pi has pulled everything it announced; so the Pi is never the
+  only copy and nothing is lost with the removed PC. `FORCE=1` skips these checks. The device is forgotten when it is on no other folder. The PC keeps its own copy of
   the folder: whoever owns it deletes that by hand.
 - Add and remove need a `dietpi-backup` snapshot from today and the user's OK. Nothing restarts. Test:
   `scripts/pi/gm-vault-peers.test.mjs` (text, and with `PI_STAGE31_CONTAINER=1` three real Syncthings in a container).
@@ -1663,9 +1664,11 @@ bridge and dashboard settings on every run and cannot remove a PC). It never wri
 
 1. The GM installs Obsidian and Syncthing from the guide and sends his device ID to the user.
 2. Snapshot, then `ADD=1` with his ID. He accepts the Pi and the folder; the report shows him at 100 %.
-3. Only then take this PC off: `REMOVE=1` with this PC's device ID (the report names it). The nightly restic backup of the Pi is
+3. Only then take this PC off: check this PC's own Syncthing shows the folder and foundry-pi as Up to Date, then `REMOVE=1` with
+   this PC's device ID (the report names it). The nightly restic backup of the Pi is
    the restore; there is no file versioning on the folder (the user's choice, D-139).
-4. Delete the vault copy on this PC by hand, so the user's disk holds no campaign text. **Order matters, there is no file
+4. Delete the vault copy on this PC by hand, so no plain copy of the campaign text stays on the user's disk (the Pi's encrypted
+   restic backup that this PC pulls to `E:\PiBackup` still holds it; the user would need its password to read it). **Order matters, there is no file
    versioning:** a delete that reaches the Pi while the share is still on removes the notes on the Pi and then on the GM's PC.
    So first run the stage 31 report and check it no longer lists this PC; then take the folder `foundry-gm-vault` out of this
    PC's Syncthing (or stop Syncthing; `setup-syncthing-pc.ps1 -Remove` only removes the logon task); only then delete the files.
@@ -1676,7 +1679,7 @@ bridge and dashboard settings on every run and cannot remove a PC). It never wri
 
 - **Cloudflare token:** in Cloudflare One, Service credentials, rotate `obsidian-gm-plugin` (the user does this in the dashboard)
   and give the new Client ID and Secret to the GM privately. This alone ends the test vault's access to the dashboard name.
-- **GM token** (`set-dashboard-access.sh --rotate-token`): a Pi change that rewrites `dashboard-access.env` whole and restarts the
+- **GM token** (not planned: the user chose on 2026-11-11 to rotate only the Cloudflare token; `set-dashboard-access.sh --rotate-token`): a Pi change that rewrites `dashboard-access.env` whole and restarts the
   dashboard. It needs a snapshot from today, the user's OK and a quiet table (nobody online, no recording), and **stage 30 must
   run again afterwards** (it puts the player connector's allowed hosts back). Whether the user keeps GM access through the old
   link is the user's call: the new token ends the link for every browser that used the old one. Give the GM the new token

@@ -106,6 +106,15 @@ function fakeIo({
     log: m => io.logs.push(m),
     env: { GITHUB_REPOSITORY: 'o/r' },
   };
+  // Like the real run(): a failing command throws unless the caller passed allowFail.
+  for (const name of ['gh', 'git']) {
+    const raw = io[name];
+    io[name] = (args, opt) => {
+      const r = raw(args);
+      if (!r.ok && !opt?.allowFail) throw new Error(`${name} ${args.join(' ')} failed: ${r.err}`);
+      return r;
+    };
+  }
   return io;
 }
 const ARGS = ['--run', '9', '--attempt', '1', '--sha', 'bbbbbbb0'];

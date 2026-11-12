@@ -18,4 +18,11 @@ export const playerModule = defineToolModule({
     }),
   definitions: tools => tools.getToolDefinitions(),
   routes: {},
+  tools: {
+    'get-my-character': { set: 'player', title: 'Get my character', kind: 'read' },
+    'get-my-level-up-options': { set: 'player', title: 'Get my level-up options', kind: 'read' },
+    'search-books': { set: 'player', title: 'Search the books', kind: 'read' },
+    'find-book-entries': { set: 'player', title: 'Find book entries', kind: 'read' },
+    'get-book-entry': { set: 'player', title: 'Get a book entry', kind: 'read' },
+  },
 });

@@ -9,4 +9,7 @@ export const resourcesModule = defineToolModule({
   routes: {
     'get-character-resources': (tools, args) => tools.handleGetCharacterResources(args),
   },
+  tools: {
+    'get-character-resources': { set: 'play', title: 'Get character resources', kind: 'read' },
+  },
 });

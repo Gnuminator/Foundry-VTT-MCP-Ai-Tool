@@ -12,4 +12,10 @@ export const sceneModule = defineToolModule({
     'get-current-scene': (tools, args) => tools.handleGetCurrentScene(args),
     'get-world-info': (tools, args) => tools.handleGetWorldInfo(args),
   },
+  tools: {
+    'get-current-scene': { set: 'core', title: 'Get current scene', kind: 'read' },
+    'get-world-info': { set: 'core', title: 'Get world info', kind: 'read' },
+    'list-scenes': { set: 'core', title: 'List scenes', kind: 'read' },
+    'switch-scene': { set: 'play', title: 'Switch scene', kind: 'write' },
+  },
 });

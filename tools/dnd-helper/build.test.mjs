@@ -85,13 +85,31 @@ test('every page SKILL.md names is in the skill', () => {
 
 // ---- player edition ----
 
-/** Every kebab-case name quoted in tool-sets.ts: the tool names of the GM sets. */
-function gmToolNames() {
-  const src = readFileSync(
-    new URL('../../packages/mcp-server/src/tool-sets.ts', import.meta.url),
+/**
+ * The tools of each set, from the set bullets ("- **core:** `a`, `b`") of
+ * docs/reference/TOOL-SETS.md. tool-sets.ts derives the lists from the tool modules, and the
+ * mcp-server catalog test keeps that page equal to them, so the page is the readable source here.
+ */
+function toolSetLists() {
+  const doc = readFileSync(
+    new URL('../../docs/reference/TOOL-SETS.md', import.meta.url),
     'utf8'
-  );
-  return new Set([...src.matchAll(/'([a-z0-9]+(?:-[a-z0-9]+)+)'/g)].map(m => m[1]));
+  ).replace(/\r\n/g, '\n');
+  const sets = new Map();
+  for (const m of doc.matchAll(/^- \*\*([a-z]+):\*\*((?:[^\n]|\n(?!\n|- ))*)/gm)) {
+    sets.set(
+      m[1],
+      [...m[2].matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)+)`/g)].map(n => n[1])
+    );
+  }
+  return sets;
+}
+
+/** Every tool name of the GM sets (all sets but player). */
+function gmToolNames() {
+  const sets = toolSetLists();
+  sets.delete('player');
+  return new Set([...sets.values()].flat());
 }
 
 const OWN_PAGE = name => !name.startsWith('references/player/');
@@ -118,7 +136,7 @@ test('the player zip has the skill folder at its root and valid front matter', (
 
 test('the player zip names only player-set tools and no GM tool', () => {
   const gm = gmToolNames();
-  assert.ok(gm.has('apply-planned-change'), 'tool-sets.ts was parsed');
+  assert.ok(gm.has('apply-planned-change'), 'the tool sets page was parsed');
   for (const t of PLAYER_TOOLS) gm.delete(t);
   withPlayerBuild(({ files }) => {
     const named = new Set();
@@ -190,15 +208,10 @@ test('the skill is advise-only: no write tool is named as a step', () => {
   }
 });
 
-test('PLAYER_TOOLS is exactly the player set in tool-sets.ts', () => {
-  const src = readFileSync(
-    new URL('../../packages/mcp-server/src/tool-sets.ts', import.meta.url),
-    'utf8'
-  );
-  const block = /\n {2}player: \{[\s\S]*?tools: \[([\s\S]*?)\]/.exec(src);
-  assert.ok(block, 'the player set was found in tool-sets.ts');
-  const names = [...block[1].matchAll(/'([a-z0-9-]+)'/g)].map(m => m[1]);
-  assert.deepEqual([...PLAYER_TOOLS].sort(), names.sort());
+test('PLAYER_TOOLS is exactly the player set', () => {
+  const names = toolSetLists().get('player');
+  assert.ok(names, 'the player set was found on the tool sets page');
+  assert.deepEqual([...PLAYER_TOOLS].sort(), [...names].sort());
 });
 
 test('every page the player SKILL.md names is in the zip', () => {

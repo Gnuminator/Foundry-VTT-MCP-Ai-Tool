@@ -11,4 +11,9 @@ export const chatLogModule = defineToolModule({
     'get-combat-play-by-play': (tools, args) => tools.handleGetCombatPlayByPlay(args),
     'send-chat-message': (tools, args) => tools.handleSendChatMessage(args),
   },
+  tools: {
+    'get-chat-log': { set: 'play', title: 'Get chat log', kind: 'read' },
+    'get-combat-play-by-play': { set: 'play', title: 'Get combat play-by-play', kind: 'read' },
+    'send-chat-message': { set: 'play', title: 'Send chat message', kind: 'write' },
+  },
 });

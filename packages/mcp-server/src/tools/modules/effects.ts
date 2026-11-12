@@ -9,4 +9,7 @@ export const effectsModule = defineToolModule({
   routes: {
     'get-active-effects': (tools, args) => tools.handleGetActiveEffects(args),
   },
+  tools: {
+    'get-active-effects': { set: 'play', title: 'Get active effects', kind: 'read' },
+  },
 });

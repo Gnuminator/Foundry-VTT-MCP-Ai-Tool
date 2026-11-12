@@ -20,4 +20,12 @@ export const characterModule = defineToolModule({
     'search-character-items': (tools, args) => tools.handleSearchCharacterItems(args),
     'manage-world-items': (tools, args) => tools.handleManageWorldItems(args),
   },
+  tools: {
+    'get-character': { set: 'core', title: 'Get character', kind: 'read' },
+    'get-character-entity': { set: 'core', title: 'Get character item or effect', kind: 'read' },
+    'list-characters': { set: 'core', title: 'List characters', kind: 'read' },
+    'use-item': { set: 'play', title: 'Use item', kind: 'destructive' },
+    'manage-world-items': { set: 'build', title: 'Manage world items', kind: 'destructive' },
+    'search-character-items': { set: 'core', title: 'Search character items', kind: 'read' },
+  },
 });

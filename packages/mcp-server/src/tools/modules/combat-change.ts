@@ -13,4 +13,7 @@ export const combatChangeModule = defineToolModule({
   routes: {
     'plan-combat-change': (tools, args) => tools.handlePlanCombatChange(args),
   },
+  tools: {
+    'plan-combat-change': { set: 'play', title: 'Plan ending a fight', kind: 'read' },
+  },
 });

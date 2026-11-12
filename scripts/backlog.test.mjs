@@ -22,6 +22,7 @@ import {
   releaseEdit,
   run,
   statusText,
+  piListStatus,
   takeLock,
 } from './backlog.mjs';
 
@@ -320,6 +321,38 @@ test('status lists claimed items with progress, then free unblocked ones, in abo
         `\n## S Item ${i}\n- id: i${i}\n- claimed: lane ${i} 2026-11-11\n- progress: ${'word '.repeat(60)}\n`
     ).join('');
   assert.ok(statusText(many).split(/\s+/).length < 1000);
+});
+
+test('status counts the Pi sitting list and flags items merged more than 3 days ago', () => {
+  const backlog = [
+    '---',
+    'type: backlog',
+    '---',
+    '# Backlog',
+    '',
+    '## S Old merged',
+    '',
+    '- id: old-merged',
+    '- progress: 2026-11-07 planner: PR #1 MERGED, only the Pi run left',
+    '',
+    '## S Fresh merged',
+    '',
+    '- id: fresh-merged',
+    '- progress: 2026-11-11 PR #2 merged',
+    '',
+    '## S Open',
+    '',
+    '- id: open-one',
+    '- progress: 2026-11-01 PR #3 ready',
+    '',
+  ].join('\n');
+  const pi = '# Pi sitting list\n\nIntro.\n\n- 2026-11-12 a: x\n- 2026-11-12 b: y\n';
+  const s = piListStatus(backlog, pi, '2026-11-12');
+  assert.match(s, /^Pi sitting list: 2 runs waiting\n/);
+  assert.match(s, /still open \(1\): old-merged;/);
+  assert.doesNotMatch(s, /fresh-merged|open-one/);
+  assert.equal(piListStatus(backlog, '', '2026-11-09').split('\n').length, 1);
+  assert.match(piListStatus(backlog, '', '2026-11-12'), /^Pi sitting list: 0 runs waiting/);
 });
 
 test('skills: lane and planner point at backlog.mjs and stay under the word budget the planner skill names', () => {

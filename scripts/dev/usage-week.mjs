@@ -131,7 +131,7 @@ export function isSubagentFile(file) {
 // Main-thread transcripts first, so a response found in both counts as main-thread.
 export function findTranscripts(root, sinceMs) {
   const found = [];
-  let dirs = [];
+  let dirs;
   try {
     dirs = readdirSync(root).filter(isProjectDir);
   } catch {

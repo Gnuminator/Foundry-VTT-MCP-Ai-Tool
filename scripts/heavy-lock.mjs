@@ -188,7 +188,7 @@ function writeOwner(slot, owner) {
 function inspectSlot(slot, now, alive) {
   const owner = readOwner(slot);
   if (!owner) {
-    let age = Infinity;
+    let age;
     try {
       age = now - fs.statSync(slot).mtimeMs;
     } catch {
@@ -238,7 +238,7 @@ function liveTickets(qdir, now, alive) {
   const names = fs.readdirSync(qdir).filter(n => n.endsWith('.json')).sort();
   return names.filter(name => {
     const pid = Number(name.split('-')[2]);
-    let mtime = 0;
+    let mtime;
     try {
       mtime = fs.statSync(path.join(qdir, name)).mtimeMs;
     } catch {

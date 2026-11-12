@@ -148,6 +148,7 @@ export function createClient({ fetch, token }) {
       });
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+      // eslint-disable-next-line preserve-caught-error -- the inner error may carry the API token; only its code is kept
       throw new Error(`${method} ${apiPath} failed: network error${code ? ` (${code})` : ''}`);
     }
     let json;

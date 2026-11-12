@@ -982,7 +982,7 @@ function main() {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', chunk => (raw += chunk));
   process.stdin.on('end', () => {
-    let command = '';
+    let command;
     let cwd = process.cwd();
     let mode;
     try {

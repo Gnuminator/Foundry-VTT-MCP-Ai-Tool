@@ -317,7 +317,7 @@ async function copyValue(input) {
   if (wasType === 'password') input.type = 'text'; // a hidden field cannot be selected for copy
   input.focus();
   input.select();
-  let ok = false;
+  let ok;
   try {
     ok = document.execCommand('copy');
   } catch {

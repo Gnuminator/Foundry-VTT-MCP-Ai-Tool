@@ -4,7 +4,6 @@
 // The unit tests of the guard and the check that no stage is missing one are in cutover-guard.test.mjs. The scenarios also
 // run without a container in Git Bash:  REPO=$PWD bash scripts/pi/container-test/cutover-guard-scenarios.sh
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import { describe, test } from 'node:test';
 import { runStageContainer } from './container-test/run-stage-container.mjs';
 

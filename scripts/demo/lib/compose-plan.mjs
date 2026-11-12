@@ -343,7 +343,7 @@ export function cardFilter({ W, H, titleFile, fontBold, fontMed, brand, label })
  */
 export function chapterGraph({
   plans,
-  steps,
+  steps: _steps,
   glitches = [],
   card,
   W,

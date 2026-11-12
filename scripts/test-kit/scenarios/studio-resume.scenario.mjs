@@ -275,8 +275,8 @@ export default {
         featPackIds: profile.packs.feats,
         prefer: {},
       });
-      let pump = null;
-      let gear = null;
+      let pump;
+      let gear;
       try {
         const done = await finishWindow(page, { rotation, equipment: true, log: m => t.log(m) });
         gear = done.equipment;

@@ -236,7 +236,7 @@ export async function completeEquipmentTab(
 ) {
   const end = Date.now() + timeoutMs;
   const picks = [];
-  let inventory = [];
+  let inventory;
   let k = 0;
   let idle = 0;
   while (Date.now() < end) {

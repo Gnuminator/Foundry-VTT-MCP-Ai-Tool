@@ -260,7 +260,8 @@ async function main() {
   if (typeof args['env-file'] === 'string' && typeof args['env-files'] !== 'string') {
     console.error('--env-file is deprecated here (Node reads it itself); use --env-files.');
   }
-  const fromFile = loadEnvFiles(envFileList(args));
+  const envFiles = envFileList(args);
+  const fromFile = loadEnvFiles(envFiles);
   const get = key => [process.env[key], fromFile[key]].find(v => v);
   const num = (name, dflt) => {
     if (args[name] === undefined) return dflt;
@@ -291,7 +292,7 @@ async function main() {
     const token = get('DISCORD_TOKEN');
     const channelId = get('GAMENIGHT_WATCH_CHANNEL_ID');
     if (!token || !channelId) {
-      console.error(`--post needs DISCORD_TOKEN and GAMENIGHT_WATCH_CHANNEL_ID in ${envFile}.`);
+      console.error(`--post needs DISCORD_TOKEN and GAMENIGHT_WATCH_CHANNEL_ID in ${envFiles.join(', ')}.`);
       process.exit(2);
     }
     target = { token, channelId };

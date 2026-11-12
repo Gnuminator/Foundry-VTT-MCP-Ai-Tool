@@ -80,7 +80,6 @@ export async function setup(t) {
 
 /** The recorded part. */
 export async function run(t) {
-  const human = { human: true };
   const gm = t.windows.Foundry.page;
   const page = (await t.scene('Foundry player')).page;
 

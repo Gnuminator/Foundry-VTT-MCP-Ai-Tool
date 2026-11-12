@@ -221,7 +221,7 @@ test('Done list: no skill, hook or script (outside tests) names a `## Done` sect
   ].filter((f) => /\.(md|mjs)$/.test(f) && !/\.test\.mjs$/.test(f));
   const bad = [];
   for (const f of files) {
-    let text = '';
+    let text;
     try {
       text = readFileSync(f, 'utf8');
     } catch {

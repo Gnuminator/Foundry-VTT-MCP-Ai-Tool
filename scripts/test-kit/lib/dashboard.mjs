@@ -64,7 +64,7 @@ export function createDashboardClient({ base, token = process.env.COGM_TOKEN || 
         throw new EnvError(`nothing is listening on ${base}`);
       }
       if (err && err.name === 'TimeoutError') {
-        throw new Error(`${method} ${path} timed out after ${timeoutMs} ms`);
+        throw new Error(`${method} ${path} timed out after ${timeoutMs} ms`, { cause: e });
       }
       throw e;
     }

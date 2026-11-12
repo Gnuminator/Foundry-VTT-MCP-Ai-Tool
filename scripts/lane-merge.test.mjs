@@ -1744,6 +1744,15 @@ test('gh pr view failing ends the run with one line', () => {
   ]);
 });
 
+test('lane skill: the gate recipe takes the entry file and the module folder out of main together', () => {
+  const skill = fs.readFileSync(
+    path.join(path.dirname(SELF), '..', '.claude', 'skills', 'lane', 'SKILL.md'),
+    'utf8'
+  );
+  assert.match(skill, /git archive aitool\/main scripts\/lane-merge\.mjs scripts\/lane-merge \|/);
+  assert.doesNotMatch(skill, /git show aitool\/main:scripts\/lane-merge\.mjs/);
+});
+
 test('lane-merge split: the entry file stays small and every gate module is a file of its own', () => {
   const entry = fs.readFileSync(SELF, 'utf8').replace(/\r\n/g, '\n').split('\n');
   const count = entry.length - (entry.at(-1) === '' ? 1 : 0);

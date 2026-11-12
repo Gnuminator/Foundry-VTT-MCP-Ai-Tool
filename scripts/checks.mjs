@@ -287,7 +287,7 @@ export const CHECKS = [
     args: ['scripts/mcp-schema-smoke-test.mjs'],
   },
   {
-    // Spawns the standalone entrypoint in control-only mode on a free port (never 31414 to 31416)
+    // Spawns the standalone entrypoint in control-only mode on a free port (never a live port)
     // and asserts ping and list_tools over the wire.
     name: 'standalone-smoke',
     group: 'smoke',

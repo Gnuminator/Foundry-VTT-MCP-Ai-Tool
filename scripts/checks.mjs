@@ -150,6 +150,7 @@ export const CHECKS = [
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
     'scripts/backlog.test.mjs',
+    'scripts/merge-runner.test.mjs',
     'scripts/main-red-revert.test.mjs',
     'scripts/line-ratchet.test.mjs',
     'scripts/unused-ratchet.test.mjs'

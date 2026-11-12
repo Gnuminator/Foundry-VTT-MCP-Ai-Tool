@@ -5,6 +5,10 @@ RELEASE-PROCESS.md
 
 # Dependencies
 node_modules/
+
+# Mutation testing (npm run mutation:core)
+.stryker-tmp/
+reports/mutation/
 .pnpm-debug.log*
 
 # Environment Files

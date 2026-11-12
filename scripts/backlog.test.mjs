@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkEdit, parseBacklog, parseProgress } from './backlog-items.mjs';
+import { checkEdit, parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
 import {
   BACKLOG,
   DONE,
@@ -700,4 +700,30 @@ test('git: a rebase conflict is aborted, so the shared vault is never left mid-r
   assert.equal(fs.existsSync(path.join(v.a, '.git', 'rebase-merge')), false);
   assert.equal(git(v.a, ['log', '-1', '--format=%s']).trim(), 'local, not pushed');
   assert.equal(fs.existsSync(path.join(v.a, '.git', 'backlog-tool.lock')), false);
+});
+
+test('progress --ready writes the fixed ready line the merge runner reads back', () => {
+  const sha = 'a'.repeat(40);
+  const v = vaults();
+  const r = v.cli(['progress', 'first', '--ready', '12', '--head', sha, '--review', 'Handoff/x.md']);
+  assert.equal(r.code, 0, r.err);
+  const line = parseProgress(v.remoteFile(BACKLOG)).get('first') ?? '';
+  assert.equal(line, `${D} PR #12 ready, head ${sha}, review Handoff/x.md`);
+  assert.deepEqual(parseReady(line), { pr: 12, head: sha });
+  assert.equal(v.cli(['progress', 'first', '--ready', '12', '--head', 'abc']).code, 1);
+  assert.equal(v.cli(['progress', 'first', '--ready', 'x', '--head', sha]).code, 1);
+  assert.equal(v.cli(['progress', 'first', 'text', '--ready', '12', '--head', sha]).code, 2);
+});
+
+test('parseReady: the last line, a date in front or not; a short sha or other text is not ready', () => {
+  const sha = 'b'.repeat(40);
+  assert.deepEqual(parseReady(`PR #3 ready, head ${sha}`), { pr: 3, head: sha });
+  assert.deepEqual(parseReady(`old\n2026-11-12 PR #4 ready, head ${sha}, review r.md`), {
+    pr: 4,
+    head: sha,
+  });
+  assert.equal(parseReady('2026-11-12 PR #970 ready (move 1 of 3)'), null);
+  assert.equal(parseReady(`PR #5 ready, head ${sha.slice(0, 7)}`), null);
+  assert.equal(parseReady(`PR #5 ready, head ${sha}\nlater: fixing`), null);
+  assert.equal(parseReady(`2026-11-12 PR #5 merged; was PR #5 ready, head ${sha}`), null);
 });

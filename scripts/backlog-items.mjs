@@ -83,6 +83,29 @@ export function parseBacklog(text) {
 }
 
 /**
+ * The "ready to merge" progress text: `backlog.mjs progress <id> --ready` writes it and
+ * `scripts/merge-runner.mjs` reads it, so both go through these two. Older hand-written lines of
+ * the same form (`PR #<n> ready, head <40-hex sha>`) read the same way.
+ * @param {number | string} pr @param {string} head @param {string} [review]
+ */
+export function readyText(pr, head, review) {
+  if (!/^\d+$/.test(String(pr))) throw new Error(`--ready needs a PR number, not "${pr}"`);
+  if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('--head needs the full 40-character sha');
+  return `PR #${pr} ready, head ${head}${review ? `, review ${review}` : ''}`;
+}
+
+/**
+ * The PR and head of a ready progress text (its last line, an optional date in front), or null.
+ * @param {string} progress
+ * @returns {{ pr: number, head: string } | null}
+ */
+export function parseReady(progress) {
+  const last = progress.split('\n').at(-1) ?? '';
+  const m = /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) ready, head ([0-9a-f]{40})\b/.exec(last.trim());
+  return m ? { pr: Number(m[1]), head: m[2] } : null;
+}
+
+/**
  * Item id -> its `- progress:` text, for every `## S|M|L` item that has both lines.
  * @param {string} text
  * @returns {Map<string, string>}

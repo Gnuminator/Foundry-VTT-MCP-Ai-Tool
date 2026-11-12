@@ -6,6 +6,8 @@
  *   node scripts/backlog.mjs status                         claimed items, then the top free ones
  *   node scripts/backlog.mjs claim <id> <session title> [--link <claude:// link>]
  *   node scripts/backlog.mjs progress <id> <text>          replaces the item's progress line
+ *   node scripts/backlog.mjs progress <id> --ready <PR> --head <sha> [--review <note path>]
+ *                                         the ready line the merge runner acts on (readyText)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]
@@ -47,6 +49,7 @@ import {
   itemRefs,
   newlineOf,
   parseBacklog,
+  readyText,
   setField,
   splice,
   trimBlock,
@@ -614,7 +617,15 @@ export function run(argv, env = {}) {
       }
       case 'progress': {
         needId();
-        const text = pos.slice(1).join(' ');
+        const ready = typeof flags.ready === 'string';
+        if (ready && pos.length > 1) throw new Usage('progress <id> --ready takes no text');
+        const text = ready
+          ? readyText(
+              String(flags.ready),
+              String(flags.head ?? ''),
+              typeof flags.review === 'string' ? oneLine(flags.review) : undefined
+            )
+          : pos.slice(1).join(' ');
         if (!text) throw new Usage('progress <id> <text>');
         job = {
           paths: [BACKLOG],

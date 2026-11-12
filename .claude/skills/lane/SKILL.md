@@ -23,7 +23,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
    the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
    own worktree (the context lines are fixed at session start).
-2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
+2. `git branch --show-current`. New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. More than about eight files to read goes to an Explore subagent
    (`model: "haiku"`) that returns a summary with file:line; you read only what you edit.
@@ -54,7 +54,7 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 
 - **CI on the PR head is the green.** No full `npm run green` before a PR: quick
   local checks, push, fix what CI reports, also after review fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
-  - **Quick checks:** `npm run green -- --quick` (seconds to minutes, no heavy lock). It
+  - **Quick checks:** `npm run green -- --quick`. It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
     changed scripts and hooks, dashboard e2e specs, and for
@@ -140,8 +140,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 
 - The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
   lane (project dir under `.claude/worktrees/`), fixed at session start (the user, 2026-11-04); the planner and
-  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number; an advisor call's
-  usage reads about twice the real context.
+  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop.

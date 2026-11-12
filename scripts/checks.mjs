@@ -109,6 +109,9 @@ export const CHECKS = [
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },
   }),
+  npmRun('unused-ratchet', 'static', 'unused:ratchet', {
+    drift: { name: 'unused baseline', order: 13, heavy: true },
+  }),
   npmRun('docs-lint', 'docs', 'docs:lint', { drift: { name: 'docs lint', order: 6 } }),
   npmRun('docs-links', 'docs', 'docs:links', { drift: { name: 'docs links', order: 7 } }),
   npmRun('docs-ui', 'docs', 'docs:ui'),
@@ -130,8 +133,10 @@ export const CHECKS = [
     '.claude/hooks/guard-shell-edits.test.mjs',
     '.claude/hooks/warn-control-bytes.test.mjs',
     '.claude/hooks/guard-model.test.mjs',
+    '.claude/hooks/guard-cloudflare.test.mjs',
     '.claude/hooks/format-on-edit.test.mjs'
   ),
+  nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
   nodeTest(
     'gate-scripts',
     'gate',
@@ -144,7 +149,8 @@ export const CHECKS = [
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
     'scripts/main-red-revert.test.mjs',
-    'scripts/line-ratchet.test.mjs'
+    'scripts/line-ratchet.test.mjs',
+    'scripts/unused-ratchet.test.mjs'
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),

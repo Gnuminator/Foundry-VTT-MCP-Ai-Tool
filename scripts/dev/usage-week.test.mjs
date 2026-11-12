@@ -1,5 +1,5 @@
 // Tests for `npm run usage:week` (usage-week.mjs): fixture transcripts in a temp dir, the Usage log
-// parsing with a weekly reset, price weighting, startup share, the targets line and --json.
+// parsing with a weekly reset, price weighting, startup share, the figures line and --json.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -9,7 +9,6 @@ import { dataDir, readCalls, render, summarize } from './usage-calls.mjs';
 import './usage-now.test.mjs'; // runs with this file in CI's "Weekly usage report" step
 import {
   PROJECT_DIR,
-  TARGETS,
   buildReport,
   dayKey,
   familyOf,
@@ -22,7 +21,7 @@ import {
   paceFor,
   isLaneFile,
   laneStats,
-  formatTargets,
+  formatFigures,
   isProjectDir,
   main,
   median,
@@ -30,7 +29,8 @@ import {
   parseResponse,
   parseUsageLog,
   priceOf,
-  targetsFor,
+  figuresFor,
+  isProductPr,
   usageLogFile,
   weeklyPoints,
 } from './usage-week.mjs';
@@ -412,8 +412,8 @@ test('buildReport: without PRs or the Usage log those columns are unknown, not z
     assert.equal(r.total.weeklyPoints, null);
     assert.equal(r.days[0].prs, null);
     assert.deepEqual(
-      r.targets.filter(t => t.ok === null).map(t => t.name),
-      ['M tokens per PR', 'weekly % a day']
+      r.figures.filter(t => t.value === null).map(t => t.name),
+      ['M tokens per PR', 'weekly % a day', 'weekly points per PR']
     );
     const text = formatReport(r);
     assert.match(text, /n\/a/);
@@ -436,64 +436,57 @@ test('the window limits days and files: --days 1 reads only today', async () => 
   }
 });
 
-test('targets line: every figure marked ok or over', async () => {
+test('figures line: numbers only, no limit, pass or fail wording', async () => {
   const f = fixture();
   try {
     const r = await buildReport({ root: f.projects, now: NOW, days: 7, prs, usageLog: LOG });
-    const line = formatTargets(r.targets);
-    assert.match(line, /^Targets \(D-122\): /);
-    assert.match(line, /startup 45k ok \(<=75k\)/);
+    const line = formatFigures(r.figures);
+    assert.match(line, /^Window: /);
+    assert.match(line, /startup 45k \|/);
     assert.doesNotMatch(line, /share/); // the startup share target was dropped (D-122 log, 2026-10-17)
-    assert.match(line, /M\/PR 0\.5 ok \(<=18\)/);
-    assert.match(line, /sessions\/day 0\.3 ok \(~15\)/);
-    assert.match(line, /weekly %\/day 13.3 ok \(~14\)/);
-    const over = formatTargets([
-      { name: 'startup', value: 52_000, ok: false },
-      { name: 'M tokens per PR', value: 22, ok: false },
-      { name: 'sessions a day', value: 20, ok: false },
-      { name: 'weekly % a day', value: 18, ok: false },
-    ]);
-    assert.equal((over.match(/over/g) || []).length, 4);
+    assert.match(line, /M\/PR 0\.5 \|/);
+    assert.match(line, /sessions\/day 0\.3 \|/);
+    assert.match(line, /weekly %\/day 13\.3 \|/);
+    assert.match(line, /weekly pts\/PR 13\.3$/); // 40 points over 3 merged PRs
+    // pace is information only (the user, 2026-11-11): nothing in the figures reads as a limit
+    assert.doesNotMatch(line, /\bok\b|over|<=|target|limit/i);
+    for (const x of r.figures) assert.deepEqual(Object.keys(x), ['name', 'value', 'unit']);
   } finally {
     f.cleanup();
   }
 });
 
-test('targets: a figure exactly on its target is ok, and every label reads its number from TARGETS', () => {
-  const on = {
-    startup: TARGETS.startup,
-    tokensPerPr: TARGETS.tokensPerPrM,
-    sessions: TARGETS.sessionsPerDay * 7,
-    weeklyPoints: TARGETS.weeklyPerDay * 7,
-    coveredDays: 7,
-  };
-  const targets = targetsFor(on, 7);
-  assert.deepEqual(
-    targets.map(t => t.ok),
-    [true, true, true, true],
-    'on the target counts as ok'
-  );
-  assert.equal(
-    formatTargets(targets),
-    `Targets (D-122): startup ${TARGETS.startup / 1000}k ok (<=${TARGETS.startup / 1000}k) | M/PR ${TARGETS.tokensPerPrM}.0 ok (<=${TARGETS.tokensPerPrM}) | sessions/day ${TARGETS.sessionsPerDay}.0 ok (~${TARGETS.sessionsPerDay}) | weekly %/day ${TARGETS.weeklyPerDay}.0 ok (~${TARGETS.weeklyPerDay})`
-  );
-  // Changing a target changes its label: nothing in the text is hard-coded.
-  const saved = { ...TARGETS };
+test('weekly points per PR counts product PRs only: packages/ or shared/ files', async () => {
+  assert.equal(isProductPr({ files: [{ path: 'docs/a.md' }, { path: 'packages/x/y.ts' }] }), true);
+  assert.equal(isProductPr({ files: [{ path: 'shared/src/a.ts' }] }), true);
+  assert.equal(isProductPr({ files: [{ path: 'docs/a.md' }, { path: 'scripts/b.mjs' }] }), false);
+  assert.equal(isProductPr({ files: [] }), false);
+  assert.equal(isProductPr({ number: 1 }), true); // no file list: counted, never dropped
+  const f = fixture();
   try {
-    Object.assign(TARGETS, {
-      startup: 60_000,
-      tokensPerPrM: 12,
-      sessionsPerDay: 9,
-      weeklyPerDay: 11,
-    });
-    const line = formatTargets(targetsFor(on, 7));
-    assert.match(line, /startup 75k over \(<=60k\)/);
-    assert.match(line, /M\/PR 18\.0 over \(<=12\)/);
-    assert.match(line, /\(~9\)/);
-    assert.match(line, /\(~11\)/);
+    const mixed = [
+      { number: 1, mergedAt: prs[0].mergedAt, files: [{ path: 'packages/a.ts' }] },
+      { number: 2, mergedAt: prs[0].mergedAt, files: [{ path: 'docs/a.md' }] },
+      { number: 3, mergedAt: prs[1].mergedAt, files: [{ path: 'docs/b.md' }] },
+    ];
+    const r = await buildReport({ root: f.projects, now: NOW, days: 7, prs: mixed, usageLog: LOG });
+    assert.equal(r.total.prs, 3);
+    assert.equal(r.total.productPrs, 1);
+    // all the window's points over the one product PR; the day row divides its own points
+    assert.equal(r.total.pointsPerPr, r.total.weeklyPoints);
+    assert.equal(r.days.find(d => d.productPrs).pointsPerPr, r.days.find(d => d.productPrs).weeklyPoints);
   } finally {
-    Object.assign(TARGETS, saved);
+    f.cleanup();
   }
+});
+
+test('figuresFor: weekly points per merged PR is points over PRs, unknown without PRs', () => {
+  const total = { startup: 1, tokensPerPr: 2, sessions: 14, weeklyPoints: 30, coveredDays: 6 };
+  const byName = fs => Object.fromEntries(fs.map(x => [x.name, x.value]));
+  assert.equal(byName(figuresFor({ ...total, pointsPerPr: 7.5 }, 7))['weekly points per PR'], 7.5);
+  assert.equal(byName(figuresFor(total, 7))['weekly points per PR'], null);
+  assert.equal(byName(figuresFor(total, 7))['weekly % a day'], 5);
+  assert.equal(byName(figuresFor(total, 7))['sessions a day'], 2);
 });
 
 test('familyOf and formatModels: turns per model, main thread and subagents, with the cost share', async () => {
@@ -575,7 +568,7 @@ test('buildReport: a response outside the window is not counted in the models', 
   }
 });
 
-test('formatReport: a fixed-width row per day, a window total row and the targets line', async () => {
+test('formatReport: a fixed-width row per day, a window total row and the figures line', async () => {
   const f = fixture();
   try {
     const r = await buildReport({ root: f.projects, now: NOW, days: 7, prs, usageLog: LOG });
@@ -586,7 +579,7 @@ test('formatReport: a fixed-width row per day, a window total row and the target
     assert.ok(lines[2].startsWith('2026-10-04'));
     assert.ok(lines[9].startsWith('-----'));
     assert.ok(lines[10].startsWith('Window'));
-    assert.ok(lines[11].startsWith('Targets (D-122)'));
+    assert.ok(lines[11].startsWith('Window: '));
     const widths = new Set([lines[1], ...lines.slice(2, 9), lines[10]].map(l => l.length));
     assert.equal(widths.size, 1);
     assert.match(lines[10], /50%|\b45k\b/);
@@ -614,7 +607,8 @@ test('main --json prints the raw numbers; the text form ends with the run time',
     assert.equal(j.total.weeklyPoints, 40);
     assert.equal(j.total.prs, null);
     assert.equal(j.advisorCalls, 0);
-    assert.equal(j.targets.length, 4);
+    assert.equal(j.figures.length, 5);
+    assert.equal(j.targets, undefined);
     assert.ok(j.notes.some(n => /merged PRs skipped/.test(n)));
     assert.equal(typeof j.runMs, 'number');
     assert.equal(dayKey(NOW), '2026-10-10');
@@ -783,7 +777,7 @@ test('advisor calls: main-session tool_use items by their own id, once, inside t
     assert.equal(withPrs.advisorPerPr, 1.5);
     assert.match(
       formatReport(withPrs),
-      /Advisor calls \(main sessions\): 3 \(1\.5 per merged PR, target 1\)/
+      /Advisor calls \(main sessions\): 3 \(1\.5 per merged PR\)/
     );
     assert.match(sectionFor(withPrs), /- advisor-per-pr: 1\.5/);
     assert.equal(JSON.parse(JSON.stringify(withPrs)).advisorPerPr, 1.5);

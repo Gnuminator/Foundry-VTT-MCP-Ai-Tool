@@ -3538,6 +3538,9 @@ test('carry: a mode-only change (chmod +x) and a changed binary file do not carr
   r.setMain(M1);
   const C = r.g('rev-parse', 'HEAD');
   // the same text patch, plus the executable bit on a.txt
+  // update-index sets the mode in the index only; with core.fileMode on (Linux) the working file
+  // would then read as modified, so the mode is taken from the index alone
+  r.g('config', 'core.fileMode', 'false');
   r.g('update-index', '--chmod=+x', 'a.txt');
   r.g('commit', '-q', '-m', 'chmod +x');
   const mode = r.g('rev-parse', 'HEAD');

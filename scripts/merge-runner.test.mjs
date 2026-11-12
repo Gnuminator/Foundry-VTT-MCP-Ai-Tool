@@ -36,7 +36,13 @@ const backlog = items =>
     '',
     '# Backlog',
     '',
-    ...items.flatMap(([id, progress]) => [`## S Item ${id}`, '', `- id: ${id}`, `- progress: ${progress}`, '']),
+    ...items.flatMap(([id, progress]) => [
+      `## S Item ${id}`,
+      '',
+      `- id: ${id}`,
+      `- progress: ${progress}`,
+      '',
+    ]),
   ].join('\n');
 
 /**
@@ -55,7 +61,9 @@ function fakes(o) {
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
       const n = Number(args[2]);
       const pr = o.prs?.[n];
-      return pr ? { status: 0, stdout: JSON.stringify(pr), stderr: '' } : { status: 1, stdout: '', stderr: 'no pr' };
+      return pr
+        ? { status: 0, stdout: JSON.stringify(pr), stderr: '' }
+        : { status: 1, stdout: '', stderr: 'no pr' };
     },
     prepare: r => {
       calls.prepare.push(r);
@@ -92,7 +100,11 @@ test('readyItems: only ready lines with a full sha, in Backlog order', () => {
 });
 
 test('ready -> gate -> merged -> done; the gate is main copy with --wait-ci only, and the runner posts nothing on a merge', () => {
-  const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() }, gates: { 5: merged(5) } });
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+  });
   const r = round(f.deps, new Set());
   assert.deepEqual(r, { stop: null, merged: [5] });
   assert.deepEqual(f.calls.gate, [5]);
@@ -105,11 +117,18 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   const f = fakes({
     text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
     prs: { 5: open() },
-    gates: { 5: { status: 1, stdout: 'lane:merge: NOT merged #5\nlane:merge: refused because review: no note says Merge' } },
+    gates: {
+      5: {
+        status: 1,
+        stdout: 'lane:merge: NOT merged #5\nlane:merge: refused because review: no note says Merge',
+      },
+    },
   });
   const tried = new Set();
   round(f.deps, tried);
-  assert.deepEqual(f.calls.backlog, [['progress', 'one', 'PR #5 refused by the merge gate: review: no note says Merge']]);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', 'PR #5 refused by the merge gate: review: no note says Merge'],
+  ]);
   assert.deepEqual(f.calls.post, ['merge runner: #5 not merged: review: no note says Merge']);
   // The refusal text does not read as merged (claim refuses items whose progress says merged).
   assert.doesNotMatch(f.calls.backlog[0][2], /\bmerged\b/i);
@@ -122,7 +141,11 @@ test('a failed CI check (exit 3) and a moved head under --wait-ci (exit 4) are r
     [3, 'lane:merge: wait-ci ended: exit 3, a CI check failed'],
     [4, 'lane:merge: wait-ci ended: exit 4, the PR head moved while waiting'],
   ]) {
-    const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() }, gates: { 5: { status: code, stdout: line } } });
+    const f = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: { 5: { status: code, stdout: line } },
+    });
     round(f.deps, new Set());
     assert.equal(f.calls.backlog[0][0], 'progress');
     assert.match(f.calls.backlog[0][2], new RegExp(`exit ${code}`));
@@ -132,12 +155,16 @@ test('a failed CI check (exit 3) and a moved head under --wait-ci (exit 4) are r
 
 test('train limit: one Discord line, the ready line stays, the runner stops', () => {
   const f = fakes({
-    text: backlog([['one', `PR #5 ready, head ${SHA}`], ['two', `PR #6 ready, head ${SHA2}`]]),
+    text: backlog([
+      ['one', `PR #5 ready, head ${SHA}`],
+      ['two', `PR #6 ready, head ${SHA2}`],
+    ]),
     prs: { 5: open(), 6: open(SHA2) },
     gates: {
       5: {
         status: 1,
-        stdout: 'lane:merge: refused because train: merge train full (4/4): the planner runs npm run live:roundtrip on main',
+        stdout:
+          'lane:merge: refused because train: merge train full (4/4): the planner runs npm run live:roundtrip on main',
       },
     },
   });
@@ -150,7 +177,11 @@ test('train limit: one Discord line, the ready line stays, the runner stops', ()
 });
 
 test('main red: one line, no gate, no Backlog write, the runner stops', () => {
-  const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() }, main: RED });
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RED,
+  });
   const r = round(f.deps, new Set());
   assert.match(r.stop ?? '', /main is red at ddddddd/);
   assert.deepEqual(f.calls.gate, []);
@@ -161,13 +192,17 @@ test('main red: one line, no gate, no Backlog write, the runner stops', () => {
 
 test('main red is read before each PR: a merge that turns main red stops the next one', () => {
   const f = fakes({
-    text: backlog([['one', `PR #5 ready, head ${SHA}`], ['two', `PR #6 ready, head ${SHA2}`]]),
+    text: backlog([
+      ['one', `PR #5 ready, head ${SHA}`],
+      ['two', `PR #6 ready, head ${SHA2}`],
+    ]),
     prs: { 5: open(), 6: open(SHA2) },
     gates: { 5: merged(5), 6: merged(6) },
   });
   let runs = 0;
   const gh = f.deps.gh;
-  f.deps.gh = args => (args[0] === 'run' && ++runs > 1 ? { status: 0, stdout: RED, stderr: '' } : gh(args));
+  f.deps.gh = args =>
+    args[0] === 'run' && ++runs > 1 ? { status: 0, stdout: RED, stderr: '' } : gh(args);
   const r = round(f.deps, new Set());
   assert.deepEqual(r.merged, [5]);
   assert.match(r.stop ?? '', /main is red/);
@@ -195,20 +230,29 @@ test('a head moved since the ready line is refused without running the gate', ()
 
 test('an already merged PR is marked done; a closed one is a refusal; neither runs the gate', () => {
   const f = fakes({
-    text: backlog([['one', `PR #5 ready, head ${SHA}`], ['two', `PR #6 ready, head ${SHA2}`]]),
+    text: backlog([
+      ['one', `PR #5 ready, head ${SHA}`],
+      ['two', `PR #6 ready, head ${SHA2}`],
+    ]),
     prs: { 5: { state: 'MERGED', headRefOid: SHA }, 6: { state: 'CLOSED', headRefOid: SHA2 } },
   });
   round(f.deps, new Set());
   assert.deepEqual(f.calls.gate, []);
   assert.deepEqual(f.calls.backlog[0], ['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']);
-  assert.deepEqual(f.calls.backlog[1], ['progress', 'two', 'PR #6 refused by the merge gate: PR #6 is closed']);
+  assert.deepEqual(f.calls.backlog[1], [
+    'progress',
+    'two',
+    'PR #6 refused by the merge gate: PR #6 is closed',
+  ]);
 });
 
 test('CI still running after the wait (exit 5): no write, tried again next round', () => {
   const f = fakes({
     text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
     prs: { 5: open() },
-    gates: { 5: { status: 5, stdout: 'lane:merge: wait-ci ended: exit 5, timed out waiting for CI' } },
+    gates: {
+      5: { status: 5, stdout: 'lane:merge: wait-ci ended: exit 5, timed out waiting for CI' },
+    },
   });
   const tried = new Set();
   round(f.deps, tried);
@@ -219,7 +263,11 @@ test('CI still running after the wait (exit 5): no write, tried again next round
 });
 
 test('a gate checkout problem stops the runner without touching the item', () => {
-  const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() }, prepare: 'x is not clean' });
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    prepare: 'x is not clean',
+  });
   const r = round(f.deps, new Set());
   assert.match(r.stop ?? '', /not clean/);
   assert.deepEqual(f.calls.gate, []);
@@ -237,13 +285,30 @@ test('no ready line: nothing is asked of GitHub', () => {
 
 test('gateOutcome reads the merged line, the refusal line and the wait verdict', () => {
   assert.equal(gateOutcome(0, 'lane:merge: merged #5 at abc; merge train 1/4', 5).kind, 'merged');
-  assert.equal(gateOutcome(0, 'lane:merge: merged #55 at abc', 5).kind, 'refused', 'another PR number');
-  assert.equal(gateOutcome(0, 'lane:merge: OK #5 at abc (dry run, nothing merged)', 5).kind, 'refused');
-  assert.deepEqual(gateOutcome(1, 'lane:merge: refused because (1) a (2) b\nlane:merge: wait-ci ended: exit 1, refused', 5), {
-    kind: 'refused',
-    reason: '(1) a (2) b',
-  });
-  assert.equal(gateOutcome(5, 'lane:merge: wait-ci ended: exit 5, timed out waiting for CI', 5).kind, 'wait');
+  assert.equal(
+    gateOutcome(0, 'lane:merge: merged #55 at abc', 5).kind,
+    'refused',
+    'another PR number'
+  );
+  assert.equal(
+    gateOutcome(0, 'lane:merge: OK #5 at abc (dry run, nothing merged)', 5).kind,
+    'refused'
+  );
+  assert.deepEqual(
+    gateOutcome(
+      1,
+      'lane:merge: refused because (1) a (2) b\nlane:merge: wait-ci ended: exit 1, refused',
+      5
+    ),
+    {
+      kind: 'refused',
+      reason: '(1) a (2) b',
+    }
+  );
+  assert.equal(
+    gateOutcome(5, 'lane:merge: wait-ci ended: exit 5, timed out waiting for CI', 5).kind,
+    'wait'
+  );
   assert.match(gateOutcome(9, '', 5).reason, /exit 9 and no reason line/);
 });
 
@@ -258,7 +323,15 @@ test('the gate never gets a dry-run, force, skip, no-changelog or train flag; no
     .replace(/\/\*\*[\s\S]*?\*\//g, '')
     .replace(/\/\/.*$/gm, '')
     .replace(`'${TRAIN_FULL_LINE}'`, '');
-  for (const bad of ['--dry-run', '--force', '--no-changelog', '--train-reset', '--skip', '--admin', 'live:roundtrip']) {
+  for (const bad of [
+    '--dry-run',
+    '--force',
+    '--no-changelog',
+    '--train-reset',
+    '--skip',
+    '--admin',
+    'live:roundtrip',
+  ]) {
     assert.ok(!code.includes(bad), `merge-runner.mjs code names ${bad}`);
   }
 });
@@ -292,7 +365,11 @@ test('main: loops until a round stops, then exits 3 and releases the lock', asyn
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-runner-loop-'));
   try {
     const file = path.join(dir, 'merge-runner.lock');
-    const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() }, main: RED });
+    const f = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      main: RED,
+    });
     let slept = 0;
     const code = await main([], { deps: f.deps, lockFile: file, sleep: async () => void slept++ });
     assert.equal(code, 3);
@@ -323,7 +400,10 @@ test('prepareCheckout: refuses a folder that is not its own top level, and a dir
     assert.match(prepareCheckout(sub, { pr: 1, head: SHA }) ?? '', /not its own git checkout/);
     fs.writeFileSync(path.join(root, 'stray.txt'), 'x');
     assert.match(prepareCheckout(root, { pr: 1, head: SHA }) ?? '', /not clean/);
-    assert.match(prepareCheckout(path.join(root, 'missing'), { pr: 1, head: SHA }) ?? '', /does not exist/);
+    assert.match(
+      prepareCheckout(path.join(root, 'missing'), { pr: 1, head: SHA }) ?? '',
+      /does not exist/
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

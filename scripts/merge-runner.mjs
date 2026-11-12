@@ -67,7 +67,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** One line: newlines folded, at most `max` characters. @param {string} s @param {number} [max] */
 export const oneLine = (s, max = 400) => {
-  const t = String(s).replace(/\s*\r?\n\s*/g, ' ').trim();
+  const t = String(s)
+    .replace(/\s*\r?\n\s*/g, ' ')
+    .trim();
   return t.length > max ? `${t.slice(0, max - 3)}...` : t;
 };
 
@@ -181,13 +183,32 @@ export function round(d, tried) {
   for (const r of ready) {
     // Main is read before each PR: an earlier merge in this round may have turned it red.
     const runs = d.gh([
-      'run', 'list', '-R', REPO, '--branch', 'main', '-w', 'ci.yml', '--event', 'push',
-      '--status', 'completed', '-L', '10', '--json', 'conclusion,headSha',
+      'run',
+      'list',
+      '-R',
+      REPO,
+      '--branch',
+      'main',
+      '-w',
+      'ci.yml',
+      '--event',
+      'push',
+      '--status',
+      'completed',
+      '-L',
+      '10',
+      '--json',
+      'conclusion,headSha',
     ]);
-    const main = runs.status === 0 ? mainState(runs.stdout) : { red: true, sha: '', why: `main CI unreadable (${oneLine(runs.stderr, 200)})` };
+    const main =
+      runs.status === 0
+        ? mainState(runs.stdout)
+        : { red: true, sha: '', why: `main CI unreadable (${oneLine(runs.stderr, 200)})` };
     if (main.red) {
       d.log(`stopped: ${main.why}; nothing merged`);
-      d.post(`merge runner stopped: ${main.why}; ask a session to fix main, then start the runner again`);
+      d.post(
+        `merge runner stopped: ${main.why}; ask a session to fix main, then start the runner again`
+      );
       return { stop: main.why, merged };
     }
 
@@ -228,7 +249,9 @@ export function round(d, tried) {
     const problem = d.prepare(r);
     if (problem) {
       d.log(`stopped: gate checkout: ${problem}`);
-      d.post(`merge runner stopped: gate checkout problem (${oneLine(problem, 200)}); #${r.pr} waits`);
+      d.post(
+        `merge runner stopped: gate checkout problem (${oneLine(problem, 200)}); #${r.pr} waits`
+      );
       return { stop: `gate checkout: ${problem}`, merged };
     }
     d.log(`#${r.pr} (${r.id}): running main's gate on ${r.head.slice(0, 7)}`);
@@ -264,7 +287,11 @@ function sh(cmd, args, o = {}) {
     cwd: o.cwd,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
-  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? r.error?.message ?? '' };
+  return {
+    status: r.status ?? 1,
+    stdout: r.stdout ?? '',
+    stderr: r.stderr ?? r.error?.message ?? '',
+  };
 }
 
 /**
@@ -287,7 +314,8 @@ export function prepareCheckout(checkout, r, run = sh) {
   const fetched = git(['fetch', '-q', 'aitool', 'main', `refs/pull/${r.pr}/head`], 300_000);
   if (fetched.status !== 0) return `git fetch failed (${oneLine(fetched.stderr, 200)})`;
   const co = git(['checkout', '-q', '--detach', r.head]);
-  if (co.status !== 0) return `git checkout ${r.head.slice(0, 7)} failed (${oneLine(co.stderr, 200)})`;
+  if (co.status !== 0)
+    return `git checkout ${r.head.slice(0, 7)} failed (${oneLine(co.stderr, 200)})`;
   const at = git(['rev-parse', 'HEAD']);
   if (at.stdout.trim() !== r.head) return `HEAD is ${at.stdout.trim()}, not ${r.head}`;
   const lock = path.join(checkout, 'package-lock.json');
@@ -295,9 +323,13 @@ export function prepareCheckout(checkout, r, run = sh) {
   const stamp = path.join(checkout, LOCK_STAMP);
   const had = fs.existsSync(stamp) ? fs.readFileSync(stamp, 'utf8').trim() : '';
   if (had !== hash) {
-    const npm = process.platform === 'win32'
-      ? run('cmd.exe', ['/d', '/s', '/c', 'npm ci'], { cwd: checkout, timeout: NPM_CI_TIMEOUT_MS })
-      : run('npm', ['ci'], { cwd: checkout, timeout: NPM_CI_TIMEOUT_MS });
+    const npm =
+      process.platform === 'win32'
+        ? run('cmd.exe', ['/d', '/s', '/c', 'npm ci'], {
+            cwd: checkout,
+            timeout: NPM_CI_TIMEOUT_MS,
+          })
+        : run('npm', ['ci'], { cwd: checkout, timeout: NPM_CI_TIMEOUT_MS });
     if (npm.status !== 0) return `npm ci failed (${oneLine(npm.stderr || npm.stdout, 200)})`;
     fs.writeFileSync(stamp, `${hash}\n`);
   }
@@ -378,7 +410,8 @@ export function parseArgs(argv) {
     if (a === '--once') o.once = true;
     else if (a === '--interval') {
       o.interval = Number(value());
-      if (!Number.isFinite(o.interval) || o.interval < 10) throw new Error('--interval is at least 10 seconds');
+      if (!Number.isFinite(o.interval) || o.interval < 10)
+        throw new Error('--interval is at least 10 seconds');
     } else if (a === '--vault') o.vault = value();
     else if (a === '--checkout') o.checkout = path.resolve(value());
     else throw new Error(`unknown argument ${a}`);
@@ -391,7 +424,8 @@ const stamp = line => console.log(`merge-runner: ${new Date().toISOString()} ${l
 
 /** @param {ReturnType<typeof parseArgs>} o @returns {Deps} */
 function realDeps(o) {
-  const vaultGit = (/** @type {string[]} */ args) => sh('git', ['-C', o.vault, ...args], { timeout: 60_000 });
+  const vaultGit = (/** @type {string[]} */ args) =>
+    sh('git', ['-C', o.vault, ...args], { timeout: 60_000 });
   return {
     readBacklog: () => readUpstreamBacklog(vaultGit, m => stamp(`WARNING: ${m}`)),
     gh: args => sh('gh', args),
@@ -416,13 +450,15 @@ function realDeps(o) {
         copy.cleanup();
       }
     },
-    backlog: args => sh(process.execPath, [path.join(here, 'backlog.mjs'), ...args, '--vault', o.vault]),
+    backlog: args =>
+      sh(process.execPath, [path.join(here, 'backlog.mjs'), ...args, '--vault', o.vault]),
     post: text => {
       const copy = mainCopy(o.checkout, 'packages/discord-bot/announce/announce.mjs');
       if (!copy) return stamp('WARNING: no announce sender on main; nothing posted');
       try {
         const r = sh(process.execPath, [copy.file, 'pr-note', text], { timeout: 15_000 });
-        if (r.status !== 0) stamp(`WARNING: Discord line not posted (${oneLine(r.stdout || r.stderr, 200)})`);
+        if (r.status !== 0)
+          stamp(`WARNING: Discord line not posted (${oneLine(r.stdout || r.stderr, 200)})`);
       } finally {
         copy.cleanup();
       }
@@ -445,7 +481,8 @@ export async function main(argv, inject = {}) {
     return 2;
   }
   const d = inject.deps ?? realDeps(o);
-  const lockFile = inject.lockFile ?? path.join(os.homedir(), '.foundry-ai-tool', 'merge-runner.lock');
+  const lockFile =
+    inject.lockFile ?? path.join(os.homedir(), '.foundry-ai-tool', 'merge-runner.lock');
   const lock = takeRunnerLock(lockFile);
   if (!lock.ok) {
     d.log(`another merge runner runs (pid ${lock.holder || 'unknown'}, ${lockFile}); exiting`);

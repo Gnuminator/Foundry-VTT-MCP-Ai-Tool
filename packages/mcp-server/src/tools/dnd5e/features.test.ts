@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DnD5eFeaturesFromCompendiumTools } from './features.js';
+import { makeTools, type ToolHarness } from '../../test-support/make-tool-harness.js';
 
 /**
  * Tests for DnD5eFeaturesFromCompendiumTools — a thin, deterministic layer over
@@ -32,21 +33,10 @@ const mockDetectGameSystem = detectGameSystem as ReturnType<typeof vi.fn>;
 // Helper
 // ---------------------------------------------------------------------------
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: DnD5eFeaturesFromCompendiumTools;
-  query: ReturnType<typeof vi.fn>;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new DnD5eFeaturesFromCompendiumTools({ foundryClient, logger }), query };
+function makeFeatureTools(
+  queryImpl?: (method: string, data: unknown) => unknown
+): ToolHarness<DnD5eFeaturesFromCompendiumTools> {
+  return makeTools(DnD5eFeaturesFromCompendiumTools, queryImpl);
 }
 
 // Minimal valid bridge response for the happy-path tests
@@ -77,7 +67,7 @@ function makeResult(
 
 describe('DnD5eFeaturesFromCompendiumTools.getToolDefinitions', () => {
   it('exposes exactly one tool with an object input schema', () => {
-    const { tools } = makeTools();
+    const { tools } = makeFeatureTools();
     const defs = tools.getToolDefinitions();
     expect(defs).toHaveLength(1);
     expect(defs[0].name).toBe('dnd5e-add-features-from-compendium');
@@ -85,13 +75,13 @@ describe('DnD5eFeaturesFromCompendiumTools.getToolDefinitions', () => {
   });
 
   it('requires actorIdentifier and featureNames', () => {
-    const { tools } = makeTools();
+    const { tools } = makeFeatureTools();
     const def = tools.getToolDefinitions()[0];
     expect((def.inputSchema as any).required).toEqual(['actorIdentifier', 'featureNames']);
   });
 
   it('featureNames has minItems 1 and maxItems 50', () => {
-    const { tools } = makeTools();
+    const { tools } = makeFeatureTools();
     const def = tools.getToolDefinitions()[0];
     const featureNames = (def.inputSchema as any).properties.featureNames;
     expect(featureNames.minItems).toBe(1);
@@ -99,7 +89,7 @@ describe('DnD5eFeaturesFromCompendiumTools.getToolDefinitions', () => {
   });
 
   it('compendiumPacks is not required and has a default', () => {
-    const { tools } = makeTools();
+    const { tools } = makeFeatureTools();
     const def = tools.getToolDefinitions()[0];
     expect((def.inputSchema as any).required).not.toContain('compendiumPacks');
     expect((def.inputSchema as any).properties.compendiumPacks.default).toEqual([
@@ -129,7 +119,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — d
         },
       ],
     });
-    const { tools, query } = makeTools(() => bridgeResult);
+    const { tools, query } = makeFeatureTools(() => bridgeResult);
 
     await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -144,7 +134,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — d
   });
 
   it('passes custom compendiumPacks to the query when provided', async () => {
-    const { tools, query } = makeTools(() => makeResult());
+    const { tools, query } = makeFeatureTools(() => makeResult());
 
     await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'actor-x',
@@ -160,7 +150,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — d
   });
 
   it('uses default compendiumPacks when not provided', async () => {
-    const { tools, query } = makeTools(() => makeResult());
+    const { tools, query } = makeFeatureTools(() => makeResult());
 
     await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'actor-y',
@@ -182,7 +172,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
   });
 
   it('throws a ZodError (not returns string) when actorIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({ featureNames: ['Pack Tactics'] })
     ).rejects.toThrow();
@@ -190,7 +180,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
   });
 
   it('throws when featureNames is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({ actorIdentifier: 'goblin' })
     ).rejects.toThrow();
@@ -198,7 +188,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
   });
 
   it('throws when featureNames is an empty array (min 1)', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({
         actorIdentifier: 'goblin',
@@ -209,7 +199,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
   });
 
   it('throws when actorIdentifier is an empty string (min length 1)', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({
         actorIdentifier: '',
@@ -220,7 +210,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
   });
 
   it('throws when featureNames has more than 50 entries (max 50)', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({
         actorIdentifier: 'goblin',
@@ -231,7 +221,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
   });
 
   it('throws when args are null/undefined', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
     await expect(tools.handleAddFeaturesFromCompendium(undefined)).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
@@ -244,7 +234,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
 describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — system guard', () => {
   it('throws when system is not dnd5e', async () => {
     mockDetectGameSystem.mockResolvedValue('other');
-    const { tools, query } = makeTools();
+    const { tools, query } = makeFeatureTools();
 
     await expect(
       tools.handleAddFeaturesFromCompendium({
@@ -258,7 +248,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — s
 
   it('throws (via ErrorHandler) when system is "other"', async () => {
     mockDetectGameSystem.mockResolvedValue('other');
-    const { tools } = makeTools();
+    const { tools } = makeFeatureTools();
 
     // ErrorHandler.handleToolError wraps the original error through mapFoundryError,
     // so the thrown message is the formatted MCP error, not the raw system-guard message.
@@ -281,7 +271,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — F
   });
 
   it('throws when foundryClient.query rejects', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeFeatureTools(() => {
       throw new Error('bridge unreachable');
     });
 
@@ -312,7 +302,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
         itemId: 'item-1',
       },
     ];
-    const { tools } = makeTools(() => makeResult({ added }));
+    const { tools } = makeFeatureTools(() => makeResult({ added }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -340,7 +330,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
         itemId: 'item-1',
       },
     ];
-    const { tools } = makeTools(() => makeResult({ added }));
+    const { tools } = makeFeatureTools(() => makeResult({ added }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -351,7 +341,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
   });
 
   it('success is false when no features added and some were not found', async () => {
-    const { tools } = makeTools(() => makeResult({ notFound: ['Nonexistent Feature'] }));
+    const { tools } = makeFeatureTools(() => makeResult({ notFound: ['Nonexistent Feature'] }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -363,7 +353,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
 
   it('success is false when some features failed', async () => {
     const failed = [{ name: 'Pack Tactics', error: 'import error' }];
-    const { tools } = makeTools(() => makeResult({ failed }));
+    const { tools } = makeFeatureTools(() => makeResult({ failed }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -375,7 +365,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
 
   it('success is true when all features were skipped (already present)', async () => {
     const skipped = [{ name: 'Pack Tactics', reason: 'already on actor' }];
-    const { tools } = makeTools(() => makeResult({ skipped }));
+    const { tools } = makeFeatureTools(() => makeResult({ skipped }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -387,7 +377,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
   });
 
   it('summary contains the actor name', async () => {
-    const { tools } = makeTools(() => makeResult());
+    const { tools } = makeFeatureTools(() => makeResult());
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -406,7 +396,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
         itemId: 'item-1',
       },
     ];
-    const { tools } = makeTools(() => makeResult({ added }));
+    const { tools } = makeFeatureTools(() => makeResult({ added }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -417,7 +407,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
   });
 
   it('message contains actor name and id', async () => {
-    const { tools } = makeTools(() => makeResult());
+    const { tools } = makeFeatureTools(() => makeResult());
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -429,7 +419,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
   });
 
   it('message lists not-found feature names', async () => {
-    const { tools } = makeTools(() => makeResult({ notFound: ['Mystery Ability'] }));
+    const { tools } = makeFeatureTools(() => makeResult({ notFound: ['Mystery Ability'] }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',
@@ -440,7 +430,9 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — r
   });
 
   it('message includes warnings when present', async () => {
-    const { tools } = makeTools(() => makeResult({ warnings: ['Some packs were unavailable'] }));
+    const { tools } = makeFeatureTools(() =>
+      makeResult({ warnings: ['Some packs were unavailable'] })
+    );
 
     const result = await tools.handleAddFeaturesFromCompendium({
       actorIdentifier: 'goblin-boss',

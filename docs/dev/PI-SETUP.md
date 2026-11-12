@@ -1058,8 +1058,10 @@ container with stand-ins for systemd (`scripts/pi/container-test/stage13-scenari
 needed, about 30 minutes under emulation on a PC, about 30 seconds on the ARM runner; it refuses to
 run outside a container): the downgrade guard, an unreadable `/api/status`, people online, the setup
 screen, an install from a local zip, services that were off staying off, and a failed Assistant GM
-browser start that restarts Foundry only once. CI runs both, the container part on the ARM runner,
-where a missing Docker fails the step instead of skipping it.
+browser start that restarts Foundry only once. CI runs both, the container part on the ARM runner
+(the `pi-container` matrix), where a missing Docker fails the step instead of skipping it. A pull
+request runs the container part only when `pi-changes` sees a Pi input change; main and manual runs
+always do.
 
 ## System trial (stage 14)
 

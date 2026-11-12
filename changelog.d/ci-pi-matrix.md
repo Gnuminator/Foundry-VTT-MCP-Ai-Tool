@@ -1,0 +1,3 @@
+### Tests
+
+- **CI runs the Pi container tests in parallel, and only when a Pi file changed:** the 17 container tests are now a `pi-container` matrix job behind a `pi-changes` path filter (`scripts/pi/`, `scripts/plan-b/`, `scripts/gamenight-watch*`, `deploy/`, the lockfile, `ci.yml`). A pull request that touches only the dashboard skips them; main and manual runs always run them. The required check `build-test (ARM, Node 24)` keeps its name and is now a summary that is red when the ARM steps or a shard fail. `build-test` and `build-test-arm` get 25-minute timeouts, the matrix 20. A new test (`scripts/pi/ci-pi-filter.test.mjs`) fails when a path a container test mounts or reads falls outside the filter (Backlog `ci-pi-matrix`).

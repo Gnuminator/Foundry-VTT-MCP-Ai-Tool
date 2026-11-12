@@ -22,6 +22,6 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx"
   },
-  "include": ["packages/**/*.ts", "packages/**/*.tsx", "shared/**/*.ts"],
+  "include": ["packages/**/*.ts", "packages/**/*.tsx", "shared/**/*.ts", "vitest.*.ts"],
   "exclude": ["node_modules", "**/dist", "**/build"]
 }

@@ -9,5 +9,5 @@
   gitignored and written by `npm ci` and the shared build, typecheck and test scripts; the Docker
   builds copy the module sources for that scan. `usage:catalog:check` now checks that the sources
   produce a valid catalogue.
-- The Foundry module lists `@gnuminator/shared` as a dependency; the unused `@shared/*`,
+- The Foundry module lists `@gnuminator/shared` as a dev dependency; the unused `@shared/*`,
   `@foundry-module/*` and `@mcp-server/*` path aliases are gone.

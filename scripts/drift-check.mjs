@@ -17,9 +17,9 @@
  * again. The worktree borrows this checkout's node_modules (junctions); when main changed
  * package-lock.json those would not match, so it asks for the real merge and `npm ci` first (a
  * lockfile change made by the branch itself does not count). The workspace links (`@gnuminator/*`)
- * point at this checkout's own packages, and `@gnuminator/shared` is consumed through its build
- * (`shared/dist`): when the merge changed `shared/`, the worktree gets its own workspace links and
- * builds its own `shared`, so the guards test the merged tree against a shared built from it. Before
+ * point at this checkout's own packages, and `@gnuminator/shared` is read from source and its build
+ * (`shared/src`, `shared/dist`): the worktree always gets its own workspace links and builds its own
+ * `shared` (which also writes the gitignored usage catalogue), so the guards test the merged tree. Before
  * any of that, a checkout whose `shared/dist` is missing or older than `shared/src` gets `shared`
  * built (ensureSharedBuilt), so a lane that never built it does not fail the mcp-server tests. A worktree left by a killed run is removed by the next run; one whose run is still
  * alive (another lane's, same repository) and younger than an hour is left alone.
@@ -236,17 +236,17 @@ function linkOwnWorkspace(cwd, dir) {
 }
 
 /**
- * The guards read `@gnuminator/shared` through its build. When the merge changed `shared/`, the
- * borrowed build is out of date (a PR that added an export, merged under one that did not), so the
- * worktree gets its own workspace links and builds its own shared. Returns an error text, or null.
+ * The guards read `@gnuminator/shared` from source (the `development` condition) and its build. The
+ * worktree has no gitignored files, so it always gets its own workspace links (the package must resolve
+ * inside the worktree, not to the lane's checkout) and builds its own shared, which also writes the
+ * generated usage catalogue. Returns an error text, or null.
  * @param {string} cwd @param {string} dir @param {string} buildCommand
  * @param {(line: string) => void} log
  */
 function buildMergedShared(cwd, dir, buildCommand, log) {
-  if (git(dir, ['diff', '--quiet', 'HEAD', '--', 'shared']).ok) return null;
   if (!fs.existsSync(path.join(cwd, 'node_modules', '@gnuminator'))) return null;
   linkOwnWorkspace(cwd, dir);
-  log('drift-check: the merge changed shared/; building shared in the worktree.');
+  log('drift-check: building shared in the worktree (own workspace links, generated catalogue).');
   const r = spawnSync(buildCommand, {
     cwd: path.join(dir, 'shared'),
     shell: true,

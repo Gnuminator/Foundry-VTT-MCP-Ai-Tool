@@ -15,7 +15,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "catalog": "node ../scripts/usage-catalog.mjs",
+    "catalog": "node ../scripts/usage-catalog.mjs --require-all",
     "build": "npm run catalog && node ../scripts/tsc7.mjs",
     "dev": "node ../node_modules/typescript/bin/tsc --watch",
     "typecheck": "npm run catalog && node ../scripts/tsc7.mjs --noEmit",

@@ -249,6 +249,15 @@ function main() {
     for (const p of problems) console.error(`  ${p}`);
     process.exit(1);
   }
+  if (args.includes('--require-all')) {
+    // A build that lacks a scanned folder (a Dockerfile without the module sources) would write a
+    // catalogue with no controls for that surface and the usage note would report them wrong.
+    const missing = ['dashboard', 'player', 'module'].filter(s => !entries.some(e => e.surface === s));
+    if (missing.length > 0) {
+      console.error(`usage-catalog: no controls found for: ${missing.join(', ')} (is a source folder missing?)`);
+      process.exit(1);
+    }
+  }
   const text = renderCatalog(entries);
   const target = path.join(root, OUTPUT);
   const current = existsSync(target) ? readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : null;

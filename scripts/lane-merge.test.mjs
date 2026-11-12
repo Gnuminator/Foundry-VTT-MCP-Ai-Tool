@@ -55,6 +55,14 @@ import {
 const HEAD = '3d24f70a1b2c3d4e5f60718293a4b5c6d7e8f901';
 const OTHER = 'ffffffff00000000000000000000000000000000';
 const SELF = fileURLToPath(new URL('./lane-merge.mjs', import.meta.url));
+
+/** The gate modules of this checkout, by file name. */
+function ownModules() {
+  const dir = path.join(path.dirname(SELF), 'lane-merge');
+  return Object.fromEntries(
+    fs.readdirSync(dir).map(n => [n, fs.readFileSync(path.join(dir, n), 'utf8')])
+  );
+}
 const REPO_ROOT = path.resolve(path.dirname(SELF), '..');
 
 /** A review note in the vault format. */
@@ -191,6 +199,15 @@ function gate(o = {}) {
       return o.mainGate === null
         ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
         : ok(o.mainGate ?? fs.readFileSync(SELF, 'utf8'));
+    }
+    // Main's gate modules: this checkout's own unless the test gives others (`mainModules`).
+    if (cmd === 'git' && args[0] === 'ls-tree' && args.at(-1) === 'scripts/lane-merge/') {
+      const names = Object.keys(o.mainModules ?? ownModules());
+      return ok(names.map(n => `scripts/lane-merge/${n}`).join('\n'));
+    }
+    if (key.startsWith('git show aitool/main:scripts/lane-merge/')) {
+      const name = key.slice('git show aitool/main:scripts/lane-merge/'.length);
+      return ok((o.mainModules ?? ownModules())[name] ?? '');
     }
     if (key === 'git show aitool/main:scripts/drift-check.mjs') {
       return o.driftSource === null
@@ -1670,8 +1687,8 @@ test('lane-merge split: the entry file stays small and every gate module is a fi
   const entry = fs.readFileSync(SELF, 'utf8').replace(/\r\n/g, '\n').split('\n');
   const count = entry.length - (entry.at(-1) === '' ? 1 : 0);
   assert.ok(
-    count <= 150,
-    `scripts/lane-merge.mjs has ${count} lines (ceiling 150): new gate code goes into a file in scripts/lane-merge/`
+    count <= 110,
+    `scripts/lane-merge.mjs has ${count} lines (ceiling 110): new gate code goes into a file in scripts/lane-merge/`
   );
   const dir = path.join(path.dirname(SELF), 'lane-merge');
   for (const name of fs.readdirSync(dir)) {
@@ -2365,6 +2382,20 @@ test('gate --wait-ci: refuses when the gate on main changed during the wait', ()
   assert.equal(r.code, 1);
   assert.ok(!r.merged);
   assert.match(r.text, /wait-ci: the gate on aitool\/main changed during the wait/);
+});
+
+test('gate --wait-ci: refuses when only a gate module on main changed during the wait', () => {
+  const mods = ownModules();
+  const first = Object.keys(mods)[0];
+  const r = gate({
+    argv: ['--wait-ci'],
+    mainModules: { ...mods, [first]: `${mods[first]}// newer\n` },
+  });
+  assert.equal(r.code, 1);
+  assert.ok(!r.merged);
+  assert.match(r.text, /wait-ci: the gate on aitool\/main changed during the wait/);
+  const extra = gate({ argv: ['--wait-ci'], mainModules: { ...mods, 'new.mjs': 'x\n' } });
+  assert.equal(extra.code, 1, 'a module only main has is a change too');
 });
 
 test('gate --wait-ci: refuses when main cannot be fetched after the wait', () => {

@@ -8,7 +8,7 @@ import {
 } from './constants.mjs';
 import { firstLine } from './run.mjs';
 
-/** @typedef {import('./run.mjs').Run} Run */
+/** @import { Run } from './run.mjs' */
 
 /**
  * The status check names the branch ruleset requires, from `gh api .../rules/branches/main`.

@@ -55,65 +55,19 @@ import { entryDecision, runEntry, relaunchFromMain, verdictLine } from './lane-m
 import { defaultRun } from './lane-merge/run.mjs';
 import { main } from './lane-merge/main.mjs';
 
-export {
-  TRAIN_SIZE,
-  REPO,
-  WAIT_TIMEOUT_MS,
-  WAIT_POLL_MS,
-  EXIT_CI_FAILED,
-  EXIT_HEAD_MOVED,
-  EXIT_WAIT_TIMEOUT,
-} from './lane-merge/constants.mjs';
-export {
-  RISKY_CATEGORIES,
-  riskyListLines,
-  TRAIN_PATTERNS,
-  globToRegExp,
-  matchesAny,
-  riskyHits,
-  isTrainRelevant,
-} from './lane-merge/risky.mjs';
-export {
-  parseReviewNote,
-  findReviewNotes,
-  reviewNamingRule,
-  unreadPrNotes,
-  opusNotesForHead,
-  patchIdAt,
-  carriedReviews,
-  judgeReviews,
-} from './lane-merge/reviews.mjs';
-export {
-  requiredContexts,
-  supersededCancelled,
-  latestChecks,
-  rollupProblems,
-  waitForCi,
-} from './lane-merge/ci.mjs';
-export { hasChangelogFragment, releasePr, parseNameStatus } from './lane-merge/changelog.mjs';
-export {
-  readTrain,
-  writeTrain,
-  TRAIN_NOTE_PATH,
-  refusalCauses,
-  refusalBody,
-  renderTrainNote,
-  publishTrainNote,
-  acquireLock,
-} from './lane-merge/train.mjs';
-export { defaultAnnounce, announceSource } from './lane-merge/announce.mjs';
-export { defaultRun } from './lane-merge/run.mjs';
-export { parseArgs } from './lane-merge/args.mjs';
-export {
-  relaunchFromMain,
-  refusedBecause,
-  verdictLine,
-  runEntry,
-  isEntryModule,
-  entryDecision,
-} from './lane-merge/relaunch.mjs';
-export { hasRelativeImports } from './lane-merge/drift.mjs';
-export { main } from './lane-merge/main.mjs';
+// Every gate module is re-exported here, so callers keep importing from scripts/lane-merge.mjs.
+export * from './lane-merge/constants.mjs';
+export * from './lane-merge/risky.mjs';
+export * from './lane-merge/reviews.mjs';
+export * from './lane-merge/ci.mjs';
+export * from './lane-merge/changelog.mjs';
+export * from './lane-merge/train.mjs';
+export * from './lane-merge/announce.mjs';
+export * from './lane-merge/run.mjs';
+export * from './lane-merge/args.mjs';
+export * from './lane-merge/relaunch.mjs';
+export * from './lane-merge/drift.mjs';
+export * from './lane-merge/main.mjs';
 
 const self = fileURLToPath(import.meta.url);
 const decision = entryDecision(process.argv[1], self);

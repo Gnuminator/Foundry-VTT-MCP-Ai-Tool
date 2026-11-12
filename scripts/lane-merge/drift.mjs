@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { MAIN } from './constants.mjs';
 
-/** @typedef {import('./run.mjs').Run} Run */
+/** @import { Run } from './run.mjs' */
 
 /** Run by `node -e`: import main's drift-check copy and run it in the current folder. */
 export const DRIFT_RUNNER =

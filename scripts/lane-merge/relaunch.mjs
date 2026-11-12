@@ -14,7 +14,7 @@ import {
 import { riskyListLines } from './risky.mjs';
 import { firstLine, lf } from './run.mjs';
 
-/** @typedef {import('./run.mjs').Run} Run */
+/** @import { Run } from './run.mjs' */
 
 /** The folder next to the entry file that holds the gate modules. */
 export const MODULE_DIR = 'lane-merge';

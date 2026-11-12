@@ -28,18 +28,17 @@ import { requiredContexts, rollupProblems, waitForCi } from './ci.mjs';
 import { hasChangelogFragment, releasePr, parseNameStatus } from './changelog.mjs';
 import { readTrain, writeTrain, publishTrainNote, sleep, acquireLock } from './train.mjs';
 import { defaultAnnounce } from './announce.mjs';
-import { defaultRun, firstLine, lf } from './run.mjs';
+import { defaultRun, firstLine } from './run.mjs';
 import { parseArgs } from './args.mjs';
-import { refusedBecause } from './relaunch.mjs';
+import { refusedBecause, mainModules, sameGate } from './relaunch.mjs';
 import { runDrift } from './drift.mjs';
+
+/** @import { Run } from './run.mjs' */
+/** @import { TrainState, TrainEvent } from './train.mjs' */
+/** @import { ReviewNote } from './reviews.mjs' */
 
 /** The entry file (scripts/lane-merge.mjs): the gate compares main's copy with it. */
 const ENTRY_PATH = fileURLToPath(new URL('../lane-merge.mjs', import.meta.url));
-
-/** @typedef {import('./run.mjs').Run} Run */
-/** @typedef {import('./train.mjs').TrainState} TrainState */
-/** @typedef {import('./train.mjs').TrainEvent} TrainEvent */
-/** @typedef {import('./reviews.mjs').ReviewNote} ReviewNote */
 
 /**
  * Runs the gate.
@@ -230,13 +229,14 @@ export function main(options = {}) {
     fetched = true;
     const onMain = run('git', ['show', `${MAIN}:scripts/lane-merge.mjs`]);
     if (onMain.status === 0) {
-      let mine = null;
+      const parts = mainModules(run);
+      let same = false;
       try {
-        mine = fs.readFileSync(selfPath, 'utf8');
+        same = !parts.error && sameGate(selfPath, onMain.stdout, parts.files);
       } catch {
         /* refused below */
       }
-      if (mine === null || lf(onMain.stdout) !== lf(mine)) {
+      if (!same) {
         failures.push(
           `wait-ci: the gate on ${MAIN} changed during the wait (or this copy cannot be read); start again`
         );

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { CompendiumTools } from './compendium.js';
 import { clearSystemCache } from '../utils/system-detection.js';
@@ -29,7 +29,7 @@ import { clearSystemCache } from '../utils/system-detection.js';
  */
 function makeTools(queryImpl?: (method: string, data?: unknown) => unknown): {
   tools: CompendiumTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

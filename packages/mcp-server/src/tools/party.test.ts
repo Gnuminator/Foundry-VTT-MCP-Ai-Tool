@@ -2,7 +2,7 @@
  * `get-party` and `plan-party-change` (I-079): Foundry and the guarded-write
  * service are stubs; the tests check which plan each action builds.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { PartyGroup, PartyMember, PartyState } from '@gnuminator/shared';
 
@@ -72,8 +72,8 @@ function state(extra: Partial<PartyState> = {}): PartyState {
   };
 }
 
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
 let tools: PartyTools;
 
 beforeEach(() => {

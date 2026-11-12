@@ -3,7 +3,7 @@
  * to an older bridge, the undo, choice, rewind and redo flows) with fake deps, and the window
  * class on a fake `ApplicationV2` (escaped HTML in the content, singleton, live refresh).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   AiChangesController,
@@ -68,10 +68,10 @@ function planView(over: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 type Deps = AiChangesDeps & {
-  request: ReturnType<typeof vi.fn>;
-  ask: ReturnType<typeof vi.fn>;
-  notifyInfo: ReturnType<typeof vi.fn>;
-  notifyError: ReturnType<typeof vi.fn>;
+  request: Mock;
+  ask: Mock;
+  notifyInfo: Mock;
+  notifyError: Mock;
 };
 
 /**

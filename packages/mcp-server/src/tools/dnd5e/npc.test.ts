@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DnD5eNpcTools } from './npc.js';
 import { makeLogger, makeTools, type ToolHarness } from '../../test-support/make-tool-harness.js';
@@ -39,7 +39,7 @@ const VALID_ARGS = {
  */
 function makeQueryForDnd5e(
   successResult: unknown = { actor: { id: 'abc', name: 'Test Goblin', cr: '1/4' } }
-): ReturnType<typeof vi.fn> {
+): Mock {
   return vi.fn((method: string): unknown => {
     if (method === 'foundry-mcp-bridge.getWorldInfo') {
       return { system: 'dnd5e' };

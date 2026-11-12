@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DashboardError } from './dashboard.js';
 import type { ThemeId } from './theme.js';
@@ -7,7 +7,7 @@ import { pickTheme, syncTheme, type ThemeClient, type ThemeState } from './theme
 const neutral: ThemeState = { theme: 'neutral', themeEnabled: true, pendingTheme: null };
 
 function client(dashboard: { theme: ThemeId; fail?: DashboardError }): ThemeClient & {
-  setTheme: ReturnType<typeof vi.fn>;
+  setTheme: Mock;
 } {
   return {
     theme: vi.fn(() =>

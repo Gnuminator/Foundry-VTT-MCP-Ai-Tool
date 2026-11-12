@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildToolRouter, collectToolDefinitions } from '../tool-router.js';
 import { stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
@@ -38,7 +38,7 @@ logger.child = (): unknown => logger;
 function make(
   reply: unknown,
   opts: { secret?: string[]; extra?: string[] } = {}
-): { tools: PlayerTools; query: ReturnType<typeof vi.fn> } {
+): { tools: PlayerTools; query: Mock } {
   const query = vi.fn(() => Promise.resolve(reply));
   const tools = new PlayerTools({
     foundryClient: { query } as any,

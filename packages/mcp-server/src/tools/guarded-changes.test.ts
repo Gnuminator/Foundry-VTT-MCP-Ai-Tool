@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { GuardedChangeTools } from './guarded-changes.js';
 
 function makeTools(): {
   tools: GuardedChangeTools;
-  guardedWrites: Record<string, ReturnType<typeof vi.fn>>;
-  query: ReturnType<typeof vi.fn>;
+  guardedWrites: Record<string, Mock>;
+  query: Mock;
   logger: any;
 } {
   const guardedWrites = {

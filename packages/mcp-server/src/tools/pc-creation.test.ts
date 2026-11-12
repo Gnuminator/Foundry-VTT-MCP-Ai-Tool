@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { PcCreationTools } from './pc-creation.js';
 
@@ -15,8 +15,8 @@ function tools(
   planReply?: unknown
 ): {
   t: PcCreationTools;
-  query: ReturnType<typeof vi.fn>;
-  createPlan: ReturnType<typeof vi.fn>;
+  query: Mock;
+  createPlan: Mock;
 } {
   const query = vi.fn(async (method: string) =>
     method === 'foundry-mcp-bridge.listGuardedFeatures'

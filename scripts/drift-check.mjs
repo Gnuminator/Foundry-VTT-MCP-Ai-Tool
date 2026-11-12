@@ -45,6 +45,7 @@ export const CHECKS = [
   { name: 'changelog fragments', command: 'npm run changelog:check' },
   { name: 'usage catalog', command: 'npm run usage:catalog:check' },
   { name: 'version sync', command: 'npm run version:check' },
+  { name: 'dependency ranges', command: 'npm run deps:check' },
   { name: 'docs lint', command: 'npm run docs:lint' },
   { name: 'docs links', command: 'npm run docs:links' },
   { name: 'line baseline', command: 'npm run line:ratchet' },

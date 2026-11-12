@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -165,10 +166,20 @@ describe('isNodeProcess', () => {
 // ---------------------------------------------------------------------------
 
 describe('getProcessName', () => {
-  it('returns a node-related name for the current process PID', () => {
-    const name = getProcessName(process.pid);
-    // The test runner is Node.js; the process name must be node/node.exe/nodejs
-    expect(name).toMatch(/^node/i);
+  it('returns a node-related name for a running Node.js process', async () => {
+    // A child process, not process.pid: Vitest 5 runs tests in worker threads, and on Linux the
+    // test process then reports its main thread name ("mainthread"), not "node".
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
+      stdio: 'ignore',
+    });
+    try {
+      await new Promise(resolve => child.once('spawn', resolve));
+      const name = getProcessName(child.pid!);
+      // node/node.exe/nodejs
+      expect(name).toMatch(/^node/i);
+    } finally {
+      child.kill();
+    }
   });
 
   it('returns null for a non-existent PID', () => {

@@ -230,6 +230,8 @@ export function patchIdAt(run, sha, mainRef = MAIN) {
     '--no-ext-diff',
     '--no-textconv',
     '--no-relative',
+    '--submodule=short',
+    '--ignore-submodules=none',
     '--src-prefix=a/',
     '--dst-prefix=b/',
     baseSha,
@@ -247,8 +249,9 @@ export function patchIdAt(run, sha, mainRef = MAIN) {
  * Which reviewed commits carry their verdicts to the head: those whose PR patch id equals the
  * head's (patchIdAt). Every full sha any note names is compared, so a Do not merge on the same
  * patch carries too; and a reviewed commit with another patch that is newer (committer time) than
- * every carried one refuses the carry, so a later review is never skipped. Any error (a shallow clone, a commit that cannot be fetched, a failing git)
- * returns the error as `carryError` and carries nothing. The result is judgeReviews' `carry`.
+ * every carried one, or that a note lists after its carried entries, refuses the carry, so a later
+ * commit's review is never skipped. Any error (a shallow clone, a commit that cannot be fetched,
+ * a failing git) returns the error as `carryError` and carries nothing. The result is judgeReviews' `carry`.
  * @param {(cmd: string, args: string[], input?: string) => { status: number, stdout: string, stderr: string }} run
  * @param {ReviewNote[]} notes @param {string} headSha @param {string} [mainRef]
  * @returns {{ carried: string[], carryError: string | null }}
@@ -298,6 +301,20 @@ export function carriedReviews(run, notes, headSha, mainRef = MAIN) {
     if (later.length > 0) {
       const names = later.map(s => /** @type {string} */ (s).slice(0, 7)).join(', ');
       return fail(`the newest reviewed commit (${names}) has a different patch from the head`);
+    }
+  }
+  // The order inside a note is reliable where committer times are not (clock skew, a force-push back
+  // to an older commit): an entry for another patch listed after a carried entry refuses the carry.
+  if (carried.length > 0) {
+    for (const n of notes) {
+      const last = n.entries.reduce((k, e, i) => (e.head && carried.includes(e.head) ? i : k), -1);
+      const after = n.entries
+        .slice(last + 1)
+        .filter(e => e.head && e.head !== head && !carried.includes(e.head));
+      if (last >= 0 && after.length > 0) {
+        const names = after.map(e => /** @type {string} */ (e.head).slice(0, 7)).join(', ');
+        return fail(`${n.name} lists ${names} (a different patch) after the carried review`);
+      }
     }
   }
   return { carried, carryError: null };

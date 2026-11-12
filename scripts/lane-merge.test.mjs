@@ -2,7 +2,7 @@
  * scripts/lane-merge.mjs: the merge gate. gh, git, node and npm are faked through the injectable
  * `run`; the vault and the merge train state are temp directories.
  */
-import { test } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -3232,12 +3232,19 @@ test('changelog: a release PR passes without --no-changelog; anything more is re
 
 // --- review-carry-over: a verdict carries when the PR's own patch did not change (pick P3) ---
 
+/** Temp repos made by carryRepo, removed after each test. @type {string[]} */
+const carryDirs = [];
+afterEach(() => {
+  for (const d of carryDirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+});
+
 /**
  * A real git repo for the carry tests: `main` at M0 with a.txt (30 lines) and main.txt, a PR branch
  * `pr` with B (line 3 of a.txt changed), and `aitool/main` as a remote-tracking ref set by setMain.
  */
 function carryRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-carry-'));
+  carryDirs.push(dir);
   // A fake clock: every git call is one minute later, so commits made in order have rising
   // committer times (the carry reads them to find the newest review).
   let tick = 0;
@@ -3522,6 +3529,85 @@ test('carry (review M1): any short sha in a note turns the carry off', () => {
   );
   // without the short sha the same carry passes
   assert.equal(judgeReviews([merge], HEAD, false, { carried: [OTHER], carryError: null }).ok, true);
+});
+
+test('carry: a mode-only change (chmod +x) and a changed binary file do not carry', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  r.setMain(M1);
+  const C = r.g('rev-parse', 'HEAD');
+  // the same text patch, plus the executable bit on a.txt
+  r.g('update-index', '--chmod=+x', 'a.txt');
+  r.g('commit', '-q', '-m', 'chmod +x');
+  const mode = r.g('rev-parse', 'HEAD');
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], mode), { carried: [], carryError: null });
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], C), { carried: [r.B], carryError: null });
+  // a binary file the PR adds, then changes
+  r.g('checkout', '-q', '-b', 'bin', r.B);
+  fs.writeFileSync(path.join(r.dir, 'x.bin'), Buffer.from([0, 1, 2, 3, 0]));
+  const bin1 = r.commit('add binary');
+  fs.writeFileSync(path.join(r.dir, 'x.bin'), Buffer.from([0, 1, 2, 9, 0]));
+  const bin2 = r.commit('change binary');
+  r.setMain(r.M0);
+  assert.deepEqual(carriedReviews(r.run, [reviewed(bin1)], bin2), {
+    carried: [],
+    carryError: null,
+  });
+});
+
+test('carry: patchIdAt pins the submodule rendering in its diff', () => {
+  /** @type {string[][]} */
+  const seen = [];
+  const run = (/** @type {string} */ _c, /** @type {string[]} */ args) => {
+    seen.push(args);
+    if (args[0] === 'cat-file') return { status: 0, stdout: '', stderr: '' };
+    if (args[0] === 'merge-base') return { status: 0, stdout: `${'b'.repeat(40)}\n`, stderr: '' };
+    if (args[0] === 'diff') return { status: 0, stdout: 'diff', stderr: '' };
+    return { status: 0, stdout: `${'a'.repeat(40)} ${'0'.repeat(40)}\n`, stderr: '' };
+  };
+  patchIdAt(run, 'c'.repeat(40));
+  const diff = seen.find(a => a[0] === 'diff') ?? [];
+  assert.ok(diff.includes('--submodule=short') && diff.includes('--ignore-submodules=none'));
+});
+
+test('carry: an entry for another patch listed after the carried one in a note refuses the carry', () => {
+  const r = carryRepo();
+  // X = B reviewed Merge; Y (another patch) listed after it in the same note, with an older
+  // committer time than X would have (a skewed clock): the order in the note still refuses
+  r.g('checkout', '-q', '-b', 'old', r.M0);
+  r.write('main.txt', ['main 1', 'other']);
+  const Y = r.commit('another change');
+  r.g('checkout', '-q', 'pr');
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const one = parseReviewNote(
+    '312-opus-review.md',
+    `# PR #312 Opus review\n\nHead reviewed: ${r.B}\n## Verdict\n\n**Merge.**\n\nHead reviewed: ${Y}\n## Verdict\n\n**Do not merge.** No.\n`,
+    312
+  );
+  // Y's committer time reads as the oldest, so the time rule alone would let X carry
+  const skewed = (
+    /** @type {string} */ cmd,
+    /** @type {string[]} */ args,
+    /** @type {string} */ input
+  ) =>
+    args[0] === 'show' && args.includes(Y)
+      ? { status: 0, stdout: '1\n', stderr: '' }
+      : r.run(cmd, args, input);
+  const carry = carriedReviews(skewed, [one], C);
+  assert.deepEqual(carry.carried, []);
+  assert.match(carry.carryError ?? '', /312-opus-review\.md lists .* after the carried review/);
+});
+
+test('gate: a carry fetches main once per run', () => {
+  const vault = vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]);
+  const r = gate({ vault, patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A } });
+  assert.equal(r.code, 0, r.text);
+  const fetches = r.calls.filter(c => c[0] === 'git' && c[1] === 'fetch' && c.includes('main'));
+  assert.equal(fetches.length, 1);
 });
 
 const PATCH_A = 'a'.repeat(40);

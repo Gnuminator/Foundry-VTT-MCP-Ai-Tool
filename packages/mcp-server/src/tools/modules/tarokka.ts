@@ -13,4 +13,11 @@ export const tarokkaModule = defineToolModule({
     'plan-tarokka-links': (tools, args) => tools.handlePlanTarokkaLinks(args),
     'plan-tarokka-reveal': (tools, args) => tools.handlePlanTarokkaReveal(args),
   },
+  tools: {
+    'get-tarokka-reading': { set: 'prep', title: 'Get Tarokka reading', kind: 'read' },
+    'plan-tarokka-import': { set: 'prep', title: 'Plan Tarokka reading import', kind: 'read' },
+    'suggest-tarokka-links': { set: 'prep', title: 'Suggest Tarokka links', kind: 'read' },
+    'plan-tarokka-links': { set: 'prep', title: 'Plan Tarokka links', kind: 'read' },
+    'plan-tarokka-reveal': { set: 'prep', title: 'Plan Tarokka reveal', kind: 'read' },
+  },
 });

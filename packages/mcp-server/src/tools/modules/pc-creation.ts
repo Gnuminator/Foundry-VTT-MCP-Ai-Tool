@@ -13,4 +13,11 @@ export const pcCreationModule = defineToolModule({
   routes: {
     'plan-pc-creation': (tools, args) => tools.handleToolCall('plan-pc-creation', args),
   },
+  tools: {
+    'plan-pc-creation': {
+      set: 'build',
+      title: 'Plan a new player character with pack items',
+      kind: 'read',
+    },
+  },
 });

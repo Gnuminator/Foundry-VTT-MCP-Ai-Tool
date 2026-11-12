@@ -9,4 +9,7 @@ export const dnd5eNpcModule = defineToolModule({
   routes: {
     'dnd5e-create-npc': (tools, args) => tools.handleCreateNpc(args),
   },
+  tools: {
+    'dnd5e-create-npc': { set: 'build', title: 'Create NPC', kind: 'write' },
+  },
 });

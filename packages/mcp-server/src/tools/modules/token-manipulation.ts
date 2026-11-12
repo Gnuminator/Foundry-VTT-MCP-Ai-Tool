@@ -13,4 +13,8 @@ export const tokenManipulationModule = defineToolModule({
     'get-token-details': (tools, args) => tools.handleGetTokenDetails(args),
     'get-available-conditions': (tools, args) => tools.handleGetAvailableConditions(args),
   },
+  tools: {
+    'get-token-details': { set: 'play', title: 'Get token details', kind: 'read' },
+    'get-available-conditions': { set: 'play', title: 'List conditions', kind: 'read' },
+  },
 });

@@ -11,4 +11,9 @@ export const combatResolutionModule = defineToolModule({
     'use-npc-activity': (tools, args) => tools.handleUseNpcActivity(args),
     'manage-rest': (tools, args) => tools.handleManageRest(args),
   },
+  tools: {
+    'roll-saving-throws': { set: 'play', title: 'Roll NPC saving throws', kind: 'write' },
+    'use-npc-activity': { set: 'play', title: 'Use NPC attack or activity', kind: 'write' },
+    'manage-rest': { set: 'play', title: 'Run a rest', kind: 'destructive' },
+  },
 });

@@ -8,4 +8,7 @@ export const campaignManagementModule = defineToolModule({
   routes: {
     'create-campaign-dashboard': (tools, args) => tools.handleCreateCampaignDashboard(args),
   },
+  tools: {
+    'create-campaign-dashboard': { set: 'prep', title: 'Create campaign dashboard', kind: 'write' },
+  },
 });

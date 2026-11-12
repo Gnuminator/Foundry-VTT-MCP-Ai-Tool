@@ -13,4 +13,11 @@ export const tokenRingsModule = defineToolModule({
   routes: {
     'plan-token-rings': (tools, args) => tools.handleToolCall('plan-token-rings', args),
   },
+  tools: {
+    'plan-token-rings': {
+      set: 'admin',
+      title: 'Plan dynamic token rings for actors or placed tokens',
+      kind: 'read',
+    },
+  },
 });

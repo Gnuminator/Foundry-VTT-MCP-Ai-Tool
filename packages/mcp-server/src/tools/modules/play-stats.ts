@@ -13,4 +13,7 @@ export const playStatsModule = defineToolModule({
   routes: {
     'get-play-stats': (tools, args) => tools.handleGetPlayStats(args),
   },
+  tools: {
+    'get-play-stats': { set: 'prep', title: 'Get play stats', kind: 'read' },
+  },
 });

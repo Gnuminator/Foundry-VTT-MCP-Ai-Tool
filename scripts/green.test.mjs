@@ -57,8 +57,17 @@ const ciYml = fs.readFileSync(
 /** @param {{ cmd: string, args: string[] }} s */
 const commandOf = s => normalizeCommand([s.cmd, ...s.args].join(' '));
 
+/**
+ * The dashboard browser tests moved out of build-test into the sharded job dashboard-e2e-shard
+ * (ci-e2e-job). Green still runs them as one step, so its parity covers the shard job's e2e command
+ * (without the `-- --shard=i/3` argument) and its Chromium install, placed after build-test's commands.
+ */
+const shardJobCommands = ciRunCommands(ciYml, 'dashboard-e2e-shard')
+  .filter(c => /test:e2e|ci-install-chromium/.test(c))
+  .map(c => c.replace(/ -- --shard=\$\{\{ matrix\.shard \}\}\/\d+/, ''));
+
 /** Every part of every CI command, split on `&&`. */
-const ciParts = ciRunCommands(ciYml).flatMap(c =>
+const ciParts = [...ciRunCommands(ciYml), ...shardJobCommands].flatMap(c =>
   normalizeCommand(c)
     .split('&&')
     .map(p => p.trim())

@@ -288,19 +288,20 @@ export const CHECKS = [
     args: ['scripts/standalone-smoke-test.mjs'],
   },
   { name: 'split-smoke', group: 'smoke', cmd: 'node', args: ['scripts/cogm-split-smoke-test.mjs'] },
-  {
-    // Needs Chromium for Playwright (`npx playwright install chromium`, once on this PC).
-    name: 'e2e',
-    group: 'smoke',
-    cmd: 'npm',
-    args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard'],
-    env: CI,
-  },
+  nodeTest('ci-e2e-filter', 'smoke', 'scripts/ci-e2e-filter.test.mjs'),
   {
     name: 'validate-manifest',
     group: 'smoke',
     cmd: 'node',
     args: ['scripts/validate-manifest.js'],
+  },
+  {
+    // CI runs this in the sharded job dashboard-e2e-shard, after build-test. Needs Chromium for Playwright (`npx playwright install chromium`, once on this PC).
+    name: 'e2e',
+    group: 'smoke',
+    cmd: 'npm',
+    args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard'],
+    env: CI,
   },
   // Drift guards that are not steps of their own: CI and green run these tests inside the workspace
   // test steps above (so `steps: false`), drift runs them alone on the merged tree.

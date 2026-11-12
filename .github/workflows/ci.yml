@@ -455,31 +455,13 @@ jobs:
         # redaction (GM vs player) + the write-surface auth gate over HTTP.
         run: node scripts/cogm-split-smoke-test.mjs
 
-      - name: Cache Playwright's browser download
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Dashboard browser tests, CI path filter covers what they read
+        # dashboard-e2e-changes skips the dashboard-e2e-shard jobs on a pull request that touches nothing the specs
+        # depend on; this test fails when a spec imports outside the dashboard and shared, or the job shape changes.
+        run: node --test scripts/ci-e2e-filter.test.mjs
 
-      - name: Install Chromium for the dashboard browser tests
-        # Retries the apt/browser install on a runner DNS blip; see the script.
-        timeout-minutes: 30
-        run: bash scripts/ci-install-chromium.sh
-
-      - name: Dashboard browser tests (React dashboard)
-        # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
-        # the real server with no bridge, the /api routes faked in the browser.
-        run: npm run test:e2e -w @gnuminator/cogm-dashboard
-
-      - name: Keep the browser test report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dashboard-playwright-report
-          path: |
-            packages/cogm-dashboard/playwright-report
-            packages/cogm-dashboard/test-results
-          retention-days: 14
+      # The dashboard browser tests (Playwright) run in their own filtered, sharded jobs below
+      # (dashboard-e2e-changes, dashboard-e2e-shard, dashboard-e2e).
 
       - name: Validate Foundry module manifest
         run: node scripts/validate-manifest.js
@@ -664,6 +646,121 @@ jobs:
           case "${{ needs.dashboard-visual-shard.result }}" in
             success|skipped) ;;
             *) echo "A visual shard failed or was cancelled: see the dashboard-visual-report-N artifacts."; exit 1 ;;
+          esac
+
+  dashboard-e2e-changes:
+    # Decides whether the dashboard browser tests are worth their minutes: only when the dashboard,
+    # shared, the lockfile, the Chromium install script or this workflow changed. Same plain-git
+    # filter as visual-changes (on a pull request the checkout is the merge commit, its first
+    # parent is the base); a push to main and a manual run always run them. The patterns are pinned
+    # by scripts/ci-e2e-filter.test.mjs: the specs import only from the dashboard and shared.
+    runs-on: ubuntu-latest
+    name: dashboard-e2e-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Did the dashboard, shared or their tooling change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: run the dashboard browser tests."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
+          echo "Changed files against the base:"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(packages/cogm-dashboard/|shared/|package-lock.json$|scripts/ci-install-chromium.sh$|.github/workflows/ci.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the dashboard browser tests depend on changed: skip them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  dashboard-e2e-shard:
+    # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109): the real
+    # server with no bridge, the /api routes faked in the browser. Three parallel shards
+    # (--shard=i/3; fullyParallel splits the tests evenly by count). The summary job below is the
+    # single check people look at; the gate judges every check, shards included.
+    needs: dashboard-e2e-changes
+    if: needs.dashboard-e2e-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    name: dashboard-e2e shard ${{ matrix.shard }}/3${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 20
+    strategy:
+      # Every shard reports, so one red shard does not hide another's failures.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # HUSKY=0: the git hook setup of the root `prepare` script is not needed here.
+        run: npm ci
+        env:
+          HUSKY: '0'
+
+      - name: Build the dashboard
+        run: |
+          npm run build:shared
+          npm run build -w @gnuminator/cogm-dashboard
+
+      - name: Cache Playwright's browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium for the dashboard browser tests
+        # Retries the apt/browser install on a runner DNS blip; see the script.
+        timeout-minutes: 30
+        run: bash scripts/ci-install-chromium.sh
+
+      - name: Dashboard browser tests (React dashboard)
+        run: npm run test:e2e -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/3
+
+      - name: Keep the browser test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-playwright-report-${{ matrix.shard }}
+          path: |
+            packages/cogm-dashboard/playwright-report
+            packages/cogm-dashboard/test-results
+          retention-days: 14
+
+  dashboard-e2e:
+    # One summary check: green when every shard passed or the path filter skipped them (a skipped
+    # check counts as green in scripts/lane-merge.mjs), red when a shard failed or was cancelled.
+    # !cancelled() so it still runs, and fails, after a red shard. Same shape as dashboard-visual.
+    needs: [dashboard-e2e-changes, dashboard-e2e-shard]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: dashboard-e2e (browser tests)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Every shard passed, or was skipped by the filter
+        run: |
+          echo "dashboard-e2e-changes: ${{ needs.dashboard-e2e-changes.result }}"
+          echo "shards: ${{ needs.dashboard-e2e-shard.result }}"
+          if [ "${{ needs.dashboard-e2e-changes.result }}" != "success" ]; then
+            echo "The path filter did not finish."
+            exit 1
+          fi
+          case "${{ needs.dashboard-e2e-shard.result }}" in
+            success|skipped) ;;
+            *) echo "A browser test shard failed or was cancelled: see the dashboard-playwright-report-N artifacts."; exit 1 ;;
           esac
 
   python-tests:

@@ -309,6 +309,11 @@ jobs:
         # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
         run: node --test scripts/pi/pi-stage-safety.test.mjs
 
+      - name: Pi cut-over guard (every stage that starts a unit)
+        # lib.sh refuse_when_cut_over and env_file_value, and the check that no stage under scripts/pi/remote starts, restarts
+        # or enables a stack unit without calling the guard (or a NO_GUARD reason).
+        run: node --test scripts/pi/cutover-guard.test.mjs
+
       - name: Pi ssh log keeps no token command text
         # Stage 9's generated wrapper, run for real: token script commands are logged by kind, everything else keeps its text.
         run: node --test scripts/pi/ssh-log-secrets.test.mjs
@@ -843,6 +848,14 @@ jobs:
         env:
           PI_SYSTEM_TRIAL_CONTAINER: 1
         run: node --test scripts/pi/system-trial.test.mjs
+
+      - name: Pi cut-over guard in an ARM64 container
+        # scripts/pi/container-test/cutover-guard-scenarios.sh: refuse_when_cut_over in front of each of the 18 stages that start
+        # a stack unit, on Debian 13 ARM64 with stand-ins for systemctl and docker (a running or a stopped container of the
+        # live project, a silent Docker daemon, FORCE=1: each refuses and changes nothing; no docker: no refusal).
+        env:
+          PI_CUTOVER_CONTAINER: 1
+        run: node --test scripts/pi/cutover-guard-container.test.mjs
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs

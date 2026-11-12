@@ -384,12 +384,29 @@ echo 5 >"$FAKE/online"
 run_stage MODE=rollback
 if [ "$RC" -eq 0 ] && all_on $all_units && echo "$OUT" | grep -q 'no snapshot from today; going on'; then pass "rollback is the way out: a snapshot gap is a warning, not a stop"; else fail "rollback nosnap (rc $RC): $OUT"; fi
 
-# 12. cutover is refused for now (the backup and the other stages do not know the stack)
+# 12. the refusal is lifted: MODE=cutover needs no test switch (TEST_ALLOW_CUTOVER=0 here), a dry run prints the plan, and a
+# cutover followed by a rollback returns the same enabled and active units
 new_pi
-run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'MODE=cutover is not supported' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable|compose.* up'; then pass "MODE=cutover is refused and changes nothing"; else fail "cutover refused (rc $RC): $OUT"; fi
 run_stage MODE=cutover TEST_ALLOW_CUTOVER=0 DRY_RUN=1
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'not supported'; then pass "also with DRY_RUN=1"; else fail "cutover dry refused (rc $RC): $OUT"; fi
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run: would stop and disable' && ! echo "$OUT" | grep -q 'not supported' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable|compose.* up'; then pass "MODE=cutover DRY_RUN=1 prints the plan without any test switch"; else fail "cutover dry (rc $RC): $OUT"; fi
+before="$(for u in $all_units; do unit_on "$u" && echo "$u on" || echo "$u off"; done)"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 0 ] && all_off $all_units && ! stack_gone; then pass "MODE=cutover runs without TEST_ALLOW_CUTOVER"; else fail "cutover (rc $RC): $OUT"; fi
+run_stage MODE=rollback TEST_ALLOW_CUTOVER=0
+after="$(for u in $all_units; do unit_on "$u" && echo "$u on" || echo "$u off"; done)"
+if [ "$RC" -eq 0 ] && stack_gone && [ "$before" = "$after" ]; then pass "cutover then rollback returns the same enabled and active units"; else fail "round trip (rc $RC): before [$before] after [$after] $OUT"; fi
+
+# 12b. an installed nightly backup script that predates the containers refuses the cutover (and a dry run); a current one passes
+new_pi
+mkdir -p "$SB/tool/backup"
+echo 'systemctl stop foundry.service' >"$SB/tool/backup/foundry-backup.sh"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'run stage 6 again first' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable|compose.* up'; then pass "a nightly backup script that does not know the containers refuses the cutover"; else fail "stale nightly (rc $RC): $OUT"; fi
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0 DRY_RUN=1
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'run stage 6 again first'; then pass "the dry run says so too"; else fail "stale nightly dry (rc $RC): $OUT"; fi
+echo 'docker ps -q --filter "label=com.docker.compose.project=foundry-ai-tool-pi"' >"$SB/tool/backup/foundry-backup.sh"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 0 ] && all_off $all_units; then pass "a nightly backup script that knows the containers lets the cutover run"; else fail "current nightly (rc $RC): $OUT"; fi
 
 # 13. the Docker daemon is down: containers may exist and come back with it, so nothing is assumed
 new_pi
@@ -403,6 +420,14 @@ run_stage MODE=rollback
 if [ "$RC" -eq 1 ] && all_off $all_units && ! echo "$CALLS" | grep -qE 'enable --now|disable --now docker'; then pass "rollback with the daemon down starts no unit"; else fail "rollback daemon (rc $RC): $OUT"; fi
 run_stage MODE=rollback FORCE=1
 if [ "$RC" -eq 0 ] && all_on $all_units && order_ok 'disable --now docker.service docker.socket' "enable --now foundry.service"; then pass "FORCE=1 disables docker.service and docker.socket first, then starts the units"; else fail "rollback force (rc $RC): $OUT / $CALLS"; fi
+# live-restore keeps containers running under containerd when dockerd is stopped: a shim left means no unit may start
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+touch "$FAKE/daemon-down"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/pgrep"; chmod +x "$BIN/pgrep"
+run_stage MODE=rollback FORCE=1
+rm -f "$BIN/pgrep"
+if [ "$RC" -eq 1 ] && all_off $all_units && echo "$OUT" | grep -q 'containerd-shim' && ! echo "$CALLS" | grep -qE 'enable --now foundry'; then pass "FORCE=1 rollback with a container process left (live-restore) starts no unit"; else fail "rollback force shim (rc $RC): $OUT / $CALLS"; fi
 
 # 14. no deploy/pi/.env (a stage 5 replaced the checkout) but the containers run: found by label, rollback removes them
 new_pi
@@ -460,14 +485,14 @@ if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'assistant-gm.env:ASSISTANT_PASSWORD
 new_pi
 run_stage MODE=status
 f="$SB/run.sh"
-( export TEST_ALLOW_CUTOVER=1 MODE=cutover PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" PORT_WAIT=1 WAIT_TIMEOUT=5; bash "$f" 2>&1 | head -n 1 >/dev/null )
+( export MODE=cutover PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" PORT_WAIT=1 WAIT_TIMEOUT=5; bash "$f" 2>&1 | head -n 1 >/dev/null )
 if all_off $all_units && ! stack_gone && ls "$SB"/tool/compose-run-*.log >/dev/null 2>&1; then pass "a closed stdout does not interrupt a cutover; the run is logged"; else fail "sigpipe: $(cat "$SB"/tool/compose-run-*.log 2>&1 | tail -5)"; fi
 
 # 20. MODE=up on the live ports is the refused cutover; a rehearsal left running is seen by status and by a down without its ports
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 run_stage MODE=up TEST_ALLOW_CUTOVER=0
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'is the cutover, which is not supported' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "MODE=up on the live ports is refused"; else fail "up live refused (rc $RC): $OUT"; fi
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'would start the live stack next to the units' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "MODE=up on the live ports is refused"; else fail "up live refused (rc $RC): $OUT"; fi
 mkdir -p "$SB/rfdata" "$SB/rdata"
 run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" TEST_ALLOW_CUTOVER=0
 if [ "$RC" -eq 0 ]; then pass "a rehearsal up still works with the cutover refused"; else fail "rehearsal up (rc $RC): $OUT"; fi
@@ -483,7 +508,7 @@ run_stage MODE=up $reh TEST_ALLOW_CUTOVER=0
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'rehearsal would use a live data folder' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a rehearsal on the live data folders is refused also with the units off"; else fail "rehearsal live data (rc $RC): $OUT"; fi
 mkdir -p "$SB/rfdata" "$SB/rdata"
 run_stage MODE=up FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614 BRIDGE_LINK_PORT=31615 FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" TEST_ALLOW_CUTOVER=0
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'is the cutover, which is not supported' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "one live port (the dashboard's 3000) makes it the live project, which is refused"; else fail "one live port (rc $RC): $OUT"; fi
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'would start the live stack next to the units' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "one live port (the dashboard's 3000) makes it the live project, which is refused"; else fail "one live port (rc $RC): $OUT"; fi
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 mkdir -p "$SB/rfdata" "$SB/rdata"

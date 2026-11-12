@@ -15,7 +15,7 @@ import {
   CLOSED_QUEST_STATUSES as SHARED_CLOSED,
   NEXT_SESSION_JOURNAL_NAME as SHARED_NEXT,
   PREP_SCAN_QUERY as SHARED_QUERY,
-} from '../../../shared/src/prep-digest.js';
+} from '@gnuminator/shared';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 
 let world: TestWorld;

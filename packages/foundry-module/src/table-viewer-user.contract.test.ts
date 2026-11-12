@@ -7,7 +7,7 @@ import {
   TABLE_VIEWER_FEATURE_ID as SHARED_FEATURE,
   TABLE_VIEWER_FLAG as SHARED_FLAG,
   TABLE_VIEWER_ROLE as SHARED_ROLE,
-} from '../../../shared/src/table-viewer.js';
+} from '@gnuminator/shared';
 import {
   assertUserCreateAllowed,
   assertUserUpdateAllowed,

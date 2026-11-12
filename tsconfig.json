@@ -26,12 +26,6 @@
   "exclude": ["node_modules", "**/dist", "**/build", "**/*.test.*"],
   "references": [
     {
-      "path": "./packages/mcp-server"
-    },
-    {
-      "path": "./packages/foundry-module"
-    },
-    {
       "path": "./shared"
     }
   ]

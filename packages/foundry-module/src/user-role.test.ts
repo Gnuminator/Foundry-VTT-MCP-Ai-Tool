@@ -3,7 +3,7 @@
  * between None and Assistant GM, never on a Gamemaster or the bridge's own user.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SETTABLE_USER_ROLES as SHARED_ROLES } from '../../../shared/src/foundry-setup.js';
+import { SETTABLE_USER_ROLES as SHARED_ROLES } from '@gnuminator/shared';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from './guarded-features.js';
 import { assertUserRoleChange, assertUserUpdate, SETTABLE_USER_ROLES } from './user-role.js';
 

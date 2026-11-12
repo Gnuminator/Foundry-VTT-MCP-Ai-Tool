@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { LIVE_TOKEN_FIELDS } from '../../../shared/src/live-play.js';
+import { LIVE_TOKEN_FIELDS } from '@gnuminator/shared';
 import { planLiveChange } from './live-plan.js';
 import { planTokenChange, TOKEN_FIELDS } from './live-plan-token.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';

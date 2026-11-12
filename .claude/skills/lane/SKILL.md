@@ -109,7 +109,9 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   fix them in it; a note with only lows says Merge and each low becomes
   `backlog.mjs low <area> "PR <n> L<k>: <what>, <file>"`. A lows PR
   files no new lows but still gets mediums and highs. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
-  that sha instead of a round 3; a third round for anything else needs the planner.
+  that sha instead of a round 3; a third round for anything else needs the planner. A clean merge
+  of main or a rebase that leaves the PR's own patch unchanged needs no new note: the gate carries
+  the verdict (`verdict carried from <sha>`, same `git patch-id`); any other change needs one.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`). When merging `aitool/main` into the branch, a conflict
   in a generated tools file (`docs/reference/tools*`) is never hand-merged: take either side and rerun

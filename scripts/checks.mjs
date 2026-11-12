@@ -150,7 +150,7 @@ export const CHECKS = [
     'scripts/lane-merge.test.mjs',
     'scripts/visual-baselines.test.mjs',
     'scripts/changelog-fold.test.mjs',
-    'scripts/review-runner/lib.test.mjs',
+    'scripts/review-note.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',

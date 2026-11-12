@@ -1,0 +1,4 @@
+{
+  "note": "Number of lines in src/app.ts. It may only go down, and stays under 300. New state goes in src/live-state.ts, new endpoints in src/routes/. Lower it in the PR that moves lines out.",
+  "lines": 193
+}

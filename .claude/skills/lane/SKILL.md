@@ -97,15 +97,10 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   subagent; give it the PR number, the full head sha, the area, a `git diff aitool/main...HEAD`
   file and the PR description, in a checkout at that sha. A narrow agent cannot write files: save
   its answer unchanged as the note. A note with only lows says **Merge.**
-- **Review note format** (the merge gate reads it):
-  - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
-    Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
-    `# PR #<PR> Opus review: ...`;
-  - a line `Head reviewed: <full 40-character sha>` above each `## Verdict` and none after the last
-    one (the gate refuses a note in any other order as malformed);
-  - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
-    or `**Do not merge.**` (every note for the head must say Merge);
-  - findings as H1, M1, L1 with file:line and a fix.
+- **Review note:** save the reviewer's text (findings as H1, M1, L1 with file:line and a fix) to a file, then
+  `node scripts/review-note.mjs <PR> --verdict merge|fixes|no --model opus|sonnet --body <file> [--round N]`.
+  It names the file, writes the head and verdict lines, checks them with the gate's parser and pushes the vault
+  note; it refuses Sonnet on a risky PR. Every note for the head must say Merge.
 - **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
   give the same reviewer one delta check. Lows: when the PR needs a fix round anyway,
   fix them in it; a note with only lows says Merge and each low becomes

@@ -36,15 +36,13 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
   file, lock shared contracts first, big files in parts of about 250 lines.
   Workers never build, sync or commit.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
-  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts and the title-only offer
-  are exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
+  the caller's); `guard-model.mjs` denies one without it. Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Servers A, B, C (same `ai-tool-test` world): check `lock.ps1
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
   status. Kit runs default to B. Verify a feature live
   before calling it done. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child running: check the PID.
-- **Commands over 2 minutes** run in the background, never polled. On Windows never call
+31514 --control-only` (B 31524, C 31534).- **Commands over 2 minutes** run in the background, never polled. On Windows never call
   `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
   or regex through Write/Edit.
 - Review checklist: `review-checklist.md` here. For dashboard or player-page UI the reviewer also
@@ -139,7 +137,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 ## Context and handover
 
 - The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
-  lane (project dir under `.claude/worktrees/`, or a transcript in a `...--claude-worktrees-<name>` project folder), fixed at session start (the user, 2026-11-04); the planner and
+  lane (project dir under `.claude/worktrees/`, or a transcript in a `...--claude-worktrees-<name>` project folder), fixed at session start; the planner and
   other sessions keep 200k and 250k. `get_usage "self"` gives the exact number; an advisor call's
   usage reads about twice the real context.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands

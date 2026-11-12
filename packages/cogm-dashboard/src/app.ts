@@ -1,5 +1,4 @@
 import express, { type Express, type Request, type Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import {
   createSpaceStatusReader,
   type PlayerHandout,
@@ -9,21 +8,13 @@ import {
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config } from './config.js';
-import { mountGmPage } from './gm-page.js';
-import { liveFrameMiddleware } from './live-frame.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
 import { GameState } from './state.js';
 import { SseHub } from './sse.js';
 import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
-import {
-  resolveRole,
-  isGm,
-  presentedUnknownToken,
-  presentedUnverifiedAccess,
-  type AuthRequest,
-} from './auth.js';
+import { resolveRole, isGm, type AuthRequest } from './auth.js';
 import { CACHED_READ_TOOLS, createReadCache } from './read-cache.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
@@ -34,7 +25,7 @@ import {
   type RecordingHealth,
 } from './recording-health.js';
 import { hostAllowlist } from './host-allowlist.js';
-import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
+import { mountOpenRoute, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
 import { buildRollRows, openRolls } from './roll-status.js';
 import { runDashboardPreflight } from './preflight.js';
@@ -45,8 +36,9 @@ import {
   type SessionSwitches,
 } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
-import { gzipAssets, sendJsonGzip } from './gzip-assets.js';
-import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
+import type { RouteContext } from './routes/context.js';
+import { mountApiStreamRoutes } from './routes/api-stream.js';
+import { mountPageRoutes, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
 import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes-route.js';
@@ -62,7 +54,6 @@ import { THEMES, ThemeStore, isTheme, type ThemeId } from './theme.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
 import { PlayerVaultService } from './player-vault/service.js';
 import type { VaultPlayer } from './player-vault/types.js';
-import * as fs from 'fs';
 import * as path from 'path';
 
 /**
@@ -171,19 +162,8 @@ const TOOL_CATALOG_TTL_MS = 60_000;
 const GM_ACTION_TIMEOUT_MS = 300_000;
 /** `wait-for-game-event` waits up to 45 s on the backend; leave room above that. */
 const WAIT_EVENT_TIMEOUT_MS = 60_000;
-/**
- * The player page runs only its own script: no inline scripts or event handlers, even if
- * something slipped past the handout sanitizer (inline styles stay allowed for the HP bars).
- */
-export const PLAYER_CSP =
-  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
-  "img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
-
-/** The player page file and its header, on every URL that reaches it (static-headers.ts). */
-export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
-  files: ['player.html', 'me.html', 'party-print.html'],
-  apply: res => res.setHeader('Content-Security-Policy', PLAYER_CSP),
-};
+/** The player page header and its policy moved to routes/pages-static.ts; tests import them from here. */
+export { PLAYER_CSP, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
 /** How often the player view context (visibility, handouts) is refreshed. */
 const PLAYER_SOURCE_INTERVAL_MS = 5_000;
 /** How often the GM stream repeats the bridge status (the page's watchdog allows 45 s of silence). */
@@ -568,6 +548,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     },
   };
 
+  // --- Routes ------------------------------------------------------------------
+  // What the route groups in src/routes read from this closure (accessors, never copies).
+  const ctx: RouteContext = {
+    config,
+    logger,
+    state,
+    sse,
+    world: () => world,
+    status: () => currentStatus,
+    recordingHealth: () => recordingHealth,
+    requireGm,
+    stamped,
+    currentPlayerState,
+    currentRolls,
+    attachPlayerStream,
+    themePayload,
+    prefsPayload,
+    settingsPayload,
+  };
+
   // --- HTTP / SSE ------------------------------------------------------------
   const app = express();
   // Cloudflare Access (I-022): a verified token's email, set on the request before any route
@@ -649,112 +649,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
   });
   app.use(express.json({ limit: '256kb' }));
-  // The player page and the /open confirm page get their headers from inside express.static,
-  // by file name and file identity, so no URL spelling (`/player%2Ehtml`, `/Player.html`,
-  // `/x/../player.html`) serves them without.
-  // The React dashboard is the dashboard at / (D-126); its data comes from the routes below, with
-  // the same token. Its files are served under /next/ (Vite's base), where the old name of the
-  // page also redirects, keeping the query (a saved link with ?token=).
-  const reactIndex = path.join(config.webDir, 'index.html');
-  // sendFile takes a root so a folder such as .claude/worktrees above the build does not count as
-  // a dotfile.
-  const reactIndexName = path.basename(reactIndex);
-  const reactIndexRoot = path.dirname(reactIndex);
-  if (!fs.existsSync(reactIndex)) {
-    logger.warn('The React dashboard is not built: / has no page', {
-      webDir: config.webDir,
-    });
-  }
-  // A page load is a few requests a minute; this only stops a runaway loop on the file reads.
-  // The limiter is the library's so that CodeQL and the next reader recognise it; one bucket per
-  // peer address. Behind the Cloudflare tunnel that is one bucket for the whole tunnel (cloudflared
-  // connects from this host), which is fine at these sizes. Do not turn on `trust proxy` to "fix"
-  // it: a client could then pick its own bucket with X-Forwarded-For, so the check stays off.
-  const pageLimit = rateLimit({
-    windowMs: 10_000,
-    limit: 1000,
-    standardHeaders: false,
-    legacyHeaders: false,
-    message: 'Too many requests',
-    validate: { xForwardedForHeader: false },
-  });
-  // Who may frame a page: the live strip page lets Foundry (live screen B), the other pages only
-  // the dashboard itself.
-  app.use(liveFrameMiddleware(config.foundryUrl));
-  app.get('/', pageLimit, (_req: Request, res: Response) => {
-    // Nothing else to fall back to: say what is missing instead of a bare "Cannot GET /".
-    if (!fs.existsSync(reactIndex)) {
-      res.status(503).type('text/plain').send('The dashboard is not built: run npm run build.');
-      return;
-    }
-    res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(reactIndexName, { root: reactIndexRoot });
-  });
-  // The GM page (item gm-page-wrapper): Foundry and the live strip on one page.
-  mountGmPage(app, {
-    sendIndex: (res: Response): boolean => {
-      if (!fs.existsSync(reactIndex)) return false;
-      res.setHeader('Cache-Control', 'no-cache');
-      res.sendFile(reactIndexName, { root: reactIndexRoot });
-      return true;
-    },
-    foundryUrl: config.foundryUrl,
-    pageLimit,
-    requireGm,
-  });
-  // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
-  // dropped, and the target is always "/" plus that, so it can never leave this origin.
-  app.get(['/next', '/next/', '/legacy', '/legacy/'], pageLimit, (req: Request, res: Response) => {
-    const raw = req.originalUrl.includes('?')
-      ? req.originalUrl.slice(req.originalUrl.indexOf('?'))
-      : '';
-    res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
-  });
-  // The retired page address (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
-  // /next/ above, so a saved link still lands on the dashboard. Its files are not served.
-  const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
-  // The pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
-  // still come from the same hook, by file, and revalidation works as for express.static.
-  const publicCss = gzipAssets(config.publicDir, {
-    extensions: ['.css'],
-    cacheControl: 'public, max-age=0',
-    setHeaders: publicHeaders,
-  });
-  app.use(publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
-
-  // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
-  // those are cached for good; index.html is checked on every load so a new build shows up at once.
-  // A cold load fetches about twenty files and the end-to-end suite loads pages in parallel from
-  // one address, so the assets get their own, much larger bucket than the pages above.
-  const assetLimit = rateLimit({
-    windowMs: 10_000,
-    limit: 5_000,
-    standardHeaders: false,
-    legacyHeaders: false,
-    message: 'Too many requests',
-    validate: { xForwardedForHeader: false },
-  });
-  app.use('/next/assets', assetLimit, gzipAssets(path.join(config.webDir, 'assets')));
-  app.use(
-    '/next',
-    express.static(config.webDir, {
-      setHeaders: (res, filePath) => {
-        const inAssets = path.relative(path.join(config.webDir, 'assets'), filePath);
-        const hashed = !inAssets.startsWith('..') && !path.isAbsolute(inAssets);
-        res.setHeader('Cache-Control', hashed ? 'public, max-age=31536000, immutable' : 'no-cache');
-        // The same URL can come back gzipped (gzip-assets.ts) or plain.
-        if (hashed) res.setHeader('Vary', 'Accept-Encoding');
-      },
-    })
-  );
-
-  // Clean URL for the read-only player view (the static file is also at /player.html).
-  // sendFile skips the static hook, so the route sets the page header itself; Express matches
-  // routes case-insensitively and with an optional trailing slash (`/PLAYER`, `/player/`).
-  app.get('/player', (_req: Request, res: Response) => {
-    PLAYER_PAGE_HEADERS.apply(res);
-    res.sendFile('player.html', { root: config.publicDir });
-  });
+  mountPageRoutes(app, ctx);
 
   // My character (I-096): the player's own sheet behind their private link, and the GM's links.
   mountMeRoute(app, {
@@ -793,104 +688,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }),
   });
 
-  app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({
-      ok: true,
-      controlChannel: currentStatus.controlChannel,
-      foundry: currentStatus.foundry,
-      lastPollAt: currentStatus.lastPollAt,
-      foundryDownSince: currentStatus.foundryDownSince,
-      splitEnabled: config.auth.splitEnabled,
-    });
-  });
-
-  // Player endpoints: always projected, whatever the credential (M2).
-  app.get('/api/player/state', (req: Request, res: Response) => {
-    if (!resolveRole(req, config.auth)) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-    res.json(currentPlayerState());
-  });
-
-  app.get('/api/player/stream', (req: Request, res: Response) => {
-    if (!resolveRole(req, config.auth)) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-    attachPlayerStream(res);
-  });
-
-  app.get('/api/state', (req: Request, res: Response) => {
-    const role = resolveRole(req, config.auth);
-    if (!role) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-    if (role === 'player') {
-      // The player role gets exactly what /api/player/state serves, plus whether the token it
-      // sent is unknown: then it is a GM's stale link, and the GM page stays (web/src/lib/role.ts).
-      // `accessUnverified`: an Access token the dashboard could not verify; the same page stays.
-      void sendJsonGzip(req, res, {
-        role,
-        ...(presentedUnknownToken(req, config.auth) ? { unknownToken: true } : {}),
-        ...(presentedUnverifiedAccess(req, config.auth) ? { accessUnverified: true } : {}),
-        ...currentPlayerState(),
-      });
-      return;
-    }
-    void sendJsonGzip(req, res, {
-      role,
-      status: currentStatus,
-      combat: state.combat,
-      events: state.recentEvents,
-      errors: state.recentErrors,
-      settings: settingsPayload(),
-      world,
-      // Null until the world is known, as on the stream (the test kit reads the prefs here).
-      prefs: world ? prefsPayload() : null,
-    });
-  });
-
-  app.get('/api/stream', (req: Request, res: Response) => {
-    const role = resolveRole(req, config.auth);
-    if (!role) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-    if (role === 'player') {
-      // Never on the GM hub: the player role gets the player stream.
-      attachPlayerStream(res);
-      return;
-    }
-    sse.add(res, role);
-    sse.send(res, 'role', { role });
-    sse.send(res, 'status', stamped(currentStatus));
-    sse.send(res, 'recording-health', recordingHealth);
-    if (world) sse.send(res, 'world', world);
-    sse.send(res, 'settings', settingsPayload());
-    sse.send(res, 'theme', themePayload());
-    // Per world: before the world is known these would be the defaults (and flash the layout
-    // trial card); the world load broadcasts them.
-    if (world) sse.send(res, 'prefs', prefsPayload());
-    // Always, null when no fight runs: a page that was disconnected while a fight ended would
-    // otherwise keep showing it as live (the broadcast of the end went to nobody).
-    sse.send(res, 'rolls', { rows: currentRolls().rows });
-    sse.send(res, 'combat', { combat: state.combat });
-    sse.send(res, 'events', { events: state.recentEvents, initial: true });
-    // The stream tests wait for this as the last snapshot event of the GM stream (SNAPSHOT_END in
-    // stream-combat.app.test.ts and dashboard-prefs.app.test.ts): keep it last, or update both.
-    sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
-  });
-
-  // The theme, for any caller (the players' page loads it too).
-  app.get('/api/theme', (req: Request, res: Response) => {
-    if (!resolveRole(req, config.auth)) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-    res.json(themePayload());
-  });
+  mountApiStreamRoutes(app, ctx);
 
   app.post('/api/control', requireGm, (req: Request, res: Response) => {
     const body = asRecord(req.body);

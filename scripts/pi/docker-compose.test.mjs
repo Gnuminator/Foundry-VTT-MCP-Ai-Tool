@@ -10,6 +10,8 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { runStageContainer } from './container-test/run-stage-container.mjs';
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
 const s22 = read('scripts/pi/remote/23-docker.sh');
@@ -97,7 +99,9 @@ describe('24-compose.sh as text', () => {
     const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
     const liveRefusal = up.indexOf('would start the live stack next to the units');
     const dataRefusal = up.indexOf('would use a live data folder');
-    assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
+    assert.ok(
+      liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon')
+    );
     // The first start does not build (stage 23 does) and comes before the --wait start.
     const first = s23.indexOf('dc up -d --no-build >/dev/null');
     assert.ok(first > 0 && first < s23.indexOf('dc up -d --no-build --wait'));
@@ -146,7 +150,11 @@ describe('24-compose.sh as text', () => {
     assert.match(s23, /up -d --no-build --wait --wait-timeout "\$wait_timeout"/);
     // The live data folders are compared as canonical paths (a trailing slash must not get past), in both refusals.
     assert.match(s23, /canon\(\) \{ realpath -m/);
-    assert.equal((s23.match(/on_live_data/g) ?? []).length, 3, 'defined once, used by conflict_guard and mode_up');
+    assert.equal(
+      (s23.match(/on_live_data/g) ?? []).length,
+      3,
+      'defined once, used by conflict_guard and mode_up'
+    );
     assert.match(s23, /share their data folder/);
     assert.match(s23, /live port\(s\)/);
   });
@@ -177,21 +185,7 @@ for (const [n, script] of [
     { skip: process.env.PI_STAGE23_CONTAINER !== '1' },
     () => {
       test('scenarios', () => {
-        const r = spawnSync(
-          'docker',
-          [
-            'run',
-            '--rm',
-            '--platform',
-            'linux/arm64',
-            '-v',
-            `${repo}:/repo:ro`,
-            'debian:13-slim',
-            'bash',
-            `/repo/scripts/pi/container-test/${script}`,
-          ],
-          { encoding: 'utf8', timeout: 900000, env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
-        );
+        const r = runStageContainer(script, { timeout: 900000 });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
       });

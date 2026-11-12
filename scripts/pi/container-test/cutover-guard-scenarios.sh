@@ -9,13 +9,11 @@
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/cutover-guard-scenarios.sh
 # (scripts/pi/cutover-guard-container.test.mjs runs it with PI_CUTOVER_CONTAINER=1.)
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 REPO="${REPO:-/repo}"
 REMOTE="$REPO/scripts/pi/remote"
 LIB="$REMOTE/lib.sh"
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 # stage file => the WHAT text its guard call carries (a fragment is enough)
 STAGES="$(cd "$REMOTE" && grep -l '^refuse_when_cut_over "' ./*.sh | sed 's|^\./||; s|\.sh$||' | grep -v '^lib$' | sort | tr '\n' ' ')"

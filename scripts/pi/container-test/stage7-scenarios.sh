@@ -14,17 +14,12 @@
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/7-vault.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 # From the address lookup to the chown of the env files (the old script has no lookup: start at the bridge's output).
 snippet="$(sed -n '/^# Foundry.s address for the GM.s browser/,/^chown "root:\$FOUNDRY_USER"/p' "$STAGE")"

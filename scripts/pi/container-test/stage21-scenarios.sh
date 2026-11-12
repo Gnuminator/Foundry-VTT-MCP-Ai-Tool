@@ -21,21 +21,13 @@
 # DESTRUCTIVE: it adds a user, installs packages and writes /var/lib/foundry-ai-tool and /etc/systemd. It refuses to run
 # anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/21-player-vault.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-export DEBIAN_FRONTEND=noninteractive
-{ apt-get update && apt-get install -y --no-install-recommends syncthing procps ca-certificates; } >/dev/null 2>&1 ||
-  { echo "SETUP FAILED: apt-get"; exit 99; }
 
 . "$LIB"
 set +e # lib.sh turns -e on; the scenarios count their own failures

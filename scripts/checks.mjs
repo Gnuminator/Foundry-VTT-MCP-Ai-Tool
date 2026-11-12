@@ -181,6 +181,7 @@ export const CHECKS = [
   nodeTest('pi-gm-passwords', 'pi', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-system-trial-guard', 'pi', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-ci-filter', 'pi', 'scripts/pi/ci-pi-filter.test.mjs'),
+  nodeTest('pi-container-lib', 'pi', 'scripts/pi/container-lib.test.mjs'),
   nodeTest(
     'pi-container-test-units',
     'pi',

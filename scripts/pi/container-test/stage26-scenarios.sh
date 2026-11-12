@@ -25,17 +25,12 @@
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/26-discord-game-server.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 FOUNDRY_USER=foundry
 TOOL_ETC=/etc/foundry-ai-tool

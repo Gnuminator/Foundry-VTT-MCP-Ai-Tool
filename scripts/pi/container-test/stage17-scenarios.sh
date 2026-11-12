@@ -11,11 +11,9 @@
 #
 # DESTRUCTIVE: it adds a user, /opt/gh-runner and packages. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/17-gh-runner.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
@@ -23,13 +21,10 @@ RUNNER_USER=ghrunner
 dir=/opt/gh-runner/vault
 reg=/tmp/vault.reg
 TOKEN=ABCDEFGHIJKLMNOPQRSTUVWX
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-export DEBIAN_FRONTEND=noninteractive
-{ apt-get update && apt-get install -y --no-install-recommends ca-certificates; } >/dev/null 2>&1 || { echo "SETUP FAILED: apt-get"; exit 99; }
-# A slim image has no ICU: the state of the Pi.
+# The Pi has no ICU, but the shared test image does (nodejs needs it): take it out again, with nodejs, which this
+# scenario does not use. Offline, and the apt lists stay empty like on the Pi.
+apt-get purge -y 'libicu[0-9]*' nodejs >/dev/null 2>&1 || { echo "SETUP FAILED: could not remove libicu"; exit 99; }
 if ldconfig -p | grep -q 'libicuuc\.so'; then echo "SETUP FAILED: libicu is already in the image"; exit 99; fi
 
 useradd --system --no-create-home --shell /usr/sbin/nologin "$RUNNER_USER"

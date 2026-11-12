@@ -18,19 +18,13 @@
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/30-player-connector.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-apt-get update >/dev/null 2>&1 && apt-get install -y --no-install-recommends nodejs >/dev/null 2>&1
 command -v node >/dev/null 2>&1 || {
   echo "FAIL: nodejs could not be installed"
   exit 1

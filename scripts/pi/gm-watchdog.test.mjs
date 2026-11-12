@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const driver = path.join(repo, 'scripts/pi/remote/assistant-gm.mjs');
@@ -36,7 +37,10 @@ describe('page ping decision', () => {
   test('pingPage resolves true for an answer, false for a page that never settles or throws', async () => {
     assert.equal(await pingPage({ evaluate: async () => 1 }, 200), true);
     assert.equal(await pingPage({ evaluate: async () => 2 }, 200), false);
-    assert.equal(await pingPage({ evaluate: async () => Promise.reject(new Error('closed')) }, 200), false);
+    assert.equal(
+      await pingPage({ evaluate: async () => Promise.reject(new Error('closed')) }, 200),
+      false
+    );
     const started = Date.now();
     assert.equal(await pingPage({ evaluate: () => new Promise(() => {}) }, 150), false);
     assert.ok(Date.now() - started < 2000);
@@ -79,7 +83,10 @@ function startDriver(extraEnv) {
   const app = path.join(dir, 'app');
   mkdirSync(path.join(app, 'node_modules/playwright-core'), { recursive: true });
   writeFileSync(path.join(app, 'package.json'), '{}');
-  writeFileSync(path.join(app, 'node_modules/playwright-core/package.json'), '{"name":"playwright-core","main":"index.js"}');
+  writeFileSync(
+    path.join(app, 'node_modules/playwright-core/package.json'),
+    '{"name":"playwright-core","main":"index.js"}'
+  );
   writeFileSync(path.join(app, 'node_modules/playwright-core/index.js'), fakePlaywright);
   const profile = path.join(dir, 'profile');
   mkdirSync(profile);
@@ -101,8 +108,16 @@ function startDriver(extraEnv) {
   let output = '';
   child.stdout.on('data', d => (output += d));
   child.stderr.on('data', d => (output += d));
-  const exited = new Promise(resolve => child.on('exit', (code, signal) => resolve({ code, signal })));
-  return { child, exited, profile, output: () => output, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const exited = new Promise(resolve =>
+    child.on('exit', (code, signal) => resolve({ code, signal }))
+  );
+  return {
+    child,
+    exited,
+    profile,
+    output: () => output,
+    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  };
 }
 
 const sleepMs = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -121,8 +136,14 @@ describe('the driver with a frozen page', () => {
     try {
       const result = await within(d.exited, 40_000);
       assert.deepEqual(result, { code: 1, signal: null }, d.output());
-      assert.match(d.output(), /the page has not answered a ping for 0\.5 s; restarting the browser/);
-      assert.deepEqual(JSON.parse(readFileSync(path.join(d.profile, 'page-restarts.json'), 'utf8')).length, 1);
+      assert.match(
+        d.output(),
+        /the page has not answered a ping for 0\.5 s; restarting the browser/
+      );
+      assert.deepEqual(
+        JSON.parse(readFileSync(path.join(d.profile, 'page-restarts.json'), 'utf8')).length,
+        1
+      );
     } finally {
       d.child.kill();
       d.cleanup();
@@ -143,7 +164,10 @@ describe('the driver with a frozen page', () => {
     const d = startDriver({});
     try {
       assert.ok(await waitForOutput(d, /joined world w/), d.output());
-      assert.ok(await waitForOutput(d, /\[assistant-gm\] page watchdog armed \(ping every/), d.output());
+      assert.ok(
+        await waitForOutput(d, /\[assistant-gm\] page watchdog armed \(ping every/),
+        d.output()
+      );
       assert.equal(await within(d.exited, 1500), 'still running', d.output());
       assert.doesNotMatch(d.output(), /has not answered/);
     } finally {
@@ -167,7 +191,10 @@ describe('the driver with a frozen page', () => {
   test('stops restarting after three restarts in the window', async () => {
     const d = startDriver({ FAKE_FREEZE_AFTER: '4' });
     try {
-      writeFileSync(path.join(d.profile, 'page-restarts.json'), JSON.stringify([Date.now(), Date.now(), Date.now()]));
+      writeFileSync(
+        path.join(d.profile, 'page-restarts.json'),
+        JSON.stringify([Date.now(), Date.now(), Date.now()])
+      );
       assert.ok(await waitForOutput(d, /not restarting again/), d.output());
       assert.equal(await within(d.exited, 300), 'still running', d.output());
     } finally {
@@ -188,7 +215,9 @@ describe('stage 28 as text', () => {
     assert.match(code, /APPLY must be 1 or left out/);
     assert.match(code, /UNDO must be 1 or left out/);
     assert.match(code, /flock -n 9/);
-    assert.ok(code.lastIndexOf('require_recent_snapshot') > code.indexOf('dry run: nothing was changed'));
+    assert.ok(
+      code.lastIndexOf('require_recent_snapshot') > code.indexOf('dry run: nothing was changed')
+    );
     assert.ok(code.indexOf('require_recent_snapshot') < code.indexOf('put_back "$prev"'));
     assert.match(code, /refuse_during_system_trial/);
   });
@@ -232,23 +261,7 @@ describe(
   { skip: process.env.PI_GM_WATCHDOG_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const image =
-        'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
-      const res = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          image,
-          'bash',
-          '/repo/scripts/pi/container-test/stage28-scenarios.sh',
-        ],
-        { encoding: 'utf8' }
-      );
+      const res = runStageContainer('stage28-scenarios.sh');
       assert.equal(res.status, 0, res.stdout + res.stderr);
       assert.doesNotMatch(res.stdout, /FAIL/);
       assert.match(res.stdout, /PASS frozen-page/);

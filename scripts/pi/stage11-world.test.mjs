@@ -22,9 +22,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { before, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const saved = process.env.PI_STAGE11_OUTPUT;
 const containerReason = saved
@@ -34,27 +32,13 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
-// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
 // A few minutes under QEMU emulation on a PC (apt is the slow part), less on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/stage11-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('stage11-scenarios.sh', {
+    timeout: 45 * 60_000,
+    maxBuffer: 16 * 1024 * 1024,
+  });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 
@@ -787,12 +771,20 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
 
   test('world switches: a push-back that replaces the world clears the owed-switches marker, and no switches run', () => {
     const r = run('switches-stale-pushback');
-    assert.equal(r.firstSwitchesPending, 'world-frostmaiden-training.switches-pending', 'the failed first run owed them');
+    assert.equal(
+      r.firstSwitchesPending,
+      'world-frostmaiden-training.switches-pending',
+      'the failed first run owed them'
+    );
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /a Plan B push-back of frostmaiden-training/);
     assert.match(r.output, /old owed-switches marker is cleared/);
     assert.equal(r.switchesPending, '', 'the stale marker is gone');
-    assert.deepEqual(lines(r.switches), [`${SW('frostmaiden-training')} FAILED`], 'the push-back runs no driver');
+    assert.deepEqual(
+      lines(r.switches),
+      [`${SW('frostmaiden-training')} FAILED`],
+      'the push-back runs no driver'
+    );
   });
 
   test('world switches: WORLD_SWITCHES=0 on the kept world clears the owed-switches marker', () => {
@@ -808,9 +800,20 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
   test('world switches: WORLD_SWITCHES=1 with a push-back is refused before anything changes', () => {
     const r = run('switches-1-pushback');
     assert.equal(r.exit, '1', r.output);
-    assert.match(r.output, /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/);
-    assert.doesNotMatch(r.output, /stopping the Assistant GM browser and Foundry/, 'refused before the stop');
-    assert.deepEqual(lines(r.switches), [SW('frostmaiden-training')], 'only the first run set switches');
+    assert.match(
+      r.output,
+      /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/
+    );
+    assert.doesNotMatch(
+      r.output,
+      /stopping the Assistant GM browser and Foundry/,
+      'refused before the stop'
+    );
+    assert.deepEqual(
+      lines(r.switches),
+      [SW('frostmaiden-training')],
+      'only the first run set switches'
+    );
   });
 
   test('world switches: a failing kit world says to run the same command, never WORLD_SWITCHES=1', () => {

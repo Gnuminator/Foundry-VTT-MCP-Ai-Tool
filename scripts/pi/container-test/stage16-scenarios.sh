@@ -9,23 +9,14 @@
 # DESTRUCTIVE: each scenario wipes the tool's folders, and the fakes go into /usr/local/sbin. It refuses to run
 # anywhere but a container. Nothing here reaches the network after apt-get.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE=/repo/scripts/pi/remote/16-board-status.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 only="$*"
 
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs curl ca-certificates; }
-# One retry: a Debian mirror hiccup should not fail a required CI check.
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin /run/systemd/system
 ln -sf "$(command -v node)" /opt/node24/bin/node
 real_curl="$(command -v curl)"

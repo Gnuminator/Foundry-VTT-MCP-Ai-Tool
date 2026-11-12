@@ -12,24 +12,15 @@
 # DESTRUCTIVE: each scenario wipes the Foundry data folder and the tool's folders, and the fakes go into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/13-player-creation.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 LIBGM=/repo/scripts/pi/remote/lib-gm-passwords.sh
 
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs zip unzip curl ca-certificates; }
-# One retry: a Debian mirror hiccup should not fail a required CI check.
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin
 ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done

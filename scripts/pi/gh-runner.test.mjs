@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const remote = path.join(repo, 'scripts', 'pi', 'remote');
@@ -487,9 +488,10 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
 
 describe('the stage as text', () => {
   test('the read-back warns when the vault runner is stopped, and only an idle board runner is accepted as stopped', () => {
-    const vaultBranch = /if \[ "\$unit" = foundry-ai-tool-gh-runner-vault\.service \]; then\n[^\n]*\n\s*warn "\$unit is stopped, but the gate never holds it/.exec(
-      stage
-    );
+    const vaultBranch =
+      /if \[ "\$unit" = foundry-ai-tool-gh-runner-vault\.service \]; then\n[^\n]*\n\s*warn "\$unit is stopped, but the gate never holds it/.exec(
+        stage
+      );
     assert.ok(vaultBranch, 'a stopped vault unit ends in warn');
     assert.ok(
       stage.indexOf('is stopped (a play session is marked') > stage.indexOf(vaultBranch[0]),
@@ -657,21 +659,7 @@ describe(
   { skip: process.env.PI_STAGE17_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const r = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          'debian:13-slim',
-          'bash',
-          '/repo/scripts/pi/container-test/stage17-scenarios.sh',
-        ],
-        { encoding: 'utf8', timeout: 600000 }
-      );
+      const r = runStageContainer('stage17-scenarios.sh', { timeout: 600000 });
       assert.equal(r.status, 0, r.stdout + r.stderr);
       assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
     });

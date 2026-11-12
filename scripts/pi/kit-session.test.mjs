@@ -60,6 +60,7 @@ import {
   teardownMismatches,
   teardownProblems,
 } from './remote/kit-session.mjs';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ARGS = {
@@ -1431,26 +1432,13 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest like the stage 13 test, so a new upstream image cannot change a check overnight.
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
 // About 10 minutes under QEMU emulation on a PC (the apt-get is most of it), well under a minute on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/kit-session-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('kit-session-scenarios.sh', {
+    timeout: 45 * 60_000,
+    maxBuffer: 16 * 1024 * 1024,
+  });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 

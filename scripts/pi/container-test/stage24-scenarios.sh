@@ -14,13 +14,11 @@
 # 20 up on the live ports refused, a rehearsal left running seen by status and down; 21 a rehearsal on live data folders or on
 # one live port, a dry run writes no log, the cutover record is cleared after a rollback.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 REPO="${REPO:-/repo}"
 STAGE="${STAGE:-$REPO/scripts/pi/remote/24-compose.sh}"
 LIB="$REPO/scripts/pi/remote/lib.sh"
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 root="$(mktemp -d)"
 trap 'rm -rf "${root:?}"' EXIT

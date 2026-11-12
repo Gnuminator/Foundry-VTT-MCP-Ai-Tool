@@ -21,9 +21,8 @@
  * directory). On Windows, when this process is older than Node 24.22 (Node 24.15 crashes natively
  * in the socket tests), every step runs with the portable Node 24 first on PATH (see
  * portableNodeDir). The steps come from scripts/checks.mjs, the one list of checks.
- * scripts/green.test.mjs compares that list with ci.yml: a CI command that is
- * neither covered by a step nor in CI_ONLY (with a reason) fails the test, which keeps green and CI
- * in step.
+ * CI runs the same list in groups (`node scripts/checks.mjs --run <group>`); scripts/green.test.mjs
+ * fails when ci.yml holds a test command outside such a call, which keeps green and CI in step.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';

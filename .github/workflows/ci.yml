@@ -442,65 +442,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The ARM job does only ARM work: typecheck, the lint and em-dash ratchets, the version
-      # check and the docs lint are architecture independent and run once, in the x64 job.
-      - name: Usage catalogue is current
-        # shared/src/usage-catalog.generated.ts lists every control that reports usage
-        # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
-        # Stays on purpose although it is architecture independent: it is a few seconds, and it
-        # guards that the generated file the ARM build and shared tests import is not stale.
-        run: npm run usage:catalog:check
-
-      - name: Build (all workspaces)
-        run: npm run build
-
-      - name: Unit tests (shared)
-        # Parity + frozen-wire-contract guard for the @gnuminator/shared package.
-        run: npm test -w @gnuminator/shared
-
-      - name: Unit tests (foundry module)
-        # Scoped to the module suite by workspace name (npm scope is @gnuminator/*).
-        run: npm test -w @gnuminator/foundry-module
-
-      - name: Unit tests (mcp-server)
-        # Tool-layer + lock suites. vitest auto-runs once in CI (non-TTY).
-        run: npm test -w @gnuminator/mcp-server
-
-      - name: Unit tests (cogm-dashboard)
-        # Player/GM split: auth role-resolution + server-side redaction.
-        run: npm test -w @gnuminator/cogm-dashboard
-
-      - name: Unit tests (discord-bot)
-        # Recorder file format, Ogg writer and the silence-padding timeline.
-        run: npm test -w @gnuminator/discord-bot
-
+      # The ARM checks are the named group `arm` of scripts/checks.mjs (NAMED_GROUPS): usage
+      # catalogue (stays on purpose, a few seconds, guards the generated file the build imports),
+      # build, the unit tests of the five packages, the Pi cut-over guard in an ARM64 container, the
+      # three smoke tests and the manifest check.
       # The Pi container tests (Debian 13 ARM64, scripts/pi/container-test/*-scenarios.sh) are the
-      # `pi-container` matrix job below, not steps here: they used to run one after another and took
-      # about 11 of this job's 14 minutes.
-
-      - name: Pi cut-over guard in an ARM64 container
-        # scripts/pi/container-test/cutover-guard-scenarios.sh: refuse_when_cut_over in front of each of the 18 stages that start
-        # a stack unit, on Debian 13 ARM64 with stand-ins for systemctl and docker (a running or a stopped container of the
-        # live project, a silent Docker daemon, FORCE=1: each refuses and changes nothing; no docker: no refusal).
-        env:
-          PI_CUTOVER_CONTAINER: 1
-        run: node --test scripts/pi/cutover-guard-container.test.mjs
-
-      - name: MCP schema smoke test
-        run: node scripts/mcp-schema-smoke-test.mjs
-
-      - name: Standalone bridge smoke test
-        # Spawns the standalone entrypoint in control-only mode on a free port
-        # (never 31414/31415/31416) and asserts ping + list_tools over the wire.
-        run: node scripts/standalone-smoke-test.mjs
-
-      - name: Player/GM split smoke test
-        # Runs the dashboard against a mock bridge and asserts server-side
-        # redaction (GM vs player) + the write-surface auth gate over HTTP.
-        run: node scripts/cogm-split-smoke-test.mjs
-
-      - name: Validate Foundry module manifest
-        run: node scripts/validate-manifest.js
+      # `pi-container` matrix job below, not steps here.
+      - name: ARM checks
+        run: node scripts/checks.mjs --run arm
 
   pi-changes:
     # Decides whether the Pi container tests are worth their minutes: only when something they mount
@@ -513,10 +462,15 @@ jobs:
     timeout-minutes: 10
     outputs:
       run: ${{ steps.filter.outputs.run }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
+
+      - name: The matrix of Pi container tests (PI_CONTAINER_MATRIX in scripts/checks.mjs)
+        id: matrix
+        run: echo "matrix=$(node scripts/checks.mjs --matrix pi)" >> "$GITHUB_OUTPUT"
 
       - name: Did a Pi input change?
         id: filter
@@ -548,25 +502,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { name: stage 13, env: PI_STAGE13_CONTAINER, test: player-creation.test.mjs }
-          - { name: stage 22, env: PI_STAGE22_CONTAINER, test: seven-books.test.mjs }
-          - { name: stage 25 modules, env: PI_STAGE25_CONTAINER, test: modules-stage.test.mjs }
-          - { name: stage 28 GM watchdog, env: PI_GM_WATCHDOG_CONTAINER, test: gm-watchdog.test.mjs }
-          - { name: kit session, env: PI_KIT_SESSION_CONTAINER, test: kit-session.test.mjs }
-          - { name: stage 11, env: PI_STAGE11_CONTAINER, test: stage11-world.test.mjs }
-          - { name: stage 15, env: PI_SSH_KEYS_ONLY_CONTAINER, test: ssh-keys-only.test.mjs }
-          - { name: stage 7, env: PI_STAGE7_CONTAINER, test: stage7-foundry-url.test.mjs }
-          - { name: stage 20, env: PI_STAGE20_CONTAINER, test: vault-sync.test.mjs }
-          - { name: stage 21, env: PI_STAGE21_CONTAINER, test: player-vault.test.mjs }
-          - { name: stage 26, env: PI_STAGE26_CONTAINER, test: discord-game-server.test.mjs }
-          - { name: stage 29, env: PI_STAGE29_CONTAINER, test: gamenight-watch-stage.test.mjs }
-          - { name: stage 32, env: PI_STAGE32_CONTAINER, test: crash-guard-stage.test.mjs }
-          - { name: stage 30, env: PI_STAGE30_CONTAINER, test: player-connector-stage.test.mjs }
-          - { name: stage 31, env: PI_STAGE31_CONTAINER, test: gm-vault-peers.test.mjs }
-          - { name: stage 16, env: PI_STAGE16_CONTAINER, test: board-status.test.mjs }
-          - { name: stage 14 system trial, env: PI_SYSTEM_TRIAL_CONTAINER, test: system-trial.test.mjs }
+      matrix: ${{ fromJSON(needs.pi-changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

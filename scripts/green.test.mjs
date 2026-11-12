@@ -12,7 +12,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { ciRunCommands, ciUnsupported, normalizeCommand } from './ci-yaml.mjs';
-import { CHECKS as ALL_CHECKS, CI_GROUPS, groupChecks, runGroup } from './checks.mjs';
+import {
+  CHECKS as ALL_CHECKS,
+  CI_GROUPS,
+  NAMED_GROUPS,
+  RUN_GROUPS,
+  PI_CONTAINER_MATRIX,
+  groupChecks,
+  runGroup,
+} from './checks.mjs';
 import {
   STEPS,
   CI_ONLY,
@@ -58,23 +66,46 @@ const ciYml = fs.readFileSync(
 
 /** A command that runs tests, wherever it stands in ci.yml. */
 const TEST_COMMAND =
-  /\bnode --test\b|\bnpm (run )?(test|kit:test|dev:test|wiki:test)\b|\bvitest\b|\bpytest\b|\bscripts\/[\w./-]*(smoke|validate)[\w.-]*\.m?js\b|\bkit\.mjs\b/;
+  /\bnode --test\b|\bnpm (run )?(test|kit:test|dev:test|wiki:test)\b|\bvitest\b|(?:^|-m )pytest\b|\bscripts\/[\w./-]*(smoke|validate)[\w.-]*\.m?js\b|\bkit\.mjs\b/;
 
 /**
- * Jobs whose test commands may stand in ci.yml itself: they run on another machine kind or in a
- * matrix, so a `checks.mjs --run` call cannot stand in for them. build-test must hold none.
+ * The only test commands that may stand in ci.yml outside a `checks.mjs --run` call, each as
+ * `job` + the command (whitespace collapsed) and the reason it cannot be a check. A new test command
+ * in any job, these four included, fails the test below until it is a check in scripts/checks.mjs
+ * or is named here with a reason.
+ * @type {Array<{ job: string, command: string, why: string }>}
  */
-const OWN_COMMAND_JOBS = new Set([
-  'build-test-arm', // the ARM subset, a different runner
-  'pi-container', // the matrix of container tests
-  'python-tests', // pytest, not a node check
-  'dashboard-visual-shard', // Playwright screenshots
-  'dashboard-e2e-shard', // Playwright browser tests, sharded
-]);
+const OWN_TEST_COMMANDS = [
+  {
+    job: 'pi-container',
+    command: '${{ matrix.env }}=1 node --test scripts/pi/${{ matrix.test }}',
+    why: 'One shard per entry of PI_CONTAINER_MATRIX; the command takes its test and switch from the matrix.',
+  },
+  {
+    job: 'dashboard-visual-shard',
+    command:
+      'npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/4',
+    why: 'Playwright screenshots in the Playwright image, sharded; not a check of the x64 job.',
+  },
+  {
+    job: 'dashboard-e2e-shard',
+    command: 'npm run test:e2e -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/3',
+    why: 'The e2e check, run sharded in its own job (green runs it whole as the e2e step).',
+  },
+];
+
+/** The python-tests job loops over tools/*; its pytest line stays in the workflow. */
+const PYTHON_PYTEST = /^\(cd "\$dir" && python -m pytest /;
 
 const ciDoc = /** @type {any} */ (yaml.load(ciYml));
 
 const RUN_CALL = /^node scripts\/checks\.mjs --run ([\w-]+)$/;
+
+/** The groups each job calls with `checks.mjs --run`, in order. @param {string} job */
+const calledGroups = job =>
+  ciRunCommands(ciYml, job)
+    .map(c => RUN_CALL.exec(normalizeCommand(c))?.[1])
+    .filter(Boolean);
 
 test('parity: build-test holds no test command outside a `checks.mjs --run <group>` call', () => {
   const stray = ciRunCommands(ciYml, 'build-test').filter(c => !RUN_CALL.test(normalizeCommand(c)));
@@ -85,30 +116,50 @@ test('parity: build-test holds no test command outside a `checks.mjs --run <grou
   );
 });
 
-test('parity: no job but the allow-listed ones writes a test command in ci.yml', () => {
+test('parity: no job writes a test command in ci.yml outside `checks.mjs --run`, except the named ones', () => {
   /** @type {string[]} */
   const found = [];
   for (const job of Object.keys(ciDoc.jobs)) {
-    if (OWN_COMMAND_JOBS.has(job)) continue;
     for (const c of ciRunCommands(ciYml, job)) {
-      if (TEST_COMMAND.test(c) && !RUN_CALL.test(normalizeCommand(c))) found.push(`${job}: ${c}`);
+      const cmd = normalizeCommand(c);
+      if (!TEST_COMMAND.test(cmd) || RUN_CALL.test(cmd)) continue;
+      if (OWN_TEST_COMMANDS.some(o => o.job === job && o.command === cmd)) continue;
+      if (job === 'python-tests' && PYTHON_PYTEST.test(cmd)) continue;
+      found.push(`${job}: ${cmd}`);
     }
   }
   assert.deepEqual(
     found,
     [],
-    'test commands in ci.yml outside `checks.mjs --run` (add to checks.mjs)'
+    'test commands in ci.yml outside `checks.mjs --run`: add them to scripts/checks.mjs'
   );
-  for (const job of OWN_COMMAND_JOBS)
-    assert.ok(ciDoc.jobs[job], `${job} is gone: drop it from the list`);
 });
 
-test('parity: build-test calls every CI group, each once, in the order of CI_GROUPS', () => {
-  const called = ciRunCommands(ciYml, 'build-test')
-    .map(c => RUN_CALL.exec(normalizeCommand(c))?.[1])
-    .filter(Boolean);
+test('parity: every named exception still stands in ci.yml and has a reason', () => {
+  for (const o of OWN_TEST_COMMANDS) {
+    const cmds = ciRunCommands(ciYml, o.job).map(normalizeCommand);
+    assert.ok(cmds.includes(o.command), `${o.job}: ${o.command} is gone: drop it from the list`);
+    assert.ok(o.why.length > 20, `${o.job} needs a real reason`);
+  }
+  assert.ok(
+    ciRunCommands(ciYml, 'python-tests').some(c => PYTHON_PYTEST.test(normalizeCommand(c)))
+  );
+  const shard = ciRunCommands(ciYml, 'dashboard-e2e-shard').map(normalizeCommand);
+  for (const [cmd, reason] of Object.entries(CI_ONLY)) {
+    assert.ok(shard.includes(cmd), `CI_ONLY entry ${cmd} is no longer in the shard job`);
+    assert.ok(reason.length > 10, `CI_ONLY needs a real reason for ${cmd}`);
+  }
+});
+
+test('parity: build-test calls every CI group once in order; the ARM job calls the arm group', () => {
+  const called = calledGroups('build-test');
   assert.deepEqual(called, Object.keys(CI_GROUPS));
   assert.ok(called.length >= 6 && called.length <= 10, `${called.length} groups`);
+  assert.deepEqual(calledGroups('build-test-arm'), Object.keys(NAMED_GROUPS));
+  for (const job of Object.keys(ciDoc.jobs)) {
+    for (const g of calledGroups(job))
+      assert.ok(RUN_GROUPS.includes(g), `${job} calls unknown ${g}`);
+  }
 });
 
 test('parity: every check that is a step belongs to a CI group, or to e2e (its own sharded job)', () => {
@@ -121,18 +172,30 @@ test('parity: every check that is a step belongs to a CI group, or to e2e (its o
     [],
     'add the family to CI_GROUPS'
   );
-  for (const [name, fams] of Object.entries(CI_GROUPS)) {
-    assert.ok(groupChecks(name).length > 0, `CI group ${name} has no check (families ${fams})`);
+  for (const name of RUN_GROUPS) {
+    assert.ok(groupChecks(name).length > 0, `CI group ${name} has no check`);
+  }
+  // The ARM subset: only checks that also run in the x64 job, plus the ones marked steps:false.
+  for (const c of groupChecks('arm')) {
+    const inX64 = Object.keys(CI_GROUPS).some(g => CI_GROUPS[g].includes(c.group));
+    assert.ok(inX64 || c.steps === false, `${c.name} is in the ARM group only`);
   }
 });
 
-test('parity: the e2e check and the Chromium install still stand in the dashboard-e2e-shard job', () => {
-  const cmds = ciRunCommands(ciYml, 'dashboard-e2e-shard').map(c => normalizeCommand(c));
-  assert.ok(cmds.some(c => c.startsWith('npm run test:e2e -w @gnuminator/cogm-dashboard')));
-  for (const [cmd, reason] of Object.entries(CI_ONLY)) {
-    assert.ok(cmds.includes(cmd), `CI_ONLY entry ${cmd} is no longer in the shard job`);
-    assert.ok(reason.length > 10, `CI_ONLY needs a real reason for ${cmd}`);
-  }
+test('parity: the matrix of the Pi container job comes from checks.mjs', () => {
+  const out = spawnSync(
+    process.execPath,
+    [path.join(import.meta.dirname, 'checks.mjs'), '--matrix', 'pi'],
+    {
+      encoding: 'utf8',
+    }
+  );
+  assert.equal(out.status, 0);
+  assert.deepEqual(JSON.parse(out.stdout), { include: PI_CONTAINER_MATRIX });
+  assert.equal(
+    ciDoc.jobs['pi-container'].strategy.matrix,
+    '${{ fromJSON(needs.pi-changes.outputs.matrix) }}'
+  );
 });
 
 test('parity: step names are unique', () => {

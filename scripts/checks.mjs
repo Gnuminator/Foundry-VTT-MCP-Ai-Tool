@@ -287,6 +287,8 @@ export const CHECKS = [
     args: ['scripts/mcp-schema-smoke-test.mjs'],
   },
   {
+    // Spawns the standalone entrypoint in control-only mode on a free port (never 31414 to 31416)
+    // and asserts ping and list_tools over the wire.
     name: 'standalone-smoke',
     group: 'smoke',
     cmd: 'node',
@@ -307,6 +309,16 @@ export const CHECKS = [
     cmd: 'npm',
     args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard'],
     env: CI,
+  },
+  {
+    // Runs only in the ARM job (`--run arm`): needs the ARM64 runner and its Debian container, so
+    // green does not run it (`steps: false`).
+    name: 'pi-cutover-guard-container',
+    group: 'pi',
+    steps: false,
+    cmd: 'node',
+    args: ['--test', 'scripts/pi/cutover-guard-container.test.mjs'],
+    env: { ...CI, PI_CUTOVER_CONTAINER: '1' },
   },
   // Drift guards that are not steps of their own: CI and green run these tests inside the workspace
   // test steps above (so `steps: false`), drift runs them alone on the merged tree.
@@ -390,13 +402,82 @@ export const CI_GROUPS = {
   smoke: ['smoke'],
 };
 
-/** The checks CI runs in one group, in CHECKS order; drift-only guards are not steps. @param {string} name */
+/**
+ * Groups that name their checks, in run order: the ARM job (`build-test-arm`) runs a subset of the
+ * x64 checks plus one that needs the ARM runner. Called by `--run arm`.
+ * @type {Record<string, string[]>}
+ */
+export const NAMED_GROUPS = {
+  arm: [
+    'usage-catalog',
+    'build',
+    'test-shared',
+    'test-foundry-module',
+    'test-mcp-server',
+    'test-cogm-dashboard',
+    'test-discord-bot',
+    'pi-cutover-guard-container',
+    'mcp-schema-smoke',
+    'standalone-smoke',
+    'split-smoke',
+    'validate-manifest',
+  ],
+};
+
+/** Every group `--run` knows. */
+export const RUN_GROUPS = [...Object.keys(CI_GROUPS), ...Object.keys(NAMED_GROUPS)];
+
+/**
+ * The Pi container tests, one matrix entry each (scripts/pi/<test> with its switch `env` runs
+ * scripts/pi/container-test/*-scenarios.sh in Debian 13 ARM64). The job `pi-changes` prints this as
+ * the matrix of `pi-container` (`node scripts/checks.mjs --matrix pi`): a new scenario is one line here.
+ * @type {Array<{ name: string, env: string, test: string }>}
+ */
+export const PI_CONTAINER_MATRIX = [
+  { name: 'stage 13', env: 'PI_STAGE13_CONTAINER', test: 'player-creation.test.mjs' },
+  { name: 'stage 22', env: 'PI_STAGE22_CONTAINER', test: 'seven-books.test.mjs' },
+  { name: 'stage 25 modules', env: 'PI_STAGE25_CONTAINER', test: 'modules-stage.test.mjs' },
+  { name: 'stage 28 GM watchdog', env: 'PI_GM_WATCHDOG_CONTAINER', test: 'gm-watchdog.test.mjs' },
+  { name: 'kit session', env: 'PI_KIT_SESSION_CONTAINER', test: 'kit-session.test.mjs' },
+  { name: 'stage 11', env: 'PI_STAGE11_CONTAINER', test: 'stage11-world.test.mjs' },
+  { name: 'stage 15', env: 'PI_SSH_KEYS_ONLY_CONTAINER', test: 'ssh-keys-only.test.mjs' },
+  { name: 'stage 7', env: 'PI_STAGE7_CONTAINER', test: 'stage7-foundry-url.test.mjs' },
+  { name: 'stage 20', env: 'PI_STAGE20_CONTAINER', test: 'vault-sync.test.mjs' },
+  { name: 'stage 21', env: 'PI_STAGE21_CONTAINER', test: 'player-vault.test.mjs' },
+  { name: 'stage 26', env: 'PI_STAGE26_CONTAINER', test: 'discord-game-server.test.mjs' },
+  { name: 'stage 29', env: 'PI_STAGE29_CONTAINER', test: 'gamenight-watch-stage.test.mjs' },
+  { name: 'stage 32', env: 'PI_STAGE32_CONTAINER', test: 'crash-guard-stage.test.mjs' },
+  { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
+  { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
+  { name: 'stage 16', env: 'PI_STAGE16_CONTAINER', test: 'board-status.test.mjs' },
+  {
+    name: 'stage 14 system trial',
+    env: 'PI_SYSTEM_TRIAL_CONTAINER',
+    test: 'system-trial.test.mjs',
+  },
+];
+
+/**
+ * The checks CI runs in one group, in run order. A family group runs its checks in CHECKS order
+ * (drift-only guards are not steps); a named group runs the checks it names, in its order.
+ * @param {string} name
+ */
 export function groupChecks(name) {
+  const named = NAMED_GROUPS[name];
+  if (named) {
+    return named.map(n => {
+      const c = CHECKS.find(x => x.name === n);
+      if (!c) throw new Error(`group ${name} names an unknown check ${n}`);
+      return c;
+    });
+  }
   const families = CI_GROUPS[name];
-  if (!families)
-    throw new Error(`unknown group ${name}; known: ${Object.keys(CI_GROUPS).join(', ')}`);
+  if (!families) throw new Error(`unknown group ${name}; known: ${RUN_GROUPS.join(', ')}`);
   return CHECKS.filter(c => c.steps !== false && families.includes(c.group));
 }
+
+/** A workflow-command value with `%`, CR and LF escaped. @param {string} s */
+const escapeCommand = s => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
 
 /** @param {number} ms */
 const seconds = ms => (ms / 1000).toFixed(1);
@@ -428,7 +509,7 @@ export function runGroup(name, io = {}) {
     log('::endgroup::');
     if (code !== 0)
       log(
-        `::error title=${c.name}::${c.name} failed (exit ${code}): ${[c.cmd, ...c.args].join(' ')}`
+        `::error title=${escapeCommand(c.name).replace(/:/g, '%3A').replace(/,/g, '%2C')}::${escapeCommand(`${c.name} failed (exit ${code}): ${[c.cmd, ...c.args].join(' ')}`)}`
       );
     rows.push({ name: c.name, ok: code === 0, ms });
   }
@@ -515,16 +596,23 @@ if (entry === 'mismatch') {
       const where = [c.steps === false ? '' : 'ci+green', c.drift ? 'drift' : ''].filter(Boolean);
       console.log(`${c.name.padEnd(28)} ${c.group.padEnd(8)} ${where.join(' ')}`);
     }
+  } else if (process.argv.includes('--matrix')) {
+    const name = process.argv[process.argv.indexOf('--matrix') + 1];
+    if (name === 'pi') console.log(JSON.stringify({ include: PI_CONTAINER_MATRIX }));
+    else {
+      console.error('checks: --matrix needs a name: pi');
+      process.exitCode = 2;
+    }
   } else if (process.argv.includes('--run')) {
     const name = process.argv[process.argv.indexOf('--run') + 1];
-    if (!name || !CI_GROUPS[name]) {
-      console.error(`checks: --run needs a group: ${Object.keys(CI_GROUPS).join(', ')}`);
+    if (!name || !RUN_GROUPS.includes(name)) {
+      console.error(`checks: --run needs a group: ${RUN_GROUPS.join(', ')}`);
       process.exitCode = 2;
     } else {
       process.exitCode = runGroup(name, { summaryFile: process.env.GITHUB_STEP_SUMMARY });
     }
   } else {
-    console.error('usage: node scripts/checks.mjs --list | --run <group>');
+    console.error('usage: node scripts/checks.mjs --list | --run <group> | --matrix pi');
     process.exitCode = 2;
   }
 }

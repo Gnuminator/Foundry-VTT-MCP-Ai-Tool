@@ -11,7 +11,7 @@
 #
 # DESTRUCTIVE: it adds a user, /opt/gh-runner and packages. It refuses to run anywhere but a container.
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 require_test_container
 
 

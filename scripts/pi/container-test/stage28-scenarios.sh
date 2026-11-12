@@ -6,7 +6,7 @@
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage28-scenarios.sh [name ...]
 # DESTRUCTIVE: it wipes the tool folders and installs the fakes into /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 require_test_container
 
 

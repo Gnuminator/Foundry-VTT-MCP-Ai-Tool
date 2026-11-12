@@ -14,7 +14,7 @@
 # 20 up on the live ports refused, a rehearsal left running seen by status and down; 21 a rehearsal on live data folders or on
 # one live port, a dry run writes no log, the cutover record is cleared after a rollback.
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 
 REPO="${REPO:-/repo}"
 STAGE="${STAGE:-$REPO/scripts/pi/remote/24-compose.sh}"

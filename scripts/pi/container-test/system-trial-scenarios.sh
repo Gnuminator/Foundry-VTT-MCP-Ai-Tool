@@ -17,7 +17,7 @@
 # DESTRUCTIVE: each scenario wipes the Foundry data folder and the import folder, and the fakes go into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 require_test_container
 
 # Every scenario, in the order they run (system-trial.test.mjs reads this list to split them over containers).

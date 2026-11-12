@@ -10,7 +10,7 @@
 # DESTRUCTIVE: each scenario rewrites /etc/ssh and /root/.ssh, and the fakes go into /usr/local/sbin and
 # /usr/local/shim. It refuses to run anywhere but a container.
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 require_test_container
 
 

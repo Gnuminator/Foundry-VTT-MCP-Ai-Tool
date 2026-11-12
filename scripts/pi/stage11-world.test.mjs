@@ -33,7 +33,7 @@ const containerReason = saved
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
 
-// A few minutes under QEMU emulation on a PC (apt is the slow part), less on an ARM runner.
+// A few minutes under QEMU emulation on a PC (every node start is slow), less on an ARM runner.
 function runContainer() {
   const res = runStageContainer('stage11-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;

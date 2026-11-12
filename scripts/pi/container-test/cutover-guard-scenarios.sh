@@ -9,7 +9,7 @@
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/cutover-guard-scenarios.sh
 # (scripts/pi/cutover-guard-container.test.mjs runs it with PI_CUTOVER_CONTAINER=1.)
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 
 REPO="${REPO:-/repo}"
 REMOTE="$REPO/scripts/pi/remote"

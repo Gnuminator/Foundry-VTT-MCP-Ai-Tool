@@ -455,6 +455,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
   { name: 'stage 16', env: 'PI_STAGE16_CONTAINER', test: 'board-status.test.mjs' },
+  { name: 'stage 17', env: 'PI_STAGE17_CONTAINER', test: 'gh-runner.test.mjs' },
   {
     name: 'stage 14 system trial',
     env: 'PI_SYSTEM_TRIAL_CONTAINER',

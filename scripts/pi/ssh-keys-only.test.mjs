@@ -110,7 +110,7 @@ describe('15-ssh-keys-only.sh as written', () => {
   });
 });
 
-// A few minutes under QEMU emulation on a PC (apt is the slow part), less on an ARM runner.
+// A few minutes under QEMU emulation on a PC (every node start is slow), less on an ARM runner.
 function runContainer() {
   const res = runStageContainer('ssh-keys-only-scenarios.sh', { timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;

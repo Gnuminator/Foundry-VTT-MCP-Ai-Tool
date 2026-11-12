@@ -10,7 +10,7 @@
 # compose-v2 name preferred; apt-get update only without candidates; Compose too old; a failing build; SKIP_BUILD; the node
 # and unit-file sources of the tailnet name; no group change for any user.
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 
 REPO="${REPO:-/repo}"
 STAGE="${STAGE:-$REPO/scripts/pi/remote/23-docker.sh}"

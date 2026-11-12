@@ -28,7 +28,11 @@ export function ensureImage() {
   const tag = imageTag();
   const local = `foundry-ai-tool-pi-test:${tag}`;
   const docker = args =>
-    spawnSync('docker', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    spawnSync('docker', args, {
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 10 * 60_000, // a hung pull or mirror fails here, not at the shard's 20 minutes
+    });
   if (docker(['image', 'inspect', local]).status !== 0) {
     let got = false;
     if (!process.env.PI_TEST_IMAGE_NO_PULL) {

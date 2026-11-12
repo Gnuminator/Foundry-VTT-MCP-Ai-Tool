@@ -169,7 +169,7 @@ jobs:
   # from main and manual runs only. The tests pull it when they can and build the same Dockerfile when they cannot,
   # so a missing or private package never fails a test, it only costs the build minutes.
   pi-test-image:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     name: pi-test-image (publish)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     timeout-minutes: 15

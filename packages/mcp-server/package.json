@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
-    "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit --customConditions development",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix"
   },

@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import { sharedFromSource } from '../../vitest.shared-source.js';
 
 export default defineConfig({
+  ssr: sharedFromSource,
   test: {
     globals: true,
     environment: 'node',
@@ -12,11 +14,6 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules/', 'dist/', '**/*.test.*', '**/*.spec.*'],
-    },
-  },
-  resolve: {
-    alias: {
-      '@shared': '../../shared',
     },
   },
 });

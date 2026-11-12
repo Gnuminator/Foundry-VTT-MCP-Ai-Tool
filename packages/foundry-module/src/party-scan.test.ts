@@ -21,7 +21,7 @@ import {
   WHO_NOTICES_FEATURE_ID as SHARED_WHO_NOTICES,
   PARTY_REST_TYPES as SHARED_REST_TYPES,
   PARTY_STATE_QUERY as SHARED_QUERY,
-} from '../../../shared/src/party.js';
+} from '@gnuminator/shared';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 
 let world: TestWorld;

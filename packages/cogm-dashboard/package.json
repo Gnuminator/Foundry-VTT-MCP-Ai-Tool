@@ -20,7 +20,7 @@
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "storybook": "storybook dev -c web/.storybook -p 6006",
     "build-storybook": "storybook build -c web/.storybook -o storybook-static",
-    "typecheck": "node ../../scripts/tsc7.mjs --noEmit && node ../../scripts/tsc7.mjs -p web --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit --customConditions development && node ../../scripts/tsc7.mjs -p web --noEmit --customConditions development",
     "lint": "eslint src web",
     "lint:fix": "eslint src web --fix"
   },

@@ -17,7 +17,7 @@ import {
   UNKNOWN_SCENE as SHARED_UNKNOWN_SCENE,
   TIME_OF_DAY_LABELS as SHARED_TIMES,
   WEATHER_LABELS as SHARED_WEATHER,
-} from '../../../shared/src/player-view.js';
+} from '@gnuminator/shared';
 
 describe('player-view wire contract', () => {
   it('module and shared agree on the query names', () => {

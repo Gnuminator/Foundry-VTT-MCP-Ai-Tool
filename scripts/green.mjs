@@ -30,6 +30,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SHARED_STEPS } from './check-shared-link.mjs';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
 
@@ -917,8 +918,7 @@ export function quickSteps(files, cwd = process.cwd()) {
     if (m) pkgs.add(m[1]);
   }
   const sharedTouched = files.some(f => f.startsWith('shared/'));
-  if (sharedTouched || pkgs.size > 0)
-    steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
+  if (sharedTouched || pkgs.size > 0) steps.push(...SHARED_STEPS);
   if (sharedTouched) {
     steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
   } else {

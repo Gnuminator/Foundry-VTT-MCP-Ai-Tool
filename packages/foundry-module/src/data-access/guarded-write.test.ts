@@ -13,7 +13,7 @@ import { createTestWorld, type TestWorld } from '../test-support/foundry-mock/in
 import { eventTracker, type SessionLogEntry } from '../session-events.js';
 import { onAiChangesUpdated } from '../ai-changes-signal.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
-import { expectedAfterApply } from '../../../../shared/src/guarded-write.js';
+import { expectedAfterApply } from '@gnuminator/shared';
 import {
   GUARDED_OUTCOME_MEMORY,
   applyGuardedOps,

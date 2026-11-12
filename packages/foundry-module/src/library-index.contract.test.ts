@@ -3,7 +3,6 @@
  * `@gnuminator/shared`). This pins the copies to the shared contract so the two cannot drift.
  */
 import { describe, expect, it } from 'vitest';
-import type { LibraryDocument, LibraryIndexRow } from '@gnuminator/shared';
 import {
   LIBRARY_DOCUMENTS_QUERY as MODULE_DOCUMENTS_QUERY,
   LIBRARY_INDEX_QUERY as MODULE_INDEX_QUERY,
@@ -12,12 +11,14 @@ import {
   LIBRARY_SCHEMA as MODULE_SCHEMA,
 } from './library-index.js';
 import {
+  type LibraryDocument,
+  type LibraryIndexRow,
   LIBRARY_DOCUMENTS_QUERY as SHARED_DOCUMENTS_QUERY,
   LIBRARY_INDEX_QUERY as SHARED_INDEX_QUERY,
   LIBRARY_LIMITS as SHARED_LIMITS,
   LIBRARY_PACK_ID_PATTERN as SHARED_PACK_ID_PATTERN,
   LIBRARY_SCHEMA as SHARED_SCHEMA,
-} from '../../../shared/src/library-index.js';
+} from '@gnuminator/shared';
 
 describe('library-index wire contract', () => {
   it('module and shared agree on the index query name', () => {

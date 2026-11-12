@@ -130,8 +130,10 @@ export const CHECKS = [
     '.claude/hooks/guard-shell-edits.test.mjs',
     '.claude/hooks/warn-control-bytes.test.mjs',
     '.claude/hooks/guard-model.test.mjs',
+    '.claude/hooks/guard-cloudflare.test.mjs',
     '.claude/hooks/format-on-edit.test.mjs'
   ),
+  nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
   nodeTest(
     'gate-scripts',
     'gate',

@@ -16,18 +16,15 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 ## Start
 
 **Edit and Write tools only for source files:** no sed, perl, python or heredoc edits of repo files
-(`guard-shell-edits.mjs` denies them). `format-on-edit.mjs` runs prettier on a file you edit and
-tells you to Read it again when it changed it.
+(`guard-shell-edits.mjs` denies them). `format-on-edit.mjs` runs prettier on a file you edit; Read it again when told.
 
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
    brief, write `claimed: <session title> <date>` under it and, on the next line,
    `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
-   the board's lane card opens your session from it), commit and push the vault (the board reads
-   PR, CI and review state from GitHub; no heartbeat). If the item has
+   the board's lane card opens your session from it), commit and push the vault. If the item has
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
    the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
-   own worktree: the context lines are fixed at session start, so a session that only `cd`s into a
-   worktree later keeps the planner's 200k and 250k lines.
+   own worktree (the context lines are fixed at session start).
 2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. More than about eight files to read goes to an Explore subagent
@@ -39,14 +36,14 @@ tells you to Read it again when it changed it.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; Opus only for design and
   the one risky-PR review; Haiku suits long notes, logs and read-only sweeps. Partition workers by
   file, lock shared contracts first, big files in parts of about 250 lines.
-  Workers never build, sync or commit; you integrate.
+  Workers never build, sync or commit.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
   the caller's); `guard-model.mjs` denies one without it (forks, cloud starts and the title-only offer
   are exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Servers A, B, C (same `ai-tool-test` world): check `lock.ps1
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
-  status. Queue on A only when all three are taken; kit runs default to B. Verify a feature live
+  status. Kit runs default to B. Verify a feature live
   before calling it done. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
 31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child running: check the PID.
 - **Commands over 2 minutes** run in the background, never polled. On Windows never call
@@ -64,25 +61,23 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
     changed scripts and hooks, dashboard e2e specs, and for
     dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`. Screenshots
-    (`dashboard-visual`) run on CI only. It never writes `.git/green-ok`.
+    (`dashboard-visual`) run on CI only.
   - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure already on main
     is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not guessed at.
   - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; lower
     the lint and em-dash baselines when the CI ratchet reports a drop (`npm run lint:ratchet --
 --update`).
   - **The full local `npm run green`** only on request or when CI cannot tell (Windows-only
-    behaviour, checks CI does not run, CI down); it shares the PC through the heavy lock (`node
-scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints one line when
-    CI has finished for the pushed HEAD. `SKIP_PREPUSH=1 git push ...` skips the em-dash pre-push.
+    behaviour, checks CI does not run, CI down); it takes the heavy lock (`node
+scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash pre-push.
 - **Dashboard change (anything under `packages/cogm-dashboard/` or a `package-lock.json` change such
   as a Playwright bump):** full-page shots are not committed (CI uploads them as the artifacts
   `dashboard-page-shots-N`; look there). Only a change to a component with a story moves a story
   baseline: then push the branch, run `npm run visual:baselines -- <branch>` (about 15
   minutes on GitHub; a branch cut before the workflow merged needs `git merge aitool/main` first),
   look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
-  them, push, and only then open the PR. The helper takes only its own run (branch, nonce and the
-  branch head sha at dispatch) and refuses an artifact from another sha; it logs to
-  `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (printed on the first line). If it writes nothing, read that log and the run log. Never copy
+  them, push, and only then open the PR. The helper takes only its own run and refuses an artifact from another sha; it logs to
+  `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (printed first). If it writes nothing, read that log. Never copy
   baselines from a failed PR run; re-run after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives,
   audio, `.env` or downloads.
@@ -114,8 +109,10 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
     or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.
 - **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
-  give the same reviewer one delta check. Lows are not fixed in the PR: each becomes an S item in
-  the Backlog. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
+  give the same reviewer one delta check. Lows: when the PR needs a fix round anyway,
+  fix them in it; a note with only lows says Merge and each low becomes one line in vault
+  `Lows/<area>.md` (`- <date> PR <n> L<k>: <what>, <file>`; pull, append, commit, push). A lows PR
+  files no new lows but still gets mediums and highs. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
   that sha instead of a round 3; a third round for anything else needs the planner.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`). When merging `aitool/main` into the branch, a conflict
@@ -126,9 +123,8 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   `- progress:` line on your Backlog item (commit and push), replacing your earlier line:
   `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. That line is the
   ready state the planner reads; do not message the planner. If no planner merges for a long
-  while, ask the user and leave the worktree as it is. Don't run the gate without `--dry-run` and
-  don't offer the app's PR Auto-fix. To check the gate, from the clean, pushed PR branch, run
-  main's copy (never the branch's own, so a PR cannot judge itself):
+  while, ask the user and leave the worktree as it is. Never run the gate without `--dry-run`; don't offer Auto-fix. To check the gate, from the clean,
+  pushed PR branch, run main's copy (never the branch's own):
 
   ```bash
   g=$(cygpath -m "$(mktemp --suffix=.mjs)") && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
@@ -136,8 +132,8 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 
   Only a `lane:merge: OK #<PR>` line means the checks pass; anything else, or no output, is a
   refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
-  `drift:check` and the merge train. `--wait-ci` waits for CI first; exit codes: 0 ok or merged, 1
-  refused, 2 usage, 3 a check failed, 4 head moved, 5 timed out. **Do not pipe the gate through
+  `drift:check` and the merge train. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check
+  failed, 4 head moved, 5 timed out. **Do not pipe the gate through
   `tail` or `head`** (it hides the exit code): run it plain and read its last line. A blocking CANCELLED check of an unclassified or mixed CI
   run (all its jobs cancelled before they started, or both `[dispatch]` and plain names) is not
   cleared by a newer run: rerun it (`gh run rerun <id> --failed`) or push.
@@ -145,15 +141,14 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 ## Context and handover
 
 - The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
-  lane, a session whose project dir (`CLAUDE_PROJECT_DIR`) is under `.claude/worktrees/`, or whose transcript sits in a worktree project folder (`...--claude-worktrees-<name>`; desktop-app worktree sessions have the main checkout as project dir). Both are fixed at session start, so a `cd` does not change it (the user, 2026-11-04); the planner and
+  lane, a session whose project dir (`CLAUDE_PROJECT_DIR`) is under `.claude/worktrees/`, or whose transcript sits in a worktree project folder (`...--claude-worktrees-<name>`; desktop-app worktree sessions have the main checkout as project dir). Both are fixed at session start (the user, 2026-11-04); the planner and
   other sessions keep 200k and 250k. `get_usage "self"` gives the exact number. An advisor call's
   top-level usage reads about twice the real context.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts below the line.
 - **Handover:** write it once, when you hand over. Half a page in vault `Handoff/<lane> prompt
-  <date>.md` and in full in the chat in
-  a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
+  <date>.md` and in the chat in a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
   CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before closing, no background run of yours may still go. Push the note and a `- progress:` line (`handed over at <context>, no PR
 yet` or the PR state, plus the note path); the planner reads it and starts the successor. Start no successor, message nobody.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it

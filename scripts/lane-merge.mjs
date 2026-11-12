@@ -55,7 +55,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
 /** Merges allowed on the module, the bridge link or guarded writes between two live round trips. */
 export const TRAIN_SIZE = 4;
 

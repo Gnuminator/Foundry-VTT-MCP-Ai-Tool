@@ -34,7 +34,6 @@ import { fileURLToPath } from 'node:url';
 import { SHARED_STEPS } from './check-shared-link.mjs';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
-
 export { STEPS, HEAVY_STEPS, CI_ONLY };
 
 /**

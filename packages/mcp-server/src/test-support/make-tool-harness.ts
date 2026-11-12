@@ -9,12 +9,12 @@
  *   const { tools } = makeTools(PlayStatsTools, { extra: { store } });   // options form
  *
  * Tools that take more than `{ foundryClient, logger }` pass `extra`, which is spread into the
- * constructor options. Anything beyond that (a different constructor shape) builds on
- * `makeLogger()` and `makeFoundryClient()` directly instead of a new local stub.
+ * constructor options. A different constructor shape builds on `makeLogger()` instead of a new
+ * local stub (export `makeFoundryClient` here when a test first needs it; knip counts unused exports).
  */
 import { vi, type Mock } from 'vitest';
 
-export type QueryImpl = (method: string, data: any) => unknown;
+type QueryImpl = (method: string, data: any) => unknown;
 
 /** A Logger stub: every level is a mock; `.child()` returns the same stub. */
 export function makeLogger(): any {
@@ -24,7 +24,7 @@ export function makeLogger(): any {
 }
 
 /** A FoundryClient stub whose `query` is a mock (default: resolves `{ success: true }`). */
-export function makeFoundryClient(queryImpl?: QueryImpl): {
+function makeFoundryClient(queryImpl?: QueryImpl): {
   foundryClient: any;
   query: Mock<QueryImpl>;
 } {
@@ -32,7 +32,7 @@ export function makeFoundryClient(queryImpl?: QueryImpl): {
   return { foundryClient: { query }, query };
 }
 
-export interface MakeToolsOptions {
+interface MakeToolsOptions {
   queryImpl?: QueryImpl;
   /** Extra constructor options, spread after `foundryClient` and `logger`. */
   extra?: Record<string, unknown>;

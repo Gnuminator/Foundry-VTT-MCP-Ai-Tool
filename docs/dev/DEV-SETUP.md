@@ -53,7 +53,8 @@ from a tool's folder: `python -m pytest` (on Windows `python`, never `python3`, 
 the Store stub).
 
 After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
-[docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.
+the index [docs/reference/tools.md](../reference/tools.md) and one page per set in
+`docs/reference/tools/`, and the mcp-server tests fail while a page is stale.
 
 To see whether a tool description change helps or hurts Claude's tool picking, run the tool eval:
 `npm run tool-eval -- --models sonnet,haiku` (build `shared` first). It asks 22 questions through

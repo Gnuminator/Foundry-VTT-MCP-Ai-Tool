@@ -172,7 +172,7 @@ export const CHECKS = [
     'scripts/pi/stage11-world.test.mjs',
     'scripts/pi/system-trial.test.mjs'
   ),
-  nodeTest('pi-player-creation', 'pi','scripts/pi/player-creation.test.mjs'),
+  nodeTest('pi-player-creation', 'pi', 'scripts/pi/player-creation.test.mjs'),
   nodeTest('pi-check-studio-pin', 'pi', 'scripts/pi/check-studio-pin.test.mjs'),
   nodeTest('pi-world-switches', 'pi', 'scripts/pi/world-switches.test.mjs'),
   nodeTest('pi-kit-session', 'pi', 'scripts/pi/kit-session.test.mjs'),

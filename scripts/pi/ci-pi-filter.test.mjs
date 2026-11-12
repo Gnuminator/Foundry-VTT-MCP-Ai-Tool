@@ -28,11 +28,20 @@ function filterRegex() {
 const matrix = doc.jobs['pi-container'].strategy.matrix.include;
 const matches = rel => filterRegex().test(rel);
 
+test('the filter lists both sides of a rename and does not quote paths', () => {
+  const step = doc.jobs['pi-changes'].steps.find(s => s.id === 'filter');
+  assert.match(step.run, /--no-renames/, 'a moved Pi input must list its old path too');
+  assert.match(step.run, /core\.quotePath=false/, 'non-ASCII paths must not come out quoted');
+});
+
 test('the matrix lists each container test once, with a test file that exists', () => {
   assert.ok(matrix.length > 0);
   const seenTests = new Set();
   const seenEnvs = new Set();
+  const seenNames = new Set();
   for (const e of matrix) {
+    assert.ok(!seenNames.has(e.name), `${e.name} is in the matrix twice`);
+    seenNames.add(e.name);
     assert.ok(!seenTests.has(e.test), `${e.test} is in the matrix twice`);
     assert.ok(!seenEnvs.has(e.env), `${e.env} is in the matrix twice`);
     seenTests.add(e.test);
@@ -92,7 +101,7 @@ function pathsIn(text) {
   for (const m of text.matchAll(/\/repo\/([\w./-]+)/g)) found.add(m[1]);
   for (const m of text.matchAll(/\$\{repo\}\/([\w./-]+)/g)) found.add(m[1]);
   // A relative import out of scripts/pi (from '../x.mjs', from '../../shared/x') names a repo file too.
-  for (const m of text.matchAll(/from '((?:\.\.\/)+[\w./-]+)'/g)) found.add(`REL:${m[1]}`);
+  for (const m of text.matchAll(/from '((?:\.\.?\/)+[\w./-]+)'/g)) found.add(`REL:${m[1]}`);
   for (const m of text.matchAll(/['"`]((?:scripts|deploy|packages|shared|docs|tools)\/[\w./-]+)/g)) found.add(m[1]);
   // path.join(repo, 'a', 'b', 'c') and path.resolve(repo, 'a', ...)
   for (const m of text.matchAll(/(?:join|resolve)\(\s*repo\s*,((?:\s*'[^']+',?)+)\s*\)/g)) {

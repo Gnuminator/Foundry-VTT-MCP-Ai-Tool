@@ -125,7 +125,7 @@ jobs:
 
       - name: Pi stage 30 player connector and its Cloudflare script
         # 30-player-connector.sh (player-connector-pi) as text, and scripts/pi/player-connector-cloudflare.mjs against a fake Cloudflare.
-        # The stage scenarios run in a container on the ARM runner (build-test-arm).
+        # The stage scenarios run in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/player-connector-stage.test.mjs
 
       - name: Pi player connector Cloudflare script
@@ -134,12 +134,12 @@ jobs:
 
       - name: Pi stage 32 crash guard and clock check
         # 32-crash-guard.sh (backlog pi-crash-loops-clock) as text: snapshot before the write, drop-ins only, no secret on a command line.
-        # The scenarios run in a container on the ARM runner (build-test-arm).
+        # The scenarios run in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/crash-guard-stage.test.mjs
 
       - name: Pi stage 29 game-night watch
         # 29-gamenight-watch.sh (backlog watch-on-pi) as text: snapshot before the write, guarded rm, no secret in the unit.
-        # The scenarios run in a container on the ARM runner (build-test-arm).
+        # The scenarios run in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/gamenight-watch-stage.test.mjs
 
       - name: Pi space check
@@ -189,7 +189,7 @@ jobs:
 
       - name: Pi stage 13 settings driver
         # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
-        # every user. The stage itself runs in a container on the ARM runner (build-test-arm).
+        # every user. The stage itself runs in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/player-creation.test.mjs
 
       - name: Pi stage 13 pin check (unit tests)
@@ -205,7 +205,7 @@ jobs:
       - name: Pi kit session driver
         # kit-session.mjs against a fake game: the settings character creation needs in strahd-kit, the Kit Player
         # user, and the teardown that deletes only that user and the actors it owns. The stage itself runs in a
-        # container on the ARM runner (build-test-arm).
+        # container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/kit-session.test.mjs
 
       - name: Pi kit login fetch
@@ -239,12 +239,12 @@ jobs:
 
       - name: Pi stage 15 static checks
         # 15-ssh-keys-only.sh (D-123): valid bash, reload and never restart, the three values in a drop-in, the main sshd_config
-        # only read, the checks before the first write. The stage itself runs in a container on the ARM runner (build-test-arm).
+        # only read, the checks before the first write. The stage itself runs in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/ssh-keys-only.test.mjs
 
       - name: Pi stage 16 board status
         # 16-board-status.sh: the hourly status script against a local server (payload, Access headers, 2xx only, the token file
-        # checks) and the stage as text. The stage itself runs in a container on the ARM runner (build-test-arm).
+        # checks) and the stage as text. The stage itself runs in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/board-status.test.mjs
 
       - name: Pi backup pull destination
@@ -263,7 +263,7 @@ jobs:
 
       - name: Pi stage 7 dashboard address
         # 7-vault.sh: DASHBOARD_FOUNDRY_URL (the ribbon's portraits) as text, and Plan B's dashboard block. The stage's
-        # dashboard.env step runs in a container on the ARM runner (build-test-arm).
+        # dashboard.env step runs in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/stage7-foundry-url.test.mjs
 
       - name: Pi stage 18 time sync
@@ -273,7 +273,7 @@ jobs:
 
       - name: Pi stage 26 Discord game server
         # 26-discord-game-server.sh (backlog discord-pi-game-server) as text: the ids, snapshot and quiet checks before the write,
-        # the token never echoed. The scenarios run in a container on the ARM runner (build-test-arm).
+        # the token never echoed. The scenarios run in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/discord-game-server.test.mjs
 
       - name: Pi stage 19 join page look
@@ -282,11 +282,11 @@ jobs:
         run: node --test scripts/pi/join-page-look.test.mjs
       - name: Pi stage 20 vault sync check
         # 20-vault-sync.sh (Obsidian O8) as text: read-only unless SET_TIMEZONE=1, the zone name check, the conflict search. The
-        # stage itself runs with two real Syncthings in a container on the ARM runner (build-test-arm).
+        # stage itself runs with two real Syncthings in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/vault-sync.test.mjs
       - name: Pi stage 31 GM vault peers
         # 31-gm-vault-peers.sh (r1-gm-vault) as text: read-only report, snapshot before ADD or REMOVE, no vault file touched. The stage
-        # itself runs with three real Syncthings in a container on the ARM runner (build-test-arm).
+        # itself runs with three real Syncthings in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/gm-vault-peers.test.mjs
 
       - name: Pi stage 21 player vault share
@@ -296,7 +296,7 @@ jobs:
 
       - name: Pi stage 22 seven-book trim
         # seven-books-trim.js, seven-books-delete-legacy.js and ddb-source-filter.js against in-memory packs, and the stage as
-        # text (and grave-domain-patch.js, the Grave Domain patch). The stage itself runs in a container on the ARM runner (build-test-arm).
+        # text (and grave-domain-patch.js, the Grave Domain patch). The stage itself runs in a container on the ARM runner (the pi-container matrix).
         run: node --test scripts/pi/seven-books.test.mjs scripts/pi/grave-domain-patch.test.mjs
 
       - name: Pi world switch
@@ -774,7 +774,7 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          changed=$(git diff --name-only HEAD^1 HEAD)
+          changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
           echo "Changed files against the base:"
           echo "$changed"
           if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then

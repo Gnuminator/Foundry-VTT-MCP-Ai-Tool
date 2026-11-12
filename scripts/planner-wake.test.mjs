@@ -1,4 +1,4 @@
-/** scripts/planner-wake.mjs: progress parsing, change detection, cold rule, brief, args. No vault, no waiting. */
+/** scripts/planner-wake.mjs: progress parsing, change detection, args. No vault, no waiting. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -11,8 +11,6 @@ import {
   formatChanges,
   changedProgress,
   readUpstreamBacklog,
-  isCold,
-  freshBrief,
   parseArgs,
   DEFAULTS,
 } from './planner-wake.mjs';
@@ -78,22 +76,22 @@ test('readUpstreamBacklog fetches, then shows the upstream file; null when unrea
   );
 });
 
-test('isCold flips at the threshold', () => {
-  assert.equal(isCold(3599, 3600), false);
-  assert.equal(isCold(3600, 3600), true);
-});
-
-test('freshBrief names each changed item', () => {
-  const b = freshBrief([{ id: 'first', progress: 'PR #1 ready' }]);
-  assert.match(b, /- first: PR #1 ready/);
-  assert.match(b, /planner-wake\.mjs/);
-});
-
-test('parseArgs takes seconds and rejects junk', () => {
-  assert.equal(parseArgs([]).coldAfter, DEFAULTS.coldAfter);
-  assert.equal(parseArgs(['--cold-after', '10', '--vault', 'x']).coldAfter, 10);
+test('parseArgs takes seconds and rejects junk; there is no cold rule any more (D-141)', () => {
+  assert.equal(parseArgs([]).maxWait, DEFAULTS.maxWait);
+  assert.equal(parseArgs(['--max-wait', '10', '--vault', 'x']).maxWait, 10);
   assert.throws(() => parseArgs(['--interval', '0']));
+  assert.throws(() => parseArgs(['--cold-after', '10']), /unknown argument/);
   assert.throws(() => parseArgs(['--nope']));
+});
+
+/* D-141 stick: no standing planner. The planner skill neither starts a successor nor arms a wake
+ * watcher, and the wake script has no "start a fresh planner" exit. */
+test('no standing planner: the planner skill has no successor or planner-wake text; no exit 3', () => {
+  const skill = readFileSync(path.join(here, '..', '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /start (the|a) (next|fresh) planner/i);
+  assert.doesNotMatch(skill, /planner-wake/);
+  const src = readFileSync(path.join(here, 'planner-wake.mjs'), 'utf8');
+  assert.doesNotMatch(src, /exitCode = 3|fresh planner|freshBrief|isCold/);
 });
 
 test('readUpstreamBacklog warns on a failed fetch and on an unreadable file', () => {
@@ -132,7 +130,6 @@ test('formatChanges prefixes every line of a multi-line progress value', () => {
     ]),
     ['x: one', 'x: two', 'y: solo']
   );
-  assert.match(freshBrief([{ id: 'x', progress: 'one\ntwo' }]), /- x: one\n- x: two/);
 });
 
 test('exit 4 says fetches failed (upstream unreachable after start)', () => {

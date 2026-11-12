@@ -1,7 +1,7 @@
 /**
  * Posts to the read-only channels on the game server: #changelog (a short English line per
  * release or Pi deploy, read by the players), #dashboard-changelog (the GM-only post about the
- * dashboard) and #pr-log (one line per PR merged to main).
+ * dashboard) and #pr-log (one line per PR merged to main; `pr-note` lines from the merge runner).
  *
  * Plain Node with no dependencies and no build step, so the merge gate, the release steps and the Pi
  * stage can all run it as `node packages/discord-bot/announce/announce.mjs <kind> ...`. #pr-log posts
@@ -135,7 +135,7 @@ export async function postMessage({
 }
 
 const USAGE =
-  'usage: announce.mjs pr <number> <title...> | changelog <text...> | dashboard <text...> | gm-bot <text...> | deploy <version>';
+  'usage: announce.mjs pr <number> <title...> | pr-note <text...> | changelog <text...> | dashboard <text...> | gm-bot <text...> | deploy <version>';
 
 /**
  * @param {string[]} argv
@@ -157,6 +157,10 @@ export async function runCli(argv, o = {}) {
   } else if (kind === 'dashboard' && rest.length >= 1) {
     target = 'dashboard';
     // `{gm}` stands for the GM role mention; it is filled in below, once the settings are known.
+    content = rest.join(' ');
+  } else if (kind === 'pr-note' && rest.length >= 1) {
+    // A plain line in #pr-log (the merge runner's refusals and stops), silent like `pr`.
+    target = 'prLog';
     content = rest.join(' ');
   } else if (kind === 'gm-bot' && rest.length >= 1) {
     target = 'gmBot';

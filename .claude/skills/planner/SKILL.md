@@ -5,13 +5,13 @@ description: The on-demand planner for Foundry AI Tool - answering "what's next"
 
 # Planner
 
-The planner runs on Opus, on demand, for one outcome, then ends (see Waking). Vault paths are under
+The planner runs on Opus, on demand, for one outcome, then ends (D-141, see Ending). Vault paths are under
 `C:\Users\chris\Documents\Obsidian\vault\Dev\Foundry AI Tool\` (pull first, push after). History: vault `Decisions/Decisions log.md`.
 
 ## Read the state (measured)
 
 - `node scripts/backlog.mjs status`, `Waiting.md`, CLAUDE.md "Holds now". Its progress lines are the lanes' ready state
-  (lanes message nobody): read them on every wake, inherited lanes included. Message a lane only
+  (lanes message nobody): read them every time, inherited lanes included. Message a lane only
   when it has been idle under 55 minutes. A lane that stopped with a handover and no
   running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start), and the stopped lane is archived first (if the folder stays, `git checkout --detach` there once clean).
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
@@ -44,48 +44,30 @@ lines together. The board's Lanes zone warns on two lanes on one path or a claim
   Opus only for risky design. Every start, Agent and Workflow `agent()` call sets it (unset inherits
   Opus). If the app refuses a start (automated turn, phone, session started by a session), propose a card.
 
-## Before a planner ends or hands over
+## Ending
 
-The planner ends after its outcome. At 200k context it plans the handover and keeps working; it is out by 250k (lanes in `.claude/worktrees/` get 250k and 300k). Before it stops:
-
-1. Write the handover note, at most 150 words under three headings: Stance (what the user wants now),
-   Not filed yet, Local quirks. Lanes, PRs and next steps are read from Backlog `- progress:` lines
-   and `list_sessions`. Start the next planner or leave a copy-paste prompt.
-2. Detach every running lane with `mcp__ccd_session_mgmt__detach_session` (their notes stop waking
-   this session; irreversible; the app refuses one the user placed). The next planner finds them
-   through `list_sessions`.
-3. Only then archive this session (see Session cleanup).
+The planner ends after its outcome: no successor, no handover note. Before it stops it detaches
+every lane it started (`mcp__ccd_session_mgmt__detach_session`; irreversible; the app refuses one
+the user placed), pushes the vault and archives itself (see Session cleanup).
 
 ## Decisions and holds
 
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,422).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,190).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).
 
-## Waking
+## Train
 
-While lanes run, end each turn by stopping any old watcher, pushing your vault edits, then starting
-`node scripts/planner-wake.mjs` with `run_in_background`, and re-read the Backlog progress lines once
-after arming. It exits when a `- progress:` line in vault Backlog.md is new or changed (the output names the item), or after 4 h of quiet (exit 4: re-arm or hand over). Exit 3
-(idle over an hour): start a fresh planner (`start_session`, Opus, the printed brief) and end.
-Exit 1: tell the user. Stop it on handover. Never poll or wake on a timer.
-
-## Merges
-
-The planner merges; lanes stop at "ready to merge" (a `- progress:` line with PR, full head sha and
-review note path). Once the review says Merge, start main's copy of the gate with `--wait-ci` and
-`run_in_background` (command in the `lane` skill, without `--dry-run`), in the lane's clean
-worktree: it waits for CI on the head, runs the gate and merges or refuses with the reason; the app
-wakes you on exit. Only a `lane:merge: merged #<PR>` line means merged. Exit 0 merged, 1 refused, 3
-a check failed, 4 head moved (re-review), 5 timed out.
-Merge train: the gate refuses a module, bridge link or guarded-write PR once 4 such merges wait;
-then run `npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through
-the test server lock, and on green `npm run lane:merge -- --train-reset <main sha>`; bisect if red
-(`--train` shows the count). Run it before any Pi deploy. Tell the user what merged.
+The merge runner (`scripts/merge-runner.mjs`, D-140) merges ready lines and posts refusals and
+stops in #pr-log. At "merge train full" (4 module, bridge link or guarded-write merges): run
+`npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through the test
+server lock, on green `npm run lane:merge -- --train-reset <main sha>`, bisect if red (`--train`
+shows the count), then start the runner again (`Start-ScheduledTask 'Foundry AI Tool merge runner'`).
+Run it before any Pi deploy.
 
 ## Main is red
 
@@ -96,7 +78,8 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
    **a one-line temporary limit raise** (no OK) with a Backlog item for the proper fix. It is a
    normal PR through the gate. The `Main red revert` workflow reruns a red once, then opens a draft
    `auto-revert/<sha>` PR (close and reopen it to start CI); the user's OK first, then use or close it.
-2. **No other merges while main is red.** Lanes may keep building and pushing.
+2. **No other merges while main is red.** Lanes may keep building and pushing. The runner has
+   stopped: merge the unblock PR with main's gate (`--wait-ci`) in that PR's own built worktree (never `-gate`, the runner's), then start the runner.
 3. The proper fix is a normal lane (red commit, step and unblock PR in `- source:`); tell the user in one line.
 
 ## Session cleanup

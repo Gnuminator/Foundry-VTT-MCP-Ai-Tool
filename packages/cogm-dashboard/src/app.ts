@@ -9,14 +9,12 @@ import {
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
-import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
 import { GameState } from './state.js';
 import { SseHub } from './sse.js';
 import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
 import { resolveRole, isGm, type AuthRequest } from './auth.js';
-import { CACHED_READ_TOOLS, createReadCache } from './read-cache.js';
-import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
+import { createReadCache } from './read-cache.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
 import {
@@ -28,16 +26,14 @@ import { hostAllowlist } from './host-allowlist.js';
 import { mountOpenRoute, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
 import { buildRollRows, openRolls } from './roll-status.js';
-import { runDashboardPreflight } from './preflight.js';
-import {
-  isSessionSwitchAction,
-  parseSessionSwitches,
-  type SessionSwitchAction,
-  type SessionSwitches,
-} from './session-switches.js';
+import type { SessionSwitchAction } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
-import type { RouteContext } from './routes/context.js';
+import type { RouteContext, RuntimeSettings } from './routes/context.js';
+import { mountApiControlRoute } from './routes/api-control.js';
 import { mountApiStreamRoutes } from './routes/api-stream.js';
+import { mountApiSwitchesRoutes } from './routes/api-switches.js';
+import { mountApiToolRoutes } from './routes/api-tool.js';
+import { asRecord, readStr } from './routes/util.js';
 import { mountPageRoutes, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
@@ -49,8 +45,8 @@ import { mountPlayerRoute } from './player-route.js';
 import { mountSpaceRoute } from './space-route.js';
 import { VersionTracker, defaultKitLastRunFile, mountVersionsRoute } from './versions.js';
 import { PlayerLinkStore } from './player-links.js';
-import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
-import { THEMES, ThemeStore, isTheme, type ThemeId } from './theme.js';
+import { DashboardPrefsStore } from './dashboard-prefs.js';
+import { THEMES, ThemeStore, type ThemeId } from './theme.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
 import { PlayerVaultService } from './player-vault/service.js';
 import type { VaultPlayer } from './player-vault/types.js';
@@ -145,23 +141,6 @@ export interface Dashboard {
   close(): void;
 }
 
-interface RuntimeSettings {
-  /** Master switch for the write surface (GM Actions). Off by default for safety. */
-  gmActionsEnabled: boolean;
-}
-
-interface ToolInfo {
-  name: string;
-  description: string;
-  inputSchema: unknown;
-  mutates: ToolKind;
-}
-
-const TOOL_CATALOG_TTL_MS = 60_000;
-/** GM actions may run a guarded write (up to ~4 min in Foundry plus the outcome check). */
-const GM_ACTION_TIMEOUT_MS = 300_000;
-/** `wait-for-game-event` waits up to 45 s on the backend; leave room above that. */
-const WAIT_EVENT_TIMEOUT_MS = 60_000;
 /** The player page header and its policy moved to routes/pages-static.ts; tests import them from here. */
 export { PLAYER_CSP, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
 /** How often the player view context (visibility, handouts) is refreshed. */
@@ -172,14 +151,6 @@ export const STATUS_HEARTBEAT_MS = 17_000;
 export const RECORDING_HEALTH_MS = 15_000;
 /** Player-state broadcasts are coalesced over this window. */
 const PLAYER_BROADCAST_DEBOUNCE_MS = 250;
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function readStr(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback;
-}
 
 function mapWorld(raw: unknown): WorldInfo {
   const r = asRecord(raw);
@@ -423,33 +394,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     next();
   }
 
-  // --- GM Actions: tool catalog ----------------------------------------------
-  let toolCatalog: ToolInfo[] | null = null;
-  let toolCatalogAt = 0;
-
-  async function getToolCatalog(force = false): Promise<ToolInfo[]> {
-    if (!force && toolCatalog && Date.now() - toolCatalogAt < TOOL_CATALOG_TTL_MS) {
-      return toolCatalog;
-    }
-    const raw = await client.listTools();
-    const tools = raw
-      .map(asRecord)
-      .filter(t => typeof t.name === 'string')
-      .map<ToolInfo>(t => {
-        const name = t.name as string;
-        return {
-          name,
-          description: readStr(t.description, ''),
-          inputSchema: t.inputSchema ?? { type: 'object', properties: {} },
-          mutates: classifyTool(name),
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-    toolCatalog = tools;
-    toolCatalogAt = Date.now();
-    return tools;
-  }
-
   /** A different world opened: the old world's events, errors and combat must not show. */
   function resetForNewWorld(): void {
     state.reset();
@@ -553,6 +497,15 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   const ctx: RouteContext = {
     config,
     logger,
+    client,
+    settings,
+    readCache,
+    themes,
+    prefs,
+    playerView,
+    pollEventsNow: () => pollEventsNow(),
+    broadcastTheme,
+    broadcastSettings,
     state,
     sse,
     world: () => world,
@@ -690,96 +643,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   mountApiStreamRoutes(app, ctx);
 
-  app.post('/api/control', requireGm, (req: Request, res: Response) => {
-    const body = asRecord(req.body);
-    const action = readStr(body.action, '');
-    const value = body.value;
-
-    if (action === 'set-theme') {
-      if (!isTheme(value)) {
-        res.status(400).json({ error: `Unknown theme; use one of: ${THEMES.join(', ')}.` });
-        return;
-      }
-      const worldId = world?.id;
-      if (!worldId) {
-        res
-          .status(409)
-          .json({ error: 'The world is not known yet; try again once Foundry is connected.' });
-        return;
-      }
-      themes
-        .set(worldId, value)
-        .then(() => {
-          broadcastTheme();
-          res.json(themePayload());
-        })
-        .catch((error: unknown) => {
-          logger.warn('Could not save the theme', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          res.status(500).json({ error: 'Could not save the theme.' });
-        });
-      return;
-    }
-
-    if (action === 'set-prefs') {
-      const change = parsePrefsChange(value);
-      if (!change) {
-        res.status(400).json({ error: 'No known screen choice in "value".' });
-        return;
-      }
-      const worldId = world?.id;
-      if (!worldId) {
-        res
-          .status(409)
-          .json({ error: 'The world is not known yet; try again once Foundry is connected.' });
-        return;
-      }
-      prefs
-        .update(worldId, change)
-        .then(() => {
-          sse.broadcast('prefs', prefsPayload(), gmOnly);
-          res.json(prefsPayload());
-        })
-        .catch((error: unknown) => {
-          logger.warn('Could not save the dashboard prefs', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          res.status(500).json({ error: 'Could not save the screen choice.' });
-        });
-      return;
-    }
-
-    switch (action) {
-      case 'toggle-gm-actions':
-        settings.gmActionsEnabled = !settings.gmActionsEnabled;
-        break;
-      case 'set-gm-actions':
-        settings.gmActionsEnabled = value === true;
-        break;
-      default:
-        res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
-        return;
-    }
-
-    broadcastSettings();
-    res.json(settingsPayload());
-  });
-
-  // --- Turn on for tonight (D3, PB-17) --------------------------------------------
-  // One click turns on what tonight needs: the module's switches ("Allow Write Operations",
-  // Handouts, Live play, Party) and GM Actions; End session turns off what Ready turned on.
-  // The module side is the bridge's control method `session_switches`, never an MCP tool, so
-  // only this GM route can switch writes on; Claude cannot.
-
-  /** The module's switches, or null when the bridge or module cannot report them. */
-  async function moduleSwitches(action: SessionSwitchAction): Promise<SessionSwitches | null> {
-    if (typeof client.sessionSwitches !== 'function') return null;
-    const parsed = parseSessionSwitches(await client.sessionSwitches(action));
-    if (!parsed && action !== 'get')
-      throw new Error('The module did not answer with its switches.');
-    return parsed;
-  }
+  mountApiControlRoute(app, ctx);
 
   // In-app help (I-064): the GM guide pages, rendered at build time into dist/help.json.
   // In dist (npm start) the file sits next to this module; in dev mode (tsx src/) it is ../dist.
@@ -799,258 +663,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     logger,
   });
 
-  // The feature cards (I-064): every feature switch and its state, read-only. The bridge's
-  // control method feature_switches; switching stays in Foundry or Turn on for tonight.
-  app.get('/api/features', requireGm, (_req: Request, res: Response) => {
-    if (typeof client.featureSwitches !== 'function') {
-      res.json({ features: null, writesAllowed: null, error: 'This bridge cannot list features.' });
-      return;
-    }
-    client
-      .featureSwitches()
-      .then(raw => {
-        const r = asRecord(raw);
-        res.json({
-          features: Array.isArray(r.features) ? r.features : null,
-          writesAllowed: typeof r.writesAllowed === 'boolean' ? r.writesAllowed : null,
-          error: null,
-        });
-      })
-      .catch((error: unknown) => {
-        logger.warn('Could not read the features', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        res.json({
-          features: null,
-          writesAllowed: null,
-          error: 'Could not read the switches from Foundry.',
-        });
-      });
-  });
-
-  app.get('/api/session/switches', requireGm, (_req: Request, res: Response) => {
-    moduleSwitches('get')
-      .then(switches =>
-        res.json({ switches, gmActionsEnabled: settings.gmActionsEnabled, error: null })
-      )
-      .catch((error: unknown) => {
-        logger.warn('Could not read the switches', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        res.json({
-          switches: null,
-          gmActionsEnabled: settings.gmActionsEnabled,
-          error: 'Could not read the switches from Foundry.',
-        });
-      });
-  });
-
-  app.post('/api/session/switches', requireGm, (req: Request, res: Response) => {
-    const action = asRecord(req.body).action;
-    if (!isSessionSwitchAction(action) || action === 'get') {
-      res.status(400).json({ error: 'action must be "ready" or "end".' });
-      return;
-    }
-    const gmActionsBefore = settings.gmActionsEnabled;
-    // End always turns GM Actions off, even when the module cannot be reached (the safe side).
-    if (action === 'end' && settings.gmActionsEnabled) {
-      settings.gmActionsEnabled = false;
-      broadcastSettings();
-    }
-    moduleSwitches(action)
-      .then(switches => {
-        // Ready turns GM Actions on only once the module's switches are on: not when Foundry
-        // dropped one (the reply's `failed` names it).
-        const failed = switches?.failed.length ?? 0;
-        if (action === 'ready' && failed === 0 && !settings.gmActionsEnabled) {
-          settings.gmActionsEnabled = true;
-          broadcastSettings();
-        }
-        res.json({
-          ok: true,
-          switches,
-          gmActionsEnabled: settings.gmActionsEnabled,
-          gmActionsChanged: settings.gmActionsEnabled !== gmActionsBefore,
-        });
-      })
-      .catch((error: unknown) => {
-        logger.warn('Could not change the switches', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        res.status(502).json({
-          ok: false,
-          error: 'Could not change the switches in Foundry. Check that the world is open.',
-          gmActionsEnabled: settings.gmActionsEnabled,
-          gmActionsChanged: settings.gmActionsEnabled !== gmActionsBefore,
-        });
-      });
-  });
-
-  // --- Pre-flight (I-068): read-only checks before a session -------------------
-  app.get('/api/preflight', requireGm, (_req: Request, res: Response) => {
-    void moduleSwitches('get')
-      .catch(() => null)
-      .then(sessionSwitches =>
-        runDashboardPreflight({
-          callTool: <T>(name: string, args?: Record<string, unknown>) =>
-            client.callTool<T>(name, args ?? {}),
-          gmActionsEnabled: settings.gmActionsEnabled,
-          sessionSwitches,
-          playerState: currentPlayerState(),
-          foundryUrl: config.foundryUrl,
-        })
-      )
-      .then(result => res.json(result))
-      .catch((error: unknown) => {
-        logger.warn('Pre-flight failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        res.status(500).json({ error: 'The check could not run. Try again in a moment.' });
-      });
-  });
-
-  // --- GM Actions: list + invoke bridge tools ----------------------------------
-  app.get('/api/tools', requireGm, (req: Request, res: Response) => {
-    getToolCatalog(req.query.refresh === '1')
-      .then(tools => res.json({ tools, gmActionsEnabled: settings.gmActionsEnabled }))
-      .catch((error: unknown) => {
-        logger.warn('Could not list the bridge tools', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        res.status(502).json({
-          error: 'The list of actions could not be loaded. Try again in a moment.',
-        });
-      });
-  });
-
-  app.post('/api/tool', requireGm, (req: Request, res: Response) => {
-    const body = asRecord(req.body);
-    const name = readStr(body.name, '').trim();
-    if (!name) {
-      res.status(400).json({ error: 'A non-empty "name" is required.' });
-      return;
-    }
-    const mutates = classifyTool(name);
-    const args = toolArgs(name, asRecord(body.args), body);
-
-    if (mutates !== 'read') {
-      if (!settings.gmActionsEnabled) {
-        res.status(403).json({
-          code: 'gm-actions-disabled',
-          error: 'GM Actions are off. Turn on the GM Actions switch to run game-changing tools.',
-        });
-        return;
-      }
-      if (body.confirm !== true) {
-        res
-          .status(412)
-          .json({ code: 'confirm-required', mutates, error: 'Confirmation required.' });
-        return;
-      }
-      if (mutates === 'destructive' && body.confirmDestructive !== true) {
-        res.status(412).json({
-          code: 'confirm-destructive-required',
-          mutates,
-          error: 'This action is destructive and needs explicit confirmation.',
-        });
-        return;
-      }
-      logger.info('GM Action invoked', { tool: name, mutates });
-    }
-
-    // The session marker counts as a change here: the stats and the digest move with it.
-    const changes = mutates !== 'read' || name === 'mark-play-session';
-    if (changes) readCache.clear();
-    const run = (): Promise<unknown> =>
-      client
-        // A GM action may run a guarded write, which waits up to about 4 minutes
-        // for Foundry and then for its outcome (PB-04); reads keep the short timeout, except the
-        // long-poll wait (up to 45 s by design).
-        .callTool(
-          name,
-          args,
-          name === 'wait-for-game-event'
-            ? { timeoutMs: WAIT_EVENT_TIMEOUT_MS }
-            : mutates === 'read'
-              ? {}
-              : { timeoutMs: GM_ACTION_TIMEOUT_MS }
-        );
-    (mutates === 'read' && CACHED_READ_TOOLS.has(name) ? readCache.get(name, args, run) : run())
-      .then(result => {
-        if (changes) readCache.clear();
-        res.json({ ok: true, name, mutates, result });
-        // A reveal or hide may have changed the handouts: refresh the player view.
-        if (name === 'apply-planned-change' || name === 'undo-change') void playerView.refresh();
-        // Another open dashboard window learns that the session started or ended at once.
-        if (name === 'mark-play-session') sse.broadcast('play-session', {}, gmOnly);
-        // A roll request reaches the players now, not at the next 4 second poll.
-        if (name === 'request-player-rolls') pollEventsNow();
-      })
-      .catch((error: unknown) => {
-        const kind =
-          error instanceof ToolError
-            ? 'tool'
-            : error instanceof TimeoutError
-              ? 'timeout'
-              : 'channel';
-        // A tool's own refusal is written for the GM and passes through; a timeout or a lost
-        // link can carry socket and port text, so those send a fixed sentence and log the detail.
-        if (kind !== 'tool') {
-          logger.warn('Tool call failed', {
-            name,
-            kind,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-        res.status(kind === 'tool' ? 422 : 502).json({
-          ok: false,
-          name,
-          kind,
-          error:
-            kind === 'timeout'
-              ? 'Foundry took too long to answer.'
-              : kind === 'channel'
-                ? 'The dashboard lost its link to the bridge. Check that the AI Tool is running.'
-                : error instanceof Error
-                  ? error.message
-                  : 'The action did not work.',
-        });
-      });
-  });
-
-  // Live write sweep helper (I-016, scripts/live-write-sweep.mjs): scene snapshot, a sweep
-  // combat or concentration, feature switches, fixtures (playlist, party, handout), the
-  // playlist state and the clean-up. The module refuses outside the test worlds
-  // (SWEEP_WORLD_IDS: ai-tool-test, ai-tool-walkthrough). Not a tool.
-  app.post('/api/test/live-sweep', requireGm, (req: Request, res: Response) => {
-    if (!settings.gmActionsEnabled) {
-      res.status(403).json({ code: 'gm-actions-disabled', error: 'GM Actions are off.' });
-      return;
-    }
-    if (typeof client.liveSweep !== 'function') {
-      res.status(501).json({ error: 'This bridge has no live sweep helper.' });
-      return;
-    }
-    const body = asRecord(req.body);
-    const request: Record<string, unknown> = { mode: readStr(body.mode, 'cleanup') };
-    if (typeof body.since === 'number') request.since = body.since;
-    if (Array.isArray(body.tokenIds)) request.tokenIds = body.tokenIds.map(String);
-    if (Array.isArray(body.actorIds)) request.actorIds = body.actorIds.map(String);
-    if (typeof body.kind === 'string') request.kind = body.kind;
-    if (typeof body.id === 'string') request.id = body.id;
-    if (body.switches && typeof body.switches === 'object' && !Array.isArray(body.switches)) {
-      request.switches = body.switches;
-    }
-    client
-      .liveSweep(request)
-      .then(result => res.json({ ok: true, result }))
-      .catch((error: unknown) => {
-        logger.warn('Live sweep helper failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        res.status(502).json({ ok: false, error: 'The test helper failed.' });
-      });
-  });
+  mountApiSwitchesRoutes(app, ctx);
+  mountApiToolRoutes(app, ctx);
 
   // Last: JSON errors without stack traces or paths (the default handler shows both).
   app.use(jsonErrorHandler(logger));

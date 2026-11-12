@@ -8,13 +8,16 @@
  *     file on its own and falls back to the branch's copy when it imports another repo file
  *     (lane-merge.mjs, driftCheck), so it must not import this module. `green.test.mjs` compares
  *     that copy with `driftChecks()` below, so the two cannot drift apart.
- *   - `green.test.mjs` parses `.github/workflows/ci.yml` with a YAML parser (scripts/ci-yaml.mjs) and
- *     fails when a CI command is neither an entry nor in CI_ONLY, or an entry is gone from CI.
+ *   - CI runs the job `build-test` as one step per group in CI_GROUPS: `node scripts/checks.mjs --run
+ *     <group>`. `green.test.mjs` parses `.github/workflows/ci.yml` (scripts/ci-yaml.mjs) and fails
+ *     when a test command stands in ci.yml outside such a call, or a group is not called.
  *
- * Adding a script test means one `nodeTest(...)` line here and one `run:` line in ci.yml.
+ * Adding a script test means one `nodeTest(...)` line here; ci.yml needs no change.
  *
- *   node scripts/checks.mjs --list      print every entry: name, group and where it runs
+ *   node scripts/checks.mjs --list         print every entry: name, group and where it runs
+ *   node scripts/checks.mjs --run <group>  run a CI group; table of checks and seconds to the job summary
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -300,7 +303,7 @@ export const CHECKS = [
   {
     // CI runs this in the sharded job dashboard-e2e-shard, after build-test. Needs Chromium for Playwright (`npx playwright install chromium`, once on this PC).
     name: 'e2e',
-    group: 'smoke',
+    group: 'e2e',
     cmd: 'npm',
     args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard'],
     env: CI,
@@ -369,6 +372,94 @@ export function driftChecks() {
 }
 
 /**
+ * The groups the CI job `build-test` calls, in order, each as one step `node scripts/checks.mjs
+ * --run <name>`. A CI group is one or more `group` families of CHECKS; its checks run in CHECKS
+ * order. The order is the order of dependence: `build` before `kit`, `unit` and `smoke`. The `e2e`
+ * family is not here: it runs in the sharded job dashboard-e2e-shard. Adding a test is one line in
+ * CHECKS (it joins the group of its family); a new family joins here too, and a test fails if not.
+ * @type {Record<string, string[]>}
+ */
+export const CI_GROUPS = {
+  static: ['static', 'docs'],
+  scripts: ['hooks', 'gate', 'scripts'],
+  pi: ['pi'],
+  tools: ['tools'],
+  build: ['build'],
+  kit: ['kit'],
+  unit: ['unit'],
+  smoke: ['smoke'],
+};
+
+/** The checks CI runs in one group, in CHECKS order; drift-only guards are not steps. @param {string} name */
+export function groupChecks(name) {
+  const families = CI_GROUPS[name];
+  if (!families)
+    throw new Error(`unknown group ${name}; known: ${Object.keys(CI_GROUPS).join(', ')}`);
+  return CHECKS.filter(c => c.steps !== false && families.includes(c.group));
+}
+
+/** @param {number} ms */
+const seconds = ms => (ms / 1000).toFixed(1);
+
+/**
+ * Runs every check of a group, one after another, and does not stop at the first failure: one run
+ * names every red check. Each check is a folded log group; a failure prints `::error title=<check>::`
+ * and the table of results (check, result, seconds) goes to the job summary file when there is one.
+ * @param {string} name
+ * @param {{ exec?: (c: Check) => number, log?: (s: string) => void, summaryFile?: string, now?: () => number }} [io]
+ * @returns {number} 0 when every check passed, else 1
+ */
+export function runGroup(name, io = {}) {
+  const log = io.log ?? (s => console.log(s));
+  const now = io.now ?? Date.now;
+  const exec = io.exec ?? execCheck;
+  const rows = [];
+  for (const c of groupChecks(name)) {
+    log(`::group::${c.name}: ${[c.cmd, ...c.args].join(' ')}`);
+    const t0 = now();
+    let code;
+    try {
+      code = exec(c);
+    } catch (e) {
+      log(String(e));
+      code = 1;
+    }
+    const ms = now() - t0;
+    log('::endgroup::');
+    if (code !== 0)
+      log(
+        `::error title=${c.name}::${c.name} failed (exit ${code}): ${[c.cmd, ...c.args].join(' ')}`
+      );
+    rows.push({ name: c.name, ok: code === 0, ms });
+  }
+  const failed = rows.filter(r => !r.ok);
+  const total = rows.reduce((n, r) => n + r.ms, 0);
+  const table = [
+    `### ${name}: ${failed.length ? `${failed.length} of ${rows.length} failed` : `${rows.length} checks passed`} (${seconds(total)} s)`,
+    '',
+    '| Check | Result | Seconds |',
+    '| --- | --- | ---: |',
+    ...rows.map(r => `| ${r.name} | ${r.ok ? 'passed' : '**FAILED**'} | ${seconds(r.ms)} |`),
+    '',
+  ].join('\n');
+  if (io.summaryFile) fs.appendFileSync(io.summaryFile, `${table}\n`);
+  else log(table);
+  return failed.length ? 1 : 0;
+}
+
+/** Runs one check with its output on this process's own stdout. @param {Check} c */
+function execCheck(c) {
+  const r = spawnSync(c.cmd, c.args, {
+    stdio: 'inherit',
+    cwd: c.cwd ? path.resolve(c.cwd) : process.cwd(),
+    env: { ...process.env, ...(c.env ?? {}) },
+    shell: process.platform === 'win32', // npm is npm.cmd there
+  });
+  if (r.error) throw r.error;
+  return r.status ?? 1;
+}
+
+/**
  * CI commands of `build-test` that green does not run, each with the reason. The key is the command
  * with its whitespace collapsed. The parity test accepts a CI command that a step covers or that is
  * listed here.
@@ -424,8 +515,16 @@ if (entry === 'mismatch') {
       const where = [c.steps === false ? '' : 'ci+green', c.drift ? 'drift' : ''].filter(Boolean);
       console.log(`${c.name.padEnd(28)} ${c.group.padEnd(8)} ${where.join(' ')}`);
     }
+  } else if (process.argv.includes('--run')) {
+    const name = process.argv[process.argv.indexOf('--run') + 1];
+    if (!name || !CI_GROUPS[name]) {
+      console.error(`checks: --run needs a group: ${Object.keys(CI_GROUPS).join(', ')}`);
+      process.exitCode = 2;
+    } else {
+      process.exitCode = runGroup(name, { summaryFile: process.env.GITHUB_STEP_SUMMARY });
+    }
   } else {
-    console.error('usage: node scripts/checks.mjs --list');
+    console.error('usage: node scripts/checks.mjs --list | --run <group>');
     process.exitCode = 2;
   }
 }

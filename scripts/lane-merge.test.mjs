@@ -999,6 +999,8 @@ test('liveCheckProblem: Module and Pi PRs need a Live check line in the descript
     'Live check: <!-- run -->',
     'Live check: <!-- unclosed\nmore -->',
     'we had no live check: here',
+    'Live check: -->',
+    '<!--\nLive check: inside a comment\n-->',
     'Live checks pending',
     'Live check was skipped',
     'Live checking: later',

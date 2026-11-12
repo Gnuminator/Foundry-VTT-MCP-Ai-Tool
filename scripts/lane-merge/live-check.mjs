@@ -19,14 +19,28 @@ const AREAS = [
  * null. @param {string} body
  */
 export function liveCheckLine(body) {
-  for (const raw of String(body ?? '').split(/\r?\n/)) {
+  for (const raw of withoutComments(String(body ?? '')).split(/\r?\n/)) {
     const m =
       /^\s*(?:[-*]\s+)?(?:live check:|\*\*live check:\*\*|\*\*live check\*\*:)\s*(.*)$/i.exec(raw);
     if (!m) continue;
-    const text = m[1].replace(/<!--.*?(-->|$)/g, '').trim();
-    if (text.length >= 3 && !/^<[^>]*>$/.test(text)) return text;
+    const text = m[1].trim();
+    if (/[a-z0-9]{3}/i.test(text) && !/^<[^>]*>$/.test(text)) return text;
   }
   return null;
+}
+
+/** The text with every HTML comment cut out (an unclosed one runs to the end). @param {string} text */
+function withoutComments(text) {
+  let out = '';
+  let at = 0;
+  for (;;) {
+    const open = text.indexOf('<!--', at);
+    if (open < 0) return out + text.slice(at);
+    out += text.slice(at, open);
+    const close = text.indexOf('-->', open + 4);
+    if (close < 0) return out;
+    at = close + 3;
+  }
 }
 
 /**

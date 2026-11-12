@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Rewrites docs/reference/tools.md from the tool catalog (I-081).
+ * Rewrites docs/reference/tools.md (the index) and docs/reference/tools/<set>.md (one page per
+ * set) from the tool catalog (I-081).
  *
- * The page is rendered by packages/mcp-server/src/tool-reference.ts. The tool
+ * The pages are rendered by packages/mcp-server/src/tool-reference.ts. The tool
  * classes are built with the test helper's stub dependencies, so this runs the
  * reference test with UPDATE_TOOL_REFERENCE=1 instead of a separate entry
  * point. CI runs the same test without the variable and fails on a stale page.

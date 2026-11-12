@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the same
- * order (except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
+ * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the order
+ * of the CHECKS list (CI runs them in group order; except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
  * minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
  * stdout and stderr to a log file under the temp folder, and the run prints one line at the end:
  *
@@ -20,10 +20,7 @@
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is older than Node 24.22 (Node 24.15 crashes natively
  * in the socket tests), every step runs with the portable Node 24 first on PATH (see
- * portableNodeDir). The steps come from scripts/checks.mjs, the one list of checks.
- * scripts/green.test.mjs compares that list with ci.yml: a CI command that is
- * neither covered by a step nor in CI_ONLY (with a reason) fails the test, which keeps green and CI
- * in step.
+ * portableNodeDir). The steps come from scripts/checks.mjs, which CI runs in groups (--run).
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -449,7 +446,10 @@ function spawnStep(step, fd, cwd) {
   if (step.name === 'livekit-recorder-install' && !process.env.CI) {
     const dir = path.join(cwd, 'tools', 'livekit', 'recorder');
     if (installIsFresh(dir)) {
-      fs.writeSync(fd, 'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n');
+      fs.writeSync(
+        fd,
+        'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n'
+      );
       return 0;
     }
   }

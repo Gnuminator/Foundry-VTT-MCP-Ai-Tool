@@ -10,7 +10,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import yaml from 'js-yaml';
 import { ciRunCommands, ciUnsupported, normalizeCommand } from './ci-yaml.mjs';
+import {
+  CHECKS as ALL_CHECKS,
+  CI_GROUPS,
+  NAMED_GROUPS,
+  RUN_GROUPS,
+  PI_CONTAINER_MATRIX,
+  groupChecks,
+  runGroup,
+} from './checks.mjs';
 import {
   STEPS,
   CI_ONLY,
@@ -54,54 +64,189 @@ const ciYml = fs.readFileSync(
   'utf8'
 );
 
-/** @param {{ cmd: string, args: string[] }} s */
-const commandOf = s => normalizeCommand([s.cmd, ...s.args].join(' '));
+/** A command that runs tests, wherever it stands in ci.yml. */
+const TEST_COMMAND =
+  /\bnode --test\b|\bnpm (run )?(test|kit:test|dev:test|wiki:test)\b|\bvitest\b|(?:^|-m )pytest\b|\bscripts\/[\w./-]*(smoke|validate)[\w.-]*\.m?js\b|\bkit\.mjs\b/;
 
 /**
- * The dashboard browser tests moved out of build-test into the sharded job dashboard-e2e-shard
- * (ci-e2e-job). Green still runs them as one step, so its parity covers the shard job's e2e command
- * (without the `-- --shard=i/3` argument) and its Chromium install, placed after build-test's commands.
+ * The only test commands that may stand in ci.yml outside a `checks.mjs --run` call, each as
+ * `job` + the command (whitespace collapsed) and the reason it cannot be a check. A new test command
+ * in any job, these four included, fails the test below until it is a check in scripts/checks.mjs
+ * or is named here with a reason.
+ * @type {Array<{ job: string, command: string, why: string }>}
  */
-const shardJobCommands = ciRunCommands(ciYml, 'dashboard-e2e-shard')
-  .filter(c => /test:e2e|ci-install-chromium/.test(c))
-  .map(c => c.replace(/ -- --shard=\$\{\{ matrix\.shard \}\}\/\d+/, ''));
+const OWN_TEST_COMMANDS = [
+  {
+    job: 'pi-container',
+    command: '${{ matrix.env }}=1 node --test scripts/pi/${{ matrix.test }}',
+    why: 'One shard per entry of PI_CONTAINER_MATRIX; the command takes its test and switch from the matrix.',
+  },
+  {
+    job: 'dashboard-visual-shard',
+    command:
+      'npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/4',
+    why: 'Playwright screenshots in the Playwright image, sharded; not a check of the x64 job.',
+  },
+  {
+    job: 'dashboard-e2e-shard',
+    command: 'npm run test:e2e -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/3',
+    why: 'The e2e check, run sharded in its own job (green runs it whole as the e2e step).',
+  },
+];
 
-/** Every part of every CI command, split on `&&`. */
-const ciParts = [...ciRunCommands(ciYml), ...shardJobCommands].flatMap(c =>
-  normalizeCommand(c)
-    .split('&&')
-    .map(p => p.trim())
-    .filter(Boolean)
-);
+/** The python-tests job loops over tools/*; its pytest line stays in the workflow. */
+const PYTHON_PYTEST = /^\(cd "\$dir" && python -m pytest /;
 
-test('parity: every CI command of build-test is a green step or in CI_ONLY with a reason', () => {
-  const stepCommands = new Set(STEPS.map(commandOf));
-  const missing = ciParts.filter(p => !stepCommands.has(p) && !CI_ONLY[p]);
+const ciDoc = /** @type {any} */ (yaml.load(ciYml));
+
+const RUN_CALL = /^node scripts\/checks\.mjs --run ([\w-]+)$/;
+
+/** The groups each job calls with `checks.mjs --run`, in order. @param {string} job */
+const calledGroups = job =>
+  ciRunCommands(ciYml, job)
+    .map(c => RUN_CALL.exec(normalizeCommand(c))?.[1])
+    .filter(Boolean);
+
+test('parity: build-test holds no test command outside a `checks.mjs --run <group>` call', () => {
+  const stray = ciRunCommands(ciYml, 'build-test').filter(c => !RUN_CALL.test(normalizeCommand(c)));
   assert.deepEqual(
-    missing,
+    stray,
     [],
-    'CI runs these but scripts/green.mjs neither runs them nor lists them in CI_ONLY'
+    'build-test may only install and call `node scripts/checks.mjs --run`'
   );
 });
 
-test('parity: every green step and CI_ONLY entry still exists in ci.yml', () => {
-  const stale = STEPS.filter(s => !ciParts.includes(commandOf(s))).map(s => s.name);
-  assert.deepEqual(stale, [], 'steps whose command is no longer in the build-test job');
-  const staleOnly = Object.keys(CI_ONLY).filter(k => !ciParts.includes(k));
-  assert.deepEqual(staleOnly, [], 'CI_ONLY entries that are no longer in the build-test job');
+test('parity: no job writes a test command in ci.yml outside `checks.mjs --run`, except the named ones', () => {
+  /** @type {string[]} */
+  const found = [];
+  for (const job of Object.keys(ciDoc.jobs)) {
+    for (const c of ciRunCommands(ciYml, job)) {
+      const cmd = normalizeCommand(c);
+      if (!TEST_COMMAND.test(cmd) || RUN_CALL.test(cmd)) continue;
+      if (OWN_TEST_COMMANDS.some(o => o.job === job && o.command === cmd)) continue;
+      if (job === 'python-tests' && PYTHON_PYTEST.test(cmd)) continue;
+      found.push(`${job}: ${cmd}`);
+    }
+  }
+  assert.deepEqual(
+    found,
+    [],
+    'test commands in ci.yml outside `checks.mjs --run`: add them to scripts/checks.mjs'
+  );
+});
+
+test('parity: every named exception still stands in ci.yml and has a reason', () => {
+  for (const o of OWN_TEST_COMMANDS) {
+    const cmds = ciRunCommands(ciYml, o.job).map(normalizeCommand);
+    assert.ok(cmds.includes(o.command), `${o.job}: ${o.command} is gone: drop it from the list`);
+    assert.ok(o.why.length > 20, `${o.job} needs a real reason`);
+  }
+  assert.ok(
+    ciRunCommands(ciYml, 'python-tests').some(c => PYTHON_PYTEST.test(normalizeCommand(c)))
+  );
+  const shard = ciRunCommands(ciYml, 'dashboard-e2e-shard').map(normalizeCommand);
   for (const [cmd, reason] of Object.entries(CI_ONLY)) {
+    assert.ok(shard.includes(cmd), `CI_ONLY entry ${cmd} is no longer in the shard job`);
     assert.ok(reason.length > 10, `CI_ONLY needs a real reason for ${cmd}`);
   }
 });
 
-test('parity: steps keep the CI order and have unique names', () => {
+test('parity: build-test calls every CI group once in order; the ARM job calls the arm group', () => {
+  const called = calledGroups('build-test');
+  assert.deepEqual(called, Object.keys(CI_GROUPS));
+  assert.ok(called.length >= 6 && called.length <= 10, `${called.length} groups`);
+  assert.deepEqual(calledGroups('build-test-arm'), Object.keys(NAMED_GROUPS));
+  for (const job of Object.keys(ciDoc.jobs)) {
+    for (const g of calledGroups(job))
+      assert.ok(RUN_GROUPS.includes(g), `${job} calls unknown ${g}`);
+  }
+});
+
+test('parity: every check that is a step belongs to a CI group, or to e2e (its own sharded job)', () => {
+  const families = new Set(Object.values(CI_GROUPS).flat());
+  const orphans = ALL_CHECKS.filter(
+    c => c.steps !== false && !families.has(c.group) && c.group !== 'e2e'
+  );
+  assert.deepEqual(
+    orphans.map(c => `${c.name} (${c.group})`),
+    [],
+    'add the family to CI_GROUPS'
+  );
+  // A steps:false entry is a drift guard or an ARM-only check; one that is neither runs nowhere.
+  const named = new Set(Object.values(NAMED_GROUPS).flat());
+  const nowhere = ALL_CHECKS.filter(c => c.steps === false && !c.drift && !named.has(c.name));
+  assert.deepEqual(
+    nowhere.map(c => c.name),
+    [],
+    'a steps:false check needs a drift guard or a NAMED_GROUPS entry'
+  );
+  for (const name of RUN_GROUPS) {
+    assert.ok(groupChecks(name).length > 0, `CI group ${name} has no check`);
+  }
+  // The ARM subset: only checks that also run in the x64 job, plus the ones marked steps:false.
+  for (const c of groupChecks('arm')) {
+    const inX64 = Object.keys(CI_GROUPS).some(g => CI_GROUPS[g].includes(c.group));
+    assert.ok(inX64 || c.steps === false, `${c.name} is in the ARM group only`);
+  }
+});
+
+test('parity: the matrix of the Pi container job comes from checks.mjs', () => {
+  const out = spawnSync(
+    process.execPath,
+    [path.join(import.meta.dirname, 'checks.mjs'), '--matrix', 'pi'],
+    {
+      encoding: 'utf8',
+    }
+  );
+  assert.equal(out.status, 0);
+  assert.deepEqual(JSON.parse(out.stdout), { include: PI_CONTAINER_MATRIX });
+  assert.equal(
+    ciDoc.jobs['pi-container'].strategy.matrix,
+    '${{ fromJSON(needs.pi-changes.outputs.matrix) }}'
+  );
+});
+
+test('parity: step names are unique', () => {
   const names = STEPS.map(s => s.name);
   assert.equal(new Set(names).size, names.length);
-  const positions = STEPS.map(s => ciParts.indexOf(commandOf(s)));
-  assert.deepEqual(
-    positions,
-    [...positions].sort((a, b) => a - b)
-  );
+});
+
+test('runGroup: runs every check after a red one, names failures, writes the summary table', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rungroup-'));
+  try {
+    const summaryFile = path.join(dir, 'summary.md');
+    const names = groupChecks('pi').map(c => c.name);
+    assert.ok(names.length > 3);
+    const ran = [];
+    let t = 0;
+    const logs = [];
+    const code = runGroup('pi', {
+      exec: c => {
+        ran.push(c.name);
+        return c.name === names[1] ? 3 : 0;
+      },
+      log: s => logs.push(s),
+      summaryFile,
+      now: () => (t += 1000),
+    });
+    assert.equal(code, 1);
+    assert.deepEqual(ran, names, 'a red check does not stop the group');
+    assert.ok(
+      logs.some(
+        l =>
+          l ===
+          `::error title=${names[1]}::${names[1]} failed (exit 3): ${[groupChecks('pi')[1].cmd, ...groupChecks('pi')[1].args].join(' ')}`
+      )
+    );
+    const summary = fs.readFileSync(summaryFile, 'utf8');
+    assert.match(summary, /### pi: 1 of \d+ failed/);
+    assert.match(summary, new RegExp(`\\| ${names[1]} \\| \\*\\*FAILED\\*\\* \\| 1\\.0 \\|`));
+    assert.match(summary, new RegExp(`\\| ${names[0]} \\| passed \\| 1\\.0 \\|`));
+    assert.equal(runGroup('pi', { exec: () => 0, log: () => {}, summaryFile }), 0);
+    assert.throws(() => runGroup('nope', { exec: () => 0 }), /unknown group/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('unit-test steps run with CI=true', () => {
@@ -145,8 +290,8 @@ test('ciRunCommands: single lines, blocks, comments, npm ci, other jobs', () => 
 
 test('ciRunCommands finds the commands of the real ci.yml', () => {
   const cmds = ciRunCommands(ciYml);
-  assert.ok(cmds.length > 30);
-  assert.ok(cmds.includes('npm run build'));
+  assert.ok(cmds.length >= 8);
+  assert.ok(cmds.includes('node scripts/checks.mjs --run build'));
   assert.ok(!cmds.includes('npm ci'));
   assert.ok(!cmds.some(c => c.includes('lint-baseline') || c.includes('Usage catalogue')));
 });

@@ -1,8 +1,9 @@
 /**
  * Ratchet: test files that carry their own logger stub or their own `makeTools` instead of
  * `make-tool-harness.ts`. The counts in `harness-ratchet.baseline.json` may only fall.
- * Migrating a file lowers the count; run `UPDATE_HARNESS_RATCHET=1 npx vitest run
- * src/test-support/harness-ratchet.test.ts` to write the lower numbers (it never raises them).
+ * Migrating a file lowers the count and the test then fails until the baseline is lowered in the
+ * same commit: run `UPDATE_HARNESS_RATCHET=1 npx vitest run src/test-support/harness-ratchet.test.ts`
+ * (it writes lower numbers only, never higher ones).
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -67,6 +68,14 @@ describe('own logger stub and makeTools ratchet', () => {
   it('does not rise above the baseline (use make-tool-harness.ts)', () => {
     expect(current.loggerStubs).toBeLessThanOrEqual(baseline.loggerStubs);
     expect(current.makeTools).toBeLessThanOrEqual(baseline.makeTools);
+  });
+
+  it('is lowered to the current count when a migration drops it (no slack)', () => {
+    if (process.env.UPDATE_HARNESS_RATCHET === '1') return;
+    expect(
+      current,
+      'a copy was removed: run UPDATE_HARNESS_RATCHET=1 npx vitest run src/test-support/harness-ratchet.test.ts and commit the baseline'
+    ).toEqual(baseline);
   });
 
   it('writes lower numbers on request', () => {

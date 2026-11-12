@@ -10,26 +10,18 @@
 #   5 the refusals: a bad ID, ADD and REMOVE together, the Pi's own ID, REMOVE of a device that is not on the vault, ADD of a
 #     device that is on a player folder
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage31-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage31-scenarios.sh
 # (scripts/pi/gm-vault-peers.test.mjs runs it with PI_STAGE31_CONTAINER=1.) STAGE=<file> runs it against another copy.
 #
 # DESTRUCTIVE: it adds a user, installs packages and writes /var/lib/foundry-ai-tool. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/31-gm-vault-peers.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-export DEBIAN_FRONTEND=noninteractive
-{ apt-get update && apt-get install -y --no-install-recommends syncthing procps ca-certificates curl; } >/dev/null 2>&1 ||
-  { echo "SETUP FAILED: apt-get"; exit 99; }
 
 . "$LIB"
 set +e # lib.sh turns -e on; the scenarios count their own failures

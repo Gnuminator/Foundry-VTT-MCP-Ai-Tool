@@ -17,6 +17,9 @@ on:
       - 'scripts/pi/remote/23-docker.sh'
       - 'scripts/pi/remote/24-compose.sh'
       - 'scripts/pi/container-test/stage2[34]-scenarios.sh'
+      - 'scripts/pi/container-test/lib.sh'
+      - 'scripts/pi/container-test/Dockerfile'
+      - 'scripts/pi/container-test/run-stage-container.mjs'
       - 'scripts/pi/docker-compose.test.mjs'
       - 'scripts/pi/remote/lib.sh'
       - 'packages/mcp-server/**'
@@ -34,6 +37,9 @@ on:
       - 'scripts/pi/remote/23-docker.sh'
       - 'scripts/pi/remote/24-compose.sh'
       - 'scripts/pi/container-test/stage2[34]-scenarios.sh'
+      - 'scripts/pi/container-test/lib.sh'
+      - 'scripts/pi/container-test/Dockerfile'
+      - 'scripts/pi/container-test/run-stage-container.mjs'
       - 'scripts/pi/docker-compose.test.mjs'
       - 'scripts/pi/remote/lib.sh'
       - 'packages/mcp-server/**'
@@ -157,3 +163,34 @@ jobs:
           secs=$(( $(date +%s) - start ))
           echo "Job time up to this step: $((secs / 60)) min $((secs % 60)) s"
           echo "Job time (up to the last step): $((secs / 60)) min $((secs % 60)) s" >> "$GITHUB_STEP_SUMMARY"
+
+  # The one prebuilt image the Pi scenario scripts run in (scripts/pi/container-test/Dockerfile, tag = the first 12
+  # hex digits of the file's sha256, the same tag scripts/pi/container-test/run-stage-container.mjs computes). Pushed
+  # from main and manual runs only. The tests pull it when they can and build the same Dockerfile when they cannot,
+  # so a missing or private package never fails a test, it only costs the build minutes.
+  pi-test-image:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    name: pi-test-image (publish)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Build and push the image unless this Dockerfile is already published
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$(sha256sum scripts/pi/container-test/Dockerfile | cut -c1-12)"
+          image="ghcr.io/gnuminator/foundry-ai-tool-pi-test:$tag"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "$image is already published."
+          else
+            docker build --platform linux/arm64 -t "$image" -f scripts/pi/container-test/Dockerfile scripts/pi/container-test
+            docker push "$image"
+          fi
+          echo "Pi test image: $image" >> "$GITHUB_STEP_SUMMARY"

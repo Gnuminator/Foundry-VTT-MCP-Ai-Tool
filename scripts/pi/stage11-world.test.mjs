@@ -22,9 +22,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { before, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const saved = process.env.PI_STAGE11_OUTPUT;
 const containerReason = saved
@@ -34,27 +32,10 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
-// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
-// A few minutes under QEMU emulation on a PC (apt is the slow part), less on an ARM runner.
+// A few minutes under QEMU emulation on a PC (every node start is slow), less on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/stage11-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('stage11-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 

@@ -6,16 +6,14 @@
 # answer it refuses too (unknown = refuse); FORCE=1 changes nothing. Where the stage cannot run harmlessly without a container
 # (it would go on and change the machine), the "no container" case only runs inside a throw-away container (/.dockerenv),
 # and there only checks that the refusal text is absent. Nothing outside /tmp is touched. The last line is ALL SCENARIOS OK:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/cutover-guard-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/cutover-guard-scenarios.sh
 # (scripts/pi/cutover-guard-container.test.mjs runs it with PI_CUTOVER_CONTAINER=1.)
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 
 REPO="${REPO:-/repo}"
 REMOTE="$REPO/scripts/pi/remote"
 LIB="$REMOTE/lib.sh"
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 # stage file => the WHAT text its guard call carries (a fragment is enough)
 STAGES="$(cd "$REMOTE" && grep -l '^refuse_when_cut_over "' ./*.sh | sed 's|^\./||; s|\.sh$||' | grep -v '^lib$' | sort | tr '\n' ' ')"

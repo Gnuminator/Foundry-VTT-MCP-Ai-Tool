@@ -14,22 +14,17 @@
 #     the running service restarts it; nothing newer does not; a unit that never reaches its watching line fails the stage
 # The stand-in Node refuses --env-file anywhere on its command line, as real Node does (CHECK must use --env-files).
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage29-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage29-scenarios.sh
 # (scripts/pi/gamenight-watch-stage.test.mjs runs it with PI_STAGE29_CONTAINER=1.) STAGE=<file> runs another copy of the script.
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/29-gamenight-watch.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 FOUNDRY_USER=foundry
 TOOL_ETC=/etc/foundry-ai-tool

@@ -5,17 +5,15 @@
 # cwd is not its folder (live failure 1, 2026-10-28) and an `ldconfig -NXv | grep libicu` check that prints its reason
 # on STDOUT and exits (live failure 2, same day: no libicu on the Pi, and the stage sent stdout to /dev/null).
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage17-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage17-scenarios.sh
 # (scripts/pi/gh-runner.test.mjs runs it with PI_STAGE17_CONTAINER=1.) STAGE=<file> runs the scenarios against another copy
 # of the script (the old one, to see them fail).
 #
 # DESTRUCTIVE: it adds a user, /opt/gh-runner and packages. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/17-gh-runner.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
@@ -23,13 +21,10 @@ RUNNER_USER=ghrunner
 dir=/opt/gh-runner/vault
 reg=/tmp/vault.reg
 TOKEN=ABCDEFGHIJKLMNOPQRSTUVWX
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-export DEBIAN_FRONTEND=noninteractive
-{ apt-get update && apt-get install -y --no-install-recommends ca-certificates; } >/dev/null 2>&1 || { echo "SETUP FAILED: apt-get"; exit 99; }
-# A slim image has no ICU: the state of the Pi.
+# The Pi has no ICU, but the shared test image does (nodejs needs it): take it out again, with nodejs, which this
+# scenario does not use. Offline, and the apt lists stay empty like on the Pi.
+apt-get purge -y 'libicu[0-9]*' nodejs >/dev/null 2>&1 || { echo "SETUP FAILED: could not remove libicu"; exit 99; }
 if ldconfig -p | grep -q 'libicuuc\.so'; then echo "SETUP FAILED: libicu is already in the image"; exit 99; fi
 
 useradd --system --no-create-home --shell /usr/sbin/nologin "$RUNNER_USER"

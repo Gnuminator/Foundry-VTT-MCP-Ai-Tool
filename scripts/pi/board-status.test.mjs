@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const stagePath = path.join(repo, 'scripts', 'pi', 'remote', '16-board-status.sh');
@@ -371,11 +372,7 @@ describe('stage text', () => {
 const CONTAINER = process.env.PI_STAGE16_CONTAINER === '1';
 describe('stage 16 in the ARM64 container', { skip: !CONTAINER }, () => {
   test('scenarios', () => {
-    const r = spawnSync(
-      'docker',
-      ['run', '--rm', '--platform', 'linux/arm64', '-v', `${repo}:/repo:ro`, 'debian:13-slim', 'bash', '/repo/scripts/pi/container-test/stage16-scenarios.sh'],
-      { encoding: 'utf8', timeout: 600000 },
-    );
+    const r = runStageContainer('stage16-scenarios.sh', { timeout: 600000 });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
   });

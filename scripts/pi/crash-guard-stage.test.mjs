@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const stage = readFileSync(path.join(repo, 'scripts/pi/remote/32-crash-guard.sh'), 'utf8');
@@ -91,21 +92,7 @@ describe('stage 32 as text', () => {
 
 describe('stage 32 in the ARM64 container', { skip: process.env.PI_STAGE32_CONTAINER !== '1' }, () => {
   test('scenarios', () => {
-    const r = spawnSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--platform',
-        'linux/arm64',
-        '-v',
-        `${repo}:/repo:ro`,
-        'debian:13-slim',
-        'bash',
-        '/repo/scripts/pi/container-test/stage32-scenarios.sh',
-      ],
-      { encoding: 'utf8', timeout: 600000 }
-    );
+    const r = runStageContainer('stage32-scenarios.sh', { timeout: 600000 });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
   });

@@ -182,6 +182,7 @@ export const CHECKS = [
   nodeTest('pi-gm-passwords', 'pi', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-system-trial-guard', 'pi', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-ci-filter', 'pi', 'scripts/pi/ci-pi-filter.test.mjs'),
+  nodeTest('pi-container-lib', 'pi', 'scripts/pi/container-lib.test.mjs'),
   nodeTest(
     'pi-container-test-units',
     'pi',
@@ -455,6 +456,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
   { name: 'stage 16', env: 'PI_STAGE16_CONTAINER', test: 'board-status.test.mjs' },
+  { name: 'stage 17', env: 'PI_STAGE17_CONTAINER', test: 'gh-runner.test.mjs' },
   {
     name: 'stage 14 system trial',
     env: 'PI_SYSTEM_TRIAL_CONTAINER',

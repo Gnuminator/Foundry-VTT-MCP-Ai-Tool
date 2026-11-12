@@ -6,9 +6,9 @@
 //   - from: 2026-10-17
 //   - to: 2026-10-23
 //   - startup: 77822
-//   - startup-limit: 75000
-//   - startup-ok: no
-//   ... the same three lines for tokens-m-per-pr, sessions-a-day and weekly-points-a-day
+//   ... the same kind of line for tokens-m-per-pr, sessions-a-day, weekly-points-a-day and
+//   weekly-points-per-pr. Numbers only: no limits and no ok flags (pace is information only, the
+//   user 2026-11-11).
 //   - pace-profile-weeks / pace-active-hours-weekday / pace-active-hours-weekend (usage-pace.mjs)
 //   - advisor-calls / advisor-per-pr (only when known)
 //   - tool-calls / tool-errors / tools-used / tools-never-used (MCP tool call log; only when calls
@@ -22,6 +22,7 @@ const KEYS = [
   ['M tokens per PR', 'tokens-m-per-pr', 1],
   ['sessions a day', 'sessions-a-day', 1],
   ['weekly % a day', 'weekly-points-a-day', 1],
+  ['weekly points per PR', 'weekly-points-per-pr', 1],
 ];
 
 export function noteFile(vaultDir) {
@@ -38,15 +39,10 @@ export function sectionFor(report) {
     `- to: ${report.window.to}`,
   ];
   for (const [name, key, digits] of KEYS) {
-    const t = report.targets.find(x => x.name === name);
-    if (!t) continue;
-    if (t.value !== null && t.value !== undefined)
+    const t = report.figures.find(x => x.name === name);
+    if (t && t.value !== null && t.value !== undefined) {
       lines.push(`- ${key}: ${round(t.value, digits)}`);
-    lines.push(`- ${key}-limit: ${t.limit}`);
-    // ok from the rounded number, so it agrees with what the board recomputes from the note
-    const known = t.value !== null && t.value !== undefined;
-    const ok = known ? round(t.value, digits) <= t.limit : t.ok;
-    lines.push(`- ${key}-ok: ${ok === null || ok === undefined ? 'unknown' : ok ? 'yes' : 'no'}`);
+    }
   }
   const profile = report.pace?.profile;
   if (profile) {
@@ -89,7 +85,10 @@ export function splitSections(text) {
 // The note with this report's section added, or replacing the one for the same first day.
 export function upsert(existing, report) {
   const id = report.window.from;
-  const rest = splitSections(existing || '').filter(([d]) => d !== id);
+  // sections from before 2026-11-11 carry `-limit` and `-ok` lines: drop them as they pass through
+  const rest = splitSections(existing || '')
+    .filter(([d]) => d !== id)
+    .map(([d, s]) => [d, s.replace(/^- [a-z-]+-(?:limit|ok): .*(?:\r?\n|$)/gm, '').trimEnd()]);
   const all = [[id, sectionFor(report)], ...rest].sort((a, b) =>
     a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0
   );

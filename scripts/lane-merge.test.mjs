@@ -999,15 +999,19 @@ test('liveCheckProblem: Module and Pi PRs need a Live check line in the descript
     'Live check: <!-- run -->',
     'Live check: <!-- unclosed\nmore -->',
     'we had no live check: here',
+    'Live checks pending',
+    'Live check was skipped',
+    'Live checking: later',
   ]) {
     assert.ok(liveCheckProblem(mod, body), body);
   }
-  // Other paths and test files need nothing.
+  // Other paths need nothing; a test file under the Module source still counts.
   assert.equal(
     liveCheckProblem([{ path: 'docs/a.md' }, { path: 'scripts/pi/local.ps1' }], ''),
     null
   );
-  assert.equal(liveCheckProblem([{ path: 'packages/foundry-module/src/a.test.ts' }], ''), null);
+  assert.ok(liveCheckProblem([{ path: 'packages/foundry-module/src/a.test.ts' }], ''));
+  assert.equal(liveCheckLine('**Live check**: none, test-only'), 'none, test-only');
   assert.equal(liveCheckLine('x\nLive check: ok then'), 'ok then');
 });
 

@@ -20,7 +20,8 @@ const AREAS = [
  */
 export function liveCheckLine(body) {
   for (const raw of String(body ?? '').split(/\r?\n/)) {
-    const m = /^\s*(?:[-*]\s+)?(?:\*\*)?live check:?(?:\*\*)?:?\s*(.*)$/i.exec(raw);
+    const m =
+      /^\s*(?:[-*]\s+)?(?:live check:|\*\*live check:\*\*|\*\*live check\*\*:)\s*(.*)$/i.exec(raw);
     if (!m) continue;
     const text = m[1].replace(/<!--.*?(-->|$)/g, '').trim();
     if (text.length >= 3 && !/^<[^>]*>$/.test(text)) return text;
@@ -30,14 +31,12 @@ export function liveCheckLine(body) {
 
 /**
  * The refusal for a PR that touches Module source or Pi stage scripts without a `Live check:` line
- * in its description, or null. Test files do not count as touching.
+ * in its description, or null. Any touched file counts, tests too (a test-only PR says so).
  * @param {{ path: string }[]} files @param {string} body
  * @returns {string | null}
  */
 export function liveCheckProblem(files, body) {
-  const paths = files
-    .map(f => f.path.replace(/\\/g, '/'))
-    .filter(p => !/\.test\.[cm]?[jt]s$/.test(p));
+  const paths = files.map(f => f.path.replace(/\\/g, '/'));
   const hit = AREAS.filter(a => paths.some(p => p.startsWith(a.prefix)));
   if (hit.length === 0 || liveCheckLine(body) !== null) return null;
   const where = hit.map(a => `${a.name} code (${a.prefix})`).join(' and ');

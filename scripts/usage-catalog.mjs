@@ -18,8 +18,11 @@
  * catalogue cannot list what it cannot read. `usage.js`, `web/src/lib/usage.ts` and
  * `usage-recorder.ts` (the definitions) are not scanned.
  *
+ * The output is generated and gitignored: `npm ci` (prepare) and the shared build/typecheck/test
+ * scripts write it, so a fresh worktree has it.
+ *
  *   node scripts/usage-catalog.mjs            write the generated file
- *   node scripts/usage-catalog.mjs --check    exit 1 when the file is stale or a name is bad
+ *   node scripts/usage-catalog.mjs --check    exit 1 when a name is bad or the sources give no controls
  *   --root <dir>                              scan another tree (tests)
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -246,15 +249,26 @@ function main() {
     for (const p of problems) console.error(`  ${p}`);
     process.exit(1);
   }
+  if (args.includes('--require-all')) {
+    // A build that lacks a scanned folder (a Dockerfile without the module sources) would write a
+    // catalogue with no controls for that surface and the usage note would report them wrong.
+    const missing = ['dashboard', 'player', 'module'].filter(s => !entries.some(e => e.surface === s));
+    if (missing.length > 0) {
+      console.error(`usage-catalog: no controls found for: ${missing.join(', ')} (is a source folder missing?)`);
+      process.exit(1);
+    }
+  }
   const text = renderCatalog(entries);
   const target = path.join(root, OUTPUT);
   const current = existsSync(target) ? readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : null;
   if (check) {
-    if (current !== text) {
-      console.error(`usage-catalog: ${OUTPUT} is stale. Run: npm run usage:catalog`);
+    // The file is generated and not committed (gitignored): the check is that the sources produce
+    // a valid catalogue (no scan problem above, at least one control), not that a file matches.
+    if (entries.length === 0) {
+      console.error('usage-catalog: the sources produce an empty catalogue (is the scan broken?).');
       process.exit(1);
     }
-    console.log(`usage-catalog: ${entries.length} controls, up to date.`);
+    console.log(`usage-catalog: ${entries.length} controls, the sources produce a valid catalogue.`);
     return;
   }
   if (current === text) {

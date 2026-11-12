@@ -30,7 +30,7 @@ import {
   USAGE_SURFACES as SHARED_SURFACES,
   sanitizeUsageBatch as sharedBatch,
   sanitizeUsageEvent as sharedSanitize,
-} from '../../../shared/src/usage.js';
+} from '@gnuminator/shared';
 
 describe('usage-log wire contract', () => {
   it('module and shared agree on kinds, surfaces and outcomes', () => {

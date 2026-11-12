@@ -9,7 +9,7 @@ import {
   SCENE_MOOD_FLAG as SHARED_FLAG,
   SCENE_MOOD_PLAN_QUERY as SHARED_PLAN,
   SCENE_MOODS_QUERY as SHARED_LIST,
-} from '../../../shared/src/scene-mood.js';
+} from '@gnuminator/shared';
 import { MODULE_ID } from './constants.js';
 import {
   getSceneMoods,

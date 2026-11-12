@@ -14,7 +14,7 @@ import {
   GUARDED_OP_KINDS as SHARED_KINDS,
   GUARDED_OUTCOME_MEMORY as SHARED_MEMORY,
   inverseGuardedOp,
-} from '../../../../shared/src/guarded-write.js';
+} from '@gnuminator/shared';
 
 describe('guarded-write wire contract', () => {
   it('module and shared agree on the op kinds', () => {

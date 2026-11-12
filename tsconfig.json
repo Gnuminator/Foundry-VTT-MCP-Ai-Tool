@@ -20,22 +20,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "paths": {
-      "@shared/*": ["./shared/*"],
-      "@foundry-module/*": ["./packages/foundry-module/*"],
-      "@mcp-server/*": ["./packages/mcp-server/src/*"]
-    },
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": ["packages/**/*", "shared/**/*"],
   "exclude": ["node_modules", "**/dist", "**/build", "**/*.test.*"],
   "references": [
-    {
-      "path": "./packages/mcp-server"
-    },
-    {
-      "path": "./packages/foundry-module"
-    },
     {
       "path": "./shared"
     }

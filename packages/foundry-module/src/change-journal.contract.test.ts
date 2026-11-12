@@ -38,7 +38,7 @@ import {
   type ChangeJournalOptions as SharedOptions,
   type ChangeJournalResponse as SharedResponse,
   type ChangeRecord as SharedRecord,
-} from '../../../shared/src/change-journal.js';
+} from '@gnuminator/shared';
 
 // Compile-time drift check: each pair must be assignable both ways.
 export function assertSameShapes(

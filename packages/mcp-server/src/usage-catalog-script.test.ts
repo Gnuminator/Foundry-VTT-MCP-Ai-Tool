@@ -1,6 +1,6 @@
 /**
- * `scripts/usage-catalog.mjs` on fixture trees (it takes `--root`). That the committed
- * `shared/src/usage-catalog.generated.ts` is current is checked by CI (`usage:catalog:check`).
+ * `scripts/usage-catalog.mjs` on fixture trees (it takes `--root`). The generated
+ * `shared/src/usage-catalog.generated.ts` is gitignored; CI runs `usage:catalog:check` (the sources are valid).
  */
 import { spawnSync } from 'child_process';
 import { promises as fsp } from 'fs';
@@ -128,15 +128,16 @@ describe('usage-catalog script', () => {
     expect(text).toContain('USAGE_CATALOG: readonly UsageCatalogEntry[] = [];');
   });
 
-  it('--check passes when current and fails (exit 1) when stale or missing', async () => {
-    await put(`${DASH}/app.js`, "usage.track('action', 'dash.a.b');");
+  it('--check passes when the sources produce a catalogue (file or not) and fails when bad or empty', async () => {
     expect(run('--check').status).toBe(1);
+    await put(`${DASH}/app.js`, "usage.track('action', 'dash.a.b');");
+    // The generated file is not committed: no file on disk is fine, and --check writes none.
+    expect(run('--check').status).toBe(0);
+    await expect(fsp.access(path.join(root, OUT))).rejects.toThrow();
     expect(run().status).toBe(0);
     expect(run('--check').status).toBe(0);
-    await put(`${DASH}/app.js`, "usage.track('action', 'dash.a.b');usage.trackView('dash.c.d');");
-    const stale = run('--check');
-    expect(stale.status).toBe(1);
-    expect(stale.out).toContain('stale');
+    await put(`${DASH}/app.js`, "usage.track('action', 'Bad Name');");
+    expect(run('--check').status).toBe(1);
   });
 
   it.each([

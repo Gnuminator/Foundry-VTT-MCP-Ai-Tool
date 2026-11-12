@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   PC_CREATION_FEATURE_ID as SHARED_FEATURE,
   PC_CREATION_QUERY as SHARED_QUERY,
-} from '../../../shared/src/pc-creation.js';
+} from '@gnuminator/shared';
 import { planPcCreation, PC_CREATION_FEATURE_ID, PC_CREATION_QUERY } from './pc-creation.js';
 import { NON_WRITE_METHODS } from './write-gate.js';
 

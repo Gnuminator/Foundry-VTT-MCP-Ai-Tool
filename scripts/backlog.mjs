@@ -17,11 +17,13 @@
  * Common flags: --vault <dir> (default env FOUNDRY_AI_OBSIDIAN_DIR, else ~/Documents/Obsidian/vault),
  * --date YYYY-MM-DD (default today), --dry-run (print what would be written, write nothing).
  *
- * Each write: refuse when a file it writes has uncommitted changes, `git pull --rebase --autostash`,
- * read the file fresh (the live board rewrites it), make the one-item edit, check it
- * (`checkEdit` in backlog-items.mjs), commit only those files and push. A rejected push drops the
- * commit (`git reset --keep HEAD~1`) and starts again from the pull, up to 5 times. The file keeps
- * its own line endings.
+ * Each write: take a lock in the vault's .git folder (the vault is one working tree shared by every
+ * session), refuse when a file it writes has uncommitted changes, fetch and fast-forward (a rebase
+ * only when the vault already has unpushed commits), read the file fresh (the live board rewrites
+ * it), make the one-item edit, check it (`checkEdit` in backlog-items.mjs), commit only those files
+ * and push. A rejected push drops that one commit (`git reset --keep`, only while it is still HEAD)
+ * and starts again from the fetch, up to 5 times. The file keeps its own line endings. `status`
+ * only reads (the upstream copy).
  *
  * Choices: `progress` adds today's date when the text does not start with one. `done` writes
  * `- <date> <id>: PR #<n> merged[ at <sha>][; <summary>] (<by>) | <board>[ | private]` above the
@@ -38,6 +40,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pidAlive, sleepSync } from './heavy-lock.mjs';
 import {
   checkEdit,
   findItem,
@@ -348,28 +351,114 @@ export const gitIn = vault => args => {
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 };
 
+export const LOCK_STALE_MS = 2 * 60 * 1000;
+export const LOCK_WAIT_MS = 30 * 1000;
+
+/** @param {string} lockFile @param {number} now */
+function lockIsStale(lockFile, now) {
+  try {
+    const { pid, start } = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+    return !pidAlive(Number(pid)) || now - Number(start) > LOCK_STALE_MS;
+  } catch {
+    // Unreadable: a holder may be writing it right now; stale only by the file's age.
+    try {
+      return now - fs.statSync(lockFile).mtimeMs > LOCK_STALE_MS;
+    } catch {
+      return true;
+    }
+  }
+}
+
 /**
- * Pull, read, edit, check, commit and push, retrying on a rejected push.
+ * The vault is one working tree shared by the planner and every lane, so two writers must not
+ * overlap: an exclusive file in the vault's .git folder (pid and start time), taken over when its
+ * pid is dead or it is older than 2 minutes. Waits up to `waitMs`, then refuses.
+ * @param {string} gitDir @param {number} waitMs @returns {() => void} release
+ */
+export function takeLock(gitDir, waitMs = LOCK_WAIT_MS) {
+  const lockFile = path.join(gitDir, 'backlog-tool.lock');
+  const until = Date.now() + waitMs;
+  for (;;) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx');
+      fs.writeSync(fd, JSON.stringify({ pid: process.pid, start: Date.now() }));
+      fs.closeSync(fd);
+      return () => fs.rmSync(lockFile, { force: true });
+    } catch (e) {
+      if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') throw e;
+    }
+    if (lockIsStale(lockFile, Date.now())) {
+      fs.rmSync(lockFile, { force: true });
+      continue;
+    }
+    if (Date.now() >= until)
+      throw new Error(
+        `another session is writing the Backlog right now (${lockFile}); retry in a minute`
+      );
+    sleepSync(250);
+  }
+}
+
+/**
+ * Lock, pull, read, edit, check, commit and push, retrying on a rejected push.
  * @param {{ vault: string, git: Git, paths: string[], message: string,
  *   edit: (read: (rel: string) => string) => Record<string, string>,
- *   beforePush?: (attempt: number) => void, retries?: number, log?: (s: string) => void }} o
+ *   beforePush?: (attempt: number) => void, retries?: number, log?: (s: string) => void,
+ *   lockWaitMs?: number }} o
  * @returns {{ attempts: number, changed: boolean }}
  */
 export function writeWithRetry(o) {
-  const log = o.log ?? (s => console.error(s));
   const must = (/** @type {string[]} */ args, /** @type {string} */ what) => {
     const r = o.git(args);
     if (r.status !== 0) throw new Error(`${what} failed: ${(r.stderr || r.stdout).trim()}`);
     return r;
   };
+  const gitDir = must(['rev-parse', '--absolute-git-dir'], 'git rev-parse').stdout.trim();
+  const release = takeLock(gitDir, o.lockWaitMs);
+  try {
+    return writeLocked(o, must);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Bring the vault up to its upstream without touching other sessions' uncommitted files: a
+ * fast-forward when there is nothing local, a rebase (with autostash) only when the vault already
+ * has unpushed commits.
+ * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log
+ */
+function syncVault(must, log) {
+  must(['fetch', '-q'], 'git fetch');
+  const ahead = Number(must(['rev-list', '--count', '@{u}..HEAD'], 'git rev-list').stdout.trim());
+  if (ahead === 0) {
+    must(['merge', '--ff-only', '-q', '@{u}'], 'git merge --ff-only');
+    return;
+  }
+  log(`backlog: the vault has ${ahead} unpushed commit(s); rebasing them (they are pushed too)`);
+  try {
+    must(['rebase', '-q', '--autostash', '@{u}'], 'git rebase');
+  } catch (e) {
+    // Never leave the shared vault in the middle of a rebase.
+    must(['rebase', '--abort'], 'git rebase --abort');
+    throw e;
+  }
+}
+
+/**
+ * @param {Parameters<typeof writeWithRetry>[0]} o
+ * @param {(args: string[], what: string) => { stdout: string }} must
+ */
+function writeLocked(o, must) {
+  const log = o.log ?? (s => console.error(s));
   const dirty = must(['status', '--porcelain', '--', ...o.paths], 'git status').stdout.trim();
   if (dirty)
     throw new Error(
-      `uncommitted changes in a file this writes; commit or discard them first:\n${dirty}`
+      `another session has uncommitted changes in a file this writes; retry in a minute, or ask the user:\n${dirty}`
     );
   const retries = o.retries ?? RETRIES;
   for (let attempt = 1; attempt <= retries; attempt++) {
-    must(['pull', '--rebase', '--autostash', '-q'], 'git pull --rebase');
+    syncVault(must, log);
     const read = (/** @type {string} */ rel) => {
       const f = path.join(o.vault, rel);
       return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
@@ -381,11 +470,18 @@ export function writeWithRetry(o) {
     const rels = changed.map(([rel]) => rel);
     must(['add', '--', ...rels], 'git add');
     must(['commit', '-q', '-m', o.message, '--', ...rels], 'git commit');
+    const mine = must(['rev-parse', 'HEAD'], 'git rev-parse').stdout.trim();
+    const parent = must(['rev-parse', 'HEAD~1'], 'git rev-parse').stdout.trim();
     o.beforePush?.(attempt);
     const pushed = o.git(['push', '-q']);
     if (pushed.status === 0) return { attempts: attempt, changed: true };
     log(`backlog: push rejected (attempt ${attempt} of ${retries}); pulling and redoing the edit`);
-    must(['reset', '-q', '--keep', 'HEAD~1'], 'git reset --keep');
+    // Drop only our own commit: if something committed on top meanwhile, resetting would lose it.
+    if (must(['rev-parse', 'HEAD'], 'git rev-parse').stdout.trim() !== mine)
+      throw new Error(
+        `the vault HEAD moved after this commit (${mine.slice(0, 7)}), so it was left as it is; ask the user to check the vault`
+      );
+    must(['reset', '-q', '--keep', parent], 'git reset --keep');
   }
   throw new Error(`the push was rejected ${retries} times; nothing was written`);
 }
@@ -423,7 +519,7 @@ const today = () => new Date().toLocaleDateString('sv-SE');
  * Run one command. Returns the exit code; prints to `out` and `err`.
  * @param {string[]} argv
  * @param {{ vault?: string, git?: Git, beforePush?: (attempt: number) => void,
- *   out?: (s: string) => void, err?: (s: string) => void }} [env]
+ *   out?: (s: string) => void, err?: (s: string) => void, lockWaitMs?: number }} [env]
  */
 export function run(argv, env = {}) {
   const out = env.out ?? (s => console.log(s));
@@ -453,9 +549,12 @@ export function run(argv, env = {}) {
     let notes = [];
     switch (cmd) {
       case 'status': {
-        if (git(['pull', '--rebase', '--autostash', '-q']).status !== 0)
-          err('backlog: git pull failed; showing the local copy');
-        out(statusText(readNow(BACKLOG)));
+        // Read-only: the upstream copy, never the shared working tree.
+        if (git(['fetch', '-q']).status !== 0)
+          err('backlog: git fetch failed; the last fetched copy');
+        const up = git(['show', `@{u}:${BACKLOG}`]);
+        if (up.status !== 0) err('backlog: no upstream copy; showing the local file');
+        out(statusText(up.status === 0 ? up.stdout : readNow(BACKLOG)));
         return 0;
       }
       case 'claim': {
@@ -581,7 +680,14 @@ export function run(argv, env = {}) {
       out('backlog: dry run, nothing written');
       return 0;
     }
-    const r = writeWithRetry({ vault, git, ...job, beforePush: env.beforePush, log: err });
+    const r = writeWithRetry({
+      vault,
+      git,
+      ...job,
+      beforePush: env.beforePush,
+      log: err,
+      lockWaitMs: env.lockWaitMs,
+    });
     for (const n of notes) out(n);
     out(r.changed ? `backlog: ${job.message} (pushed)` : 'backlog: nothing to change');
     return 0;

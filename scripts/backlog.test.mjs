@@ -354,7 +354,8 @@ function vaults(/** @type {string} */ text = crlf(FIXTURE)) {
   git(root, ['init', '-q', '--bare', '-b', 'main', remote]);
   const clone = (/** @type {string} */ name) => {
     const dir = path.join(root, name);
-    git(root, ['clone', '-q', remote, dir]);
+    // Set before the checkout: a later config change leaves CRLF files that `commit -a` rewrites.
+    git(root, ['clone', '-q', '-c', 'core.autocrlf=false', remote, dir]);
     for (const [k, v] of [
       ['core.autocrlf', 'false'],
       ['user.name', 'test'],
@@ -411,7 +412,10 @@ test('git: a dirty Backlog.md is refused before anything happens', () => {
   fs.appendFileSync(path.join(v.a, BACKLOG), 'half an edit\r\n');
   const r = v.cli(['progress', 'first', 'x']);
   assert.equal(r.code, 1);
-  assert.match(r.err, /uncommitted changes/);
+  assert.match(
+    r.err,
+    /another session has uncommitted changes in a file this writes; retry in a minute/
+  );
 });
 
 test("git: a push race redoes the edit on the board's new text and keeps both changes", () => {
@@ -558,4 +562,99 @@ test('dry run prints the change and writes nothing; unknown commands are usage e
   assert.match(r.out, /\+ - claimed: x 2026-11-12/);
   assert.equal(fs.readFileSync(path.join(v.a, BACKLOG), 'utf8'), crlf(FIXTURE));
   assert.equal(v.cli(['frobnicate']).code, 2);
+});
+
+test('git: a second writer on the same vault is refused while the first holds the lock', () => {
+  const v = vaults();
+  /** @type {{ code: number, err: string } | undefined} */
+  let inner;
+  const r = v.cli(['progress', 'first', 'outer'], {
+    beforePush: () => {
+      inner ??= v.cli(['claim', 'second', 'inner'], { lockWaitMs: 0 });
+    },
+  });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(inner?.code, 1);
+  assert.match(inner?.err ?? '', /another session is writing the Backlog right now/);
+  assert.match(v.remoteFile(BACKLOG), /- progress: 2026-11-12 outer\r\n/);
+  assert.equal(fs.existsSync(path.join(v.a, '.git', 'backlog-tool.lock')), false, 'released');
+});
+
+test('git: a stale lock (dead pid, or older than 2 minutes) is taken over', () => {
+  const v = vaults();
+  const lock = path.join(v.a, '.git', 'backlog-tool.lock');
+  fs.writeFileSync(lock, JSON.stringify({ pid: 2 ** 22 + 12345, start: Date.now() }));
+  assert.equal(v.cli(['claim', 'second', 'x'], { lockWaitMs: 0 }).code, 0);
+  fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: Date.now() - 3 * 60 * 1000 }));
+  assert.equal(v.cli(['release', 'second'], { lockWaitMs: 0 }).code, 0);
+  assert.doesNotMatch(v.remoteFile(BACKLOG), /claimed: x/);
+});
+
+test('git: when HEAD moved after our commit, a rejected push resets nothing', () => {
+  const v = vaults();
+  const r = v.cli(['claim', 'second', 'x'], {
+    beforePush: () => {
+      git(v.b, ['pull', '-q']);
+      fs.appendFileSync(path.join(v.b, 'other.md'), 'b\n');
+      git(v.b, ['commit', '-q', '-am', 'race']);
+      git(v.b, ['push', '-q']);
+      git(v.a, ['commit', '-q', '--allow-empty', '-m', 'someone else in the same tree']);
+    },
+  });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /HEAD moved/);
+  assert.equal(git(v.a, ['log', '-1', '--format=%s']).trim(), 'someone else in the same tree');
+  assert.match(git(v.a, ['log', '-2', '--format=%s']), /Backlog: claim second/);
+});
+
+test('git: status reads the upstream copy and never touches the working tree', () => {
+  const v = vaults();
+  git(v.b, ['pull', '-q']);
+  const f = path.join(v.b, BACKLOG);
+  fs.writeFileSync(
+    f,
+    fs
+      .readFileSync(f, 'utf8')
+      .replace('- id: second\r\n', '- id: second\r\n- claimed: remote lane 2026-11-12\r\n')
+  );
+  git(v.b, ['commit', '-q', '-am', 'remote claim']);
+  git(v.b, ['push', '-q']);
+  fs.writeFileSync(path.join(v.a, 'other.md'), 'dirty\n');
+  const head = git(v.a, ['rev-parse', 'HEAD']);
+  const r = v.cli(['status']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /- second \(2026-11-12\): no progress yet/);
+  assert.equal(git(v.a, ['rev-parse', 'HEAD']), head, 'no pull into the shared tree');
+  assert.equal(fs.readFileSync(path.join(v.a, 'other.md'), 'utf8'), 'dirty\n');
+});
+
+test('git: unpushed local commits are rebased and pushed with the edit', () => {
+  const v = vaults();
+  fs.writeFileSync(path.join(v.a, 'other.md'), 'planner note\n');
+  git(v.a, ['commit', '-q', '-am', 'planner, not pushed']);
+  git(v.b, ['pull', '-q']);
+  fs.appendFileSync(path.join(v.b, LOWS, 'CI.md'), '- 2026-11-12 b\n');
+  git(v.b, ['commit', '-q', '-am', 'remote']);
+  git(v.b, ['push', '-q']);
+  const r = v.cli(['claim', 'second', 'x']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.err, /1 unpushed commit/);
+  assert.equal(git(v.a, ['show', 'origin/main:other.md']), 'planner note\n');
+  assert.match(git(v.a, ['show', `origin/main:${LOWS}/CI.md`]), /- 2026-11-12 b/);
+});
+
+test('git: a rebase conflict is aborted, so the shared vault is never left mid-rebase', () => {
+  const v = vaults();
+  fs.writeFileSync(path.join(v.a, 'other.md'), 'local\n');
+  git(v.a, ['commit', '-q', '-am', 'local, not pushed']);
+  git(v.b, ['pull', '-q']);
+  fs.writeFileSync(path.join(v.b, 'other.md'), 'remote\n');
+  git(v.b, ['commit', '-q', '-am', 'remote']);
+  git(v.b, ['push', '-q']);
+  const r = v.cli(['claim', 'second', 'x']);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /git rebase failed/);
+  assert.equal(fs.existsSync(path.join(v.a, '.git', 'rebase-merge')), false);
+  assert.equal(git(v.a, ['log', '-1', '--format=%s']).trim(), 'local, not pushed');
+  assert.equal(fs.existsSync(path.join(v.a, '.git', 'backlog-tool.lock')), false);
 });

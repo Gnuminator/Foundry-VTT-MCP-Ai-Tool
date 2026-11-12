@@ -116,7 +116,7 @@ jobs:
         run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs scripts/main-red-revert.test.mjs scripts/line-ratchet.test.mjs
 
       - name: Weekly usage report
-        # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
+        # scripts/dev (usage-week figures, usage-now, usage-report, weekly-check-note) against fixture transcripts.
         run: npm run dev:test
 
       - name: Game-night watch

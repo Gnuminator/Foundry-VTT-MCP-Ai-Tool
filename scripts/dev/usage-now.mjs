@@ -85,9 +85,9 @@ export function planLines(opts, now) {
   return lines;
 }
 
-// The `check-` lines from a usage:week report (targets[].value; unknown values are left out).
+// The `check-` lines from a usage:week report (figures[].value; unknown values are left out).
 export function checkLines(report) {
-  const value = name => report.targets.find(t => t.name === name)?.value;
+  const value = name => report.figures.find(t => t.name === name)?.value;
   const rows = [
     ['check-from', report.window.from],
     ['check-to', report.window.to],
@@ -95,6 +95,10 @@ export function checkLines(report) {
     ['check-m-tokens-per-pr', value('M tokens per PR') == null ? null : round1(value('M tokens per PR'))],
     ['check-sessions-a-day', value('sessions a day') == null ? null : round1(value('sessions a day'))],
     ['check-weekly-points-a-day', value('weekly % a day') == null ? null : round1(value('weekly % a day'))],
+    [
+      'check-weekly-points-per-pr',
+      value('weekly points per PR') == null ? null : round1(value('weekly points per PR')),
+    ],
   ];
   return rows.filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k}: ${v}`);
 }

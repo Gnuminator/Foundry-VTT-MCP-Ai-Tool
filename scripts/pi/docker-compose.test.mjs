@@ -10,6 +10,8 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { runStageContainer } from './container-test/run-stage-container.mjs';
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
 const s22 = read('scripts/pi/remote/23-docker.sh');
@@ -177,21 +179,7 @@ for (const [n, script] of [
     { skip: process.env.PI_STAGE23_CONTAINER !== '1' },
     () => {
       test('scenarios', () => {
-        const r = spawnSync(
-          'docker',
-          [
-            'run',
-            '--rm',
-            '--platform',
-            'linux/arm64',
-            '-v',
-            `${repo}:/repo:ro`,
-            'debian:13-slim',
-            'bash',
-            `/repo/scripts/pi/container-test/${script}`,
-          ],
-          { encoding: 'utf8', timeout: 900000, env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
-        );
+        const r = runStageContainer(script, { timeout: 900000 });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
       });

@@ -6,11 +6,11 @@
 // - with PI_STAGE22_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a Debian 13 ARM64
 //   container with stand-ins for systemd (scripts/pi/container-test/stage22-scenarios.sh).
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const remote = path.join(repo, 'scripts', 'pi', 'remote');
@@ -1343,23 +1343,7 @@ describe(
   { skip: process.env.PI_STAGE22_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const image =
-        'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
-      const res = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          image,
-          'bash',
-          '/repo/scripts/pi/container-test/stage22-scenarios.sh',
-        ],
-        { encoding: 'utf8' }
-      );
+      const res = runStageContainer('stage22-scenarios.sh');
       assert.equal(res.status, 0, res.stdout + res.stderr);
       assert.doesNotMatch(res.stdout, /FAIL/);
     });

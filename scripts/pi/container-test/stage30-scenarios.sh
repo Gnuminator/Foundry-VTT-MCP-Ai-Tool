@@ -13,24 +13,18 @@
 #   8 with a fake systemd: players online refuse before any write, both services restart once, a failed check exits 1, a rerun and an
 #     UNDO with nothing to undo restart nothing, UNDO takes out the exact host only, a missing allowed hosts line is refused
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage30-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage30-scenarios.sh
 # (scripts/pi/player-connector-stage.test.mjs runs it with PI_STAGE30_CONTAINER=1.) STAGE=<file> runs another copy of the script.
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/30-player-connector.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-apt-get update >/dev/null 2>&1 && apt-get install -y --no-install-recommends nodejs >/dev/null 2>&1
 command -v node >/dev/null 2>&1 || {
   echo "FAIL: nodejs could not be installed"
   exit 1

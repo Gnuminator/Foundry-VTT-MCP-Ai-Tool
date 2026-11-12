@@ -4,7 +4,7 @@
 # keep the units and the containers as files, so a cutover really flips them and a rollback really flips them back. Everything
 # the stage writes goes into a sandbox folder (lib.sh's paths are pointed there after it is sourced); the scenarios change
 # nothing outside /tmp and also run in Git Bash. The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage24-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage24-scenarios.sh
 # (scripts/pi/docker-compose.test.mjs runs it with PI_STAGE23_CONTAINER=1.) STAGE=<file> runs it against another copy of the script.
 # Scenarios: bad MODE; status (clean, and a unit next to the stack = exit 1); up refused on live ports and on the live data folder
 # while a unit runs, up on rehearsal ports beside the units, up with the units off, up on a busy port, up unhealthy, up without a
@@ -14,13 +14,11 @@
 # 20 up on the live ports refused, a rehearsal left running seen by status and down; 21 a rehearsal on live data folders or on
 # one live port, a dry run writes no log, the cutover record is cleared after a rollback.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 
 REPO="${REPO:-/repo}"
 STAGE="${STAGE:-$REPO/scripts/pi/remote/24-compose.sh}"
 LIB="$REPO/scripts/pi/remote/lib.sh"
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 root="$(mktemp -d)"
 trap 'rm -rf "${root:?}"' EXIT

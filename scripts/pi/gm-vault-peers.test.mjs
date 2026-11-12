@@ -2,11 +2,11 @@
 //   node --test scripts/pi/gm-vault-peers.test.mjs
 // The text checks always run; PI_STAGE31_CONTAINER=1 (needs Docker) runs three real Syncthings in a Debian 13 ARM64 container.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const stage = readFileSync(
@@ -50,21 +50,7 @@ describe(
   { skip: process.env.PI_STAGE31_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const r = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          'debian:13-slim',
-          'bash',
-          '/repo/scripts/pi/container-test/stage31-scenarios.sh',
-        ],
-        { encoding: 'utf8', timeout: 900000, env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
-      );
+      const r = runStageContainer('stage31-scenarios.sh', { timeout: 900000 });
       assert.equal(r.status, 0, r.stdout + r.stderr);
       assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
     });

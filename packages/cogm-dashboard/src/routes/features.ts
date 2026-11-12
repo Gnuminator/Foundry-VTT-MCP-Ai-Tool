@@ -24,6 +24,8 @@ export interface FeatureRouteDeps {
   directory: PlayerDirectory;
   /** My character (I-096): one private link per player and world. */
   links: PlayerLinkStore;
+  /** The built help (I-064): deps.helpFile, else the default URLs app.ts builds next to itself. */
+  helpFile: string | URL | URL[];
 }
 
 /**
@@ -126,15 +128,7 @@ export function mountHelpAndNotesRoutes(
 ): void {
   const { client, logger, requireGm, settings } = ctx;
   // In-app help (I-064): the GM guide pages, rendered at build time into dist/help.json.
-  // In dist (npm start) the file sits next to the app module; in dev mode (tsx src/) it is ../dist.
-  // The URLs are relative to app.ts's folder (src/ or dist/), one level above this file.
-  mountHelpRoute(app, {
-    file: f.deps.helpFile ?? [
-      new URL('../help.json', import.meta.url),
-      new URL('../../dist/help.json', import.meta.url),
-    ],
-    requireGm,
-  });
+  mountHelpRoute(app, { file: f.helpFile, requireGm });
 
   // Session notes (recap lane, D-087; session-notes-route.ts): the After view's card.
   mountSessionNotesRoute(app, {

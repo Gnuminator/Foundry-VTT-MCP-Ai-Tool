@@ -433,7 +433,17 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // The order below is the security order: Host check, then the Access identity, before any
   // route resolves a role; the routes that parse their own body before the app-wide JSON parser.
   const app = express();
-  const featureDeps: FeatureRouteDeps = { deps, directory: playerDirectory, links: playerLinks };
+  const featureDeps: FeatureRouteDeps = {
+    deps,
+    directory: playerDirectory,
+    links: playerLinks,
+    // In-app help (I-064): in dist (npm start) help.json sits next to this module; in dev mode
+    // (tsx src/) it is ../dist. Built here so the URLs stay relative to this file.
+    helpFile: deps.helpFile ?? [
+      new URL('./help.json', import.meta.url),
+      new URL('../dist/help.json', import.meta.url),
+    ],
+  };
   // First, before every route and static file: refuse any Host the dashboard does not know
   // (DNS rebinding; host-allowlist.ts). Both modes; with the split on it is defense in depth.
   app.use(

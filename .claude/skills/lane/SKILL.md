@@ -7,7 +7,7 @@ description: How a Foundry AI Tool coding lane works from claim to merge - claim
 
 A lane is one session with one outcome: one Backlog item, one branch, one PR. Vault paths below are
 under `C:\Users\chris\Documents\Obsidian\vault\Dev\Foundry AI Tool\` (pull before writing, push
-after). History: vault `Decisions/Decisions log.md`.
+after).
 
 **Asking the user:** any OK, pick, value or input the lane needs from the user goes through
 `AskUserQuestion` in that same turn, recommended option first, each question standing on its own.
@@ -23,7 +23,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
    the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
    own worktree (the context lines are fixed at session start).
-2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
+2. `git branch --show-current`. New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. More than about eight files to read goes to an Explore subagent
    (`model: "haiku"`) that returns a summary with file:line; you read only what you edit.
@@ -53,7 +53,7 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 
 - **CI on the PR head is the green.** No full `npm run green` before a PR: quick
   local checks, push, fix what CI reports, also after review fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
-  - **Quick checks:** `npm run green -- --quick` (seconds to minutes, no heavy lock). It
+  - **Quick checks:** `npm run green -- --quick`. It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
     changed scripts and hooks, dashboard e2e specs, and for
@@ -73,7 +73,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   baseline: then push the branch, run `npm run visual:baselines -- <branch>` (about 15
   minutes on GitHub; a branch cut before the workflow merged needs `git merge aitool/main` first),
   look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
-  them, push, and only then open the PR. The helper takes only its own run and refuses an artifact from another sha; it logs to
+  them, push, and only then open the PR. The helper logs to
   `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (printed first). If it writes nothing, read that log. Never copy
   baselines from a failed PR run; re-run after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives,
@@ -138,9 +138,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 ## Context and handover
 
 - The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
-  lane (project dir under `.claude/worktrees/`, or a transcript in a `...--claude-worktrees-<name>` project folder), fixed at session start; the planner and
-  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number; an advisor call's
-  usage reads about twice the real context.
+  lane (project dir under `.claude/worktrees/`), fixed at session start; the planner and
+  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop.

@@ -42,7 +42,8 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
   status. Kit runs default to B. Verify a feature live
   before calling it done. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534).- **Commands over 2 minutes** run in the background, never polled. On Windows never call
+31514 --control-only` (B 31524, C 31534).
+- **Commands over 2 minutes** run in the background, never polled. On Windows never call
   `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
   or regex through Write/Edit.
 - Review checklist: `review-checklist.md` here. For dashboard or player-page UI the reviewer also

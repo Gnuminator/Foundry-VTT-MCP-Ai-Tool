@@ -34,7 +34,7 @@ export interface BridgeLinkStatus {
 }
 
 /** What the lifecycle needs from the module. */
-export interface BridgeLinkLifecycleOptions {
+interface BridgeLinkLifecycleOptions {
   settings: ModuleSettings;
   /** False until the module's `init` finished; `start()` refuses before that. */
   isInitialized: () => boolean;

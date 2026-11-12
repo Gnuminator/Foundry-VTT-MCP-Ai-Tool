@@ -1,0 +1,34 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "include": ["files", "exports", "types"],
+  "workspaces": {
+    ".": { "entry": [], "project": [] },
+    "shared": { "entry": ["src/index.ts"], "project": ["src/**/*.ts"] },
+    "packages/mcp-server": {
+      "entry": [
+        "src/index.ts",
+        "src/standalone.ts",
+        "src/backend.ts",
+        "src/vault-cli.ts",
+        "src/obsidian-cli.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/foundry-module": {
+      "entry": ["src/main.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/cogm-dashboard": {
+      "entry": ["src/server.ts", "web/src/main.tsx", "web/src/**/*.stories.tsx"],
+      "project": ["src/**/*.ts", "web/src/**/*.{ts,tsx}"]
+    },
+    "packages/discord-bot": {
+      "entry": ["src/cli.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/obsidian-plugin": {
+      "entry": ["src/main.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

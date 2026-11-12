@@ -13,7 +13,10 @@ import { parseWaiting } from '../.claude/hooks/start-alerts.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { parseBacklog } from './backlog-items.mjs';
+import { itemRefs, parseBacklog } from './backlog-items.mjs';
+
+/** The repo gh must ask: never whatever remote the current folder happens to have. */
+export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 
 export const UNCLAIMED_DAYS = 3;
 export const WAITING_LEAD_DAYS = 7;
@@ -41,14 +44,15 @@ export function unclaimedAccepted(backlogText, today) {
     if ((i.fields.get('claimed') ?? []).length) continue;
     if (/\b(merged|fixed)\b/i.test((i.fields.get('progress') ?? []).at(-1) ?? '')) continue;
     // A blocked item cannot be claimed yet, so it is not "unclaimed for N days".
-    const blockers = (i.fields.get('blocked by') ?? []).join(' ').match(/[a-z][a-z0-9-]+/gi) ?? [];
-    if (blockers.some(b => b !== 'item' && open.has(b))) continue;
+    if ((i.fields.get('blocked by') ?? []).flatMap(itemRefs).some(r => open.has(r))) continue;
     const dates = [...source.matchAll(/\d{4}-\d{2}-\d{2}/g)].map(m => dayNumber(m[0]) ?? 0);
     const days = dates.length ? now - Math.max(...dates) : null;
     if (days !== null && days <= UNCLAIMED_DAYS) continue;
     out.push({ id: i.id, days });
   }
-  return out.map(o => `- ${o.id}: accepted, unclaimed for ${o.days ?? 'an unknown number of'} days`);
+  return out.map(
+    o => `- ${o.id}: accepted, unclaimed for ${o.days ?? 'an unknown number of'} days`
+  );
 }
 
 /**
@@ -59,7 +63,9 @@ export function unclaimedAccepted(backlogText, today) {
 export function newestNote(notes, pr) {
   const mine = notes
     .map(n => {
-      const m = /^(\d+)-(opus-)?review(?:-round(\d+))?\.md$/.exec(n.file.split(/[\\/]/).pop() ?? '');
+      const m = /^(\d+)-(opus-)?review(?:-round(\d+))?\.md$/.exec(
+        n.file.split(/[\\/]/).pop() ?? ''
+      );
       return m && Number(m[1]) === pr ? { ...n, round: Number(m[3] ?? 1), opus: !!m[2] } : null;
     })
     .filter(x => x !== null);
@@ -74,7 +80,8 @@ export function newestNote(notes, pr) {
 export function verdictFor(note, head) {
   if (!note) return 'no review note';
   const heads = [...note.text.matchAll(/^Head reviewed:\s*([0-9a-f]{40})/gim)].map(m => m[1]);
-  const verdict = /##\s*Verdict[\s\S]*?\*\*([^*]+)\*\*/i.exec(note.text)?.[1]?.trim().replace(/\.$/, '') ?? '?';
+  const verdict =
+    /##\s*Verdict[\s\S]*?\*\*([^*]+)\*\*/i.exec(note.text)?.[1]?.trim().replace(/\.$/, '') ?? '?';
   const reviewed = heads.at(-1);
   if (!reviewed) return `note has no Head reviewed line (${verdict})`;
   if (reviewed.toLowerCase() !== head.toLowerCase())
@@ -197,16 +204,40 @@ export function plannerSections(o) {
       return '';
     }
   };
-  const prs = gh(['pr', 'list', '--json', 'number,title,headRefOid,isDraft,statusCheckRollup']);
+  const prs = gh([
+    'pr',
+    'list',
+    '-R',
+    REPO,
+    '--json',
+    'number,title,headRefOid,isDraft,statusCheckRollup',
+  ]);
   const runs = gh([
-    'run', 'list', '--branch', 'main', '-w', 'ci.yml', '-L', '1', '--json', 'status,conclusion,headSha',
+    'run',
+    'list',
+    '-R',
+    REPO,
+    '--branch',
+    'main',
+    '-w',
+    'ci.yml',
+    '-L',
+    '1',
+    '--json',
+    'status,conclusion,headSha',
   ]);
   const unclaimed = unclaimedAccepted(o.backlog, o.today);
   return [
     unclaimed.length
       ? [`Accepted, unclaimed (${unclaimed.length}):`, ...unclaimed].join('\n')
       : 'Accepted, unclaimed: none',
-    prTable(prs, gatherNotes(o.devDir, (prs ?? []).map((/** @type {any} */ p) => p.number))).join('\n'),
+    prTable(
+      prs,
+      gatherNotes(
+        o.devDir,
+        (prs ?? []).map((/** @type {any} */ p) => p.number)
+      )
+    ).join('\n'),
     trainLine(read('Merge train.md')),
     mainLine(runs?.[0] ?? null),
     dueWaiting(read('Waiting.md'), o.today),

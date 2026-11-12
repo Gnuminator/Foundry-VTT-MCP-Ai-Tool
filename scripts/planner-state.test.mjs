@@ -9,6 +9,7 @@ import {
   mainLine,
   newestNote,
   plannerSections,
+  REPO,
   prTable,
   trainLine,
   unclaimedAccepted,
@@ -40,7 +41,7 @@ const BACKLOG = [
   '## S Blocked accepted',
   '- id: blocked-one',
   '- source: user verdict accept 2026-10-01',
-  '- blocked by: old-one',
+  '- blocked by: item:old-one',
   '',
   '## S Not accepted',
   '- id: plain-one',
@@ -75,7 +76,10 @@ test('ciState reads check runs and contexts', () => {
   assert.equal(ciState([]), 'no checks');
   assert.equal(ciState([{ conclusion: 'SUCCESS', status: 'COMPLETED' }]), 'green');
   assert.match(ciState([{ status: 'IN_PROGRESS', conclusion: '' }]), /^pending/);
-  assert.match(ciState([{ name: 'build', conclusion: 'FAILURE', status: 'COMPLETED' }]), /red \(build\)/);
+  assert.match(
+    ciState([{ name: 'build', conclusion: 'FAILURE', status: 'COMPLETED' }]),
+    /red \(build\)/
+  );
 });
 
 test('prTable, trainLine, mainLine', () => {
@@ -88,7 +92,10 @@ test('prTable, trainLine, mainLine', () => {
   const train = '---\ncount: 2\nlimit: 4\nlast-event: merge\nlast-event-pr: 9\n---\n';
   assert.match(trainLine(train), /^Merge train: 2 of 4, last merge PR #9/);
   assert.equal(trainLine(''), 'Merge train: not readable');
-  assert.equal(mainLine({ status: 'completed', conclusion: 'success', headSha: H1 }), `Main's CI: success at aaaaaaaa`);
+  assert.equal(
+    mainLine({ status: 'completed', conclusion: 'success', headSha: H1 }),
+    `Main's CI: success at aaaaaaaa`
+  );
   assert.match(mainLine(null), /unknown/);
 });
 
@@ -113,19 +120,43 @@ test('dueWaiting honours the 7-day lead and the from date', () => {
 test('plannerSections assembles every section from a vault dir and a fake gh', () => {
   const dev = fs.mkdtempSync(path.join(os.tmpdir(), 'planner-state-'));
   fs.mkdirSync(path.join(dev, 'Handoff', 'Reviews 2026-11-12'), { recursive: true });
-  fs.writeFileSync(path.join(dev, 'Handoff', 'Reviews 2026-11-12', '5-review.md'), note(H1, 'Merge.').text);
+  fs.writeFileSync(
+    path.join(dev, 'Handoff', 'Reviews 2026-11-12', '5-review.md'),
+    note(H1, 'Merge.').text
+  );
   fs.writeFileSync(path.join(dev, 'Merge train.md'), '---\ncount: 1\nlimit: 4\n---\n');
   fs.writeFileSync(path.join(dev, 'Waiting.md'), '## W9 Do it\n- due: 2026-11-12\n');
-  const gh = args =>
+  const seen = [];
+  const gh = args => {
+    seen.push(args);
+    return ghAnswer(args);
+  };
+  const ghAnswer = args =>
     args[0] === 'pr'
-      ? [{ number: 5, title: 'Thing', headRefOid: H1, isDraft: false, statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }] }]
+      ? [
+          {
+            number: 5,
+            title: 'Thing',
+            headRefOid: H1,
+            isDraft: false,
+            statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }],
+          },
+        ]
       : [{ status: 'completed', conclusion: 'success', headSha: H1 }];
   const s = plannerSections({ devDir: dev, backlog: BACKLOG, today: '2026-11-12', gh }).join('\n');
+  assert.equal(seen.length, 2);
+  for (const a of seen)
+    assert.deepEqual(a.slice(a.indexOf('-R'), a.indexOf('-R') + 2), ['-R', REPO]);
   assert.match(s, /Accepted, unclaimed \(1\):/);
   assert.match(s, /#5 Thing: CI green, review Merge \(head\)/);
   assert.match(s, /Merge train: 1 of 4/);
   assert.match(s, /Main's CI: success/);
   assert.match(s, /W9 Do it/);
-  const dark = plannerSections({ devDir: dev, backlog: '', today: '2026-11-12', gh: () => null }).join('\n');
+  const dark = plannerSections({
+    devDir: dev,
+    backlog: '',
+    today: '2026-11-12',
+    gh: () => null,
+  }).join('\n');
   assert.match(dark, /gh not available/);
 });

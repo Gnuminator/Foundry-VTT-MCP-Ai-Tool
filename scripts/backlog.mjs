@@ -3,7 +3,8 @@
  * The one writer of the vault Backlog for sessions (item `backlog-tool`). Lanes never edit
  * Backlog.md by hand: `.claude/hooks/guard-backlog.mjs` refuses it from a worktree.
  *
- *   node scripts/backlog.mjs status                         claimed items, then the top free ones
+ *   node scripts/backlog.mjs status [--planner]             claimed items, then the top free ones;
+ *                                         --planner adds PRs with CI and verdict, train, main CI, Waiting
  *   node scripts/backlog.mjs claim <id> <session title> [--link <claude:// link>]
  *   node scripts/backlog.mjs progress <id> <text>          replaces the item's progress line
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
@@ -41,6 +42,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pidAlive, sleepSync } from './heavy-lock.mjs';
+import { plannerSections } from './planner-state.mjs';
 import {
   checkEdit,
   findItem,
@@ -527,7 +529,7 @@ function writeLocked(o, must) {
 
 // ---- CLI -------------------------------------------------------------------------------------------
 
-const BOOLEAN = new Set(['dry-run', 'pi', 'private']);
+const BOOLEAN = new Set(['dry-run', 'pi', 'planner', 'private']);
 
 /** @param {string[]} argv */
 export function parseArgs(argv) {
@@ -557,7 +559,7 @@ const today = () => new Date().toLocaleDateString('sv-SE');
 /**
  * Run one command. Returns the exit code; prints to `out` and `err`.
  * @param {string[]} argv
- * @param {{ vault?: string, git?: Git, beforePush?: (attempt: number) => void,
+ * @param {{ vault?: string, git?: Git, gh?: (a: string[]) => any, beforePush?: (attempt: number) => void,
  *   out?: (s: string) => void, err?: (s: string) => void, lockWaitMs?: number }} [env]
  */
 export function run(argv, env = {}) {
@@ -593,7 +595,16 @@ export function run(argv, env = {}) {
           err('backlog: git fetch failed; the last fetched copy');
         const up = git(['show', `@{u}:${BACKLOG}`]);
         if (up.status !== 0) err('backlog: no upstream copy; showing the local file');
-        out(statusText(up.status === 0 ? up.stdout : readNow(BACKLOG)));
+        const backlog = up.status === 0 ? up.stdout : readNow(BACKLOG);
+        const sections = flags.planner
+          ? plannerSections({
+              devDir: path.join(vault, path.dirname(BACKLOG)),
+              backlog,
+              today: date,
+              gh: env.gh,
+            })
+          : [];
+        out([statusText(backlog), ...sections].join('\n'));
         return 0;
       }
       case 'claim': {

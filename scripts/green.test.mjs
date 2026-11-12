@@ -172,6 +172,14 @@ test('parity: every check that is a step belongs to a CI group, or to e2e (its o
     [],
     'add the family to CI_GROUPS'
   );
+  // A steps:false entry is a drift guard or an ARM-only check; one that is neither runs nowhere.
+  const named = new Set(Object.values(NAMED_GROUPS).flat());
+  const nowhere = ALL_CHECKS.filter(c => c.steps === false && !c.drift && !named.has(c.name));
+  assert.deepEqual(
+    nowhere.map(c => c.name),
+    [],
+    'a steps:false check needs a drift guard or a NAMED_GROUPS entry'
+  );
   for (const name of RUN_GROUPS) {
     assert.ok(groupChecks(name).length > 0, `CI group ${name} has no check`);
   }

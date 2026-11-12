@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ciRunCommands } from './ci-yaml.mjs';
-import { CHECKS } from './checks.mjs';
+import { RUN_GROUPS, groupChecks } from './checks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -41,7 +41,7 @@ export const RUNNERS = {
     'vitest default include in tools/livekit/recorder (the Livekit recorder tests step)',
   // vitest with an explicit include list
   'shared/src/**/*.test.ts':
-    'vitest include in shared/vitest.config.ts (the shared unit-test step in ci.yml: npm test -w @gnuminator/shared)',
+    'vitest include in shared/vitest.config.ts (the shared unit-test check in scripts/checks.mjs: npm test -w @gnuminator/shared)',
   'packages/obsidian-plugin/src/**/*.test.ts':
     'vitest include in packages/obsidian-plugin/vitest.config.ts',
   'packages/discord-bot/src/**/*.test.ts':
@@ -171,8 +171,9 @@ function main() {
     .filter(n => n.endsWith('.yml'))
     .map(n => fs.readFileSync(path.join(wfDir, n), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  // ci.yml calls `checks.mjs --run <group>`: the test paths now stand in the CHECKS list.
-  const checkCommands = CHECKS.map(c => [c.cmd, ...c.args].join(' '));
+  // ci.yml calls `checks.mjs --run <group>`: the test paths now stand in the CHECKS list, and only
+  // the checks some CI group runs count (a drift-only entry is not a CI run).
+  const checkCommands = RUN_GROUPS.flatMap(groupChecks).map(c => [c.cmd, ...c.args].join(' '));
   const text = expandCommands(
     [...workflows.flatMap(workflowCommands), ...checkCommands],
     pkg.scripts ?? {}
@@ -185,7 +186,9 @@ function main() {
   if (unrun.length) {
     console.error('test-coverage: these test files are reached by no workflow command or runner:');
     for (const f of unrun) console.error(`  ${f}`);
-    console.error('Add them to a ci.yml step (and scripts/checks.mjs) or delete them.');
+    console.error(
+      'Add a check to scripts/checks.mjs (CI runs it through its group) or delete them.'
+    );
   }
   if (staleRunners.length) {
     console.error('test-coverage: RUNNERS entries that match no test file any more:');

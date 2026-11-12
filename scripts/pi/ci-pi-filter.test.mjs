@@ -98,14 +98,11 @@ test('the filter always covers the workflow, the lockfile and its own inputs', (
     'deploy/pi/compose.yml',
     'scripts/gamenight-watch-pi.mjs',
     'scripts/gamenight-watch.mjs',
+    'scripts/checks.mjs', // holds PI_CONTAINER_MATRIX, the matrix of the shards
   ]) {
     assert.ok(matches(rel), `the pi-changes filter misses ${rel}`);
   }
-  for (const rel of [
-    'packages/cogm-dashboard/web/App.tsx',
-    'docs/index.md',
-    'scripts/checks.mjs',
-  ]) {
+  for (const rel of ['packages/cogm-dashboard/web/App.tsx', 'docs/index.md']) {
     assert.ok(!matches(rel), `the pi-changes filter should not fire for ${rel}`);
   }
 });

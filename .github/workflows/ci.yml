@@ -470,7 +470,9 @@ jobs:
 
       - name: The matrix of Pi container tests (PI_CONTAINER_MATRIX in scripts/checks.mjs)
         id: matrix
-        run: echo "matrix=$(node scripts/checks.mjs --matrix pi)" >> "$GITHUB_OUTPUT"
+        run: |
+          matrix=$(node scripts/checks.mjs --matrix pi)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
       - name: Did a Pi input change?
         id: filter
@@ -483,7 +485,7 @@ jobs:
           changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
           echo "Changed files against the base:"
           echo "$changed"
-          if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+          if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|scripts/checks\.mjs$|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing the Pi container tests depend on changed: skip them."

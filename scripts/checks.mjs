@@ -16,6 +16,7 @@
  *
  *   node scripts/checks.mjs --list         print every entry: name, group and where it runs
  *   node scripts/checks.mjs --run <group>  run a CI group; table of checks and seconds to the job summary
+ *   node scripts/checks.mjs --matrix pi    the matrix of the Pi container job, as JSON
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -92,7 +93,7 @@ const workspaceTest = (/** @type {string} */ name, /** @type {string} */ ws) => 
 });
 
 /**
- * Every check, in CI order (the order of the commands in the `build-test` job). A chained CI
+ * Every check, in the order green runs them (CI runs each CI group in this order). A chained CI
  * command (`a && b`) is one entry per part, so a failure names the part that broke. `group` names
  * the family a check belongs to (for the grouped CI steps that follow this list). An entry with
  * `steps: false` is only a drift guard: CI and green do not run it as a step of their own.
@@ -542,9 +543,8 @@ function execCheck(c) {
 }
 
 /**
- * CI commands of `build-test` that green does not run, each with the reason. The key is the command
- * with its whitespace collapsed. The parity test accepts a CI command that a step covers or that is
- * listed here.
+ * CI commands that green does not run, each with the reason. The key is the command with its
+ * whitespace collapsed. The parity test checks that each still stands in the dashboard-e2e-shard job.
  * @type {Record<string, string>}
  */
 export const CI_ONLY = {

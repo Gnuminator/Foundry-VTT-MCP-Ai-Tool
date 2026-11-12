@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the same
- * order (except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
+ * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the order
+ * of the CHECKS list (CI runs them in group order; except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
  * minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
  * stdout and stderr to a log file under the temp folder, and the run prints one line at the end:
  *
@@ -447,7 +447,10 @@ function spawnStep(step, fd, cwd) {
   if (step.name === 'livekit-recorder-install' && !process.env.CI) {
     const dir = path.join(cwd, 'tools', 'livekit', 'recorder');
     if (installIsFresh(dir)) {
-      fs.writeSync(fd, 'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n');
+      fs.writeSync(
+        fd,
+        'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n'
+      );
       return 0;
     }
   }

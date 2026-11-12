@@ -155,7 +155,8 @@ export const CHECKS = [
     'scripts/merge-runner.test.mjs',
     'scripts/main-red-revert.test.mjs',
     'scripts/line-ratchet.test.mjs',
-    'scripts/unused-ratchet.test.mjs'
+    'scripts/unused-ratchet.test.mjs',
+    'scripts/review-severity-rule.test.mjs'
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),

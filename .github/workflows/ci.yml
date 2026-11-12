@@ -122,7 +122,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs scripts/backlog.test.mjs scripts/planner-state.test.mjs scripts/merge-runner.test.mjs scripts/main-red-revert.test.mjs scripts/line-ratchet.test.mjs scripts/unused-ratchet.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs scripts/backlog.test.mjs scripts/planner-state.test.mjs scripts/merge-runner.test.mjs scripts/main-red-revert.test.mjs scripts/line-ratchet.test.mjs scripts/unused-ratchet.test.mjs scripts/review-severity-rule.test.mjs
 
       - name: Weekly usage report
         # scripts/dev (usage-week figures, usage-now, usage-report, weekly-check-note) against fixture transcripts.

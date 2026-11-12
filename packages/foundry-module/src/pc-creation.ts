@@ -88,6 +88,28 @@ function resolveOwner(ref: string): UserLike {
   return user;
 }
 
+/**
+ * dnd5e links a character sheet to its species, background and first class in `_onCreate` of the
+ * embedded item, which does not run for items inlined in an Actor create. Without these the sheet
+ * shows no species or background, no original class and no spellcasting ability. The links point
+ * at the new item ids (the actor is created with `keepId`, so they hold).
+ */
+function sheetLinks(itemData: Rec[]): Rec | null {
+  const first = (type: string): Rec | undefined => itemData.find(i => i.type === type);
+  const race = first('race');
+  const background = first('background');
+  const cls = first('class');
+  const details: Rec = {};
+  if (race) details.race = text(race._id);
+  if (background) details.background = text(background._id);
+  if (cls) details.originalClass = text(cls._id);
+  const ability = text(rec(rec(cls?.system)?.spellcasting)?.ability);
+  const system: Rec = {};
+  if (Object.keys(details).length > 0) system.details = details;
+  if (ability) system.attributes = { spellcasting: ability };
+  return Object.keys(system).length > 0 ? system : null;
+}
+
 export async function planPcCreation(data: unknown): Promise<PcCreationPlan> {
   const g = globals();
   if (g.game.user?.isGM !== true) throw new Error('Only a GM can plan a character');
@@ -192,6 +214,8 @@ export async function planPcCreation(data: unknown): Promise<PcCreationPlan> {
     ownership: { default: 0, ...(owner ? { [owner.id]: OWNER_LEVEL } : {}) },
     items: itemData,
   };
+  const links = sheetLinks(itemData);
+  if (links) actorData.system = links;
   const ops: GuardedOp[] = [
     { kind: 'create', documentName: 'Actor', data: actorData, keepId: true },
   ];

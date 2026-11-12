@@ -8,6 +8,35 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { buildToolRouter, DETACHED_TOOLS, type ToolRouterDeps } from './tool-router.js';
+import { TOOL_MODULES } from './tools/index.js';
+import { type ToolModule, createToolInstances, defineToolModule } from './tools/tool-module.js';
+import { stubToolServices } from './test-support/stub-tool-deps.js';
+
+describe('createToolInstances', () => {
+  it('builds each module once, even one another module uses', () => {
+    let built = 0;
+    const base = defineToolModule({
+      id: 'base',
+      create: () => ({ n: ++built }),
+      definitions: () => [],
+      routes: {},
+    });
+    const user = defineToolModule({
+      id: 'user',
+      create: ({ use }) => ({ base: use(base) }),
+      definitions: () => [],
+      routes: {},
+    });
+    const tools = createToolInstances(stubToolServices(), [user, base]);
+    expect(built).toBe(1);
+    expect(tools.get(user).base).toBe(tools.get(base));
+  });
+
+  it('refuses two modules with one id', () => {
+    const a = defineToolModule({ id: 'a', create: () => 1, definitions: () => [], routes: {} });
+    expect(() => createToolInstances(stubToolServices(), [a, { ...a }])).toThrow(/Duplicate/);
+  });
+});
 
 /** A tool whose every method is a memoized spy resolving to a marker. */
 function toolMock(): object {
@@ -23,24 +52,32 @@ function toolMock(): object {
   );
 }
 
-/** Deps where each tool instance is a memoized catch-all mock. */
+/** Every tool module, each instance a memoized catch-all mock. */
 function makeDeps(): ToolRouterDeps {
-  const cache: Record<string, any> = {};
-  return new Proxy(
-    {},
-    {
-      get(_t, prop: string): unknown {
-        cache[prop] ??= toolMock();
-        return cache[prop];
-      },
-    }
-  ) as unknown as ToolRouterDeps;
+  const cache = new Map<unknown, object>();
+  return {
+    modules: TOOL_MODULES,
+    get: <T>(module: ToolModule<T>): T => {
+      if (!cache.has(module)) cache.set(module, toolMock());
+      return cache.get(module) as T;
+    },
+  };
+}
+
+/** The mock instance of the module with this id (tools/modules/<id>.ts). */
+function tool(deps: ToolRouterDeps, id: string): any {
+  const module = TOOL_MODULES.find(m => m.id === id);
+  if (!module) throw new Error(`no tool module ${id}`);
+  return deps.get(module);
 }
 
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(102);
+    // Every tool but the player set's, which runs only through the player_tool message.
+    expect(Object.keys(router)).toHaveLength(
+      TOOL_MODULES.flatMap(m => Object.values(m.tools)).filter(meta => meta.set !== 'player').length
+    );
   });
 
   it('routes direct tools to the owning method with the call args', async () => {
@@ -49,25 +86,25 @@ describe('buildToolRouter', () => {
     const args = { x: 1 };
 
     await router['get-character'](args);
-    expect((deps as any).characterTools.handleGetCharacter).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'character').handleGetCharacter).toHaveBeenCalledWith(args);
 
     await router['plan-scene-change'](args);
-    expect((deps as any).sceneChangeTools.handlePlanSceneChange).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'scene-change').handlePlanSceneChange).toHaveBeenCalledWith(args);
 
     await router['play-playlist'](args);
-    expect((deps as any).sceneChangeTools.handlePlayPlaylist).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'scene-change').handlePlayPlaylist).toHaveBeenCalledWith(args);
 
     await router['list-changes'](args);
-    expect((deps as any).changeHistoryTools.handleListChanges).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'change-history').handleListChanges).toHaveBeenCalledWith(args);
 
     await router['plan-undo-changes'](args);
-    expect((deps as any).changeHistoryTools.handlePlanUndoChanges).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'change-history').handlePlanUndoChanges).toHaveBeenCalledWith(args);
 
     await router['list-scenes'](args);
-    expect((deps as any).sceneTools.listScenes).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'scene').listScenes).toHaveBeenCalledWith(args);
 
     await router['switch-scene'](args);
-    expect((deps as any).sceneTools.switchScene).toHaveBeenCalledWith(args);
+    expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith(args);
   });
 
   it('passes who asked to the writes that record a name, and nothing without a context', async () => {
@@ -76,17 +113,17 @@ describe('buildToolRouter', () => {
     const args = { planId: 'p1', confirm: true };
 
     await router['apply-planned-change'](args, { requestedBy: 'GM (dashboard)' });
-    expect((deps as any).guardedChangeTools.handleApplyPlannedChange).toHaveBeenCalledWith(
+    expect(tool(deps, 'guarded-changes').handleApplyPlannedChange).toHaveBeenCalledWith(
       args,
       'GM (dashboard)'
     );
     await router['undo-change']({ changeId: 'c1' }, { requestedBy: 'GM (dashboard)' });
-    expect((deps as any).guardedChangeTools.handleUndoChange).toHaveBeenCalledWith(
+    expect(tool(deps, 'guarded-changes').handleUndoChange).toHaveBeenCalledWith(
       { changeId: 'c1' },
       'GM (dashboard)'
     );
     await router['apply-planned-change'](args);
-    expect((deps as any).guardedChangeTools.handleApplyPlannedChange).toHaveBeenLastCalledWith(
+    expect(tool(deps, 'guarded-changes').handleApplyPlannedChange).toHaveBeenLastCalledWith(
       args,
       undefined
     );
@@ -102,7 +139,7 @@ describe('buildToolRouter', () => {
     const router = buildToolRouter(deps);
     const signal = new AbortController().signal;
     await router['wait-for-game-event']({ x: 1 }, { signal });
-    expect((deps as any).waitForEventTools.handleWaitForGameEvent).toHaveBeenCalledWith(
+    expect(tool(deps, 'wait-for-event').handleWaitForGameEvent).toHaveBeenCalledWith(
       { x: 1 },
       signal
     );
@@ -114,12 +151,12 @@ describe('buildToolRouter', () => {
     const args = { y: 2 };
 
     await router['plan-ownership-change'](args);
-    expect((deps as any).ownershipTools.handleToolCall).toHaveBeenCalledWith(
+    expect(tool(deps, 'ownership').handleToolCall).toHaveBeenCalledWith(
       'plan-ownership-change',
       args
     );
     await router['list-actor-ownership'](args);
-    expect((deps as any).ownershipTools.handleToolCall).toHaveBeenCalledWith(
+    expect(tool(deps, 'ownership').handleToolCall).toHaveBeenCalledWith(
       'list-actor-ownership',
       args
     );
@@ -136,6 +173,18 @@ describe('buildToolRouter', () => {
   it('has no handler for an unknown tool name (caller throws Unknown tool)', () => {
     const router = buildToolRouter(makeDeps());
     expect(router['definitely-not-a-tool']).toBeUndefined();
+  });
+
+  it('refuses a tool name two modules both route', () => {
+    const one = defineToolModule({
+      id: 'one',
+      create: () => ({}),
+      definitions: () => [],
+      routes: { 'same-name': async () => 1 },
+    });
+    const two = defineToolModule({ ...one, id: 'two' });
+    const deps = { modules: [one, two], get: <T>(): T => ({}) as T };
+    expect(() => buildToolRouter(deps)).toThrow(/same-name.*claimed twice/);
   });
 
   // The map is null-prototype: inherited Object.prototype keys must not resolve

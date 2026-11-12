@@ -25,8 +25,11 @@
  * write. Every tool has exactly one entry (the tool catalog test checks this,
  * and that no tool named like a write is marked read-only).
  *
- * Pure: no SDK, no I/O.
+ * No SDK and no I/O of its own; the hints are written in the tool modules (tools/modules/*.ts),
+ * which this file reads through the static module list.
  */
+
+import { TOOL_MODULES } from './tools/index.js';
 
 export type ToolKind = 'read' | 'write' | 'destructive';
 
@@ -44,134 +47,12 @@ export interface ToolAnnotations {
   destructiveHint?: boolean;
 }
 
-export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
-  // core
-  'get-world-info': { title: 'Get world info', kind: 'read' },
-  'list-characters': { title: 'List characters', kind: 'read' },
-  'get-character': { title: 'Get character', kind: 'read' },
-  'get-character-entity': { title: 'Get character item or effect', kind: 'read' },
-  'search-character-items': { title: 'Search character items', kind: 'read' },
-  'list-scenes': { title: 'List scenes', kind: 'read' },
-  'get-current-scene': { title: 'Get current scene', kind: 'read' },
-  'get-token-positions': { title: 'Get token positions', kind: 'read' },
-  'get-combat-state': { title: 'Get combat state', kind: 'read' },
-  'list-journals': { title: 'List or read journals', kind: 'read' },
-  'search-journals': { title: 'Search journals', kind: 'read' },
-  'search-compendium': { title: 'Search compendiums', kind: 'read' },
-  'search-rules': { title: 'Search rules', kind: 'read' },
-  'get-compendium-item': { title: 'Get compendium item', kind: 'read' },
-  'list-compendium-packs': { title: 'List compendium packs', kind: 'read' },
-  'get-planned-change': { title: 'Show planned change', kind: 'read' },
-  'apply-planned-change': { title: 'Apply planned change', kind: 'destructive' },
-  'list-recent-changes': { title: 'List applied plans', kind: 'read' },
-  'list-changes': { title: 'List all recent changes', kind: 'read' },
-  'plan-undo-changes': { title: 'Plan undoing changes', kind: 'read' },
-  'undo-change': { title: 'Undo change', kind: 'destructive' },
-  'open-in-foundry': { title: 'Open in Foundry', kind: 'read' },
-  'check-secret-terms': { title: 'Check secret terms', kind: 'read' },
-  // play
-  'switch-scene': { title: 'Switch scene', kind: 'write' },
-  'use-item': { title: 'Use item', kind: 'destructive' },
-  'request-player-rolls': { title: 'Request player rolls', kind: 'write' },
-  'request-ability-check': { title: 'Request ability check', kind: 'write' },
-  'request-attack-roll': { title: 'Request attack roll', kind: 'write' },
-  'roll-npc-check': { title: 'Roll NPC check', kind: 'write' },
-  'get-token-details': { title: 'Get token details', kind: 'read' },
-  'get-available-conditions': { title: 'List conditions', kind: 'read' },
-  'get-chat-log': { title: 'Get chat log', kind: 'read' },
-  'get-combat-play-by-play': { title: 'Get combat play-by-play', kind: 'read' },
-  'send-chat-message': { title: 'Send chat message', kind: 'write' },
-  'get-character-resources': { title: 'Get character resources', kind: 'read' },
-  'get-level-up-options': { title: 'Get level-up options', kind: 'read' },
-  'get-active-effects': { title: 'Get active effects', kind: 'read' },
-  'advance-combat-turn': { title: 'Advance combat turn', kind: 'write' },
-  'set-initiative': { title: 'Set initiative', kind: 'destructive' },
-  'roll-initiative-for-npcs': { title: 'Roll initiative', kind: 'write' },
-  'measure-distance': { title: 'Measure distance', kind: 'read' },
-  'get-targets': { title: 'Get GM targets', kind: 'read' },
-  'get-recent-events': { title: 'Get recent events', kind: 'read' },
-  'wait-for-game-event': { title: 'Wait for a game event', kind: 'read' },
-  'plan-actor-change': { title: 'Plan damage, healing or conditions', kind: 'read' },
-  'plan-token-change': { title: 'Plan token change', kind: 'read' },
-  'roll-saving-throws': { title: 'Roll NPC saving throws', kind: 'write' },
-  'use-npc-activity': { title: 'Use NPC attack or activity', kind: 'write' },
-  'manage-rest': { title: 'Run a rest', kind: 'destructive' },
-  'get-party': { title: 'Get party', kind: 'read' },
-  'plan-party-change': { title: 'Plan party change', kind: 'read' },
-  'plan-combat-change': { title: 'Plan ending a fight', kind: 'read' },
-  'plan-scene-change': { title: 'Plan scene dressing', kind: 'read' },
-  'plan-scene-mood': { title: 'Plan scene mood or music', kind: 'read' },
-  'list-scene-moods': { title: 'List scene moods and playlists', kind: 'read' },
-  'check-action': { title: 'Check an action against the rules', kind: 'read' },
-  'plan-scene-restore': { title: 'Plan scene restore from backup', kind: 'read' },
-  'plan-npc-turn': { title: 'Plan NPC turn', kind: 'read' },
-  'plan-paper-sync': { title: 'Plan paper sheet sync', kind: 'read' },
-  'plan-room-setup': {
-    title: 'Plan room setup (teleports, rooms, levels, stairs, hazards)',
-    kind: 'read',
-  },
-  'plan-pc-creation': { title: 'Plan a new player character with pack items', kind: 'read' },
-  // 'write': the picture file is stored in the world's assets/ai-art folder when the plan is made.
-  'plan-actor-image': {
-    title: 'Plan a new portrait and token picture for an actor',
-    kind: 'write',
-  },
-  'plan-token-rings': {
-    title: 'Plan dynamic token rings for actors or placed tokens',
-    kind: 'read',
-  },
-  'play-playlist': { title: 'Play or stop playlist', kind: 'write' },
-  'mark-play-session': { title: 'Mark play session start or end', kind: 'write' },
-  // prep
-  'create-quest-journal': { title: 'Create quest journal', kind: 'write' },
-  'update-quest-journal': { title: 'Update quest journal', kind: 'destructive' },
-  'link-quest-to-npc': { title: 'Link quest to NPC', kind: 'write' },
-  'create-campaign-dashboard': { title: 'Create campaign dashboard', kind: 'write' },
-  'suggest-balanced-encounter': { title: 'Suggest balanced encounter', kind: 'read' },
-  'get-tarokka-reading': { title: 'Get Tarokka reading', kind: 'read' },
-  'plan-tarokka-import': { title: 'Plan Tarokka reading import', kind: 'read' },
-  'suggest-tarokka-links': { title: 'Suggest Tarokka links', kind: 'read' },
-  'plan-tarokka-links': { title: 'Plan Tarokka links', kind: 'read' },
-  'plan-tarokka-reveal': { title: 'Plan Tarokka reveal', kind: 'read' },
-  'get-player-visibility': { title: 'Get player visibility', kind: 'read' },
-  'list-revealed-pages': { title: 'List revealed pages', kind: 'read' },
-  'get-player-handouts': { title: 'Get player handouts', kind: 'read' },
-  'plan-page-reveal': { title: 'Plan page reveal', kind: 'read' },
-  'list-ref-choices': { title: 'List parameter choices', kind: 'read' },
-  'get-session-log': { title: 'Get session log', kind: 'read' },
-  'get-play-session': { title: 'Get play session state', kind: 'read' },
-  'get-play-stats': { title: 'Get play stats', kind: 'read' },
-  'get-preflight': { title: 'Run pre-flight check', kind: 'read' },
-  'get-prep-digest': { title: 'Get prep digest', kind: 'read' },
-  // build
-  'list-creatures-by-criteria': { title: 'List creatures by criteria', kind: 'read' },
-  'get-compendium-entry-full': { title: 'Get full compendium entry', kind: 'read' },
-  'create-actor-from-compendium': { title: 'Create actor from compendium', kind: 'write' },
-  'dnd5e-create-npc': { title: 'Create NPC', kind: 'write' },
-  'dnd5e-add-feature': { title: 'Add feature to actor', kind: 'write' },
-  'dnd5e-add-features-from-compendium': {
-    title: 'Add compendium features to actor',
-    kind: 'write',
-  },
-  'manage-world-items': { title: 'Manage world items', kind: 'destructive' },
-  // player (served only on /mcp/player)
-  'get-my-character': { title: 'Get my character', kind: 'read' },
-  'get-my-level-up-options': { title: 'Get my level-up options', kind: 'read' },
-  'search-books': { title: 'Search the books', kind: 'read' },
-  'find-book-entries': { title: 'Find book entries', kind: 'read' },
-  'get-book-entry': { title: 'Get a book entry', kind: 'read' },
-  // admin
-  'get-modules': { title: 'List modules', kind: 'read' },
-  'get-module-errors': { title: 'Get module errors', kind: 'read' },
-  'clear-module-errors': { title: 'Clear module errors', kind: 'destructive' },
-  'get-module-manifest': { title: 'Get module manifest', kind: 'read' },
-  'list-actor-ownership': { title: 'List actor ownership', kind: 'read' },
-  'plan-ownership-change': { title: 'Plan ownership change', kind: 'read' },
-  'plan-table-viewer': { title: 'Plan the TV table viewer user', kind: 'read' },
-  'plan-foundry-setup': { title: 'Read or plan Foundry setup', kind: 'read' },
-  'get-obsidian-mirror': { title: 'Get Obsidian mirror settings', kind: 'read' },
-  'plan-obsidian-mirror': { title: 'Plan Obsidian mirror change', kind: 'read' },
-};
+/** Title and kind of every tool, derived from the `tools` maps of the tool modules (R10). */
+export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = Object.fromEntries(
+  TOOL_MODULES.flatMap(m =>
+    Object.entries(m.tools).map(([name, { title, kind }]) => [name, { title, kind }] as const)
+  )
+);
 
 /** The annotations for one tool, or undefined for a name with no entry. */
 export function toolAnnotations(name: string): ToolAnnotations | undefined {

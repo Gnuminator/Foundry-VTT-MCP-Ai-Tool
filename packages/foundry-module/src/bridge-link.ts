@@ -1,7 +1,7 @@
 /**
  * The one place that knows whether this browser holds the open bridge link.
  *
- * `main.ts` registers the socket bridge here when it starts the link and clears
+ * `bridge-link-lifecycle.ts` registers the socket bridge here when it starts the link and clears
  * it when the link is stopped. The GM helper queries and the "AI changes" window
  * read it from here, so they never import `main.ts` (which builds the whole
  * module at import time). Only one browser per world holds the link (the bridge

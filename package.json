@@ -70,7 +70,7 @@
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "typecheck": "npm run usage:catalog && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run usage:catalog && npm run typecheck --workspaces --if-present && tsc -p scripts/tsconfig.json",
     "vault": "node packages/mcp-server/dist/vault-cli.js",
     "obsidian": "node packages/mcp-server/dist/obsidian-cli.js",
     "test:mcp:schema": "node scripts/mcp-schema-smoke-test.mjs",

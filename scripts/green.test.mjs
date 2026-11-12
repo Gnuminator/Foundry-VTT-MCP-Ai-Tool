@@ -1863,3 +1863,20 @@ test('installIsFresh: node_modules/.package-lock.json newer than package-lock.js
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('scripts/tsconfig.json typechecks every gate script, and its file list only grows', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const cfg = JSON.parse(fs.readFileSync(path.join(here, 'tsconfig.json'), 'utf8'));
+  // Baseline: add a script here when it joins the config; never remove one.
+  const baseline = ['checks.mjs', 'drift-check.mjs', 'green.mjs', 'lane-merge.mjs'];
+  for (const f of baseline) {
+    assert.ok(cfg.files.includes(f), `${f} is gone from scripts/tsconfig.json`);
+  }
+  // checkJs is off, so every listed file must opt in itself or it is not checked at all.
+  for (const f of cfg.files) {
+    const head = fs.readFileSync(path.join(here, f), 'utf8').split('\n').slice(0, 3).join('\n');
+    assert.match(head, /\/\/ @ts-check/, `${f} lost its // @ts-check line`);
+  }
+  const root = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
+  assert.ok(root.scripts.typecheck.endsWith('tsc -p scripts/tsconfig.json'));
+});

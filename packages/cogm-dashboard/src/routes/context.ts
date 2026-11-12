@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 
-import type { DashboardClient } from '../app.js';
+import type { DashboardClient } from '../dashboard-types.js';
 import type { Config } from '../config.js';
 import type { DashboardPrefsStore } from '../dashboard-prefs.js';
 import type { PlayerViewSource } from '../player/source.js';

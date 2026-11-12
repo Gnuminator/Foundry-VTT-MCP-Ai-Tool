@@ -1666,10 +1666,27 @@ test('gh pr view failing ends the run with one line', () => {
   ]);
 });
 
+test('lane-merge split: the entry file stays small and every gate module is a file of its own', () => {
+  const entry = fs.readFileSync(SELF, 'utf8').replace(/\r\n/g, '\n').split('\n');
+  const count = entry.length - (entry.at(-1) === '' ? 1 : 0);
+  assert.ok(
+    count <= 150,
+    `scripts/lane-merge.mjs has ${count} lines (ceiling 150): new gate code goes into a file in scripts/lane-merge/`
+  );
+  const dir = path.join(path.dirname(SELF), 'lane-merge');
+  for (const name of fs.readdirSync(dir)) {
+    assert.match(name, /\.mjs$/, `${name} in scripts/lane-merge/ is not a module`);
+    const text = fs.readFileSync(path.join(dir, name), 'utf8');
+    assert.ok(text.split('\n').length <= 700, `${name} is over 700 lines: split it by gate`);
+  }
+});
+
 /** relaunchFromMain with fakes: a "self" file with `selfText`, main's copy `mainText` (or null). */
 function relaunch({
   selfText = 'gate A\n',
   mainText = 'gate A\n',
+  selfModules = {},
+  mainModules = {},
   fetchFail = false,
   env = {},
   argv = ['312'],
@@ -1678,6 +1695,10 @@ function relaunch({
   const dir = tmpDir();
   const selfPath = path.join(dir, 'lane-merge.mjs');
   fs.writeFileSync(selfPath, selfText);
+  if (Object.keys(selfModules).length) fs.mkdirSync(path.join(dir, 'lane-merge'));
+  for (const [n, text] of Object.entries(selfModules)) {
+    fs.writeFileSync(path.join(dir, 'lane-merge', n), text);
+  }
   const calls = [];
   const lines = [];
   const spawned = [];
@@ -1695,6 +1716,14 @@ function relaunch({
         return fetchFail
           ? { status: 1, stdout: '', stderr: 'offline' }
           : { status: 0, stdout: '', stderr: '' };
+      }
+      if (args[0] === 'ls-tree') {
+        const names = Object.keys(mainModules).map(n => `scripts/lane-merge/${n}`);
+        return { status: 0, stdout: names.join('\n'), stderr: '' };
+      }
+      const prefix = 'aitool/main:scripts/lane-merge/';
+      if (args[1].startsWith(prefix)) {
+        return { status: 0, stdout: mainModules[args[1].slice(prefix.length)], stderr: '' };
       }
       return mainText === null
         ? { status: 128, stdout: '', stderr: 'fatal' }
@@ -1714,8 +1743,35 @@ test('H1: a gate identical to main runs in place (line endings do not matter)', 
   assert.deepEqual(same.calls, [
     'git fetch aitool main',
     'git show aitool/main:scripts/lane-merge.mjs',
+    'git ls-tree -r --name-only aitool/main scripts/lane-merge/',
   ]);
   assert.equal(relaunch({ mainText: 'gate A\r\n' }).out.relaunched, false);
+  const mods = { 'a.mjs': 'one\n', 'b.mjs': 'two\n' };
+  const sameMods = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\r\n', 'b.mjs': 'two\n' },
+  });
+  assert.equal(sameMods.out.relaunched, false, 'matching modules run in place');
+  const changed = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\n', 'b.mjs': 'X\n' },
+  });
+  assert.equal(changed.out.relaunched, true, 'a changed module is replaced by main');
+  const [call] = changed.spawned;
+  assert.equal(
+    fs.readFileSync(path.join(path.dirname(call.args[0]), 'lane-merge', 'b.mjs'), 'utf8'),
+    'X\n'
+  );
+  assert.equal(
+    relaunch({ selfModules: mods, mainModules: { 'a.mjs': 'one\n' } }).out.relaunched,
+    true,
+    'a module only this checkout has differs'
+  );
+  assert.equal(
+    relaunch({ selfModules: { 'a.mjs': 'one\n' }, mainModules: mods }).out.relaunched,
+    true,
+    'a module only main has differs'
+  );
 });
 
 test("H1: a gate that differs from main is replaced by main's copy, same arguments and folder", () => {
@@ -1790,6 +1846,9 @@ test('L6: started through a junction the gate still runs, and a mismatch exits n
   const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-copy-'));
   const copy = path.join(copyDir, 'lane-merge.mjs');
   fs.copyFileSync(SELF, copy);
+  fs.cpSync(path.join(path.dirname(SELF), 'lane-merge'), path.join(copyDir, 'lane-merge'), {
+    recursive: true,
+  });
   const fine = spawnSync(process.execPath, [copy, '--train', '--state', state], {
     encoding: 'utf8',
   });

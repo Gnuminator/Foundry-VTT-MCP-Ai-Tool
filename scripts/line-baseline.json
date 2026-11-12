@@ -3,17 +3,14 @@
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1020,
     "packages/cogm-dashboard/public/styles.css": 2400,
-    "packages/cogm-dashboard/src/app.ts": 1300,
     "packages/foundry-module/src/data-access/actor-builder.ts": 2274,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1640,
     "packages/foundry-module/src/export-index.ts": 1433,
-    "packages/foundry-module/src/main.ts": 1077,
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2131,
     "packages/foundry-module/src/queries.ts": 1824,
     "packages/foundry-module/src/session-events.ts": 1301,
-    "packages/mcp-server/src/backend.ts": 1061,
     "packages/mcp-server/src/change-history.ts": 1443,
     "packages/mcp-server/src/guarded-write/service.ts": 1546,
     "packages/mcp-server/src/handouts/service.ts": 1210,
@@ -27,7 +24,6 @@
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1210,
-    "scripts/lane-merge.mjs": 2363,
     "scripts/live-write-sweep.mjs": 1690,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
     "scripts/test-kit/lib/fake/origins.mjs": 1057,
@@ -37,12 +33,5 @@
     "scripts/test-kit/lib/origins.mjs": 1038,
     "scripts/test-kit/lib/spells-deep.mjs": 1020
   },
-  "exceptions": [
-    {
-      "file": "scripts/lane-merge.mjs",
-      "lines": 2363,
-      "reason": "the merge gate runs main's copy as one lone temp file (relaunchFromMain), so the review carry-over cannot live in a sibling module; item lane-merge-split splits it",
-      "pr": "966"
-    }
-  ]
+  "exceptions": []
 }

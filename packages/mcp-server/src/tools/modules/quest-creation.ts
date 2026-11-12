@@ -13,4 +13,11 @@ export const questCreationModule = defineToolModule({
     'list-journals': (tools, args) => tools.handleListJournals(args),
     'search-journals': (tools, args) => tools.handleSearchJournals(args),
   },
+  tools: {
+    'create-quest-journal': { set: 'prep', title: 'Create quest journal', kind: 'write' },
+    'link-quest-to-npc': { set: 'prep', title: 'Link quest to NPC', kind: 'write' },
+    'update-quest-journal': { set: 'prep', title: 'Update quest journal', kind: 'destructive' },
+    'list-journals': { set: 'core', title: 'List or read journals', kind: 'read' },
+    'search-journals': { set: 'core', title: 'Search journals', kind: 'read' },
+  },
 });

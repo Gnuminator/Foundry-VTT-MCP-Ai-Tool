@@ -13,4 +13,12 @@ export const actorImageModule = defineToolModule({
   routes: {
     'plan-actor-image': (tools, args) => tools.handleToolCall('plan-actor-image', args),
   },
+  tools: {
+    // 'write': the picture file is stored in the world's assets/ai-art folder when the plan is made.
+    'plan-actor-image': {
+      set: 'build',
+      title: 'Plan a new portrait and token picture for an actor',
+      kind: 'write',
+    },
+  },
 });

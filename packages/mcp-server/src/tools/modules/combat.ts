@@ -12,4 +12,10 @@ export const combatModule = defineToolModule({
     'set-initiative': (tools, args) => tools.handleSetInitiative(args),
     'roll-initiative-for-npcs': (tools, args) => tools.handleRollInitiativeForNpcs(args),
   },
+  tools: {
+    'get-combat-state': { set: 'core', title: 'Get combat state', kind: 'read' },
+    'advance-combat-turn': { set: 'play', title: 'Advance combat turn', kind: 'write' },
+    'set-initiative': { set: 'play', title: 'Set initiative', kind: 'destructive' },
+    'roll-initiative-for-npcs': { set: 'play', title: 'Roll initiative', kind: 'write' },
+  },
 });

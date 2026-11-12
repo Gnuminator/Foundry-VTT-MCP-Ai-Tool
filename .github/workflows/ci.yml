@@ -109,14 +109,18 @@ jobs:
         # warn-control-bytes.mjs (control bytes in changed files); the second makes temp git repos.
         # guard-model.mjs refuses Agent and start_session calls without a `model`;
         # format-on-edit.mjs runs prettier on the file an Edit or Write just changed.
-        run: node --test .claude/hooks/guard-shell-edits.test.mjs .claude/hooks/warn-control-bytes.test.mjs .claude/hooks/guard-model.test.mjs .claude/hooks/format-on-edit.test.mjs
+        run: node --test .claude/hooks/guard-shell-edits.test.mjs .claude/hooks/warn-control-bytes.test.mjs .claude/hooks/guard-model.test.mjs .claude/hooks/guard-cloudflare.test.mjs .claude/hooks/format-on-edit.test.mjs
+
+      - name: Cloudflare compare
+        # scripts/cloudflare-compare.mjs: drift between a live Cloudflare read and the expected state.
+        run: node --test scripts/cloudflare-compare.test.mjs
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
         run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs scripts/main-red-revert.test.mjs scripts/line-ratchet.test.mjs scripts/unused-ratchet.test.mjs
 
       - name: Weekly usage report
-        # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
+        # scripts/dev (usage-week figures, usage-now, usage-report, weekly-check-note) against fixture transcripts.
         run: npm run dev:test
 
       - name: Game-night watch

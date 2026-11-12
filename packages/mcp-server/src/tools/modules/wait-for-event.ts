@@ -10,4 +10,7 @@ export const waitForEventModule = defineToolModule({
     'wait-for-game-event': (tools, args, context) =>
       tools.handleWaitForGameEvent(args, context?.signal),
   },
+  tools: {
+    'wait-for-game-event': { set: 'play', title: 'Wait for a game event', kind: 'read' },
+  },
 });

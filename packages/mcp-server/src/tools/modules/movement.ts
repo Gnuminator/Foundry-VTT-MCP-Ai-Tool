@@ -11,4 +11,9 @@ export const movementModule = defineToolModule({
     'measure-distance': (tools, args) => tools.handleMeasureDistance(args),
     'get-targets': (tools, args) => tools.handleGetTargets(args),
   },
+  tools: {
+    'get-token-positions': { set: 'core', title: 'Get token positions', kind: 'read' },
+    'measure-distance': { set: 'play', title: 'Measure distance', kind: 'read' },
+    'get-targets': { set: 'play', title: 'Get GM targets', kind: 'read' },
+  },
 });

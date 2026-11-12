@@ -10,12 +10,16 @@
  * one bridge backend. The dashboard reads the control channel and always sees
  * every tool.
  *
- * Every tool belongs to exactly one set (the tool catalog test checks this).
- * A new tool goes into a set here, and a new feature gets one tool with an
- * `action` parameter rather than several small tools.
+ * Every tool belongs to exactly one set (the tool catalog test checks this). The set is the
+ * `set` field of the tool's entry in its module's `tools` map (tools/modules/*.ts, R10); the
+ * lists below are derived from the modules, here only the names, titles and purposes are written
+ * by hand. A new feature gets one tool with an `action` parameter rather than several small tools.
  *
- * Pure: no SDK, no I/O.
+ * No SDK and no I/O of its own; it reads the static module list (tools/index.ts), so nothing
+ * those modules import may import this file at run time.
  */
+
+import { TOOL_MODULES } from './tools/index.js';
 
 /**
  * The five sets a stdio wrapper (a Claude Desktop entry) can serve. The sixth set, `player`
@@ -44,157 +48,57 @@ export interface ToolSetSpec {
   tools: readonly string[];
 }
 
-export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
+const SET_TEXT: Readonly<Record<ToolSetName, Omit<ToolSetSpec, 'tools'>>> = {
   core: {
     title: 'Core',
     purpose:
       'Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.',
-    tools: [
-      'get-world-info',
-      'list-characters',
-      'get-character',
-      'get-character-entity',
-      'search-character-items',
-      'get-level-up-options',
-      'list-scenes',
-      'get-current-scene',
-      'get-token-positions',
-      'get-combat-state',
-      'list-journals',
-      'search-journals',
-      'search-compendium',
-      'search-rules',
-      'get-compendium-item',
-      'list-compendium-packs',
-      'get-planned-change',
-      'apply-planned-change',
-      'list-recent-changes',
-      'list-changes',
-      'plan-undo-changes',
-      'undo-change',
-      'open-in-foundry',
-      'check-secret-terms',
-    ],
   },
   play: {
     title: 'Play',
     purpose:
       'Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.',
-    tools: [
-      'switch-scene',
-      'use-item',
-      'request-player-rolls',
-      'request-ability-check',
-      'request-attack-roll',
-      'roll-npc-check',
-      'get-token-details',
-      'get-available-conditions',
-      'get-chat-log',
-      'get-combat-play-by-play',
-      'send-chat-message',
-      'get-character-resources',
-      'get-active-effects',
-      'advance-combat-turn',
-      'set-initiative',
-      'roll-initiative-for-npcs',
-      'measure-distance',
-      'get-targets',
-      'get-recent-events',
-      'wait-for-game-event',
-      'plan-actor-change',
-      'plan-token-change',
-      'roll-saving-throws',
-      'use-npc-activity',
-      'manage-rest',
-      'get-party',
-      'plan-party-change',
-      'plan-combat-change',
-      'plan-scene-change',
-      'plan-scene-restore',
-      'plan-npc-turn',
-      'plan-paper-sync',
-      'plan-scene-mood',
-      'list-scene-moods',
-      'play-playlist',
-      'mark-play-session',
-      'check-action',
-    ],
   },
   prep: {
     title: 'Prep',
     purpose:
       'Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.',
-    tools: [
-      'create-quest-journal',
-      'update-quest-journal',
-      'link-quest-to-npc',
-      'create-campaign-dashboard',
-      'suggest-balanced-encounter',
-      'get-tarokka-reading',
-      'plan-tarokka-import',
-      'suggest-tarokka-links',
-      'plan-tarokka-links',
-      'plan-tarokka-reveal',
-      'get-player-visibility',
-      'list-revealed-pages',
-      'get-player-handouts',
-      'plan-page-reveal',
-      'list-ref-choices',
-      'get-session-log',
-      'get-play-session',
-      'get-play-stats',
-      'get-preflight',
-      'get-prep-digest',
-    ],
   },
   build: {
     title: 'Build',
     purpose:
       'Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.',
-    tools: [
-      'list-creatures-by-criteria',
-      'get-compendium-entry-full',
-      'create-actor-from-compendium',
-      'dnd5e-create-npc',
-      'dnd5e-add-feature',
-      'dnd5e-add-features-from-compendium',
-      'manage-world-items',
-      'plan-room-setup',
-      'plan-pc-creation',
-      'plan-actor-image',
-    ],
   },
   admin: {
     title: 'Admin',
     purpose:
       'Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.',
-    tools: [
-      'get-modules',
-      'get-module-errors',
-      'clear-module-errors',
-      'get-module-manifest',
-      'list-actor-ownership',
-      'plan-ownership-change',
-      'plan-table-viewer',
-      'plan-foundry-setup',
-      'plan-token-rings',
-      'get-obsidian-mirror',
-      'plan-obsidian-mirror',
-    ],
   },
   player: {
     title: 'Player',
     purpose:
       "A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio.",
-    tools: [
-      'get-my-character',
-      'get-my-level-up-options',
-      'search-books',
-      'find-book-entries',
-      'get-book-entry',
-    ],
   },
 };
+
+/**
+ * Each set with its tools, derived from the tool modules: a tool is in the set its module's
+ * `tools` entry names, and the lists follow the tools/list order (module order, then each
+ * module's `tools` key order).
+ */
+export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = Object.fromEntries(
+  ALL_TOOL_SET_NAMES.map(set => [
+    set,
+    {
+      ...SET_TEXT[set],
+      tools: TOOL_MODULES.flatMap(m =>
+        Object.entries(m.tools)
+          .filter(([, meta]) => meta.set === set)
+          .map(([name]) => name)
+      ),
+    },
+  ])
+) as unknown as Record<ToolSetName, ToolSetSpec>;
 
 /** The environment variable a Claude Desktop entry sets, e.g. `core` or `prep,admin`. */
 export const TOOL_SETS_ENV = 'FOUNDRY_AI_TOOL_SETS';

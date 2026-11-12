@@ -14,4 +14,8 @@ export const changeHistoryModule = defineToolModule({
     'list-changes': (tools, args) => tools.handleListChanges(args),
     'plan-undo-changes': (tools, args) => tools.handlePlanUndoChanges(args),
   },
+  tools: {
+    'list-changes': { set: 'core', title: 'List all recent changes', kind: 'read' },
+    'plan-undo-changes': { set: 'core', title: 'Plan undoing changes', kind: 'read' },
+  },
 });

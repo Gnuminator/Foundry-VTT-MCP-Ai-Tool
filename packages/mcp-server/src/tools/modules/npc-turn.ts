@@ -13,4 +13,7 @@ export const npcTurnModule = defineToolModule({
   routes: {
     'plan-npc-turn': (tools, args) => tools.handleToolCall('plan-npc-turn', args),
   },
+  tools: {
+    'plan-npc-turn': { set: 'play', title: 'Plan NPC turn', kind: 'read' },
+  },
 });

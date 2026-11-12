@@ -1148,7 +1148,7 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 - `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run near the end (`module-load` has 200 and `dashboard-login-split` 1000, so those two run after them): they
   post thousands of chat cards.
 - `t.size` (read only): the kit size of the run, for a scenario that samples.
-- `tools`: every bridge tool it calls. `kit check` fails if a tool is not in `tool-sets.ts`.
+- `tools`: every bridge tool it calls. `kit check` fails if a tool is not in a tool set (`tool-sets.ts`, derived from the tool modules).
 - `gmActions`: every GM action it calls (the only way to run code inside Foundry).
 - `run(t)`: the scenario. `t` has `step`, `check`, `equal`, `tool`, `guarded.planApply`,
   `guarded.undo`, `gm`, `player.state`, `player.html`, `http`, `kit` (the manifest), `log`,

@@ -1,6 +1,6 @@
 ---
 name: planner
-description: The on-demand planner for Foundry AI Tool - answering "what's next", keeping the vault Backlog and Waiting notes, starting and checking lanes (cap 3), recording decisions and holds, the merge train, session cleanup and the weekly usage check. Use when the user asks what to do next, wants lanes started or stopped, makes a scope decision, or asks for the state of the project.
+description: The on-demand planner for Foundry AI Tool - answering "what's next", keeping the vault Backlog and Waiting notes, starting and checking lanes, recording decisions and holds, the merge train, session cleanup and the weekly usage check. Use when the user asks what to do next, wants lanes started or stopped, makes a scope decision, or asks for the state of the project.
 ---
 
 # Planner
@@ -23,7 +23,7 @@ The planner runs on Opus, on demand, for one outcome, then ends (see Waking). Va
 ## "What's next"
 
 Answer with: due Waiting items (what, minutes, what it settles), running lanes and open PRs, and
-the top Backlog items with a bold recommended pick. Decisions: question tool, after the answer.
+the top Backlog items with a bold recommended pick.
 
 ## Backlog upkeep
 
@@ -32,14 +32,15 @@ never changed or reused: the live board, D-124, links by it), `- board: <area>`,
 `- area:`, `- progress:` (the lane's ready state), optional `- gate:`, `- blocked by:` (`W21` or
 `item:<id>`), `- pi: yes` (needs a Pi day and the user's OK), `- source:`, `- touches: path,
 folder/`, `- depends on: #380, item:<id>`, and `- claimed:` once a lane takes it. The board's Lanes
-zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
+zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. Remove merged items, add the line (`- title | area | ref | date`, newest first, at the top) to vault `Backlog done.md`, never to `Backlog.md`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
 (triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`). The board rewrites
 `Backlog.md`: pull first, keep each item's lines together.
 
 ## Starting lanes
 
 - Turn Remote Control on for this session (`set_remote_control` "self" true) for the phone.
-- At most 3 lanes, each owning its own files and test server. Respect every hold in CLAUDE.md.
+- Lows: one sweep lane per area when `Lows/<area>.md` passes about 10 lines; drop lines older than a month.
+- Each lane owns its own files and test server. Respect every hold in CLAUDE.md.
 - Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md", write your `claude://` link (`get_session "self"`, field `link`) as a
   `- link:` line under your claim, report "ready to merge" as a `- progress:` line on the item and
@@ -52,8 +53,9 @@ zone warns on two lanes on one path or a claim before its dependency is done; ch
 
 The planner ends after its outcome. At 200k context it plans the handover and keeps working; it is out by 250k (lanes in `.claude/worktrees/` get 250k and 300k). Before it stops:
 
-1. Write the handover note (running lanes with session ids and `- progress:` state, open PRs, what
-   is next), and start the next planner or leave a copy-paste prompt.
+1. Write the handover note, at most 150 words under three headings: Stance (what the user wants now),
+   Not filed yet, Local quirks. Lanes, PRs and next steps are read from Backlog `- progress:` lines
+   and `list_sessions`. Start the next planner or leave a copy-paste prompt.
 2. Detach every running lane with `mcp__ccd_session_mgmt__detach_session` (their notes stop waking
    this session; irreversible; the app refuses one the user placed). The next planner finds them
    through `list_sessions`.
@@ -61,11 +63,10 @@ The planner ends after its outcome. At 200k context it plans the handover and ke
 
 ## Decisions and holds
 
-- Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md); each question asks one
-  thing. Write the note in `Decisions/` (next D number). Other choices: the question tool, then
+- Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget: lane skill under 2,000 words, planner under 1,500).
+  budget: lane skill under 1,970 words, planner under 1,490).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).
@@ -106,15 +107,14 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
 ## Session cleanup
 
 Archive only when certain: not running, worktree clean and pushed (`git worktree list` first), no
-process or background run from it, no other lane on that branch. Subagent worktrees (`agent-*`) can hold uncommitted work. Archiving deletes side-session notes, so a successor's needs live in the vault.
+process or background run from it, no other lane on that branch. Subagent worktrees (`agent-*`) can hold uncommitted work. Archiving deletes side-session notes.
 
 ## Weekly check
 
 `npm run usage:week` (`--days N`, `--json`) against the targets, plus the weekly-check item's two
-targets. A rule or tool that does not move them is removed. **Pace** is judged by hours worked, not
+targets. A rule or tool that moves neither is removed. **Pace** is judged by hours worked, not
 14% a day: `usage:now` writes `pace-delta` (on pace: within 8 points), `pace-projected-percent` and
-`pace-active-hours-left`. Ahead by more than 8: hold new lanes. Projected under 88 (five-hour under
-60): offer an extra lane by question, best Thursday or Friday afternoon; no projection, no offer.
+`pace-active-hours-left`. Pace is information only: it never holds or adds a lane.
 The reset is Saturday 06:00 local in winter. On the Saturday after it run `npm run usage:week -- --write-vault --days 7`
 and push vault `Weekly check.md` (the board's Week page).
 Glance at upstream Actor Studio releases after 2.10.5: a lane rebases it onto our fork,

@@ -52,14 +52,15 @@ test('refuses missing, out of range and offset-less input', () => {
   assert.throws(() => parseArgs(['--model', 'sonnet']), /name=percent/);
 });
 
-test('check lines come from the targets and skip unknown values', () => {
+test('check lines come from the figures and skip unknown values', () => {
   const report = {
     window: { from: '2026-10-17', to: '2026-10-23' },
-    targets: [
+    figures: [
       { name: 'startup', value: 74321.4 },
       { name: 'M tokens per PR', value: 16.44 },
       { name: 'sessions a day', value: 14.84 },
       { name: 'weekly % a day', value: null },
+      { name: 'weekly points per PR', value: 3.456 },
     ],
   };
   assert.deepEqual(checkLines(report), [
@@ -68,7 +69,10 @@ test('check lines come from the targets and skip unknown values', () => {
     'check-startup: 74321',
     'check-m-tokens-per-pr: 16.4',
     'check-sessions-a-day: 14.8',
+    'check-weekly-points-per-pr: 3.5',
   ]);
+  report.figures[4].value = null;
+  assert.ok(!checkLines(report).some(l => l.startsWith('check-weekly-points-per-pr')));
 });
 
 test('renderNote has frontmatter and no free text beyond the fixed lines', () => {

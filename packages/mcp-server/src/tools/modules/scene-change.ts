@@ -14,4 +14,8 @@ export const sceneChangeModule = defineToolModule({
     'plan-scene-change': (tools, args) => tools.handlePlanSceneChange(args),
     'play-playlist': (tools, args) => tools.handlePlayPlaylist(args),
   },
+  tools: {
+    'plan-scene-change': { set: 'play', title: 'Plan scene dressing', kind: 'read' },
+    'play-playlist': { set: 'play', title: 'Play or stop playlist', kind: 'write' },
+  },
 });

@@ -13,4 +13,11 @@ export const roomSetupModule = defineToolModule({
   routes: {
     'plan-room-setup': (tools, args) => tools.handleToolCall('plan-room-setup', args),
   },
+  tools: {
+    'plan-room-setup': {
+      set: 'build',
+      title: 'Plan room setup (teleports, rooms, levels, stairs, hazards)',
+      kind: 'read',
+    },
+  },
 });

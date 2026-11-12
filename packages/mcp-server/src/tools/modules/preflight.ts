@@ -19,4 +19,7 @@ export const preflightModule = defineToolModule({
   routes: {
     'get-preflight': (tools, args) => tools.handleGetPreflight(args),
   },
+  tools: {
+    'get-preflight': { set: 'prep', title: 'Run pre-flight check', kind: 'read' },
+  },
 });

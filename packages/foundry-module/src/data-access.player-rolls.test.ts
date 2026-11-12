@@ -37,7 +37,7 @@
  *     would require editing shared test support. Skipped.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ERROR_MESSAGES, MODULE_ID } from './constants.js';
 import {
   createTestWorld,
@@ -92,8 +92,8 @@ function addPlayerCharacter(opts: {
 
 /** Override `globalThis.Roll` with a spy-able mock that records `toMessage`. */
 function installRollSpy(total = 14): {
-  toMessage: ReturnType<typeof vi.fn>;
-  evaluate: ReturnType<typeof vi.fn>;
+  toMessage: Mock;
+  evaluate: Mock;
   ctorArgs: any[];
 } {
   const toMessage = vi.fn(() => Promise.resolve({}));
@@ -408,7 +408,7 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 
 describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => {
   function installFight(combatants: Array<{ id: string; actorId: string }>): {
-    rollInitiative: ReturnType<typeof vi.fn>;
+    rollInitiative: Mock;
   } {
     const rollInitiative = vi.fn(() => Promise.resolve());
     world.setCombat({ combatants: { contents: combatants }, rollInitiative });
@@ -1523,7 +1523,7 @@ describe('FoundryDataAccess: player page roll buttons', () => {
 });
 
 describe('FoundryDataAccess: a failed roll button click', () => {
-  function clickWith(isGM: boolean): { error: ReturnType<typeof vi.fn> } {
+  function clickWith(isGM: boolean): { error: Mock } {
     const g2 = globalThis as any;
     const error = vi.fn();
     g2.ui = { notifications: { error, warn: vi.fn(), info: vi.fn() } };

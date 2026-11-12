@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ChangeHistoryTools } from './change-history.js';
 
@@ -6,8 +6,8 @@ const EM_DASH = String.fromCharCode(0x2014);
 
 function makeTools(): {
   tools: ChangeHistoryTools;
-  list: ReturnType<typeof vi.fn>;
-  plan: ReturnType<typeof vi.fn>;
+  list: Mock;
+  plan: Mock;
 } {
   const logger: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;

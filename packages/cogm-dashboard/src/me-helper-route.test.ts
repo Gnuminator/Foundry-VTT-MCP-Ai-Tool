@@ -6,7 +6,7 @@ import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 
 import express from 'express';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { mountMeRoute, type MeRouteOptions } from './me-route.js';
 
@@ -22,7 +22,7 @@ afterEach(async () => {
 async function start(
   buildPreset: MeRouteOptions['buildPreset'],
   endpoint: string | null = 'https://player.example.org/mcp/player'
-): Promise<{ base: string; warn: ReturnType<typeof vi.fn> }> {
+): Promise<{ base: string; warn: Mock }> {
   const warn = vi.fn();
   const app = express();
   mountMeRoute(app, {

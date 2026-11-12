@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ResourceTools } from './resources.js';
 
@@ -11,8 +11,8 @@ import { ResourceTools } from './resources.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: ResourceTools;
-  query: ReturnType<typeof vi.fn>;
-  logger: Record<string, ReturnType<typeof vi.fn>>;
+  query: Mock;
+  logger: Record<string, Mock>;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

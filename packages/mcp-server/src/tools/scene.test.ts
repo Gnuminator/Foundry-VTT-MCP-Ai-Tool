@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SceneTools } from './scene.js';
 
@@ -13,7 +13,7 @@ import { SceneTools } from './scene.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: SceneTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

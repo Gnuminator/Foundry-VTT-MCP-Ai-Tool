@@ -14,14 +14,20 @@ describe('@gnuminator/shared in tests', () => {
     expect(viaPackage).toBe(viaSource);
   });
 
-  it('every package vitest config sets sharedFromSource (so no package tests the built copy)', () => {
+  it('every vitest config extends vitest.shared.mts (so no package tests the built copy)', () => {
     const packagesDir = path.join(repoRoot, 'packages');
+    const dirs = [
+      'shared',
+      ...readdirSync(packagesDir, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => path.join('packages', entry.name)),
+    ];
     const missing: string[] = [];
-    for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const config = path.join(packagesDir, entry.name, 'vitest.config.ts');
-      if (!existsSync(config) || !readFileSync(config, 'utf8').includes('sharedFromSource'))
-        missing.push(entry.name);
+    for (const dir of dirs) {
+      const config = path.join(repoRoot, dir, 'vitest.config.ts');
+      const text = existsSync(config) ? readFileSync(config, 'utf8') : '';
+      if (!/vitest\.shared\.mjs/.test(text) || !/mergeConfig\(\s*sharedConfig/.test(text))
+        missing.push(dir);
     }
     expect(missing).toEqual([]);
   });

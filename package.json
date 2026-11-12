@@ -37,6 +37,7 @@
     "version:check": "node scripts/sync-version.mjs --check",
     "changelog:check": "node scripts/changelog-fold.mjs --check",
     "changelog:fold": "node scripts/changelog-fold.mjs",
+    "deps:check": "node scripts/dep-ranges-check.mjs && node --test scripts/dep-ranges-check.test.mjs",
     "drift:check": "node scripts/drift-check.mjs",
     "green": "node scripts/green.mjs",
     "lane:merge": "node scripts/lane-merge.mjs",
@@ -104,7 +105,8 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.1",
     "typescript7": "npm:typescript@7.0.2",
-    "vitest": "^3.2.6"
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
   },
   "overrides": {
     "madge": {

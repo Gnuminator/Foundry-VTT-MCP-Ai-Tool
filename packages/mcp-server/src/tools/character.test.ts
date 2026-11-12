@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { CharacterTools } from './character.js';
 
@@ -19,7 +19,7 @@ import { CharacterTools } from './character.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: CharacterTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
   logger: any;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));

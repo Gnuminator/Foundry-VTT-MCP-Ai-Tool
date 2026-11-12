@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { runVaultCli, type CliIo } from './cli.js';
 import { VaultStore } from './store.js';
@@ -168,7 +168,7 @@ describe('vault CLI', () => {
 describe('WorldIdResolver', () => {
   function client(worldId: unknown = 'curse-of-strahd'): {
     state: { connected: boolean; serial: number; worldId: unknown };
-    query: ReturnType<typeof vi.fn>;
+    query: Mock;
     source: Record<string, unknown>;
   } {
     const state = { connected: true, serial: 1, worldId };

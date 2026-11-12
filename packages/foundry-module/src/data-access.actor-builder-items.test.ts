@@ -29,7 +29,7 @@
  *     `game.system.id` after `world.install()`.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createTestWorld,
   makeActor,
@@ -59,14 +59,14 @@ afterEach(() => {
 });
 
 /** A ready canvas viewing `sceneId`, with a stubbed tokens layer. */
-function stubCanvas(sceneId: string): ReturnType<typeof vi.fn> {
+function stubCanvas(sceneId: string): Mock {
   const setTargets = vi.fn();
   (globalThis as any).canvas = { ready: true, scene: { id: sceneId }, tokens: { setTargets } };
   return setTargets;
 }
 
 /** An active scene with one goblin token and a ready canvas on it; returns setTargets. */
-function goblinScene(): ReturnType<typeof vi.fn> {
+function goblinScene(): Mock {
   const scene = world.addScene({
     id: 'scene1',
     name: 'Field',
@@ -377,11 +377,7 @@ describe('FoundryDataAccess — useItem', () => {
   });
 
   describe('slot spells with no slot at their level', () => {
-    const wizard = (
-      slots: Record<string, number>,
-      method = 'spell',
-      level = 1
-    ): ReturnType<typeof vi.fn> => {
+    const wizard = (slots: Record<string, number>, method = 'spell', level = 1): Mock => {
       const use = vi.fn(() => Promise.resolve());
       const item = makeItem({
         id: 'gb',
@@ -606,7 +602,7 @@ describe('FoundryDataAccess — useItem', () => {
       ns === 'core' && key === 'noCanvas' ? true : original?.(ns, key);
   }
 
-  function noCanvasWorld(): ReturnType<typeof vi.fn> {
+  function noCanvasWorld(): Mock {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
     (item as any).use = use;

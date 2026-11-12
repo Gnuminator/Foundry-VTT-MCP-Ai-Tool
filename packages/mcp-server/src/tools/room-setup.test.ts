@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { RoomSetupTools } from './room-setup.js';
 
@@ -12,8 +12,8 @@ const logger: any = {
 
 function tools(opts: { enabled: boolean; planReply?: unknown }): {
   t: RoomSetupTools;
-  query: ReturnType<typeof vi.fn>;
-  createPlan: ReturnType<typeof vi.fn>;
+  query: Mock;
+  createPlan: Mock;
 } {
   const query = vi.fn(async (method: string) => {
     if (method === 'foundry-mcp-bridge.listGuardedFeatures') {

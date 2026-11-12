@@ -3,7 +3,7 @@
  * Foundry-mock harness for `game`, `Hooks` and `foundry.utils`; the socket is a
  * spy so the batching and the receiving side can be checked without Foundry.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   USAGE_BUFFER_MAX,
@@ -19,7 +19,7 @@ import { MODULE_ID } from './constants.js';
 
 let world: TestWorld;
 let restore: () => void;
-let emit: ReturnType<typeof vi.fn>;
+let emit: Mock;
 
 function setup(currentUser: { isGM?: boolean; id?: string; name?: string } = { isGM: true }): void {
   world = createTestWorld({ currentUser });

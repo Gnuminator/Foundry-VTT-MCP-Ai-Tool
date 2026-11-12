@@ -2,7 +2,7 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { ChangeRecord } from '@gnuminator/shared';
 
@@ -222,7 +222,7 @@ describe('renderEveryoneNote', () => {
 describe('EveryoneNotes', () => {
   let vaultDir: string;
   let days: ChangeDay[];
-  let logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+  let logger: { info: Mock; warn: Mock };
 
   function make(
     extra: { debounceMs?: number; maxWaitMs?: number; now?: () => number } = {}

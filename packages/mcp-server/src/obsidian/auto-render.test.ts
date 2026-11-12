@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { VaultStore } from '../vault/store.js';
 
@@ -25,9 +25,9 @@ function result(worldId: string, extra: Partial<ExportResult> = {}): ExportResul
 
 interface Harness {
   render: ObsidianAutoRender;
-  exportWorld: ReturnType<typeof vi.fn>;
+  exportWorld: Mock;
   calls: ExportArgs[];
-  logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+  logger: { info: Mock; warn: Mock };
 }
 
 function setup(

@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
@@ -1286,7 +1286,7 @@ describe('ChangeHistory.list', () => {
   let logger: any;
   let audit: RecentChange[];
   let undoState: UndoState;
-  let pullNow: ReturnType<typeof vi.fn>;
+  let pullNow: Mock;
 
   async function writeDay(records: ChangeRecord[]): Promise<void> {
     const byDate = new Map<string, ChangeRecord[]>();

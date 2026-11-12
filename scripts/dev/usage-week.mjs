@@ -403,7 +403,7 @@ function sessionStats(list) {
 export async function buildReport({ root, now, days, prs = null, usageLog = null, weeklyResets }) {
   const { startMs, keys } = windowDays(now, days);
   const files = findTranscripts(root, startMs);
-  const { responses, sessions, advisorCalls } = await readTranscripts(files, startMs);
+  const { responses, sessions } = await readTranscripts(files, startMs);
   const byDay = new Map(keys.map(k => [k, newDay(k)]));
   const models = {};
 

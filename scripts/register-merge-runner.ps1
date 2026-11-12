@@ -36,6 +36,13 @@ $repo = $RepoRoot -replace '[\\/]\.claude[\\/]worktrees[\\/].*$', ''
 $script = Join-Path $repo 'scripts' 'merge-runner.mjs'
 if (-not (Test-Path $script)) { throw "No $script in the main checkout; pull main there after the merge runner PR merged." }
 $gate = "$repo-gate"
+if (-not (Test-Path $gate)) {
+  if ($PSCmdlet.ShouldProcess($gate, 'Create the gate checkout (git worktree add --detach aitool/main)')) {
+    git -C $repo fetch -q aitool main
+    git -C $repo worktree add --detach $gate aitool/main
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the gate checkout $gate" }
+  }
+}
 if (-not (Test-Path (Join-Path $gate 'node_modules'))) {
   Write-Warning "The gate checkout $gate has no node_modules yet; the runner runs npm ci there on its first merge."
 }

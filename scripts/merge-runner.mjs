@@ -11,8 +11,10 @@
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
  * can take half an hour); a line that changed meanwhile waits for the next round.
  *
- *   - main's last finished CI run (push, ci.yml) is red, or cannot be read: post one line, exit 3.
- *     Nothing is merged and the ready lines stay.
+ *   - main's newest CI run (push, ci.yml) is red: post one line, exit 3. Nothing is merged and the
+ *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round.
+ *     A gate end that is not the PR's fault (gh/git blip, UNKNOWN mergeability) is tried again, up
+ *     to 3 times per head. A gate killed at its time limit stops the runner (leftover processes).
  *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below).
  *   - the PR head is not the sha of the ready line: a refusal. The gate never judges a head the
  *     ready line did not name.
@@ -68,6 +70,8 @@ export const GATE_FLAGS = ['--wait-ci'];
 export const EXIT_STOPPED = 3;
 /** The gate's exit code for "CI did not finish in time" (lane-merge.mjs EXIT_WAIT_TIMEOUT). */
 const GATE_WAIT_TIMEOUT = 5;
+/** What the gate dependency appends when it had to kill the gate at the time limit. */
+export const KILLED_LINE = 'merge-runner: gate killed at the time limit';
 export const TRAIN_FULL_LINE = 'merge train full: ask a session to run live:roundtrip';
 /** Written into the gate checkout's node_modules after an `npm ci`: the package-lock.json hash. */
 const LOCK_STAMP = path.join('node_modules', '.merge-runner-lock-hash');
@@ -96,38 +100,53 @@ export function readyItems(backlogText) {
 }
 
 /**
- * Main's state from `gh run list --json conclusion,headSha` (newest first, finished push runs of
- * ci.yml). Cancelled and skipped runs are passed over (a newer push cancels the older run).
+ * Main's state from `gh run list --json conclusion,headSha,status` (newest first, push runs of
+ * ci.yml, finished or not). Cancelled and skipped runs are passed over (a newer push cancels the
+ * older run). The newest run is the one for main's latest push, so a run still going means "not yet
+ * known": the round waits (an earlier merge in it may not have finished its CI). Only a finished
+ * red run is red.
  * @param {string} json
- * @returns {{ red: boolean, sha: string, why: string }}
+ * @returns {{ red: boolean, wait: boolean, sha: string, why: string }}
  */
 export function mainState(json) {
-  /** @type {{ conclusion?: string, headSha?: string }[]} */
+  /** @type {{ conclusion?: string | null, status?: string, headSha?: string }[]} */
   let runs;
   try {
     runs = JSON.parse(json);
   } catch {
-    return { red: true, sha: '', why: 'main CI unreadable (gh answered no JSON)' };
+    return { red: false, wait: true, sha: '', why: 'main CI unreadable (gh answered no JSON)' };
   }
   const run = Array.isArray(runs)
     ? runs.find(r => !['cancelled', 'skipped', 'neutral'].includes(String(r.conclusion)))
     : undefined;
-  if (!run) return { red: true, sha: '', why: 'no finished CI run on main to judge' };
+  if (!run) return { red: false, wait: true, sha: '', why: 'no CI run on main to judge' };
   const sha = String(run.headSha ?? '').slice(0, 7);
-  if (run.conclusion === 'success') return { red: false, sha, why: '' };
-  return { red: true, sha, why: `main is red at ${sha} (CI ${run.conclusion})` };
+  if (!run.conclusion || (run.status && run.status !== 'completed')) {
+    return { red: false, wait: true, sha, why: `main's CI is still running at ${sha}` };
+  }
+  if (run.conclusion === 'success') return { red: false, wait: false, sha, why: '' };
+  return { red: true, wait: false, sha, why: `main is red at ${sha} (CI ${run.conclusion})` };
 }
+
+/**
+ * Gate ends that are not the PR's fault (GitHub or git blipped, main moved, mergeability not yet
+ * computed, the gate was killed with no reason): tried again, up to MAX_TRANSIENT times per head.
+ */
+const TRANSIENT =
+  /gh pr view d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
+const MAX_TRANSIENT = 3;
 
 /**
  * What a gate run ended with.
  * @param {number} code @param {string} output @param {number} pr
- * @returns {{ kind: 'merged' | 'train-full' | 'wait' | 'refused', reason: string }}
+ * @returns {{ kind: 'merged' | 'train-full' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
  */
 export function gateOutcome(code, output, pr) {
   const lines = output.split(/\r?\n/);
   if (code === 0 && lines.some(l => l.startsWith(`lane:merge: merged #${pr} `))) {
     return { kind: 'merged', reason: '' };
   }
+  if (lines.includes(KILLED_LINE)) return { kind: 'killed', reason: KILLED_LINE };
   const because = lines.filter(l => l.startsWith('lane:merge: refused because ')).at(-1);
   const verdict = lines.filter(l => l.startsWith('lane:merge: wait-ci ended: ')).at(-1);
   const reason = because
@@ -137,6 +156,7 @@ export function gateOutcome(code, output, pr) {
       : `the gate ended with exit ${code} and no reason line`;
   if (/merge train full/.test(because ?? '')) return { kind: 'train-full', reason };
   if (code === GATE_WAIT_TIMEOUT) return { kind: 'wait', reason };
+  if (TRANSIENT.test(reason)) return { kind: 'transient', reason };
   return { kind: 'refused', reason };
 }
 
@@ -162,10 +182,10 @@ const norm = p => {
 /**
  * One round over the ready lines. `tried` holds `<PR>@<sha>` already handled in this run, so a
  * failed vault write cannot make the gate run twice on one head.
- * @param {Deps} d @param {Set<string>} tried
+ * @param {Deps} d @param {Set<string>} tried @param {Map<string, number>} [attempts]
  * @returns {{ stop: string | null, merged: number[] }}
  */
-export function round(d, tried) {
+export function round(d, tried, attempts = new Map()) {
   /** @type {number[]} */
   const merged = [];
   const text = d.readBacklog();
@@ -233,17 +253,24 @@ export function round(d, tried) {
       'ci.yml',
       '--event',
       'push',
-      '--status',
-      'completed',
       '-L',
       '10',
       '--json',
-      'conclusion,headSha',
+      'conclusion,headSha,status',
     ]);
     const main =
       runs.status === 0
         ? mainState(runs.stdout)
-        : { red: true, sha: '', why: `main CI unreadable (${oneLine(runs.stderr, 200)})` };
+        : {
+            red: false,
+            wait: true,
+            sha: '',
+            why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
+          };
+    if (main.wait) {
+      d.log(`${main.why}; next round`);
+      return { stop: null, merged };
+    }
     if (main.red) {
       d.log(`stopped: ${main.why}; nothing merged`);
       d.post(
@@ -312,8 +339,20 @@ export function round(d, tried) {
       d.log(`stopped: ${TRAIN_FULL_LINE} (#${r.pr} waits)`);
       d.post(`${TRAIN_FULL_LINE} (#${r.pr} waits; start the runner again after the train reset)`);
       return { stop: 'merge train full', merged };
+    } else if (out.kind === 'killed') {
+      // The gate's own children (drift-check, heavy lock) may still run in the gate checkout.
+      d.log(`stopped: the gate on #${r.pr} was killed at the time limit`);
+      d.post(
+        `merge runner stopped: the gate on #${r.pr} ran into its time limit and was killed; check for leftover processes in the gate checkout, then start the runner again`
+      );
+      return { stop: 'gate killed at the time limit', merged };
     } else if (out.kind === 'wait') {
       d.log(`#${r.pr}: CI still running (${oneLine(out.reason, 200)}); next round`);
+    } else if (out.kind === 'transient' && (attempts.get(key) ?? 0) + 1 < MAX_TRANSIENT) {
+      attempts.set(key, (attempts.get(key) ?? 0) + 1);
+      d.log(
+        `#${r.pr}: gate ended for a reason that is not the PR's (${oneLine(out.reason, 200)}); next round`
+      );
     } else {
       tried.add(key);
       refuse(r, out.reason);
@@ -337,6 +376,7 @@ function sh(cmd, args, o = {}) {
     status: r.status ?? 1,
     stdout: r.stdout ?? '',
     stderr: r.stderr ?? r.error?.message ?? '',
+    timedOut: /** @type {NodeJS.ErrnoException | undefined} */ (r.error)?.code === 'ETIMEDOUT',
   };
 }
 
@@ -419,8 +459,10 @@ export function isRunnerProcess(pid) {
       ],
       { encoding: 'utf8', timeout: 60_000 }
     );
-    if (r.status !== 0) return true;
-    return /merge-runner\.mjs/.test(r.stdout ?? '');
+    const line = (r.stdout ?? '').trim();
+    // An unreadable command line (empty answer) counts as a runner: never two runners.
+    if (r.status !== 0 || !line) return true;
+    return /merge-runner\.mjs/.test(line);
   }
   try {
     return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('merge-runner.mjs');
@@ -440,6 +482,9 @@ export function takeRunnerLock(file, pid = process.pid, isRunner = isRunnerProce
   for (let i = 0; i < 2; i++) {
     try {
       fs.writeFileSync(file, `${pid}\n`, { flag: 'wx' });
+      // Two starters that read the same stale holder can both have removed it: a later starter's
+      // removal may have deleted this file, so the pid read back must still be ours.
+      if (fs.readFileSync(file, 'utf8').trim() !== String(pid)) return { ok: false, holder: 0 };
       return {
         ok: true,
         release: () => {
@@ -521,6 +566,7 @@ function realDeps(o) {
           timeout: GATE_TIMEOUT_MS,
         });
         for (const line of `${r.stdout}`.split(/\r?\n/).filter(Boolean)) stamp(`  ${line}`);
+        if (r.timedOut) return { ...r, stdout: `${r.stdout}\n${KILLED_LINE}\n` };
         return r;
       } finally {
         copy.cleanup();
@@ -528,7 +574,10 @@ function realDeps(o) {
     },
     backlog: args =>
       sh(process.execPath, [path.join(here, 'backlog.mjs'), ...args, '--vault', o.vault]),
-    post: text => {
+    post: rawText => {
+      // No local paths in a Discord line (gate reasons can name a log file or the checkout).
+      const home = os.homedir();
+      const text = home ? rawText.split(home).join('~') : rawText;
       // From the runner's own repository: a missing or broken gate checkout must still be posted.
       const copy = mainCopy(path.resolve(here, '..'), 'packages/discord-bot/announce/announce.mjs');
       if (!copy) return stamp('WARNING: no announce sender on main; nothing posted');

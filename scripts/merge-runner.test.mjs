@@ -224,8 +224,17 @@ test('mainState: cancelled runs are passed over; unreadable or no run counts as 
     { conclusion: 'success', headSha: 'f'.repeat(40) },
   ];
   assert.equal(mainState(JSON.stringify(runs)).red, false);
-  assert.equal(mainState('[]').red, true);
-  assert.equal(mainState('nope').red, true);
+  assert.equal(mainState('[]').wait, true);
+  assert.equal(mainState('nope').wait, true);
+  // a run still going at the newest push: not known yet, so wait (not stop)
+  const going = [
+    { conclusion: null, status: 'in_progress', headSha: SHA },
+    { conclusion: 'success', headSha: SHA2 },
+  ];
+  assert.deepEqual(
+    [mainState(JSON.stringify(going)).red, mainState(JSON.stringify(going)).wait],
+    [false, true]
+  );
   assert.equal(mainState(JSON.stringify([{ conclusion: 'timed_out', headSha: SHA }])).red, true);
 });
 
@@ -336,12 +345,12 @@ test('gateOutcome reads the merged line, the refusal line and the wait verdict',
   assert.equal(gateOutcome(0, 'lane:merge: merged #5 at abc; merge train 1/4', 5).kind, 'merged');
   assert.equal(
     gateOutcome(0, 'lane:merge: merged #55 at abc', 5).kind,
-    'refused',
+    'transient',
     'another PR number'
   );
   assert.equal(
     gateOutcome(0, 'lane:merge: OK #5 at abc (dry run, nothing merged)', 5).kind,
-    'refused'
+    'transient'
   );
   assert.deepEqual(
     gateOutcome(
@@ -463,4 +472,53 @@ test('prepareCheckout: refuses a folder that is not its own top level, and a dir
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('main CI still running at the newest push: no gate, no stop, next round', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: JSON.stringify([{ conclusion: '', status: 'in_progress', headSha: SHA2 }]),
+  });
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+  assert.deepEqual(f.calls.post, []);
+});
+
+test('main CI unreadable (gh fails): wait, do not stop', () => {
+  const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() } });
+  const gh = f.deps.gh;
+  f.deps.gh = args =>
+    args[0] === 'run' ? { status: 1, stdout: '', stderr: 'no network' } : gh(args);
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('a gate end that is not the PR fault is retried, then refused after three tries', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: { status: 1, stdout: 'lane:merge: refused because pr: mergeable is UNKNOWN; merge main' },
+    },
+  });
+  const tried = new Set();
+  const attempts = new Map();
+  round(f.deps, tried, attempts);
+  round(f.deps, tried, attempts);
+  assert.deepEqual(f.calls.backlog, [], 'two tries: nothing written yet');
+  round(f.deps, tried, attempts);
+  assert.equal(f.calls.gate.length, 3);
+  assert.match(f.calls.backlog[0][2], /refused by the merge gate/);
+});
+
+test('a gate killed at the time limit stops the runner (leftover processes)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'x\nmerge-runner: gate killed at the time limit' } },
+  });
+  const r = round(f.deps, new Set());
+  assert.match(r.stop ?? '', /killed at the time limit/);
+  assert.equal(f.calls.post.length, 1);
 });

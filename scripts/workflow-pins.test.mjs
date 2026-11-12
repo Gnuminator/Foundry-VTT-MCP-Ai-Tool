@@ -38,8 +38,13 @@ export function isPinned(u) {
 
 /** Jobs of a release workflow that publish (write contents) but name no environment `release`. @param {any} doc */
 export function publishJobsWithoutEnvironment(doc) {
+  const topWrite = doc?.permissions?.contents === 'write';
   return Object.entries(doc?.jobs ?? {})
-    .filter(([, job]) => /** @type {any} */ (job)?.permissions?.contents === 'write')
+    .filter(([, job]) => {
+      const perms = /** @type {any} */ (job)?.permissions;
+      // A job without its own permissions block inherits the workflow-level one.
+      return (perms ? perms.contents : topWrite ? 'write' : undefined) === 'write';
+    })
     .filter(([, job]) => {
       const env = /** @type {any} */ (job).environment;
       return (typeof env === 'string' ? env : env?.name) !== 'release';
@@ -54,7 +59,7 @@ test('every uses: in .github/workflows is pinned to a full commit', () => {
     for (const u of usesOf(yaml.load(text))) if (!isPinned(u)) bad.push(`${f}: ${u}`);
     // The version stays visible as a comment after the commit.
     for (const line of text.split('\n')) {
-      const m = line.match(/uses:\s*[^\s@]+@[0-9a-f]{40}(.*)$/);
+      const m = line.match(/^\s*(?:- )?uses:\s*[^\s@]+@[0-9a-f]{40}(.*)$/);
       if (m && !/^\s+#\s*v\d+\.\d+\.\d+/.test(m[1])) bad.push(`${f}: no "# vX.Y.Z" comment on: ${line.trim()}`);
     }
   }
@@ -89,5 +94,9 @@ test('the guards catch a bad workflow', () => {
       jobs: { publish: { environment: 'release', permissions: { contents: 'write' } } },
     }),
     []
+  );
+  assert.deepEqual(
+    publishJobsWithoutEnvironment({ permissions: { contents: 'write' }, jobs: { publish: {} } }),
+    ['publish']
   );
 });

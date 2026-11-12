@@ -13,4 +13,11 @@ export const dnd5eFeaturesModule = defineToolModule({
     'dnd5e-add-features-from-compendium': (tools, args) =>
       tools.handleAddFeaturesFromCompendium(args),
   },
+  tools: {
+    'dnd5e-add-features-from-compendium': {
+      set: 'build',
+      title: 'Add compendium features to actor',
+      kind: 'write',
+    },
+  },
 });

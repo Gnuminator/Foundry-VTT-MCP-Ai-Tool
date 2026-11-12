@@ -12,4 +12,10 @@ export const diagnosticsModule = defineToolModule({
     'clear-module-errors': (tools, args) => tools.handleClearModuleErrors(args),
     'get-module-manifest': (tools, args) => tools.handleGetModuleManifest(args),
   },
+  tools: {
+    'get-modules': { set: 'admin', title: 'List modules', kind: 'read' },
+    'get-module-errors': { set: 'admin', title: 'Get module errors', kind: 'read' },
+    'clear-module-errors': { set: 'admin', title: 'Clear module errors', kind: 'destructive' },
+    'get-module-manifest': { set: 'admin', title: 'Get module manifest', kind: 'read' },
+  },
 });

@@ -14,4 +14,7 @@ export const sceneRestoreModule = defineToolModule({
   routes: {
     'plan-scene-restore': (tools, args) => tools.handleToolCall('plan-scene-restore', args),
   },
+  tools: {
+    'plan-scene-restore': { set: 'play', title: 'Plan scene restore from backup', kind: 'read' },
+  },
 });

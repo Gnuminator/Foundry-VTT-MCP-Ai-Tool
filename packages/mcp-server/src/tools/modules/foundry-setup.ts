@@ -13,4 +13,7 @@ export const foundrySetupModule = defineToolModule({
   routes: {
     'plan-foundry-setup': (tools, args) => tools.handleToolCall('plan-foundry-setup', args),
   },
+  tools: {
+    'plan-foundry-setup': { set: 'admin', title: 'Read or plan Foundry setup', kind: 'read' },
+  },
 });

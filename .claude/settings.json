@@ -44,6 +44,16 @@
         ]
       },
       {
+        "matcher": "mcp__.*__execute",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-cloudflare.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Agent|Task|mcp__ccd_session__start_session",
         "hooks": [
           {

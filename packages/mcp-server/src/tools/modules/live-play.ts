@@ -16,4 +16,8 @@ export const livePlayModule = defineToolModule({
     'plan-actor-change': (tools, args) => tools.handlePlanActorChange(args),
     'plan-token-change': (tools, args) => tools.handlePlanTokenChange(args),
   },
+  tools: {
+    'plan-actor-change': { set: 'play', title: 'Plan damage, healing or conditions', kind: 'read' },
+    'plan-token-change': { set: 'play', title: 'Plan token change', kind: 'read' },
+  },
 });

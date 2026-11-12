@@ -13,4 +13,7 @@ export const refChoicesModule = defineToolModule({
   routes: {
     'list-ref-choices': (tools, args) => tools.handleListRefChoices(args),
   },
+  tools: {
+    'list-ref-choices': { set: 'prep', title: 'List parameter choices', kind: 'read' },
+  },
 });

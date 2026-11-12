@@ -19,4 +19,11 @@ export const playerViewModule = defineToolModule({
     'plan-page-reveal': (tools, args) => tools.handlePlanPageReveal(args),
     'check-secret-terms': (tools, args) => tools.handleCheckSecretTerms(args),
   },
+  tools: {
+    'get-player-visibility': { set: 'prep', title: 'Get player visibility', kind: 'read' },
+    'list-revealed-pages': { set: 'prep', title: 'List revealed pages', kind: 'read' },
+    'get-player-handouts': { set: 'prep', title: 'Get player handouts', kind: 'read' },
+    'plan-page-reveal': { set: 'prep', title: 'Plan page reveal', kind: 'read' },
+    'check-secret-terms': { set: 'core', title: 'Check secret terms', kind: 'read' },
+  },
 });

@@ -17,4 +17,8 @@ export const obsidianMirrorModule = defineToolModule({
     'get-obsidian-mirror': (tools, args) => tools.handleGetObsidianMirror(args),
     'plan-obsidian-mirror': (tools, args) => tools.handlePlanObsidianMirror(args),
   },
+  tools: {
+    'get-obsidian-mirror': { set: 'admin', title: 'Get Obsidian mirror settings', kind: 'read' },
+    'plan-obsidian-mirror': { set: 'admin', title: 'Plan Obsidian mirror change', kind: 'read' },
+  },
 });

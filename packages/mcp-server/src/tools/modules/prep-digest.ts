@@ -21,4 +21,7 @@ export const prepDigestModule = defineToolModule({
   routes: {
     'get-prep-digest': (tools, args) => tools.handleGetPrepDigest(args),
   },
+  tools: {
+    'get-prep-digest': { set: 'prep', title: 'Get prep digest', kind: 'read' },
+  },
 });

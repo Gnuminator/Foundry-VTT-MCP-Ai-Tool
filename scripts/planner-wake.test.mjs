@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -195,4 +195,54 @@ test('exit 1 with a stderr line when the first read fails', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/* The Done list lives in vault `Backlog done.md`, not in `Backlog.md` (Backlog chain, step 1). This keeps it true: no skill,
+ * hook or script may tell a writer to put a line under `## Done` of Backlog.md, and the planner skill names the new file. */
+const repoRoot = path.resolve(here, '..');
+const walk = (dir, out = []) => {
+  for (const name of readdirSync(dir)) {
+    const p = path.join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else out.push(p);
+  }
+  return out;
+};
+
+// Any mention of a "## Done" heading or "the Done section/heading" (not "## Done when it looks like this" in the GM guides),
+// in any wording, case or quoting.
+const DONE_MENTION = /##\s*Done\b(?!\s+when\b)|\bDone\s+(?:section|heading)\b/i;
+
+test('Done list: no skill, hook or script (outside tests) names a `## Done` section of Backlog.md', () => {
+  const files = [
+    ...walk(path.join(repoRoot, '.claude', 'skills')),
+    ...walk(path.join(repoRoot, '.claude', 'hooks')),
+    ...readdirSync(path.join(repoRoot, 'scripts'))
+      .filter((f) => f.endsWith('.mjs') && !f.endsWith('.test.mjs'))
+      .map((f) => path.join(repoRoot, 'scripts', f)),
+    path.join(repoRoot, 'CLAUDE.md'),
+  ].filter((f) => /\.(md|mjs)$/.test(f) && !/\.test\.mjs$/.test(f));
+  const bad = [];
+  for (const f of files) {
+    let text = '';
+    try {
+      text = readFileSync(f, 'utf8');
+    } catch {
+      continue;
+    }
+    if (DONE_MENTION.test(text)) bad.push(path.relative(repoRoot, f));
+  }
+  assert.deepEqual(bad, [], 'a writer is told to put Done lines in Backlog.md; use vault Backlog done.md');
+});
+
+test('Done list: the planner skill says Done lines go to Backlog done.md', () => {
+  const text = readFileSync(path.join(repoRoot, '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
+  assert.match(text, /Backlog done\.md/);
+});
+
+test('Done list: the matcher catches the old wording', () => {
+  for (const s of ['add a line to `## Done`, and', 'x\n## Done\n- a', 'put it in the ## done list', 'under the `## Done` heading', 'the Done section of Backlog.md']) {
+    assert.ok(DONE_MENTION.test(s), s);
+  }
+  assert.ok(!DONE_MENTION.test('## Done when it looks like this'));
 });

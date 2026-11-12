@@ -83,6 +83,7 @@ export function main(options = {}) {
   const fetchMain = () => {
     if (fetched) return null;
     const f = run('git', ['fetch', REMOTE, 'main']);
+    if (f.status === 0) fetched = true;
     return f.status === 0 ? null : firstLine(f.stderr || f.stdout) || 'failed';
   };
   const message = (/** @type {unknown} */ e) => (e instanceof Error ? e.message : String(e));

@@ -27,6 +27,10 @@ export function defaultRun(cmd, args, input) {
           ...(cmd === 'git' && args[0] === '-C'
             ? { timeout: VAULT_GIT_TIMEOUT_MS, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }
             : {}),
+          // the same for the repo's own fetches (main, and a reviewed commit the carry needs)
+          ...(cmd === 'git' && args[0] === 'fetch'
+            ? { timeout: VAULT_GIT_TIMEOUT_MS, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }
+            : {}),
         });
   return {
     status: r.status ?? 1,

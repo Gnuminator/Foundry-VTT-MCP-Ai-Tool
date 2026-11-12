@@ -39,9 +39,9 @@ jobs:
     name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -94,6 +94,9 @@ jobs:
         # scripts/drift-check.mjs, which lanes run before "PR ready": trial merge of main, guards,
         # undo; against throwaway git repos.
         run: node --test scripts/drift-check.test.mjs
+
+      - name: Workflow pins and release environment
+        run: node --test scripts/workflow-pins.test.mjs
 
       - name: Test Foundry frame proxy
         # scripts/test-env/foundry-frame-proxy.mjs (dev only): the header rewrite and the guard that
@@ -389,7 +392,7 @@ jobs:
           node tools/gm-coach/build.mjs
 
       - name: Keep the GM coach zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: foundry-gm-coach
           path: tools/gm-coach/dist/foundry-gm-coach.zip
@@ -476,11 +479,11 @@ jobs:
     timeout-minutes: 10
     name: studio-pin (stage 13 checksum)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
 
@@ -516,7 +519,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
 
@@ -568,9 +571,9 @@ jobs:
       # Playwright's browsers read HOME; a container job runs as root.
       HOME: /root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -608,7 +611,7 @@ jobs:
         # The full-page shots of this shard, for the reviewer to look at (not compared with
         # anything). Kept even when a story shot fails.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dashboard-page-shots-${{ matrix.shard }}
           path: packages/cogm-dashboard/page-shots
@@ -618,7 +621,7 @@ jobs:
       - name: Keep the visual report
         # The HTML report and the diff images (expected, actual, diff) of a failed run.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dashboard-visual-report-${{ matrix.shard }}
           path: |
@@ -660,7 +663,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
 
@@ -698,9 +701,9 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -717,7 +720,7 @@ jobs:
           npm run build -w @gnuminator/cogm-dashboard
 
       - name: Cache Playwright's browser download
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -732,7 +735,7 @@ jobs:
 
       - name: Keep the browser test report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dashboard-playwright-report-${{ matrix.shard }}
           path: |
@@ -773,9 +776,9 @@ jobs:
     name: python-tests (Python 3.12)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -812,9 +815,9 @@ jobs:
     name: build-test-arm (steps)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -894,7 +897,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
 
@@ -948,9 +951,9 @@ jobs:
           - { name: stage 16, env: PI_STAGE16_CONTAINER, test: board-status.test.mjs }
           - { name: stage 14 system trial, env: PI_SYSTEM_TRIAL_CONTAINER, test: system-trial.test.mjs }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'

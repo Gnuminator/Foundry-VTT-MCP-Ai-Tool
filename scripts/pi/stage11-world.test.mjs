@@ -20,7 +20,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { before, describe, test } from 'node:test';
 import { runStageContainer } from './container-test/run-stage-container.mjs';
 

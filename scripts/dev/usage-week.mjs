@@ -22,8 +22,11 @@
 //                  a drop of more than 3 points is a weekly reset (the new value counts from 0),
 //                  a smaller drop is noise and ignored
 //   cost/pt        weighted cost per weekly point
-// A line after the table compares the window with the D-122 targets, the next one splits the
-// turns per model (main-thread + subagent) with each model's share of the cost.
+// A line after the table gives the window's figures (startup, tokens per merged PR, sessions a
+// day, weekly percent a day, weekly points per merged product PR, meaning a PR that changes a
+// file under packages/ or shared/): numbers only, no limits and no pass or
+// fail, because pace is information only (the user, 2026-11-11). The next line splits the turns
+// per model (main-thread + subagent) with each model's share of the cost.
 //
 // Overrides (tests and checks): USAGE_WEEK_ROOT (the projects folder), USAGE_WEEK_VAULT,
 // USAGE_WEEK_NOW (ISO time), USAGE_WEEK_GH=off (skip the merged-PR lookup).
@@ -58,12 +61,6 @@ export const RESET_DROP = 3;
 export const LANE_LINE_CHANGE_AT = Date.parse('2026-11-03T22:59:54Z');
 export const LANE_LINE_BEFORE = 200_000;
 export const LANE_LINE_AFTER = 250_000;
-export const TARGETS = {
-  startup: 75_000, // Claude Desktop floor about 74k (D-122 phase 3 log); headless starts are about 38k
-  tokensPerPrM: 18,
-  sessionsPerDay: 15,
-  weeklyPerDay: 14,
-};
 
 // --- small helpers -------------------------------------------------------------------------
 
@@ -306,6 +303,13 @@ export function weeklyPoints(readings) {
 
 // --- merged PRs ----------------------------------------------------------------------------
 
+// A product PR changes the tool itself: a file under packages/ or shared/. A PR with no file list
+// (an old fixture, a gh without `files`) counts as product, so the figure never silently drops it.
+export function isProductPr(pr) {
+  if (!Array.isArray(pr?.files)) return true;
+  return pr.files.some(f => /^(packages|shared)\//.test(String(f?.path ?? '').replaceAll('\\', '/')));
+}
+
 export function fetchMergedPrs() {
   return new Promise((resolve, reject) => {
     execFile(
@@ -320,7 +324,7 @@ export function fetchMergedPrs() {
         '--limit',
         '300',
         '--json',
-        'number,mergedAt',
+        'number,mergedAt,files',
       ],
       { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
       (err, stdout) => {
@@ -349,9 +353,11 @@ function newDay(day) {
     cost: 0,
     opusCost: 0,
     prs: null,
+    productPrs: null,
     tokensPerPr: null,
     weeklyPoints: null,
     costPerPoint: null,
+    pointsPerPr: null,
     coveredDays: null,
   };
 }
@@ -434,10 +440,13 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   for (const s of qualifying) sessionsByDay.get(dayKey(new Date(s.turns[0].t))).push(s);
 
   const prCounts = prs ? new Map(keys.map(k => [k, 0])) : null;
+  const productCounts = prs ? new Map(keys.map(k => [k, 0])) : null;
   if (prs) {
     for (const p of prs) {
       const k = p?.mergedAt ? dayKey(new Date(p.mergedAt)) : null;
-      if (k && prCounts.has(k)) prCounts.set(k, prCounts.get(k) + 1);
+      if (!k || !prCounts.has(k)) continue;
+      prCounts.set(k, prCounts.get(k) + 1);
+      if (isProductPr(p)) productCounts.set(k, productCounts.get(k) + 1);
     }
   }
   const readings = usageLog ? parseUsageLog(usageLog) : [];
@@ -452,10 +461,12 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     if (prCounts) {
       d.prs = prCounts.get(d.day);
       d.tokensPerPr = d.prs ? d.tokens / d.prs / 1e6 : null;
+      d.productPrs = productCounts.get(d.day);
     }
     if (points && d.day >= firstLogDay) {
       d.weeklyPoints = points.get(d.day) || 0;
       d.costPerPoint = d.weeklyPoints > 0 ? d.cost / d.weeklyPoints : null;
+      d.pointsPerPr = d.productPrs ? d.weeklyPoints / d.productPrs : null;
     }
   }
 
@@ -478,7 +489,11 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     total.weeklyPoints = sum(covered, d => d.weeklyPoints);
     const coveredCost = sum(covered, d => d.cost);
     total.costPerPoint = total.weeklyPoints > 0 ? coveredCost / total.weeklyPoints : null;
+    // points over the product PRs merged on the days the Usage log covers
+    const coveredProduct = prs ? sum(covered, d => d.productPrs) : 0;
+    total.pointsPerPr = coveredProduct ? total.weeklyPoints / coveredProduct : null;
   }
+  if (prs) total.productPrs = sum(rows, d => d.productPrs);
 
   const lanes = laneStats(qualifying, prs ? total.prs : null);
   const pace = paceFor(readings, now, 4, weeklyResets);
@@ -494,7 +509,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     models,
     advisorCalls,
     advisorPerPr,
-    targets: targetsFor(total, days),
+    figures: figuresFor(total, days),
   };
 }
 
@@ -520,25 +535,19 @@ export function paceFor(readings, now, weeks = 4, weeklyResets) {
   };
 }
 
-// The window against the D-122 targets; ok is null when the number is not known.
-export function targetsFor(total, days) {
-  const check = (name, value, limit, unit) => ({
-    name,
-    value,
-    limit,
-    unit,
-    ok: value === null ? null : value <= limit,
-  });
+// The window's figures, numbers only (no limits, no pass or fail: pace is information only,
+// the user 2026-11-11). value is null when the number is not known.
+export function figuresFor(total, days) {
   return [
-    check('startup', total.startup, TARGETS.startup, 'tokens'),
-    check('M tokens per PR', total.tokensPerPr, TARGETS.tokensPerPrM, 'M'),
-    check('sessions a day', total.sessions / days, TARGETS.sessionsPerDay, 'sessions'),
-    check(
-      'weekly % a day',
-      total.weeklyPoints === null ? null : total.weeklyPoints / total.coveredDays,
-      TARGETS.weeklyPerDay,
-      'points'
-    ),
+    { name: 'startup', value: total.startup, unit: 'tokens' },
+    { name: 'M tokens per PR', value: total.tokensPerPr, unit: 'M' },
+    { name: 'sessions a day', value: total.sessions / days, unit: 'sessions' },
+    {
+      name: 'weekly % a day',
+      value: total.weeklyPoints === null ? null : total.weeklyPoints / total.coveredDays,
+      unit: 'points',
+    },
+    { name: 'weekly points per PR', value: total.pointsPerPr ?? null, unit: 'points' },
   ];
 }
 
@@ -561,19 +570,19 @@ const COLUMNS = [
   ['PRs', 3, d => (d.prs === null ? 'n/a' : String(d.prs))],
   ['M/PR', 5, d => num(d.tokensPerPr, 1)],
   ['Wk pts', 6, d => num(d.weeklyPoints, 0, 'n/a')],
+  ['Pts/PR', 6, d => num(d.pointsPerPr, 1)],
   ['Cost/pt', 7, d => num(d.costPerPoint, 1)],
 ];
 
-export function formatTargets(targets) {
-  const mark = t => (t.ok === null ? 'n/a' : t.ok ? 'ok' : 'over');
+export function formatFigures(figures) {
   const text = {
-    startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=${kilo(TARGETS.startup)})`,
-    'M tokens per PR': t => `M/PR ${num(t.value, 1)} ${mark(t)} (<=${TARGETS.tokensPerPrM})`,
-    'sessions a day': t =>
-      `sessions/day ${num(t.value, 1)} ${mark(t)} (~${TARGETS.sessionsPerDay})`,
-    'weekly % a day': t => `weekly %/day ${num(t.value, 1)} ${mark(t)} (~${TARGETS.weeklyPerDay})`,
+    startup: t => `startup ${kilo(t.value)}`,
+    'M tokens per PR': t => `M/PR ${num(t.value, 1)}`,
+    'sessions a day': t => `sessions/day ${num(t.value, 1)}`,
+    'weekly % a day': t => `weekly %/day ${num(t.value, 1)}`,
+    'weekly points per PR': t => `weekly pts/PR ${num(t.value, 1)}`,
   };
-  return `Targets (D-122): ${targets.map(t => text[t.name](t)).join(' | ')}`;
+  return `Window: ${figures.map(t => text[t.name](t)).join(' | ')}`;
 }
 
 export function formatPace(pace) {
@@ -583,7 +592,7 @@ export function formatPace(pace) {
   if (!now) return `${base}; no reading for this week`;
   const sign = now.delta > 0 ? '+' : '';
   const proj = now.projected === null ? 'too early' : `${now.projected}%`;
-  return `${base}; as of ${now.asOf.slice(0, 16)}Z weekly ${now.actual}% vs expected ${now.expected}% (${sign}${now.delta}, ${now.onPace ? 'on pace' : now.delta > 0 ? 'ahead' : 'behind'}), projected ${proj}, ${now.activeHoursLeft} active hours left`;
+  return `${base}; as of ${now.asOf.slice(0, 16)}Z weekly ${now.actual}% vs expected ${now.expected}% (${sign}${now.delta}, ${now.delta > 0 ? 'ahead' : now.delta < 0 ? 'behind' : 'level'}), projected ${proj}, ${now.activeHoursLeft} active hours left`;
 }
 
 // Turns per model family with their share of the weighted cost; "main" and "sub" split the
@@ -627,13 +636,13 @@ export function formatReport(report, notes = []) {
     ...report.days.map(row),
     '-'.repeat(header.length),
     row({ ...report.total, day: 'Window' }),
-    formatTargets(report.targets),
+    formatFigures(report.figures),
     formatModels(report.models),
     formatLanes(report.lanes),
     formatPace(report.pace),
     `Advisor calls (main sessions): ${report.advisorCalls}${
       Number.isFinite(report.advisorPerPr)
-        ? ` (${num(report.advisorPerPr, 1)} per merged PR, target 1)`
+        ? ` (${num(report.advisorPerPr, 1)} per merged PR)`
         : ''
     }`,
     ...(report.toolCalls ? [report.toolCalls.line] : []),

@@ -46,6 +46,7 @@
 #   default 1800).
 
 require_root
+refuse_when_cut_over "stage 14 (system trial)"
 require_arm64
 MODE="${MODE:-}"
 ZIP="${ZIP:-}"

@@ -14,8 +14,8 @@
 # too) after it. The install goes into the one modules folder every world on the Pi shares, so it applies to all worlds at
 # once, and Foundry restarts into whichever world launches: test the versions on the PC test server and its kit first,
 # then run this stage once on the Pi (a kit session must be down, see the refusal below). A snapshot before it. Stage 22
-# (seven books) runs after the content modules changed. The Docker cutover guard (Backlog item refuse_when_cut_over) will
-# refuse this stage once the stack is cut over; it does not exist in the script yet.
+# (seven books) runs after the content modules changed. On a cut-over Pi (stage 24) this stage
+# refuses, first thing (refuse_when_cut_over in lib.sh): MODE=rollback there first.
 #
 # Nothing changes before the checks pass, and the checks are the whole of a dry run (no APPLY): the pins and the
 # mirror, every zip's sha256 (of a copy), its entry names (no absolute path, no "..", no link or device in what is
@@ -38,6 +38,7 @@
 # or UNDO=1. The one run at a time is a lock in $IMPORT; in a real run or UNDO every line also goes to $STAGE_LOG.
 
 require_root
+refuse_when_cut_over "stage 25 (modules)"
 MIRROR="${MIRROR:-/home/dietpi/module-archive}"
 ONLY="${ONLY:-}"
 APPLY="${APPLY:-}"

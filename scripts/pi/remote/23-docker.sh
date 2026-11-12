@@ -35,7 +35,8 @@
 #      Other lines already in the file (a rehearsal's ports, say) are kept; the four names are rewritten;
 #   5. builds the images: `docker compose -f deploy/pi/compose.yml build` in the checkout (log: $TOOL_DIR/docker-build.log).
 # Safe to run again: the packages are checked first, an unchanged .env is left alone, and a build that finds its layers
-# cached takes seconds. A new stage 5 build replaces the checkout and with it the .env: run this stage again after it.
+# cached takes seconds. Stage 5 refuses on a cut-over Pi, so a new stage 5 build (which replaces the checkout and with it
+# the .env) only happens on the units: after stage 24 MODE=rollback, a new stage 5, run this stage again before the next cutover.
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1     print what a real run would do (packages, .env content, build); changes nothing, needs no snapshot
@@ -251,4 +252,4 @@ for img in $images; do
   docker image inspect "$img" >/dev/null 2>&1 || die "image $img is missing after the build (log: $build_log)"
   ok "image $img"
 done
-ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports; the cutover is not supported yet)"
+ok "stage 23 done; nothing was started. Next: stage 24 (MODE=up on rehearsal ports first, then MODE=cutover; deploy/pi/README.md, Cutover and rollback)"

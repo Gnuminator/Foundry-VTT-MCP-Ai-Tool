@@ -8,8 +8,8 @@
 #   MODE=status    read-only: each systemd unit (enabled, active), each container (state, health, restarts); exit 1 when a
 #                  unit and the stack run at the same time (two copies of one service)
 #   MODE=up        start a REHEARSAL stack (docker compose up -d, then wait for foundry, bridge and dashboard). Refused on the
-#                  live ports (30000, 31414, 31415, 3000, any one of them) until the cutover is supported (Backlog:
-#                  pi-compose-cutover), and refused on the live data folders whatever state the units are in: a second
+#                  live ports (30000, 31414, 31415, 3000, any one of them): the live stack is started by MODE=cutover only.
+#                  Refused on the live data folders whatever state the units are in: a second
 #                  Foundry on the live data folder corrupts it. A rehearsal sets other ports and its own data folders in the
 #                  ssh line; it runs as its own compose project (foundry-ai-tool-pi-rehearsal) and never touches the live
 #                  stack. For example (deploy/pi/test.env has the ports):
@@ -18,10 +18,12 @@
 #                  (Under TEST_ALLOW_CUTOVER=1, tests only, the live project can start and then asks for a quiet table.)
 #   MODE=down      stop and remove the containers (the data folders are bind mounts and stay). Asks for a quiet table first
 #                  when the stack uses a live port. Use the same ports as the `up` (the project name follows them).
-#   MODE=cutover   REFUSED for now. The switch to containers needs follow-ups first: a compose-aware nightly backup
-#                  (6-backup.sh stops and copies foundry.service's world) and guards in every stage that starts or restarts
-#                  foundry.service (3, 5, 7, 11, 12, 13, 14, 19, 21, switch-world, kit-session, set-dashboard-access). Backlog:
-#                  pi-compose-cutover. The code below stays for that item and for the scenario tests (TEST_ALLOW_CUTOVER=1).
+#   MODE=cutover   the live switch: stop and disable the units (reverse dependency order), start the live project on the live
+#                  ports, wait for healthy; an unhealthy stack rolls back by itself. Asks for a quiet table and a snapshot from
+#                  today. After it the nightly backup (6-backup.sh) stops and starts the Foundry CONTAINER, and every stage that
+#                  would start, restart or enable one of the four units refuses (refuse_when_cut_over in lib.sh) until
+#                  MODE=rollback. Two sittings: a rehearsal on other ports first (MODE=up), the cutover later
+#                  (deploy/pi/README.md, Cutover and rollback).
 #   MODE=rollback  ONE command back to systemd: stop every container of the live project, then enable and start the units in
 #                  dependency order (foundry, bridge, dashboard, gm-browser), the ones cutover recorded, else every installed
 #                  one. Needs no quiet table (it is the way out) and only warns without a snapshot from today. Containers are
@@ -36,12 +38,13 @@
 #
 # Not touched in any mode: Syncthing, cloudflared, Tailscale (serve), the Discord bot, the GitHub runner, the env files,
 # Foundry's and the tool's data folders, the images. Nothing is deleted except the containers of `down` and `rollback`.
-# Stage 5 and stage 3 still write and enable the systemd units: do NOT run them while the live project has containers
-# (they would start a second copy); MODE=rollback first. deploy/pi/deployed-state.sh reports a unit and a container
-# running together as FAIL.
+# Stages 3, 5 and the others that start or enable one of the four units refuse while the live project has containers (they
+# would start a second copy): MODE=rollback first. deploy/pi/deployed-state.sh reports a unit and a container running
+# together as FAIL. A new stage 5 build replaces the checkout and its .env, so after a rollback and a new stage 5 run stage 23
+# again before the next cutover.
 #
 # Tunable: WAIT_TIMEOUT (seconds to wait for healthy, default 300; raise it for a big world on the Pi), PORT_WAIT.
-# Tests only: TOOL_CHECKOUT, CUTOVER_STATE, TEST_ALLOW_CUTOVER.
+# Tests only: TOOL_CHECKOUT, CUTOVER_STATE, TEST_ALLOW_CUTOVER (lets MODE=up start the live project without a cutover).
 
 mode="${MODE:-status}"
 dry="${DRY_RUN:-0}"
@@ -63,9 +66,6 @@ case "$mode" in
   status | up | down | cutover | rollback) ;;
   *) die "MODE must be status, up, down, cutover or rollback (got '$mode'). Nothing was changed" ;;
 esac
-if [ "$mode" = cutover ] && [ "${TEST_ALLOW_CUTOVER:-0}" != 1 ]; then
-  die "MODE=cutover is not supported until the nightly backup and the stages know the stack (Backlog: pi-compose-cutover). MODE=up with rehearsal ports (deploy/pi/test.env) and MODE=down are the rehearsal; MODE=rollback goes back to the units. Nothing was changed"
-fi
 # An SSH drop must not leave a switch half done: ignore HUP and a closed stdout from here on and keep the story on the Pi.
 if [ "$mode" != status ]; then
   trap '' HUP PIPE
@@ -79,22 +79,9 @@ fi
 # The value compose will use: the shell wins (even set but empty, which compose then replaces with the default) over
 # deploy/pi/.env wins over the default in compose.yml. A .env value is read like compose does: leading and trailing
 # whitespace dropped, an unquoted value ends at a ` #` comment, one pair of matching quotes removed.
-env_file_value() { # NAME: the value deploy/pi/.env gives it, read like compose does ("" when absent)
-  local v=""
-  if [ -f "$env_file" ]; then
-    v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=//p" "$env_file" | tail -n 1)"
-    v="${v#"${v%%[![:space:]]*}"}"
-    case "$v" in
-      \"*) v="${v#\"}" v="${v%%\"*}" ;;
-      \'*) v="${v#\'}" v="${v%%\'*}" ;;
-      *) v="$(printf '%s' "$v" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
-    esac
-  fi
-  printf '%s' "$v"
-}
-effective() { # NAME DEFAULT
+effective() { # NAME DEFAULT; env_file_value is the one .env reader in lib.sh
   local v="${!1:-}"
-  if [ -z "${!1+set}" ]; then v="$(env_file_value "$1")"; fi
+  if [ -z "${!1+set}" ]; then v="$(env_file_value "$env_file" "$1")"; fi
   printf '%s' "${v:-$2}"
 }
 # Compose interpolates $VAR and ${VAR} and reads \" escapes in a .env value; effective() reads them literally. A value of the
@@ -104,7 +91,7 @@ check_env_file_literals() {
   local name
   for name in FOUNDRY_HTTP_PORT BRIDGE_CONTROL_PORT BRIDGE_LINK_PORT DASHBOARD_PORT FOUNDRY_DATA_DIR TOOL_DATA_DIR FOUNDRY_APP_DIR; do
     [ -z "${!name+set}" ] || continue
-    case "$(env_file_value "$name")" in
+    case "$(env_file_value "$env_file" "$name")" in
       *'$'* | *'\'*) die "$env_file sets $name with a \$ or a backslash: compose would read it differently from this script's live-folder check. Write the plain value. Nothing was changed" ;;
     esac
   done
@@ -159,19 +146,7 @@ fi
 
 dc() { docker compose -f "$compose_file" -p "$project" "$@"; }
 
-# Container ids of a compose project, found by label: this needs neither the compose file nor deploy/pi/.env, so a
-# stage 5 that replaced the checkout cannot hide a running stack. Fails (rc 1, nothing printed) when docker is installed
-# but its daemon does not answer: the state is then unknown and every caller treats that as "containers may exist".
-containers_of() { # $1 project, $2 optional service, $3 -a for stopped ones too
-  command -v docker >/dev/null 2>&1 || return 0
-  timeout 20 docker info >/dev/null 2>&1 || return 1
-  local args=(ps -q)
-  [ "${3:-}" != -a ] || args=(ps -aq)
-  args+=(--filter "label=com.docker.compose.project=$1")
-  [ -z "${2:-}" ] || args+=(--filter "label=com.docker.compose.service=$2")
-  docker "${args[@]}" 2>/dev/null
-}
-daemon_known() { ! command -v docker >/dev/null 2>&1 || timeout 20 docker info >/dev/null 2>&1; }
+# containers_of and daemon_known (containers by label, fail closed) are in lib.sh: the guard of the other stages uses them too.
 need_daemon() { # $1 what
   daemon_known || die "the Docker daemon does not answer, so which containers exist is unknown (a stopped daemon brings its containers back when it starts): $1 is refused. systemctl status docker. Nothing was changed"
 }
@@ -232,16 +207,6 @@ stack_report() {
   done < <(dc config --services 2>/dev/null || true)
   [ "$total" -gt 0 ] || return 1
   return "$bad"
-}
-
-# True when the Assistant GM container has joined the world in its current run (the logs since its last start).
-gm_container_joined() {
-  local cid started
-  cid="$(svc_container gm-browser)" || cid=""
-  [ -n "$cid" ] || return 1
-  started="$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)"
-  [ -n "$started" ] || return 1
-  [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
 }
 
 # require_quiet for the stack: refuses while players are online (the Assistant GM container counts as one once it has
@@ -385,13 +350,19 @@ rollback_now() {
   local u fail="" list
   have_systemd || die "no systemd here: nothing to roll back to"
   if ! daemon_known; then
-    # The containers come back with the daemon (restart: unless-stopped), next to the units we are about to start.
+    # The containers come back with the daemon (restart: always for Foundry, unless-stopped for the rest), next to the units we are about to start.
     [ "${FORCE:-0}" = 1 ] || {
       out "ERROR: the Docker daemon does not answer, so the containers cannot be stopped or counted, and they return when it starts. Nothing was changed. FORCE=1 disables docker.service and docker.socket first and goes on" 1
       return 1
     }
     warn "FORCE=1: the Docker daemon does not answer; disabling docker.service and docker.socket so no container returns"
     systemctl disable --now docker.service docker.socket >/dev/null 2>&1 || warn "systemctl disable --now docker.service docker.socket failed"
+    # live-restore (stage 23) keeps containers running under containerd when dockerd stops: a shim left means a container
+    # may still run on the data folders, so the units must not start next to it (same test as docker_cannot_return in lib.sh).
+    if pgrep -f containerd-shim >/dev/null 2>&1; then
+      out "ERROR: a container process (containerd-shim) still runs after docker was disabled, so the units were NOT started (two copies would clash). Stop it with: ctr -n moby tasks ls (then kill the tasks), or reboot (docker is disabled, so no container returns). Then run MODE=rollback again" 1
+      return 1
+    fi
   else
     say "rollback: stopping the compose stack"
     if ! stop_project "$live_project"; then
@@ -460,9 +431,9 @@ mode_status() {
 }
 
 mode_up() {
-  # The live project next to the stock units is the cutover that is refused for now; MODE=up is for rehearsal ports.
+  # The live project next to the stock units is the cutover (MODE=cutover does it safely); MODE=up is for rehearsal ports.
   if [ "$project" = "$live_project" ] && [ "${TEST_ALLOW_CUTOVER:-0}" != 1 ]; then
-    die "MODE=up on the live ports (project $live_project) is the cutover, which is not supported yet (Backlog: pi-compose-cutover): the nightly backup and the other stages would run next to the containers. Use rehearsal ports (deploy/pi/test.env). Nothing was changed"
+    die "MODE=up on the live ports (project $live_project) would start the live stack next to the units: use MODE=cutover for that, or rehearsal ports (deploy/pi/test.env) for a rehearsal. Nothing was changed"
   fi
   # A rehearsal on the live data folders is the same corruption as a second Foundry there, whatever the units are doing.
   if [ "$project" != "$live_project" ] && on_live_data; then
@@ -536,6 +507,15 @@ mode_cutover() {
     return 1
   fi
   need_daemon "cutting over"
+  # The nightly backup script is a file stage 6 wrote on the Pi, not this checkout: an old one only knows foundry.service and
+  # would copy the worlds under the running container (or start the unit next to it). Refuse until stage 6 ran again.
+  local nightly="$TOOL_DIR/backup/foundry-backup.sh"
+  if [ -f "$nightly" ]; then
+    grep -q 'label=com.docker.compose.project' "$nightly" ||
+      die "the nightly backup script ($nightly) does not know the containers yet: run stage 6 again first. Nothing was changed"
+  else
+    warn "no nightly backup script at $nightly (stage 6 not run?): the cutover goes on, but nothing backs the worlds up at night"
+  fi
   stack_running && die "containers of the stack run while systemd units are enabled or active (${was[*]}): a mixed state. MODE=rollback first, or MODE=down. Nothing was changed"
   if [ "$dry" = 1 ]; then
     say "dry run: would stop and disable (in this order): $(for ((i = ${#existing[@]} - 1; i >= 0; i--)); do printf '%s ' "${existing[i]}"; done)"

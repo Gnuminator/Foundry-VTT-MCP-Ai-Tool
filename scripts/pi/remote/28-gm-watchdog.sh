@@ -22,6 +22,7 @@
 # (/boot/dietpi/dietpi-backup 1) and get the user's OK before APPLY=1 or UNDO=1.
 
 require_root
+refuse_when_cut_over "stage 28 (Assistant GM watchdog)"
 require_arm64
 APPLY="${APPLY:-}"
 UNDO="${UNDO:-}"

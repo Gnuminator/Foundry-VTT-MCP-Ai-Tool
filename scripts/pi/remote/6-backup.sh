@@ -108,6 +108,65 @@ max_waits="${FOUNDRY_BACKUP_MAX_WAITS:-6}"
 unknown_seconds="${FOUNDRY_BACKUP_UNKNOWN_SECONDS:-60}"
 skip_marker="${FOUNDRY_BACKUP_SKIP_MARKER:-/var/lib/foundry-backup/skipped-last-night}"
 
+# After the cutover (stage 24 MODE=cutover) Foundry is the container "foundry" of compose project foundry-ai-tool-pi and
+# foundry.service is off, so the night's backup stops and starts that container instead. "stack" is systemd or containers.
+# Docker installed but silent is an unknown state, and an unknown state fails the night rather than copy a LevelDB a
+# container may be writing (the board and the bot see the failed unit), unless foundry.service runs (a cut-over Pi has the
+# units off) or systemd will not start docker (stage 24's FORCE=1 rollback switches it off on purpose).
+live_project=foundry-ai-tool-pi
+stack=systemd
+foundry_cid=""
+docker_off() { # 0 when systemd runs, docker.service and docker.socket are neither enabled nor active, and no container is left
+  local u
+  [ -d "$systemd_dir" ] || return 1
+  # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped
+  ! pgrep -f containerd-shim >/dev/null 2>&1 || return 1
+  for u in docker.service docker.socket; do
+    if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
+    [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
+  done
+}
+if command -v docker >/dev/null 2>&1; then
+  if timeout 20 docker info >/dev/null 2>&1; then
+    # A failing docker ps is an unknown state, not "no containers" (a failure inside [ -n "$(...)" ] would be invisible).
+    if ! ids="$(docker ps -aq --filter "label=com.docker.compose.project=$live_project" 2>/dev/null)"; then
+      echo "ERROR: backup failed: docker ps failed, so it is unknown whether Foundry runs as a container that may be writing its data. Nothing was copied. Look at: systemctl status docker" >&2
+      exit 1
+    fi
+    [ -z "$ids" ] || stack=containers
+  elif [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
+    echo "WARNING: the Docker daemon does not answer, but foundry.service runs: backing up the unit's Foundry" >&2
+  elif ! docker_off; then
+    echo "ERROR: backup failed: the Docker daemon does not answer and foundry.service is not running, so it is unknown whether Foundry runs as a container that may be writing its data. Nothing was copied. Look at: systemctl status docker" >&2
+    exit 1
+  fi
+fi
+
+# foundry_running: 0 when Foundry runs now (and sets foundry_cid in the containers case).
+foundry_running() {
+  if [ "$stack" = containers ]; then
+    local ids
+    if ! ids="$(docker ps -q --filter "label=com.docker.compose.project=$live_project" --filter "label=com.docker.compose.service=foundry" 2>/dev/null)"; then
+      echo "ERROR: backup failed: docker ps failed, so it is unknown whether the foundry container runs. Nothing was copied" >&2
+      exit 1
+    fi
+    foundry_cid="$(printf '%s\n' "$ids" | head -n 1)"
+    [ -n "$foundry_cid" ]
+  else
+    [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service
+  fi
+}
+
+# gm_container_joined: 0 when the Assistant GM container joined the world in its current run (same rule as lib.sh).
+gm_container_joined() {
+  local cid started
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=$live_project" --filter "label=com.docker.compose.service=gm-browser" 2>/dev/null | head -n 1 || true)"
+  [ -n "$cid" ] || return 1
+  started="$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)"
+  [ -n "$started" ] || return 1
+  [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # browser_joined UNIT: 0 when the GM browser UNIT runs and has joined the world in its current run (matched on the
 # systemd invocation id, not on a time; the same as browser_joined in lib.sh).
 browser_joined() {
@@ -130,10 +189,11 @@ players_online() {
   for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
     if [ "$users" -gt 0 ] && browser_joined "$unit"; then users=$((users - 1)); fi
   done
+  if [ "$stack" = containers ] && [ "$users" -gt 0 ] && gm_container_joined; then users=$((users - 1)); fi
   printf '%s' "$users"
 }
 
-if [ -d "$systemd_dir" ] && [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && systemctl is-active --quiet foundry.service; then
+if [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && foundry_running; then
   waits=0
   unknown=0
   # Both dates are read now, not after the waits: a manual run that starts in the evening and waits past midnight
@@ -176,20 +236,40 @@ we_stopped_foundry=0
 start_foundry() {
   if [ "$foundry_stopped" = 1 ]; then
     foundry_stopped=0
-    systemctl start foundry.service </dev/null || echo "WARNING: could not start foundry.service" >&2
-    echo "foundry.service started again"
+    if [ "$stack" = containers ]; then
+      docker start "$foundry_cid" </dev/null >/dev/null || echo "WARNING: could not start the foundry container" >&2
+      echo "the foundry container started again"
+    else
+      systemctl start foundry.service </dev/null || echo "WARNING: could not start foundry.service" >&2
+      echo "foundry.service started again"
+    fi
   fi
 }
 trap start_foundry EXIT
 
 world_before=""
-if [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
+if foundry_running; then
   # The world that runs now, so the wait after the restart can tell a world from the setup screen (which answers too).
   world_before="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null | grep -o '"world" *: *"[A-Za-z0-9_.-]*"' | head -n 1 | sed 's/.*: *"\(.*\)"/\1/' || true)"
-  echo "stopping foundry.service for the backup"
-  systemctl stop foundry.service </dev/null
-  foundry_stopped=1
-  we_stopped_foundry=1
+  if [ "$stack" = containers ]; then
+    echo "stopping the foundry container for the backup"
+    # The flag first: a stop that fails halfway must still be followed by a start.
+    foundry_stopped=1
+    we_stopped_foundry=1
+    docker stop -t 90 "$foundry_cid" </dev/null >/dev/null
+    # The worlds are copied only while the container is stopped.
+    if [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || echo unknown)" != false ]; then
+      echo "ERROR: backup failed: the foundry container is still running after docker stop, so the worlds were not copied" >&2
+      exit 1
+    fi
+  else
+    echo "stopping foundry.service for the backup"
+    systemctl stop foundry.service </dev/null
+    foundry_stopped=1
+    we_stopped_foundry=1
+  fi
+elif [ "$stack" = containers ]; then
+  echo "the foundry container is not running: backing up as it is"
 else
   echo "foundry.service is not running under systemd: backing up as it is"
 fi
@@ -219,12 +299,23 @@ foundry_answers() {
   json="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null)" || return 1
   [ -z "$world_before" ] || printf '%s' "$json" | grep -q '"world" *: *"[A-Za-z0-9_.-][A-Za-z0-9_.-]*"'
 }
+foundry_up() {
+  if [ "$stack" = containers ]; then
+    [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || true)" = true ]
+  else
+    systemctl is-active --quiet foundry.service
+  fi
+}
 if [ "$we_stopped_foundry" = 1 ]; then
   active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES:-60}"
   active_tries=0
-  until systemctl is-active --quiet foundry.service && foundry_answers; do
+  until foundry_up && foundry_answers; do
     if [ "$active_tries" -ge "$active_wait" ]; then
-      echo "ERROR: the backup is done, but foundry.service is not active, not answering, or not back on a world${world_before:+ (world $world_before ran before the backup; Foundry may be on the setup screen)} after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
+      if [ "$stack" = containers ]; then
+        echo "ERROR: the backup is done, but the foundry container is not running, not answering, or not back on a world${world_before:+ (world $world_before ran before the backup; Foundry may be on the setup screen)} after its restart. Look at: docker logs $foundry_cid; start it with: docker start $foundry_cid" >&2
+      else
+        echo "ERROR: the backup is done, but foundry.service is not active, not answering, or not back on a world${world_before:+ (world $world_before ran before the backup; Foundry may be on the setup screen)} after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
+      fi
       exit 1
     fi
     active_tries=$((active_tries + 1))

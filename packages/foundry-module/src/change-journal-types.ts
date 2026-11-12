@@ -6,6 +6,7 @@
  * shared file. Change both together, never one.
  */
 import type { PathValue } from './data-access/guarded-write.js';
+import type { ChangeRecord } from '@gnuminator/shared';
 
 export const CHANGE_JOURNAL_VERSION = 1;
 
@@ -79,32 +80,7 @@ export interface ChangeJournalOptions {
   changeMode?: ChangeWriteMode;
 }
 
-export interface ChangeRecord {
-  v: typeof CHANGE_JOURNAL_VERSION;
-  key: string;
-  seq: number;
-  t: number;
-  actionId: string;
-  op: ChangeOp;
-  userId: string | null;
-  userName: string | null;
-  userIsGM: boolean;
-  documentName: string;
-  uuid: string;
-  parentUuid: string | null;
-  name: string | null;
-  rootUuid: string;
-  rootName: string | null;
-  sceneId: string | null;
-  before?: PathValue[];
-  after?: PathValue[];
-  unknownBefore?: string[];
-  data?: Record<string, unknown>;
-  modifiedTime?: number | null;
-  oversize?: boolean;
-  changeId?: string;
-  changeMode?: ChangeWriteMode;
-}
+export type { ChangeRecord };
 
 /** Response of the module query `foundry-mcp-bridge.getChangeJournal`. */
 export interface ChangeJournalResponse {

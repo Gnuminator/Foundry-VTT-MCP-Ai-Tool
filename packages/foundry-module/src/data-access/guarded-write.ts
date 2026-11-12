@@ -18,6 +18,7 @@
  * Wire types mirror `shared/src/guarded-write.ts` (the module does not import
  * the shared package); `GUARDED_OP_KINDS` is compared in a test.
  */
+import type { GuardedOp } from '@gnuminator/shared';
 import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
@@ -86,7 +87,7 @@ export interface GuardedDeleteOp {
   uuid: string;
 }
 
-export type GuardedOp = GuardedUpdateOp | GuardedCreateOp | GuardedDeleteOp;
+export type { GuardedOp };
 
 /** A value at a path; JSON cannot carry `undefined`, so absence is explicit. */
 export interface PathValue {

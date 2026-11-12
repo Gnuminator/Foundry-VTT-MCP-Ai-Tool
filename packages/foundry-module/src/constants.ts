@@ -1,5 +1,7 @@
 // Constants for Foundry MCP Bridge Module
 
+import type { ModuleHelloData } from '@gnuminator/shared';
+
 /**
  * Module constants
  */
@@ -31,16 +33,7 @@ export const AMBIGUOUS_ACTOR_PREFIX = 'Multiple characters match';
  */
 export const MODULE_HELLO_TYPE = 'module-hello' as const;
 
-export interface ModuleHelloData {
-  userId: string;
-  userName: string;
-  /** True when this user is the world's configured bridge user (or none is set). */
-  isBridgeUser: boolean;
-  moduleVersion: string;
-  worldId: string;
-  /** What this build can do beyond the base protocol (mirror of the shared `capabilities`). */
-  capabilities?: string[];
-}
+export type { ModuleHelloData };
 
 /** This module answers the `aiChangesUpdated` signal query (mirror of `MODULE_CAPABILITY_AI_CHANGES_SIGNAL`). */
 export const MODULE_CAPABILITY_AI_CHANGES_SIGNAL = 'ai-changes-signal' as const;

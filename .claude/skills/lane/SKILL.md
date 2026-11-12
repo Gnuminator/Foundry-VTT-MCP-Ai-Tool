@@ -18,10 +18,8 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 **Edit and Write tools only for source files:** no sed, perl, python or heredoc edits of repo files
 (`guard-shell-edits.mjs` denies them). `format-on-edit.mjs` runs prettier on a file you edit; Read it again when told.
 
-1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
-   brief, write `claimed: <session title> <date>` under it and, on the next line,
-   `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
-   the board's lane card opens your session from it), commit and push the vault. If the item has
+1. Use `node scripts/backlog.mjs` for every Backlog write (hand edits are refused). `status`, then
+   `claim <id> "<session title>" --link <link>` (`get_session "self"`, field `link`). If the item has
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
    the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
    own worktree (the context lines are fixed at session start).
@@ -108,8 +106,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   - findings as H1, M1, L1 with file:line and a fix.
 - **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
   give the same reviewer one delta check. Lows: when the PR needs a fix round anyway,
-  fix them in it; a note with only lows says Merge and each low becomes one line in vault
-  `Lows/<area>.md` (`- <date> PR <n> L<k>: <what>, <file>`; pull, append, commit, push). A lows PR
+  fix them in it; a note with only lows says Merge and each low becomes
+  `backlog.mjs low <area> "PR <n> L<k>: <what>, <file>"`. A lows PR
   files no new lows but still gets mediums and highs. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
   that sha instead of a round 3; a third round for anything else needs the planner.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
@@ -117,9 +115,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   in a generated tools file (`docs/reference/tools*`) is never hand-merged: take either side and rerun
   `npm run docs:tools`.
 - **Ready to merge (the planner merges):** once every review for the head says Merge, stop and keep
-  the worktree clean and pushed until the planner has merged. Pull the vault, then write a
-  `- progress:` line on your Backlog item (commit and push), replacing your earlier line:
-  `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. That line is the
+  the worktree clean and pushed until the planner has merged. Run
+  `backlog.mjs progress <id> "PR #<n> ready, head <40-char sha>, review <note path>"`. That line is the
   ready state the planner reads; do not message the planner. If no planner merges for a long
   while, ask the user and leave the worktree as it is. Never run the gate without `--dry-run`; don't offer Auto-fix. To check the gate, from the clean,
   pushed PR branch, run main's copy (never the branch's own):
@@ -147,7 +144,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts below the line.
 - **Handover:** write it once, when you hand over. Half a page in vault `Handoff/<lane> prompt
   <date>.md` and in the chat in a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
-  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before closing, no background run of yours may still go. Push the note and a `- progress:` line (`handed over at <context>, no PR
+  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before closing, no background run of yours may still go. Push the note, then `backlog.mjs progress` (`handed over at <context>, no PR
 yet` or the PR state, plus the note path); the planner reads it and starts the successor. Start no successor, message nobody.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

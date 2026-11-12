@@ -131,7 +131,8 @@ export const CHECKS = [
     '.claude/hooks/warn-control-bytes.test.mjs',
     '.claude/hooks/guard-model.test.mjs',
     '.claude/hooks/guard-cloudflare.test.mjs',
-    '.claude/hooks/format-on-edit.test.mjs'
+    '.claude/hooks/format-on-edit.test.mjs',
+    '.claude/hooks/guard-backlog.test.mjs'
   ),
   nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
   nodeTest(
@@ -145,6 +146,7 @@ export const CHECKS = [
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
+    'scripts/backlog.test.mjs',
     'scripts/main-red-revert.test.mjs',
     'scripts/line-ratchet.test.mjs'
   ),

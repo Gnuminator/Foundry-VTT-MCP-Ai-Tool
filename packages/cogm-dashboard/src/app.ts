@@ -1,19 +1,11 @@
-import express, { type Express, type Request, type Response } from 'express';
-import {
-  createSpaceStatusReader,
-  type PlayerHandout,
-  type RecordUsageResult,
-  type UsageEvent,
-} from '@gnuminator/shared';
+import express, { type Response } from 'express';
+import type { PlayerHandout } from '@gnuminator/shared';
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
-import type { Config } from './config.js';
-import type { Logger } from './logger.js';
+import type { Dashboard, DashboardDeps } from './dashboard-types.js';
 import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
 import { GameState } from './state.js';
 import { SseHub } from './sse.js';
-import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
-import { resolveRole, isGm, type AuthRequest } from './auth.js';
 import { createReadCache } from './read-cache.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
@@ -23,27 +15,24 @@ import {
   type RecordingHealth,
 } from './recording-health.js';
 import { hostAllowlist } from './host-allowlist.js';
-import { mountOpenRoute, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
 import { buildRollRows, openRolls } from './roll-status.js';
-import type { SessionSwitchAction } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
 import type { RouteContext, RuntimeSettings } from './routes/context.js';
 import { mountApiControlRoute } from './routes/api-control.js';
 import { mountApiStreamRoutes } from './routes/api-stream.js';
 import { mountApiSwitchesRoutes } from './routes/api-switches.js';
 import { mountApiToolRoutes } from './routes/api-tool.js';
+import { createRequireGm, mountAccessIdentity } from './routes/auth.js';
+import {
+  mountHelpAndNotesRoutes,
+  mountMeSpaceVersionRoutes,
+  mountRawBodyRoutes,
+  type FeatureRouteDeps,
+} from './routes/features.js';
 import { asRecord, readStr } from './routes/util.js';
-import { mountPageRoutes, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
-import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
-import { mountHandoutSeenRoute } from './handout-seen-route.js';
-import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes-route.js';
-import { mountHelpRoute } from './help-route.js';
-import { mountMeRoute } from './me-route.js';
-import { playerConnectorFromEnv, type PlayerConnectorOptions } from './player-connector.js';
-import { mountPlayerRoute } from './player-route.js';
-import { mountSpaceRoute } from './space-route.js';
-import { VersionTracker, defaultKitLastRunFile, mountVersionsRoute } from './versions.js';
+import { mountPageRoutes } from './routes/pages-static.js';
+import { PlayerDirectory } from './usage-route.js';
 import { PlayerLinkStore } from './player-links.js';
 import { DashboardPrefsStore } from './dashboard-prefs.js';
 import { THEMES, ThemeStore, type ThemeId } from './theme.js';
@@ -67,80 +56,8 @@ import * as path from 'path';
  * token authorizes a player page, never upgrades it.
  */
 
-/** The bridge calls the dashboard makes (the MCP control client satisfies it). */
-export interface DashboardClient {
-  callTool<T = unknown>(
-    name: string,
-    args?: Record<string, unknown>,
-    options?: { timeoutMs?: number }
-  ): Promise<T>;
-  listTools(): Promise<unknown[]>;
-  /** Hand usage events to the bridge (I-084); absent on fakes, "Unknown method" on old backends. */
-  recordUsage?(events: UsageEvent[]): Promise<RecordUsageResult>;
-  /** A player opened a handout (I-039 seen log); absent on fakes and old backends. */
-  recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
-  /** The live write sweep's helper (I-016; test world only); absent on fakes. */
-  liveSweep?(request: Record<string, unknown>): Promise<unknown>;
-  /** Turn on for tonight (D3): read, turn on or turn back off tonight's switches; absent on fakes. */
-  sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
-  /** The feature cards (I-064): every feature switch, read-only; absent on fakes. */
-  featureSwitches?(): Promise<unknown>;
-  /** My character (I-096): one player's character sheets; absent on fakes. */
-  characterSheet?(userId: string): Promise<unknown>;
-  /** The player's roll button: the module rolls for their character; absent on fakes. */
-  playerRoll?(userId: string, buttonId: string): Promise<unknown>;
-  /** "Upload my portrait": a player's picture for their own character; absent on fakes. */
-  playerPortrait?(
-    userId: string,
-    actorId: string,
-    target: 'portrait' | 'both',
-    data: string
-  ): Promise<unknown>;
-  /** The player connector (D-136): the five tool definitions and one tool run; absent on fakes. */
-  listPlayerTools?(): Promise<unknown>;
-  playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
-  /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
-  sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
-  readonly isConnected?: boolean;
-}
-
-export interface DashboardDeps {
-  config: Config;
-  logger: Logger;
-  client: DashboardClient;
-  /** `/open` options (O4): the P1 origin allowlist (default none) and a test clock. */
-  openRoute?: OpenRouteOptions;
-  /** The built help (I-064); default dist/help.json next to the server. */
-  helpFile?: string | URL;
-  /** Fetches Cloudflare Access's public keys (I-022); default the global fetch. Tests stub it. */
-  accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
-  /** The player connector (D-136); default from the environment (`FOUNDRY_AI_PLAYER_CONNECTOR*`). */
-  playerConnector?: PlayerConnectorOptions;
-  /** The storage space check's status file; default env FOUNDRY_AI_SPACE_STATUS, else the Pi's path. */
-  spaceStatusFile?: string;
-  /** Test clock for the space check's age. */
-  spaceNow?: () => number;
-  /** Test only: the status heartbeat interval in ms (default STATUS_HEARTBEAT_MS). */
-  statusHeartbeatMs?: number;
-  /** Test only: the bot status URL (default config.botStatusUrl). */
-  botStatusUrl?: string;
-  /** Test only: how often the Recorder and Play log dots are re-read (default RECORDING_HEALTH_MS). */
-  recordingHealthMs?: number;
-  /** The test kit's last-run.json for the version tracker; default env or the PC's kit home. */
-  kitLastRunFile?: string | null;
-}
-
-export interface Dashboard {
-  app: Express;
-  handlers: GameFeedHandlers;
-  /** The feed's way to read events at once; server.ts sets it once the feed exists. */
-  onFeed(feed: { pollNow: () => void; resync?: () => void }): void;
-  /** Start background work (player view polling). */
-  start(): void;
-  /** Stop background work and end every stream. */
-  close(): void;
-}
-
+/** The public types moved to dashboard-types.ts; server.ts and the tests import them from here. */
+export type { Dashboard, DashboardClient, DashboardDeps } from './dashboard-types.js';
 /** The player page header and its policy moved to routes/pages-static.ts; tests import them from here. */
 export { PLAYER_CSP, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
 /** How often the player view context (visibility, handouts) is refreshed. */
@@ -382,17 +299,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     sse.broadcast('settings', settingsPayload(), gmOnly);
   }
 
-  /** Express middleware: 401/403 unless the caller resolves to the GM role. */
-  function requireGm(req: Request, res: Response, next: () => void): void {
-    const role = resolveRole(req, config.auth);
-    if (!isGm(role)) {
-      res
-        .status(role ? 403 : 401)
-        .json({ code: 'gm-required', error: 'GM access is required for this action.' });
-      return;
-    }
-    next();
-  }
+  /** Express middleware: 401/403 unless the caller resolves to the GM role (routes/auth.ts). */
+  const requireGm = createRequireGm(config.auth);
 
   /** A different world opened: the old world's events, errors and combat must not show. */
   function resetForNewWorld(): void {
@@ -522,17 +430,20 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   };
 
   // --- HTTP / SSE ------------------------------------------------------------
+  // The order below is the security order: Host check, then the Access identity, before any
+  // route resolves a role; the routes that parse their own body before the app-wide JSON parser.
   const app = express();
-  // Cloudflare Access (I-022): a verified token's email, set on the request before any route
-  // resolves a role. Without the config, or without a valid token, nothing is set.
-  const accessVerifier = config.auth.access
-    ? new AccessJwtVerifier(config.auth.access, deps.accessFetch)
-    : null;
-  if (config.auth.gmEmails.length > 0 && !accessVerifier) {
-    logger.warn(
-      'GM_EMAILS is set but CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD are not: email logins are off'
-    );
-  }
+  const featureDeps: FeatureRouteDeps = {
+    deps,
+    directory: playerDirectory,
+    links: playerLinks,
+    // In-app help (I-064): in dist (npm start) help.json sits next to this module; in dev mode
+    // (tsx src/) it is ../dist. Built here so the URLs stay relative to this file.
+    helpFile: deps.helpFile ?? [
+      new URL('./help.json', import.meta.url),
+      new URL('../dist/help.json', import.meta.url),
+    ],
+  };
   // First, before every route and static file: refuse any Host the dashboard does not know
   // (DNS rebinding; host-allowlist.ts). Both modes; with the split on it is defense in depth.
   app.use(
@@ -542,127 +453,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       logger: logger.child('host'),
     })
   );
-  // A token that does not verify (or cannot be checked) is marked, not just ignored: a GM behind
-  // it would otherwise be told they are a player (presentedUnverifiedAccess, /api/state).
-  if (accessVerifier || config.auth.gmEmails.length > 0) {
-    app.use((req: Request, _res: Response, next: () => void) => {
-      const token = accessTokenFrom(req.headers);
-      if (!token) {
-        next();
-        return;
-      }
-      const request = req as Request & AuthRequest;
-      if (!accessVerifier) {
-        request.accessTokenUnverified = true;
-        next();
-        return;
-      }
-      accessVerifier.verify(token).then(
-        identity => {
-          if (identity) request.accessEmail = identity.email;
-          else request.accessTokenUnverified = true;
-          next();
-        },
-        () => {
-          request.accessTokenUnverified = true;
-          next();
-        }
-      );
-    });
-  }
-  // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
-  // body after its guards.
-  mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });
-  // The usage log (I-084, usage-route.ts): write-only, parses its own small body.
-  mountUsageRoute(app, {
-    config,
-    client,
-    logger: logger.child('usage'),
-    directory: playerDirectory,
-    requireGm,
-  });
-  // The handout seen log (I-039): parses its own small body; the GM's drawer refreshes on a new open.
-  mountHandoutSeenRoute(app, {
-    config,
-    client,
-    logger: logger.child('handouts'),
-    directory: playerDirectory,
-    onRecorded: () => sse.broadcast('handouts-seen', {}, gmOnly),
-  });
-  // The player connector (D-136): /mcp/player, before the app-wide parser (it parses its own).
-  const playerConnector =
-    deps.playerConnector ??
-    playerConnectorFromEnv(process.env, message => logger.child('player-connector').warn(message));
-  mountPlayerRoute(app, {
-    config,
-    connector: playerConnector,
-    client,
-    directory: playerDirectory,
-    logger,
-    ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
-  });
+  // Cloudflare Access (I-022, routes/auth.ts): the verified email on the request before any route.
+  mountAccessIdentity(app, { config, logger, accessFetch: deps.accessFetch });
+  // Open in Foundry, usage log, handout seen log, player connector: each parses its own body.
+  const playerConnector = mountRawBodyRoutes(app, ctx, featureDeps);
   app.use(express.json({ limit: '256kb' }));
   mountPageRoutes(app, ctx);
-
-  // My character (I-096): the player's own sheet behind their private link, and the GM's links.
-  mountMeRoute(app, {
-    client,
-    links: playerLinks,
-    connector: playerConnector.enabled ? playerConnector.store : null,
-    directory: playerDirectory,
-    requireGm,
-    logger,
-    worldId: () => world?.id ?? null,
-    events: () => state.recentEvents,
-    onRolled: () => pollEventsNow(),
-    theme: () => themes.get(world?.id),
-    publicDir: config.publicDir,
-    pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
-  });
-
-  // The storage space check (2026-10-06): GM only; nothing on /player or /me.
-  const spaceLogger = logger.child('space');
-  mountSpaceRoute(app, {
-    requireGm,
-    readStatus: createSpaceStatusReader({
-      ...(deps.spaceStatusFile ? { path: deps.spaceStatusFile } : {}),
-      ...(deps.spaceNow ? { now: deps.spaceNow } : {}),
-      log: message => spaceLogger.info(message),
-    }),
-  });
-
-  // The version tracker (I-127): GM only, on by default, the GM can switch it off in the Advanced menu.
-  mountVersionsRoute(app, {
-    requireGm,
-    tracker: new VersionTracker({
-      enabled: (): boolean => prefs.get(world?.id).versionTracker,
-      getModules: (): Promise<unknown> => client.callTool('get-modules', { includeManifest: true }),
-      kitFile: deps.kitLastRunFile ?? defaultKitLastRunFile(),
-    }),
-  });
-
+  mountMeSpaceVersionRoutes(app, ctx, featureDeps, playerConnector);
   mountApiStreamRoutes(app, ctx);
-
   mountApiControlRoute(app, ctx);
-
-  // In-app help (I-064): the GM guide pages, rendered at build time into dist/help.json.
-  // In dist (npm start) the file sits next to this module; in dev mode (tsx src/) it is ../dist.
-  mountHelpRoute(app, {
-    file: deps.helpFile ?? [
-      new URL('./help.json', import.meta.url),
-      new URL('../dist/help.json', import.meta.url),
-    ],
-    requireGm,
-  });
-
-  // Session notes (recap lane, D-087; session-notes-route.ts): the After view's card.
-  mountSessionNotesRoute(app, {
-    client,
-    requireGm,
-    gmActionsEnabled: () => settings.gmActionsEnabled,
-    logger,
-  });
-
+  mountHelpAndNotesRoutes(app, ctx, featureDeps);
   mountApiSwitchesRoutes(app, ctx);
   mountApiToolRoutes(app, ctx);
 

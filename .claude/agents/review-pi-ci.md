@@ -40,6 +40,10 @@ Return the finished review note as your answer.
 10. **Docs vs behaviour.** `docs/dev/PI-SETUP.md` and the lane skill describe what the script
     really does; claimed reasons are right (321 M2: stated reason wrong).
 
+## Severity rule (D-101, amended 2026-11-12)
+
+A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.
+
 ## Output (the merge gate reads this)
 
 ```

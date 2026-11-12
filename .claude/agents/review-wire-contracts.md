@@ -40,6 +40,10 @@ Do not invent line numbers. Return the finished review note as your answer.
    sockets get their own error handler.
 10. **Public repo hygiene.** No book or campaign text, secrets or personal data in the diff.
 
+## Severity rule (D-101, amended 2026-11-12)
+
+A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.
+
 ## Output (the merge gate reads this)
 
 ```

@@ -35,7 +35,15 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    ```
 
    The tag must equal the root `package.json` version. Pushing it starts `.github/workflows/release.yml`, which
-   builds and publishes the GitHub release (assets and checks: [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
+   builds the release files, then waits for approval before it publishes (assets and checks:
+   [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
+
+   **Approve the release in the Actions run:** open the run, press "Review deployments", tick `release` and
+   Approve (also works on the phone in the GitHub app). The publish job is in the GitHub environment `release`,
+   and only the user is its reviewer (Settings, Environments, `release`: required reviewer the user, "Prevent
+   self-review" off; if the environment is ever deleted, recreate it before the next tag, or GitHub makes a
+   new one with no reviewer). Nothing is published until then, so a tag pushed by mistake can be
+   cancelled in the run.
 
 6. **Verify the release** (the `curl` in DEPLOYMENT), then deploy to the Pi if wanted.
 7. **Tell the players in #changelog and the GM in #dashboard-changelog.** Write 2 to 5 short English lines per post

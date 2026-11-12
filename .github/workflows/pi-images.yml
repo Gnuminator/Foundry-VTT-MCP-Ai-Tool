@@ -54,7 +54,7 @@ jobs:
     env:
       COMPOSE: docker compose --env-file deploy/pi/test.env -f deploy/pi/compose.yml -f deploy/pi/compose.test.yml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Prepare the test environment
         run: |

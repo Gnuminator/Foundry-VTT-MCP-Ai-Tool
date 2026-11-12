@@ -48,14 +48,16 @@ const backlog = items =>
 /**
  * Fake dependencies. `prs` maps a PR number to its gh pr view answer; `gates` maps a PR number to
  * the gate result (status and stdout).
- * @param {{ text: string | null, prs?: Record<number, object>, gates?: Record<number, { status: number, stdout: string }>,
- *   main?: string, prepare?: string | null }} o
+ * `text` may be a function (read again before each PR); `afterGate` runs after each fake gate run.
+ * @param {{ text: string | null | (() => string | null), prs?: Record<number, object>,
+ *   gates?: Record<number, { status: number, stdout: string }>, main?: string,
+ *   prepare?: string | null, afterGate?: (pr: number) => void }} o
  */
 function fakes(o) {
   const calls = { gh: [], gate: [], backlog: [], post: [], log: [], prepare: [] };
   /** @type {import('./merge-runner.mjs').Deps} */
   const deps = {
-    readBacklog: () => o.text,
+    readBacklog: () => (typeof o.text === 'function' ? o.text() : o.text),
     gh: args => {
       calls.gh.push(args);
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
@@ -72,6 +74,7 @@ function fakes(o) {
     gate: pr => {
       calls.gate.push(pr);
       const g = o.gates?.[pr] ?? { status: 1, stdout: 'lane:merge: refused because x' };
+      o.afterGate?.(pr);
       return { status: g.status, stdout: g.stdout, stderr: '' };
     },
     backlog: args => {
@@ -127,7 +130,13 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   const tried = new Set();
   round(f.deps, tried);
   assert.deepEqual(f.calls.backlog, [
-    ['progress', 'one', 'PR #5 refused by the merge gate: review: no note says Merge'],
+    [
+      'progress',
+      'one',
+      'PR #5 refused by the merge gate: review: no note says Merge',
+      '--if-ready',
+      `5@${SHA}`,
+    ],
   ]);
   assert.deepEqual(f.calls.post, ['merge runner: #5 not merged: review: no note says Merge']);
   // The refusal text does not read as merged (claim refuses items whose progress says merged).
@@ -243,7 +252,47 @@ test('an already merged PR is marked done; a closed one is a refusal; neither ru
     'progress',
     'two',
     'PR #6 refused by the merge gate: PR #6 is closed',
+    '--if-ready',
+    `6@${SHA2}`,
   ]);
+});
+
+test('a line rewritten while an earlier gate ran is read again: no gate and no refusal on the old head', () => {
+  const SHA3 = 'c'.repeat(40);
+  let second = `PR #6 ready, head ${SHA2}`;
+  const f = fakes({
+    text: () =>
+      backlog([
+        ['one', `PR #5 ready, head ${SHA}`],
+        ['two', second],
+      ]),
+    prs: { 5: open(), 6: open(SHA3) },
+    gates: { 5: merged(5) },
+    // Lane two pushes a fix and writes a new ready line while #5 is being gated.
+    afterGate: () => void (second = `PR #6 ready, head ${SHA3}`),
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(r.merged, [5]);
+  assert.deepEqual(f.calls.gate, [5], 'the new line waits for the next round');
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']]);
+  assert.deepEqual(f.calls.post, []);
+  // Next round: the new head is gated.
+  round(f.deps, new Set(['5@' + SHA]));
+  assert.deepEqual(f.calls.gate, [5, 6]);
+});
+
+test('a gate run that ends without its merged line but the PR is merged on GitHub: done, not refused', () => {
+  const prs = { 5: open() };
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs,
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because unexpected error: killed' } },
+    afterGate: () => void (prs[5] = { state: 'MERGED', headRefOid: SHA }),
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(r.merged, [5]);
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']]);
+  assert.deepEqual(f.calls.post, []);
 });
 
 test('CI still running after the wait (exit 5): no write, tried again next round', () => {
@@ -344,11 +393,18 @@ test('lock: a second runner exits 1 while the first holds it; a dead holder is t
     const first = takeRunnerLock(file, process.ppid);
     assert.equal(first.ok, true);
     const f = fakes({ text: null });
-    const code = await main(['--once'], { deps: f.deps, lockFile: file });
+    const code = await main(['--once'], { deps: f.deps, lockFile: file, isRunner: () => true });
     assert.equal(code, 1);
     assert.match(f.calls.log[0], /another merge runner runs \(pid \d+/);
-    if (first.ok) first.release();
+    assert.match(f.calls.post[0], /^merge runner not started: another merge runner runs/);
+    // A live pid that is not a merge runner (Windows reuses pids after a logoff) is taken over.
+    const g0 = fakes({ text: null });
+    assert.equal(
+      await main(['--once'], { deps: g0.deps, lockFile: file, isRunner: () => false }),
+      0
+    );
     assert.equal(fs.existsSync(file), false);
+    if (first.ok) first.release();
     // A pid that is gone: start a child, let it end, write its pid.
     const child = spawn(process.execPath, ['-e', '0']);
     await new Promise(res => child.on('exit', res));

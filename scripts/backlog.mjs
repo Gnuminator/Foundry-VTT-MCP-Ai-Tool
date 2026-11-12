@@ -8,6 +8,8 @@
  *   node scripts/backlog.mjs progress <id> <text>          replaces the item's progress line
  *   node scripts/backlog.mjs progress <id> --ready <PR> --head <sha> [--review <note path>]
  *                                         the ready line the merge runner acts on (readyText)
+ *   node scripts/backlog.mjs progress <id> <text> --if-ready <PR>@<sha>
+ *                                         only while that ready line is still the item's line
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]
@@ -49,6 +51,7 @@ import {
   itemRefs,
   newlineOf,
   parseBacklog,
+  parseReady,
   readyText,
   setField,
   splice,
@@ -106,10 +109,22 @@ export function claimEdit(text, o) {
   };
 }
 
-/** @param {string} text @param {{ id: string, text: string, date: string }} o */
+/**
+ * `ifReady`: write only while the item's progress is still that PR's ready line at that head (the
+ * merge runner's refusals must not overwrite a newer ready line).
+ * @param {string} text
+ * @param {{ id: string, text: string, date: string, ifReady?: { pr: number, head: string } }} o
+ */
 export function progressEdit(text, o) {
   const p = parseBacklog(text);
   const item = findItem(p, o.id);
+  if (o.ifReady) {
+    const now = parseReady(field(item, 'progress'));
+    if (!now || now.pr !== o.ifReady.pr || now.head !== o.ifReady.head)
+      throw new Error(
+        `${o.id}: the progress line is no longer the ready line of PR #${o.ifReady.pr} at ${o.ifReady.head.slice(0, 7)}; not written`
+      );
+  }
   const { body, tail } = trimBlock(item);
   const line = `- progress: ${dated(o.date, oneLine(o.text))}`;
   const next = setField(body, 'progress', [line], ['link', 'claimed']);
@@ -627,10 +642,18 @@ export function run(argv, env = {}) {
             )
           : pos.slice(1).join(' ');
         if (!text) throw new Usage('progress <id> <text>');
+        let ifReady;
+        if (typeof flags['if-ready'] === 'string') {
+          const m = /^(\d+)@([0-9a-f]{40})$/.exec(flags['if-ready']);
+          if (!m) throw new Usage('--if-ready <PR>@<40-character sha>');
+          ifReady = { pr: Number(m[1]), head: m[2] };
+        }
         job = {
           paths: [BACKLOG],
           message: `Backlog: progress ${id}`,
-          edit: read => ({ [BACKLOG]: progressEdit(read(BACKLOG), { id, text, date }).text }),
+          edit: read => ({
+            [BACKLOG]: progressEdit(read(BACKLOG), { id, text, date, ifReady }).text,
+          }),
         };
         break;
       }

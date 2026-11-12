@@ -713,6 +713,14 @@ test('progress --ready writes the fixed ready line the merge runner reads back',
   assert.equal(v.cli(['progress', 'first', '--ready', '12', '--head', 'abc']).code, 1);
   assert.equal(v.cli(['progress', 'first', '--ready', 'x', '--head', sha]).code, 1);
   assert.equal(v.cli(['progress', 'first', 'text', '--ready', '12', '--head', sha]).code, 2);
+  // --if-ready: written only while that ready line is still the item's line.
+  const other = 'c'.repeat(40);
+  const stale = v.cli(['progress', 'first', 'refused', '--if-ready', `12@${other}`]);
+  assert.equal(stale.code, 1);
+  assert.match(stale.err, /no longer the ready line of PR #12/);
+  assert.equal(v.cli(['progress', 'first', 'refused', '--if-ready', '12']).code, 2);
+  assert.equal(v.cli(['progress', 'first', 'refused', '--if-ready', `12@${sha}`]).code, 0);
+  assert.equal(parseProgress(v.remoteFile(BACKLOG)).get('first'), `${D} refused`);
 });
 
 test('parseReady: the last line, a date in front or not; a short sha or other text is not ready', () => {

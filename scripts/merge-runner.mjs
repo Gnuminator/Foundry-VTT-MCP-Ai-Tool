@@ -8,7 +8,8 @@
  * checkout. Each round it reads vault Backlog.md from the upstream branch (fetch, `git show @{u}:`,
  * never the shared working tree) and takes every item whose progress line is a ready line
  * (`PR #<n> ready, head <40-hex sha>`, written by `backlog.mjs progress <id> --ready`; parseReady),
- * one PR at a time, in Backlog order:
+ * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
+ * can take half an hour); a line that changed meanwhile waits for the next round.
  *
  *   - main's last finished CI run (push, ci.yml) is red, or cannot be read: post one line, exit 3.
  *     Nothing is merged and the ready lines stay.
@@ -25,14 +26,18 @@
  *       merge train full: post "merge train full: ask a session to run live:roundtrip", exit 3; the
  *         ready line stays, so the next logon or a manual start after `--train-reset` merges it.
  *       CI still running after the gate's wait (exit 5): left for the next round.
- *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"`
- *         (that replaces the ready line, so it is not tried again until a lane writes a new one)
- *         and one #pr-log line.
+ *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"
+ *         --if-ready <PR>@<sha>` (that replaces the ready line, so it is not tried again until a
+ *         lane writes a new one; a newer ready line is never overwritten) and one #pr-log line.
+ *       Any end other than merged or train full is checked against GitHub: a PR merged after all
+ *       (the gate killed after `gh pr merge`) is marked done, not refused.
  *     A checkout problem (not the PR's fault) posts one line and exits 3.
  *
  * It never runs `live:roundtrip` or `--train-reset`; a session does that on demand (D-141). A lock
  * file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second one
- * exits 1 at once. A vault write that fails is logged; the PR is not tried again in this run.
+ * posts one line and exits 1. A holder pid that is gone or is no longer a merge runner (Windows
+ * reuses pids after a logoff) is taken over. A vault write that fails is logged; the PR is not tried
+ * again in this run.
  * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
  *
  * Exit codes: 0 --once finished, 1 another runner holds the lock, 2 usage, 3 stopped (main red,
@@ -51,8 +56,11 @@ import { readUpstreamBacklog } from './planner-wake.mjs';
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 const MAIN = 'aitool/main';
 export const DEFAULT_INTERVAL = 120;
-/** The gate waits up to 30 minutes for CI; the whole gate run gets a little more. */
-const GATE_TIMEOUT_MS = 40 * 60 * 1000;
+/**
+ * The gate waits up to 30 minutes for CI, then drift-check may queue on the heavy lock behind
+ * another lane's green. A kill here never decides the outcome: the PR state is read afterwards.
+ */
+const GATE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const NPM_CI_TIMEOUT_MS = 20 * 60 * 1000;
 const SHORT_TIMEOUT_MS = 120_000;
 /** The only flags the runner ever passes to the gate, after the PR number. */
@@ -172,15 +180,47 @@ export function round(d, tried) {
       d.log(`WARNING: ${what} for ${id} not written (${oneLine(r.stderr || r.stdout, 200)})`);
     }
   };
-  /** @param {{ id: string, pr: number }} r @param {string} why */
+  /**
+   * The refusal replaces the ready line only while it is still that same line (`--if-ready`,
+   * checked under backlog.mjs's lock): a lane that wrote a newer one keeps it.
+   * @param {{ id: string, pr: number, head: string }} r @param {string} why
+   */
   const refuse = (r, why) => {
     const reason = oneLine(why, 300);
     d.log(`#${r.pr} (${r.id}) not merged: ${reason}`);
-    write(r.id, ['progress', r.id, `PR #${r.pr} refused by the merge gate: ${reason}`], 'progress');
+    write(
+      r.id,
+      [
+        'progress',
+        r.id,
+        `PR #${r.pr} refused by the merge gate: ${reason}`,
+        '--if-ready',
+        `${r.pr}@${r.head}`,
+      ],
+      'progress'
+    );
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
+  /** @param {{ id: string, pr: number, head: string }} r */
+  const markDone = r =>
+    write(r.id, ['done', r.id, String(r.pr), '--sha', r.head, '--by', 'merge-runner'], 'done');
+  /** Is the PR merged after all (a gate run killed after `gh pr merge`)? @param {number} n */
+  const mergedOnGitHub = n => {
+    const v = d.gh(['pr', 'view', String(n), '-R', REPO, '--json', 'state']);
+    try {
+      return v.status === 0 && JSON.parse(v.stdout).state === 'MERGED';
+    } catch {
+      return false;
+    }
+  };
 
-  for (const r of ready) {
+  for (const first of ready) {
+    // Read the line again: an earlier gate run in this round can take half an hour, and the lane
+    // may have written a newer ready line meanwhile. A changed line waits for the next round.
+    const fresh = d.readBacklog();
+    const r = fresh === null ? undefined : readyItems(fresh).find(x => x.id === first.id);
+    if (!r || r.pr !== first.pr || r.head !== first.head) continue;
+
     // Main is read before each PR: an earlier merge in this round may have turned it red.
     const runs = d.gh([
       'run',
@@ -229,7 +269,7 @@ export function round(d, tried) {
     if (pr.state === 'MERGED') {
       tried.add(key);
       d.log(`#${r.pr} (${r.id}) is already merged; marking it done`);
-      write(r.id, ['done', r.id, String(r.pr), '--sha', r.head, '--by', 'merge-runner'], 'done');
+      markDone(r);
       continue;
     }
     if (pr.state !== 'OPEN') {
@@ -241,7 +281,7 @@ export function round(d, tried) {
       tried.add(key);
       refuse(
         r,
-        `the head moved from ${r.head.slice(0, 7)} to ${String(pr.headRefOid ?? '?').slice(0, 7)} since the ready line; the lane writes a new ready line once the new head is reviewed`
+        `the head moved from ${r.head.slice(0, 7)} to ${String(pr.headRefOid ?? '?').slice(0, 7)} since the ready line; write a new ready line for the new head (a clean merge of main keeps its review)`
       );
       continue;
     }
@@ -257,11 +297,17 @@ export function round(d, tried) {
     d.log(`#${r.pr} (${r.id}): running main's gate on ${r.head.slice(0, 7)}`);
     const g = d.gate(r.pr);
     const out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
-    if (out.kind === 'merged') {
+    if (out.kind !== 'merged' && out.kind !== 'train-full' && mergedOnGitHub(r.pr)) {
+      // The gate ended without its merged line (killed, timed out) after the merge went through.
+      tried.add(key);
+      merged.push(r.pr);
+      d.log(`#${r.pr} (${r.id}) is merged although the gate said: ${oneLine(out.reason, 200)}`);
+      markDone(r);
+    } else if (out.kind === 'merged') {
       tried.add(key);
       merged.push(r.pr);
       d.log(`#${r.pr} (${r.id}) merged`);
-      write(r.id, ['done', r.id, String(r.pr), '--sha', r.head, '--by', 'merge-runner'], 'done');
+      markDone(r);
     } else if (out.kind === 'train-full') {
       d.log(`stopped: ${TRAIN_FULL_LINE} (#${r.pr} waits)`);
       d.post(`${TRAIN_FULL_LINE} (#${r.pr} waits; start the runner again after the train reset)`);
@@ -355,11 +401,41 @@ export function mainCopy(checkout, rel) {
 export const gateArgs = (pr, vault) => [String(pr), ...GATE_FLAGS, '--vault', vault];
 
 /**
- * Take the runner lock: `wx` create with our pid. A lock whose pid is gone is taken over.
- * @param {string} file @param {number} [pid]
+ * Is `pid` a live merge runner? A logoff leaves the lock behind and Windows reuses pids at the next
+ * logon, so a live pid alone is not enough: its command line must name merge-runner.mjs. When the
+ * command line cannot be read, the pid counts as a runner (never two runners).
+ * @param {number} pid
+ */
+export function isRunnerProcess(pid) {
+  if (!pidAlive(pid)) return false;
+  if (process.platform === 'win32') {
+    const r = spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `(Get-CimInstance Win32_Process -Filter 'ProcessId=${Number(pid)}').CommandLine`,
+      ],
+      { encoding: 'utf8', timeout: 60_000 }
+    );
+    if (r.status !== 0) return true;
+    return /merge-runner\.mjs/.test(r.stdout ?? '');
+  }
+  try {
+    return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('merge-runner.mjs');
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Take the runner lock: `wx` create with our pid. A lock whose holder is not a live runner is taken
+ * over.
+ * @param {string} file @param {number} [pid] @param {(pid: number) => boolean} [isRunner]
  * @returns {{ ok: true, release: () => void } | { ok: false, holder: number }}
  */
-export function takeRunnerLock(file, pid = process.pid) {
+export function takeRunnerLock(file, pid = process.pid, isRunner = isRunnerProcess) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   for (let i = 0; i < 2; i++) {
     try {
@@ -377,7 +453,7 @@ export function takeRunnerLock(file, pid = process.pid) {
     } catch (e) {
       if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') throw e;
       const holder = Number(fs.readFileSync(file, 'utf8').trim());
-      if (Number.isInteger(holder) && holder > 0 && holder !== pid && pidAlive(holder)) {
+      if (Number.isInteger(holder) && holder > 0 && holder !== pid && isRunner(holder)) {
         return { ok: false, holder };
       }
       fs.rmSync(file, { force: true });
@@ -453,7 +529,8 @@ function realDeps(o) {
     backlog: args =>
       sh(process.execPath, [path.join(here, 'backlog.mjs'), ...args, '--vault', o.vault]),
     post: text => {
-      const copy = mainCopy(o.checkout, 'packages/discord-bot/announce/announce.mjs');
+      // From the runner's own repository: a missing or broken gate checkout must still be posted.
+      const copy = mainCopy(path.resolve(here, '..'), 'packages/discord-bot/announce/announce.mjs');
       if (!copy) return stamp('WARNING: no announce sender on main; nothing posted');
       try {
         const r = sh(process.execPath, [copy.file, 'pr-note', text], { timeout: 15_000 });
@@ -469,7 +546,8 @@ function realDeps(o) {
 
 /**
  * @param {string[]} argv
- * @param {{ deps?: Deps, lockFile?: string, sleep?: (ms: number) => Promise<void> }} [inject]
+ * @param {{ deps?: Deps, lockFile?: string, sleep?: (ms: number) => Promise<void>,
+ *   isRunner?: (pid: number) => boolean }} [inject]
  * @returns {Promise<number>} the exit code
  */
 export async function main(argv, inject = {}) {
@@ -483,9 +561,11 @@ export async function main(argv, inject = {}) {
   const d = inject.deps ?? realDeps(o);
   const lockFile =
     inject.lockFile ?? path.join(os.homedir(), '.foundry-ai-tool', 'merge-runner.lock');
-  const lock = takeRunnerLock(lockFile);
+  const lock = takeRunnerLock(lockFile, process.pid, inject.isRunner);
   if (!lock.ok) {
-    d.log(`another merge runner runs (pid ${lock.holder || 'unknown'}, ${lockFile}); exiting`);
+    const why = `another merge runner runs (pid ${lock.holder || 'unknown'}, ${lockFile})`;
+    d.log(`${why}; exiting`);
+    d.post(`merge runner not started: ${why}`);
     return 1;
   }
   const sleep = inject.sleep ?? (ms => new Promise(res => setTimeout(res, ms)));

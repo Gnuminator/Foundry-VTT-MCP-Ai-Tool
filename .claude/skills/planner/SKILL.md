@@ -55,7 +55,7 @@ the user placed), pushes the vault and archives itself (see Session cleanup).
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,185).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,190).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).
@@ -79,7 +79,7 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
    normal PR through the gate. The `Main red revert` workflow reruns a red once, then opens a draft
    `auto-revert/<sha>` PR (close and reopen it to start CI); the user's OK first, then use or close it.
 2. **No other merges while main is red.** Lanes may keep building and pushing. The runner has
-   stopped: merge the unblock PR with main's gate (`--wait-ci`, in the `-gate` checkout), then start the runner.
+   stopped: merge the unblock PR with main's gate (`--wait-ci`) in that PR's own built worktree (never `-gate`, the runner's), then start the runner.
 3. The proper fix is a normal lane (red commit, step and unblock PR in `- source:`); tell the user in one line.
 
 ## Session cleanup

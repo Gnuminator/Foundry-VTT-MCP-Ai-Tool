@@ -8,5 +8,5 @@
   second copy from running. `scripts/register-merge-runner.ps1` starts it at logon (D-140, D-141;
   item merge-runner).
 - **No standing planner:** the planner skill loses its Waking, Merges and successor steps (a short
-  Train part stays) and its word budget drops from 1,422 to 1,185; `planner-wake.mjs` loses its
+  Train part stays) and its word budget drops from 1,422 to 1,190; `planner-wake.mjs` loses its
   "start a fresh planner" exit 3. A test keeps both out (D-141).

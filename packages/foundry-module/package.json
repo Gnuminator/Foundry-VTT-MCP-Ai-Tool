@@ -8,11 +8,12 @@
     "build": "node ../../scripts/tsc7.mjs",
     "dev": "node ../../node_modules/typescript/bin/tsc --watch",
     "test": "vitest run",
-    "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit --customConditions development --types jquery,node",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix"
   },
   "devDependencies": {
+    "@gnuminator/shared": "*",
     "@types/jquery": "^3.5.34",
     "@types/node": "^24.0.0",
     "@types/sanitize-html": "^2.16.2",

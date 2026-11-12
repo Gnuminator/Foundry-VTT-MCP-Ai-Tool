@@ -70,7 +70,7 @@
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "vault": "node packages/mcp-server/dist/vault-cli.js",
     "obsidian": "node packages/mcp-server/dist/obsidian-cli.js",
     "test:mcp:schema": "node scripts/mcp-schema-smoke-test.mjs",
@@ -78,7 +78,7 @@
     "audit:unused": "npx knip",
     "audit:circular": "npx madge --circular --extensions ts packages/mcp-server/src packages/foundry-module/src shared/src",
     "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
-    "prepare": "husky"
+    "prepare": "husky && node -e \"const f='scripts/usage-catalog.mjs';if(require('fs').existsSync(f))require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})\""
   },
   "dependencies": {
     "playwright-core": "^1.63.0"

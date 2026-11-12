@@ -894,6 +894,7 @@ const quickNames = files =>
 
 test('quickSteps: typecheck and unit tests of each touched package only', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/a.ts', 'packages/discord-bot/src/b.ts']), [
+    'shared-link',
     'build-shared',
     'typecheck-discord-bot',
     'typecheck-mcp-server',
@@ -937,6 +938,7 @@ test('quickSteps: a dashboard web or test-kit change builds the mcp-server and r
 
 test('quickSteps: a shared change typechecks every package and tests shared', () => {
   assert.deepEqual(quickNames(['shared/src/types.ts']), [
+    'shared-link',
     'build-shared',
     'typecheck-all',
     'lint-changed',
@@ -965,6 +967,7 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
   const steps = quickSteps(['packages/cogm-dashboard/web/e2e/help.spec.ts']);
   const names = steps.map(s => s.name);
   assert.deepEqual(names, [
+    'shared-link',
     'build-shared',
     'typecheck-cogm-dashboard',
     'lint-changed',
@@ -982,6 +985,7 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
 
 test('quickSteps: dashboard web files add catalogue check, one build and the bundle budget', () => {
   assert.deepEqual(quickNames(['packages/cogm-dashboard/web/src/App.tsx']), [
+    'shared-link',
     'build-shared',
     'typecheck-cogm-dashboard',
     'lint-changed',
@@ -1103,7 +1107,7 @@ test('main --quick --list: lists the quick steps, and no base is an error too', 
     log: l => lines.push(l),
   };
   assert.equal(main({ ...base, changed: ['shared/src/a.ts'] }), 0);
-  assert.deepEqual(lines, ['build-shared', 'typecheck-all', 'unit-shared']);
+  assert.deepEqual(lines, ['shared-link', 'build-shared', 'typecheck-all', 'unit-shared']);
   lines.length = 0;
   assert.equal(main({ ...base, changed: null }), 2);
   assert.match(lines.at(-1), /found no base/);
@@ -1229,6 +1233,7 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const names = quickNames(['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md']);
   assert.deepEqual(names, [
+    'shared-link',
     'build-shared',
     'typecheck-mcp-server',
     'lint-changed',
@@ -1247,6 +1252,7 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
 
 test('quickSteps: a deleted package file still triggers that package', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
+    'shared-link',
     'build-shared',
     'typecheck-mcp-server',
     'unit-mcp-server',
@@ -1281,9 +1287,14 @@ test('main --quick: runs the quick steps without the heavy lock, nothing to chec
     },
   };
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
-  assert.deepEqual(ran, ['build-shared', 'typecheck-mcp-server', 'unit-mcp-server']);
+  assert.deepEqual(ran, [
+    'shared-link',
+    'build-shared',
+    'typecheck-mcp-server',
+    'unit-mcp-server',
+  ]);
   assert.equal(locked, 0, 'a quick run takes no heavy slot');
-  assert.match(lines.at(-1), /^green: OK, 3 steps/);
+  assert.match(lines.at(-1), /^green: OK, 4 steps/);
   lines.length = 0;
   assert.equal(main({ ...base, changed: ['package.json'] }), 0);
   assert.match(lines.at(-1), /OK \(quick\), nothing to check/);

@@ -6,11 +6,20 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "build": "node ../scripts/tsc7.mjs",
+    "catalog": "node ../scripts/usage-catalog.mjs",
+    "build": "npm run catalog && node ../scripts/tsc7.mjs",
     "dev": "node ../node_modules/typescript/bin/tsc --watch",
-    "typecheck": "node ../scripts/tsc7.mjs --noEmit",
-    "test": "vitest run"
+    "typecheck": "npm run catalog && node ../scripts/tsc7.mjs --noEmit",
+    "test": "npm run catalog && vitest run"
   },
   "devDependencies": {
     "typescript": "~6.0.3",

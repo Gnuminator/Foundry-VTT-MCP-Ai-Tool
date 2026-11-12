@@ -17,9 +17,12 @@ import {
   parseArgs,
   prepareCheckout,
   readyItems,
-  round,
+  round as roundWith,
   takeRunnerLock,
 } from './merge-runner.mjs';
+
+/** round() with a fresh try counter unless the test passes its own. */
+const round = (d, tried, attempts = new Map()) => roundWith(d, tried, attempts);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHA = 'a'.repeat(40);
@@ -443,6 +446,67 @@ test('main: loops until a round stops, then exits 3 and releases the lock', asyn
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('main: a gate end that is not the PR fault is refused after three rounds, not retried forever', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-runner-retry-'));
+  try {
+    const f = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: {
+        5: {
+          status: 1,
+          stdout: 'lane:merge: refused because wait-ci: gh pr view 5 failed 3 times in a row: x',
+        },
+      },
+    });
+    let slept = 0;
+    // a refused head is in `tried`, so the loop ends only because we stop it after a few rounds
+    const code = await main(['--once'], { deps: f.deps, lockFile: path.join(dir, 'l') });
+    assert.equal(code, 0);
+    const g = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: { 5: { status: 1, stdout: 'lane:merge: refused because unexpected error: boom' } },
+    });
+    const dep = { ...g.deps };
+    dep.gate = pr => {
+      const r = g.deps.gate(pr);
+      if (g.calls.gate.length >= 3) dep.post('x');
+      return r;
+    };
+    const stop = Symbol('stop');
+    const sleep = async () => {
+      slept++;
+      if (slept > 6) throw stop;
+    };
+    await assert.rejects(
+      main([], { deps: dep, lockFile: path.join(dir, 'l2'), sleep }),
+      e => e === stop
+    );
+    assert.equal(g.calls.gate.length, 3, 'three tries, then refused and not tried again');
+    assert.match(g.calls.backlog[0][2], /refused by the merge gate/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gateOutcome: every real passing reason is transient, a review refusal is not', () => {
+  for (const why of [
+    'wait-ci: gh pr view 977 failed 3 times in a row: x',
+    'pr: gh pr view 977 failed: x',
+    'wait-ci: git fetch aitool main failed after the wait (x)',
+    'wait-ci: the gate on aitool/main changed during the wait (or this copy cannot be read); start again',
+    'pr: mergeable is UNKNOWN; merge main into the branch and resolve conflicts',
+    'unexpected error: boom',
+  ]) {
+    assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'transient', why);
+  }
+  assert.equal(
+    gateOutcome(1, 'lane:merge: refused because review: no note says Merge', 5).kind,
+    'refused'
+  );
 });
 
 test('parseArgs: the gate checkout defaults to the sibling -gate folder of the main checkout', () => {

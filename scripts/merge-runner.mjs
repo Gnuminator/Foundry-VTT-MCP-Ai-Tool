@@ -133,7 +133,7 @@ export function mainState(json) {
  * computed, the gate was killed with no reason): tried again, up to MAX_TRANSIENT times per head.
  */
 const TRANSIENT =
-  /gh pr view d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
+  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
 const MAX_TRANSIENT = 3;
 
 /**
@@ -185,7 +185,7 @@ const norm = p => {
  * @param {Deps} d @param {Set<string>} tried @param {Map<string, number>} [attempts]
  * @returns {{ stop: string | null, merged: number[] }}
  */
-export function round(d, tried, attempts = new Map()) {
+export function round(d, tried, attempts) {
   /** @type {number[]} */
   const merged = [];
   const text = d.readBacklog();
@@ -498,7 +498,11 @@ export function takeRunnerLock(file, pid = process.pid, isRunner = isRunnerProce
     } catch (e) {
       if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') throw e;
       const holder = Number(fs.readFileSync(file, 'utf8').trim());
-      if (Number.isInteger(holder) && holder > 0 && holder !== pid && isRunner(holder)) {
+      // A lock older than the last boot is stale whatever its pid is now (a killed runner leaves
+      // it behind, and the pid may belong to a service whose command line cannot be read).
+      const bootMs = Date.now() - os.uptime() * 1000;
+      const stale = fs.statSync(file).mtimeMs < bootMs - 60_000;
+      if (!stale && Number.isInteger(holder) && holder > 0 && holder !== pid && isRunner(holder)) {
         return { ok: false, holder };
       }
       fs.rmSync(file, { force: true });
@@ -577,7 +581,10 @@ function realDeps(o) {
     post: rawText => {
       // No local paths in a Discord line (gate reasons can name a log file or the checkout).
       const home = os.homedir();
-      const text = home ? rawText.split(home).join('~') : rawText;
+      const esc = (/** @type {string} */ x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const text = home
+        ? rawText.replace(new RegExp(`${esc(home)}|${esc(home.replace(/\\/g, '/'))}`, 'gi'), '~')
+        : rawText;
       // From the runner's own repository: a missing or broken gate checkout must still be posted.
       const copy = mainCopy(path.resolve(here, '..'), 'packages/discord-bot/announce/announce.mjs');
       if (!copy) return stamp('WARNING: no announce sender on main; nothing posted');
@@ -622,8 +629,10 @@ export async function main(argv, inject = {}) {
     d.log(`started (pid ${process.pid}, vault ${o.vault}, gate checkout ${o.checkout})`);
     /** @type {Set<string>} */
     const tried = new Set();
+    /** @type {Map<string, number>} */
+    const attempts = new Map();
     for (;;) {
-      const r = round(d, tried);
+      const r = round(d, tried, attempts);
       if (r.stop) {
         d.log(`exiting: ${r.stop}`);
         return EXIT_STOPPED;

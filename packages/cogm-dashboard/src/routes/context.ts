@@ -1,6 +1,11 @@
 import type { Request, Response } from 'express';
 
+import type { DashboardClient } from '../app.js';
 import type { Config } from '../config.js';
+import type { DashboardPrefsStore } from '../dashboard-prefs.js';
+import type { PlayerViewSource } from '../player/source.js';
+import type { ReadCache } from '../read-cache.js';
+import type { ThemeStore } from '../theme.js';
 import type { Logger } from '../logger.js';
 import type { BridgeStatus, WorldInfo } from '../feed/types.js';
 import type { RecordingHealth } from '../recording-health.js';
@@ -8,6 +13,11 @@ import type { SseHub } from '../sse.js';
 import type { GameState } from '../state.js';
 import type { buildPlayerState } from '../player/projection.js';
 import type { buildRollRows, openRolls } from '../roll-status.js';
+
+export interface RuntimeSettings {
+  /** Master switch for the write surface (GM Actions). Off by default for safety. */
+  gmActionsEnabled: boolean;
+}
 
 /**
  * What the route groups in this folder read from the dashboard's closure (app.ts). The state
@@ -17,6 +27,17 @@ import type { buildRollRows, openRolls } from '../roll-status.js';
 export interface RouteContext {
   config: Config;
   logger: Logger;
+  /** The bridge calls the dashboard makes. */
+  client: DashboardClient;
+  settings: RuntimeSettings;
+  readCache: ReadCache;
+  themes: ThemeStore;
+  prefs: DashboardPrefsStore;
+  playerView: PlayerViewSource;
+  /** Read the events now instead of at the next poll (set by server.ts once the feed exists). */
+  pollEventsNow(): void;
+  broadcastTheme(): void;
+  broadcastSettings(): void;
   state: GameState;
   /** The GM stream hub; every broadcast on it is `gmOnly`. */
   sse: SseHub;

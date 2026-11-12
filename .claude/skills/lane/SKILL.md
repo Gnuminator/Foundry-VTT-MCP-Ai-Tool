@@ -117,19 +117,17 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   push from a branch made off `aitool/main`). When merging `aitool/main` into the branch, a conflict
   in a generated tools file (`docs/reference/tools*`) is never hand-merged: take either side and rerun
   `npm run docs:tools`.
-- **Ready to merge (the planner merges):** once every review for the head says Merge, stop and keep
-  the worktree clean and pushed until the planner has merged. Run
-  `backlog.mjs progress <id> "PR #<n> ready, head <40-char sha>, review <note path>"`. That line is the
-  ready state the planner reads; do not message the planner. If no planner merges for a long
-  while, ask the user and leave the worktree as it is. Never run the gate without `--dry-run`; don't offer Auto-fix. To check the gate, from the clean,
-  pushed PR branch, run main's copy (never the branch's own):
+- **Ready to merge (the merge runner merges, D-140):** once every review for the head says Merge, run
+  `backlog.mjs progress <id> --ready <n> --head <40-char sha> --review <note path>`, keep the branch
+  pushed and stop; message nobody. The runner gates that head in its own checkout and writes a
+  refusal over the line. Never run the gate without `--dry-run`; don't offer Auto-fix. To check
+  the gate, from the clean, pushed PR branch, run main's copy (never the branch's own):
 
   ```bash
   g=$(cygpath -m "$(mktemp --suffix=.mjs)") && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
   ```
 
-  Only a `lane:merge: OK #<PR>` line means the checks pass; anything else, or no output, is a
-  refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
+  Only a `lane:merge: OK #<PR>` line passes; anything else (or nothing) is a refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
   `drift:check` and the merge train. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check
   failed, 4 head moved, 5 timed out. **Do not pipe the gate through
   `tail` or `head`** (it hides the exit code): run it plain and read its last line. A blocking CANCELLED check of an unclassified or mixed CI

@@ -44,6 +44,16 @@
         ]
       },
       {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-backlog.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "mcp__.*__execute",
         "hooks": [
           {

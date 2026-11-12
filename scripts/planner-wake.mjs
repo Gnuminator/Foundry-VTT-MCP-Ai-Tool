@@ -22,34 +22,13 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseProgress } from './backlog-items.mjs';
 
 export const BACKLOG_PATH = 'Dev/Foundry AI Tool/Backlog.md';
 export const DEFAULTS = { interval: 60, coldAfter: 3600, maxWait: 14400 };
 
-/**
- * Item id -> its `- progress:` text, for every `## S|M|L` item that has both lines.
- * @param {string} text
- * @returns {Map<string, string>}
- */
-export function parseProgress(text) {
-  const map = new Map();
-  const lines = text.split(/\r?\n/);
-  for (let start = 0; start < lines.length; ) {
-    let end = start + 1;
-    while (end < lines.length && !/^#{1,2}\s/.test(lines[end])) end++;
-    const block = lines.slice(start, end);
-    if (/^##\s+[SML]\s/.test(block[0])) {
-      const id = block.map(l => /^-\s+id\s*:\s*(\S+)/i.exec(l)).find(Boolean)?.[1];
-      const progress = block
-        .map(l => /^-\s+progress\s*:\s*(.*?)\s*$/i.exec(l)?.[1])
-        .filter(Boolean)
-        .join('\n');
-      if (id && progress) map.set(id, progress);
-    }
-    start = end;
-  }
-  return map;
-}
+// The item parser is shared with scripts/backlog.mjs.
+export { parseProgress };
 
 /**
  * Items whose progress line is new or different. A removed line (item merged) is not a change.

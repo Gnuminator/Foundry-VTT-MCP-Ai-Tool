@@ -10,9 +10,9 @@ The planner runs on Opus, on demand, for one outcome, then ends (see Waking). Va
 
 ## Read the state (measured)
 
-- `Backlog.md`, `Waiting.md`, CLAUDE.md "Holds now". The `- progress:` line on a claimed item is
-  the lane's ready state; lanes message nobody, so read it on every wake for every claimed item,
-  inherited lanes included. Never message an idle lane. A lane that stopped with a handover and no
+- `node scripts/backlog.mjs status`, `Waiting.md`, CLAUDE.md "Holds now". Its progress lines are the lanes' ready state
+  (lanes message nobody): read them on every wake, inherited lanes included. Message a lane only
+  when it has been idle under 55 minutes. A lane that stopped with a handover and no
   running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start), and the stopped lane is archived first (if the folder stays, `git checkout --detach` there once clean).
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
   start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red: see Main is red).
@@ -27,14 +27,11 @@ the top Backlog items with a bold recommended pick.
 
 ## Backlog upkeep
 
-Each item in `Backlog.md`: `## <size S/M/L> <title>` then `- id: <slug>` (short, lowercase, stable,
-never changed or reused: the live board, D-124, links by it), `- board: <area>`, `- done when:`,
-`- area:`, `- progress:` (the lane's ready state), optional `- gate:`, `- blocked by:` (`W21` or
-`item:<id>`), `- pi: yes` (needs a Pi day and the user's OK), `- source:`, `- touches: path,
-folder/`, `- depends on: #380, item:<id>`, and `- claimed:` once a lane takes it. The board's Lanes
-zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. Remove merged items, add the line (`- title | area | ref | date`, newest first, at the top) to vault `Backlog done.md`, never to `Backlog.md`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
-(triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`). The board rewrites
-`Backlog.md`: pull first, keep each item's lines together.
+Use `node scripts/backlog.mjs` (`add`, `done <id> <PR> --sha --pi-run`, `claim`, `progress`,
+`release`, `low`; format in the file's preamble): it pulls, edits one item, checks and pushes.
+`done` writes the `Backlog done.md` line. Reorder and triage by hand: pull first, keep each item's
+lines together. The board's Lanes zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. When an item leaves, repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
+(triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`).
 
 ## Starting lanes
 
@@ -42,9 +39,7 @@ zone warns on two lanes on one path or a claim before its dependency is done; ch
 - Lows: one sweep lane per area when `Lows/<area>.md` passes about 10 lines; drop lines older than a month.
 - Each lane owns its own files and test server. Respect every hold in CLAUDE.md.
 - Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
-  skill, follow CLAUDE.md", write your `claude://` link (`get_session "self"`, field `link`) as a
-  `- link:` line under your claim, report "ready to merge" as a `- progress:` line on the item and
-  message nobody, ask the user through `AskUserQuestion`, never through the planner. Pi work carries `pi-work`.
+  skill, follow CLAUDE.md", claim and report "ready to merge" through `backlog.mjs`, message nobody, ask the user through `AskUserQuestion`, never through the planner. Pi work carries `pi-work`.
 - `start_session` takes `model` as a full id (e.g. `claude-sonnet-5-5`): Sonnet for coding, Haiku for read-only work,
   Opus only for risky design. Every start, Agent and Workflow `agent()` call sets it (unset inherits
   Opus). If the app refuses a start (automated turn, phone, session started by a session), propose a card.
@@ -66,7 +61,7 @@ The planner ends after its outcome. At 200k context it plans the handover and ke
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget: lane skill under 1,970 words, planner under 1,490).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,422).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).

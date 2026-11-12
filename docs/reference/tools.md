@@ -21,24 +21,6 @@ The bridge serves 107 tools in six sets (five for Claude Desktop, the sixth for 
 
 Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.
 
-### get-world-info
-
-Get basic information about the Foundry world and system
-
-Kind: read-only. Title: Get world info.
-
-No parameters.
-
-### list-characters
-
-List all available characters with basic information
-
-Kind: read-only. Title: List characters.
-
-Parameters:
-
-- `type` (string): Optional filter by character type (e.g., "character", "npc")
-
 ### get-character
 
 Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status, attunement status) without descriptions. Perfect for filtering (e.g., equipped weapons, prepared spells), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.
@@ -60,6 +42,16 @@ Parameters:
 - `characterIdentifier` (string, required): Character name or ID
 - `entityIdentifier` (string, required): Item or effect name or ID (a spell, weapon, feature or effect)
 
+### list-characters
+
+List all available characters with basic information
+
+Kind: read-only. Title: List characters.
+
+Parameters:
+
+- `type` (string): Optional filter by character type (e.g., "character", "npc")
+
 ### search-character-items
 
 Search within a character's items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.
@@ -73,81 +65,6 @@ Parameters:
 - `type` (string): Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.
 - `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".
 - `limit` (number): Maximum number of results to return (default: 20)
-
-### get-level-up-options
-
-Advice only, changes nothing: what a character's next class level grants, the choices still open (hit points, ASI or feat, subclass, spells, items), and earlier advancement left unfinished.
-
-Kind: read-only. Title: Get level-up options.
-
-Parameters:
-
-- `identifier` (string, required): Character name or actor ID.
-- `className` (string)
-
-### list-scenes
-
-List all available Foundry VTT scenes with their details
-
-Kind: read-only. Title: List scenes.
-
-Parameters:
-
-- `filter` (string): Optional filter to search scene names (case-insensitive). Default: `""`.
-- `include_active_only` (boolean): Only return the currently active scene. Default: `false`.
-
-### get-current-scene
-
-Get information about the currently active scene, including tokens and layout
-
-Kind: read-only. Title: Get current scene.
-
-Parameters:
-
-- `includeTokens` (boolean): Whether to include detailed token information (default: true). Default: `true`.
-- `includeHidden` (boolean): Whether to include hidden tokens and elements (default: false). Default: `false`.
-
-### get-token-positions
-
-Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).
-
-Kind: read-only. Title: Get token positions.
-
-Parameters:
-
-- `sceneId` (string): Optional scene ID; defaults to the active scene.
-
-### get-combat-state
-
-Get the full current combat state: whether combat is active, the round number, whose turn it is (with their initiative, HP, and conditions), and the complete initiative order. For each combatant: name, initiative, current/max HP, conditions, whether they are a player character or NPC/enemy, and whether they have acted this round. Combatants at 0 HP include their death save status.
-
-Kind: read-only. Title: Get combat state.
-
-No parameters.
-
-### list-journals
-
-List all journal entries, or read a specific journal/page. Without parameters: lists all journals with their pages (id, name, type). With journalId: reads the journal's first text page content and shows all available pages. With journalId + pageId: reads a specific page's full content.
-
-Kind: read-only. Title: List or read journals.
-
-Parameters:
-
-- `filterQuests` (boolean): Only show journals that appear to be quest-related (default: false)
-- `includeContent` (boolean): Include journal content preview (default: false)
-- `journalId` (string): If provided, read this journal's content instead of listing all journals. Returns full page content and a list of all pages in the journal.
-- `pageId` (string): If provided with journalId, read this specific page's content. Get page IDs from the pages array returned when listing journals or reading a journal.
-
-### search-journals
-
-Search through all pages of all journal entries for specific content or keywords. Returns which specific page matched, so you can read it with list-journals using journalId + pageId.
-
-Kind: read-only. Title: Search journals.
-
-Parameters:
-
-- `searchQuery` (string, required): Text to search for in journal entries
-- `searchType` (string): Where to search (default: both). One of: `title`, `content`, `both`.
 
 ### search-compendium
 
@@ -204,6 +121,89 @@ Parameters:
 
 - `type` (string): Optional filter by pack type
 
+### get-current-scene
+
+Get information about the currently active scene, including tokens and layout
+
+Kind: read-only. Title: Get current scene.
+
+Parameters:
+
+- `includeTokens` (boolean): Whether to include detailed token information (default: true). Default: `true`.
+- `includeHidden` (boolean): Whether to include hidden tokens and elements (default: false). Default: `false`.
+
+### get-world-info
+
+Get basic information about the Foundry world and system
+
+Kind: read-only. Title: Get world info.
+
+No parameters.
+
+### list-scenes
+
+List all available Foundry VTT scenes with their details
+
+Kind: read-only. Title: List scenes.
+
+Parameters:
+
+- `filter` (string): Optional filter to search scene names (case-insensitive). Default: `""`.
+- `include_active_only` (boolean): Only return the currently active scene. Default: `false`.
+
+### list-journals
+
+List all journal entries, or read a specific journal/page. Without parameters: lists all journals with their pages (id, name, type). With journalId: reads the journal's first text page content and shows all available pages. With journalId + pageId: reads a specific page's full content.
+
+Kind: read-only. Title: List or read journals.
+
+Parameters:
+
+- `filterQuests` (boolean): Only show journals that appear to be quest-related (default: false)
+- `includeContent` (boolean): Include journal content preview (default: false)
+- `journalId` (string): If provided, read this journal's content instead of listing all journals. Returns full page content and a list of all pages in the journal.
+- `pageId` (string): If provided with journalId, read this specific page's content. Get page IDs from the pages array returned when listing journals or reading a journal.
+
+### search-journals
+
+Search through all pages of all journal entries for specific content or keywords. Returns which specific page matched, so you can read it with list-journals using journalId + pageId.
+
+Kind: read-only. Title: Search journals.
+
+Parameters:
+
+- `searchQuery` (string, required): Text to search for in journal entries
+- `searchType` (string): Where to search (default: both). One of: `title`, `content`, `both`.
+
+### get-level-up-options
+
+Advice only, changes nothing: what a character's next class level grants, the choices still open (hit points, ASI or feat, subclass, spells, items), and earlier advancement left unfinished.
+
+Kind: read-only. Title: Get level-up options.
+
+Parameters:
+
+- `identifier` (string, required): Character name or actor ID.
+- `className` (string)
+
+### get-combat-state
+
+Get the full current combat state: whether combat is active, the round number, whose turn it is (with their initiative, HP, and conditions), and the complete initiative order. For each combatant: name, initiative, current/max HP, conditions, whether they are a player character or NPC/enemy, and whether they have acted this round. Combatants at 0 HP include their death save status.
+
+Kind: read-only. Title: Get combat state.
+
+No parameters.
+
+### get-token-positions
+
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).
+
+Kind: read-only. Title: Get token positions.
+
+Parameters:
+
+- `sceneId` (string): Optional scene ID; defaults to the active scene.
+
 ### get-planned-change
 
 Show a pending planned change (from a plan-\* tool): what it will change as a readable diff, its risk ("write" or "destructive") and when it expires (15 minutes). Without planId, lists all pending plans. Read-only.
@@ -236,6 +236,29 @@ Parameters:
 
 - `limit` (integer): Maximum number of changes to return (default 20, max 500). Default: `20`.
 
+### undo-change
+
+Use this to undo an applied plan (changeId from list-recent-changes), restoring the previous values; for a direct write or a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.
+
+Kind: changes something and can delete or overwrite. Title: Undo change.
+
+Parameters:
+
+- `changeId` (string, required): The changeId to undo.
+- `confirm` (boolean, required): Must be true: the GM confirmed the undo.
+
+### open-in-foundry
+
+Open a document (journal page, scene, actor, item) on a GM's Foundry screen, by uuid. Only the GM sees it; nothing is changed. Opening on another GM's client needs Foundry 14.352 or newer.
+
+Kind: read-only. Title: Open in Foundry.
+
+Parameters:
+
+- `uuid` (string, required): Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def
+- `userId` (string): The GM user whose screen to use (default: the bridge's own client).
+- `pan` (boolean): With a token uuid (Scene.x.Token.y): pan the GM's Foundry view to that token and select it instead of opening its sheet. Only that GM's screen moves, not the players'.
+
 ### list-changes
 
 Use this to see what anyone changed (players, GM, AI) in the last 7 days, newest first: who, what, when, e.g. "Ilvara: HP 10 -> 5". Filter by person, thing (document uuid) or AI/human. Read-only. Undo with plan-undo-changes, or undo-change for an AI change.
@@ -262,29 +285,6 @@ Parameters:
 - `scope` (string): just-this (default), everything-since or world-since. One of: `just-this`, `everything-since`, `world-since`. Default: `just-this`.
 - `rewindTable` (boolean): Must be true for world-since: rewind everything at the table.
 
-### undo-change
-
-Use this to undo an applied plan (changeId from list-recent-changes), restoring the previous values; for a direct write or a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.
-
-Kind: changes something and can delete or overwrite. Title: Undo change.
-
-Parameters:
-
-- `changeId` (string, required): The changeId to undo.
-- `confirm` (boolean, required): Must be true: the GM confirmed the undo.
-
-### open-in-foundry
-
-Open a document (journal page, scene, actor, item) on a GM's Foundry screen, by uuid. Only the GM sees it; nothing is changed. Opening on another GM's client needs Foundry 14.352 or newer.
-
-Kind: read-only. Title: Open in Foundry.
-
-Parameters:
-
-- `uuid` (string, required): Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def
-- `userId` (string): The GM user whose screen to use (default: the bridge's own client).
-- `pan` (boolean): With a token uuid (Scene.x.Token.y): pan the GM's Foundry view to that token and select it instead of opening its sheet. Only that GM's screen moves, not the players'.
-
 ### check-secret-terms
 
 Check free text for whole-phrase, case-insensitive matches against known secret terms (currently the dealt Tarokka cards' names and the GM's name overrides for them). Use before sending a whisper or any GM-typed text toward players. Read-only.
@@ -298,17 +298,6 @@ Parameters:
 ## Play
 
 Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.
-
-### switch-scene
-
-Direct write. Switch to a different Foundry VTT scene by name or ID
-
-Kind: changes something. Title: Switch scene.
-
-Parameters:
-
-- `scene_identifier` (string, required): Scene name or ID to switch to
-- `optimize_view` (boolean): Automatically optimize the view for the scene. Default: `true`.
 
 ### use-item
 
@@ -324,6 +313,17 @@ Parameters:
 - `consume` (boolean): Whether to consume charges/uses (default: true)
 - `spellLevel` (number): For spells: cast at a higher level than base (D&D 5e upcasting)
 - `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.
+
+### switch-scene
+
+Direct write. Switch to a different Foundry VTT scene by name or ID
+
+Kind: changes something. Title: Switch scene.
+
+Parameters:
+
+- `scene_identifier` (string, required): Scene name or ID to switch to
+- `optimize_view` (boolean): Automatically optimize the view for the scene. Default: `true`.
 
 ### request-player-rolls
 
@@ -384,6 +384,127 @@ Parameters:
 - `rollTarget` (string, required): Target for the roll: ability (str/dex/...), skill name (perception, stealth, ...), or weapon/attack name.
 - `isPublic` (boolean, required): Whether the result is public (true) or whispered to the GM (false).
 - `advantage` (string): One of: `advantage`, `disadvantage`.
+
+### plan-scene-restore
+
+Plan putting a scene's walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. Over 200 changes: plans a batch, apply and plan again. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).
+
+Kind: read-only. Title: Plan scene restore from backup.
+
+Parameters:
+
+- `scene` (string): Default: the viewed scene.
+- `backupPath` (string): Restored world folder. Default: the Plan B folder.
+- `parts` (array of string): One of: `walls`, `lights`, `tiles`, `tokens`.
+- `recentCopyOk` (boolean): True for a hand-made copy: skips the changed-under-5-minutes refusal.
+
+### plan-npc-turn
+
+Plan a monster's turn. Without moveTo it only reads the fight: speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state and score. With moveTo (a grid square) it paths round walls, doors and creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (activity for a save action; legendary actions only on another creature's turn). Roll first with the tools the steps name, then call again with moveTo and results: one plan holds the move and all damage. Needs the "NPC turn assistant" switch (off by default).
+
+Kind: read-only. Title: Plan NPC turn.
+
+Parameters:
+
+- `token` (string): NPC token. Default: whose turn it is.
+- `moveTo` (object): Move the NPC to this grid square (its top-left square).
+  - `gridX` (integer, required): Range: at least 0.
+  - `gridY` (integer, required): Range: at least 0.
+- `itemName` (string): Attack or action to use.
+- `target` (string): Token to attack.
+- `attacks` (array of object): A multiattack, in order. Items: at most 10.
+  - `itemName` (string, required)
+  - `target` (string, required)
+  - `activity` (string): Activity of the item.
+- `results` (array of object): Per damageByType entry. multiplier 0.5 = half on a made save. Items: 1 to 20.
+  - `target` (string, required)
+  - `amount` (number, required): The damage the roll reported. Range: at least 0.
+  - `damageType` (string)
+  - `multiplier` (number): Range: 0 to 1.
+- `dash` (boolean): Dash: twice the speed; no attacks unless reason names a bonus-action Dash.
+- `reason` (string): Why (shown in the plan).
+
+### plan-paper-sync
+
+After a paper night: plan the numbers on one paper sheet as one guarded change for that character (apply-planned-change, undo-change; needs the "AI Tool: Paper sync (writes)" switch, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request and lists every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only. Not for player chat: it shows more than players see.
+
+Kind: read-only. Title: Plan paper sheet sync.
+
+Parameters:
+
+- `actor` (string, required): The player character: name or id.
+- `hp` (integer): Current hit points. Range: at least 0.
+- `tempHp` (integer): Range: at least 0.
+- `slots` (object): Spell slots left by level "1" to "9", and "pact".
+  - `1` (integer): Range: at least 0.
+  - `2` (integer): Range: at least 0.
+  - `3` (integer): Range: at least 0.
+  - `4` (integer): Range: at least 0.
+  - `5` (integer): Range: at least 0.
+  - `6` (integer): Range: at least 0.
+  - `7` (integer): Range: at least 0.
+  - `8` (integer): Range: at least 0.
+  - `9` (integer): Range: at least 0.
+  - `pact` (integer): Range: at least 0.
+- `hitDice` (array of object): Hit dice left per class (class may be left out with one class).
+  - `class` (string)
+  - `left` (integer, required): Range: at least 0.
+- `resources` (array of object): Class resources and item uses left ("Ki Points", "Wand of Fireballs").
+  - `name` (string, required)
+  - `value` (integer, required): Range: at least 0.
+- `coins` (object): Coins now; leave out the unchanged ones.
+  - `pp` (integer): Range: at least 0.
+  - `gp` (integer): Range: at least 0.
+  - `ep` (integer): Range: at least 0.
+  - `sp` (integer): Range: at least 0.
+  - `cp` (integer): Range: at least 0.
+- `exhaustion` (integer): Level 0 to 6. Range: at least 0.
+- `conditions` (array of string): The exact set now (empty clears them); leave out to keep them.
+- `inspiration` (boolean)
+- `resetDeathSaves` (boolean): true: successes and failures to 0.
+- `inventory` (array of object): Item quantities now; 0 removes. To add an item give its compendium uuid.
+  - `item` (string)
+  - `uuid` (string)
+  - `quantity` (integer, required): Range: at least 0.
+
+### plan-scene-mood
+
+Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change (music undo is refused once a sequential or shuffle playlist has moved on to its next track by itself: undo soon after, or stop the music with a new plan). Off until the module switch "Scene mood and music" is on.
+
+Kind: read-only. Title: Plan scene mood or music.
+
+Parameters:
+
+- `action` (string, required): One of: `apply`, `set`, `save`, `remove-preset`, `music`.
+- `preset` (string): Preset name.
+- `fromCurrent` (boolean): save: copy the current look and music.
+- `darkness` (number): 0 bright to 1 dark.
+- `globalLight` (boolean)
+- `weather` (string): Effect id (rain, snow, fog) or "none".
+- `playlist` (string): Playlist ("none" stops all music); set, save and music.
+- `mode` (string): music: play adds, switch (default) stops the others first. One of: `play`, `stop`, `switch`.
+
+### list-scene-moods
+
+List the scene's mood presets, its look now and the playlists with what plays.
+
+Kind: read-only. Title: List scene moods and playlists.
+
+No parameters.
+
+### check-action
+
+Rules check (on by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.
+
+Kind: read-only. Title: Check an action against the rules.
+
+Parameters:
+
+- `actor` (string, required): Actor name or ID.
+- `item` (string, required): Item or spell name or ID.
+- `target` (string): Target token name, for range.
+- `activity` (string): Activity name or ID (default: first).
+- `castLevel` (integer): Level to cast at (default: its own or lowest slot left). Range: 1 to 9.
 
 ### get-token-details
 
@@ -534,6 +655,88 @@ Parameters:
 - `sinceTimestamp` (string): The latestTimestamp of the previous call (not an event time); matching events after it return at once. Omit = only new ones.
 - `timeoutSeconds` (integer): Default 25, max 45.
 
+### roll-saving-throws
+
+Direct write. Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.
+
+Kind: changes something. Title: Roll NPC saving throws.
+
+Parameters:
+
+- `targets` (array of string, required): Token names (preferred) or actor names/IDs to roll for.
+- `rollType` (string, required): One of: `save`, `check`, `skill`.
+- `ability` (string): Ability key for save/check (str/dex/con/int/wis/cha).
+- `skill` (string): dnd5e skill key for skill rolls: acr, ani, arc, ath, dec, his, ins, itm, inv, med, nat, prc, prf, per, rel, slt, ste, sur (e.g. "ste" for Stealth, "prc" for Perception).
+- `dc` (integer): Optional difficulty class to test against.
+- `isPublic` (boolean): Public roll (true) or whispered to the GM only (false or omitted, the default).
+
+### use-npc-activity
+
+Direct write. Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.
+
+Kind: changes something. Title: Use NPC attack or activity.
+
+Parameters:
+
+- `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
+- `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
+- `activity` (string): Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.
+- `targetAC` (integer): Optional target AC to compute hit/miss against.
+- `isPublic` (boolean): Public roll (true or omitted, the default) or whispered to the GM only (false).
+
+### manage-rest
+
+Direct write. Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.
+
+Kind: changes something and can delete or overwrite. Title: Run a rest.
+
+Parameters:
+
+- `targets` (array of string, required): Character names or IDs to rest.
+- `restType` (string, required): One of: `short`, `long`.
+- `newDay` (boolean): Whether this rest starts a new day (resets daily uses). Defaults true for long rests.
+
+### mark-play-session
+
+Direct write. GM ONLY. Mark the start or end of a play session with a line in the bridge vault's session log (sessions/&lt;date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
+
+Kind: changes something. Title: Mark play session start or end.
+
+Parameters:
+
+- `action` (string, required): Mark the table starting or ending a play session. One of: `start`, `end`.
+- `mode` (string): "live" (default) or "paper" (played on paper, sheets synced afterwards). One of: `live`, `paper`.
+- `date` (string): Paper only: the night as YYYY-MM-DD (today or earlier). Default: now.
+- `time` (string): Paper only, with date: local HH:MM (default 12:00 start, 23:59 end).
+- `synced` (boolean): Paper only: true = sheets already in Foundry; stops the pre-flight warning.
+- `note` (string): Optional note kept with the marker (up to 200 characters).
+
+### get-party
+
+The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.
+
+Kind: read-only. Title: Get party.
+
+No parameters.
+
+### plan-party-change
+
+Plan one party action; nothing changes until apply-planned-change (the GM confirms; needs the "AI Tool: Party (writes)" switch). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one if none). "rest-request": post dnd5e's short or long rest request card ("rest"); each player clicks it to rest. "place": put members with no token on the GM's viewed scene, on the free squares nearest a spot: the centre of the GM's view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
+
+Kind: read-only. Title: Plan party change.
+
+Parameters:
+
+- `action` (string, required): What to plan: pace, add-to-combat, rest-request or place. One of: `pace`, `add-to-combat`, `rest-request`, `place`.
+- `groupId` (string): The group actor id; default the primary party (else the only group).
+- `pace` (string): For action "pace": the new travel pace. One of: `slow`, `normal`, `fast`.
+- `rest` (string): For action "rest-request": short or long (default long). One of: `short`, `long`.
+- `at` (string): For action "place": where (default view: the centre of the GM's view). One of: `view`, `token`, `note`, `grid`.
+- `target` (string): For "place" at token or note: the token's name or the map note's label.
+- `gridX` (integer): For "place" at grid: the column.
+- `gridY` (integer): For "place" at grid: the row.
+- `hidden` (boolean): For "place": the new tokens start hidden.
+
 ### plan-actor-change
 
 Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.
@@ -588,86 +791,6 @@ Parameters:
 - `lightColor` (string): update: light color, "#ff9329".
 - `lightAnimation` (string): update: torch, pulse, flame...
 
-### roll-saving-throws
-
-Direct write. Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.
-
-Kind: changes something. Title: Roll NPC saving throws.
-
-Parameters:
-
-- `targets` (array of string, required): Token names (preferred) or actor names/IDs to roll for.
-- `rollType` (string, required): One of: `save`, `check`, `skill`.
-- `ability` (string): Ability key for save/check (str/dex/con/int/wis/cha).
-- `skill` (string): dnd5e skill key for skill rolls: acr, ani, arc, ath, dec, his, ins, itm, inv, med, nat, prc, prf, per, rel, slt, ste, sur (e.g. "ste" for Stealth, "prc" for Perception).
-- `dc` (integer): Optional difficulty class to test against.
-- `isPublic` (boolean): Public roll (true) or whispered to the GM only (false or omitted, the default).
-
-### use-npc-activity
-
-Direct write. Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.
-
-Kind: changes something. Title: Use NPC attack or activity.
-
-Parameters:
-
-- `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
-- `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
-- `activity` (string): Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.
-- `targetAC` (integer): Optional target AC to compute hit/miss against.
-- `isPublic` (boolean): Public roll (true or omitted, the default) or whispered to the GM only (false).
-
-### manage-rest
-
-Direct write. Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.
-
-Kind: changes something and can delete or overwrite. Title: Run a rest.
-
-Parameters:
-
-- `targets` (array of string, required): Character names or IDs to rest.
-- `restType` (string, required): One of: `short`, `long`.
-- `newDay` (boolean): Whether this rest starts a new day (resets daily uses). Defaults true for long rests.
-
-### get-party
-
-The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.
-
-Kind: read-only. Title: Get party.
-
-No parameters.
-
-### plan-party-change
-
-Plan one party action; nothing changes until apply-planned-change (the GM confirms; needs the "AI Tool: Party (writes)" switch). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one if none). "rest-request": post dnd5e's short or long rest request card ("rest"); each player clicks it to rest. "place": put members with no token on the GM's viewed scene, on the free squares nearest a spot: the centre of the GM's view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
-
-Kind: read-only. Title: Plan party change.
-
-Parameters:
-
-- `action` (string, required): What to plan: pace, add-to-combat, rest-request or place. One of: `pace`, `add-to-combat`, `rest-request`, `place`.
-- `groupId` (string): The group actor id; default the primary party (else the only group).
-- `pace` (string): For action "pace": the new travel pace. One of: `slow`, `normal`, `fast`.
-- `rest` (string): For action "rest-request": short or long (default long). One of: `short`, `long`.
-- `at` (string): For action "place": where (default view: the centre of the GM's view). One of: `view`, `token`, `note`, `grid`.
-- `target` (string): For "place" at token or note: the token's name or the map note's label.
-- `gridX` (integer): For "place" at grid: the column.
-- `gridY` (integer): For "place" at grid: the row.
-- `hidden` (boolean): For "place": the new tokens start hidden.
-
-### plan-combat-change
-
-Plan starting or ending a fight. "start" puts tokens of the viewed scene in a new combat (default: player characters and Hostile tokens; already at round 1, no initiative rolled, so roll it next). "end" removes the active combat. Apply with apply-planned-change, revert with undo-change; ending is destructive, so the GM confirms. Shows in Recent Changes. Undo of an end does not restore effects that end with combat or token movement history (the result carries a warning).
-
-Kind: read-only. Title: Plan ending a fight.
-
-Parameters:
-
-- `action` (string, required): start: new combat. end: close the active combat. One of: `start`, `end`.
-- `tokenIds` (array of string): start: the tokens to fight. Omit for player characters and Hostiles.
-- `sceneId` (string): start: scene (default: the viewed one).
-- `combatId` (string): end: the combat to close. Omit for the active one.
-
 ### plan-scene-change
 
 Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
@@ -707,113 +830,6 @@ Parameters:
 - `itemUuids` (array of string): loot: compendium item UUIDs to add (from search-compendium).
 - `announce` (boolean): loot: post a loot summary to chat (default true).
 
-### plan-scene-restore
-
-Plan putting a scene's walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. Over 200 changes: plans a batch, apply and plan again. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).
-
-Kind: read-only. Title: Plan scene restore from backup.
-
-Parameters:
-
-- `scene` (string): Default: the viewed scene.
-- `backupPath` (string): Restored world folder. Default: the Plan B folder.
-- `parts` (array of string): One of: `walls`, `lights`, `tiles`, `tokens`.
-- `recentCopyOk` (boolean): True for a hand-made copy: skips the changed-under-5-minutes refusal.
-
-### plan-npc-turn
-
-Plan a monster's turn. Without moveTo it only reads the fight: speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state and score. With moveTo (a grid square) it paths round walls, doors and creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (activity for a save action; legendary actions only on another creature's turn). Roll first with the tools the steps name, then call again with moveTo and results: one plan holds the move and all damage. Needs the "NPC turn assistant" switch (off by default).
-
-Kind: read-only. Title: Plan NPC turn.
-
-Parameters:
-
-- `token` (string): NPC token. Default: whose turn it is.
-- `moveTo` (object): Move the NPC to this grid square (its top-left square).
-  - `gridX` (integer, required): Range: at least 0.
-  - `gridY` (integer, required): Range: at least 0.
-- `itemName` (string): Attack or action to use.
-- `target` (string): Token to attack.
-- `attacks` (array of object): A multiattack, in order. Items: at most 10.
-  - `itemName` (string, required)
-  - `target` (string, required)
-  - `activity` (string): Activity of the item.
-- `results` (array of object): Per damageByType entry. multiplier 0.5 = half on a made save. Items: 1 to 20.
-  - `target` (string, required)
-  - `amount` (number, required): The damage the roll reported. Range: at least 0.
-  - `damageType` (string)
-  - `multiplier` (number): Range: 0 to 1.
-- `dash` (boolean): Dash: twice the speed; no attacks unless reason names a bonus-action Dash.
-- `reason` (string): Why (shown in the plan).
-
-### plan-paper-sync
-
-After a paper night: plan the numbers on one paper sheet as one guarded change for that character (apply-planned-change, undo-change; needs the "AI Tool: Paper sync (writes)" switch, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request and lists every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only. Not for player chat: it shows more than players see.
-
-Kind: read-only. Title: Plan paper sheet sync.
-
-Parameters:
-
-- `actor` (string, required): The player character: name or id.
-- `hp` (integer): Current hit points. Range: at least 0.
-- `tempHp` (integer): Range: at least 0.
-- `slots` (object): Spell slots left by level "1" to "9", and "pact".
-  - `1` (integer): Range: at least 0.
-  - `2` (integer): Range: at least 0.
-  - `3` (integer): Range: at least 0.
-  - `4` (integer): Range: at least 0.
-  - `5` (integer): Range: at least 0.
-  - `6` (integer): Range: at least 0.
-  - `7` (integer): Range: at least 0.
-  - `8` (integer): Range: at least 0.
-  - `9` (integer): Range: at least 0.
-  - `pact` (integer): Range: at least 0.
-- `hitDice` (array of object): Hit dice left per class (class may be left out with one class).
-  - `class` (string)
-  - `left` (integer, required): Range: at least 0.
-- `resources` (array of object): Class resources and item uses left ("Ki Points", "Wand of Fireballs").
-  - `name` (string, required)
-  - `value` (integer, required): Range: at least 0.
-- `coins` (object): Coins now; leave out the unchanged ones.
-  - `pp` (integer): Range: at least 0.
-  - `gp` (integer): Range: at least 0.
-  - `ep` (integer): Range: at least 0.
-  - `sp` (integer): Range: at least 0.
-  - `cp` (integer): Range: at least 0.
-- `exhaustion` (integer): Level 0 to 6. Range: at least 0.
-- `conditions` (array of string): The exact set now (empty clears them); leave out to keep them.
-- `inspiration` (boolean)
-- `resetDeathSaves` (boolean): true: successes and failures to 0.
-- `inventory` (array of object): Item quantities now; 0 removes. To add an item give its compendium uuid.
-  - `item` (string)
-  - `uuid` (string)
-  - `quantity` (integer, required): Range: at least 0.
-
-### plan-scene-mood
-
-Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change (music undo is refused once a sequential or shuffle playlist has moved on to its next track by itself: undo soon after, or stop the music with a new plan). Off until the module switch "Scene mood and music" is on.
-
-Kind: read-only. Title: Plan scene mood or music.
-
-Parameters:
-
-- `action` (string, required): One of: `apply`, `set`, `save`, `remove-preset`, `music`.
-- `preset` (string): Preset name.
-- `fromCurrent` (boolean): save: copy the current look and music.
-- `darkness` (number): 0 bright to 1 dark.
-- `globalLight` (boolean)
-- `weather` (string): Effect id (rain, snow, fog) or "none".
-- `playlist` (string): Playlist ("none" stops all music); set, save and music.
-- `mode` (string): music: play adds, switch (default) stops the others first. One of: `play`, `stop`, `switch`.
-
-### list-scene-moods
-
-List the scene's mood presets, its look now and the playlists with what plays.
-
-Kind: read-only. Title: List scene moods and playlists.
-
-No parameters.
-
 ### play-playlist
 
 Direct write. Play (default) or stop a playlist by name. Nothing to undo. Use to change the music as the story moves.
@@ -825,34 +841,18 @@ Parameters:
 - `playlistName` (string, required): Playlist to control by name.
 - `action` (string): Play (default) or stop the playlist. One of: `play`, `stop`.
 
-### mark-play-session
+### plan-combat-change
 
-Direct write. GM ONLY. Mark the start or end of a play session with a line in the bridge vault's session log (sessions/&lt;date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
+Plan starting or ending a fight. "start" puts tokens of the viewed scene in a new combat (default: player characters and Hostile tokens; already at round 1, no initiative rolled, so roll it next). "end" removes the active combat. Apply with apply-planned-change, revert with undo-change; ending is destructive, so the GM confirms. Shows in Recent Changes. Undo of an end does not restore effects that end with combat or token movement history (the result carries a warning).
 
-Kind: changes something. Title: Mark play session start or end.
-
-Parameters:
-
-- `action` (string, required): Mark the table starting or ending a play session. One of: `start`, `end`.
-- `mode` (string): "live" (default) or "paper" (played on paper, sheets synced afterwards). One of: `live`, `paper`.
-- `date` (string): Paper only: the night as YYYY-MM-DD (today or earlier). Default: now.
-- `time` (string): Paper only, with date: local HH:MM (default 12:00 start, 23:59 end).
-- `synced` (boolean): Paper only: true = sheets already in Foundry; stops the pre-flight warning.
-- `note` (string): Optional note kept with the marker (up to 200 characters).
-
-### check-action
-
-Rules check (on by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.
-
-Kind: read-only. Title: Check an action against the rules.
+Kind: read-only. Title: Plan ending a fight.
 
 Parameters:
 
-- `actor` (string, required): Actor name or ID.
-- `item` (string, required): Item or spell name or ID.
-- `target` (string): Target token name, for range.
-- `activity` (string): Activity name or ID (default: first).
-- `castLevel` (integer): Level to cast at (default: its own or lowest slot left). Range: 1 to 9.
+- `action` (string, required): start: new combat. end: close the active combat. One of: `start`, `end`.
+- `tokenIds` (array of string): start: the tokens to fight. Omit for player characters and Hostiles.
+- `sceneId` (string): start: scene (default: the viewed one).
+- `combatId` (string): end: the combat to close. Omit for the active one.
 
 ## Prep
 
@@ -878,6 +878,18 @@ Parameters:
   - `name` (string, required): Page name (e.g. "Player Handout", "GM Notes")
   - `content` (string, required): HTML content for this page
 - `folderName` (string): Optional folder name to organize the journal into. The folder is created automatically if it does not exist.
+
+### link-quest-to-npc
+
+Direct write. Link an existing quest journal to an NPC in the world
+
+Kind: changes something. Title: Link quest to NPC.
+
+Parameters:
+
+- `journalId` (string, required): ID of the quest journal entry
+- `npcName` (string, required): Name of the NPC to link to the quest
+- `relationship` (string, required): Relationship between NPC and quest. One of: `quest_giver`, `target`, `ally`, `enemy`, `contact`.
 
 ### update-quest-journal
 
@@ -905,18 +917,6 @@ Parameters:
 - `pageId` (string): ID of a specific page to update. If omitted, updates the first text page. Get page IDs from list-journals.
 - `newPageName` (string): If provided (without pageId), creates a new page with this name instead of updating an existing one.
 
-### link-quest-to-npc
-
-Direct write. Link an existing quest journal to an NPC in the world
-
-Kind: changes something. Title: Link quest to NPC.
-
-Parameters:
-
-- `journalId` (string, required): ID of the quest journal entry
-- `npcName` (string, required): Name of the NPC to link to the quest
-- `relationship` (string, required): Relationship between NPC and quest. One of: `quest_giver`, `target`, `ally`, `enemy`, `contact`.
-
 ### create-campaign-dashboard
 
 Direct write. Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management
@@ -939,6 +939,18 @@ Parameters:
     - `description` (string, required)
 - `defaultQuestGiver` (string): Default NPC name for quest giving (optional)
 - `defaultLocation` (string): Default campaign location/setting (optional)
+
+### get-session-log
+
+The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events (Play), for chat text get-chat-log (Play).
+
+Kind: read-only. Title: Get session log.
+
+Parameters:
+
+- `limit` (integer): Maximum number of events to return (default 100). Default: `100`.
+- `eventType` (string): Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").
+- `actorName` (string): Optional actor name filter (partial match).
 
 ### suggest-balanced-encounter
 
@@ -1016,6 +1028,25 @@ Parameters:
 - `journalName` (string): Name of the player journal when it is created (default "Tarokka reading").
 - `showNow` (boolean): Also pop the page up for the players it is revealed to (Show Players). Off by default. Undo cannot take the popup back.
 
+### get-play-session
+
+GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since. A closed session also gives endedAt: its end marker, or its last activity when it went quiet.
+
+Kind: read-only. Title: Get play session state.
+
+No parameters.
+
+### get-play-stats
+
+GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw).
+
+Kind: read-only. Title: Get play stats.
+
+Parameters:
+
+- `session` (integer or string): Which play session to return stats for: a 1-based session number (same numbering as the Obsidian session notes), or "latest" (default).
+- `pcName` (string): Only this PC's stats (partial, case-insensitive match on the name). Omit for every PC.
+
 ### get-player-visibility
 
 GM ONLY. What the players currently see, computed on the Foundry client: actor ids at least one player owns, the active scene as players know it (or a generic label), and which tokens on it players can see and by what name. Read-only.
@@ -1057,51 +1088,6 @@ Parameters:
 - `copy` (boolean): Reveal as a copy in the player journal "Handouts" (secret blocks and embeds left out, the source unchanged). Omit for automatic: copy when no player can open the page's journal, or when the page already has a copy (the copy is updated). True: always copy. False: never copy (raise the page instead; refused while the page has a copy).
 - `showNow` (boolean): Also pop the page up for the players it is revealed to (Show Players). Off by default. Undo cannot take the popup back.
 
-### list-ref-choices
-
-List what a tool parameter can name right now, to pick instead of typing ids: tokens on a scene, actors, scenes, journals and pages, world items, an actor's items, combatants, users, folders, compendium packs and entries, playlists, map notes, conditions, modules, dnd5e skills and abilities, any world document by name (kind "document"), pending plans, recorded changes and Tarokka cards. Each row has id, uuid, name, detail and group. Read-only; GM only.
-
-Kind: read-only. Title: List parameter choices.
-
-Parameters:
-
-- `kind` (string, required): What to list. One of: `actor`, `token`, `scene`, `journal`, `journal-page`, `item`, `actor-item`, `combatant`, `user`, `folder`, `compendium-pack`, `compendium-entry`, `playlist`, `note`, `template`, `condition`, `module`, `skill`, `ability`, `document`, `plan`, `change`, `tarokka-card`.
-- `filter` (object): Optional narrowing: types (actor/item subtypes), playerOwned (actors), role ("gm" | "player"), documentName (folders, packs, compendium entries, document search), undoable (changes).
-- `parent` (string): Narrows by a containing thing: the scene (id or name) for tokens/notes, the pack id for compendium entries, the actor for its items, the journal for its pages, the Tarokka position for cards.
-- `query` (string): Text to search in names (case-insensitive).
-- `limit` (integer): Maximum rows (default 200, max 500).
-
-### get-session-log
-
-The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events (Play), for chat text get-chat-log (Play).
-
-Kind: read-only. Title: Get session log.
-
-Parameters:
-
-- `limit` (integer): Maximum number of events to return (default 100). Default: `100`.
-- `eventType` (string): Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").
-- `actorName` (string): Optional actor name filter (partial match).
-
-### get-play-session
-
-GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since. A closed session also gives endedAt: its end marker, or its last activity when it went quiet.
-
-Kind: read-only. Title: Get play session state.
-
-No parameters.
-
-### get-play-stats
-
-GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw).
-
-Kind: read-only. Title: Get play stats.
-
-Parameters:
-
-- `session` (integer or string): Which play session to return stats for: a 1-based session number (same numbering as the Obsidian session notes), or "latest" (default).
-- `pcName` (string): Only this PC's stats (partial, case-insensitive match on the name). Omit for every PC.
-
 ### get-preflight
 
 GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, Claude Desktop connector versions, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.
@@ -1122,9 +1108,53 @@ Parameters:
 
 - `action` (string): "summary" (default) for the digest with the most recent 25 beats, "last-session" for up to 200 beats. One of: `summary`, `last-session`.
 
+### list-ref-choices
+
+List what a tool parameter can name right now, to pick instead of typing ids: tokens on a scene, actors, scenes, journals and pages, world items, an actor's items, combatants, users, folders, compendium packs and entries, playlists, map notes, conditions, modules, dnd5e skills and abilities, any world document by name (kind "document"), pending plans, recorded changes and Tarokka cards. Each row has id, uuid, name, detail and group. Read-only; GM only.
+
+Kind: read-only. Title: List parameter choices.
+
+Parameters:
+
+- `kind` (string, required): What to list. One of: `actor`, `token`, `scene`, `journal`, `journal-page`, `item`, `actor-item`, `combatant`, `user`, `folder`, `compendium-pack`, `compendium-entry`, `playlist`, `note`, `template`, `condition`, `module`, `skill`, `ability`, `document`, `plan`, `change`, `tarokka-card`.
+- `filter` (object): Optional narrowing: types (actor/item subtypes), playerOwned (actors), role ("gm" | "player"), documentName (folders, packs, compendium entries, document search), undoable (changes).
+- `parent` (string): Narrows by a containing thing: the scene (id or name) for tokens/notes, the pack id for compendium entries, the actor for its items, the journal for its pages, the Tarokka position for cards.
+- `query` (string): Text to search in names (case-insensitive).
+- `limit` (integer): Maximum rows (default 200, max 500).
+
 ## Build
 
 Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.
+
+### manage-world-items
+
+Direct write. Manage Item documents in Foundry VTT. Specify the operation with "action":
+
+- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.
+- "list": List world-level Items with optional type/folder/name filters.
+- "update": Update existing world-level Items by ID. GM-only.
+- "add-to-actor": Create and attach Items directly to an existing actor. GM-only.
+
+Kind: changes something and can delete or overwrite. Title: Manage world items.
+
+Parameters:
+
+- `action` (string, required): Operation to perform: "create" world items, "list" world items, "update" world items by id, or "add-to-actor" to attach items to an actor. One of: `create`, `list`, `update`, `add-to-actor`.
+- `items` (array of object): Required for "create" and "add-to-actor". One or more items to create. Each item requires a name and a type valid for D&D 5e (e.g. "weapon", "equipment", "spell", "feat"). Items: at least 1.
+  - `name` (string, required): Display name of the item
+  - `type` (string, required): Item type valid for the active system (e.g. "action", "talent", "weapon")
+  - `img` (string): Optional icon path (e.g. "icons/svg/explosion.svg")
+  - `system` (object): System-specific data (free-form). Passed through to Foundry's DataModel layer.
+- `updates` (array of object): Required for "update". One or more item patches. Each entry must include "id" plus at least one field to change (name, img, system, folder). Items: at least 1.
+  - `id` (string, required): ID of the world Item to update
+  - `name` (string): New display name
+  - `img` (string): New icon path
+  - `system` (object): System-specific fields to update (merged into existing system data)
+  - `folder` (string): Move item into this folder (name or ID). Created if absent.
+- `folder` (string): For "create": folder name/ID to place items in (created if absent). For "list": filter to items inside this folder.
+- `type` (string): For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.
+- `nameFilter` (string): For "list": case-insensitive substring match on item name.
+- `actorIdentifier` (string): For "add-to-actor": actor name or ID to receive the items.
 
 ### list-creatures-by-criteria
 
@@ -1140,17 +1170,6 @@ Parameters:
 - `hasSpells` (boolean): Filter for spellcasting creatures
 - `hasLegendaryActions` (boolean): Filter for creatures with legendary actions (D&D 5e)
 - `limit` (number): Maximum results to return (default: 500 for comprehensive surveys, max: 1000). Range: 1 to 1000. Default: `500`.
-
-### get-compendium-entry-full
-
-Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.
-
-Kind: read-only. Title: Get full compendium entry.
-
-Parameters:
-
-- `packId` (string, required): Compendium pack identifier
-- `entryId` (string, required): Entry identifier within the pack
 
 ### create-actor-from-compendium
 
@@ -1171,56 +1190,16 @@ Parameters:
     - `x` (number, required): X coordinate in pixels
     - `y` (number, required): Y coordinate in pixels
 
-### dnd5e-create-npc
+### get-compendium-entry-full
 
-Direct write. D&D 5e only. Create an NPC from scratch with a full stat block: identity, ability scores, saves, HP, AC, speeds, senses, skills, damage and condition traits, languages and biography. It adds no items, actions, features or spells: add them afterwards with dnd5e-add-feature. The actor goes in the "Foundry MCP Creatures" folder.
+Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.
 
-Kind: changes something. Title: Create NPC.
+Kind: read-only. Title: Get full compendium entry.
 
 Parameters:
 
-- `name` (string, required): Name of the NPC
-- `creatureType` (string, required): Creature type. One of: `humanoid`, `undead`, `beast`, `dragon`, `aberration`, `construct`, `elemental`, `fey`, `fiend`, `giant`, `monstrosity`, `ooze`, `plant`, `celestial`, `swarm`.
-- `creatureSubtype` (string): Optional subtype (e.g. "Goblinoid", "Shapechanger"). Default: `""`.
-- `size` (string, required): Creature size. One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`.
-- `alignment` (string): Alignment string (e.g. "Neutral Evil", "Chaotic Good"). Default: `""`.
-- `cr` (string or number, required): Challenge Rating: whole number (0, 1, 5), fraction string ("1/8", "1/4", "1/2"), or decimal number (0.25, 0.5)
-- `hpAverage` (number, required): Average (fixed) hit points. Range: at least 1.
-- `hpFormula` (string, required): Hit dice formula used for re-rolls (e.g. "2d6", "3d8+9")
-- `acMode` (string, required): "default": Foundry calculates AC from equipped items and abilities; "flat": set a fixed AC value via acValue. One of: `default`, `flat`.
-- `acValue` (number): Fixed AC value (0–30). Required when acMode is "flat". Range: 0 to 30.
-- `abilities` (object, required): The six ability scores (1–30 each)
-  - `str` (number, required): Range: 1 to 30.
-  - `dex` (number, required): Range: 1 to 30.
-  - `con` (number, required): Range: 1 to 30.
-  - `int` (number, required): Range: 1 to 30.
-  - `wis` (number, required): Range: 1 to 30.
-  - `cha` (number, required): Range: 1 to 30.
-- `savingThrows` (array of string): Abilities with saving throw proficiency. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`. Default: `[]`.
-- `walkSpeed` (number): Walk speed in feet. Range: at least 0. Default: `30`.
-- `flySpeed` (number): Fly speed in feet. Range: at least 0. Default: `0`.
-- `swimSpeed` (number): Swim speed in feet. Range: at least 0. Default: `0`.
-- `climbSpeed` (number): Climb speed in feet. Range: at least 0. Default: `0`.
-- `burrowSpeed` (number): Burrow speed in feet. Range: at least 0. Default: `0`.
-- `hover` (boolean): Whether the creature hovers (cannot fall). Default: `false`.
-- `darkvision` (number): Darkvision range in feet. Range: at least 0. Default: `0`.
-- `blindsight` (number): Blindsight range in feet. Range: at least 0. Default: `0`.
-- `tremorsense` (number): Tremorsense range in feet. Range: at least 0. Default: `0`.
-- `truesight` (number): Truesight range in feet. Range: at least 0. Default: `0`.
-- `specialSenses` (string): Any additional senses not covered by the standard fields. Default: `""`.
-- `skills` (array of object): Skills with proficiency or expertise. Default: `[]`.
-  - `skill` (string, required): One of: `Acrobatics`, `Animal Handling`, `Arcana`, `Athletics`, `Deception`, `History`, `Insight`, `Intimidation`, `Investigation`, `Medicine`, `Nature`, `Perception`, `Performance`, `Persuasion`, `Religion`, `Sleight of Hand`, `Stealth`, `Survival`.
-  - `proficiency` (string, required): "proficient" = proficiency bonus once; "expert" = double proficiency. One of: `proficient`, `expert`.
-- `damageImmunities` (array of string): Damage types the creature is immune to (e.g. ["necrotic", "poison"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
-- `damageResistances` (array of string): Damage types the creature is resistant to. Same canonical set as damageImmunities. Default: `[]`.
-- `damageVulnerabilities` (array of string): Damage types the creature is vulnerable to. Same canonical set as damageImmunities. Default: `[]`.
-- `conditionImmunities` (array of string): Conditions the creature is immune to (e.g. ["charmed", "frightened"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
-- `languages` (array of string): Languages the creature speaks (e.g. ["Common", "Goblin"]). Default: `[]`.
-- `languagesCustom` (string): Free-text language note (e.g. "telepathy 60 ft."). Default: `""`.
-- `biography` (string): HTML biography text shown in the character sheet. Default: `""`.
-- `sourceBook` (string): Source book abbreviation (e.g. "MM'14", "VGM"). Default: `""`.
-- `sourcePage` (string): Page number in the source book. Default: `""`.
-- `sourceRules` (string): Rules edition. One of: `2014`, `2024`. Default: `2014`.
+- `packId` (string, required): Compendium pack identifier
+- `entryId` (string, required): Entry identifier within the pack
 
 ### dnd5e-add-feature
 
@@ -1280,6 +1259,57 @@ Parameters:
 - `sourceBook` (string): Source book abbreviation (e.g. "MM'14"). Used by: passive, attack, attack-with-save, aura. Default: `""`.
 - `sourcePage` (string): Page number in the source book. Used by: passive, attack, attack-with-save, aura. Default: `""`.
 
+### dnd5e-create-npc
+
+Direct write. D&D 5e only. Create an NPC from scratch with a full stat block: identity, ability scores, saves, HP, AC, speeds, senses, skills, damage and condition traits, languages and biography. It adds no items, actions, features or spells: add them afterwards with dnd5e-add-feature. The actor goes in the "Foundry MCP Creatures" folder.
+
+Kind: changes something. Title: Create NPC.
+
+Parameters:
+
+- `name` (string, required): Name of the NPC
+- `creatureType` (string, required): Creature type. One of: `humanoid`, `undead`, `beast`, `dragon`, `aberration`, `construct`, `elemental`, `fey`, `fiend`, `giant`, `monstrosity`, `ooze`, `plant`, `celestial`, `swarm`.
+- `creatureSubtype` (string): Optional subtype (e.g. "Goblinoid", "Shapechanger"). Default: `""`.
+- `size` (string, required): Creature size. One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`.
+- `alignment` (string): Alignment string (e.g. "Neutral Evil", "Chaotic Good"). Default: `""`.
+- `cr` (string or number, required): Challenge Rating: whole number (0, 1, 5), fraction string ("1/8", "1/4", "1/2"), or decimal number (0.25, 0.5)
+- `hpAverage` (number, required): Average (fixed) hit points. Range: at least 1.
+- `hpFormula` (string, required): Hit dice formula used for re-rolls (e.g. "2d6", "3d8+9")
+- `acMode` (string, required): "default": Foundry calculates AC from equipped items and abilities; "flat": set a fixed AC value via acValue. One of: `default`, `flat`.
+- `acValue` (number): Fixed AC value (0–30). Required when acMode is "flat". Range: 0 to 30.
+- `abilities` (object, required): The six ability scores (1–30 each)
+  - `str` (number, required): Range: 1 to 30.
+  - `dex` (number, required): Range: 1 to 30.
+  - `con` (number, required): Range: 1 to 30.
+  - `int` (number, required): Range: 1 to 30.
+  - `wis` (number, required): Range: 1 to 30.
+  - `cha` (number, required): Range: 1 to 30.
+- `savingThrows` (array of string): Abilities with saving throw proficiency. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`. Default: `[]`.
+- `walkSpeed` (number): Walk speed in feet. Range: at least 0. Default: `30`.
+- `flySpeed` (number): Fly speed in feet. Range: at least 0. Default: `0`.
+- `swimSpeed` (number): Swim speed in feet. Range: at least 0. Default: `0`.
+- `climbSpeed` (number): Climb speed in feet. Range: at least 0. Default: `0`.
+- `burrowSpeed` (number): Burrow speed in feet. Range: at least 0. Default: `0`.
+- `hover` (boolean): Whether the creature hovers (cannot fall). Default: `false`.
+- `darkvision` (number): Darkvision range in feet. Range: at least 0. Default: `0`.
+- `blindsight` (number): Blindsight range in feet. Range: at least 0. Default: `0`.
+- `tremorsense` (number): Tremorsense range in feet. Range: at least 0. Default: `0`.
+- `truesight` (number): Truesight range in feet. Range: at least 0. Default: `0`.
+- `specialSenses` (string): Any additional senses not covered by the standard fields. Default: `""`.
+- `skills` (array of object): Skills with proficiency or expertise. Default: `[]`.
+  - `skill` (string, required): One of: `Acrobatics`, `Animal Handling`, `Arcana`, `Athletics`, `Deception`, `History`, `Insight`, `Intimidation`, `Investigation`, `Medicine`, `Nature`, `Perception`, `Performance`, `Persuasion`, `Religion`, `Sleight of Hand`, `Stealth`, `Survival`.
+  - `proficiency` (string, required): "proficient" = proficiency bonus once; "expert" = double proficiency. One of: `proficient`, `expert`.
+- `damageImmunities` (array of string): Damage types the creature is immune to (e.g. ["necrotic", "poison"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
+- `damageResistances` (array of string): Damage types the creature is resistant to. Same canonical set as damageImmunities. Default: `[]`.
+- `damageVulnerabilities` (array of string): Damage types the creature is vulnerable to. Same canonical set as damageImmunities. Default: `[]`.
+- `conditionImmunities` (array of string): Conditions the creature is immune to (e.g. ["charmed", "frightened"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
+- `languages` (array of string): Languages the creature speaks (e.g. ["Common", "Goblin"]). Default: `[]`.
+- `languagesCustom` (string): Free-text language note (e.g. "telepathy 60 ft."). Default: `""`.
+- `biography` (string): HTML biography text shown in the character sheet. Default: `""`.
+- `sourceBook` (string): Source book abbreviation (e.g. "MM'14", "VGM"). Default: `""`.
+- `sourcePage` (string): Page number in the source book. Default: `""`.
+- `sourceRules` (string): Rules edition. One of: `2014`, `2024`. Default: `2014`.
+
 ### dnd5e-add-features-from-compendium
 
 Direct write. D&D 5e only. Import monster features and class features by name from a compendium pack onto an actor (NPC or PC), copied as they are in the compendium. Examples: "Pack Tactics", "Multiattack", "Action Surge", "Font of Magic". Names must be exact (any case) and in English: translate them first. compendiumPacks is searched in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] is the 2014 SRD; ["dnd5e.monsterfeatures24"] is 2024 monster features only. Not for: spells or spell slots (use dnd5e-add-feature with featureType "spells" or "spellcasting"); 2024 class features (they live inside the class items, so this cannot import them); homebrew. Returns a report: added, skipped (already on the actor), not found, failed. Find the actorIdentifier with list-characters or get-character.
@@ -1291,36 +1321,6 @@ Parameters:
 - `actorIdentifier` (string, required): Name or ID of the target actor (partial name match supported)
 - `featureNames` (array of string, required): English feature names to import (exact match, case-insensitive). Maximum 50 per call. Items: 1 to 50.
 - `compendiumPacks` (array of string): Pack IDs to search in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] (SRD 2014); "dnd5e.monsterfeatures24" for 2024 monster features. Default: `["dnd5e.monsterfeatures","dnd5e.classfeatures"]`.
-
-### manage-world-items
-
-Direct write. Manage Item documents in Foundry VTT. Specify the operation with "action":
-
-- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.
-- "list": List world-level Items with optional type/folder/name filters.
-- "update": Update existing world-level Items by ID. GM-only.
-- "add-to-actor": Create and attach Items directly to an existing actor. GM-only.
-
-Kind: changes something and can delete or overwrite. Title: Manage world items.
-
-Parameters:
-
-- `action` (string, required): Operation to perform: "create" world items, "list" world items, "update" world items by id, or "add-to-actor" to attach items to an actor. One of: `create`, `list`, `update`, `add-to-actor`.
-- `items` (array of object): Required for "create" and "add-to-actor". One or more items to create. Each item requires a name and a type valid for D&D 5e (e.g. "weapon", "equipment", "spell", "feat"). Items: at least 1.
-  - `name` (string, required): Display name of the item
-  - `type` (string, required): Item type valid for the active system (e.g. "action", "talent", "weapon")
-  - `img` (string): Optional icon path (e.g. "icons/svg/explosion.svg")
-  - `system` (object): System-specific data (free-form). Passed through to Foundry's DataModel layer.
-- `updates` (array of object): Required for "update". One or more item patches. Each entry must include "id" plus at least one field to change (name, img, system, folder). Items: at least 1.
-  - `id` (string, required): ID of the world Item to update
-  - `name` (string): New display name
-  - `img` (string): New icon path
-  - `system` (object): System-specific fields to update (merged into existing system data)
-  - `folder` (string): Move item into this folder (name or ID). Created if absent.
-- `folder` (string): For "create": folder name/ID to place items in (created if absent). For "list": filter to items inside this folder.
-- `type` (string): For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.
-- `nameFilter` (string): For "list": case-insensitive substring match on item name.
-- `actorIdentifier` (string): For "add-to-actor": actor name or ID to receive the items.
 
 ### plan-room-setup
 
@@ -1401,6 +1401,67 @@ Parameters:
 
 Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.
 
+### plan-ownership-change
+
+Plan who owns which actor; apply it with apply-planned-change, revert it with undo-change. "assign": give the player(s) a level (NONE, LIMITED, OBSERVER, OWNER). "remove": set them to NONE. Bulk phrases work ("all friendly NPCs", "party characters"; player "party"). The plan lists each change ("Wolf: Player OBSERVER, was default").
+
+Kind: read-only. Title: Plan ownership change.
+
+Parameters:
+
+- `action` (string, required): assign or remove. One of: `assign`, `remove`.
+- `actorIdentifier` (string, required): Actor name or ID, "all friendly NPCs" or "party characters".
+- `playerIdentifier` (string, required): Player or character name, or "party" for all connected players.
+- `permissionLevel` (string): assign: NONE, LIMITED, OBSERVER (sees the sheet) or OWNER (controls it). One of: `NONE`, `LIMITED`, `OBSERVER`, `OWNER`.
+
+### list-actor-ownership
+
+List current ownership permissions for actors, showing which players have what access levels.
+
+Kind: read-only. Title: List actor ownership.
+
+Parameters:
+
+- `actorIdentifier` (string): Optional: specific actor name/ID to check, or "all" for all actors
+- `playerIdentifier` (string): Optional: specific player name to check ownership for
+
+### plan-token-rings
+
+Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo reverts the whole plan (actors or tokens); if one write fails, the earlier ones are rolled back where possible. Disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
+
+Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
+
+Parameters:
+
+- `action` (string, required): One of: `enable`, `disable`.
+- `tokens` (string): actors (default): the default token of each actor. placed: the tokens already placed on scenes. One of: `actors`, `placed`.
+- `scenes` (array of string): With tokens placed: only these scenes; default all scenes.
+- `actorType` (string): Which actors; default all (characters and NPCs). One of: `all`, `npc`, `character`.
+- `names` (array of string): Only actors with these names.
+
+### plan-table-viewer
+
+Plan a Foundry user for the TV at the table (default name "Table"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user (player or GM) with that name already exists, or if the users cannot be checked.
+
+Kind: read-only. Title: Plan the TV table viewer user.
+
+Parameters:
+
+- `name` (string): The user's name on Foundry's join page. Default "Table".
+
+### plan-foundry-setup
+
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users, roles, actors; a Gamemaster is never changed; a role change signs them out; same name twice: use the id). area ownership: target journal:name or scene:name, value {default, users:{name or id: level}} (not actors). area module: target a module id or title (read lists all: on/off, requires, required by), value true or false; needed modules go on or dependents off with it, and windows reload on apply and undo. area setting: target namespace.key (read: partial name). area pack: target a pack id, value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of itself and lower roles}, locked, folder (name/null)}. Secrets are hidden. Needs the Foundry setup switch.
+
+Kind: read-only. Title: Read or plan Foundry setup.
+
+Parameters:
+
+- `mode` (string, required): One of: `read`, `plan`.
+- `area` (string, required): One of: `setting`, `pack`, `module`, `user`, `ownership`.
+- `target` (string): Setting key, pack id, module id or title, user name or id, journal:name or scene:name.
+- `value` (any): plan only: the new value, or the pack changes.
+
 ### get-modules
 
 List installed Foundry modules with version, active state, declared compatibility (min/verified/max core), and required-dependency satisfaction, plus the core Foundry and game-system versions. Each module includes an `issues` list (missing/inactive dependencies, version-out-of-range). Use to spot version/dependency/compatibility conflicts.
@@ -1443,67 +1504,6 @@ Kind: read-only. Title: Get module manifest.
 Parameters:
 
 - `moduleId` (string, required): The module id.
-
-### list-actor-ownership
-
-List current ownership permissions for actors, showing which players have what access levels.
-
-Kind: read-only. Title: List actor ownership.
-
-Parameters:
-
-- `actorIdentifier` (string): Optional: specific actor name/ID to check, or "all" for all actors
-- `playerIdentifier` (string): Optional: specific player name to check ownership for
-
-### plan-ownership-change
-
-Plan who owns which actor; apply it with apply-planned-change, revert it with undo-change. "assign": give the player(s) a level (NONE, LIMITED, OBSERVER, OWNER). "remove": set them to NONE. Bulk phrases work ("all friendly NPCs", "party characters"; player "party"). The plan lists each change ("Wolf: Player OBSERVER, was default").
-
-Kind: read-only. Title: Plan ownership change.
-
-Parameters:
-
-- `action` (string, required): assign or remove. One of: `assign`, `remove`.
-- `actorIdentifier` (string, required): Actor name or ID, "all friendly NPCs" or "party characters".
-- `playerIdentifier` (string, required): Player or character name, or "party" for all connected players.
-- `permissionLevel` (string): assign: NONE, LIMITED, OBSERVER (sees the sheet) or OWNER (controls it). One of: `NONE`, `LIMITED`, `OBSERVER`, `OWNER`.
-
-### plan-table-viewer
-
-Plan a Foundry user for the TV at the table (default name "Table"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user (player or GM) with that name already exists, or if the users cannot be checked.
-
-Kind: read-only. Title: Plan the TV table viewer user.
-
-Parameters:
-
-- `name` (string): The user's name on Foundry's join page. Default "Table".
-
-### plan-foundry-setup
-
-Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, plan plans. area user: target a user name, value {role: NONE|PLAYER|TRUSTED|ASSISTANT} (read lists users, roles, actors; a Gamemaster is never changed; a role change signs them out; same name twice: use the id). area ownership: target journal:name or scene:name, value {default, users:{name or id: level}} (not actors). area module: target a module id or title (read lists all: on/off, requires, required by), value true or false; needed modules go on or dependents off with it, and windows reload on apply and undo. area setting: target namespace.key (read: partial name). area pack: target a pack id, value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of itself and lower roles}, locked, folder (name/null)}. Secrets are hidden. Needs the Foundry setup switch.
-
-Kind: read-only. Title: Read or plan Foundry setup.
-
-Parameters:
-
-- `mode` (string, required): One of: `read`, `plan`.
-- `area` (string, required): One of: `setting`, `pack`, `module`, `user`, `ownership`.
-- `target` (string): Setting key, pack id, module id or title, user name or id, journal:name or scene:name.
-- `value` (any): plan only: the new value, or the pack changes.
-
-### plan-token-rings
-
-Plan turning the dynamic token ring on or off on the actors' default tokens (round tokens; dnd5e flashes the ring on damage). Up to 150 actors or tokens per plan: when some remain, apply and ask again. Undo reverts the whole plan (actors or tokens); if one write fails, the earlier ones are rolled back where possible. Disable is not the exact inverse of an enable (it turns every ring in scope off, also rings that were on before). With tokens placed, plan the tokens already on scenes instead (each token, linked or not, on every scene or only the named scenes): try it on a copy first. Apply with apply-planned-change, revert with undo-change.
-
-Kind: read-only. Title: Plan dynamic token rings for actors or placed tokens.
-
-Parameters:
-
-- `action` (string, required): One of: `enable`, `disable`.
-- `tokens` (string): actors (default): the default token of each actor. placed: the tokens already placed on scenes. One of: `actors`, `placed`.
-- `scenes` (array of string): With tokens placed: only these scenes; default all scenes.
-- `actorType` (string): Which actors; default all (characters and NPCs). One of: `all`, `npc`, `character`.
-- `names` (array of string): Only actors with these names.
 
 ### get-obsidian-mirror
 

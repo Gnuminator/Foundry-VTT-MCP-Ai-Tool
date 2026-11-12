@@ -153,39 +153,38 @@ export const RISKY_CATEGORIES = [
   {
     // Pi scripts: they run as root on the Pi and change the real campaign host.
     name: 'Pi scripts',
-    patterns: ['scripts/pi/**', 'scripts/plan-b/**', 'deploy/**'],
-  },
-  {
-    // Wire contracts: the shared package (protocol, schemas, constants) and the module manifest.
-    name: 'wire contracts',
-    patterns: ['shared/src/**', 'packages/foundry-module/module.json'],
-  },
-  {
-    // The merge gate and everything it executes or trusts: the gate, keep-green, drift-check, CI,
-    // and the hooks and settings that run in every lane.
-    name: 'the merge gate',
+    // The Discord announce sender runs with the bot token from Pi stage 5 and after every merge.
     patterns: [
-      'scripts/lane-merge.mjs',
-      'scripts/green.mjs',
-      'scripts/drift-check.mjs',
-      // The one list of checks green runs and drift-check is pinned to, and its ci.yml reader.
-      'scripts/checks.mjs',
-      'scripts/ci-yaml.mjs',
-      // The heavy-check lock wraps green, lint-ratchet and drift-check's guards.
-      'scripts/heavy-lock.mjs',
-      'scripts/pre-push.mjs',
-      'scripts/lint-ratchet.mjs',
-      '.github/workflows/**',
-      '.claude/hooks/**',
-      '.claude/settings.json',
-      // The review runner writes the notes the gate counts (D-127), and the agent files go into its prompt.
-      'scripts/review-runner/**',
-      '.claude/agents/**',
-      // The gate and Pi stage 5 run this sender with the bot token after a merge or a deploy.
+      'scripts/pi/**',
+      'scripts/plan-b/**',
+      'deploy/**',
       'packages/discord-bot/announce/**',
     ],
   },
+  {
+    // Wire contracts: the named contract files of the shared package and the module manifest. A new
+    // shared/src file must be listed here or in the test's NOT_CONTRACT list (the test enforces it).
+    name: 'wire contracts',
+    patterns: [
+      'shared/src/protocol*',
+      'shared/src/schemas*',
+      'shared/src/constants*',
+      'shared/src/bridge-queries*',
+      'shared/src/types*',
+      'shared/src/version*',
+      'shared/src/ports*',
+      'packages/foundry-module/module.json',
+    ],
+  },
 ];
+
+/**
+ * The Opus list as lines, printed by `npm run lane:risky`; CLAUDE.md points at it.
+ * @returns {string[]}
+ */
+export function riskyListLines() {
+  return RISKY_CATEGORIES.flatMap(c => [`${c.name}:`, ...c.patterns.map(p => `  ${p}`)]);
+}
 
 /**
  * PRs that touch these join the merge train (D-121): the Foundry module, the bridge link or guarded
@@ -1518,6 +1517,15 @@ export function verdictLine(code, reason) {
  * @returns {number} the process exit code
  */
 export function runEntry({ argv, relaunch, runMain, log }) {
+  if (argv.includes('--risky-list')) {
+    if (argv.length !== 1) {
+      log('lane:merge: --risky-list takes no other argument');
+      return 2;
+    }
+    log('lane:merge: the Opus list of this checkout (the gate judges by main copy):');
+    for (const line of riskyListLines()) log(line);
+    return 0;
+  }
   const wait = argv.includes('--wait-ci');
   try {
     const gate = relaunch();

@@ -103,9 +103,12 @@ This is the only component with direct access to Foundry's live API (`game`, `ca
 is to be a **disciplined gateway**: expose exactly the operations the tools need, enforce
 who's allowed to call them, and make writes safe and reversible.
 
-### Lifecycle (`main.ts`)
+### Lifecycle (`main.ts` and `bridge-link-lifecycle.ts`)
 
-The module hooks Foundry's lifecycle:
+The module hooks Foundry's lifecycle in `main.ts`. The link itself (starting and stopping the
+socket bridge, its state, the heartbeat, the "server not found" notice and the GM link toasts with
+their `linkState` relay) lives in `bridge-link-lifecycle.ts`; `main.ts` hands over to it, and a
+test keeps it that way.
 
 - **`init`** — register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
@@ -320,7 +323,7 @@ stdio** and does almost nothing itself:
 - It registers two relaying MCP handlers: `ListTools` relays to control-channel `list_tools`;
   `CallTool` relays to control-channel `call_tool`. The wrapper is a thin MCP↔TCP shim. The one
   thing it answers itself is the static prompt list (`prompts/list`, `prompts/get`, §4e).
-- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`:
+- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`, derived from the modules:
   core, play, prep, build, admin; unset means all). Claude Desktop runs one wrapper per set, each
   its own config entry with its own on/off switch, so a chat carries only the definitions it
   needs. The filter lives in the wrapper only: the backend's `list_tools` still returns every tool,
@@ -360,8 +363,14 @@ The long-lived workhorse. Responsibilities:
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
-   class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
-   belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
+   class's `getToolDefinitions()`; that union is what `list_tools` returns. Each class is
+   wired in by a small tool module (`tools/modules/<family>.ts`: how to build it, its
+   definitions, its routes), and `tools/index.ts` lists every module once, in `list_tools`
+   order. The backend, the router, the tool list and the test stub are all built from that
+   list, so a new tool family is one module file plus one line in the index. Every tool also
+   belongs to exactly one tool set, named by the `set` field of its entry in the module's `tools`
+   map next to its title and read/write kind (`tool-sets.ts` and `tool-hints.ts` derive their
+   lists from the modules; the tool catalog test checks both); a new
    feature gets one tool with an `action` parameter rather than several small tools.
 4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts`).
    The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`,

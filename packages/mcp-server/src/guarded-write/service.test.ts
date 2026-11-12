@@ -1492,3 +1492,97 @@ describe('showToPlayers (Show it now, I-110)', () => {
     await expect(bad({ uuid: PAGE, users: Array(51).fill('u') })).rejects.toThrow(/at most 50/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Mutation survivors of the safety core (Stryker run 2026-11-11, top picks)
+// ---------------------------------------------------------------------------
+
+describe('safety-core mutation survivors', () => {
+  const W = 'curse-of-strahd';
+
+  it('checks the switch of the asked feature, not the first one in the list', async () => {
+    const p = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Raise attention',
+      vaultOps: [{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }] as never,
+    });
+    // A neighbour that is on comes first; the asked feature is off.
+    foundry.features[0].enabled = false;
+    foundry.features.unshift({ id: 'other', name: 'Other', hint: '', enabled: true });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /"Test" is switched off/
+    );
+    expect(await store.read(W, 'gm', 'a.json')).toBeNull();
+  });
+
+  it('refuses a redo whose original change left the history, and sends nothing to Foundry', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    // A planned undo (its feature is not the original's), so its target cannot be guessed later.
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const undoPlan = await plan(
+      [{ kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 10 } }],
+      {
+        feature: 'change-undo',
+        undoes: { changes: [applied.changeId] },
+      }
+    );
+    const undone = await service.applyPlan(undoPlan.planId, { confirm: true });
+    // The original change falls out of the ring; only the undo is left.
+    await store.update<{ entries: { changeId: string }[] }>(W, 'gm', 'audit.json', 1, current => ({
+      entries: (current?.data.entries ?? []).filter(e => e.changeId !== applied.changeId),
+    }));
+    const sent = foundry.calls.length;
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      /Its feature switches cannot be checked.*Nothing was written/
+    );
+    expect(foundry.calls.slice(sent).filter(([m]) => m.endsWith('applyGuardedOps'))).toEqual([]);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+  });
+
+  it('rolls back every real result in reverse order, deletes included, when the vault write fails', async () => {
+    foundry.add('Actor.ilvara.ActiveEffect.conc', 'ActiveEffect', {
+      _id: 'conc',
+      name: 'Concentrating',
+    });
+    const p = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Hurt and clear',
+      ops: [HP_UPDATE, { kind: 'delete', uuid: 'Actor.ilvara.ActiveEffect.conc' }],
+      vaultOps: [{ kind: 'vault-set', file: 'reveals.json', path: 'p', value: 1 }],
+    } as never);
+    vi.spyOn(store, 'update').mockRejectedValueOnce(new Error('disk full'));
+    await expect(
+      service.applyPlan(p.planId, { confirm: true, confirmDestructive: true })
+    ).rejects.toThrow(/vault write failed \(disk full\); the Foundry part was rolled back/);
+
+    const applies = foundry.calls.filter(([m]) => m.endsWith('applyGuardedOps'));
+    expect(applies).toHaveLength(2);
+    const rollback = applies[1][1] as { changeId: string; ops: { kind: string }[] };
+    expect(rollback.changeId).toMatch(/-rollback$/);
+    // The delete came last, so its inverse (a create) goes first, then the update's inverse.
+    expect(rollback.ops.map(o => o.kind)).toEqual(['create', 'update']);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+    expect(foundry.docs.has('Actor.ilvara.ActiveEffect.conc')).toBe(true);
+  });
+
+  it('refuses a vault write when the file changes inside the lock after the check', async () => {
+    await store.write(W, 'gm', 'a.json', { x: 1 });
+    const p = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Set x',
+      vaultOps: [{ kind: 'vault-set', file: 'a.json', path: 'x', value: 2 }] as never,
+    });
+    // Someone writes between the conflict check and the lock: the callback sees other data.
+    vi.spyOn(store, 'update').mockImplementationOnce((async (
+      _w: string,
+      _s: string,
+      _f: string,
+      _schema: number,
+      fn: (envelope: unknown) => unknown
+    ) => fn({ schema: 1, data: { x: 5 } })) as never);
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /a\.json changed during the write/
+    );
+    expect((await store.read<{ x: number }>(W, 'gm', 'a.json'))!.data.x).toBe(1);
+  });
+});

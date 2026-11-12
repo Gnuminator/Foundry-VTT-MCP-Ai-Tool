@@ -897,6 +897,49 @@ describe('applyGuardedOps: refusals', () => {
     await actor.delete();
     await expect(applyGuardedOps(createReq)).rejects.toThrow(/parent document no longer exists/);
   });
+
+  it('delete conflicts: a vanished document is a conflict on apply, not on undo; a stale hash is not', async () => {
+    const actor = addActor();
+    const deleteReq = await request([{ kind: 'delete', uuid: actor.uuid }]);
+    await actor.delete();
+    // On apply the vanished document is a conflict (nothing written), not a "not found" later.
+    await expect(applyGuardedOps(deleteReq)).rejects.toThrow(
+      /Conflict, nothing was written: op 0 \(delete\): the document no longer exists/
+    );
+
+    // On undo only a delete may find its document gone; an update still conflicts.
+    const other = addActor({ name: 'Other' });
+    const updateReq = await request(
+      [{ kind: 'update', uuid: other.uuid, changes: { name: 'Z' } }],
+      {
+        mode: 'undo',
+      }
+    );
+    await other.delete();
+    await expect(applyGuardedOps(updateReq)).rejects.toThrow(/no longer exists/);
+  });
+
+  it('delete conflicts: the content hash decides when both sides have one, else the modified time', async () => {
+    const actor = addActor();
+    const effect = makeDoc('ActiveEffect', { name: 'Hold Person' }, actor);
+    const hashed = await request([{ kind: 'delete', uuid: effect.uuid }]);
+    expect(hashed.expected[0].contentHash).toBeDefined();
+
+    // A write that leaves the content alone moves modifiedTime only: the hash says no conflict.
+    registry.get(effect.uuid)!.source._stats.modifiedTime += 10;
+    // An expected snapshot without a hash (an older plan) falls back to the modified time.
+    const unhashed = await request([{ kind: 'delete', uuid: effect.uuid }]);
+    delete unhashed.expected[0].contentHash;
+    // A hash on one side only must not be compared with "undefined": same modified time, no conflict.
+    await applyGuardedOps(unhashed);
+    expect(registry.has(effect.uuid)).toBe(false);
+
+    const second = makeDoc('ActiveEffect', { name: 'Bless' }, actor);
+    const stale = await request([{ kind: 'delete', uuid: second.uuid }]);
+    delete stale.expected[0].contentHash;
+    registry.get(second.uuid)!.source._stats.modifiedTime += 10;
+    await expect(applyGuardedOps(stale)).rejects.toThrow(/was modified since/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -925,6 +968,42 @@ describe('applyGuardedOps: rollback', () => {
     expect(registry.get(victim.uuid)?.name).toBe('Victim');
     expect(b.name).toBe('B');
     expect(gmChangeEvents(req.changeId)).toHaveLength(0);
+  });
+
+  it('rolls back in reverse order, so the first op wins when two ops touch the same field', async () => {
+    const a = addActor({ name: 'A' });
+    const b = addActor({ name: 'B' });
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A3' } },
+      { kind: 'update', uuid: b.uuid, changes: { name: 'B2' } },
+    ]);
+    b.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/the 2 earlier op\(s\) were rolled back/);
+    // Reversed: A3 goes back to A2, then A2 back to A. In apply order it would end on A2.
+    expect(a.name).toBe('A');
+  });
+
+  it('rolls back an undo without re-creating a document that was already gone', async () => {
+    const applied = await applyGuardedOps(
+      await request([
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin 1', type: 'npc' } },
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin 2', type: 'npc' } },
+      ])
+    );
+    const [first, second] = applied.results;
+    await registry.get(first.uuid)!.delete(); // the GM killed it in play
+    const b = addActor({ name: 'B' });
+    const undoReq = undoRequest(applied);
+    const extra = await request([{ kind: 'update', uuid: b.uuid, changes: { name: 'B2' } }]);
+    undoReq.ops.push(...extra.ops);
+    undoReq.expected.push(...extra.expected);
+    b.failUpdates = true;
+
+    await expect(applyGuardedOps(undoReq)).rejects.toThrow(/rolled back/);
+    // The goblin the undo deleted comes back; the one that was already gone stays gone.
+    expect(registry.has(second.uuid)).toBe(true);
+    expect(registry.has(first.uuid)).toBe(false);
   });
 
   function addToken(): FakeDoc {

@@ -68,6 +68,7 @@ export function collectPresetFiles(p) {
     throw new Error('the endpoint must be an https:// address');
   const manifest = JSON.parse(readFileSync(path.join(here, 'manifest.json'), 'utf8'));
   const label = String(p.playerName ?? '')
+    // eslint-disable-next-line no-control-regex -- deliberate: strip control characters from the player name
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .trim()
     .slice(0, 40);

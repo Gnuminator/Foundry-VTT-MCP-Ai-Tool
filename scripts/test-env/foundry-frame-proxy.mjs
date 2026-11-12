@@ -45,7 +45,7 @@ export function portProblem(port, label) {
   return null;
 }
 
-export function createProxy({ listen, target, dashboard }) {
+export function createProxy({ listen: _listen, target, dashboard }) {
   const server = http.createServer((req, res) => {
     const upstream = http.request(
       {

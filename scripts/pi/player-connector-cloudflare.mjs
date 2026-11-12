@@ -148,7 +148,7 @@ export function createClient({ fetch, token }) {
       });
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
-      throw new Error(`${method} ${apiPath} failed: network error${code ? ` (${code})` : ''}`);
+      throw new Error(`${method} ${apiPath} failed: network error${code ? ` (${code})` : ''}`, { cause: error });
     }
     let json;
     try {

@@ -218,12 +218,6 @@ const FAKE_CLASS_FACTS =
 
 const STANDARD = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 const mod = (/** @type {number} */ v) => Math.floor((v - 10) / 2);
-const has = (
-  /** @type {World} */ w,
-  /** @type {string} */ quirk,
-  /** @type {string} */ name = ''
-) => w.faults.origin.has(name ? `${quirk}:${name}` : quirk);
-
 /* -------------------------------------------- */
 /*  Listing and describing                        */
 /* -------------------------------------------- */

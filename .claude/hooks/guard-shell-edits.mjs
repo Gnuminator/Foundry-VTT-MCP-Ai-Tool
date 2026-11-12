@@ -81,6 +81,7 @@ export function pathTokens(text) {
   for (const t of rest.split(TOKEN_SPLIT)) {
     if (t.length > MAX_TOKEN) continue;
     const clean = t.replace(/[\]}]+$/, '');
+    // eslint-disable-next-line no-control-regex -- \u0001 is a deliberate placeholder for escaped spaces (see line 80)
     if (EXT_END.test(clean)) found.push(clean.replace(/\u0001/g, ' '));
   }
   return found;
@@ -408,7 +409,7 @@ function checkScripts(outer, masked, bodies, cwdAt, repoRoot) {
 
 // --- redirects and PowerShell writes ---------------------------------------------------------
 
-const REDIRECT = /(?:^|[^0-9&>|<=\-])>>?\s*(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"';&|)<>]+))/gd;
+const REDIRECT = /(?:^|[^0-9&>|<=-])>>?\s*(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"';&|)<>]+))/gd;
 const TEE_RE = cmdRe('tee', String.raw`(?:\.exe)?(?=\s)([^;&|\n]*)`);
 const ECHO_RE = cmdRe('(?:echo|printf)', String.raw`(?=\s)([^;&|\n]*)`);
 const PS_WRITER = /\b(?:Set-Content|Add-Content|Out-File|WriteAllText|WriteAllLines|WriteAllBytes)\b/i;
@@ -551,7 +552,7 @@ export function run(input) {
 }
 
 function main() {
-  let input = null;
+  let input;
   try {
     input = JSON.parse(readFileSync(0, 'utf8'));
   } catch {

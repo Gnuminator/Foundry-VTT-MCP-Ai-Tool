@@ -131,12 +131,12 @@ test('heroes-advancement: a hero that misses a grant fails with a SYSTEM message
   // Every other hero still passed, and the coverage says what failed and how.
   assert.equal(result.steps.filter(s => s.status === 'pass').length, 6); // the bridge probe and five heroes
   const coverage = result.attachments.find(a => a.name === 'coverage');
-  assert.deepEqual(/** @type {any} */ (coverage?.data).problemsByKind, {
+  assert.deepEqual(/** @type {any} */ (coverage?.data ?? {}).problemsByKind, {
     KIT: 0,
     CONTENT: 0,
     SYSTEM: 1,
   });
-  assert.equal(/** @type {any} */ (coverage?.data).heroesFailed, 1);
+  assert.equal(/** @type {any} */ (coverage?.data ?? {}).heroesFailed, 1);
 });
 
 test('heroes-advancement: a grant that does not resolve is a CONTENT failure', async () => {

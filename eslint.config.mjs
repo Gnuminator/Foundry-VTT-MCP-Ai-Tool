@@ -1,5 +1,5 @@
 // ESLint flat config (ESLint 10, typescript-eslint 8). Lints the TypeScript sources only
-// (`.ts` and `.tsx`), as the old `.eslintrc.json` did; plain JavaScript stays unlinted.
+// (`.ts` and `.tsx`) with type-aware rules; plain JavaScript gets the untyped recommended set.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
@@ -8,18 +8,34 @@ import vitest from '@vitest/eslint-plugin';
 import globals from 'globals';
 import { defineConfig } from 'eslint/config';
 
+/**
+ * Tracked plain JavaScript files ESLint skips, by name, with the reason. `eslint-plain-js.test.mjs`
+ * fails when any other tracked `.js`, `.mjs` or `.cjs` file is ignored.
+ */
+export const PLAIN_JS_SKIP = {
+  // GM macros pasted into Foundry: the body is wrapped in an async function, so a top-level
+  // `return` and `await` are legal there but are not a valid script or module for any parser.
+  'scripts/pi/remote/ddb-source-filter.js': 'macro body with top-level return and await',
+  'scripts/pi/remote/grave-domain-patch.js': 'macro body with top-level return and await',
+  'scripts/pi/remote/seven-books-baseline.js': 'macro body with top-level return and await',
+  'scripts/pi/remote/seven-books-delete-legacy.js': 'macro body with top-level return and await',
+  'scripts/pi/remote/seven-books-trim.js': 'macro body with top-level return and await',
+};
+
 export default defineConfig(
   {
     ignores: [
+      ...Object.keys(PLAIN_JS_SKIP),
       // ESLint 8 skipped dot-folders by default, flat config does not: without this,
-      // `eslint .` also lints sibling worktrees under `.claude/worktrees/`.
-      '**/.*/**',
+      // `eslint .` also lints sibling worktrees under `.claude/worktrees/`. Other dot-folders
+      // are named, not globbed, so `.claude/hooks` is linted.
+      '.claude/worktrees/**',
+      '**/.git/**',
       '**/dist/**',
       '**/build/**',
+      // Storybook config is not part of the typed project (it was ignored as a dot-folder).
+      '**/.storybook/**',
       '**/node_modules/**',
-      '**/*.js',
-      '**/*.mjs',
-      '**/*.cjs',
       '**/*.d.ts',
     ],
   },
@@ -89,6 +105,64 @@ export default defineConfig(
     },
   },
   {
+    // Plain JavaScript (scripts, hooks, test kit, dashboard public/): the untyped recommended
+    // rules only, no tsconfig. Prettier is left off for these files (no mass reformat).
+    files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.es2021 },
+    },
+    rules: {
+      'no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' },
+      ],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
+  },
+  {
+    files: ['**/*.cjs'],
+    languageOptions: { sourceType: 'commonjs' },
+  },
+  {
+    // Code that runs in a browser page: the dashboard's public/ scripts, and the Playwright
+    // and Foundry-page callbacks (`page.evaluate`) in the demo, test-kit, test-env and Pi
+    // scripts. Foundry's own page globals are listed so `no-undef` still works elsewhere.
+    files: [
+      'packages/cogm-dashboard/public/**/*.js',
+      'scripts/demo/**/*.mjs',
+      'scripts/test-kit/**/*.mjs',
+      'scripts/test-env/**/*.mjs',
+      'scripts/pi/remote/*.mjs',
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        game: 'readonly',
+        ui: 'readonly',
+        canvas: 'readonly',
+        foundry: 'readonly',
+        CONFIG: 'readonly',
+        CONST: 'readonly',
+        Hooks: 'readonly',
+        User: 'readonly',
+        Actor: 'readonly',
+        Item: 'readonly',
+        Scene: 'readonly',
+        Combat: 'readonly',
+        Folder: 'readonly',
+        ChatMessage: 'readonly',
+        JournalEntry: 'readonly',
+        fromUuid: 'readonly',
+        fromUuidSync: 'readonly',
+        getDocumentClass: 'readonly',
+        dnd5e: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.test.ts', '**/test-support/**/*.ts'],
     plugins: { vitest },
     rules: {
@@ -115,5 +189,5 @@ export default defineConfig(
       'react-hooks/exhaustive-deps': 'error',
     },
   },
-  prettierRecommended
+  { ...prettierRecommended, files: ['**/*.ts', '**/*.tsx'] }
 );

@@ -125,6 +125,7 @@ export const CHECKS = [
   nodeTest('hook-start-alerts', 'hooks', '.claude/hooks/start-alerts.test.mjs'),
   nodeTest('drift-check-test', 'gate', 'scripts/drift-check.test.mjs'),
   nodeTest('workflow-pins', 'gate', 'scripts/workflow-pins.test.mjs'),
+  nodeTest('eslint-plain-js', 'gate', 'scripts/eslint-plain-js.test.mjs'),
   nodeTest('test-env-frame-proxy', 'scripts', 'scripts/test-env/foundry-frame-proxy.test.mjs'),
   nodeTest(
     'hook-context-alert',

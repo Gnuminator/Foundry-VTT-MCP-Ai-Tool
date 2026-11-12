@@ -706,7 +706,7 @@ export function cloudGreen(o) {
       '--json',
       'number',
     ]);
-    let hasPr = false;
+    let hasPr;
     try {
       hasPr = pr.status === 0 && JSON.parse(pr.stdout).length > 0;
     } catch {
@@ -1152,7 +1152,7 @@ export function main(options = {}) {
       lock.before(i, step);
       const fd = fs.openSync(logFile, 'w');
       const stepStart = performance.now();
-      let status = 1;
+      let status;
       try {
         status = runStep(step, fd, cwd);
       } finally {

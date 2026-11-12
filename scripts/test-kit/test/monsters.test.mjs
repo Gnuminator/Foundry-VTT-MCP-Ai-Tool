@@ -756,7 +756,7 @@ test('recharge, multiattack and spellcasting checks: the data problems they name
 test('runOddCheck: a probe is always deleted, also when the check throws', async () => {
   const calls = /** @type {string[]} */ ([]);
   const io = {
-    call: async (/** @type {string} */ action, /** @type {any} */ args) => {
+    call: async (/** @type {string} */ action, /** @type {any} */ _args) => {
       calls.push(action);
       if (action === 'createMonster') return { actorId: 'probe1' };
       if (action === 'inspectFeatures') return facts();

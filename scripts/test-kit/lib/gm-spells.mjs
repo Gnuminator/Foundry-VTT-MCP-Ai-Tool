@@ -311,7 +311,7 @@ async function exerciseSpell(args) {
     const target = activity.target ?? {};
     const tpl = target.template ?? {};
     const aff = target.affects ?? {};
-    let rollData = {};
+    let rollData;
     try {
       rollData = activity.getRollData();
     } catch {
@@ -457,7 +457,7 @@ async function exerciseSpell(args) {
     const openBefore = new Set(foundry.applications.instances.keys());
     const effectsBefore = new Set(actor.effects.map(e => e.id));
     const itemsBefore = new Set(actor.items.map(i => i.id));
-    let spellsBefore = {};
+    let spellsBefore;
     try {
       const src = await fromUuid(spec.uuid);
       if (!src) throw new Error(`no spell ${spec.uuid}`);

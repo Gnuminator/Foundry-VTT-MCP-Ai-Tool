@@ -131,7 +131,7 @@ function fakeWorld({
   add(makePack('dnd5e.rules', 'JournalEntry'));
   for (const p of extraPacks) add(p);
   if (legacy) add(legacy);
-  const sink = (kind, docName) => ({
+  const sink = (_kind, _docName) => ({
     async createDocuments(data, { pack }) {
       const target = packs.get(pack);
       for (const d of data) target.docs.set(d._id, structuredClone(d));

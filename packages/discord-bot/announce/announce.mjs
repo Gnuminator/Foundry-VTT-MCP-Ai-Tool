@@ -148,7 +148,7 @@ export async function runCli(argv, o = {}) {
   const [kind, ...rest] = argv;
   /** @type {'prLog' | 'changelog' | 'dashboard' | 'gmBot'} */
   let target = 'changelog';
-  let content = '';
+  let content;
   if (kind === 'pr' && rest.length >= 2 && /^\d+$/.test(rest[0])) {
     target = 'prLog';
     content = prLine(rest[0], rest.slice(1).join(' '));

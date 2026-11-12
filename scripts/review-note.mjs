@@ -194,36 +194,62 @@ function must(cmd, args, cwd) {
 const today = () =>
   new Intl.DateTimeFormat('sv', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
-/** Commit exactly the note and push (one pull --rebase retry). @param {string} vault @param {string} file @param {number} pr */
-function commitNote(vault, file, pr) {
+/**
+ * Bring the vault up to date without touching anyone else's work: fetch plus a fast-forward works with
+ * a dirty tree (the shared vault often has other sessions' edits); no rebase, no autostash.
+ * @param {string} vault
+ */
+function syncVault(vault) {
+  must('git', ['fetch', '-q'], vault);
+  must('git', ['merge', '--ff-only', '-q', '@{u}'], vault);
+}
+
+/**
+ * Write the note, commit exactly that path and push; on a rejected push drop only our commit,
+ * fast-forward and try again (3 tries).
+ * @param {string} vault @param {string} file @param {string} text @param {number} pr
+ */
+function writeAndPush(vault, file, text, pr) {
   const rel = path.relative(vault, file).split(path.sep).join('/');
-  must('git', ['add', '--', rel], vault);
-  must('git', ['commit', '-q', '-m', `Review note for PR #${pr}`, '--', rel], vault);
-  if (!run('git', ['push', '-q'], vault).ok) {
-    if (!run('git', ['pull', '--rebase', '-q'], vault).ok) {
-      run('git', ['rebase', '--abort'], vault);
-      throw new Error(`the note is committed in the vault but the push failed: push by hand (${file})`);
-    }
-    must('git', ['push', '-q'], vault);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    syncVault(vault);
+    if (fs.existsSync(file)) throw new Error(`${file} already exists; use another --round`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    must('git', ['add', '--', rel], vault);
+    must('git', ['commit', '-q', '-m', `Review note for PR #${pr}`, '--', rel], vault);
+    if (run('git', ['push', '-q'], vault).ok) return;
+    must('git', ['reset', '-q', '--keep', 'HEAD~1'], vault);
   }
+  throw new Error('the push was rejected 3 times; nothing was written');
+}
+
+/**
+ * The files the PR changes, the way the gate sees them (a local diff against the merge base, not
+ * `gh pr view`, which stops at 100 files). Throws when the PR head cannot be fetched or differs.
+ * @param {number} pr @param {string} sha
+ */
+function changedFiles(pr, sha) {
+  must('git', ['fetch', '-q', 'aitool', 'main']);
+  must('git', ['fetch', '-q', 'aitool', `refs/pull/${pr}/head`]);
+  const fetched = must('git', ['rev-parse', 'FETCH_HEAD']).toLowerCase();
+  if (fetched !== sha) throw new Error(`PR #${pr} head moved while reading it (${fetched.slice(0, 8)}); run again`);
+  return must('git', ['diff', '--name-only', '--no-renames', `aitool/main...${sha}`]).split(/\r?\n/).filter(Boolean);
 }
 
 /** @param {string[]} argv */
 export function main(argv) {
   const o = parseArgs(argv);
-  const info = JSON.parse(must('gh', ['pr', 'view', String(o.pr), '--json', 'state,headRefOid,files']));
+  const info = JSON.parse(must('gh', ['pr', 'view', String(o.pr), '--json', 'state,headRefOid']));
   if (info.state !== 'OPEN') throw new Error(`PR #${o.pr} is ${info.state}, not open`);
   const sha = String(info.headRefOid).toLowerCase();
   if (o.head && o.head !== sha) {
     throw new Error(`PR #${o.pr} head is ${sha.slice(0, 8)} on GitHub, not ${o.head.slice(0, 8)}; review the new head`);
   }
-  const refusal = modelRefusal(o.model, /** @type {{ path: string }[]} */ (info.files).map(f => f.path));
+  const refusal = modelRefusal(o.model, changedFiles(o.pr, sha));
   if (refusal) throw new Error(refusal);
   const handoff = path.join(o.vault, 'Dev', 'Foundry AI Tool', 'Handoff');
-  if (!o.noCommit && !o.dryRun && !run('git', ['pull', '--rebase', '-q'], o.vault).ok) {
-    run('git', ['rebase', '--abort'], o.vault);
-    throw new Error(`the vault could not be pulled (${o.vault}); fix it first`);
-  }
+  if (!o.noCommit && !o.dryRun) syncVault(o.vault);
   let existing = /** @type {string[]} */ ([]);
   if (fs.existsSync(handoff)) {
     for (const d of fs.readdirSync(handoff, { withFileTypes: true })) {
@@ -245,9 +271,13 @@ export function main(argv) {
     console.log(`review-note: would write ${file} for head ${sha}`);
     return;
   }
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, note.text);
-  if (!o.noCommit) commitNote(o.vault, file, o.pr);
+  if (existing.includes(note.name)) throw new Error(`a note named ${note.name} already exists; use another --round`);
+  if (o.noCommit) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, note.text);
+  } else {
+    writeAndPush(o.vault, file, note.text, o.pr);
+  }
   console.log(`review-note: wrote ${file} (head ${sha}, ${o.verdict})`);
 }
 

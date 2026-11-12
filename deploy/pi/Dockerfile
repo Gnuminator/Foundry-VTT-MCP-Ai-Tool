@@ -37,6 +37,10 @@ COPY docs/foundry/            ./docs/foundry/
 COPY docs/da/gm/              ./docs/da/gm/
 COPY scripts/check-links.mjs  ./scripts/
 COPY scripts/tsc7.mjs         ./scripts/
+# The shared build writes the usage catalogue (not committed) by scanning the dashboard and the
+# Foundry module sources; the module sources are copied for that scan only (same as deploy/Dockerfile).
+COPY scripts/usage-catalog.mjs ./scripts/
+COPY packages/foundry-module/src/ ./packages/foundry-module/src/
 
 RUN npm run build
 

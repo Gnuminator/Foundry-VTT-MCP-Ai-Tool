@@ -48,7 +48,8 @@ assigned by the play session's start and end); errors by name and code; unknown 
 `scripts/usage-catalog.mjs` scans `data-track="..."` and literal `track*('...')` calls in
 `packages/cogm-dashboard/public/*.{html,js}` and `trackUsage(kind, '...')` in
 `packages/foundry-module/src/**/*.ts`, and writes `shared/src/usage-catalog.generated.ts`.
-`npm run usage:catalog`; `--check` in CI fails on a stale file or a non-literal name.
+`npm run usage:catalog`. The file is generated and not committed (`npm ci` and the shared
+build, typecheck and test scripts write it); `--check` in CI fails on a non-literal or bad name.
 `USAGE_ALIASES` in the contract maps renamed controls to their new names.
 
 ## Module controls instrumented first

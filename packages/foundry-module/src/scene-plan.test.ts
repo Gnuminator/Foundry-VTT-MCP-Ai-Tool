@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERROR_MESSAGES } from './constants.js';
 import { planSceneChange, SCENE_PLAN_QUERY } from './scene-plan.js';
-import { SCENE_PLAN_QUERY as SHARED_QUERY } from '../../../shared/src/scene-change.js';
+import { SCENE_PLAN_QUERY as SHARED_QUERY } from '@gnuminator/shared';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 
 let world: TestWorld;

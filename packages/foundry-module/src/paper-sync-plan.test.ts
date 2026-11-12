@@ -11,7 +11,7 @@ import {
   PAPER_SYNC_FIELDS as SHARED_FIELDS,
   PAPER_SYNC_QUERY as SHARED_QUERY,
   PAPER_SYNC_SLOT_KEYS as SHARED_SLOTS,
-} from '../../../shared/src/paper-sync.js';
+} from '@gnuminator/shared';
 import {
   COINS,
   FIELDS,

@@ -35,7 +35,7 @@ import {
   MODULE_REQUEST_MAX_ARGS_BYTES as SHARED_MAX_BYTES,
   MODULE_REQUEST_TOOLS as SHARED_TOOLS,
   MODULE_REQUEST_TYPE as SHARED_REQUEST_TYPE,
-} from '../../../shared/src/protocol.js';
+} from '@gnuminator/shared';
 
 let world: TestWorld;
 let restore: () => void;

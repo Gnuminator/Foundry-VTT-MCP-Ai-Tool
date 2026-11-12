@@ -350,7 +350,7 @@ test('main changed shared/ (the #397 then #399 case): the merged tree gets its o
       sharedBuild: buildShared,
     });
     assert.equal(code, 0, out);
-    assert.match(out, /merge changed shared\/; building shared/);
+    assert.match(out, /building shared in the worktree/);
     assert.equal(git(lane, 'rev-parse', 'HEAD'), head);
     assert.equal(
       fs.readFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'utf8'),
@@ -368,17 +368,17 @@ test('main changed shared/ (the #397 then #399 case): the merged tree gets its o
   }
 });
 
-test('main left shared/ alone: no build runs and the borrowed workspace is used', () => {
+test('main left shared/ alone: the worktree still gets its own shared build (generated catalogue, own links)', () => {
   const { tmp, lane, other } = lanesShared();
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
     const { code, out } = runWith(lane, {
       checks: [readsSharedDist('v1')],
-      sharedBuild: 'node -e "process.exit(9)"',
+      sharedBuild: buildShared,
     });
     assert.equal(code, 0, out);
-    assert.doesNotMatch(out, /building shared/);
+    assert.match(out, /building shared in the worktree/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

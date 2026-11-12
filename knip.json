@@ -15,7 +15,7 @@
       "project": ["src/**/*.ts"]
     },
     "packages/foundry-module": {
-      "entry": ["src/main.ts"],
+      "entry": ["src/main.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/cogm-dashboard": {

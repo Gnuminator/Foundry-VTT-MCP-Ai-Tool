@@ -105,7 +105,8 @@ exit 0
     const hide = noDocker
       ? 'command() { if [ "$1" = -v ] && [ "$2" = docker ]; then return 1; fi; builtin command "$@"; }\n'
       : '';
-    const sys = systemd ? 'have_systemd() { return 0; }\n' : '';
+    // Explicit both ways: a CI runner has a real systemd, so "no systemd" must be stubbed too.
+    const sys = systemd ? 'have_systemd() { return 0; }\n' : 'have_systemd() { return 1; }\n';
     // PATH is extended inside bash: on Windows the parent's PATH is semicolon-separated until bash converts it.
     return bash(`export PATH="$BIN:$PATH"\n${lib}\n${hide}${sys}refuse_when_cut_over "stage X"\necho passed\n`, {
       BIN: posix(bin),

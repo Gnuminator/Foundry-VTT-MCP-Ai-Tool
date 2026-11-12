@@ -13,6 +13,7 @@ import {
   gateArgs,
   gateOutcome,
   main,
+  mainCopy,
   mainState,
   parseArgs,
   prepareCheckout,
@@ -516,6 +517,39 @@ test('parseArgs: the gate checkout defaults to the sibling -gate folder of the m
   assert.equal(parseArgs(['--once', '--interval', '30']).interval, 30);
   assert.throws(() => parseArgs(['--interval', '1']), /at least 10/);
   assert.throws(() => parseArgs(['--force']), /unknown argument/);
+});
+
+test('mainCopy: with a folder it writes the entry file and the folder of main beside it', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-runner-copy-'));
+  const git = (/** @type {string[]} */ args) =>
+    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+  try {
+    git(['init', '-q']);
+    fs.mkdirSync(path.join(root, 'scripts', 'gate'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'scripts', 'gate.mjs'), 'entry\n');
+    fs.writeFileSync(path.join(root, 'scripts', 'gate', 'a.mjs'), 'module a\n');
+    git(['add', '.']);
+    git(['commit', '-q', '-m', 'x']);
+    git(['update-ref', 'refs/remotes/aitool/main', 'HEAD']);
+    const lone = mainCopy(root, 'scripts/gate.mjs');
+    assert.ok(lone);
+    assert.equal(fs.existsSync(path.join(path.dirname(lone.file), 'gate')), false);
+    lone.cleanup();
+    const full = mainCopy(root, 'scripts/gate.mjs', 'scripts/gate');
+    assert.ok(full);
+    assert.equal(fs.readFileSync(full.file, 'utf8'), 'entry\n');
+    assert.equal(
+      fs.readFileSync(path.join(path.dirname(full.file), 'gate', 'a.mjs'), 'utf8'),
+      'module a\n'
+    );
+    full.cleanup();
+    assert.equal(mainCopy(root, 'scripts/missing.mjs', 'scripts/gate'), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('prepareCheckout: refuses a folder that is not its own top level, and a dirty one', () => {

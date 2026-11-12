@@ -425,16 +425,37 @@ export function prepareCheckout(checkout, r, run = sh) {
 /**
  * Write main's copy of a repo file to a temp folder (the PR's own copy never runs). Null when main
  * has none.
- * @param {string} checkout @param {string} rel `/` separated
+ * `folder` (optional, `/` separated, e.g. `scripts/lane-merge`) also writes that folder of main
+ * beside the file, under its own name: the merge gate is an entry file plus modules. Null when main
+ * has none of it.
+ * @param {string} checkout @param {string} rel `/` separated @param {string} [folder]
  * @returns {{ file: string, cleanup: () => void } | null}
  */
-export function mainCopy(checkout, rel) {
+export function mainCopy(checkout, rel, folder) {
   const r = sh('git', ['show', `${MAIN}:${rel}`], { cwd: checkout });
   if (r.status !== 0 || !r.stdout) return null;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-runner-'));
+  const cleanup = () => fs.rmSync(dir, { recursive: true, force: true });
+  if (folder) {
+    const list = sh('git', ['ls-tree', '-r', '--name-only', MAIN, `${folder}/`], { cwd: checkout });
+    if (list.status !== 0) {
+      cleanup();
+      return null;
+    }
+    const sub = path.join(dir, path.basename(folder));
+    fs.mkdirSync(sub);
+    for (const name of list.stdout.split(/\r?\n/).filter(Boolean)) {
+      const shown = sh('git', ['show', `${MAIN}:${name}`], { cwd: checkout });
+      if (shown.status !== 0) {
+        cleanup();
+        return null;
+      }
+      fs.writeFileSync(path.join(sub, path.basename(name)), shown.stdout);
+    }
+  }
   const file = path.join(dir, path.basename(rel));
   fs.writeFileSync(file, r.stdout);
-  return { file, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  return { file, cleanup };
 }
 
 /** The gate's argv after the script path. @param {number} pr @param {string} vault */
@@ -562,7 +583,7 @@ function realDeps(o) {
       }
     },
     gate: pr => {
-      const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs');
+      const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');
       if (!copy) return { status: 1, stdout: '', stderr: 'no scripts/lane-merge.mjs on main' };
       try {
         const r = sh(process.execPath, [copy.file, ...gateArgs(pr, o.vault)], {

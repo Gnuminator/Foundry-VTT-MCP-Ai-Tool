@@ -105,7 +105,7 @@ docker_cannot_return() {
 }
 
 # refuse_when_cut_over WHAT: die when a container of the live project exists (also a stopped one: the backup stops the
-# Foundry container each night, and a container that restart: unless-stopped brings back is still a second copy). Docker not
+# Foundry container each night, and a container that its restart policy brings back is still a second copy). Docker not
 # installed = never cut over. Docker installed but silent = unknown, and unknown refuses (fail closed), unless
 # docker_cannot_return. Never overridden by FORCE=1. Call it right after require_root (and the snapshot check), before the
 # first change, in every stage that starts, restarts or enables Foundry, the bridge, the dashboard or the Assistant GM

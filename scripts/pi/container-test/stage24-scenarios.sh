@@ -420,6 +420,14 @@ run_stage MODE=rollback
 if [ "$RC" -eq 1 ] && all_off $all_units && ! echo "$CALLS" | grep -qE 'enable --now|disable --now docker'; then pass "rollback with the daemon down starts no unit"; else fail "rollback daemon (rc $RC): $OUT"; fi
 run_stage MODE=rollback FORCE=1
 if [ "$RC" -eq 0 ] && all_on $all_units && order_ok 'disable --now docker.service docker.socket' "enable --now foundry.service"; then pass "FORCE=1 disables docker.service and docker.socket first, then starts the units"; else fail "rollback force (rc $RC): $OUT / $CALLS"; fi
+# live-restore keeps containers running under containerd when dockerd is stopped: a shim left means no unit may start
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+touch "$FAKE/daemon-down"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/pgrep"; chmod +x "$BIN/pgrep"
+run_stage MODE=rollback FORCE=1
+rm -f "$BIN/pgrep"
+if [ "$RC" -eq 1 ] && all_off $all_units && echo "$OUT" | grep -q 'containerd-shim' && ! echo "$CALLS" | grep -qE 'enable --now foundry'; then pass "FORCE=1 rollback with a container process left (live-restore) starts no unit"; else fail "rollback force shim (rc $RC): $OUT / $CALLS"; fi
 
 # 14. no deploy/pi/.env (a stage 5 replaced the checkout) but the containers run: found by label, rollback removes them
 new_pi

@@ -350,13 +350,19 @@ rollback_now() {
   local u fail="" list
   have_systemd || die "no systemd here: nothing to roll back to"
   if ! daemon_known; then
-    # The containers come back with the daemon (restart: unless-stopped), next to the units we are about to start.
+    # The containers come back with the daemon (restart: always for Foundry, unless-stopped for the rest), next to the units we are about to start.
     [ "${FORCE:-0}" = 1 ] || {
       out "ERROR: the Docker daemon does not answer, so the containers cannot be stopped or counted, and they return when it starts. Nothing was changed. FORCE=1 disables docker.service and docker.socket first and goes on" 1
       return 1
     }
     warn "FORCE=1: the Docker daemon does not answer; disabling docker.service and docker.socket so no container returns"
     systemctl disable --now docker.service docker.socket >/dev/null 2>&1 || warn "systemctl disable --now docker.service docker.socket failed"
+    # live-restore (stage 23) keeps containers running under containerd when dockerd stops: a shim left means a container
+    # may still run on the data folders, so the units must not start next to it (same test as docker_cannot_return in lib.sh).
+    if pgrep -f containerd-shim >/dev/null 2>&1; then
+      out "ERROR: a container process (containerd-shim) still runs after docker was disabled, so the units were NOT started (two copies would clash). Stop it with: ctr -n moby tasks ls (then kill the tasks), or reboot (docker is disabled, so no container returns). Then run MODE=rollback again" 1
+      return 1
+    fi
   else
     say "rollback: stopping the compose stack"
     if ! stop_project "$live_project"; then

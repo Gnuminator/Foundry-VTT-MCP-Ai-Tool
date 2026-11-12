@@ -373,7 +373,7 @@ export function piListStatus(backlogText, piText, todayDate) {
     if (!i.id || !/\bmerged\b/i.test(progress)) continue;
     const d = /^(\d{4}-\d{2}-\d{2})/.exec(progress)?.[1];
     // An undated progress line counts as old.
-    const age = d ?(Date.parse(todayDate) - Date.parse(d)) / 86400000 : Infinity;
+    const age = d ? (Date.parse(todayDate) - Date.parse(d)) / 86400000 : Infinity;
     if (age > 3) stale.push(i.id);
   }
   const out = [`Pi sitting list: ${runs} run${runs === 1 ? '' : 's'} waiting`];

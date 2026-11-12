@@ -27,6 +27,8 @@ import {
   isEntryModule,
   isTrainRelevant,
   judgeReviews,
+  liveCheckLine,
+  liveCheckProblem,
   main,
   matchesAny,
   parseArgs,
@@ -132,6 +134,7 @@ function gate(o = {}) {
     headRefOid: HEAD,
     mergeable: 'MERGEABLE',
     title: 'A thing',
+    body: o.body ?? 'Live check: test server A, real dnd5e data',
     files: (o.ghFiles ?? localPaths).map(p => ({ path: p })),
     statusCheckRollup: o.rollup ?? [
       { __typename: 'CheckRun', name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' },
@@ -977,6 +980,37 @@ test('hasChangelogFragment: added or changed fragments only', () => {
   assert.ok(!hasChangelogFragment([{ path: 'changelog.d/x.md', changeType: 'DELETED' }]));
 });
 
+test('liveCheckProblem: Module and Pi PRs need a Live check line in the description', () => {
+  const mod = [{ path: 'packages/foundry-module/src/main.ts' }];
+  const pi = [{ path: 'scripts/pi/remote/stage.sh' }];
+  assert.match(liveCheckProblem(mod, 'Backlog: x') ?? '', /Module code .*test server A/);
+  assert.match(liveCheckProblem(pi, '') ?? '', /Pi code .*ARM64.*deployed-state\.ps1/);
+  assert.match(liveCheckProblem([...mod, ...pi], '') ?? '', /Module code .* and Pi code/);
+  assert.equal(
+    liveCheckProblem(mod, 'Live check: server A, real dnd5e actors, roundtrip ok'),
+    null
+  );
+  assert.equal(liveCheckProblem(pi, 'text\r\n- **Live check:** none, comment-only change'), null);
+  assert.equal(liveCheckProblem(mod, undefined), liveCheckProblem(mod, ''));
+  // Empty, placeholder and mid-sentence mentions do not count.
+  for (const body of [
+    'Live check:',
+    'Live check: <fill in>',
+    'Live check: <!-- run -->',
+    'Live check: <!-- unclosed\nmore -->',
+    'we had no live check: here',
+  ]) {
+    assert.ok(liveCheckProblem(mod, body), body);
+  }
+  // Other paths and test files need nothing.
+  assert.equal(
+    liveCheckProblem([{ path: 'docs/a.md' }, { path: 'scripts/pi/local.ps1' }], ''),
+    null
+  );
+  assert.equal(liveCheckProblem([{ path: 'packages/foundry-module/src/a.test.ts' }], ''), null);
+  assert.equal(liveCheckLine('x\nLive check: ok then'), 'ok then');
+});
+
 test('parseNameStatus: NUL separated, non-ASCII paths unquoted, renames list both sides', () => {
   const nul = String.fromCharCode(0);
   const z = (...parts) => parts.join(nul) + nul;
@@ -1059,6 +1093,13 @@ test('dry run: all checks pass, prints the OK line, never calls gh pr merge or w
     !r.calls.some(c => c.join(' ') === 'npm run drift:check'),
     'main copy, not the local script'
   );
+});
+
+test('gate: a Module PR without a Live check line is refused like a missing changelog', () => {
+  const r = gate({ argv: ['--dry-run'], files: MODULE_FILES, body: 'no line here' });
+  assert.equal(r.code, 1, r.text);
+  assert.match(r.text, /live check: the PR touches Module code/);
+  assert.ok(!r.merged);
 });
 
 test('merge: calls gh pr merge with the head commit and prints the merged line', () => {
@@ -1553,6 +1594,7 @@ function gateRun() {
     headRefName: 'claude/thing',
     headRefOid: HEAD,
     mergeable: 'MERGEABLE',
+    body: 'Live check: test server A, real dnd5e data',
     files: MODULE_FILES.map(p => ({ path: p })),
     statusCheckRollup: [{ name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
   };

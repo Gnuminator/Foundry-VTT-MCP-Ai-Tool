@@ -47,4 +47,4 @@ export const ENV_FROM_MAIN = 'LANE_MERGE_FROM_MAIN';
 export const ENV_FETCHED = 'LANE_MERGE_FETCHED';
 
 export const PR_FIELDS =
-  'number,state,isDraft,baseRefName,headRefName,headRefOid,mergeable,files,statusCheckRollup,title';
+  'number,state,isDraft,baseRefName,headRefName,headRefOid,mergeable,files,statusCheckRollup,title,body';

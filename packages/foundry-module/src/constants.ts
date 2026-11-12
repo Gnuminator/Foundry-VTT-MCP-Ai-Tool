@@ -28,8 +28,8 @@ export const AMBIGUOUS_ACTOR_PREFIX = 'Multiple characters match';
 
 /**
  * Frame the module sends right after the link opens (lane 1, PB-02). Local
- * mirror of `MODULE_HELLO_TYPE` / `ModuleHelloData` in `shared/src/protocol.ts`
- * (the module does not import the shared package).
+ * mirror of `MODULE_HELLO_TYPE` in `shared/src/protocol.ts` (the value cannot be imported in the
+ * browser); `ModuleHelloData` is the shared type, imported type-only.
  */
 export const MODULE_HELLO_TYPE = 'module-hello' as const;
 

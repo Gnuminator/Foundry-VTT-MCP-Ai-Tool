@@ -1,9 +1,9 @@
 /**
  * The module's copy of the change journal wire contract (I-109). Mirrors
- * `shared/src/change-journal.ts`: the module does not import the shared
- * package (the browser cannot resolve it), so `change-journal.contract.test.ts`
- * compares every constant, the ignored-path rule and the types against the
- * shared file. Change both together, never one.
+ * `shared/src/change-journal.ts`: the browser cannot resolve the shared
+ * package at runtime, so the values are copied and `change-journal.contract.test.ts`
+ * compares every constant and the ignored-path rule against the shared file. `ChangeRecord`
+ * is the shared type, imported type-only. Change both together, never one.
  */
 import type { PathValue } from './data-access/guarded-write.js';
 import type { ChangeRecord } from '@gnuminator/shared';

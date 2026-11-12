@@ -1,8 +1,8 @@
 /**
  * Shared data-access type definitions.
  *
- * Local (not re-exported from `@gnuminator/shared`) to avoid the shared-package
- * import friction the monolith documented; these describe the shapes the
+ * Mostly local; `SceneInfo` and `WorldInfo` are the shared types, imported type-only. These
+ * describe the shapes the
  * `FoundryDataAccess` facade and its domain modules pass around.
  */
 

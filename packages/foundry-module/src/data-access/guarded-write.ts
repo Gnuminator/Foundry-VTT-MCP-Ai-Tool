@@ -15,8 +15,8 @@
  *   op rolls back the ops before it. Success is logged to the GM-only session
  *   feed as a `gm-change` event.
  *
- * Wire types mirror `shared/src/guarded-write.ts` (the module does not import
- * the shared package); `GUARDED_OP_KINDS` is compared in a test.
+ * Wire types mirror `shared/src/guarded-write.ts` (values cannot be imported in the browser);
+ * `GuardedOp` is the shared type, imported type-only. `GUARDED_OP_KINDS` is compared in a test.
  */
 import type { GuardedOp } from '@gnuminator/shared';
 import type { ChangeWriteMode } from '../change-journal-types.js';

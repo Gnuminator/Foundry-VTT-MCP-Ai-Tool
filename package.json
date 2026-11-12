@@ -25,6 +25,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "mutation:core": "node scripts/mutation-ratchet.mjs",
     "studio:pin-check": "node scripts/pi/check-studio-pin.mjs",
     "kit": "node scripts/test-kit/kit.mjs",
     "kit:run": "node scripts/test-kit/kit-run.mjs",
@@ -86,6 +87,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^24.0.0",
     "@vitest/eslint-plugin": "^1.6.27",
     "acorn": "8.19.0",

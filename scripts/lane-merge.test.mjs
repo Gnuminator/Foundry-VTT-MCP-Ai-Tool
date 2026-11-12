@@ -27,6 +27,8 @@ import {
   isEntryModule,
   isTrainRelevant,
   judgeReviews,
+  liveCheckLine,
+  liveCheckProblem,
   main,
   matchesAny,
   parseArgs,
@@ -132,6 +134,7 @@ function gate(o = {}) {
     headRefOid: HEAD,
     mergeable: 'MERGEABLE',
     title: 'A thing',
+    body: o.body ?? 'Live check: test server A, real dnd5e data',
     files: (o.ghFiles ?? localPaths).map(p => ({ path: p })),
     statusCheckRollup: o.rollup ?? [
       { __typename: 'CheckRun', name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' },
@@ -539,6 +542,19 @@ test('risky categories: every category has patterns and the real paths match', (
     assert.deepEqual(category(`shared/src/${f}.ts`), ['wire contracts'], f);
   }
   assert.deepEqual(category('shared/src/party.ts'), []);
+  // Tool modules, sets, budgets and the player tools are wire contracts (PR 848 slipped past).
+  for (const f of [
+    'packages/mcp-server/src/tools/modules/party.ts',
+    'packages/mcp-server/src/tool-sets.ts',
+    'packages/mcp-server/src/tool-budgets.ts',
+    'packages/mcp-server/src/tools/player.ts',
+  ]) {
+    assert.deepEqual(category(f), ['wire contracts'], f);
+  }
+  assert.deepEqual(category('packages/mcp-server/src/tools/modules/guarded-changes.ts'), [
+    'guarded writes',
+    'wire contracts',
+  ]);
   assert.deepEqual(category('shared/src/guarded-write.ts'), ['guarded writes']);
   for (const calm of [
     'docs/guide.md',
@@ -977,6 +993,43 @@ test('hasChangelogFragment: added or changed fragments only', () => {
   assert.ok(!hasChangelogFragment([{ path: 'changelog.d/x.md', changeType: 'DELETED' }]));
 });
 
+test('liveCheckProblem: Module and Pi PRs need a Live check line in the description', () => {
+  const mod = [{ path: 'packages/foundry-module/src/main.ts' }];
+  const pi = [{ path: 'scripts/pi/remote/stage.sh' }];
+  assert.match(liveCheckProblem(mod, 'Backlog: x') ?? '', /Module code .*test server A/);
+  assert.match(liveCheckProblem(pi, '') ?? '', /Pi code .*ARM64.*deployed-state\.ps1/);
+  assert.match(liveCheckProblem([...mod, ...pi], '') ?? '', /Module code .* and Pi code/);
+  assert.equal(
+    liveCheckProblem(mod, 'Live check: server A, real dnd5e actors, roundtrip ok'),
+    null
+  );
+  assert.equal(liveCheckProblem(pi, 'text\r\n- **Live check:** none, comment-only change'), null);
+  assert.equal(liveCheckProblem(mod, undefined), liveCheckProblem(mod, ''));
+  // Empty, placeholder and mid-sentence mentions do not count.
+  for (const body of [
+    'Live check:',
+    'Live check: <fill in>',
+    'Live check: <!-- run -->',
+    'Live check: <!-- unclosed\nmore -->',
+    'we had no live check: here',
+    'Live check: -->',
+    '<!--\nLive check: inside a comment\n-->',
+    'Live checks pending',
+    'Live check was skipped',
+    'Live checking: later',
+  ]) {
+    assert.ok(liveCheckProblem(mod, body), body);
+  }
+  // Other paths need nothing; a test file under the Module source still counts.
+  assert.equal(
+    liveCheckProblem([{ path: 'docs/a.md' }, { path: 'scripts/pi/local.ps1' }], ''),
+    null
+  );
+  assert.ok(liveCheckProblem([{ path: 'packages/foundry-module/src/a.test.ts' }], ''));
+  assert.equal(liveCheckLine('**Live check**: none, test-only'), 'none, test-only');
+  assert.equal(liveCheckLine('x\nLive check: ok then'), 'ok then');
+});
+
 test('parseNameStatus: NUL separated, non-ASCII paths unquoted, renames list both sides', () => {
   const nul = String.fromCharCode(0);
   const z = (...parts) => parts.join(nul) + nul;
@@ -1059,6 +1112,13 @@ test('dry run: all checks pass, prints the OK line, never calls gh pr merge or w
     !r.calls.some(c => c.join(' ') === 'npm run drift:check'),
     'main copy, not the local script'
   );
+});
+
+test('gate: a Module PR without a Live check line is refused like a missing changelog', () => {
+  const r = gate({ argv: ['--dry-run'], files: MODULE_FILES, body: 'no line here' });
+  assert.equal(r.code, 1, r.text);
+  assert.match(r.text, /live check: the PR touches Module code/);
+  assert.ok(!r.merged);
 });
 
 test('merge: calls gh pr merge with the head commit and prints the merged line', () => {
@@ -1553,6 +1613,7 @@ function gateRun() {
     headRefName: 'claude/thing',
     headRefOid: HEAD,
     mergeable: 'MERGEABLE',
+    body: 'Live check: test server A, real dnd5e data',
     files: MODULE_FILES.map(p => ({ path: p })),
     statusCheckRollup: [{ name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
   };
@@ -1681,6 +1742,15 @@ test('gh pr view failing ends the run with one line', () => {
     'pr: gh pr view 312 failed: could not resolve to a PullRequest',
     'lane:merge: refused because pr: gh pr view 312 failed: could not resolve to a PullRequest',
   ]);
+});
+
+test('lane skill: the gate recipe takes the entry file and the module folder out of main together', () => {
+  const skill = fs.readFileSync(
+    path.join(path.dirname(SELF), '..', '.claude', 'skills', 'lane', 'SKILL.md'),
+    'utf8'
+  );
+  assert.match(skill, /git archive aitool\/main scripts\/lane-merge\.mjs scripts\/lane-merge \|/);
+  assert.doesNotMatch(skill, /git show aitool\/main:scripts\/lane-merge\.mjs/);
 });
 
 test('lane-merge split: the entry file stays small and every gate module is a file of its own', () => {

@@ -20,6 +20,7 @@ export const RISKY_CATEGORIES = [
       'packages/foundry-module/src/queries.ts',
       'packages/mcp-server/src/guarded-write/**',
       'packages/mcp-server/src/tools/guarded-changes*',
+      'packages/mcp-server/src/tools/modules/guarded-changes*',
       'packages/mcp-server/src/change-journal-pump*',
       'shared/src/guarded-write*',
       'shared/src/change-journal*',
@@ -88,6 +89,12 @@ export const RISKY_CATEGORIES = [
       'shared/src/types*',
       'shared/src/version*',
       'shared/src/ports*',
+      // Tool modules, the sets and budgets that expose them, and the player preset's tools: a tool's
+      // name, schema and set decide what Claude can call (PR 848 slipped past without these).
+      'packages/mcp-server/src/tools/modules/**',
+      'packages/mcp-server/src/tool-sets.ts',
+      'packages/mcp-server/src/tool-budgets.ts',
+      'packages/mcp-server/src/tools/player.ts',
       'packages/foundry-module/module.json',
     ],
   },

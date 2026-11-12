@@ -1,9 +1,8 @@
 /**
  * Shared data-access type definitions.
  *
- * Mostly local; `SceneInfo` and `WorldInfo` are the shared types, imported type-only. These
- * describe the shapes the
- * `FoundryDataAccess` facade and its domain modules pass around.
+ * Mostly local; `SceneInfo` and `WorldInfo` are the shared types, imported type-only. These describe
+ * the shapes the `FoundryDataAccess` facade and its domain modules pass around.
  */
 
 import type { CharacterItem, SceneInfo, WorldInfo } from '@gnuminator/shared';

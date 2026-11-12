@@ -67,6 +67,16 @@ test('newestNote picks the highest round, verdictFor compares the head', () => {
   ];
   assert.equal(newestNote(notes, 5)?.text, 'r2');
   assert.equal(newestNote(notes, 7), undefined);
+  // A delta note for the head beats a higher-numbered round written for an older head.
+  const withDelta = [
+    { file: '8-opus-review-round2.md', text: note(H1, 'Merge.').text },
+    { file: '8-opus-review-delta.md', text: note(H2, 'Merge.').text },
+    { file: '8-opus-review-delta2.md', text: note(H2, 'Merge.').text },
+  ];
+  assert.equal(newestNote(withDelta, 8, H2)?.file, '8-opus-review-delta2.md');
+  assert.equal(newestNote(withDelta, 8, H1)?.file, '8-opus-review-round2.md');
+  // No note for the head: fall back to the highest round by name (shown as "old head").
+  assert.equal(newestNote(withDelta, 8, 'c'.repeat(40))?.file, '8-opus-review-round2.md');
   assert.equal(verdictFor(note(H1, 'Merge.'), H1), 'Merge (head)');
   assert.match(verdictFor(note(H1, 'Merge.'), H2), /^Merge for old head aaaaaaaa/);
   assert.equal(verdictFor(undefined, H1), 'no review note');
@@ -159,4 +169,7 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
     gh: () => null,
   }).join('\n');
   assert.match(dark, /gh not available/);
+  fs.rmSync(path.join(dev, 'Waiting.md'));
+  const gone = plannerSections({ devDir: dev, backlog: '', today: '2026-11-12', gh: () => null });
+  assert.ok(gone.includes('Waiting due: not readable'));
 });

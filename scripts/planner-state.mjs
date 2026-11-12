@@ -58,19 +58,29 @@ export function unclaimedAccepted(backlogText, today) {
 /**
  * The newest review note per PR. `notes` are `{ file, text }` for files named `<PR>-...review...md`.
  * Newest = highest round number in the name (`-round2`), the plain name being round 1.
- * @param {{ file: string, text: string }[]} notes @param {number} pr
+ * @param {{ file: string, text: string }[]} notes @param {number} pr @param {string} [head]
  */
-export function newestNote(notes, pr) {
+export function newestNote(notes, pr, head) {
   const mine = notes
     .map(n => {
-      const m = /^(\d+)-(opus-)?review(?:-round(\d+))?\.md$/.exec(
+      const m = /^(\d+)-(opus-)?review(?:-round(\d+))?(?:-delta(\d*))?\.md$/.exec(
         n.file.split(/[\\/]/).pop() ?? ''
       );
-      return m && Number(m[1]) === pr ? { ...n, round: Number(m[3] ?? 1), opus: !!m[2] } : null;
+      if (!m || Number(m[1]) !== pr) return null;
+      const delta = m[4] === undefined ? 0 : Number(m[4] || 1);
+      return { ...n, round: Number(m[3] ?? 1), delta, opus: !!m[2] };
     })
     .filter(x => x !== null);
-  mine.sort((a, b) => b.round - a.round || Number(b.opus) - Number(a.opus));
-  return mine[0];
+  mine.sort((a, b) => b.round - a.round || b.delta - a.delta || Number(b.opus) - Number(a.opus));
+  // The note written for the head wins whatever its name; else the newest by name.
+  const forHead = head
+    ? mine.find(n =>
+        [...n.text.matchAll(/^Head reviewed:\s*([0-9a-f]{40})/gim)].some(
+          m => m[1].toLowerCase() === head.toLowerCase()
+        )
+      )
+    : undefined;
+  return forHead ?? mine[0];
 }
 
 /**
@@ -117,7 +127,7 @@ export function prTable(prs, notes) {
     const title = String(pr.title).split(/\s+/).slice(0, 8).join(' ');
     const draft = pr.isDraft ? ' draft,' : '';
     out.push(
-      `- #${pr.number} ${title}:${draft} CI ${ciState(pr.statusCheckRollup)}, review ${verdictFor(newestNote(notes, pr.number), pr.headRefOid)}`
+      `- #${pr.number} ${title}:${draft} CI ${ciState(pr.statusCheckRollup)}, review ${verdictFor(newestNote(notes, pr.number, pr.headRefOid), pr.headRefOid)}`
     );
   }
   return out;
@@ -174,8 +184,10 @@ export function gatherNotes(devDir, prs) {
   }
   const out = [];
   for (const pr of prs) {
-    const n = newestNote(names, pr);
-    if (n) out.push({ file: n.file, text: fs.readFileSync(n.full, 'utf8') });
+    // Every note of the PR is read (a handful): the one for the head may be a delta note.
+    for (const n of names)
+      if (new RegExp(`^${pr}-.*review.*\\.md$`).test(n.file))
+        out.push({ file: n.file, text: fs.readFileSync(n.full, 'utf8') });
   }
   return out;
 }
@@ -201,7 +213,7 @@ export function plannerSections(o) {
     try {
       return fs.readFileSync(path.join(o.devDir, f), 'utf8');
     } catch {
-      return '';
+      return null;
     }
   };
   const prs = gh([
@@ -238,8 +250,11 @@ export function plannerSections(o) {
         (prs ?? []).map((/** @type {any} */ p) => p.number)
       )
     ).join('\n'),
-    trainLine(read('Merge train.md')),
+    trainLine(read('Merge train.md') ?? ''),
     mainLine(runs?.[0] ?? null),
-    dueWaiting(read('Waiting.md'), o.today),
+    (() => {
+      const w = read('Waiting.md');
+      return w === null ? 'Waiting due: not readable' : dueWaiting(w, o.today);
+    })(),
   ];
 }

@@ -32,7 +32,7 @@ never changed or reused: the live board, D-124, links by it), `- board: <area>`,
 `- area:`, `- progress:` (the lane's ready state), optional `- gate:`, `- blocked by:` (`W21` or
 `item:<id>`), `- pi: yes` (needs a Pi day and the user's OK), `- source:`, `- touches: path,
 folder/`, `- depends on: #380, item:<id>`, and `- claimed:` once a lane takes it. The board's Lanes
-zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. Remove merged items, add a line to `## Done`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
+zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. Remove merged items, add the line (`- title | area | ref | date`, newest first, at the top) to vault `Backlog done.md`, never to `Backlog.md`, and repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
 (triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`). The board rewrites
 `Backlog.md`: pull first, keep each item's lines together.
 

@@ -29,7 +29,7 @@ export default {
   // do not edit the five areas while a run is going.
   inPlace: true,
   tempDirName: '.stryker-tmp',
-  concurrency: 2,
+  concurrency: 4,
   timeoutMS: 30_000,
   disableTypeChecks: '{packages,shared}/**/*.ts',
 };

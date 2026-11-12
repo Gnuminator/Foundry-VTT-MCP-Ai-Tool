@@ -13,9 +13,19 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // The whole suites of the three packages, as in the 2026-11-11 measurement: a line only a tool
+    // test runs is covered. Three files cannot pass inside Stryker (they need a built dist, count
+    // port literals across the repo, or scan module source text the instrumenting changes).
     include: [
-      'packages/mcp-server/src/guarded-write/**/*.test.ts',
-      'packages/foundry-module/src/data-access/guarded-write*.test.ts',
+      'shared/src/**/*.test.ts',
+      'packages/mcp-server/src/**/*.test.ts',
+      'packages/foundry-module/src/**/*.test.ts',
+    ],
+    exclude: [
+      '**/node_modules/**',
+      '**/mcp-modern-probe.test.ts',
+      'shared/src/ports.test.ts',
+      '**/wait-for-event.test.ts',
     ],
   },
 });

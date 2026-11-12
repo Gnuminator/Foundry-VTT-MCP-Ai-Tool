@@ -40,6 +40,10 @@ as READ (you opened the code) or INFERRED (you did not). Do not invent line numb
    dnd5e/Foundry class (a mocked method the real class never returns hid 501 M2).
 10. **Secrets.** Nothing printed or committed; no book or campaign text in the public repo.
 
+## Severity rule (D-101, amended 2026-11-12)
+
+A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.
+
 ## Output (the merge gate reads this)
 
 ```

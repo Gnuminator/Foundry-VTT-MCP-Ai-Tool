@@ -391,25 +391,16 @@ export function findReviewNotes(vault, prNumber) {
 }
 
 /**
- * The naming rule the gate reads review notes by, for a refusal that found none (a note under any
- * other name is silently not read, as `741-merge-delta-ba0d45e7.md` was).
+ * The naming rule the gate reads notes by, and the helper that writes one, for a refusal that found none.
  * @param {number} prNumber
  */
 export function reviewNamingRule(prNumber) {
   return (
     `the gate reads files named ${prNumber}-*review*.md in a "Handoff/Reviews <date>/" folder ` +
     `(for a risky PR, named ${prNumber}-opus-review... or headed "# PR #${prNumber} Opus review"), ` +
-    'each with a "Head reviewed:" line holding the full 40-character sha above "## Verdict"'
+    'each with a "Head reviewed:" line holding the full 40-character sha above "## Verdict"; ' +
+    `write it with: node scripts/review-note.mjs ${prNumber} --verdict <merge|fixes|no> --model <opus|sonnet> --body <reviewer text file>`
   );
-}
-
-/**
- * The helper command that writes a review note the gate accepts (scripts/review-note.mjs), for the
- * refusals about a note. `<merge|fixes|no>` is the reviewer's verdict.
- * @param {number} prNumber @param {boolean} opus
- */
-export function reviewNoteCommand(prNumber, opus) {
-  return `write the note with: node scripts/review-note.mjs ${prNumber} --verdict <merge|fixes|no> --model ${opus ? 'opus' : 'sonnet'} --body <reviewer text file>`;
 }
 
 /**
@@ -2187,7 +2178,6 @@ export function main(options = {}) {
         hint = `; ${reviewNamingRule(n)}`;
         if (skipped.length) hint += `; not read (no "review" in the name): ${skipped.join(', ')}`;
       }
-      hint += `; ${reviewNoteCommand(n, hits.length > 0)}`;
       failures.push(`review: ${verdict.detail}${hint}`);
     }
   }

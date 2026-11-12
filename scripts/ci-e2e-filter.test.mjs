@@ -75,6 +75,33 @@ test('the specs and the Playwright config import only from the dashboard and sha
   assert.deepEqual(outside, [], 'a browser test reads a path the dashboard-e2e-changes filter does not cover');
 });
 
+test('the dashboard code under test depends on no workspace the filter misses', () => {
+  const pkg = JSON.parse(read('packages/cogm-dashboard/package.json'));
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(d => d.startsWith('@gnuminator/'));
+  assert.deepEqual(
+    deps.filter(d => d !== '@gnuminator/cogm-dashboard').sort(),
+    ['@gnuminator/shared'],
+    'the dashboard depends on another workspace: add its folder to the dashboard-e2e-changes pattern'
+  );
+  const outside = [];
+  const walk = dir => {
+    for (const e of readdirSync(path.join(repo, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) {
+        if (!/^(node_modules|dist|storybook-static|test-results|playwright-report)$/.test(e.name)) walk(rel);
+      } else if (/\.(?:ts|tsx|mjs)$/.test(e.name)) {
+        for (const m of read(rel).matchAll(/(?:from|import)\s*\(?\s*'(\.{1,2}\/[^']+)'/g)) {
+          const resolved = path.posix.normalize(path.posix.join(dir, m[1]));
+          if (!filter.test(resolved)) outside.push(`${rel}: ${m[1]} -> ${resolved}`);
+        }
+        if (/from '@gnuminator\/(?!shared|cogm-dashboard)/.test(read(rel))) outside.push(`${rel}: imports another workspace`);
+      }
+    }
+  };
+  for (const d of ['packages/cogm-dashboard/src', 'packages/cogm-dashboard/web/src']) walk(d);
+  assert.deepEqual(outside, [], 'dashboard code imports a path the dashboard-e2e-changes filter does not cover');
+});
+
 test('the shard job: needs the filter, runs only when it says so, not fail-fast, shards add up', () => {
   const job = doc.jobs['dashboard-e2e-shard'];
   assert.equal(job.needs, 'dashboard-e2e-changes');

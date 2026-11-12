@@ -81,7 +81,7 @@ export function pathTokens(text) {
   for (const t of rest.split(TOKEN_SPLIT)) {
     if (t.length > MAX_TOKEN) continue;
     const clean = t.replace(/[\]}]+$/, '');
-    // eslint-disable-next-line no-control-regex -- \u0001 is a deliberate placeholder for escaped spaces (see line 80)
+    // eslint-disable-next-line no-control-regex -- \u0001 is a deliberate placeholder for escaped spaces (see the mask above)
     if (EXT_END.test(clean)) found.push(clean.replace(/\u0001/g, ' '));
   }
   return found;

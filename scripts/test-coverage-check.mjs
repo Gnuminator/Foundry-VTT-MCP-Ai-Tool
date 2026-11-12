@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ciRunCommands } from './ci-yaml.mjs';
+import { RUN_GROUPS, groupChecks } from './checks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -36,19 +37,31 @@ export const RUNNERS = {
   // vitest with its default include (any *.test or *.spec file outside node_modules and dist)
   'packages/mcp-server/src/**': 'vitest default include in packages/mcp-server',
   'packages/foundry-module/src/**': 'vitest default include in packages/foundry-module',
-  'tools/livekit/recorder/test/**': 'vitest default include in tools/livekit/recorder (the Livekit recorder tests step)',
+  'tools/livekit/recorder/test/**':
+    'vitest default include in tools/livekit/recorder (the Livekit recorder tests step)',
   // vitest with an explicit include list
-  'shared/src/**/*.test.ts': 'vitest include in shared/vitest.config.ts (the shared unit-test step in ci.yml: npm test -w @gnuminator/shared)',
-  'packages/obsidian-plugin/src/**/*.test.ts': 'vitest include in packages/obsidian-plugin/vitest.config.ts',
-  'packages/discord-bot/src/**/*.test.ts': 'vitest include in packages/discord-bot/vitest.config.ts',
-  'packages/discord-bot/announce/**/*.test.mjs': 'vitest include in packages/discord-bot/vitest.config.ts',
-  'packages/cogm-dashboard/src/**/*.test.ts': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
-  'packages/cogm-dashboard/web/src/**/*.test.ts': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
-  'packages/cogm-dashboard/web/src/**/*.test.tsx': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
-  'packages/cogm-dashboard/scripts/**/*.test.mjs': 'vitest include in packages/cogm-dashboard/vitest.config.ts',
-  'packages/cogm-dashboard/web/e2e/**': 'Playwright testDir in packages/cogm-dashboard/web/playwright.config.ts',
-  'packages/cogm-dashboard/web/visual/**': 'Playwright testDir in playwright.visual.config.ts (dashboard-visual job)',
-  'tools/*/tests/**/test_*.py': 'pytest loop in the python-tests job (every tools/<name>/ with pyproject.toml and tests/)',
+  'shared/src/**/*.test.ts':
+    'vitest include in shared/vitest.config.ts (the shared unit-test check in scripts/checks.mjs: npm test -w @gnuminator/shared)',
+  'packages/obsidian-plugin/src/**/*.test.ts':
+    'vitest include in packages/obsidian-plugin/vitest.config.ts',
+  'packages/discord-bot/src/**/*.test.ts':
+    'vitest include in packages/discord-bot/vitest.config.ts',
+  'packages/discord-bot/announce/**/*.test.mjs':
+    'vitest include in packages/discord-bot/vitest.config.ts',
+  'packages/cogm-dashboard/src/**/*.test.ts':
+    'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/web/src/**/*.test.ts':
+    'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/web/src/**/*.test.tsx':
+    'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/scripts/**/*.test.mjs':
+    'vitest include in packages/cogm-dashboard/vitest.config.ts',
+  'packages/cogm-dashboard/web/e2e/**':
+    'Playwright testDir in packages/cogm-dashboard/web/playwright.config.ts',
+  'packages/cogm-dashboard/web/visual/**':
+    'Playwright testDir in playwright.visual.config.ts (dashboard-visual job)',
+  'tools/*/tests/**/test_*.py':
+    'pytest loop in the python-tests job (every tools/<name>/ with pyproject.toml and tests/)',
 };
 
 /**
@@ -57,7 +70,8 @@ export const RUNNERS = {
  * @type {Record<string, (file: string, tracked: Set<string>) => boolean>}
  */
 const RUNNER_NEEDS = {
-  'tools/*/tests/**/test_*.py': (f, tracked) => tracked.has(`${f.split('/').slice(0, 2).join('/')}/pyproject.toml`),
+  'tools/*/tests/**/test_*.py': (f, tracked) =>
+    tracked.has(`${f.split('/').slice(0, 2).join('/')}/pyproject.toml`),
 };
 
 /** @param {string} glob @returns {RegExp} */
@@ -81,7 +95,9 @@ export function globToRegExp(glob) {
  * @returns {string[]}
  */
 export function pathsIn(text) {
-  return [...text.matchAll(/[\w@./*{}-]+\.(?:test|spec)\.[\w*]+/g)].map(m => m[0].replace(/^\.\//, ''));
+  return [...text.matchAll(/[\w@./*{}-]+\.(?:test|spec)\.[\w*]+/g)].map(m =>
+    m[0].replace(/^\.\//, '')
+  );
 }
 
 /**
@@ -141,7 +157,11 @@ export function expandCommands(commands, scripts) {
 }
 
 function main() {
-  const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 })
+  const tracked = execFileSync('git', ['ls-files', '-z'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    maxBuffer: 1 << 26,
+  })
     .split('\0')
     .filter(Boolean);
   const files = tracked.filter(isTestFile);
@@ -151,7 +171,13 @@ function main() {
     .filter(n => n.endsWith('.yml'))
     .map(n => fs.readFileSync(path.join(wfDir, n), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const text = expandCommands(workflows.flatMap(workflowCommands), pkg.scripts ?? {}).join('\n');
+  // ci.yml calls `checks.mjs --run <group>`: the test paths now stand in the CHECKS list, and only
+  // the checks some CI group runs count (a drift-only entry is not a CI run).
+  const checkCommands = RUN_GROUPS.flatMap(groupChecks).map(c => [c.cmd, ...c.args].join(' '));
+  const text = expandCommands(
+    [...workflows.flatMap(workflowCommands), ...checkCommands],
+    pkg.scripts ?? {}
+  ).join('\n');
   const { unrun, staleRunners } = checkCoverage(files, text, new Set(tracked));
   if (unrun.length === 0 && staleRunners.length === 0) {
     console.log(`test-coverage: OK, ${files.length} test files all run somewhere`);
@@ -160,7 +186,9 @@ function main() {
   if (unrun.length) {
     console.error('test-coverage: these test files are reached by no workflow command or runner:');
     for (const f of unrun) console.error(`  ${f}`);
-    console.error('Add them to a ci.yml step (and scripts/checks.mjs) or delete them.');
+    console.error(
+      'Add a check to scripts/checks.mjs (CI runs it through its group) or delete them.'
+    );
   }
   if (staleRunners.length) {
     console.error('test-coverage: RUNNERS entries that match no test file any more:');

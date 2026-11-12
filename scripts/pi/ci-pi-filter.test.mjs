@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 
 import yaml from 'js-yaml';
 
+import { PI_CONTAINER_MATRIX } from '../checks.mjs';
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
 const ciYml = read('.github/workflows/ci.yml');
@@ -24,8 +26,8 @@ function filterRegex() {
   return new RegExp(m[1]);
 }
 
-/** @type {Array<{ name: string, env: string, test: string }>} */
-const matrix = doc.jobs['pi-container'].strategy.matrix.include;
+// The matrix is PI_CONTAINER_MATRIX in scripts/checks.mjs; the job reads it from pi-changes.
+const matrix = PI_CONTAINER_MATRIX;
 const matches = rel => filterRegex().test(rel);
 
 test('the filter lists both sides of a rename and does not quote paths', () => {
@@ -46,7 +48,10 @@ test('the matrix lists each container test once, with a test file that exists', 
     assert.ok(!seenEnvs.has(e.env), `${e.env} is in the matrix twice`);
     seenTests.add(e.test);
     seenEnvs.add(e.env);
-    assert.ok(existsSync(path.join(repo, 'scripts/pi', e.test)), `scripts/pi/${e.test} does not exist`);
+    assert.ok(
+      existsSync(path.join(repo, 'scripts/pi', e.test)),
+      `scripts/pi/${e.test} does not exist`
+    );
   }
 });
 
@@ -54,7 +59,7 @@ test('each matrix switch is read by its test file', () => {
   for (const e of matrix) {
     assert.ok(
       read(`scripts/pi/${e.test}`).includes(e.env),
-      `${e.test} never reads ${e.env}: the shard would run no container`,
+      `${e.test} never reads ${e.env}: the shard would run no container`
     );
   }
 });
@@ -62,6 +67,10 @@ test('each matrix switch is read by its test file', () => {
 test('the job shape: needs pi-changes, parallel, not fail-fast, timeouts, required check name', () => {
   const job = doc.jobs['pi-container'];
   assert.equal(job.needs, 'pi-changes');
+  assert.equal(job.strategy.matrix, '${{ fromJSON(needs.pi-changes.outputs.matrix) }}');
+  assert.equal(doc.jobs['pi-changes'].outputs.matrix, '${{ steps.matrix.outputs.matrix }}');
+  const step = doc.jobs['pi-changes'].steps.find(s => s.id === 'matrix');
+  assert.match(step.run, /node scripts\/checks\.mjs --matrix pi/);
   assert.equal(job.strategy['fail-fast'], false);
   assert.equal(job['timeout-minutes'], 20);
   assert.equal(doc.jobs['build-test']['timeout-minutes'], 25);
@@ -70,10 +79,12 @@ test('the job shape: needs pi-changes, parallel, not fail-fast, timeouts, requir
   assert.match(summary.name, /^build-test \(ARM, Node 24\)/, 'the required check name changed');
   assert.deepEqual([...summary.needs].sort(), ['build-test-arm', 'pi-changes', 'pi-container']);
   // No other job may carry the required name: two checks of one name make the ruleset ambiguous.
-  const holders = Object.entries(doc.jobs).filter(([, j]) => String(j.name).startsWith('build-test (ARM, Node 24)'));
+  const holders = Object.entries(doc.jobs).filter(([, j]) =>
+    String(j.name).startsWith('build-test (ARM, Node 24)')
+  );
   assert.deepEqual(
     holders.map(([id]) => id),
-    ['build-test-arm-summary'],
+    ['build-test-arm-summary']
   );
 });
 
@@ -87,10 +98,11 @@ test('the filter always covers the workflow, the lockfile and its own inputs', (
     'deploy/pi/compose.yml',
     'scripts/gamenight-watch-pi.mjs',
     'scripts/gamenight-watch.mjs',
+    'scripts/checks.mjs', // holds PI_CONTAINER_MATRIX, the matrix of the shards
   ]) {
     assert.ok(matches(rel), `the pi-changes filter misses ${rel}`);
   }
-  for (const rel of ['packages/cogm-dashboard/web/App.tsx', 'docs/index.md', 'scripts/checks.mjs']) {
+  for (const rel of ['packages/cogm-dashboard/web/App.tsx', 'docs/index.md']) {
     assert.ok(!matches(rel), `the pi-changes filter should not fire for ${rel}`);
   }
 });
@@ -102,7 +114,8 @@ function pathsIn(text) {
   for (const m of text.matchAll(/\$\{repo\}\/([\w./-]+)/g)) found.add(m[1]);
   // A relative import out of scripts/pi (from '../x.mjs', from '../../shared/x') names a repo file too.
   for (const m of text.matchAll(/from '((?:\.\.?\/)+[\w./-]+)'/g)) found.add(`REL:${m[1]}`);
-  for (const m of text.matchAll(/['"`]((?:scripts|deploy|packages|shared|docs|tools)\/[\w./-]+)/g)) found.add(m[1]);
+  for (const m of text.matchAll(/['"`]((?:scripts|deploy|packages|shared|docs|tools)\/[\w./-]+)/g))
+    found.add(m[1]);
   // path.join(repo, 'a', 'b', 'c') and path.resolve(repo, 'a', ...)
   for (const m of text.matchAll(/(?:join|resolve)\(\s*repo\s*,((?:\s*'[^']+',?)+)\s*\)/g)) {
     const parts = [...m[1].matchAll(/'([^']+)'/g)].map(p => p[1]);
@@ -121,16 +134,20 @@ test('every path the container tests mount or read is inside the filter', () => 
   }
   // Of scripts/pi/remote only the files the tests and scenarios name (a stage, lib.sh and its helpers). The other
   // stages are not inputs of a container test, and some name build output in text the tests only read.
-  const remote = readdirSync(path.join(repo, 'scripts/pi/remote')).filter(f => /\.(sh|mjs|js)$/.test(f));
+  const remote = readdirSync(path.join(repo, 'scripts/pi/remote')).filter(f =>
+    /\.(sh|mjs|js)$/.test(f)
+  );
   const named = text => remote.filter(f => text.includes(f));
   const direct = new Set(['lib.sh']);
   for (const file of [...files]) {
     // The scenarios run the stages; a test that only reads a stage as text (kit-session reads 5-tool.sh) does not.
-    if (file.startsWith('scripts/pi/container-test/')) for (const f of named(read(file))) direct.add(f);
+    if (file.startsWith('scripts/pi/container-test/'))
+      for (const f of named(read(file))) direct.add(f);
   }
   for (const f of [...direct]) {
     // lib.sh and its helpers source each other; follow only those, not every stage a comment names.
-    if (/^lib/.test(f)) for (const g of named(read(`scripts/pi/remote/${f}`))) if (/^lib/.test(g)) direct.add(g);
+    if (/^lib/.test(f))
+      for (const g of named(read(`scripts/pi/remote/${f}`))) if (/^lib/.test(g)) direct.add(g);
   }
   for (const f of direct) files.add(`scripts/pi/remote/${f}`);
   for (const f of readdirSync(path.join(repo, 'scripts'))) {
@@ -141,7 +158,8 @@ test('every path the container tests mount or read is inside the filter', () => 
   for (const file of files) {
     for (let p of pathsIn(read(file))) {
       // A relative import is resolved against the file that has it.
-      if (p.startsWith('REL:')) p = path.posix.normalize(path.posix.join(path.posix.dirname(file), p.slice(4)));
+      if (p.startsWith('REL:'))
+        p = path.posix.normalize(path.posix.join(path.posix.dirname(file), p.slice(4)));
       // Skip things the tests build in a temporary folder or on the container's own disk.
       if (/^(tmp|etc|usr|var|home|opt)\b/.test(p)) continue;
       // Paths with a shell or template variable in them are built at run time from a covered folder.
@@ -154,7 +172,7 @@ test('every path the container tests mount or read is inside the filter', () => 
   assert.deepEqual(
     outside,
     [],
-    'a container test reads a path the pi-changes filter does not cover; add its folder to the pattern in ci.yml',
+    'a container test reads a path the pi-changes filter does not cover; add its folder to the pattern in ci.yml'
   );
 });
 

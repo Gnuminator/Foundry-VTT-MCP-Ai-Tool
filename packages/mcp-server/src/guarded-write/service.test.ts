@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { GuardedOp } from '@gnuminator/shared';
 
@@ -1397,7 +1397,7 @@ describe('showToPlayers (Show it now, I-110)', () => {
     uuid: PAGE,
     changes: { 'ownership.default': 2 },
   };
-  let show: ReturnType<typeof vi.fn>;
+  let show: Mock;
 
   beforeEach(() => {
     foundry.add(PAGE, 'JournalEntryPage', { name: 'The letter', ownership: { default: 0 } });

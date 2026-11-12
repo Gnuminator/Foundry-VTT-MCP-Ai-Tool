@@ -11,7 +11,7 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
 import { TAROKKA_POSITIONS } from '../tarokka/deck.js';
@@ -66,7 +66,7 @@ let vault: string;
 let store: VaultStore;
 let fake: FakeExportIndex;
 let clock: { t: number };
-let logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+let logger: { info: Mock; warn: Mock };
 
 async function seedBridgeVault(): Promise<void> {
   const positions = Object.fromEntries(

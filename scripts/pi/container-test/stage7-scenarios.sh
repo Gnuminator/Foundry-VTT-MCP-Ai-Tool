@@ -8,23 +8,18 @@
 #   4 a value with a path, a trailing slash or a quote is refused and the file stays as it was
 #   5 a new value replaces the old one
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage7-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage7-scenarios.sh
 # (scripts/pi/stage7-foundry-url.test.mjs runs it with PI_STAGE7_CONTAINER=1.) STAGE=<file> runs the scenarios against
 # another copy of the script (the old one, to see them fail).
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/7-vault.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 # From the address lookup to the chown of the env files (the old script has no lookup: start at the bridge's output).
 snippet="$(sed -n '/^# Foundry.s address for the GM.s browser/,/^chown "root:\$FOUNDRY_USER"/p' "$STAGE")"

@@ -1,6 +1,5 @@
 {
   ".env.example": 4,
-  ".github/workflows/ci.yml": 7,
   "deploy/pi/compose.yml": 4,
   "deploy/pi/deployed-state.sh": 1,
   "deploy/pi/stand-in-foundry.mjs": 2,

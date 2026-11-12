@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import {
@@ -214,8 +214,8 @@ describe('backup reader', () => {
 describe('plan-scene-restore', () => {
   function makeTools(opts: { enabled?: boolean; live?: unknown } = {}): {
     tools: SceneRestoreTools;
-    query: ReturnType<typeof vi.fn>;
-    createPlan: ReturnType<typeof vi.fn>;
+    query: Mock;
+    createPlan: Mock;
     /** Marks a plan applied: it is no longer pending. */
     settle: (planId: string) => void;
   } {

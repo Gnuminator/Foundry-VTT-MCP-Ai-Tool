@@ -1,8 +1,8 @@
 {
-  "total": 839,
+  "total": 836,
   "counts": {
-    "packages/cogm-dashboard: exports": 74,
-    "packages/cogm-dashboard: types": 132,
+    "packages/cogm-dashboard: exports": 72,
+    "packages/cogm-dashboard: types": 131,
     "packages/discord-bot: exports": 26,
     "packages/discord-bot: types": 38,
     "packages/foundry-module: exports": 92,

@@ -9,14 +9,16 @@
 # /tmp/mv_fail) and /tmp/migration_hangs makes the migration never finish. Each scenario starts from a fresh
 # fake Pi, runs the stage one or more times and prints one block that scripts/pi/system-trial.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/system-trial-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in system-trial.test.mjs.) With names, only those scenarios run.
-# Nothing here reaches the network after apt-get: the "release" is a zip built here, and the stage runs from a copy
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network: the "release" is a zip built here, and the stage runs from a copy
 # whose PIN_SHA256 line holds that zip's sha256 (the real pin is the real release's). The stage's node snippets run
 # on Debian 13's own nodejs (20.x) linked as /opt/node24/bin/node, not Node 24 as on the Pi.
 #
 # DESTRUCTIVE: each scenario wipes the Foundry data folder and the import folder, and the fakes go into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
 # Every scenario, in the order they run (system-trial.test.mjs reads this list to split them over containers).
 SCENARIOS=(
@@ -29,22 +31,11 @@ SCENARIOS=(
   rollback-restore-fails rollback-swap-fails run-locked kit-session-up
 )
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/14-system-trial.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs zip unzip ca-certificates; }
-# One retry: a Debian mirror hiccup should not fail a required CI check.
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin
 ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep fake-foundry-open fake-settings fake-dnd5e-migrate cp mv; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done

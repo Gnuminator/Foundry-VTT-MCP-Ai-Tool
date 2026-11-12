@@ -2,11 +2,11 @@
  * Stage 7 writes the dashboard's DASHBOARD_FOUNDRY_URL (the initiative ribbon's portraits) and Plan B passes it too.
  */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
@@ -40,21 +40,7 @@ describe(
   { skip: process.env.PI_STAGE7_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const r = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          'debian:13-slim',
-          'bash',
-          '/repo/scripts/pi/container-test/stage7-scenarios.sh',
-        ],
-        { encoding: 'utf8', timeout: 600000 }
-      );
+      const r = runStageContainer('stage7-scenarios.sh', { timeout: 600000 });
       assert.equal(r.status, 0, r.stdout + r.stderr);
       assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
     });

@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const driver = path.join(repo, 'scripts/pi/remote/assistant-gm.mjs');
@@ -232,23 +233,7 @@ describe(
   { skip: process.env.PI_GM_WATCHDOG_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const image =
-        'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
-      const res = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          image,
-          'bash',
-          '/repo/scripts/pi/container-test/stage28-scenarios.sh',
-        ],
-        { encoding: 'utf8' }
-      );
+      const res = runStageContainer('stage28-scenarios.sh');
       assert.equal(res.status, 0, res.stdout + res.stderr);
       assert.doesNotMatch(res.stdout, /FAIL/);
       assert.match(res.stdout, /PASS frozen-page/);

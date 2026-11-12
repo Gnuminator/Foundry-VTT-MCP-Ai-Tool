@@ -1,8 +1,8 @@
 /**
- * The tool reference page (I-081): `docs/reference/tools.md`, rendered from
- * the tool catalog so it cannot drift. tool-reference.test.ts compares the
- * committed page with this output and fails CI when they differ; `npm run
- * docs:tools` rewrites the page.
+ * The tool reference (I-081): the index `docs/reference/tools.md` and one page
+ * per set, `docs/reference/tools/<set>.md`, rendered from the tool catalog so
+ * they cannot drift. tool-reference.test.ts compares the committed pages with
+ * this output and fails CI when they differ; `npm run docs:tools` rewrites them.
  *
  * Pass the definitions without picker annotations (`stripToolRefs`), the way
  * MCP clients see them. Pure: no I/O.
@@ -149,7 +149,7 @@ function renderTool(tool: ToolDefinitionLike): string[] {
   const schema = (tool.inputSchema ?? {}) as JsonSchema;
   const params = renderProperties(schema, '');
   return [
-    `### ${tool.name}`,
+    `## ${tool.name}`,
     '',
     ...renderDescription(tool.description),
     '',
@@ -159,36 +159,60 @@ function renderTool(tool: ToolDefinitionLike): string[] {
   ];
 }
 
-/** The whole page. `tools` must be the full catalog (every tool is in exactly one set). */
-export function renderToolReference(tools: readonly ToolDefinitionLike[]): string {
-  const byName = new Map(tools.map(tool => [tool.name, tool]));
+const GENERATED_NOTE =
+  '<!-- Generated from the tool catalog by packages/mcp-server/src/tool-reference.ts. Do not edit by hand: run `npm run docs:tools` after changing a tool. CI fails when this page is stale. -->';
+
+/** The index page at the old path: the set table, each row linking to its page. */
+function renderIndex(count: number): string {
   const lines: string[] = [
     '---',
-    'description: Every tool the bridge serves, by tool set, with its description and parameters. Generated from the tool catalog.',
+    'description: Every tool the bridge serves, by tool set; one page per set holds the descriptions and parameters. Generated from the tool catalog.',
     '---',
     '',
-    '<!-- Generated from the tool catalog by packages/mcp-server/src/tool-reference.ts. Do not edit by hand: run `npm run docs:tools` after changing a tool. CI fails when this page is stale. -->',
+    GENERATED_NOTE,
     '',
     '# Tool reference',
     '',
-    `The bridge serves ${tools.length} tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.`,
+    `The bridge serves ${count} tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; each set has its own page listing every tool with the description and parameters Claude reads.`,
     '',
     '| Set | Claude Desktop entry | Tools | For |',
     '| --- | --- | --- | --- |',
     ...ALL_TOOL_SET_NAMES.map(
       set =>
-        `| [${TOOL_SETS[set].title}](#${set}) | \`${claudeDesktopEntry(set)}\` | ${TOOL_SETS[set].tools.length} | ${TOOL_SETS[set].purpose} |`
+        `| [${TOOL_SETS[set].title}](tools/${set}.md) | \`${claudeDesktopEntry(set)}\` | ${TOOL_SETS[set].tools.length} | ${TOOL_SETS[set].purpose} |`
     ),
     '',
   ];
+  return lines.join('\n');
+}
+
+/**
+ * The generated pages, keyed by path relative to docs/reference: `tools.md` (the index) and
+ * `tools/<set>.md`. `tools` must be the full catalog (every tool is in exactly one set).
+ */
+export function renderToolReference(tools: readonly ToolDefinitionLike[]): Record<string, string> {
+  const byName = new Map(tools.map(tool => [tool.name, tool]));
+  const files: Record<string, string> = { 'tools.md': renderIndex(tools.length) };
   for (const set of ALL_TOOL_SET_NAMES) {
     const spec = TOOL_SETS[set];
-    lines.push(`## ${spec.title}`, '', spec.purpose, '');
+    const lines: string[] = [
+      '---',
+      `description: Every tool in the ${spec.title} set with its description and parameters. Generated from the tool catalog.`,
+      '---',
+      '',
+      GENERATED_NOTE,
+      '',
+      `# ${spec.title} tools`,
+      '',
+      `${spec.purpose} Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: \`${claudeDesktopEntry(set)}\`.`,
+      '',
+    ];
     for (const name of spec.tools) {
       const tool = byName.get(name);
       if (!tool) throw new Error(`Tool set ${set} lists ${name}, which is not in the catalog`);
       lines.push(...renderTool(tool));
     }
+    files[`tools/${set}.md`] = lines.join('\n').replace(/\n+$/, '\n');
   }
-  return lines.join('\n').replace(/\n+$/, '\n');
+  return files;
 }

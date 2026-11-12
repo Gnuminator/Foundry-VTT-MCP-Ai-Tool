@@ -1,5 +1,4 @@
 {
-  "total": 1386,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -13,7 +12,7 @@
     "deploy/Dockerfile": 10,
     "deploy/README.md": 10,
     "deploy/windows/install-service.md": 8,
-    "docs/design/BRAND-BRIEF.md": 77,
+    "docs/design/BRAND-BRIEF.md": 76,
     "docs/design/ROADMAP.md": 34,
     "docs/dev/ARCHITECTURE.md": 40,
     "docs/dev/DEPLOYMENT.md": 7,
@@ -44,7 +43,7 @@
     "packages/foundry-module/src/data-access.combat-playbyplay.test.ts": 3,
     "packages/foundry-module/src/data-access.combat.test.ts": 10,
     "packages/foundry-module/src/data-access.compendium.test.ts": 16,
-    "packages/foundry-module/src/data-access.creature-index.test.ts": 22,
+    "packages/foundry-module/src/data-access.creature-index.test.ts": 21,
     "packages/foundry-module/src/data-access.effects.test.ts": 7,
     "packages/foundry-module/src/data-access.journal-writes.test.ts": 25,
     "packages/foundry-module/src/data-access.journals.test.ts": 3,

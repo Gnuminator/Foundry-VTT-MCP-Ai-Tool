@@ -55,7 +55,7 @@ test('every uses: in .github/workflows is pinned to a full commit', () => {
     // The version stays visible as a comment after the commit.
     for (const line of text.split('\n')) {
       const m = line.match(/uses:\s*[^\s@]+@[0-9a-f]{40}(.*)$/);
-      if (m && !/^\s+#\s*v\d/.test(m[1])) bad.push(`${f}: no "# vX.Y.Z" comment on: ${line.trim()}`);
+      if (m && !/^\s+#\s*v\d+\.\d+\.\d+/.test(m[1])) bad.push(`${f}: no "# vX.Y.Z" comment on: ${line.trim()}`);
     }
   }
   assert.deepEqual(bad, [], `unpinned or uncommented actions:\n${bad.join('\n')}`);

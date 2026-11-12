@@ -14,6 +14,16 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * The `green --quick` steps for a change that touches shared or a package: the link check first
+ * (typecheck and tests read shared/src through node_modules, so a worktree without its own `npm ci`
+ * would read another checkout's copy), then the shared build.
+ */
+export const SHARED_STEPS = [
+  { name: 'shared-link', cmd: 'node', args: ['scripts/check-shared-link.mjs'] },
+  { name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] },
+];
+
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
@@ -29,7 +39,8 @@ export function checkSharedLink(root = defaultRoot) {
   } catch {
     return {
       ok: false,
-      message: '@gnuminator/shared does not resolve from this checkout: run npm ci in this worktree',
+      message:
+        '@gnuminator/shared does not resolve from this checkout: run npm ci in this worktree',
     };
   }
   if (path.relative(expected, resolved) !== '') {
@@ -41,7 +52,11 @@ export function checkSharedLink(root = defaultRoot) {
   return { ok: true, message: `@gnuminator/shared resolves to ${expected}` };
 }
 
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (
+  process.argv[1] &&
+  existsSync(process.argv[1]) &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   const r = checkSharedLink();
   if (r.ok) console.log(`check-shared-link: ${r.message}`);
   else {

@@ -66,7 +66,7 @@ describe('Pi scripts', { skip: !hasBash && 'bash is not available' }, () => {
     const script = heredoc('6-backup.sh', 'BACKUP_SCRIPT');
     assert.doesNotMatch(script.replace(/^#.*$/gm, ''), /\bdu\b|need-bytes|need-path/);
     const start = script.indexOf('space_check=');
-    const end = script.indexOf('# Foundry keeps its worlds');
+    const end = script.indexOf('# Foundry is stopped for the backup (below)');
     assert.ok(start > 0 && end > start);
     const section = script.slice(start, end);
     assert.match(section, /timeout 60 "\$space_check"/);

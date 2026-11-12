@@ -354,6 +354,36 @@ export function statusText(text, o = {}) {
   return out.join('\n');
 }
 
+/**
+ * The Pi sitting list line of `status` (item `pi-sitting-list`): how many runs wait on the list, and
+ * the open items whose newest progress line says merged for more than 3 days (code done, so they
+ * either wait for a Pi run that belongs on the list or should be closed with `done`).
+ * @param {string} backlogText
+ * @param {string} piText empty when the list does not exist
+ * @param {string} todayDate YYYY-MM-DD
+ */
+export function piListStatus(backlogText, piText, todayDate) {
+  const runs = piText.split(/\r?\n/).filter(l => l.startsWith('- ')).length;
+  /** @type {string[]} */
+  const stale = [];
+  for (const i of parseBacklog(backlogText).items) {
+    const progress = field(i, 'progress');
+    if (!i.id || !/\bmerged\b/i.test(progress)) continue;
+    const d = /^(\d{4}-\d{2}-\d{2})/.exec(progress)?.[1];
+    // An undated progress line counts as old.
+    const age = d ?(Date.parse(todayDate) - Date.parse(d)) / 86400000 : Infinity;
+    if (age > 3) stale.push(i.id);
+  }
+  const out = [`Pi sitting list: ${runs} run${runs === 1 ? '' : 's'} waiting`];
+  if (stale.length) {
+    const shown = stale.slice(0, 8).join(', ');
+    out.push(
+      `Merged more than 3 days ago and still open (${stale.length}): ${shown}${stale.length > 8 ? ', ...' : ''}; Pi run left: \`done --pi-run\`, nothing left: \`done\``
+    );
+  }
+  return out.join('\n');
+}
+
 // ---- git -------------------------------------------------------------------------------------------
 
 /** @typedef {(args: string[]) => { status: number | null, stdout: string, stderr: string }} Git */
@@ -611,7 +641,9 @@ export function run(argv, env = {}) {
           err('backlog: git fetch failed; the last fetched copy');
         const up = git(['show', `@{u}:${BACKLOG}`]);
         if (up.status !== 0) err('backlog: no upstream copy; showing the local file');
-        out(statusText(up.status === 0 ? up.stdout : readNow(BACKLOG)));
+        const text = up.status === 0 ? up.stdout : readNow(BACKLOG);
+        const pi = git(['show', `@{u}:${PI_LIST}`]);
+        out(`${statusText(text)}\n${piListStatus(text, pi.status === 0 ? pi.stdout : '', date)}`);
         return 0;
       }
       case 'claim': {

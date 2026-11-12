@@ -99,9 +99,7 @@ describe('24-compose.sh as text', () => {
     const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
     const liveRefusal = up.indexOf('would start the live stack next to the units');
     const dataRefusal = up.indexOf('would use a live data folder');
-    assert.ok(
-      liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon')
-    );
+    assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
     // The first start does not build (stage 23 does) and comes before the --wait start.
     const first = s23.indexOf('dc up -d --no-build >/dev/null');
     assert.ok(first > 0 && first < s23.indexOf('dc up -d --no-build --wait'));
@@ -150,11 +148,7 @@ describe('24-compose.sh as text', () => {
     assert.match(s23, /up -d --no-build --wait --wait-timeout "\$wait_timeout"/);
     // The live data folders are compared as canonical paths (a trailing slash must not get past), in both refusals.
     assert.match(s23, /canon\(\) \{ realpath -m/);
-    assert.equal(
-      (s23.match(/on_live_data/g) ?? []).length,
-      3,
-      'defined once, used by conflict_guard and mode_up'
-    );
+    assert.equal((s23.match(/on_live_data/g) ?? []).length, 3, 'defined once, used by conflict_guard and mode_up');
     assert.match(s23, /share their data folder/);
     assert.match(s23, /live port\(s\)/);
   });

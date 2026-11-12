@@ -14,7 +14,7 @@
 #     the running service restarts it; nothing newer does not; a unit that never reaches its watching line fails the stage
 # The stand-in Node refuses --env-file anywhere on its command line, as real Node does (CHECK must use --env-files).
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage29-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage29-scenarios.sh
 # (scripts/pi/gamenight-watch-stage.test.mjs runs it with PI_STAGE29_CONTAINER=1.) STAGE=<file> runs another copy of the script.
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.

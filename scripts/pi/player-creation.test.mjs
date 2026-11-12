@@ -362,10 +362,7 @@ const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker h
 
 // About 30 minutes under QEMU emulation on a PC, a few minutes on an ARM runner.
 function runContainer() {
-  const res = runStageContainer('stage13-scenarios.sh', {
-    timeout: 45 * 60_000,
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  const res = runStageContainer('stage13-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 

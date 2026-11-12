@@ -2,12 +2,12 @@
 # Stage 16 (scripts/pi/remote/16-board-status.sh) in a Debian 13 ARM64 container with no systemd: stand-ins for
 # systemctl, curl and restic make it take its systemd path and "send" its first report. Each scenario starts from a
 # fresh fake Pi and checks its own result; the last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage16-scenarios.sh [name ...]
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage16-scenarios.sh [name ...]
 # (scripts/pi/board-status.test.mjs runs it with PI_STAGE16_CONTAINER=1.) With names, only those scenarios run.
 # The stage's node snippets run on Debian 13's own nodejs linked as /opt/node24/bin/node, not Node 24 as on the Pi.
 #
 # DESTRUCTIVE: each scenario wipes the tool's folders, and the fakes go into /usr/local/sbin. It refuses to run
-# anywhere but a container. Nothing here reaches the network after apt-get.
+# anywhere but a container. Nothing here reaches the network.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_test_container

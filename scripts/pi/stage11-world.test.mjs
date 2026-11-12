@@ -35,10 +35,7 @@ const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker h
 
 // A few minutes under QEMU emulation on a PC (apt is the slow part), less on an ARM runner.
 function runContainer() {
-  const res = runStageContainer('stage11-scenarios.sh', {
-    timeout: 45 * 60_000,
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  const res = runStageContainer('stage11-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 
@@ -771,20 +768,12 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
 
   test('world switches: a push-back that replaces the world clears the owed-switches marker, and no switches run', () => {
     const r = run('switches-stale-pushback');
-    assert.equal(
-      r.firstSwitchesPending,
-      'world-frostmaiden-training.switches-pending',
-      'the failed first run owed them'
-    );
+    assert.equal(r.firstSwitchesPending, 'world-frostmaiden-training.switches-pending', 'the failed first run owed them');
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /a Plan B push-back of frostmaiden-training/);
     assert.match(r.output, /old owed-switches marker is cleared/);
     assert.equal(r.switchesPending, '', 'the stale marker is gone');
-    assert.deepEqual(
-      lines(r.switches),
-      [`${SW('frostmaiden-training')} FAILED`],
-      'the push-back runs no driver'
-    );
+    assert.deepEqual(lines(r.switches), [`${SW('frostmaiden-training')} FAILED`], 'the push-back runs no driver');
   });
 
   test('world switches: WORLD_SWITCHES=0 on the kept world clears the owed-switches marker', () => {
@@ -800,20 +789,9 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
   test('world switches: WORLD_SWITCHES=1 with a push-back is refused before anything changes', () => {
     const r = run('switches-1-pushback');
     assert.equal(r.exit, '1', r.output);
-    assert.match(
-      r.output,
-      /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/
-    );
-    assert.doesNotMatch(
-      r.output,
-      /stopping the Assistant GM browser and Foundry/,
-      'refused before the stop'
-    );
-    assert.deepEqual(
-      lines(r.switches),
-      [SW('frostmaiden-training')],
-      'only the first run set switches'
-    );
+    assert.match(r.output, /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/);
+    assert.doesNotMatch(r.output, /stopping the Assistant GM browser and Foundry/, 'refused before the stop');
+    assert.deepEqual(lines(r.switches), [SW('frostmaiden-training')], 'only the first run set switches');
   });
 
   test('world switches: a failing kit world says to run the same command, never WORLD_SWITCHES=1', () => {

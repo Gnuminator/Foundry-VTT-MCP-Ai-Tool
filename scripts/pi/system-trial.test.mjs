@@ -292,10 +292,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       '    ok: MODE=trial started (this run is logged in /var/lib/foundry-import/system-trial.log)'
     );
     const log = r.log('trial');
-    assert.match(
-      log,
-      /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d {5}ok: MODE=trial started \(this run is logged in /m
-    );
+    assert.match(log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d {5}ok: MODE=trial started \(this run is logged in /m);
     assert.match(log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ==> checking the request \(MODE=trial\)$/m);
     assert.match(log, / {4}ok: sha256 matches the pin$/m);
     assert.match(log, / {4}ok: strahd-kit is running$/m);
@@ -855,10 +852,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   test('switch-migration-hangs: the same for a switch; the campaign is back from the trial copy', () => {
     const r = run('switch-migration-hangs');
     assert.equal(r.exit('switch'), '1', r.output('switch'));
-    assert.match(
-      r.output('switch'),
-      /the dnd5e migration of curse-of-strahd did not finish in 20 s/
-    );
+    assert.match(r.output('switch'), /the dnd5e migration of curse-of-strahd did not finish in 20 s/);
     assert.match(r.output('switch'), /curse-of-strahd is back from the trial's copy/);
     assertStoppedBeforeUndo(r.calls('switch'));
     assertNoMoveWhileRunning(r.order('switch'));
@@ -879,11 +873,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   test('trial-copy-fails, rollback-restore-fails, rollback-swap-fails: a failed copy or move is undone or finished by a rerun', () => {
     const c = run('trial-copy-fails');
     assert.equal(c.exit('trial'), '1', c.output('trial'));
-    assert.equal(
-      c.state('trial').system,
-      `6.0.5 (${INSTALLED})`,
-      'the old version is still in place'
-    );
+    assert.equal(c.state('trial').system, `6.0.5 (${INSTALLED})`, 'the old version is still in place');
     assert.equal(c.state('trial').options, 'curse-of-strahd');
     assert.equal(c.state('trial').stopped, 'none', 'Foundry runs again');
     const a = run('rollback-restore-fails');
@@ -903,8 +893,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
 
   test('kit-session-up: with a kit session up, trial, switch and rollback (even FORCE=1) are refused; status works', () => {
     const r = run('kit-session-up');
-    const reason =
-      /a kit session is up .*kit-session\.env exists.*run kit-session\.sh MODE=down first\. Nothing was changed/;
+    const reason = /a kit session is up .*kit-session\.env exists.*run kit-session\.sh MODE=down first\. Nothing was changed/;
     for (const label of ['trial_refused', 'switch_refused', 'rollback_refused']) {
       assert.equal(r.exit(label), '1', r.output(label));
       assert.match(r.output(label), reason);

@@ -37,14 +37,10 @@ describe('stage 26 as text', () => {
   });
 });
 
-describe(
-  'stage 26 in the ARM64 container',
-  { skip: process.env.PI_STAGE26_CONTAINER !== '1' },
-  () => {
-    test('scenarios', () => {
-      const r = runStageContainer('stage26-scenarios.sh', { timeout: 600000 });
-      assert.equal(r.status, 0, r.stdout + r.stderr);
-      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-    });
-  }
-);
+describe('stage 26 in the ARM64 container', { skip: process.env.PI_STAGE26_CONTAINER !== '1' }, () => {
+  test('scenarios', () => {
+    const r = runStageContainer('stage26-scenarios.sh', { timeout: 600000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+  });
+});

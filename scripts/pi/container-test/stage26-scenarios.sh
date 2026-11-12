@@ -19,7 +19,7 @@
 #  13 UNDO branches on grep's own exit status (0 restore, 1 drop, else stop): a grep stand-in that exits 2 for the saved
 #     copy (an unreadable file cannot be made as root) stops it with the env file unchanged and no temp file left
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage26-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage26-scenarios.sh
 # (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE26_CONTAINER=1.) STAGE=<file> runs the scenarios against
 # another copy of the script.
 #

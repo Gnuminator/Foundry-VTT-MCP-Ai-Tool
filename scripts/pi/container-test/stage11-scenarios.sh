@@ -4,8 +4,8 @@
 # (stage11-provision.mjs) replaces the Chromium driver and records each provisioning call in /tmp/provision.
 # Each scenario starts from a fresh fake Pi and prints one block that scripts/pi/stage11-world.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage11-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in stage11-world.test.mjs.) With names, only those scenarios run.
-# Nothing here reaches the network after apt-get. The stage's node snippets run on Debian 13's own nodejs (20.x)
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network. The stage's node snippets run on Debian 13's own nodejs (20.x)
 # linked as /opt/node24/bin/node, not Node 24 as on the Pi. Passwords are never printed: the blocks show env file
 # key names, modes and short hashes only.
 #

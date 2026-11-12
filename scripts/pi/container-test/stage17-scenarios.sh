@@ -5,7 +5,7 @@
 # cwd is not its folder (live failure 1, 2026-10-28) and an `ldconfig -NXv | grep libicu` check that prints its reason
 # on STDOUT and exits (live failure 2, same day: no libicu on the Pi, and the stage sent stdout to /dev/null).
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage17-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage17-scenarios.sh
 # (scripts/pi/gh-runner.test.mjs runs it with PI_STAGE17_CONTAINER=1.) STAGE=<file> runs the scenarios against another copy
 # of the script (the old one, to see them fail).
 #

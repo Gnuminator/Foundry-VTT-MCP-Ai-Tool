@@ -15,7 +15,9 @@ export const REGISTRY_IMAGE = 'ghcr.io/gnuminator/foundry-ai-tool-pi-test';
 
 /** The tag of the image for this Dockerfile: its content hash, so the image changes only when the file does. */
 export function imageTag() {
-  return createHash('sha256').update(readFileSync(DOCKERFILE)).digest('hex').slice(0, 12);
+  // Line endings do not count: pi-images.yml hashes the LF file that CI checks out.
+  const text = readFileSync(DOCKERFILE, 'utf8').replace(/\r\n/g, '\n');
+  return createHash('sha256').update(text).digest('hex').slice(0, 12);
 }
 
 let ready = null;
@@ -36,7 +38,14 @@ export function ensureImage() {
         docker(['tag', remote, local]).status === 0;
     }
     if (!got) {
-      const b = docker(['build', '--platform', 'linux/arm64', '-t', local, '-f', DOCKERFILE, here]);
+      const build = () =>
+        docker(['build', '--platform', 'linux/arm64', '-t', local, '-f', DOCKERFILE, here]);
+      let b = build();
+      if (b.status !== 0) {
+        // One retry: a Debian mirror hiccup should not fail a required CI check.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20_000);
+        b = build();
+      }
       if (b.status !== 0)
         throw new Error(`building the Pi test image failed:\n${b.stdout}\n${b.stderr}`);
     }

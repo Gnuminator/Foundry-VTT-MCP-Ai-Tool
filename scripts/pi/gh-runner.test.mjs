@@ -488,10 +488,9 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
 
 describe('the stage as text', () => {
   test('the read-back warns when the vault runner is stopped, and only an idle board runner is accepted as stopped', () => {
-    const vaultBranch =
-      /if \[ "\$unit" = foundry-ai-tool-gh-runner-vault\.service \]; then\n[^\n]*\n\s*warn "\$unit is stopped, but the gate never holds it/.exec(
-        stage
-      );
+    const vaultBranch = /if \[ "\$unit" = foundry-ai-tool-gh-runner-vault\.service \]; then\n[^\n]*\n\s*warn "\$unit is stopped, but the gate never holds it/.exec(
+      stage
+    );
     assert.ok(vaultBranch, 'a stopped vault unit ends in warn');
     assert.ok(
       stage.indexOf('is stopped (a play session is marked') > stage.indexOf(vaultBranch[0]),

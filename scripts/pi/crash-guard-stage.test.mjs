@@ -18,9 +18,7 @@ const code = stage
 
 describe('stage 32 as text', () => {
   test('bash parses it', () => {
-    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/32-crash-guard.sh')], {
-      encoding: 'utf8',
-    });
+    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/32-crash-guard.sh')], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
   });
 
@@ -29,10 +27,7 @@ describe('stage 32 as text', () => {
     const snap = stage.indexOf('require_recent_snapshot');
     const write = stage.indexOf('install -d -m 0755 -o root -g root "$dest"');
     assert.ok(modes > 0 && snap > modes && write > snap);
-    assert.match(
-      stage,
-      /if \[ "\$dry" != 1 \] && \[ "\$check" != 1 \]; then require_recent_snapshot/
-    );
+    assert.match(stage, /if \[ "\$dry" != 1 \] && \[ "\$check" != 1 \]; then require_recent_snapshot/);
   });
 
   test('it restarts and stops nothing but its own timer: no require_quiet, no enable_unit', () => {
@@ -52,10 +47,7 @@ describe('stage 32 as text', () => {
   });
 
   test('every guarded drop-in has a start limit and OnFailure, and only Foundry gets Restart=always', () => {
-    assert.match(
-      stage,
-      /StartLimitIntervalSec=%s\\nStartLimitBurst=%s\\nOnFailure=foundry-ai-tool-alert@%%n\.service/
-    );
+    assert.match(stage, /StartLimitIntervalSec=%s\\nStartLimitBurst=%s\\nOnFailure=foundry-ai-tool-alert@%%n\.service/);
     assert.match(stage, /if \[ "\$1" = foundry\.service \]/);
     assert.equal((code.match(/printf '[^\n]*Restart=always/g) ?? []).length, 1);
   });
@@ -89,8 +81,7 @@ describe('stage 32 as text', () => {
   });
 
   test('every rm -rf has a guarded variable', () => {
-    for (const m of code.matchAll(/rm -(rf|f) ("[^"]*")/g))
-      assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
+    for (const m of code.matchAll(/rm -(rf|f) ("[^"]*")/g)) assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
   });
 
   test('the header names the test override and what a tripped unit needs', () => {
@@ -99,14 +90,10 @@ describe('stage 32 as text', () => {
   });
 });
 
-describe(
-  'stage 32 in the ARM64 container',
-  { skip: process.env.PI_STAGE32_CONTAINER !== '1' },
-  () => {
-    test('scenarios', () => {
-      const r = runStageContainer('stage32-scenarios.sh', { timeout: 600000 });
-      assert.equal(r.status, 0, r.stdout + r.stderr);
-      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-    });
-  }
-);
+describe('stage 32 in the ARM64 container', { skip: process.env.PI_STAGE32_CONTAINER !== '1' }, () => {
+  test('scenarios', () => {
+    const r = runStageContainer('stage32-scenarios.sh', { timeout: 600000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+  });
+});

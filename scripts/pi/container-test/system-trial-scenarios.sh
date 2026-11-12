@@ -9,8 +9,8 @@
 # /tmp/mv_fail) and /tmp/migration_hangs makes the migration never finish. Each scenario starts from a fresh
 # fake Pi, runs the stage one or more times and prints one block that scripts/pi/system-trial.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/system-trial-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in system-trial.test.mjs.) With names, only those scenarios run.
-# Nothing here reaches the network after apt-get: the "release" is a zip built here, and the stage runs from a copy
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network: the "release" is a zip built here, and the stage runs from a copy
 # whose PIN_SHA256 line holds that zip's sha256 (the real pin is the real release's). The stage's node snippets run
 # on Debian 13's own nodejs (20.x) linked as /opt/node24/bin/node, not Node 24 as on the Pi.
 #

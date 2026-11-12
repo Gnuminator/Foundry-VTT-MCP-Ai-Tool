@@ -14,7 +14,7 @@
 #   8 the snapshot rule: a stale snapshot refuses before anything is written; DRY_RUN and CHECK need none
 #   9 UNDO removes everything it installed and leaves the earlier units alone
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage32-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage32-scenarios.sh
 # (scripts/pi/crash-guard-stage.test.mjs runs it with PI_STAGE32_CONTAINER=1.)
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.

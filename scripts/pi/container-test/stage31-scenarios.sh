@@ -10,7 +10,7 @@
 #   5 the refusals: a bad ID, ADD and REMOVE together, the Pi's own ID, REMOVE of a device that is not on the vault, ADD of a
 #     device that is on a player folder
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage31-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage31-scenarios.sh
 # (scripts/pi/gm-vault-peers.test.mjs runs it with PI_STAGE31_CONTAINER=1.) STAGE=<file> runs it against another copy.
 #
 # DESTRUCTIVE: it adds a user, installs packages and writes /var/lib/foundry-ai-tool. It refuses to run anywhere but a container.

@@ -4,8 +4,8 @@
 # part (kit-session-driver.mjs) replaces the Chromium driver. Each scenario starts from a fresh fake Pi and prints one
 # block that scripts/pi/kit-session.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/kit-session-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in kit-session.test.mjs.) With names, only those scenarios run.
-# Nothing here reaches the network after apt-get. The stage's node snippets run on Debian 13's own nodejs (20.x)
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network. The stage's node snippets run on Debian 13's own nodejs (20.x)
 # linked as /opt/node24/bin/node, not Node 24 as on the Pi; they use nothing newer than Node 20.
 #
 # DESTRUCTIVE: each scenario wipes the Foundry data folder and the tool's folders, and the fakes go into

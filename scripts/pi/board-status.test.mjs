@@ -8,16 +8,7 @@
 //   ARM64 container (scripts/pi/container-test/stage16-scenarios.sh).
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  utimesSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -75,11 +66,11 @@ function fakePi({
   stub(
     'systemctl',
     // docker.service answers on its own (dockerActive); every other unit follows unitState.
-    `case "$*" in is-active*docker.service*) [ "${dockerActive}" = true ] ;; is-active*) echo "${unitState}"; [ "${unitState}" = active ] ;; *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`
+    `case "$*" in is-active*docker.service*) [ "${dockerActive}" = true ] ;; is-active*) echo "${unitState}"; [ "${unitState}" = active ] ;; *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`,
   );
   stub(
     'timedatectl',
-    `case "$*" in show*) echo "${ntp}" ;; timesync-status) ${offset ? `echo "       Offset: ${offset}"` : 'exit 1'} ;; esac`
+    `case "$*" in show*) echo "${ntp}" ;; timesync-status) ${offset ? `echo "       Offset: ${offset}"` : 'exit 1'} ;; esac`,
   );
   for (const [f, text] of Object.entries(envFiles)) writeFileSync(path.join(d, 'etc', f), text);
   mkdirSync(path.join(d, 'tool', 'app'), { recursive: true });
@@ -91,13 +82,8 @@ function fakePi({
   const logCall = `echo "$*" >> "${posix(callLog)}"`;
   if (containers !== null) {
     const names = containers.map(c => `p-${c.service}-1|${c.service}`).join('\\n');
-    const cases = containers
-      .map(c => `p-${c.service}-1) echo '${c.state}|${c.restarts}|${c.health}' ;;`)
-      .join('\n');
-    stub(
-      'docker',
-      `${logCall}\ncase "$1" in ps) printf '${names}\\n' ;; inspect) case "$4" in\n${cases}\nesac ;; esac`
-    );
+    const cases = containers.map(c => `p-${c.service}-1) echo '${c.state}|${c.restarts}|${c.health}' ;;`).join('\n');
+    stub('docker', `${logCall}\ncase "$1" in ps) printf '${names}\\n' ;; inspect) case "$4" in\n${cases}\nesac ;; esac`);
   }
   // A CI runner has a real docker on PATH: a docker that fails every call stands in for it; the script reports null too.
   else stub('docker', `${logCall}\nexit 1`);
@@ -125,22 +111,12 @@ function startBoard(status = 204) {
     });
   });
   return new Promise(resolve =>
-    server.listen(0, '127.0.0.1', () =>
-      resolve({ seen, port: server.address().port, close: () => server.close() })
-    )
+    server.listen(0, '127.0.0.1', () => resolve({ seen, port: server.address().port, close: () => server.close() })),
   );
 }
 
 // spawnSync would block the event loop that runs the fake board, so the script runs async.
-function run(
-  pi,
-  {
-    args = [],
-    env = {},
-    api = 'http://127.0.0.1:1/api/status',
-    url = 'http://127.0.0.1:1/api/pi-status',
-  } = {}
-) {
+function run(pi, { args = [], env = {}, api = 'http://127.0.0.1:1/api/status', url = 'http://127.0.0.1:1/api/pi-status' } = {}) {
   return new Promise(resolve => {
     const child = spawn('bash', [posix(pi.scriptPath), ...args], {
       env: {
@@ -172,11 +148,8 @@ async function startFoundry(body) {
   });
   return new Promise(resolve =>
     server.listen(0, '127.0.0.1', () =>
-      resolve({
-        url: `http://127.0.0.1:${server.address().port}/api/status`,
-        close: () => server.close(),
-      })
-    )
+      resolve({ url: `http://127.0.0.1:${server.address().port}/api/status`, close: () => server.close() }),
+    ),
   );
 }
 
@@ -186,26 +159,14 @@ describe('status script', () => {
   });
 
   test('dry run: the payload, with Foundry up', async () => {
-    const foundry = await startFoundry({
-      active: true,
-      version: '14.368',
-      system: 'dnd5e',
-      systemVersion: '6.0.5',
-      users: 2,
-      world: 'curse-of-strahd',
-    });
+    const foundry = await startFoundry({ active: true, version: '14.368', system: 'dnd5e', systemVersion: '6.0.5', users: 2, world: 'curse-of-strahd' });
     const r = await run(fakePi(), { args: ['--dry-run'], api: foundry.url });
     foundry.close();
     assert.equal(r.status, 0, r.stderr);
     const p = JSON.parse(r.stdout);
     assert.equal(p.v, 1);
     assert.equal(p.host, 'foundry-pi');
-    assert.deepEqual(p.foundry, {
-      up: true,
-      serviceActive: true,
-      version: '14.368',
-      dnd5e: '6.0.5',
-    });
+    assert.deepEqual(p.foundry, { up: true, serviceActive: true, version: '14.368', dnd5e: '6.0.5' });
     assert.deepEqual(p.backup, {
       result: 'success',
       at: '2026-10-23T02:31:09.000Z',
@@ -214,30 +175,15 @@ describe('status script', () => {
     assert.deepEqual(p.clock, { ntpSynced: true, offsetMs: -2.331 });
     assert.ok(Number.isFinite(Date.parse(p.sentAt)));
     assert.equal(typeof p.disk.freePercent, 'number');
-    assert.deepEqual(Object.keys(p).sort(), [
-      'backup',
-      'clock',
-      'deployed',
-      'disk',
-      'foundry',
-      'host',
-      'sentAt',
-      'uptimeSeconds',
-      'v',
-    ]);
+    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'deployed', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
     // No world name, user count or anything else Foundry said.
     assert.ok(!r.stdout.includes('curse'));
   });
 
   test('dry run: the deployed state carries names and states only', async () => {
-    const good = await run(
-      fakePi({
-        containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
-      }),
-      {
-        args: ['--dry-run'],
-      }
-    );
+    const good = await run(fakePi({ containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }] }), {
+      args: ['--dry-run'],
+    });
     assert.deepEqual(JSON.parse(good.stdout).deployed, {
       ref: 'v0.25.0',
       missingEnv: [],
@@ -245,12 +191,8 @@ describe('status script', () => {
       containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
     });
     const bad = await run(
-      fakePi({
-        icu: false,
-        ref: null,
-        envFiles: { 'dashboard.env': 'DASHBOARD_FOUNDRY_URL=""\nOBSIDIAN_VAULT_NAME="hunter2"\n' },
-      }),
-      { args: ['--dry-run'] }
+      fakePi({ icu: false, ref: null, envFiles: { 'dashboard.env': 'DASHBOARD_FOUNDRY_URL=""\nOBSIDIAN_VAULT_NAME="hunter2"\n' } }),
+      { args: ['--dry-run'] },
     );
     const d = JSON.parse(bad.stdout).deployed;
     assert.equal(d.ref, null);
@@ -275,22 +217,14 @@ describe('status script', () => {
     assert.equal(r.status, 0, r.stderr);
     assert.equal(JSON.parse(r.stdout).deployed.containers, null);
     // Positive control: with docker.service active the same stub is called, so the log mechanism works.
-    const control = fakePi({
-      containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
-    });
+    const control = fakePi({ containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }] });
     await run(control, { args: ['--dry-run'] });
     assert.match(readFileSync(control.callLog, 'utf8'), /^ps /m);
-    assert.equal(
-      existsSync(pi.callLog),
-      false,
-      'a stopped daemon must not be socket-activated by a docker call'
-    );
+    assert.equal(existsSync(pi.callLog), false, 'a stopped daemon must not be socket-activated by a docker call');
   });
 
   test('dry run: Foundry down and a failed backup are reported, not errors', async () => {
-    const r = await run(fakePi({ backupResult: 'failed', unitState: 'failed' }), {
-      args: ['--dry-run'],
-    });
+    const r = await run(fakePi({ backupResult: 'failed', unitState: 'failed' }), { args: ['--dry-run'] });
     assert.equal(r.status, 0, r.stderr);
     const p = JSON.parse(r.stdout);
     assert.deepEqual(p.foundry, { up: false, serviceActive: false, version: null, dnd5e: null });
@@ -298,9 +232,7 @@ describe('status script', () => {
   });
 
   test('no snapshot yet, an unsynchronized clock and no offset are reported as null/false, never an error', async () => {
-    const r = await run(fakePi({ snapshotEpoch: null, ntp: 'no', offset: '' }), {
-      args: ['--dry-run'],
-    });
+    const r = await run(fakePi({ snapshotEpoch: null, ntp: 'no', offset: '' }), { args: ['--dry-run'] });
     assert.equal(r.status, 0, r.stderr);
     const p = JSON.parse(r.stdout);
     assert.equal(p.backup.snapshotAt, null);
@@ -324,11 +256,7 @@ describe('status script', () => {
   });
 
   test('odd version strings are dropped', async () => {
-    const foundry = await startFoundry({
-      version: '14.368 <script>',
-      system: 'dnd5e',
-      systemVersion: '6.0.5',
-    });
+    const foundry = await startFoundry({ version: '14.368 <script>', system: 'dnd5e', systemVersion: '6.0.5' });
     const r = await run(fakePi(), { args: ['--dry-run'], api: foundry.url });
     foundry.close();
     const p = JSON.parse(r.stdout);
@@ -350,9 +278,7 @@ describe('status script', () => {
     assert.equal(req.headers['content-type'], 'application/json');
     assert.equal(JSON.parse(req.body).host, 'foundry-pi');
     assert.ok(!req.body.includes('s3cr3t'));
-    assert.ok(
-      !(r.stdout + r.stderr).includes('s3cr3t') && !(r.stdout + r.stderr).includes('abc123')
-    );
+    assert.ok(!(r.stdout + r.stderr).includes('s3cr3t') && !(r.stdout + r.stderr).includes('abc123'));
   });
 
   test('a board that answers 403 fails the run without printing the token', async () => {
@@ -373,9 +299,7 @@ describe('status script', () => {
 
   test('refuses without a token file', async () => {
     const board = await startBoard(204);
-    const r = await run(fakePi({ conf: null }), {
-      url: `http://127.0.0.1:${board.port}/api/pi-status`,
-    });
+    const r = await run(fakePi({ conf: null }), { url: `http://127.0.0.1:${board.port}/api/pi-status` });
     board.close();
     assert.equal(r.status, 78);
     assert.equal(board.seen.length, 0);
@@ -385,10 +309,7 @@ describe('status script', () => {
     const board = await startBoard(204);
     const pi = fakePi();
     chmodSync(path.join(pi.d, 'etc', 'board-status.conf'), 0o644);
-    const r = await run(pi, {
-      env: { FOUNDRY_STATUS_TEST: '0' },
-      url: `http://127.0.0.1:${board.port}/api/pi-status`,
-    });
+    const r = await run(pi, { env: { FOUNDRY_STATUS_TEST: '0' }, url: `http://127.0.0.1:${board.port}/api/pi-status` });
     board.close();
     assert.equal(r.status, 78);
     assert.equal(board.seen.length, 0);
@@ -401,11 +322,7 @@ describe('status script', () => {
   });
 
   test('a token file with a line that is not an Access header is refused every hour, a NUL byte included', async () => {
-    for (const extra of [
-      'url = "http://evil.example/"\n',
-      'output = "/etc/passwd"\n',
-      '\0url = "http://evil.example/"\n',
-    ]) {
+    for (const extra of ['url = "http://evil.example/"\n', 'output = "/etc/passwd"\n', '\0url = "http://evil.example/"\n']) {
       const board = await startBoard(204);
       const pi = fakePi({ conf: `${ID}\n${SECRET}\n${extra}` });
       const r = await run(pi, { url: `http://127.0.0.1:${board.port}/api/pi-status` });
@@ -426,9 +343,7 @@ describe('stage text', () => {
   });
 
   test('the token file is never printed or sourced', () => {
-    assert.ok(
-      !/\bcat\b[^\n]*\$conf|source[^\n]*\$conf|\.\s+"\$conf"/.test(stage.replace(/^#.*$/gm, ''))
-    );
+    assert.ok(!/\bcat\b[^\n]*\$conf|source[^\n]*\$conf|\.\s+"\$conf"/.test(stage.replace(/^#.*$/gm, '')));
     assert.ok(!/echo[^\n]*\$conf"?\s*\|/.test(stage));
   });
 
@@ -446,10 +361,7 @@ describe('stage text', () => {
 
   test('no catch-up run at boot; the service waits for network and time', () => {
     assert.ok(!/Persistent=/.test(stage.replace(/^#.*$/gm, '')));
-    assert.match(
-      stage,
-      /Wants=network-online\.target\nAfter=network-online\.target time-sync\.target/
-    );
+    assert.match(stage, /Wants=network-online\.target\nAfter=network-online\.target time-sync\.target/);
   });
 
   test('the timer is hourly', () => {

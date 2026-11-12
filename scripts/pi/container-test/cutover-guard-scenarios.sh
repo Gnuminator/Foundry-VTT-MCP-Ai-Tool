@@ -6,7 +6,7 @@
 # answer it refuses too (unknown = refuse); FORCE=1 changes nothing. Where the stage cannot run harmlessly without a container
 # (it would go on and change the machine), the "no container" case only runs inside a throw-away container (/.dockerenv),
 # and there only checks that the refusal text is absent. Nothing outside /tmp is touched. The last line is ALL SCENARIOS OK:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/cutover-guard-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/cutover-guard-scenarios.sh
 # (scripts/pi/cutover-guard-container.test.mjs runs it with PI_CUTOVER_CONTAINER=1.)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

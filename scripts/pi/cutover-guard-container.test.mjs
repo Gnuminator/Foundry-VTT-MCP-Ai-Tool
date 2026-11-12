@@ -8,14 +8,10 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { runStageContainer } from './container-test/run-stage-container.mjs';
 
-describe(
-  'cut-over guard in the ARM64 container',
-  { skip: process.env.PI_CUTOVER_CONTAINER !== '1' },
-  () => {
-    test('scenarios', () => {
-      const r = runStageContainer('cutover-guard-scenarios.sh', { timeout: 900000 });
-      assert.equal(r.status, 0, r.stdout + r.stderr);
-      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-    });
-  }
-);
+describe('cut-over guard in the ARM64 container', { skip: process.env.PI_CUTOVER_CONTAINER !== '1' }, () => {
+  test('scenarios', () => {
+    const r = runStageContainer('cutover-guard-scenarios.sh', { timeout: 900000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+  });
+});

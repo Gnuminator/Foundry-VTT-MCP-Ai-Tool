@@ -5,7 +5,7 @@
 # sshd_config of Debian with root and password login switched on, like the Pi) and prints one block that
 # scripts/pi/ssh-keys-only.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/ssh-keys-only-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in ssh-keys-only.test.mjs.) With names, only those scenarios run.
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
 #
 # DESTRUCTIVE: each scenario rewrites /etc/ssh and /root/.ssh, and the fakes go into /usr/local/sbin and
 # /usr/local/shim. It refuses to run anywhere but a container.

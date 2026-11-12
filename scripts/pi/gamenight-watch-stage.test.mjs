@@ -71,16 +71,12 @@ describe('stage 29 as text', () => {
     assert.match(lib, /systemctl restart "\$watch_unit"/);
     assert.match(lib, /wait_for_watching "\$watch_unit" "\$since"/);
     // a rerun of stage 26 whose settings are already right still repairs a watch older than the file
-    const s26 = readFileSync(
-      path.join(repo, 'scripts/pi/remote/26-discord-game-server.sh'),
-      'utf8'
-    );
+    const s26 = readFileSync(path.join(repo, 'scripts/pi/remote/26-discord-game-server.sh'), 'utf8');
     assert.match(s26, /restart_gamenight_watch "[^"]*" "\$env_file"/);
   });
 
   test('every rm -rf has a guarded variable and the settings file is never removed', () => {
-    for (const m of stage.matchAll(/rm -(rf|f) ("[^"]*")/g))
-      assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
+    for (const m of stage.matchAll(/rm -(rf|f) ("[^"]*")/g)) assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
     assert.doesNotMatch(stage, /rm [^\n]*watch_env/);
   });
 
@@ -108,14 +104,10 @@ describe('the watch script as text', () => {
   });
 });
 
-describe(
-  'stage 29 in the ARM64 container',
-  { skip: process.env.PI_STAGE29_CONTAINER !== '1' },
-  () => {
-    test('scenarios', () => {
-      const r = runStageContainer('stage29-scenarios.sh', { timeout: 600000 });
-      assert.equal(r.status, 0, r.stdout + r.stderr);
-      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-    });
-  }
-);
+describe('stage 29 in the ARM64 container', { skip: process.env.PI_STAGE29_CONTAINER !== '1' }, () => {
+  test('scenarios', () => {
+    const r = runStageContainer('stage29-scenarios.sh', { timeout: 600000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+  });
+});

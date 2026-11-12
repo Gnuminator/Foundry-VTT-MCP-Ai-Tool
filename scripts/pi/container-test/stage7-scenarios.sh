@@ -8,7 +8,7 @@
 #   4 a value with a path, a trailing slash or a quote is refused and the file stays as it was
 #   5 a new value replaces the old one
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage7-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage7-scenarios.sh
 # (scripts/pi/stage7-foundry-url.test.mjs runs it with PI_STAGE7_CONTAINER=1.) STAGE=<file> runs the scenarios against
 # another copy of the script (the old one, to see them fail).
 #

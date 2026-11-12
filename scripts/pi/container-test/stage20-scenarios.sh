@@ -11,7 +11,7 @@
 #     systemd stops with a message and changes nothing
 #   5 a missing folder (an unknown folder id config) stops with "run stage 7 first"
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage20-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage20-scenarios.sh
 # (scripts/pi/vault-sync.test.mjs runs it with PI_STAGE20_CONTAINER=1.) STAGE=<file> runs the scenarios against another copy
 # of the script.
 #

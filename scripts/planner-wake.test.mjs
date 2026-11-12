@@ -90,6 +90,8 @@ test('no standing planner: the planner skill has no successor or planner-wake te
   const skill = readFileSync(path.join(here, '..', '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
   assert.doesNotMatch(skill, /start (the|a) (next|fresh) planner/i);
   assert.doesNotMatch(skill, /planner-wake/);
+  assert.doesNotMatch(skill, /gh pr list/, 'the planner reads PRs through status --planner');
+  assert.match(skill, /backlog\.mjs status --planner/);
   const src = readFileSync(path.join(here, 'planner-wake.mjs'), 'utf8');
   assert.doesNotMatch(src, /exitCode = 3|fresh planner|freshBrief|isCold/);
 });

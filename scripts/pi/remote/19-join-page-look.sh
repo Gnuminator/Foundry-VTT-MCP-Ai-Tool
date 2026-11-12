@@ -49,6 +49,7 @@ gm_unit=foundry-ai-tool-gm-browser.service
 node="$NODE_DIR/bin/node"
 
 require_root
+refuse_when_cut_over "stage 19 (join page look)"
 [[ "$world" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "odd world id: $world"
 [[ "$dest_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.webp$ ]] || die "DEST_NAME must be a plain .webp file name: $dest_name"
 [[ "$want_sha" =~ ^[0-9a-f]{64}$ ]] || die "set EXPECT_SHA256 to the picture's sha256 (64 lower-case hex characters)"

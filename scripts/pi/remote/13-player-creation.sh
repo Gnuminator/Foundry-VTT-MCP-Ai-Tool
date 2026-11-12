@@ -39,6 +39,7 @@
 
 require_root
 require_recent_snapshot
+refuse_when_cut_over "stage 13 (player creation)"
 require_arm64
 
 # The pinned build: the fork's 2.10.5-aitool.12 release (tag on commit 786a383d), sha256sum of its

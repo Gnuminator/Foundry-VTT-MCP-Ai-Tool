@@ -61,6 +61,11 @@ jobs:
         # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
         run: npm run usage:catalog:check
 
+      - name: Unused code ratchet (knip)
+        # knip.json lists the entry points; scripts/unused-baseline.json holds the counts of unused
+        # files, exports and types, which may not go up (npm run unused:ratchet -- --update lowers it).
+        run: npm run unused:ratchet
+
       - name: Docs lint and internal links
         # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
         # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
@@ -113,7 +118,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs scripts/main-red-revert.test.mjs scripts/line-ratchet.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/changelog-fold.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs scripts/main-red-revert.test.mjs scripts/line-ratchet.test.mjs scripts/unused-ratchet.test.mjs
 
       - name: Weekly usage report
         # scripts/dev (usage-week figures, usage-now, usage-report, weekly-check-note) against fixture transcripts.
@@ -316,6 +321,11 @@ jobs:
         # lib.sh's game-night guards (enable_unit restarts only on change, players online, active recording, snapshot from
         # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
         run: node --test scripts/pi/pi-stage-safety.test.mjs
+
+      - name: Pi cut-over guard (every stage that starts a unit)
+        # lib.sh refuse_when_cut_over and env_file_value, and the check that no stage under scripts/pi/remote starts, restarts
+        # or enables a stack unit without calling the guard (or a NO_GUARD reason).
+        run: node --test scripts/pi/cutover-guard.test.mjs
 
       - name: Pi ssh log keeps no token command text
         # Stage 9's generated wrapper, run for real: token script commands are logged by kind, everything else keeps its text.
@@ -546,10 +556,11 @@ jobs:
           fi
 
   dashboard-visual-shard:
-    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, neutral theme; axe checks both)
-    # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
-    # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
-    # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
+    # UI-01: page shots of the React dashboard and player pages (every moment and drawer, three
+    # widths, neutral theme) are rendered and uploaded as the artifact dashboard-page-shots-N, not
+    # compared (nothing is committed for them), plus an axe accessibility check (both themes), and
+    # (UI-03) a compared shot and an axe check of every Storybook story, under
+    # web/visual/__screenshots__/stories. The story baselines are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
     # step checks it). It runs as 4 parallel shards (--shard=i/4; fullyParallel splits the tests
     # evenly by count; about 835 shots took 14 minutes in one job, the shards about 5). The summary
@@ -609,6 +620,17 @@ jobs:
 
       - name: Screenshot tests and axe
         run: npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/4
+
+      - name: Keep the page shots
+        # The full-page shots of this shard, for the reviewer to look at (not compared with
+        # anything). Kept even when a story shot fails.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-page-shots-${{ matrix.shard }}
+          path: packages/cogm-dashboard/page-shots
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Keep the visual report
         # The HTML report and the diff images (expected, actual, diff) of a failed run.
@@ -737,6 +759,14 @@ jobs:
       # The Pi container tests (Debian 13 ARM64, scripts/pi/container-test/*-scenarios.sh) are the
       # `pi-container` matrix job below, not steps here: they used to run one after another and took
       # about 11 of this job's 14 minutes.
+
+      - name: Pi cut-over guard in an ARM64 container
+        # scripts/pi/container-test/cutover-guard-scenarios.sh: refuse_when_cut_over in front of each of the 18 stages that start
+        # a stack unit, on Debian 13 ARM64 with stand-ins for systemctl and docker (a running or a stopped container of the
+        # live project, a silent Docker daemon, FORCE=1: each refuses and changes nothing; no docker: no refusal).
+        env:
+          PI_CUTOVER_CONTAINER: 1
+        run: node --test scripts/pi/cutover-guard-container.test.mjs
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs

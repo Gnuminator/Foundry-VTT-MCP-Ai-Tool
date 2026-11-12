@@ -898,7 +898,7 @@ describe('applyGuardedOps: refusals', () => {
     await expect(applyGuardedOps(createReq)).rejects.toThrow(/parent document no longer exists/);
   });
 
-  it('delete conflicts: a vanished document is a conflict on apply, not on undo; a stale hash is not', async () => {
+  it('delete conflicts: a vanished document is a conflict on apply, not on undo', async () => {
     const actor = addActor();
     const deleteReq = await request([{ kind: 'delete', uuid: actor.uuid }]);
     await actor.delete();
@@ -921,18 +921,28 @@ describe('applyGuardedOps: refusals', () => {
 
   it('delete conflicts: the content hash decides when both sides have one, else the modified time', async () => {
     const actor = addActor();
-    const effect = makeDoc('ActiveEffect', { name: 'Hold Person' }, actor);
-    const hashed = await request([{ kind: 'delete', uuid: effect.uuid }]);
+    // Both sides hold a hash: a write that leaves the content alone moves modifiedTime only, and
+    // the hash says no conflict.
+    const touched = makeDoc('ActiveEffect', { name: 'Hold Person' }, actor);
+    const hashed = await request([{ kind: 'delete', uuid: touched.uuid }]);
     expect(hashed.expected[0].contentHash).toBeDefined();
+    registry.get(touched.uuid)!.source._stats.modifiedTime += 10;
+    await applyGuardedOps(hashed);
+    expect(registry.has(touched.uuid)).toBe(false);
 
-    // A write that leaves the content alone moves modifiedTime only: the hash says no conflict.
-    registry.get(effect.uuid)!.source._stats.modifiedTime += 10;
-    // An expected snapshot without a hash (an older plan) falls back to the modified time.
-    const unhashed = await request([{ kind: 'delete', uuid: effect.uuid }]);
+    // Both sides hold a hash and the content changed: a conflict.
+    const edited = makeDoc('ActiveEffect', { name: 'Haste' }, actor);
+    const staleHash = await request([{ kind: 'delete', uuid: edited.uuid }]);
+    registry.get(edited.uuid)!.source.name = 'Slow';
+    await expect(applyGuardedOps(staleHash)).rejects.toThrow(/was modified since/);
+
+    // An expected snapshot without a hash (an older plan) falls back to the modified time. A hash
+    // on one side only must not be compared with "undefined": unchanged time, no conflict.
+    const quiet = makeDoc('ActiveEffect', { name: 'Shield' }, actor);
+    const unhashed = await request([{ kind: 'delete', uuid: quiet.uuid }]);
     delete unhashed.expected[0].contentHash;
-    // A hash on one side only must not be compared with "undefined": same modified time, no conflict.
     await applyGuardedOps(unhashed);
-    expect(registry.has(effect.uuid)).toBe(false);
+    expect(registry.has(quiet.uuid)).toBe(false);
 
     const second = makeDoc('ActiveEffect', { name: 'Bless' }, actor);
     const stale = await request([{ kind: 'delete', uuid: second.uuid }]);

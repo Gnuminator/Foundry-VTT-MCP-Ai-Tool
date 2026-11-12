@@ -1507,7 +1507,7 @@ describe('safety-core mutation survivors', () => {
       vaultOps: [{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }] as never,
     });
     // A neighbour that is on comes first; the asked feature is off.
-    foundry.features[0].enabled = false;
+    foundry.features.find(f => f.id === 'test-feature')!.enabled = false;
     foundry.features.unshift({ id: 'other', name: 'Other', hint: '', enabled: true });
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
       /"Test" is switched off/

@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { decide, scoreOf, TOLERANCE } from './mutation-ratchet.mjs';
+import { baselineScore, countDrift, decide, scoreOf, TOLERANCE } from './mutation-ratchet.mjs';
+
+test('baselineScore: only a numeric score counts', () => {
+  assert.equal(baselineScore({ score: 77.87, mutants: 3931 }), 77.87);
+  assert.equal(baselineScore({}), null);
+  assert.equal(baselineScore({ score: '77' }), null);
+  assert.equal(baselineScore(null), null);
+});
+
+test('countDrift: a mutant count far from the baseline is reported', () => {
+  assert.equal(countDrift(3900, 3931), null);
+  assert.match(countDrift(2000, 3931), /more than 10% apart/);
+  assert.equal(countDrift(10, undefined), null);
+});
 
 const report = statuses => ({
   files: { 'a.ts': { mutants: statuses.map(status => ({ status })) } },

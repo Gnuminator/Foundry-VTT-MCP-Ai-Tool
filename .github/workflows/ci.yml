@@ -98,6 +98,10 @@ jobs:
       - name: Workflow pins and release environment
         run: node --test scripts/workflow-pins.test.mjs
 
+      - name: Mutation ratchet logic
+        # The weekly run is mutation-core.yml; this is only the unit test of its score check.
+        run: node --test scripts/mutation-ratchet.test.mjs
+
       - name: Test Foundry frame proxy
         # scripts/test-env/foundry-frame-proxy.mjs (dev only): the header rewrite and the guard that
         # refuses the live and rehearsal ports.

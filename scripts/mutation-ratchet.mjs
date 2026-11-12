@@ -67,10 +67,52 @@ export function decide(current, baseline, update) {
   return { ok: true, write: false, message: `score ${current}% holds the baseline ${baseline}%` };
 }
 
-function main() {
+/** A baseline file's score, or null when the file is missing or holds no numeric score. */
+export function baselineScore(baseline) {
+  return typeof baseline?.score === 'number' && Number.isFinite(baseline.score)
+    ? baseline.score
+    : null;
+}
+
+/**
+ * A mutant count far from the baseline's means the run measured something else (a `mutate` entry
+ * matching nothing, many mutants turned into errors): the score alone would hide that.
+ */
+export const COUNT_TOLERANCE = 0.1;
+export function countDrift(mutants, baselineMutants) {
+  if (typeof baselineMutants !== 'number' || baselineMutants <= 0) return null;
+  const change = Math.abs(mutants - baselineMutants) / baselineMutants;
+  return change > COUNT_TOLERANCE
+    ? `${mutants} mutants against ${baselineMutants} in the baseline (more than ${COUNT_TOLERANCE * 100}% apart); check the mutate list, then run with --update`
+    : null;
+}
+
+function dirtySource() {
+  const status = spawnSync('git', ['status', '--porcelain', '--', 'packages', 'shared'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  return status.status === 0 ? status.stdout.trim() : 'git status failed';
+}
+
+async function main() {
   const args = process.argv.slice(2);
   const update = args.includes('--update');
   if (!args.includes('--report-only')) {
+    const { default: config } = await import(
+      pathToFileURL(path.join(repoRoot, 'stryker.core.config.mjs')).href
+    );
+    const missing = config.mutate.filter(file => !existsSync(path.join(repoRoot, file)));
+    if (missing.length > 0) {
+      console.error(`mutation-ratchet: mutate entries match no file: ${missing.join(', ')}`);
+      process.exit(1);
+    }
+    // In-place mode rewrites the mutated files and puts them back; a dirty tree would lose edits.
+    const dirty = dirtySource();
+    if (dirty) {
+      console.error(`mutation-ratchet: commit or discard your changes first:\n${dirty}`);
+      process.exit(1);
+    }
     // shared/src/usage-catalog.generated.ts is gitignored and shared/src/index.ts imports it.
     const catalog = spawnSync(process.execPath, ['scripts/usage-catalog.mjs'], {
       cwd: repoRoot,
@@ -89,15 +131,25 @@ function main() {
       console.error(`mutation-ratchet: Stryker exited with ${run.status}`);
       process.exit(1);
     }
+    const left = dirtySource();
+    if (left) {
+      console.error(`mutation-ratchet: Stryker left changes in the source:\n${left}`);
+      process.exit(1);
+    }
   }
   if (!existsSync(REPORT_PATH)) {
     console.error(`mutation-ratchet: no report at ${REPORT_PATH}`);
     process.exit(1);
   }
   const { score, detected, undetected } = scoreOf(JSON.parse(readFileSync(REPORT_PATH, 'utf8')));
-  const baseline = existsSync(BASELINE_PATH)
-    ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).score
-    : null;
+  const stored = existsSync(BASELINE_PATH) ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) : null;
+  const baseline = baselineScore(stored);
+  const drift =
+    baseline === null || update ? null : countDrift(detected + undetected, stored.mutants);
+  if (drift) {
+    console.error(`mutation-ratchet: ${drift}`);
+    process.exit(1);
+  }
   const result = decide(score, baseline, update);
   if (result.write) {
     writeFileSync(
@@ -113,4 +165,4 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

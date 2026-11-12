@@ -25,11 +25,13 @@ export default {
   reporters: ['clear-text', 'json'],
   jsonReporter: { fileName: 'reports/mutation/mutation.json' },
   // In place: a sandbox copy leaves out gitignored files such as shared/src/usage-catalog.generated.ts
-  // (the ratchet script generates it first). Stryker puts every mutated file back afterwards, so
-  // do not edit the five areas while a run is going.
+  // (the ratchet script generates it first). Stryker puts the seven mutated files back afterwards,
+  // so do not edit them while a run is going; a hard-killed run leaves them mutated (the ratchet
+  // script refuses to start on a dirty tree, `git checkout` puts them right). No type-check
+  // preprocessing: the Vitest runner never type-checks, and it would rewrite every .ts file.
   inPlace: true,
   tempDirName: '.stryker-tmp',
   concurrency: 4,
   timeoutMS: 30_000,
-  disableTypeChecks: '{packages,shared}/**/*.ts',
+  disableTypeChecks: false,
 };

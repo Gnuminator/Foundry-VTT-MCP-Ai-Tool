@@ -27,7 +27,7 @@ export const MODULE_DIR = 'lane-merge';
  */
 export function mainModules(run) {
   const prefix = `scripts/${MODULE_DIR}/`;
-  const list = run('git', ['ls-tree', '-r', '--name-only', MAIN, prefix]);
+  const list = run('git', ['ls-tree', '-r', '--name-only', '--full-tree', MAIN, prefix]);
   if (list.status !== 0) {
     return {
       error: `git ls-tree ${MAIN} ${prefix} failed (${firstLine(list.stderr || list.stdout)}); the gate cannot read main's modules`,

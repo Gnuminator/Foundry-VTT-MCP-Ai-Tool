@@ -1760,7 +1760,7 @@ test('H1: a gate identical to main runs in place (line endings do not matter)', 
   assert.deepEqual(same.calls, [
     'git fetch aitool main',
     'git show aitool/main:scripts/lane-merge.mjs',
-    'git ls-tree -r --name-only aitool/main scripts/lane-merge/',
+    'git ls-tree -r --name-only --full-tree aitool/main scripts/lane-merge/',
   ]);
   assert.equal(relaunch({ mainText: 'gate A\r\n' }).out.relaunched, false);
   const mods = { 'a.mjs': 'one\n', 'b.mjs': 'two\n' };

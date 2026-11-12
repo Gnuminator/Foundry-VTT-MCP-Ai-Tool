@@ -10,9 +10,9 @@ The planner runs on Opus, on demand, for one outcome, then ends (see Waking). Va
 
 ## Read the state (measured)
 
-- `node scripts/backlog.mjs status`, `Waiting.md`, CLAUDE.md "Holds now". The `- progress:` line on a claimed item is
-  the lane's ready state; lanes message nobody, so read it on every wake for every claimed item,
-  inherited lanes included. Never message an idle lane. A lane that stopped with a handover and no
+- `node scripts/backlog.mjs status`, `Waiting.md`, CLAUDE.md "Holds now". Its progress lines are the lanes' ready state
+  (lanes message nobody): read them on every wake, inherited lanes included. Message a lane only
+  when it has been idle under 55 minutes. A lane that stopped with a handover and no
   running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start), and the stopped lane is archived first (if the folder stays, `git checkout --detach` there once clean).
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
   start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red: see Main is red).
@@ -61,7 +61,7 @@ The planner ends after its outcome. At 200k context it plans the handover and ke
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,425).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,422).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).

@@ -34,3 +34,4 @@ Use before calling work done and in reviews. Incident notes: vault `Dev/Foundry 
     worktree silently reports the main checkout: use `git worktree list` first.
 15. Stage scripts: a bare `rm -rf "$var"` fails the guard test; use `${var:?}`. Run
     `node --test .claude/hooks/guard-remote-commands.test.mjs` before pushing one.
+16. Severity: A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.

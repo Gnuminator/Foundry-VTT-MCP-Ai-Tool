@@ -40,6 +40,13 @@ test('the filter covers the dashboard, shared, the lockfile, the Chromium script
     'package-lock.json',
     'scripts/ci-install-chromium.sh',
     '.github/workflows/ci.yml',
+    // What the dashboard build reads: the help pages (build-help.mjs) and its helper scripts.
+    'docs/gm/modules.md',
+    'docs/foundry/index.md',
+    'docs/da/gm/index.md',
+    'scripts/check-links.mjs',
+    'scripts/tsc7.mjs',
+    'package.json',
   ]) {
     assert.ok(filter.test(rel), `the dashboard-e2e-changes filter misses ${rel}`);
   }
@@ -69,7 +76,7 @@ test('the specs and the Playwright config import only from the dashboard and sha
     // Climbing out of the package folder with a string path is also a way to read something wider.
     for (const m of text.matchAll(/['"`](\.\.\/[^'"`]*)['"`]/g)) {
       const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(file), m[1]));
-      if (!filter.test(resolved) && !/\.(?:js|ts)$/.test(m[1])) outside.push(`${file}: ${m[1]} -> ${resolved}`);
+      if (!filter.test(resolved)) outside.push(`${file}: ${m[1]} -> ${resolved}`);
     }
   }
   assert.deepEqual(outside, [], 'a browser test reads a path the dashboard-e2e-changes filter does not cover');

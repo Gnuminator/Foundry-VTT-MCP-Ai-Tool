@@ -675,7 +675,7 @@ jobs:
           changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
           echo "Changed files against the base:"
           echo "$changed"
-          if echo "$changed" | grep -qE '^(packages/cogm-dashboard/|shared/|package-lock.json$|scripts/ci-install-chromium.sh$|.github/workflows/ci.yml$)'; then
+          if echo "$changed" | grep -qE '^(packages/cogm-dashboard/|shared/|docs/(gm|foundry|da/gm)/|scripts/(tsc7|check-links|ci-install-chromium)\.(mjs|sh)$|package\.json$|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing the dashboard browser tests depend on changed: skip them."

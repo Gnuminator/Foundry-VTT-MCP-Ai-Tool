@@ -111,9 +111,10 @@ async function setPrefs(
 }
 
 /**
- * The last event each stream writes on connect (app.ts writes the whole snapshot in one handler).
+ * The last event each stream writes on connect (routes/api-stream.ts for the GM stream and
+ * live-state.ts `attachPlayerStream` for the player stream write the whole snapshot in one handler).
  * Once it is in the text, everything the stream says on connect has arrived, so a test needs no
- * fixed wait that a loaded CPU can outrun. app.ts must keep these events last (it says so there);
+ * fixed wait that a loaded CPU can outrun. Those handlers must keep these events last (they say so);
  * stream-combat.app.test.ts holds a copy of this table.
  */
 const SNAPSHOT_END: Record<string, string> = {

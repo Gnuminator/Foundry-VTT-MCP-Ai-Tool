@@ -2874,7 +2874,7 @@ test('review refusal: names the naming rule, and lists notes of the PR that were
   assert.match(line, /full 40-character sha above "## Verdict"/);
   assert.match(
     line,
-    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md$/
+    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md; write the note with: node scripts\/review-note\.mjs 312 /
   );
   assert.deepEqual(unreadPrNotes(vault, 312), ['Reviews 2026-10-10/312-merge-delta-3d24f70a.md']);
   assert.deepEqual(unreadPrNotes(path.join(os.tmpdir(), 'no-such-vault-xyz'), 312), []);

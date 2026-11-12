@@ -404,6 +404,15 @@ export function reviewNamingRule(prNumber) {
 }
 
 /**
+ * The helper command that writes a review note the gate accepts (scripts/review-note.mjs), for the
+ * refusals about a note. `<merge|fixes|no>` is the reviewer's verdict.
+ * @param {number} prNumber @param {boolean} opus
+ */
+export function reviewNoteCommand(prNumber, opus) {
+  return `write the note with: node scripts/review-note.mjs ${prNumber} --verdict <merge|fixes|no> --model ${opus ? 'opus' : 'sonnet'} --body <reviewer text file>`;
+}
+
+/**
  * Files in the "Reviews ..." folders that start with `<N>-` but are not read as review notes
  * because "review" is not in the name. Empty when the vault or Handoff folder is missing.
  * @param {string} vault @param {number} prNumber
@@ -2178,6 +2187,7 @@ export function main(options = {}) {
         hint = `; ${reviewNamingRule(n)}`;
         if (skipped.length) hint += `; not read (no "review" in the name): ${skipped.join(', ')}`;
       }
+      hint += `; ${reviewNoteCommand(n, hits.length > 0)}`;
       failures.push(`review: ${verdict.detail}${hint}`);
     }
   }

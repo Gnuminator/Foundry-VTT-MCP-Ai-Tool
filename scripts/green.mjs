@@ -948,7 +948,7 @@ export function quickSteps(files, cwd = process.cwd()) {
     });
   }
   const nodeTests = new Set();
-  for (const f of files) {
+  for (const f of files.map(x => x.replace(/^scripts\/lane-merge\/.+/, 'scripts/lane-merge.mjs'))) {
     if (/^(?:scripts|\.claude\/hooks)\/.*\.mjs$/.test(f) && isShellSafe(f)) {
       nodeTests.add(
         f.endsWith('.test.mjs') ? f : (QUICK_TEST_OF[f] ?? f.replace(/\.mjs$/, '.test.mjs'))

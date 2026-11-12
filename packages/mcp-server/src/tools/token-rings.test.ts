@@ -2,7 +2,7 @@
  * `plan-token-rings` (I-093): Foundry and the guarded-write service are stubs; the tests check the
  * switch check, the request the module gets and the plan stored.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { TOKEN_RINGS_FEATURE_ID, type GuardedOp } from '@gnuminator/shared';
 
@@ -19,8 +19,8 @@ const OPS: GuardedOp[] = [
 ];
 
 let enabled: boolean;
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
 let tools: TokenRingsTools;
 
 beforeEach(() => {

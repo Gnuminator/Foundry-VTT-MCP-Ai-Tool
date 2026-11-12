@@ -8,7 +8,7 @@
  * SocketBridge is replaced by a recording fake; its own reconnect behaviour is covered in
  * socket-bridge.test.ts.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 
 const fake = vi.hoisted(() => {
@@ -174,7 +174,7 @@ describe('main: onReady with the backend not answering', () => {
 });
 
 describe('main: creature index warm-up at ready (#283)', () => {
-  let ensure: ReturnType<typeof vi.fn>;
+  let ensure: Mock;
 
   beforeEach(() => {
     world.setSetting(MODULE_ID, 'enableEnhancedCreatureIndex', true);

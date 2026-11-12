@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { MovementTools } from './movement.js';
 
@@ -12,7 +12,7 @@ import { MovementTools } from './movement.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: MovementTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // auth.ts reads the token from the page's address and storage when it loads, so each case stubs
 // those first and loads a fresh copy.
@@ -56,7 +56,7 @@ describe('playerPageUrl', () => {
 describe('the token in the address bar', () => {
   /** The URL replaceState was last called with. */
   function replaced(): string | undefined {
-    const spy = (history as unknown as { replaceState: ReturnType<typeof vi.fn> }).replaceState;
+    const spy = (history as unknown as { replaceState: Mock }).replaceState;
     return spy.mock.calls.at(-1)?.[2] as string | undefined;
   }
 

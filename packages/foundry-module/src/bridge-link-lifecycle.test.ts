@@ -9,7 +9,7 @@
  * main-bridge.test.ts.
  */
 import { readFileSync } from 'node:fs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 
 const fake = vi.hoisted(() => {
@@ -68,7 +68,7 @@ const g = globalThis as any;
 let world: TestWorld;
 let restore: () => void;
 let bridge: any;
-let setSpy: ReturnType<typeof vi.fn>;
+let setSpy: Mock;
 
 /** The first argument of every info log line so far (`logInfo` writes to the console). */
 // eslint-disable-next-line no-console

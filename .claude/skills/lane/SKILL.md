@@ -119,8 +119,10 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   the gate, from the clean, pushed PR branch, run main's copy (never the branch's own):
 
   ```bash
-  g=$(cygpath -m "$(mktemp --suffix=.mjs)") && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
+  d=$(cygpath -m "$(mktemp -d)") && git fetch -q aitool main && git archive aitool/main scripts/lane-merge.mjs scripts/lane-merge | tar -x -C "$d" && test -s "$d/scripts/lane-merge.mjs" && node "$d/scripts/lane-merge.mjs" <PR> --dry-run
   ```
+
+  (The gate is the entry file plus the folder `scripts/lane-merge/`, so both come out of main together.)
 
   Only a `lane:merge: OK #<PR>` line passes; anything else (or nothing) is a refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
   `drift:check` and the merge train. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check

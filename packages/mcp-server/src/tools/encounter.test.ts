@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { EncounterTools } from './encounter.js';
 
@@ -14,7 +14,7 @@ import { EncounterTools } from './encounter.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: EncounterTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

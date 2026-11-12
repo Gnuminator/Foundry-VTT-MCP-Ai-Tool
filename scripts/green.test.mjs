@@ -381,6 +381,7 @@ test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY
     'unused:ratchet',
     'line:ratchet',
     'version:check',
+    'deps:check',
     'usage:catalog:check',
     'docs:lint',
     'docs:links',
@@ -1108,6 +1109,16 @@ test('quickSteps: a changed script runs its test, a changed test runs itself, a 
   assert.ok(!t.args.some(a => a.includes('no-such-thing')));
 });
 
+test('quickSteps: a changed merge gate module runs the gate test', () => {
+  const steps = quickSteps(
+    ['scripts/lane-merge/reviews.mjs'],
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  );
+  const t = steps.find(s => s.name === 'node-tests');
+  assert.ok(t);
+  assert.ok(t.args.includes('scripts/lane-merge.test.mjs'));
+});
+
 test('quickSteps: touched dashboard e2e specs build the dashboard and run only those specs', () => {
   const steps = quickSteps(['packages/cogm-dashboard/web/e2e/help.spec.ts']);
   const names = steps.map(s => s.name);
@@ -1432,12 +1443,7 @@ test('main --quick: runs the quick steps without the heavy lock, nothing to chec
     },
   };
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
-  assert.deepEqual(ran, [
-    'shared-link',
-    'build-shared',
-    'typecheck-mcp-server',
-    'unit-mcp-server',
-  ]);
+  assert.deepEqual(ran, ['shared-link', 'build-shared', 'typecheck-mcp-server', 'unit-mcp-server']);
   assert.equal(locked, 0, 'a quick run takes no heavy slot');
   assert.match(lines.at(-1), /^green: OK, 4 steps/);
   lines.length = 0;

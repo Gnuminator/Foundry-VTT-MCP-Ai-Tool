@@ -1,6 +1,4 @@
-import { defineConfig } from 'vitest/config';
-import { sharedFromSource } from '../../vitest.shared-source.js';
+import { mergeConfig } from 'vitest/config';
+import { sharedConfig } from '../../vitest.shared.mjs';
 
-export default defineConfig({
-  ssr: sharedFromSource,
-});
+export default mergeConfig(sharedConfig, {});

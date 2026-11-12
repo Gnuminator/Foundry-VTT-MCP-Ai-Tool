@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { TableViewerTools } from './table-viewer.js';
 
@@ -10,8 +10,8 @@ import { TableViewerTools } from './table-viewer.js';
 
 function makeTools(existing: Array<{ id: string; name: string }> = []): {
   tools: TableViewerTools;
-  query: ReturnType<typeof vi.fn>;
-  createPlan: ReturnType<typeof vi.fn>;
+  query: Mock;
+  createPlan: Mock;
 } {
   const query = vi.fn((..._args: unknown[]) =>
     Promise.resolve({ kind: 'user', choices: existing, truncated: false })

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DnD5eFeaturesFromCompendiumTools } from './features.js';
 import { makeTools, type ToolHarness } from '../../test-support/make-tool-harness.js';
@@ -27,7 +27,7 @@ vi.mock('../../utils/system-detection.js', () => ({
 
 // Import the mock so tests can reconfigure it
 import { detectGameSystem } from '../../utils/system-detection.js';
-const mockDetectGameSystem = detectGameSystem as ReturnType<typeof vi.fn>;
+const mockDetectGameSystem = detectGameSystem as Mock;
 
 // ---------------------------------------------------------------------------
 // Helper

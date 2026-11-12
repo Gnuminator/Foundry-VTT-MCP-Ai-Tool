@@ -2,7 +2,7 @@
  * P-036: "Allow Write Operations" gates every bridge handler that changes the
  * world, and every registered handler is classified as write or non-write.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { bridgeHandlers } from './bridge-handlers.js';
 import { changeJournal } from './change-journal.js';
@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 /** A data-access stub whose every method resolves, recording calls. */
-function stubEverything(): ReturnType<typeof vi.fn> {
+function stubEverything(): Mock {
   const calls = vi.fn();
   (qh as any).dataAccess = new Proxy(
     { validateFoundryState: vi.fn() },

@@ -14,7 +14,7 @@ describe('@gnuminator/shared in tests', () => {
     expect(viaPackage).toBe(viaSource);
   });
 
-  it('every vitest config extends vitest.shared.ts (so no package tests the built copy)', () => {
+  it('every vitest config extends vitest.shared.mts (so no package tests the built copy)', () => {
     const packagesDir = path.join(repoRoot, 'packages');
     const dirs = [
       'shared',

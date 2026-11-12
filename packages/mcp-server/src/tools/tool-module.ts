@@ -1,11 +1,12 @@
 /**
- * The tool module contract (R9): one object per tool family that says how to build the family's
- * instance, which MCP tool definitions it lists and which `call_tool` routes it answers. The
- * backend, the router, the tool list and the test stub are all derived from the static list in
+ * The tool module contract (R9, R10): one object per tool family that says how to build the
+ * family's instance, which MCP tool definitions it lists, which `call_tool` routes it answers,
+ * and each tool's set and hints. The backend, the router, the tool list, the test stub, the tool
+ * sets (tool-sets.ts) and the hints (tool-hints.ts) are all derived from the static list in
  * `tools/index.ts`, so a new tool family is one module file plus one line there.
  *
- * Type-only imports: the stdio wrapper loads tool-router.ts, which must not pull in the tool
- * classes, so this file stays free of runtime imports.
+ * Type-only imports: tool-sets.ts and tool-hints.ts read the modules, so this file must not
+ * import them (or anything else) at runtime.
  */
 import type { FoundryClient } from '../foundry-client.js';
 import type { GameEventHub } from '../game-event-hub.js';
@@ -18,7 +19,9 @@ import type { SecretTermsService } from '../secret-terms.js';
 import type { SystemRegistry } from '../systems/system-registry.js';
 import type { TarokkaService } from '../tarokka/service.js';
 import type { VaultStore, WorldIdResolver } from '../vault/index.js';
+import type { ToolHintSpec } from '../tool-hints.js';
 import type { ToolCallContext, ToolDefinitionLike } from '../tool-router.js';
+import type { ToolSetName } from '../tool-sets.js';
 import type { ObsidianMirrorToolsOptions } from './obsidian-mirror.js';
 import type { PlaySessionToolsOptions } from './play-session.js';
 import type { PreflightToolsOptions } from './preflight.js';
@@ -66,6 +69,15 @@ export interface ToolContext {
 /** One `call_tool` route: the family's instance, the call's arguments and its context. */
 export type ToolRoute<T> = (tools: T, args: unknown, context?: ToolCallContext) => Promise<unknown>;
 
+/**
+ * What every tool says about itself besides its definition: the one tool set it belongs to
+ * (tool-sets.ts, PB-12) and its MCP hints (tool-hints.ts, I-124: a short title and read, write
+ * or destructive).
+ */
+export interface ToolMeta extends ToolHintSpec {
+  set: ToolSetName;
+}
+
 export interface ToolModule<T> {
   /** Unique, stable id of the family (the file name), for errors and tests. */
   id: string;
@@ -74,6 +86,11 @@ export interface ToolModule<T> {
   definitions: (tools: T) => ToolDefinitionLike[];
   /** One route per tool name the family answers. */
   routes: Readonly<Record<string, ToolRoute<T>>>;
+  /**
+   * Set and hints of each tool, in the order of `definitions` (the tool catalog test checks the
+   * names and the order), so the set lists follow the tool list Claude receives.
+   */
+  tools: Readonly<Record<string, ToolMeta>>;
 }
 
 /**
@@ -85,6 +102,7 @@ export interface AnyToolModule {
   create: (ctx: ToolContext) => unknown;
   definitions: (tools: never) => ToolDefinitionLike[];
   routes: Readonly<Record<string, ToolRoute<never>>>;
+  tools: Readonly<Record<string, ToolMeta>>;
 }
 
 /** Identity helper so a module literal infers its instance type. */

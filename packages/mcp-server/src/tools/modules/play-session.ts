@@ -15,4 +15,8 @@ export const playSessionModule = defineToolModule({
     'mark-play-session': (tools, args) => tools.handleMarkPlaySession(args),
     'get-play-session': (tools, args) => tools.handleGetPlaySession(args),
   },
+  tools: {
+    'mark-play-session': { set: 'play', title: 'Mark play session start or end', kind: 'write' },
+    'get-play-session': { set: 'prep', title: 'Get play session state', kind: 'read' },
+  },
 });

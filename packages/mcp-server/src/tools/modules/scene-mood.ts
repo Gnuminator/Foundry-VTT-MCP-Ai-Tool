@@ -14,4 +14,8 @@ export const sceneMoodModule = defineToolModule({
     'plan-scene-mood': (tools, args) => tools.handleToolCall('plan-scene-mood', args),
     'list-scene-moods': (tools, args) => tools.handleToolCall('list-scene-moods', args),
   },
+  tools: {
+    'plan-scene-mood': { set: 'play', title: 'Plan scene mood or music', kind: 'read' },
+    'list-scene-moods': { set: 'play', title: 'List scene moods and playlists', kind: 'read' },
+  },
 });

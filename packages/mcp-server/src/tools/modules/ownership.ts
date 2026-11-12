@@ -14,4 +14,8 @@ export const ownershipModule = defineToolModule({
     'plan-ownership-change': (tools, args) => tools.handleToolCall('plan-ownership-change', args),
     'list-actor-ownership': (tools, args) => tools.handleToolCall('list-actor-ownership', args),
   },
+  tools: {
+    'plan-ownership-change': { set: 'admin', title: 'Plan ownership change', kind: 'read' },
+    'list-actor-ownership': { set: 'admin', title: 'List actor ownership', kind: 'read' },
+  },
 });

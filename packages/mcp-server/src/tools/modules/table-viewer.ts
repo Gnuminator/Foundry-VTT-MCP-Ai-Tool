@@ -13,4 +13,7 @@ export const tableViewerModule = defineToolModule({
   routes: {
     'plan-table-viewer': (tools, args) => tools.handleToolCall('plan-table-viewer', args),
   },
+  tools: {
+    'plan-table-viewer': { set: 'admin', title: 'Plan the TV table viewer user', kind: 'read' },
+  },
 });

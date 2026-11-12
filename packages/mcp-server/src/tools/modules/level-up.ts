@@ -9,4 +9,7 @@ export const levelUpModule = defineToolModule({
   routes: {
     'get-level-up-options': (tools, args) => tools.handleGetLevelUpOptions(args),
   },
+  tools: {
+    'get-level-up-options': { set: 'core', title: 'Get level-up options', kind: 'read' },
+  },
 });

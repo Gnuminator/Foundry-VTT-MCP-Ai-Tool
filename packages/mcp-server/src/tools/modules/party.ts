@@ -14,4 +14,8 @@ export const partyModule = defineToolModule({
     'get-party': (tools, args) => tools.handleGetParty(args),
     'plan-party-change': (tools, args) => tools.handlePlanPartyChange(args),
   },
+  tools: {
+    'get-party': { set: 'play', title: 'Get party', kind: 'read' },
+    'plan-party-change': { set: 'play', title: 'Plan party change', kind: 'read' },
+  },
 });

@@ -18,4 +18,11 @@ export const guardedChangesModule = defineToolModule({
     'undo-change': (tools, args, context) => tools.handleUndoChange(args, context?.requestedBy),
     'open-in-foundry': (tools, args) => tools.handleOpenInFoundry(args),
   },
+  tools: {
+    'get-planned-change': { set: 'core', title: 'Show planned change', kind: 'read' },
+    'apply-planned-change': { set: 'core', title: 'Apply planned change', kind: 'destructive' },
+    'list-recent-changes': { set: 'core', title: 'List applied plans', kind: 'read' },
+    'undo-change': { set: 'core', title: 'Undo change', kind: 'destructive' },
+    'open-in-foundry': { set: 'core', title: 'Open in Foundry', kind: 'read' },
+  },
 });

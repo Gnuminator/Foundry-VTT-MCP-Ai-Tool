@@ -9,4 +9,7 @@ export const rulesCheckModule = defineToolModule({
   routes: {
     'check-action': (tools, args) => tools.handleToolCall('check-action', args),
   },
+  tools: {
+    'check-action': { set: 'play', title: 'Check an action against the rules', kind: 'read' },
+  },
 });

@@ -362,6 +362,8 @@ test('skills: lane and planner point at backlog.mjs and stay under the word budg
   const lane = read('lane');
   const planner = read('planner');
   for (const t of [lane, planner]) assert.match(t, /scripts\/backlog\.mjs/);
+  // the advisor was dropped for every lane (the user, 2026-11-12): the lane skill must not bring it back
+  assert.doesNotMatch(lane, /advisor/i);
   const m = /lane skill under ([\d,]+) words, planner under ([\d,]+)/.exec(planner);
   assert.ok(m, 'the planner skill names both budgets');
   const words = (/** @type {string} */ t) => t.split(/\s+/).filter(Boolean).length;

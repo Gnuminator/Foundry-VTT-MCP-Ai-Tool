@@ -168,16 +168,8 @@ export function parseResponse(line) {
   const cacheRead = n(u.cache_read_input_tokens);
   const cacheCreate = n(u.cache_creation_input_tokens);
   const output = n(u.output_tokens);
-  const content = Array.isArray(j.message.content) ? j.message.content : [];
-  const advisorIds = content
-    .map((c, i) => [c, i])
-    .filter(
-      ([c]) => (c?.type === 'tool_use' || c?.type === 'server_tool_use') && c.name === 'advisor'
-    )
-    .map(([c, i]) => c.id || `${j.message.id}:${i}`);
   return {
     id: j.message.id || null,
-    advisorIds,
     t,
     model,
     sidechain: Boolean(j.isSidechain),
@@ -195,8 +187,6 @@ export async function readTranscripts(files, startMs) {
   const seen = new Set();
   const responses = [];
   const sessions = [];
-  // advisor tool_use ids: one response spans several lines and a fork repeats its parent's lines
-  const advisorSeen = new Set();
   for (const file of files) {
     const sub = isSubagentFile(file);
     const mainTurns = [];
@@ -207,7 +197,6 @@ export async function readTranscripts(files, startMs) {
       const r = parseResponse(line);
       if (!r) continue;
       const main = !sub && !r.sidechain;
-      if (main && r.t >= startMs) for (const id of r.advisorIds) advisorSeen.add(id);
       // Sessions dedupe per file (a fork repeats its parent's ids but its first turn is its own, as in ctx.js); tokens and cost dedupe globally.
       if (main && !(r.id && fileSeen.has(r.id))) {
         if (r.id) fileSeen.add(r.id);
@@ -221,7 +210,7 @@ export async function readTranscripts(files, startMs) {
     }
     if (mainTurns.length) sessions.push({ file, turns: mainTurns });
   }
-  return { responses, sessions, advisorCalls: advisorSeen.size };
+  return { responses, sessions };
 }
 
 // --- weekly limit use (the vault's Usage log) -----------------------------------------------
@@ -472,7 +461,6 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
 
   const rows = [...byDay.values()];
   const total = newDay('total');
-  let advisorPerPr = null;
   total.sessions = qualifying.length;
   Object.assign(total, sessionStats(qualifying));
   total.tokens = sum(rows, d => d.tokens);
@@ -481,7 +469,6 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   if (prs) {
     total.prs = sum(rows, d => d.prs);
     total.tokensPerPr = total.prs ? total.tokens / total.prs / 1e6 : null;
-    advisorPerPr = total.prs ? advisorCalls / total.prs : null;
   }
   const covered = rows.filter(d => d.weeklyPoints !== null);
   total.coveredDays = covered.length;
@@ -507,8 +494,6 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     days: rows,
     total,
     models,
-    advisorCalls,
-    advisorPerPr,
     figures: figuresFor(total, days),
   };
 }
@@ -640,11 +625,6 @@ export function formatReport(report, notes = []) {
     formatModels(report.models),
     formatLanes(report.lanes),
     formatPace(report.pace),
-    `Advisor calls (main sessions): ${report.advisorCalls}${
-      Number.isFinite(report.advisorPerPr)
-        ? ` (${num(report.advisorPerPr, 1)} per merged PR)`
-        : ''
-    }`,
     ...(report.toolCalls ? [report.toolCalls.line] : []),
     ...notes.map(n => `Note: ${n}`),
   ];

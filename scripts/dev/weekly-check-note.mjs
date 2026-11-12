@@ -10,7 +10,6 @@
 //   weekly-points-per-pr. Numbers only: no limits and no ok flags (pace is information only, the
 //   user 2026-11-11).
 //   - pace-profile-weeks / pace-active-hours-weekday / pace-active-hours-weekend (usage-pace.mjs)
-//   - advisor-calls / advisor-per-pr (only when known)
 //   - tool-calls / tool-errors / tools-used / tools-never-used (MCP tool call log; only when calls
 //     were logged, tools-never-used only when the server is built)
 
@@ -49,10 +48,6 @@ export function sectionFor(report) {
     lines.push(`- pace-profile-weeks: ${profile.weeks}`);
     lines.push(`- pace-active-hours-weekday: ${profile.activeHours.weekday}`);
     lines.push(`- pace-active-hours-weekend: ${profile.activeHours.weekend}`);
-  }
-  if (Number.isInteger(report.advisorCalls)) lines.push(`- advisor-calls: ${report.advisorCalls}`);
-  if (Number.isFinite(report.advisorPerPr)) {
-    lines.push(`- advisor-per-pr: ${round(report.advisorPerPr, 1)}`);
   }
   const calls = report.toolCalls;
   if (calls && calls.total > 0) {

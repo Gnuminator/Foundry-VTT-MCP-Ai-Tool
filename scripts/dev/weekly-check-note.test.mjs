@@ -47,7 +47,7 @@ test('a section lists numbers only; unknown values are left out, not 0', () => {
   assert.doesNotMatch(text, /-limit|-ok/);
 });
 
-test('a section carries advisor and tool call numbers only when they are known', () => {
+test('a section carries tool call numbers only when they are known, and no advisor numbers', () => {
   const text = sectionFor(
     report('2026-10-17', '2026-10-23', {
       advisorCalls: 6,
@@ -55,7 +55,7 @@ test('a section carries advisor and tool call numbers only when they are known',
       toolCalls: { total: 40, errors: 2, used: 9, never: 31 },
     })
   );
-  assert.match(text, /- advisor-calls: 6\n- advisor-per-pr: 1\.2\n/);
+  assert.doesNotMatch(text, /advisor/);
   assert.match(
     text,
     /- tool-calls: 40\n- tool-errors: 2\n- tools-used: 9\n- tools-never-used: 31$/

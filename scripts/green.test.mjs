@@ -1726,9 +1726,12 @@ test('scripts/tsconfig.json typechecks every gate script, and its file list only
   const baseline = ['checks.mjs', 'drift-check.mjs', 'green.mjs', 'lane-merge.mjs'];
   for (const f of baseline) {
     assert.ok(cfg.files.includes(f), `${f} is gone from scripts/tsconfig.json`);
+  }
+  // checkJs is off, so every listed file must opt in itself or it is not checked at all.
+  for (const f of cfg.files) {
     const head = fs.readFileSync(path.join(here, f), 'utf8').split('\n').slice(0, 3).join('\n');
     assert.match(head, /\/\/ @ts-check/, `${f} lost its // @ts-check line`);
   }
   const root = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
-  assert.match(root.scripts.typecheck, /scripts\/tsconfig\.json/);
+  assert.ok(root.scripts.typecheck.endsWith('tsc -p scripts/tsconfig.json'));
 });

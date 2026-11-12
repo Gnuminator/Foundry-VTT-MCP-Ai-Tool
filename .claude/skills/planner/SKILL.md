@@ -10,15 +10,11 @@ The planner runs on Opus, on demand, for one outcome, then ends (D-141, see Endi
 
 ## Read the state (measured)
 
-- `node scripts/backlog.mjs status`, `Waiting.md`, CLAUDE.md "Holds now". Its progress lines are the lanes' ready state
-  (lanes message nobody): read them every time, inherited lanes included. Message a lane only
-  when it has been idle under 55 minutes. A lane that stopped with a handover and no
-  running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start), and the stopped lane is archived first (if the folder stays, `git checkout --detach` there once clean).
-- `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
-  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red: see Main is red).
-- `list_sessions` without `linked` (lanes start their own successors), then `get_usage` with each
-  running lane's id (lanes underreport) and `"self"` for yours and the plan
-  percentages.
+- `node scripts/backlog.mjs status --planner` (claims and progress lines, open PRs with CI and review verdict, the merge train,
+  main's CI, due Waiting), then `Waiting.md` and CLAUDE.md "Holds now". Lanes message nobody and the merge runner merges, so
+  read every progress line once, inherited lanes included. A lane that stopped with a handover and no running successor gets
+  one (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start); archive the stopped lane first.
+- Main red: see Main is red. `get_usage` with each running lane's id (lanes underreport) and `"self"` for the plan percentages.
 
 ## "What's next"
 
@@ -55,7 +51,7 @@ the user placed), pushes the vault and archives itself (see Session cleanup).
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,190).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,141).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).

@@ -22,6 +22,7 @@ import {
   releaseEdit,
   run,
   statusText,
+  takeLock,
 } from './backlog.mjs';
 
 const FIXTURE = [
@@ -580,14 +581,32 @@ test('git: a second writer on the same vault is refused while the first holds th
   assert.equal(fs.existsSync(path.join(v.a, '.git', 'backlog-tool.lock')), false, 'released');
 });
 
-test('git: a stale lock (dead pid, or older than 2 minutes) is taken over', () => {
+test('git: a stale lock (dead pid, or older than 15 minutes) is taken over; a live holder is not', () => {
   const v = vaults();
   const lock = path.join(v.a, '.git', 'backlog-tool.lock');
   fs.writeFileSync(lock, JSON.stringify({ pid: 2 ** 22 + 12345, start: Date.now() }));
   assert.equal(v.cli(['claim', 'second', 'x'], { lockWaitMs: 0 }).code, 0);
+  // a live holder 3 minutes in (a slow push race) keeps its lock
   fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: Date.now() - 3 * 60 * 1000 }));
+  const refused = v.cli(['release', 'second'], { lockWaitMs: 0 });
+  assert.equal(refused.code, 1);
+  assert.match(refused.err, /another session is writing/);
+  assert.ok(fs.existsSync(lock), "the live holder's lock is still there");
+  fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: Date.now() - 20 * 60 * 1000 }));
   assert.equal(v.cli(['release', 'second'], { lockWaitMs: 0 }).code, 0);
   assert.doesNotMatch(v.remoteFile(BACKLOG), /claimed: x/);
+  assert.ok(!fs.existsSync(lock), 'released');
+});
+
+test('git: release leaves a lock another run has taken over', () => {
+  const v = vaults();
+  const gitDir = path.join(v.a, '.git');
+  const release = takeLock(gitDir, 0);
+  const lock = path.join(gitDir, 'backlog-tool.lock');
+  const theirs = JSON.stringify({ pid: process.pid, start: Date.now() + 1 });
+  fs.writeFileSync(lock, theirs);
+  release();
+  assert.equal(fs.readFileSync(lock, 'utf8'), theirs);
 });
 
 test('git: when HEAD moved after our commit, a rejected push resets nothing', () => {
@@ -641,6 +660,30 @@ test('git: unpushed local commits are rebased and pushed with the edit', () => {
   assert.match(r.err, /1 unpushed commit/);
   assert.equal(git(v.a, ['show', 'origin/main:other.md']), 'planner note\n');
   assert.match(git(v.a, ['show', `origin/main:${LOWS}/CI.md`]), /- 2026-11-12 b/);
+});
+
+test("git: unpushed commits plus another session's uncommitted edit: refused, the edit is never stashed", () => {
+  const v = vaults();
+  fs.writeFileSync(path.join(v.a, 'other.md'), 'planner note\n');
+  git(v.a, ['commit', '-q', '-am', 'planner, not pushed']);
+  fs.appendFileSync(path.join(v.a, LOWS, 'CI.md'), '- half written\n');
+  const r = v.cli(['claim', 'second', 'x']);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /uncommitted edits by another session/);
+  assert.match(fs.readFileSync(path.join(v.a, LOWS, 'CI.md'), 'utf8'), /half written/);
+  assert.equal(git(v.a, ['stash', 'list']).trim(), '');
+});
+
+test('git: a push that landed but reported failure counts as written', () => {
+  const v = vaults();
+  const r = v.cli(['claim', 'second', 'x'], {
+    // the push is rejected by a hook-less trick: push to the remote ourselves, then make ours fail
+    beforePush: () => {
+      git(v.a, ['push', '-q']);
+      git(v.a, ['remote', 'set-url', '--push', 'origin', '/nonexistent/none.git']);
+    },
+  });
+  assert.equal(r.code, 0, r.err);
 });
 
 test('git: a rebase conflict is aborted, so the shared vault is never left mid-rebase', () => {

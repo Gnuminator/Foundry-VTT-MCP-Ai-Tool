@@ -351,20 +351,28 @@ export const gitIn = vault => args => {
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 };
 
-export const LOCK_STALE_MS = 2 * 60 * 1000;
+// A live holder keeps its lock: five attempts of fetch, rebase and push can take minutes, so only a
+// dead pid (or a lock far older than any run) counts as stale.
+export const LOCK_STALE_MS = 15 * 60 * 1000;
 export const LOCK_WAIT_MS = 30 * 1000;
 
-/** @param {string} lockFile @param {number} now */
-function lockIsStale(lockFile, now) {
+/** The lock file's text when it is stale, else null. @param {string} lockFile @param {number} now */
+function staleLockText(lockFile, now) {
+  let text;
   try {
-    const { pid, start } = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-    return !pidAlive(Number(pid)) || now - Number(start) > LOCK_STALE_MS;
+    text = fs.readFileSync(lockFile, 'utf8');
+  } catch {
+    return null; // gone: the next open decides
+  }
+  try {
+    const { pid, start } = JSON.parse(text);
+    return !pidAlive(Number(pid)) || now - Number(start) > LOCK_STALE_MS ? text : null;
   } catch {
     // Unreadable: a holder may be writing it right now; stale only by the file's age.
     try {
-      return now - fs.statSync(lockFile).mtimeMs > LOCK_STALE_MS;
+      return now - fs.statSync(lockFile).mtimeMs > LOCK_STALE_MS ? text : null;
     } catch {
-      return true;
+      return null;
     }
   }
 }
@@ -372,7 +380,7 @@ function lockIsStale(lockFile, now) {
 /**
  * The vault is one working tree shared by the planner and every lane, so two writers must not
  * overlap: an exclusive file in the vault's .git folder (pid and start time), taken over when its
- * pid is dead or it is older than 2 minutes. Waits up to `waitMs`, then refuses.
+ * pid is dead or it is older than 15 minutes. Waits up to `waitMs`, then refuses.
  * @param {string} gitDir @param {number} waitMs @returns {() => void} release
  */
 export function takeLock(gitDir, waitMs = LOCK_WAIT_MS) {
@@ -380,15 +388,34 @@ export function takeLock(gitDir, waitMs = LOCK_WAIT_MS) {
   const until = Date.now() + waitMs;
   for (;;) {
     try {
+      const mine = JSON.stringify({ pid: process.pid, start: Date.now() });
       const fd = fs.openSync(lockFile, 'wx');
-      fs.writeSync(fd, JSON.stringify({ pid: process.pid, start: Date.now() }));
+      fs.writeSync(fd, mine);
       fs.closeSync(fd);
-      return () => fs.rmSync(lockFile, { force: true });
+      // Release only a lock that still holds this run's text, never one taken over meanwhile.
+      return () => {
+        try {
+          if (fs.readFileSync(lockFile, 'utf8') === mine) fs.rmSync(lockFile, { force: true });
+        } catch {
+          // already gone
+        }
+      };
     } catch (e) {
       if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') throw e;
     }
-    if (lockIsStale(lockFile, Date.now())) {
-      fs.rmSync(lockFile, { force: true });
+    const stale = staleLockText(lockFile, Date.now());
+    if (stale !== null) {
+      // Take over by renaming to a unique name: only one waiter wins the rename. If what we
+      // renamed is not the stale text we judged (a fresh lock slipped in), put it back.
+      const aside = `${lockFile}.stale-${process.pid}-${Date.now()}`;
+      try {
+        fs.renameSync(lockFile, aside);
+        if (fs.readFileSync(aside, 'utf8') === stale) fs.rmSync(aside, { force: true });
+        else if (!fs.existsSync(lockFile)) fs.renameSync(aside, lockFile);
+        else fs.rmSync(aside, { force: true });
+      } catch {
+        // someone else won the takeover: loop and try to open again
+      }
       continue;
     }
     if (Date.now() >= until)
@@ -424,8 +451,8 @@ export function writeWithRetry(o) {
 
 /**
  * Bring the vault up to its upstream without touching other sessions' uncommitted files: a
- * fast-forward when there is nothing local, a rebase (with autostash) only when the vault already
- * has unpushed commits.
+ * fast-forward when there is nothing local, a plain rebase only when the vault already has unpushed
+ * commits and no tracked file is dirty (a rebase would have to stash it), else it refuses.
  * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log
  */
 function syncVault(must, log) {
@@ -435,9 +462,14 @@ function syncVault(must, log) {
     must(['merge', '--ff-only', '-q', '@{u}'], 'git merge --ff-only');
     return;
   }
+  const edits = must(['status', '--porcelain', '--untracked-files=no'], 'git status').stdout.trim();
+  if (edits)
+    throw new Error(
+      `the vault has ${ahead} unpushed commit(s) and uncommitted edits by another session; retry in a minute:\n${edits}`
+    );
   log(`backlog: the vault has ${ahead} unpushed commit(s); rebasing them (they are pushed too)`);
   try {
-    must(['rebase', '-q', '--autostash', '@{u}'], 'git rebase');
+    must(['rebase', '-q', '@{u}'], 'git rebase');
   } catch (e) {
     // Never leave the shared vault in the middle of a rebase.
     must(['rebase', '--abort'], 'git rebase --abort');
@@ -451,14 +483,15 @@ function syncVault(must, log) {
  */
 function writeLocked(o, must) {
   const log = o.log ?? (s => console.error(s));
-  const dirty = must(['status', '--porcelain', '--', ...o.paths], 'git status').stdout.trim();
-  if (dirty)
-    throw new Error(
-      `another session has uncommitted changes in a file this writes; retry in a minute, or ask the user:\n${dirty}`
-    );
   const retries = o.retries ?? RETRIES;
   for (let attempt = 1; attempt <= retries; attempt++) {
     syncVault(must, log);
+    // After the sync, on every attempt: a half edit of another session must not enter our commit.
+    const dirty = must(['status', '--porcelain', '--', ...o.paths], 'git status').stdout.trim();
+    if (dirty)
+      throw new Error(
+        `another session has uncommitted changes in a file this writes; retry in a minute, or ask the user:\n${dirty}`
+      );
     const read = (/** @type {string} */ rel) => {
       const f = path.join(o.vault, rel);
       return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
@@ -475,6 +508,12 @@ function writeLocked(o, must) {
     o.beforePush?.(attempt);
     const pushed = o.git(['push', '-q']);
     if (pushed.status === 0) return { attempts: attempt, changed: true };
+    // A push that landed but reported failure (timeout, dropped connection) is a success.
+    if (
+      o.git(['fetch', '-q']).status === 0 &&
+      o.git(['merge-base', '--is-ancestor', mine, '@{u}']).status === 0
+    )
+      return { attempts: attempt, changed: true };
     log(`backlog: push rejected (attempt ${attempt} of ${retries}); pulling and redoing the edit`);
     // Drop only our own commit: if something committed on top meanwhile, resetting would lose it.
     if (must(['rev-parse', 'HEAD'], 'git rev-parse').stdout.trim() !== mine)

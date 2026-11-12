@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Drift check: run before posting "PR ready". Lanes merge in parallel, and some guards only fail
  * once another lane's PR is on main: tool counts and sizes in the docs, the generated tool
@@ -484,6 +485,7 @@ export function lockedCommand(check, dir) {
  * @param {string[] | null} [changed] files changed since the merge base; null runs every guard
  */
 export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
+  /** @type {string[]} */
   const failed = [];
   for (const check of checks) {
     const when = check.when ? [check.when].flat() : null;

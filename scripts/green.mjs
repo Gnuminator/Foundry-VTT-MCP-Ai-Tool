@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the same
  * order (except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
@@ -56,10 +57,10 @@ export function parseArgs(argv) {
     all: false,
     cloud: false,
     quick: false,
-    only: [],
-    skip: [],
-    from: null,
-    error: null,
+    only: /** @type {string[]} */ ([]),
+    skip: /** @type {string[]} */ ([]),
+    from: /** @type {string | null} */ (null),
+    error: /** @type {string | null} */ (null),
   };
   const csv = (/** @type {string} */ v) =>
     v
@@ -795,10 +796,10 @@ export function cloudGreen(o) {
 }
 
 /** Scripts whose tests live in another file. */
-const QUICK_TEST_OF = {
+const QUICK_TEST_OF = /** @type {Record<string, string>} */ ({
   'scripts/pre-push.mjs': 'scripts/green.test.mjs',
   'scripts/docs-kit.mjs': 'scripts/docs-ui-check.test.mjs',
-};
+});
 
 /**
  * Quick-mode inputs of `docs:ui` (the pages) and `docs:kit` (the kit page): a quick run executes

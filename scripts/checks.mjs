@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * The one list of checks (D-122 restructure R1). Every command the CI job `build-test` runs, every
  * step of `npm run green`, and every guard of `npm run drift:check` is one entry here:

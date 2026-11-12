@@ -7,7 +7,7 @@
  * `playAll`/`stopAll` stubs are pushed onto `world.playlists`.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
@@ -30,8 +30,8 @@ afterEach(() => {
 });
 
 function addPlaylist(name: string): {
-  playAll: ReturnType<typeof vi.fn>;
-  stopAll: ReturnType<typeof vi.fn>;
+  playAll: Mock;
+  stopAll: Mock;
 } {
   const playAll = vi.fn(() => Promise.resolve());
   const stopAll = vi.fn(() => Promise.resolve());

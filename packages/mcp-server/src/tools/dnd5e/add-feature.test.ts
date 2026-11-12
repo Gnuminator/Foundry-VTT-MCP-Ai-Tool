@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DnD5eAddFeatureTool } from './add-feature.js';
 import { makeTools, type ToolHarness } from '../../test-support/make-tool-harness.js';
@@ -44,7 +44,7 @@ const POISON_DAMAGE = { number: 2, denomination: 8, type: 'poison' };
  * handler map for specific bridge methods. Unknown methods default to
  * `{ actor: ACTOR_RESULT, item: ITEM_RESULT }`.
  */
-function makeQueryForDnd5e(overrides: Record<string, unknown> = {}): ReturnType<typeof vi.fn> {
+function makeQueryForDnd5e(overrides: Record<string, unknown> = {}): Mock {
   return vi.fn((method: string): unknown => {
     if (method === 'foundry-mcp-bridge.getWorldInfo') {
       return { system: 'dnd5e' };

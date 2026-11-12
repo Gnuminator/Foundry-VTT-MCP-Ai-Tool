@@ -5,7 +5,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   PREP_NOTES_NOTICE,
@@ -528,7 +528,7 @@ describe('get-prep-digest', () => {
       const tools = makeTools();
       const digest = await tools.handleGetPrepDigest({});
       expect('prep' in digest).toBe(false);
-      const query = (tools as any).options.foundryClient.query as ReturnType<typeof vi.fn>;
+      const query = (tools as any).options.foundryClient.query as Mock;
       expect(query.mock.calls.map(c => c[0])).toEqual(['foundry-mcp-bridge.getPrepScan']);
     });
 

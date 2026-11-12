@@ -5,7 +5,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path, { join } from 'node:path';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ACTOR_IMAGE_FEATURE_ID } from '@gnuminator/shared';
 
@@ -37,8 +37,8 @@ afterAll(() => rmSync(base, { recursive: true, force: true }));
 
 let enabled: boolean;
 let writesAllowed: boolean;
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
 let tools: ActorImageTools;
 
 beforeEach(() => {

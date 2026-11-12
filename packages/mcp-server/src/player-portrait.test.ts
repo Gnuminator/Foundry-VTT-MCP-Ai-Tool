@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { handlePlayerPortrait, PortraitError } from './player-portrait.js';
 
@@ -7,8 +7,8 @@ const ACTOR = 'actor00000000001';
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 function setup(options: { features?: unknown; upload?: unknown } = {}): {
-  foundry: { query: ReturnType<typeof vi.fn> };
-  writes: { createPlan: ReturnType<typeof vi.fn>; applyPlan: ReturnType<typeof vi.fn> };
+  foundry: { query: Mock };
+  writes: { createPlan: Mock; applyPlan: Mock };
 } {
   const foundry = {
     query: vi.fn((method: string) => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { CampaignManagementTools } from './campaign-management.js';
 
@@ -15,7 +15,7 @@ import { CampaignManagementTools } from './campaign-management.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: CampaignManagementTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(
     queryImpl ??

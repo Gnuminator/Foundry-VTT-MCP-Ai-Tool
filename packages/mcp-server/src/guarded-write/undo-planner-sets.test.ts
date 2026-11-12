@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ChangeRecord, GuardedOp, GuardedOpResult, PathValue } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildActions, type ChangeAction } from '../change-history.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
@@ -105,7 +105,7 @@ function itemRecord(min: number, actionId: string, overrides: Partial<ChangeReco
 let ring: AuditEntry[];
 let records: ChangeRecord[];
 let foundry: FakeFoundry;
-let createPlan: ReturnType<typeof vi.fn>;
+let createPlan: Mock;
 let planner: UndoPlanner;
 
 function planInput(): PlanInput {

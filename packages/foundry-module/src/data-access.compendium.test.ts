@@ -7,7 +7,7 @@
  * harness pack/document shape needed local workarounds.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createTestWorld,
   makeActor,
@@ -294,7 +294,7 @@ describe('FoundryDataAccess: searchCompendium, Item summary fields (dnd5e 6)', (
     entries: Array<Record<string, any>>,
     fail?: 'fields' | 'all',
     wait?: (fields: string[]) => Promise<void>
-  ): { pack: ReturnType<TestWorld['addPack']>; server: ReturnType<typeof vi.fn> } {
+  ): { pack: ReturnType<TestWorld['addPack']>; server: Mock } {
     const pack = world.addPack({ id, label: id, type: 'Item' });
     let indexedFields = new Set<string>();
     pack.indexed = false;
@@ -684,7 +684,9 @@ describe('FoundryDataAccess: listCreaturesByCriteria while the creature index bu
   /** Make the index build take as long as the test says: returns the function that ends it. */
   function slowIndex(): (creatures: unknown[]) => void {
     let finish: (creatures: unknown[]) => void = () => {};
-    const index = (da as any).compendium.persistentIndex;
+    const index = (da as any).compendium.persistentIndex as {
+      getEnhancedIndex: () => Promise<unknown>;
+    };
     vi.spyOn(index, 'getEnhancedIndex').mockImplementation(
       () => new Promise(resolve => (finish = resolve))
     );

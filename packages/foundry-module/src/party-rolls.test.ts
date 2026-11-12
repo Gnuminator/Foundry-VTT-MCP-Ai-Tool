@@ -3,7 +3,7 @@
  * arguments, the pick fields, the per-character round and the escaping, then the window itself
  * (the buttons call the module's own roll path, the results fill in from chat, writes off disable).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { MODULE_ID } from './constants.js';
 import { GM_WINDOWS_SETTING } from './gm-windows.js';
@@ -186,7 +186,7 @@ describe('in the Party window', () => {
   let world: TestWorld;
   let restore: () => void;
   let rendered: any[];
-  let send: ReturnType<typeof vi.fn>;
+  let send: Mock;
   let chatHandlers: Array<(m: unknown) => void>;
 
   const pc = (id: string, name: string): any => ({

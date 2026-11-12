@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { TokenManipulationTools } from './token-manipulation.js';
 
@@ -16,7 +16,7 @@ import { TokenManipulationTools } from './token-manipulation.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: TokenManipulationTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

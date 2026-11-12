@@ -1,5 +1,5 @@
 import type { ChangeRecord, GuardedOp, GuardedOpResult, PathValue } from '@gnuminator/shared';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildActions, type ChangeAction } from '../change-history.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
@@ -82,7 +82,7 @@ let historyStart = 0;
 /** The AI changes the history says it left records of out. */
 let leftOut: Set<string>;
 let foundry: FakeFoundry;
-let createPlan: ReturnType<typeof vi.fn>;
+let createPlan: Mock;
 let planner: UndoPlanner;
 
 function planInput(): PlanInput {

@@ -2,7 +2,7 @@
  * `plan-scene-mood` and `list-scene-moods` (I-034, I-129): Foundry and the guarded-write service
  * are stubs; the tests check the switch check, the request the module gets and the plan stored.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SCENE_MOOD_FEATURE_ID, type GuardedOp } from '@gnuminator/shared';
 
@@ -17,8 +17,8 @@ function logger(): any {
 const OPS: GuardedOp[] = [{ kind: 'update', uuid: 'Scene.s1', changes: { weather: 'rain' } }];
 
 let enabled: boolean;
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
 let tools: SceneMoodTools;
 
 beforeEach(() => {

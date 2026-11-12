@@ -236,6 +236,7 @@ test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY
     'unused:ratchet',
     'line:ratchet',
     'version:check',
+    'deps:check',
     'usage:catalog:check',
     'docs:lint',
     'docs:links',

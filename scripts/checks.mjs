@@ -106,6 +106,7 @@ export const CHECKS = [
     drift: { name: 'line baseline', order: 7.5 },
   }),
   npmRun('version-check', 'static', 'version:check', { drift: { name: 'version sync', order: 5 } }),
+  npmRun('dep-ranges', 'static', 'deps:check', { drift: { name: 'dependency ranges', order: 5.5 } }),
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },
   }),

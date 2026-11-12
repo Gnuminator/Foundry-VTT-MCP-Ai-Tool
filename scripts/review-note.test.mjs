@@ -65,10 +65,11 @@ test('buildNote: a verdict for an earlier head carries when the gate says the pa
 });
 
 test('finishNote drops a typed Head reviewed line, fixes em dashes and rejects a missing verdict', () => {
-  const typed = `# PR #9 review: x\n\nHead reviewed: ${SHA2}\nA — B\n\n## Verdict\n\n**Merge.**\n`;
+  const dash = String.fromCharCode(0x2014);
+  const typed = `# PR #9 review: x\n\nHead reviewed: ${SHA2}\nA ${dash} B\n\n## Verdict\n\n**Merge.**\n`;
   const { text, problems } = finishNote(typed, 9, 'sonnet', SHA, '9-review.md');
   assert.deepEqual(problems, []);
-  assert.ok(!text.includes(SHA2) && !text.includes('—'));
+  assert.ok(!text.includes(SHA2) && !text.includes(dash));
   assert.match(finishNote('# PR #9 review: x\n\nnothing', 9, 'sonnet', SHA, '9-review.md').problems[0], /Verdict/);
   assert.ok(finishNote(typed, 9, 'opus', SHA, '9-review.md').problems.some(p => /Opus review/.test(p)));
 });

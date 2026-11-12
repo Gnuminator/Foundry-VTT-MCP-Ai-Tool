@@ -36,9 +36,9 @@ import * as path from 'path';
 /** How often the player view context (visibility, handouts) is refreshed. */
 const PLAYER_SOURCE_INTERVAL_MS = 5_000;
 /** How often the GM stream repeats the bridge status (the page's watchdog allows 45 s of silence). */
-export const STATUS_HEARTBEAT_MS = 17_000;
+const STATUS_HEARTBEAT_MS = 17_000;
 /** How often the Recorder and Play log dots of the health line are re-read. */
-export const RECORDING_HEALTH_MS = 15_000;
+const RECORDING_HEALTH_MS = 15_000;
 /** Player-state broadcasts are coalesced over this window. */
 const PLAYER_BROADCAST_DEBOUNCE_MS = 250;
 
@@ -63,7 +63,7 @@ function mapWorld(raw: unknown): WorldInfo {
 }
 
 /** What the live state reads from `app.ts`. */
-export interface LiveStateInputs {
+interface LiveStateInputs {
   deps: DashboardDeps;
   settings: RuntimeSettings;
   state: GameState;
@@ -77,7 +77,7 @@ export interface LiveStateInputs {
   resyncFeed: () => void;
 }
 
-export interface LiveState {
+interface LiveState {
   handlers: GameFeedHandlers;
   playerView: PlayerViewSource;
   world: () => WorldInfo | null;

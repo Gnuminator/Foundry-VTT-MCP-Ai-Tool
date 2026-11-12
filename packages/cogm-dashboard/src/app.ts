@@ -49,8 +49,6 @@ import * as path from 'path';
 export type { Dashboard, DashboardClient, DashboardDeps } from './dashboard-types.js';
 /** The player page header and its policy moved to routes/pages-static.ts; tests import them from here. */
 export { PLAYER_CSP, PLAYER_PAGE_HEADERS } from './routes/pages-static.js';
-/** The heartbeat and health-dot intervals moved to live-state.ts; the tests import them from here. */
-export { STATUS_HEARTBEAT_MS, RECORDING_HEALTH_MS } from './live-state.js';
 
 export function createDashboard(deps: DashboardDeps): Dashboard {
   const { config, logger, client } = deps;

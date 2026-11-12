@@ -542,6 +542,19 @@ test('risky categories: every category has patterns and the real paths match', (
     assert.deepEqual(category(`shared/src/${f}.ts`), ['wire contracts'], f);
   }
   assert.deepEqual(category('shared/src/party.ts'), []);
+  // Tool modules, sets, budgets and the player tools are wire contracts (PR 848 slipped past).
+  for (const f of [
+    'packages/mcp-server/src/tools/modules/party.ts',
+    'packages/mcp-server/src/tool-sets.ts',
+    'packages/mcp-server/src/tool-budgets.ts',
+    'packages/mcp-server/src/tools/player.ts',
+  ]) {
+    assert.deepEqual(category(f), ['wire contracts'], f);
+  }
+  assert.deepEqual(category('packages/mcp-server/src/tools/modules/guarded-changes.ts'), [
+    'guarded writes',
+    'wire contracts',
+  ]);
   assert.deepEqual(category('shared/src/guarded-write.ts'), ['guarded writes']);
   for (const calm of [
     'docs/guide.md',

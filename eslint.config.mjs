@@ -105,6 +105,27 @@ export default defineConfig(
     },
   },
   {
+    // The module runs in the browser as plain ES modules, where `@gnuminator/shared` cannot be
+    // resolved: only `import type` is allowed (values are mirrored and pinned by contract tests).
+    files: ['packages/foundry-module/src/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/test-support/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@gnuminator/shared',
+              allowTypeImports: true,
+              message:
+                'The module build runs in the browser and cannot load the shared package: use `import type`.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/cogm-dashboard/web/**/*.ts', 'packages/cogm-dashboard/web/**/*.tsx'],
     languageOptions: { globals: globals.browser },
     plugins: { 'react-hooks': reactHooks },

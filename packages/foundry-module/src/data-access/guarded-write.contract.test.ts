@@ -1,7 +1,7 @@
 /**
- * The module keeps its own copy of the guarded-write wire types (it does not
- * import the shared package). This pins the runtime vocabulary to the shared
- * contract so the two cannot drift.
+ * The module keeps its own copy of the guarded-write values (it cannot import the shared package
+ * at runtime; `GuardedOp` is the shared type, imported type-only). This pins the runtime
+ * vocabulary to the shared contract so the two cannot drift.
  */
 import { describe, expect, it } from 'vitest';
 import {

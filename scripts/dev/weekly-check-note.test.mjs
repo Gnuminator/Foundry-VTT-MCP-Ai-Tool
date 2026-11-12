@@ -9,11 +9,12 @@ import { main } from './usage-week.mjs';
 
 const report = (from, to, over = {}) => ({
   window: { from, to },
-  targets: [
-    { name: 'startup', value: 77822.4, limit: 75000, unit: 'tokens', ok: false },
-    { name: 'M tokens per PR', value: 24.249, limit: 18, unit: 'M', ok: false },
-    { name: 'sessions a day', value: 12.34, limit: 15, unit: 'sessions', ok: true },
-    { name: 'weekly % a day', value: null, limit: 14, unit: 'points', ok: null },
+  figures: [
+    { name: 'startup', value: 77822.4, unit: 'tokens' },
+    { name: 'M tokens per PR', value: 24.249, unit: 'M' },
+    { name: 'sessions a day', value: 12.34, unit: 'sessions' },
+    { name: 'weekly % a day', value: null, unit: 'points' },
+    { name: 'weekly points per PR', value: 3.456, unit: 'points' },
   ],
   ...over,
 });
@@ -28,26 +29,22 @@ test('a section carries the pace profile numbers when the report has them', () =
   assert.doesNotMatch(sectionFor(report('2026-10-17', '2026-10-23')), /pace-/);
 });
 
-test('a section lists numbers, limits and ok; unknown values are left out, not 0', () => {
+test('a section lists numbers only; unknown values are left out, not 0', () => {
+  const text = sectionFor(report('2026-10-17', '2026-10-23'));
   assert.equal(
-    sectionFor(report('2026-10-17', '2026-10-23')),
+    text,
     [
       '## 2026-10-17',
       '- from: 2026-10-17',
       '- to: 2026-10-23',
       '- startup: 77822',
-      '- startup-limit: 75000',
-      '- startup-ok: no',
       '- tokens-m-per-pr: 24.2',
-      '- tokens-m-per-pr-limit: 18',
-      '- tokens-m-per-pr-ok: no',
       '- sessions-a-day: 12.3',
-      '- sessions-a-day-limit: 15',
-      '- sessions-a-day-ok: yes',
-      '- weekly-points-a-day-limit: 14',
-      '- weekly-points-a-day-ok: unknown',
+      '- weekly-points-per-pr: 3.5',
     ].join('\n')
   );
+  // pace is information only (the user, 2026-11-11): no limit or pass/fail line comes back
+  assert.doesNotMatch(text, /-limit|-ok/);
 });
 
 test('a section carries advisor and tool call numbers only when they are known', () => {
@@ -74,16 +71,6 @@ test('a section carries advisor and tool call numbers only when they are known',
   assert.doesNotMatch(none, /tool-calls|advisor/);
 });
 
-test('ok is judged on the rounded number the note shows', () => {
-  const r = report('2026-10-17', '2026-10-23', {
-    targets: [{ name: 'sessions a day', value: 15.04, limit: 15, unit: 'sessions', ok: false }],
-  });
-  assert.match(
-    sectionFor(r),
-    /- sessions-a-day: 15\n- sessions-a-day-limit: 15\n- sessions-a-day-ok: yes/
-  );
-});
-
 test('upsert keeps weeks newest first and replaces the section of the same window', () => {
   let text = upsert('', report('2026-10-10', '2026-10-16'));
   text = upsert(text, report('2026-10-24', '2026-10-30'));
@@ -95,7 +82,7 @@ test('upsert keeps weeks newest first and replaces the section of the same windo
   const again = upsert(
     text,
     report('2026-10-17', '2026-10-23', {
-      targets: [{ name: 'startup', value: 70000, limit: 75000, unit: 'tokens', ok: true }],
+      figures: [{ name: 'startup', value: 70000, unit: 'tokens' }],
     })
   );
   const sections = splitSections(again);
@@ -103,6 +90,25 @@ test('upsert keeps weeks newest first and replaces the section of the same windo
   assert.match(sections[1][1], /- startup: 70000/);
   assert.doesNotMatch(sections[1][1], /sessions-a-day/);
   assert.match(again, /^---\ntype: weekly-check\n---/);
+});
+
+test('upsert drops the old -limit and -ok lines from sections it carries over', () => {
+  const old = [
+    '---\ntype: weekly-check\n---\n',
+    '## 2026-10-10',
+    '- from: 2026-10-10',
+    '- startup: 80000',
+    '- startup-limit: 75000',
+    '- startup-ok: no',
+    '- weekly-points-a-day: 10.3',
+    '- weekly-points-a-day-limit: 14',
+    '- weekly-points-a-day-ok: yes',
+    '- advisor-calls: 4',
+    '',
+  ].join('\n');
+  const text = upsert(old, report('2026-10-17', '2026-10-23'));
+  assert.doesNotMatch(text, /-limit|-ok/);
+  assert.match(text, /## 2026-10-10\n- from: 2026-10-10\n- startup: 80000\n- weekly-points-a-day: 10\.3\n- advisor-calls: 4/);
 });
 
 test('--write-vault writes the note into the vault', async () => {

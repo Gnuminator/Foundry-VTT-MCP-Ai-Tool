@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Merge gate (D-122): a lane merges its own pull request through this script. Every check runs
  * before anything is changed; each failure is one line. The end is either
@@ -54,7 +55,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
 /** Merges allowed on the module, the bridge link or guarded writes between two live round trips. */
 export const TRAIN_SIZE = 4;
 
@@ -615,7 +615,7 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
         : '';
     const seen = notes.map(n => {
       const heads = [...new Set(n.entries.map(e => e.head).filter(Boolean))].map(h =>
-        h.slice(0, 7)
+        /** @type {string} */ (h).slice(0, 7)
       );
       const tooShort = n.shortHeads.map(
         h => `${h} (Head reviewed needs the full 40-character sha)`
@@ -765,7 +765,7 @@ export function supersededCancelled(rollup) {
     if (prefix === '') return true;
     return !candidates.some(
       n =>
-        n.id > id &&
+        /** @type {number} */ (n.id) > id &&
         n.c.workflowName === c.workflowName &&
         (prefix === null ? String(n.c.name) === mine : String(n.c.name).startsWith(prefix))
     );
@@ -806,17 +806,17 @@ export function latestChecks(rollup) {
   rollup = supersededCancelled(rollup);
   const keyName = checkNamer(rollup);
   const byKey = new Map();
-  const isStatusEntry = c => c.state !== undefined && c.status === undefined;
-  const unfinished = c =>
+  const isStatusEntry = (/** @type {any} */ c) => c.state !== undefined && c.status === undefined;
+  const unfinished = (/** @type {any} */ c) =>
     isStatusEntry(c)
       ? ['PENDING', 'EXPECTED'].includes(String(c.state).toUpperCase())
       : String(c.status ?? '').toUpperCase() !== 'COMPLETED';
-  const started = c => {
+  const started = (/** @type {any} */ c) => {
     const t = c.startedAt ? Date.parse(c.startedAt) : NaN;
     if (Number.isFinite(t) && t > 0) return t;
     return unfinished(c) ? Infinity : 0;
   };
-  const badness = c => {
+  const badness = (/** @type {any} */ c) => {
     if (unfinished(c)) return 1;
     const v = String(isStatusEntry(c) ? c.state : c.conclusion).toUpperCase();
     return ['SUCCESS', 'SKIPPED', 'NEUTRAL'].includes(v) ? 0 : 2;
@@ -1101,7 +1101,7 @@ export function releasePr(files, read) {
     if (la.length !== lb.length) return no(`${f.path} changes more than its version line`);
     /** The line with its version blanked, or null when it is not a version line. */
     const blanked = (/** @type {string} */ l) => {
-      for (const p of patterns) {
+      for (const p of /** @type {RegExp[]} */ (patterns)) {
         const m = p.exec(l);
         const span = m?.indices?.[1];
         if (span) return `${l.slice(0, span[0])}X${l.slice(span[1])}`;
@@ -1521,15 +1521,15 @@ export function defaultRun(cmd, args, input) {
  */
 export function parseArgs(argv) {
   const out = {
-    pr: null,
+    pr: /** @type {number | null} */ (null),
     dryRun: false,
-    noChangelog: null,
-    vault: null,
-    trainReset: null,
+    noChangelog: /** @type {string | null} */ (null),
+    vault: /** @type {string | null} */ (null),
+    trainReset: /** @type {string | null} */ (null),
     train: false,
-    state: null,
+    state: /** @type {string | null} */ (null),
     waitCi: false,
-    error: null,
+    error: /** @type {string | null} */ (null),
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -1651,14 +1651,14 @@ export function refusedBecause(reasons) {
 }
 
 /** What each exit code of the gate means, for the `--wait-ci` verdict line. */
-const EXIT_REASONS = {
+const EXIT_REASONS = /** @type {Record<number, string>} */ ({
   0: 'ok (checks pass or merged)',
   1: 'refused (the "refused because" line above says why)',
   2: 'usage error',
   [EXIT_CI_FAILED]: 'a CI check failed',
   [EXIT_HEAD_MOVED]: 'the PR head moved while waiting',
   [EXIT_WAIT_TIMEOUT]: 'timed out waiting for CI',
-};
+});
 
 /**
  * The one line a `--wait-ci` run ends with, whatever happened. Read it, not the exit code of a pipe.

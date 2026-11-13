@@ -41,6 +41,7 @@ import {
   refusedBecause,
   releasePr,
   reviewNamingRule,
+  reviewNoteCommand,
   unreadPrNotes,
   refusalCauses,
   readTrain,
@@ -332,6 +333,51 @@ test('parseReviewNote: every Verdict section counts, tied to the Head reviewed a
     parseReviewNote('312-review.md', same, 312).entries.map(e => e.merge),
     [true, false]
   );
+});
+
+test('judgeReviews: every refusal ends with the review-note helper command, the veto excepted', () => {
+  const cmd = /write it with: node scripts\/review-note\.mjs 312 --verdict <merge\|fixes\|no>/;
+  const parse = (name, opts) => parseReviewNote(name, note(opts), 312);
+  const ok = parse('312-review.md');
+  const short = parse('312-review-s.md', { head: '3d24f70a' });
+  const malformed = parseReviewNote(
+    '312-review-m.md',
+    `# t\n\n## Verdict\n\n**Merge.**\n\nHead reviewed: ${HEAD}\n`,
+    312
+  );
+  assert.ok(malformed.malformed.length > 0, 'fixture is malformed');
+  const refusals = {
+    malformed: judgeReviews([malformed], HEAD, false, {}, 312),
+    'short sha': judgeReviews([short], HEAD, false, {}, 312),
+    'no note': judgeReviews([], HEAD, false, {}, 312),
+    'other head': judgeReviews([parse('312-review-o.md', { head: OTHER })], HEAD, false, {}, 312),
+    'not carried': judgeReviews([ok], OTHER, false, { carried: [], carryError: 'x' }, 312),
+    sonnet: judgeReviews([ok], HEAD, true, {}, 312),
+  };
+  for (const [name, r] of Object.entries(refusals)) {
+    assert.equal(r.ok, false, name);
+    assert.match(r.detail, cmd, `${name}: ${r.detail}`);
+    assert.ok(r.detail.endsWith(reviewNoteCommand(312)), `${name} ends with the command`);
+  }
+  // The named exception: a verdict that is not Merge is the reviewer's call, not a missing note.
+  const veto = judgeReviews(
+    [parse('312-review-v.md', { verdict: '**Do not merge.**' })],
+    HEAD,
+    false,
+    {},
+    312
+  );
+  assert.equal(veto.ok, false);
+  assert.doesNotMatch(veto.detail, /review-note\.mjs/);
+  // Without a PR number the placeholder stands in.
+  assert.match(judgeReviews([], HEAD, false).detail, /review-note\.mjs <PR> --verdict/);
+});
+
+test('gate: the vault refusal prints the helper command too', () => {
+  const r = gate({ vault: path.join(os.tmpdir(), 'no-such-vault-xyz') });
+  const line = r.lines.find(l => l.startsWith('review: '));
+  assert.match(line, /vault not found/);
+  assert.match(line, /review-note\.mjs 312 --verdict/);
 });
 
 test('parseReviewNote: a Head reviewed line after the last Verdict makes the note malformed (#314 L3)', () => {
@@ -3038,8 +3084,9 @@ test('review refusal: names the naming rule, and lists notes of the PR that were
   );
   assert.match(
     line,
-    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md$/
+    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md; write it with: /
   );
+  assert.ok(line.endsWith(reviewNoteCommand(312)), 'the helper command stays last');
   assert.deepEqual(unreadPrNotes(vault, 312), ['Reviews 2026-10-10/312-merge-delta-3d24f70a.md']);
   assert.deepEqual(unreadPrNotes(path.join(os.tmpdir(), 'no-such-vault-xyz'), 312), []);
   // Only a Sonnet note for a risky PR gets the rule too; a Do not merge does not (the note was read).
@@ -3408,7 +3455,7 @@ test('carry (5): an Opus-required PR with a carried Sonnet note still refuses', 
   assert.equal(verdict.ok, false);
   assert.equal(
     verdict.detail,
-    `only a Sonnet review (312-review.md) says Merge for ${C.slice(0, 7)} (verdict carried from ${r.B}), and this PR needs an Opus review`
+    `only a Sonnet review (312-review.md) says Merge for ${C.slice(0, 7)} (verdict carried from ${r.B}), and this PR needs an Opus review; ${reviewNoteCommand(null)}`
   );
   // a carried Opus Merge clears it; a carried Do not merge on the same patch still vetoes
   const opus = [reviewed(r.B, true)];
@@ -3434,7 +3481,7 @@ test('carry: any error carries nothing (unknown commit, shallow clone, old git, 
   assert.equal(verdict.ok, false);
   assert.match(
     verdict.detail,
-    /; not carried: commit abcdef0 .*; a review note for the head is needed$/
+    /; not carried: commit abcdef0 .*; a review note for the head is needed; write it with: /
   );
   /** A run that answers one git subcommand itself and passes the rest to the real repo. */
   const faking =

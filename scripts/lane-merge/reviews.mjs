@@ -145,6 +145,14 @@ export function findReviewNotes(vault, prNumber) {
 }
 
 /**
+ * The helper command a refusal about a review note ends with, the PR number filled in.
+ * @param {number | null} [prNumber]
+ */
+export function reviewNoteCommand(prNumber) {
+  return `write it with: node scripts/review-note.mjs ${prNumber ?? '<PR>'} --verdict <merge|fixes|no> --model <opus|sonnet> --body <reviewer text file>`;
+}
+
+/**
  * The naming rule the gate reads notes by, and the helper that writes one, for a refusal that found none.
  * @param {number} prNumber
  */
@@ -152,8 +160,7 @@ export function reviewNamingRule(prNumber) {
   return (
     `the gate reads files named ${prNumber}-*review*.md in a "Handoff/Reviews <date>/" folder ` +
     `(for a risky PR, named ${prNumber}-opus-review... or headed "# PR #${prNumber} Opus review"), ` +
-    'each with a "Head reviewed:" line holding the full 40-character sha above "## Verdict"; ' +
-    `write it with: node scripts/review-note.mjs ${prNumber} --verdict <merge|fixes|no> --model <opus|sonnet> --body <reviewer text file>`
+    'each with a "Head reviewed:" line holding the full 40-character sha above "## Verdict"'
   );
 }
 
@@ -328,9 +335,11 @@ export function carriedReviews(run, notes, headSha, mainRef = MAIN) {
  * the same rules; `carriedFrom` lists the shas that cleared it.
  * @param {ReviewNote[]} notes @param {string} headSha @param {boolean} needOpus
  * @param {{ carried?: string[], carryError?: string | null }} [carry]
+ * @param {number | null} [prNumber] fills the helper command every refusal but the veto ends with
  * @returns {{ ok: boolean, detail: string, carriedFrom?: string[] }}
  */
-export function judgeReviews(notes, headSha, needOpus, carry = {}) {
+export function judgeReviews(notes, headSha, needOpus, carry = {}, prNumber = null) {
+  const helper = `; ${reviewNoteCommand(prNumber)}`;
   const head = headSha.toLowerCase();
   const short = head.slice(0, 7);
   const bad = notes.filter(n => n.malformed.length > 0);
@@ -338,7 +347,7 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
     const said = bad.map(n => `${n.name} is malformed: ${n.malformed.join('; ')}`);
     return {
       ok: false,
-      detail: `${said.join('; ')} (put "Head reviewed:" before each "## Verdict", nothing after the last)`,
+      detail: `${said.join('; ')} (put "Head reviewed:" before each "## Verdict", nothing after the last)${helper}`,
     };
   }
   // A verdict under a short sha ties to nothing, so it could hide a Do not merge for this head.
@@ -350,7 +359,7 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
   if (shortHit.length > 0) {
     return {
       ok: false,
-      detail: `${shortHit.join('; ')}; it could hide a verdict for head ${short}`,
+      detail: `${shortHit.join('; ')}; it could hide a verdict for head ${short}${helper}`,
     };
   }
   const named = notes.flatMap(note =>
@@ -395,7 +404,7 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
     });
     return {
       ok: false,
-      detail: `no review note for head ${short}${seen.length ? ` (found ${seen.join('; ')})` : ''}${notCarried}`,
+      detail: `no review note for head ${short}${seen.length ? ` (found ${seen.join('; ')})` : ''}${notCarried}${helper}`,
     };
   }
   const blocking = forHead.filter(x => !x.entry.merge);
@@ -410,7 +419,7 @@ export function judgeReviews(notes, headSha, needOpus, carry = {}) {
     const names = [...new Set(forHead.map(x => x.note.name))].join(', ');
     return {
       ok: false,
-      detail: `only a Sonnet review (${names}) says Merge for ${short}${via}, and this PR needs an Opus review`,
+      detail: `only a Sonnet review (${names}) says Merge for ${short}${via}, and this PR needs an Opus review${helper}`,
     };
   }
   return {

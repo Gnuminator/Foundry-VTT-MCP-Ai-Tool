@@ -19,6 +19,7 @@ import { riskyHits, isTrainRelevant } from './risky.mjs';
 import {
   findReviewNotes,
   reviewNamingRule,
+  reviewNoteCommand,
   unreadPrNotes,
   opusNotesForHead,
   carriedReviews,
@@ -354,7 +355,7 @@ export function main(options = {}) {
   try {
     reviews = findReviewNotes(vault, n);
   } catch (e) {
-    failures.push(`review: cannot read the vault ${vault}: ${message(e)}`);
+    failures.push(`review: cannot read the vault ${vault}: ${message(e)}; ${reviewNoteCommand(n)}`);
   }
   // No note names the head: an earlier reviewed commit with the same patch carries its verdict.
   // Only for well-formed notes (a malformed one refuses anyway); any error carries nothing.
@@ -384,10 +385,12 @@ export function main(options = {}) {
   }
   if (reviews === null) {
     if (!failures.some(f => f.startsWith('review:'))) {
-      failures.push(`review: vault not found at ${vault} (pass --vault DIR)`);
+      failures.push(
+        `review: vault not found at ${vault} (pass --vault DIR); ${reviewNoteCommand(n)}`
+      );
     }
   } else {
-    const verdict = judgeReviews(reviews, head, hits.length > 0, carry);
+    const verdict = judgeReviews(reviews, head, hits.length > 0, carry, n);
     if (verdict.ok && verdict.carriedFrom?.length) {
       carriedFrom = verdict.carriedFrom;
       notes.push(
@@ -405,10 +408,17 @@ export function main(options = {}) {
         } catch {
           /* the hint is extra; the refusal stands without it */
         }
-        hint = `; ${reviewNamingRule(n)}`;
-        if (skipped.length) hint += `; not read (no "review" in the name): ${skipped.join(', ')}`;
+        // The naming rule goes before the helper command the detail ends with.
+        const tail = `; ${reviewNoteCommand(n)}`;
+        const base = verdict.detail.endsWith(tail)
+          ? verdict.detail.slice(0, -tail.length)
+          : verdict.detail;
+        const unread = skipped.length
+          ? `; not read (no "review" in the name): ${skipped.join(', ')}`
+          : '';
+        hint = `${base}; ${reviewNamingRule(n)}${unread}${tail}`;
       }
-      failures.push(`review: ${verdict.detail}${hint}`);
+      failures.push(`review: ${hint || verdict.detail}`);
     }
   }
 

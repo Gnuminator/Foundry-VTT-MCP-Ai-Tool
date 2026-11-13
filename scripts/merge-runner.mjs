@@ -890,9 +890,16 @@ function realDeps(o) {
       const file = path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json');
       let release;
       try {
-        const v = sh('gh', ['pr', 'view', String(pr), '-R', REPO, '--json', 'files']);
-        const paths = JSON.parse(v.stdout).files.map((/** @type {any} */ f) => String(f.path));
-        if (v.status !== 0 || !isTrainRelevant(paths)) return;
+        // All pages (the PR view stops at 100 files). When the list cannot be read the PR counts.
+        const v = sh('gh', [
+          'api',
+          `repos/${REPO}/pulls/${pr}/files`,
+          '--paginate',
+          '--jq',
+          '.[].filename',
+        ]);
+        const paths = v.stdout.split(/\r?\n/).filter(Boolean);
+        if (v.status === 0 && paths.length > 0 && !isTrainRelevant(paths)) return;
         release = acquireLock(file, { timeoutMs: 20_000 });
         const t = readTrain(file);
         const since = t.since.filter(s => s.pr !== pr);

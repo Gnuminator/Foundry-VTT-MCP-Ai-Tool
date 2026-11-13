@@ -74,10 +74,7 @@ test('an expected file with no apps is an error', () => {
 test('bad input is a difference, not a pass', () => {
   assert.ok(compare(null, base()).length > 0);
   assert.ok(compare(base(), []).length > 0);
-  assert.ok(
-    compare({}, base()).length > 0,
-    'an empty live read cannot match a populated expectation'
-  );
+  assert.ok(compare({}, base()).length > 0, 'an empty live read cannot match a populated expectation');
 });
 
 test('the command exits 0 on no drift, 1 on drift, 2 on usage or unreadable input', () => {

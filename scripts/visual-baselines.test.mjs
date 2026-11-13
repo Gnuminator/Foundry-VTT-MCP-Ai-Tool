@@ -16,7 +16,7 @@ import {
   runProblem,
   safeTarget,
   SCREENSHOTS,
-  validBranch,
+  validBranch
 } from './visual-baselines.mjs';
 
 test('entryDecision: run for this file, mismatch for a same-named other file, import otherwise', () => {
@@ -24,10 +24,7 @@ test('entryDecision: run for this file, mismatch for a same-named other file, im
   assert.equal(entryDecision(self, self), 'run');
   assert.ok(!isEntryModule(undefined, self));
   if (process.platform === 'win32') assert.equal(entryDecision(self.toUpperCase(), self), 'run');
-  assert.equal(
-    entryDecision(path.join(os.tmpdir(), 'nope', 'visual-baselines.mjs'), self),
-    'mismatch'
-  );
+  assert.equal(entryDecision(path.join(os.tmpdir(), 'nope', 'visual-baselines.mjs'), self), 'mismatch');
   assert.equal(entryDecision(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
   assert.equal(entryDecision(undefined, self), 'import');
   assert.equal(entryDecision(pathToFileURL(self).href, self), 'import');
@@ -52,7 +49,7 @@ test('safeTarget keeps to PNGs under the screenshots folder', () => {
 test('pickRun matches only the run carrying its own nonce', () => {
   const runs = [
     { databaseId: 1, displayTitle: 'visual-baselines claude/a nAAA' },
-    { databaseId: 2, displayTitle: 'visual-baselines claude/b nBBB' },
+    { databaseId: 2, displayTitle: 'visual-baselines claude/b nBBB' }
   ];
   assert.equal(pickRun(runs, 'nBBB')?.databaseId, 2);
   assert.equal(pickRun(runs, 'nCCC'), undefined);
@@ -60,18 +57,8 @@ test('pickRun matches only the run carrying its own nonce', () => {
 
 test('two concurrent runs: each lane takes only its own branch, sha and log', () => {
   const runs = [
-    {
-      databaseId: 1,
-      displayTitle: 'visual-baselines claude/a nAAA',
-      headBranch: 'claude/a',
-      headSha: 'a'.repeat(40),
-    },
-    {
-      databaseId: 2,
-      displayTitle: 'visual-baselines claude/b nBBB',
-      headBranch: 'claude/b',
-      headSha: 'b'.repeat(40),
-    },
+    { databaseId: 1, displayTitle: 'visual-baselines claude/a nAAA', headBranch: 'claude/a', headSha: 'a'.repeat(40) },
+    { databaseId: 2, displayTitle: 'visual-baselines claude/b nBBB', headBranch: 'claude/b', headSha: 'b'.repeat(40) }
   ];
   const a = pickRun(runs, 'nAAA');
   const b = pickRun(runs, 'nBBB');
@@ -98,10 +85,7 @@ test('pickRun and runProblem cope with a run that has no headBranch', () => {
 test('logPathFor: a/b and a_b differ, case differs, and the name is a flat file name', () => {
   assert.notEqual(logPathFor('a/b'), logPathFor('a_b'));
   assert.notEqual(logPathFor('Claude/x').toLowerCase(), logPathFor('claude/x').toLowerCase());
-  assert.match(
-    path.basename(logPathFor('claude/a')),
-    /^visual-baselines-claude_a-[0-9a-f]{6}\.log$/
-  );
+  assert.match(path.basename(logPathFor('claude/a')), /^visual-baselines-claude_a-[0-9a-f]{6}\.log$/);
 });
 
 test('main is wired to the script start: a bad branch exits 2 with the usage line', () => {
@@ -121,10 +105,7 @@ test('renderProblem refuses a failed render with nothing changed', () => {
 test('collectProblem fails when the artifact holds fewer PNGs than the run counted', () => {
   assert.equal(collectProblem('6\n', 6), '');
   assert.equal(collectProblem('0\n', 0), '');
-  assert.match(
-    collectProblem('6\n', 0),
-    /git saw 6 changed or new PNG\(s\) in the run but the artifact holds 0/
-  );
+  assert.match(collectProblem('6\n', 0), /git saw 6 changed or new PNG\(s\) in the run but the artifact holds 0/);
   assert.match(collectProblem('2', 3), /holds 3/);
   assert.match(collectProblem('', 0), /no png-count\.txt/);
   assert.match(collectProblem('x', 0), /no png-count\.txt/);

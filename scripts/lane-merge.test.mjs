@@ -1277,6 +1277,24 @@ test('train reset drops merged, closed and open-but-unqueued PRs (a squash queue
   );
 });
 
+test('train reset keeps a PR the queue merged after the tested tip', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(2)));
+  const code = main({
+    home,
+    run: trainRun({ afterTip: ['m301'] }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [301]
+  );
+});
+
 test('train reset keeps a PR that is queued but not on main yet', () => {
   const home = tmpDir();
   const state = path.join(home, 'merge-train.json');
@@ -1866,16 +1884,20 @@ test('M2: a malformed train file refuses instead of reading as an empty train', 
 const TIP = 'ab12cd34'.repeat(5);
 
 /** A fake run for the train commands: fetch and rev-parse aitool/main. */
-function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {} } = {}) {
+function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {}, afterTip = [] } = {}) {
   return (cmd, args) => {
     const key = `${cmd} ${args.join(' ')}`;
+    // a merge commit is in the tested tip unless the test says it landed after it
+    if (cmd === 'git' && args[0] === 'merge-base' && args[1] === '--is-ancestor') {
+      return { status: afterTip.includes(args[2]) ? 1 : 0, stdout: '', stderr: '' };
+    }
     // GitHub's answer per train PR: merged unless the test says it is queued or gives a state
     if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
       const pr = Number(/number:(\d+)/.exec(args[3])[1]);
       if (states[pr] === 'unreadable') return { status: 1, stdout: '', stderr: 'HTTP 502' };
       const st = queued.includes(pr)
         ? { state: 'OPEN', isInMergeQueue: true }
-        : { state: states[pr] ?? 'MERGED', isInMergeQueue: false };
+        : { state: states[pr] ?? 'MERGED', isInMergeQueue: false, mergeCommit: { oid: `m${pr}` } };
       return {
         status: 0,
         stdout: JSON.stringify({ data: { repository: { pullRequest: st } } }),

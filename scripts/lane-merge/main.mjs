@@ -171,6 +171,12 @@ export function main(options = {}) {
         try {
           const st = JSON.parse(q.stdout)?.data?.repository?.pullRequest;
           if (q.status !== 0 || !st) return true;
+          if (st.state === 'MERGED') {
+            // Covered by the roundtrip only when its merge commit is in the tested tip: one the
+            // queue merged after the tip check stays on the train (any doubt keeps it).
+            const oid = String(st.mergeCommit?.oid ?? '');
+            return !oid || run('git', ['merge-base', '--is-ancestor', oid, tipSha]).status !== 0;
+          }
           return st.state === 'OPEN' && st.isInMergeQueue === true;
         } catch {
           return true;

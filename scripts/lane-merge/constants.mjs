@@ -33,7 +33,7 @@ export const AGGREGATE_CHECK = 'ci-all-green';
 
 /** GraphQL for one PR's merge queue state (gh pr view has no such field). @param {number} pr */
 export const queueQuery = pr =>
-  `query{repository(owner:"${REPO.split('/')[0]}",name:"${REPO.split('/')[1]}"){pullRequest(number:${pr}){state isInMergeQueue}}}`;
+  `query{repository(owner:"${REPO.split('/')[0]}",name:"${REPO.split('/')[1]}"){pullRequest(number:${pr}){state isInMergeQueue mergeCommit{oid}}}}`;
 
 /** A single gh call (spawnSync timeout). */
 export const GH_TIMEOUT_MS = 120_000;

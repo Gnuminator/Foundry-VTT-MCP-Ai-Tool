@@ -2,15 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import {
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -95,10 +87,7 @@ test('parseArgs takes seconds and rejects junk; there is no cold rule any more (
 /* D-141 stick: no standing planner. The planner skill neither starts a successor nor arms a wake
  * watcher, and the wake script has no "start a fresh planner" exit. */
 test('no standing planner: the planner skill has no successor or planner-wake text; no exit 3', () => {
-  const skill = readFileSync(
-    path.join(here, '..', '.claude', 'skills', 'planner', 'SKILL.md'),
-    'utf8'
-  );
+  const skill = readFileSync(path.join(here, '..', '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
   assert.doesNotMatch(skill, /start (the|a) (next|fresh) planner/i);
   assert.doesNotMatch(skill, /planner-wake/);
   assert.doesNotMatch(skill, /gh pr list/, 'the planner reads PRs through status --planner');
@@ -228,10 +217,10 @@ test('Done list: no skill, hook or script (outside tests) names a `## Done` sect
     ...walk(path.join(repoRoot, '.claude', 'skills')),
     ...walk(path.join(repoRoot, '.claude', 'hooks')),
     ...readdirSync(path.join(repoRoot, 'scripts'))
-      .filter(f => f.endsWith('.mjs') && !f.endsWith('.test.mjs'))
-      .map(f => path.join(repoRoot, 'scripts', f)),
+      .filter((f) => f.endsWith('.mjs') && !f.endsWith('.test.mjs'))
+      .map((f) => path.join(repoRoot, 'scripts', f)),
     path.join(repoRoot, 'CLAUDE.md'),
-  ].filter(f => /\.(md|mjs)$/.test(f) && !/\.test\.mjs$/.test(f));
+  ].filter((f) => /\.(md|mjs)$/.test(f) && !/\.test\.mjs$/.test(f));
   const bad = [];
   for (const f of files) {
     let text;
@@ -242,29 +231,16 @@ test('Done list: no skill, hook or script (outside tests) names a `## Done` sect
     }
     if (DONE_MENTION.test(text)) bad.push(path.relative(repoRoot, f));
   }
-  assert.deepEqual(
-    bad,
-    [],
-    'a writer is told to put Done lines in Backlog.md; use vault Backlog done.md'
-  );
+  assert.deepEqual(bad, [], 'a writer is told to put Done lines in Backlog.md; use vault Backlog done.md');
 });
 
 test('Done list: the planner skill says Done lines go to Backlog done.md', () => {
-  const text = readFileSync(
-    path.join(repoRoot, '.claude', 'skills', 'planner', 'SKILL.md'),
-    'utf8'
-  );
+  const text = readFileSync(path.join(repoRoot, '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
   assert.match(text, /Backlog done\.md/);
 });
 
 test('Done list: the matcher catches the old wording', () => {
-  for (const s of [
-    'add a line to `## Done`, and',
-    'x\n## Done\n- a',
-    'put it in the ## done list',
-    'under the `## Done` heading',
-    'the Done section of Backlog.md',
-  ]) {
+  for (const s of ['add a line to `## Done`, and', 'x\n## Done\n- a', 'put it in the ## done list', 'under the `## Done` heading', 'the Done section of Backlog.md']) {
     assert.ok(DONE_MENTION.test(s), s);
   }
   assert.ok(!DONE_MENTION.test('## Done when it looks like this'));

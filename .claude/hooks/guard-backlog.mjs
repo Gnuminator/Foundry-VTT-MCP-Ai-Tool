@@ -39,7 +39,7 @@ const WRITES = [
   /\.open\s*\(\s*(mode\s*=\s*)?["'][rbtU]*[wax+]/, // pathlib.Path(f).open('w')
   /\b(write_text|write_bytes)\s*\(/,
   /\b(WriteAll(Text|Lines|Bytes)|AppendAll(Text|Lines)|StreamWriter)\b/i, // [IO.File]::WriteAllText
-  /\b(shutil\.(copy\w*|move)|os\.(replace|rename)|(copyFile|rename)(Sync)?)\b/,
+  /\b(shutil\.(copy\w*|move)|os\.(replace|rename)|(copyFile|rename)(Sync)?)\s*\(/,
 ];
 
 /** A path that is the vault repo or inside it (`player-vault` does not count). */
@@ -66,12 +66,20 @@ export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd
   // a commit message and a redirect are not arguments
   const body = cmd
     .replace(/(\s(?:-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1')
-    .replace(/\d*>&\d+|\d*>>?\s*\S+|<\s*\S+/g, ' ');
+    // redirects only outside quotes: a quoted `<b@x>` is a value
+    .replace(/"[^"]*"|'[^']*'|[^"']+/g, q =>
+      /^["']/.test(q) ? q : q.replace(/\*?\d*>&\d+|\*?\d*>>?\s*\S+|<\s*\S+/g, ' ')
+    );
   for (const seg of body.split(/[;&|\n]+/)) {
     let gitC = false; // `git -C <path>` applies to this command only
     for (const m of seg.matchAll(CD)) {
       if (/^\s-C/.test(m[0])) gitC = VAULT_PATH.test(unquote(m[1]));
-      else inVault = VAULT_PATH.test(unquote(m[1]));
+      else {
+        // a relative move that stays below the current folder keeps the context; a path that
+        // starts elsewhere (absolute, `~`, a variable, a drive, `..`) is tested afresh
+        const t = unquote(m[1]);
+        if (VAULT_PATH.test(t) || /^([\\/]|~|\$|[A-Za-z]:|\.\.)/.test(t)) inVault = VAULT_PATH.test(t);
+      }
     }
     const words = (seg.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map(unquote);
     const g = words.findIndex(w => /^git(\.exe)?$/i.test(w.replace(/^.*[\\/]/, '')));
@@ -82,9 +90,14 @@ export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd
     );
     if (sub < 0) continue;
     const rest = words.slice(sub + 1);
+    const takesValue = (/** @type {number} */ i) =>
+      /^(-m|--message|-F|--file|-C|-c|--author|--date|--fixup|--squash|--trailer|-t|--template)$/.test(
+        rest[i - 1] ?? ''
+      );
     const flag = (/** @type {string} */ w, /** @type {number} */ i) =>
-      /^--?[a-zA-Z]/.test(w) && !/^(-m|--message|-F|--file|-C|-c)$/.test(rest[i - 1] ?? '');
-    const paths = rest.filter((w, i) => w !== '--' && !flag(w, i) && !/^(-m|--message|-F|--file|-C|-c)$/.test(rest[i - 1] ?? ''));
+      /^--?[a-zA-Z]/.test(w) && !takesValue(i);
+    const paths = rest.filter((w, i) => w !== '--' && !flag(w, i) && !takesValue(i));
+    const afterDashes = rest.includes('--') ? rest.slice(rest.indexOf('--') + 1) : [];
     const flags = rest.filter(flag);
     switch (words[sub]) {
       case 'commit':
@@ -97,10 +110,15 @@ export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd
           return true;
         if (paths.some(sweepsPath)) return true;
         break;
-      case 'checkout':
       case 'restore':
-        // a branch name is not a path; only `.`, a directory or a glob is a tree sweep
+        // restore never takes a branch: every path word must be one file
+        if (paths.some(sweepsPath)) return true;
+        break;
+      case 'checkout':
+        // a branch name is not a path: only `.`, a directory or a glob, or the words after `--`
+        if (flags.some(w => w === '-f' || w === '--force')) return true;
         if (paths.some(w => w === '.' || /[\\/]$/.test(w) || isGlob(w))) return true;
+        if (afterDashes.some(sweepsPath)) return true;
         break;
       case 'reset':
         if (flags.includes('--hard')) return true;

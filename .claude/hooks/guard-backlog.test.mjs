@@ -119,6 +119,10 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
     `cd vault && git commit -m x "Dev/Foundry AI Tool"`,
     `cd vault && git add "Dev/Foundry AI Tool/*.md"`,
     `cd vault && git checkout -- .`,
+    `cd vault && git restore "Dev/Foundry AI Tool"`,
+    `cd vault && git checkout -- "Dev/Foundry AI Tool"`,
+    `cd vault && git checkout -f main`,
+    `cd vault && cd "Dev/Foundry AI Tool" && git add .`,
     `cd vault && git restore .`,
     `cd vault && git reset --hard`,
     `cd vault && git stash`,
@@ -145,6 +149,11 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
     `cd vault && git push && git pull --rebase`,
     `cd vault && git add Waiting.md 2>&1`,
     `cd vault && git add Waiting.md > NUL`,
+    `cd vault && git add Waiting.md *> $null`,
+    `cd vault && git commit --author "Bot <b@x>" --date "2026-11-13" -m x Waiting.md`,
+    `grep -n "rename" "${VAULT}/Backlog.md"`,
+    `git log --grep rename -- "Dev/Foundry AI Tool/Backlog.md"`,
+    `cd vault && git restore --staged Waiting.md`,
     `cd vault && git add Waiting.md 2>&1 | tail -3`,
     `cd vault && git commit -m "git add -A was wrong" Waiting.md`,
     `cd vault && git checkout main && git stash list && git stash pop && git reset HEAD~1`,
@@ -166,6 +175,17 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
       { CLAUDE_PROJECT_DIR: LANE }
     ),
     'cwd in the vault'
+  );
+  assert.ok(
+    decide(
+      'Bash',
+      {
+        cwd: 'C:\\Users\\me\\Documents\\Obsidian\\vault',
+        tool_input: { command: 'cd Handoff && git add -A' },
+      },
+      { CLAUDE_PROJECT_DIR: LANE }
+    ),
+    'a relative cd inside the vault keeps the context'
   );
   assert.equal(
     call('Bash', { command: 'cd vault && git commit -am x' }, MAIN),

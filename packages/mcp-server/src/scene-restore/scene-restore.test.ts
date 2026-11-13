@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import {
   findScenesDir,
@@ -212,32 +213,13 @@ describe('backup reader', () => {
 });
 
 describe('plan-scene-restore', () => {
-  function makeTools(opts: { enabled?: boolean; live?: unknown } = {}): {
+  function restoreHarness(opts: { enabled?: boolean; live?: unknown } = {}): {
     tools: SceneRestoreTools;
     query: Mock;
     createPlan: Mock;
     /** Marks a plan applied: it is no longer pending. */
     settle: (planId: string) => void;
   } {
-    const query = vi.fn((method: string) => {
-      if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
-        return [{ id: 'scene-restore', enabled: opts.enabled ?? true }];
-      }
-      return (
-        opts.live ?? {
-          sceneId: 's1',
-          name: 'Arena',
-          viewed: true,
-          walls: [
-            { _id: 'w1', c: [0, 0, 1, 1] },
-            { _id: 'wx', c: [4, 4, 5, 5] },
-          ],
-          lights: [],
-          tiles: [],
-          tokens: [],
-        }
-      );
-    });
     const pending = new Set<string>();
     let planCount = 0;
     const createPlan = vi.fn((input: any) => {
@@ -249,21 +231,38 @@ describe('plan-scene-restore', () => {
       if (!pending.has(planId)) throw new Error('gone');
       return { planId };
     });
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
-    const tools = new SceneRestoreTools({
-      foundryClient: { query } as any,
-      guardedWrites: { createPlan, getPlan } as any,
-      worldIds: { current: (): Promise<string> => Promise.resolve('w') },
-      logger,
-      openLevel: fakeOpener(BACKUP_DATA),
-      env: {},
+    const { tools, query } = makeTools(SceneRestoreTools, {
+      queryImpl: (method: string) => {
+        if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
+          return [{ id: 'scene-restore', enabled: opts.enabled ?? true }];
+        }
+        return (
+          opts.live ?? {
+            sceneId: 's1',
+            name: 'Arena',
+            viewed: true,
+            walls: [
+              { _id: 'w1', c: [0, 0, 1, 1] },
+              { _id: 'wx', c: [4, 4, 5, 5] },
+            ],
+            lights: [],
+            tiles: [],
+            tokens: [],
+          }
+        );
+      },
+      extra: {
+        guardedWrites: { createPlan, getPlan } as any,
+        worldIds: { current: (): Promise<string> => Promise.resolve('w') },
+        openLevel: fakeOpener(BACKUP_DATA),
+        env: {},
+      },
     });
     return { tools, query, createPlan, settle: (id: string): void => void pending.delete(id) };
   }
 
   it('plans the difference as one guarded change under the scene-restore feature', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = restoreHarness();
     const result: any = await tools.handleToolCall('plan-scene-restore', {
       backupPath: join(dir, 'worlds', 'w'),
     });
@@ -282,7 +281,7 @@ describe('plan-scene-restore', () => {
   });
 
   it('refuses while the feature switch is off and plans nothing', async () => {
-    const { tools, createPlan } = makeTools({ enabled: false });
+    const { tools, createPlan } = restoreHarness({ enabled: false });
     await expect(
       tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
     ).rejects.toThrow(/switched off/);
@@ -290,7 +289,7 @@ describe('plan-scene-restore', () => {
   });
 
   it('says so when the scene already matches the backup', async () => {
-    const { tools } = makeTools({
+    const { tools } = restoreHarness({
       live: {
         sceneId: 's1',
         name: 'Arena',
@@ -309,7 +308,7 @@ describe('plan-scene-restore', () => {
   it('refuses a folder that changed minutes ago: that is a running world, not a backup', async () => {
     const now = new Date();
     await utimes(join(scenes, 'CURRENT'), now, now);
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = restoreHarness();
     await expect(
       tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
     ).rejects.toThrow(/looks like a running world.*minutes ago/);
@@ -327,7 +326,7 @@ describe('plan-scene-restore', () => {
       tiles: [],
       tokens: [],
     };
-    const { tools, createPlan } = makeTools({ live });
+    const { tools, createPlan } = restoreHarness({ live });
     const first = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
     expect(createPlan.mock.calls[0][0].ops).toHaveLength(200);
     expect(first.batch).toEqual({
@@ -350,7 +349,7 @@ describe('plan-scene-restore', () => {
       tiles: [],
       tokens: [],
     };
-    const { tools, createPlan, settle } = makeTools({ live });
+    const { tools, createPlan, settle } = restoreHarness({ live });
     const sizes: number[] = [];
     for (let i = 0; i < 4; i++) {
       let plan;
@@ -383,7 +382,7 @@ describe('plan-scene-restore', () => {
       tiles: [],
       tokens: [],
     };
-    const { tools, settle } = makeTools({ live });
+    const { tools, settle } = restoreHarness({ live });
     const first = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
     // Asked again before the plan was applied: the same batch again is fine.
     const again = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
@@ -400,7 +399,7 @@ describe('plan-scene-restore', () => {
   });
 
   it('does not mark a restore that fits one plan as a batch', async () => {
-    const { tools } = makeTools();
+    const { tools } = restoreHarness();
     const plan = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
     expect(plan.batch).toBeUndefined();
   });
@@ -408,7 +407,7 @@ describe('plan-scene-restore', () => {
   it('lets recentCopyOk skip only the recent-files rule', async () => {
     const now = new Date();
     await utimes(join(scenes, 'CURRENT'), now, now);
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = restoreHarness();
     await tools.handleToolCall('plan-scene-restore', { backupPath: scenes, recentCopyOk: true });
     expect(createPlan).toHaveBeenCalledTimes(1);
   });
@@ -420,7 +419,7 @@ describe('plan-scene-restore', () => {
   });
 
   it('reports a missing backup folder with the way to get one', async () => {
-    const { tools } = makeTools();
+    const { tools } = restoreHarness();
     await expect(
       tools.handleToolCall('plan-scene-restore', { backupPath: join(dir, 'gone') })
     ).rejects.toThrow(/No backup copy.*extract-scenes\.ps1/);

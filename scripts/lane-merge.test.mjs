@@ -124,7 +124,7 @@ const isDriftCall = (cmd, args) =>
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
  *   lockSource?: string | null, mainTip?: string, tipFail?: boolean, prevConclusion?: string,
- *   attemptFail?: boolean,
+ *   attemptFail?: boolean, attempts?: Record<number, string>,
  *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void, fetched?: boolean,
  *   mainGate?: string | null, prFor?: (viewIndex: number) => object }} o. `mainGate` is what
  *   aitool/main holds as lane-merge.mjs (default: this very file; null: none yet). `prFor` overrides fields of the PR for each
@@ -209,7 +209,9 @@ function gate(o = {}) {
       // the conclusion of the attempt before a rerun; default: it failed
       return o.attemptFail
         ? { status: 1, stdout: '', stderr: 'HTTP 404' }
-        : ok(`${o.prevConclusion ?? 'failure'}\n`);
+        : ok(
+            `${o.attempts?.[Number(args[1].split('/').at(-1))] ?? o.prevConclusion ?? 'failure'}\n`
+          );
     }
     if (cmd === 'gh' && args[0] === 'api') {
       return o.rulesFail
@@ -270,7 +272,7 @@ function gate(o = {}) {
       return { status: o.drift ?? 0, stdout: 'local drift\n', stderr: '' };
     }
     if (key === 'gh run list') {
-      for (const flag of ['--branch main', '--event push', '--workflow ci.yml', '-R aitool-repo']) {
+      for (const flag of ['--branch main', '--workflow ci.yml', '-R aitool-repo']) {
         const [f, v] = flag.split(' ');
         const at = args.indexOf(f);
         const want = v === 'aitool-repo' ? REPO : v;
@@ -4049,7 +4051,51 @@ test('main red: the rerun of a cancelled or green attempt is not "a rerun after 
     const r = gate({ mainRuns: [rerun, MAIN_GREEN], prevConclusion });
     assert.match(r.text, /being rerun after a failure/, prevConclusion);
   }
-  // an attempt that cannot be read stays red (fails closed)
+  // an attempt that cannot be read is a refusal the runner retries, not "main failed"
   const unreadable = gate({ mainRuns: [rerun, MAIN_GREEN], attemptFail: true });
-  assert.match(unreadable.text, /being rerun after a failure/);
+  assert.equal(unreadable.code, 1);
+  assert.match(unreadable.text, /main red: cannot read the attempts before attempt 2 of run 4300/);
+  // a failure, then a cancelled rerun, then a rerun going: the failure still counts
+  const third = { ...rerun, attempt: 3 };
+  const walked = gate({
+    mainRuns: [third, MAIN_GREEN],
+    attempts: { 2: 'cancelled', 1: 'failure' },
+  });
+  assert.match(walked.text, /being rerun after a failure/);
+  // cancelled all the way back: not a rerun after a failure
+  assert.equal(
+    gate({ mainRuns: [third, MAIN_GREEN], attempts: { 2: 'cancelled', 1: 'cancelled' } }).code,
+    0
+  );
+});
+
+test('main red: a tip whose only run was cancelled is not judged by the run before it; a dispatched run counts', () => {
+  const TIP = 'f'.repeat(40);
+  const cancelled = { databaseId: 77, status: 'completed', conclusion: 'cancelled', headSha: TIP };
+  const r = gate({ mainRuns: [cancelled, MAIN_GREEN], mainTip: TIP });
+  assert.equal(r.code, 1);
+  assert.match(
+    r.text,
+    /main red: no push run of ci\.yml for main's tip fffffff that was not cancelled or skipped; rerun it \(gh run rerun 77\)/
+  );
+  // a run dispatched by hand on main for the tip stands in for the missing push run
+  const dispatched = { ...MAIN_GREEN, databaseId: 78, headSha: TIP, event: 'workflow_dispatch' };
+  assert.equal(gate({ mainRuns: [dispatched], mainTip: TIP }).code, 0);
+  // other events on main are not main's CI
+  const other = { ...dispatched, event: 'schedule' };
+  assert.match(
+    gate({ mainRuns: [other], mainTip: TIP }).text,
+    /no push run of ci\.yml for main's tip/
+  );
+  // a PR that unblocks main passes an unjudgeable main, and the output says it was not judged
+  const ok = gate({
+    mainRuns: [MAIN_GREEN],
+    mainTip: TIP,
+    body: 'Live check: test server A\nUnblocks main: reverts the clash',
+  });
+  assert.equal(ok.code, 0, ok.text);
+  assert.match(
+    ok.text,
+    /main was not judged \(main red: no push run of ci\.yml for main's tip fffffff/
+  );
 });

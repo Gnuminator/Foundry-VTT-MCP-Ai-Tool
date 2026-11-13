@@ -15,6 +15,7 @@ import {
   main,
   mainCopy,
   mainState,
+  TIP_WAIT_ROUNDS,
   parseArgs,
   prepareCheckout,
   readyItems,
@@ -275,6 +276,25 @@ test('mainState: a tip with no CI run waits; the run before it does not decide (
   ]);
   assert.equal(mainState(own, TIP).red, true);
   assert.equal(mainState(runs).wait, false);
+  // a tip whose only run was cancelled was never tested (a push run on main is never cancelled by
+  // a newer push): it waits too, and a hand-dispatched run for the tip stands in for a push run
+  const cancelledTip = JSON.stringify([
+    { conclusion: 'cancelled', status: 'completed', headSha: TIP, event: 'push' },
+    ...JSON.parse(runs),
+  ]);
+  const c = mainState(cancelledTip, TIP);
+  assert.deepEqual([c.wait, c.tipWait], [true, true]);
+  assert.match(c.why, /tip fffffff has only a cancelled or skipped CI run/);
+  const dispatched = JSON.stringify([
+    { conclusion: 'success', status: 'completed', headSha: TIP, event: 'workflow_dispatch' },
+  ]);
+  assert.deepEqual(
+    [mainState(dispatched, TIP).wait, mainState(dispatched, TIP).red],
+    [false, false]
+  );
+  // other events on main are not main's CI
+  const sched = JSON.stringify([{ conclusion: 'success', headSha: TIP, event: 'schedule' }]);
+  assert.equal(mainState(sched, TIP).tipWait, true);
 });
 
 test('main tip with no run yet: the round waits, no gate; an unreadable tip waits too', () => {
@@ -295,6 +315,34 @@ test('main tip with no run yet: the round waits, no gate; an unreadable tip wait
   assert.deepEqual(round(g.deps, new Set()), { stop: null, merged: [] });
   assert.deepEqual(g.calls.gate, []);
   assert.match(g.calls.log.join('\n'), /main's tip unreadable/);
+});
+
+test('main tip with no run: one Discord line after the waiting rounds, never a second; the count resets', () => {
+  const h = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    tip: 'f'.repeat(40),
+  });
+  const tried = new Set();
+  const attempts = new Map();
+  for (let i = 1; i <= TIP_WAIT_ROUNDS + 3; i += 1) {
+    round(h.deps, tried, attempts);
+    assert.equal(h.calls.post.length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
+  }
+  assert.match(
+    h.calls.post[0],
+    /no CI run for main's tip fffffff yet.*gh workflow run ci\.yml --ref main/
+  );
+  assert.deepEqual(h.calls.gate, []);
+  // main becomes judgeable again: the counter is dropped
+  attempts.set('main-tip-wait', 5);
+  const ok = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+  });
+  round(ok.deps, new Set(), attempts);
+  assert.equal(attempts.has('main-tip-wait'), false);
 });
 
 test('gateOutcome: no run to judge on main, a list that is not a list, no run for the tip: transient', () => {

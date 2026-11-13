@@ -8,7 +8,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkEdit, parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
+import {
+  checkEdit,
+  isMerged,
+  newestProgress,
+  parseBacklog,
+  parseProgress,
+  parseReady,
+} from './backlog-items.mjs';
 import {
   BACKLOG,
   DONE,
@@ -323,6 +330,92 @@ test('status lists claimed items with progress, then free unblocked ones, in abo
   assert.ok(statusText(many).split(/\s+/).length < 1000);
 });
 
+/** @param {string[]} progressLines */
+const itemWith = progressLines =>
+  parseBacklog(
+    ['# Backlog', '', '## S T', '', '- id: t', ...progressLines.map(p => `- progress: ${p}`)].join(
+      '\n'
+    )
+  ).items[0];
+
+test('isMerged: the three false positives of 2026-11-12 are not merged, the two misses are', () => {
+  // dnd-helper-player-connector: other PRs merged, work left
+  assert.equal(
+    isMerged(
+      itemWith([
+        '2026-11-08 planner: design, auth (#866, #875) merged; Pi route live; left: player-connector-canary',
+      ])
+    ),
+    false
+  );
+  // docs-react-images: newest line says "merges only after", an older line has MERGED as #582
+  assert.equal(
+    isMerged(
+      itemWith([
+        '2026-10-31 planner: #680 already swaps the README picture, so it merges only after W73',
+        '2026-10-29 stills MERGED as #582. Left: the demo video',
+      ])
+    ),
+    false
+  );
+  // mcp-sdk-v2-spike: "main merged" is a merge of main into the branch
+  assert.equal(
+    isMerged(itemWith(['2026-10-28 HELD, merge-ready: PR #534 (main merged, round 2 fixes)'])),
+    false
+  );
+  // real-tool-usage and main-red-auto-revert style: PR #n merged
+  assert.equal(isMerged(itemWith(['2026-11-10 planner: PR #909 merged (weekly line)'])), true);
+  assert.equal(isMerged(itemWith(['2026-10-28 PR #301 MERGED at ad13367 after rounds'])), true);
+});
+
+test('newestProgress reads the newest date, not the last line; an undated line is oldest', () => {
+  const i = itemWith(['2026-11-12 PR #5 merged', '2026-11-01 PR #4 ready', 'no date']);
+  assert.equal(newestProgress(i), '2026-11-12 PR #5 merged');
+  assert.equal(isMerged(i), true);
+  // the old last-line reading would have said "not merged" here
+  assert.equal(isMerged(itemWith(['2026-11-12 PR #5 merged', '2026-11-01 PR #4 ready'])), true);
+});
+
+test('claim and status use the same matcher as the Pi flag', () => {
+  const text = [
+    '---',
+    'type: list',
+    '---',
+    '# Backlog',
+    '',
+    '## S T',
+    '',
+    '- id: t',
+    '- progress: 2026-11-12 planner: PR #3 merged at abc1234',
+    '',
+    '## S U',
+    '',
+    '- id: u',
+    '- progress: 2026-11-12 (main merged, round 2)',
+    '',
+  ].join('\n');
+  assert.throws(() => claimEdit(text, { id: 't', title: 'x', date: '2026-11-13' }), /merged/);
+  assert.doesNotThrow(() => claimEdit(text, { id: 'u', title: 'x', date: '2026-11-13' }));
+  assert.match(piListStatus(text, '', '2026-11-20'), /still open \(1\): t;/);
+});
+
+test('done takes the merge commit from gh, --sha overrides, an unanswered gh gives no sha', () => {
+  const v = vaults();
+  const asked = [];
+  const gh = (/** @type {string[]} */ a) => {
+    asked.push(a.join(' '));
+    return { state: 'MERGED', mergeCommit: { oid: 'a1b2c3d4e5f6' } };
+  };
+  const r = v.cli(['done', 'second', '42'], { gh });
+  assert.equal(r.code, 0, r.err);
+  assert.match(v.remoteFile(DONE), /second: PR #42 merged at a1b2c3d /);
+  assert.match(asked[0], /^pr view 42 -R .* --json state,mergeCommit$/);
+  const none = v.cli(['done', 'fourth', '2'], { gh: () => null });
+  assert.equal(none.code, 0, none.err);
+  assert.match(none.out, /no merge commit from gh for PR #2/);
+  assert.match(v.remoteFile(DONE), /fourth: PR #2 merged \(planner\)/);
+});
+
 test('status counts the Pi sitting list and flags items merged more than 3 days ago', () => {
   const backlog = [
     '---',
@@ -416,6 +509,7 @@ function vaults(/** @type {string} */ text = crlf(FIXTURE)) {
       vault: a,
       out: s => out.push(s),
       err: s => err.push(s),
+      gh: () => null,
       ...env,
     });
     return { code, out: out.join('\n'), err: err.join('\n') };

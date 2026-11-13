@@ -51,7 +51,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseProgress, parseReady } from './backlog-items.mjs';
+import { parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
 import { pidAlive } from './heavy-lock.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
 
@@ -222,8 +222,30 @@ export function round(d, tried, attempts) {
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
   /** @param {{ id: string, pr: number, head: string }} r */
-  const markDone = r =>
-    write(r.id, ['done', r.id, String(r.pr), '--sha', r.head, '--by', 'merge-runner'], 'done');
+  const markDone = r => {
+    // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
+    // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
+    const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
+    const piLeft = item && /^yes\b/i.test(item.fields.get('pi')?.at(-1) ?? '');
+    const waiting = item && (item.fields.get('blocked by') ?? []).some(b => /\bW\d+\b/.test(b));
+    if (piLeft || waiting) {
+      d.log(`#${r.pr} (${r.id}) merged, but a Pi run or Waiting item is left; not closing it`);
+      write(
+        r.id,
+        [
+          'progress',
+          r.id,
+          `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
+          '--if-ready',
+          `${r.pr}@${r.head}`,
+        ],
+        'progress'
+      );
+      return;
+    }
+    // No --sha: `backlog.mjs done` reads the merge commit from GitHub (the head is not on main).
+    write(r.id, ['done', r.id, String(r.pr), '--by', 'merge-runner'], 'done');
+  };
   /** Is the PR merged after all (a gate run killed after `gh pr merge`)? @param {number} n */
   const mergedOnGitHub = n => {
     const v = d.gh(['pr', 'view', String(n), '-R', REPO, '--json', 'state']);

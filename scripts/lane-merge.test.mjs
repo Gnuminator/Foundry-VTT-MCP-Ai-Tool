@@ -9,6 +9,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { unblocksMainLine } from './lane-merge/main-red.mjs';
+import { REPO } from './lane-merge/constants.mjs';
 import {
   RISKY_CATEGORIES,
   TRAIN_PATTERNS,
@@ -99,6 +101,13 @@ const RULES = [
   { type: 'pull_request', parameters: {} },
 ];
 
+const MAIN_GREEN = {
+  databaseId: 1,
+  status: 'completed',
+  conclusion: 'success',
+  headSha: 'a'.repeat(40),
+  url: 'u',
+};
 const FAKE_DRIFT_SOURCE = `import fs from 'node:fs';\nexport function runDriftCheck() { return 0; }\n`;
 const FAKE_LOCK_SOURCE = `import fs from 'node:fs';\nexport function acquire() {}\n`;
 
@@ -239,6 +248,17 @@ function gate(o = {}) {
     }
     if (key === 'npm run drift:check') {
       return { status: o.drift ?? 0, stdout: 'local drift\n', stderr: '' };
+    }
+    if (key === 'gh run list') {
+      for (const flag of ['--branch main', '--event push', '--workflow ci.yml', '-R aitool-repo']) {
+        const [f, v] = flag.split(' ');
+        const at = args.indexOf(f);
+        const want = v === 'aitool-repo' ? REPO : v;
+        if (at < 0 || args[at + 1] !== want) return { status: 1, stdout: '', stderr: `bad ${f}` };
+      }
+      return o.mainRuns === 'fail'
+        ? { status: 1, stdout: '', stderr: 'HTTP 502' }
+        : ok(JSON.stringify(o.mainRuns ?? [MAIN_GREEN]));
     }
     if (key === 'gh pr merge') {
       return { status: o.merge ?? 0, stdout: '', stderr: o.merge ? 'not allowed' : '' };
@@ -1667,6 +1687,7 @@ function gateRun() {
   return (cmd, args) => {
     const key = `${cmd} ${args.slice(0, 2).join(' ')}`;
     if (key === 'gh pr view') return ok(JSON.stringify(pr));
+    if (key === 'gh run list') return ok(JSON.stringify([MAIN_GREEN]));
     if (cmd === 'gh' && args[0] === 'api') return ok(JSON.stringify(RULES));
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
     if (key === 'git diff -z') {
@@ -3764,4 +3785,40 @@ test('merge train note: a carried verdict is one sha line, which the board parse
   assert.match(text, new RegExp(`\\nlast-event-verdict-carried-from: ${OTHER}\\nlast-event-at: `));
   const board = await boardParser();
   if (board) assert.deepEqual(board.parseMergeTrain(text).problems, []);
+});
+
+test('main red: refuses while the last completed push run of main failed, unless the PR unblocks main', () => {
+  const red = {
+    ...MAIN_GREEN,
+    databaseId: 4242,
+    conclusion: 'failure',
+    url: 'https://x/runs/4242',
+  };
+  const running = { databaseId: 4300, status: 'in_progress', conclusion: '' };
+  const r = gate({ mainRuns: [running, red, MAIN_GREEN] });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /main red: .*run 4242 at aaaaaaa.*: failure\).*Unblocks main:/);
+  const ok = gate({
+    mainRuns: [red],
+    body: 'Live check: test server A, real dnd5e data\nUnblocks main: reverts the clash',
+  });
+  assert.equal(ok.code, 0, ok.text);
+  // a cancelled newest run is skipped; the green one behind it decides
+  assert.equal(gate({ mainRuns: [{ ...red, conclusion: 'cancelled' }, MAIN_GREEN] }).code, 0);
+  // the exemption is logged as a note
+  assert.match(ok.text, /main is red \(run 4242.*passed as "Unblocks main: reverts the clash"/);
+  // a red run being rerun is still red; timed_out and startup_failure are red
+  const rerun = { databaseId: 4300, status: 'in_progress', conclusion: '', attempt: 2 };
+  assert.match(gate({ mainRuns: [rerun, MAIN_GREEN] }).text, /being rerun after a failure/);
+  for (const conclusion of ['timed_out', 'startup_failure', 'action_required']) {
+    assert.equal(gate({ mainRuns: [{ ...red, conclusion }] }).code, 1, conclusion);
+  }
+  // nothing to judge refuses; "none" is no reason
+  assert.match(gate({ mainRuns: [] }).text, /no completed push run/);
+  assert.equal(unblocksMainLine('Unblocks main: none'), null);
+  // unreadable run data refuses
+  assert.match(gate({ mainRuns: 'fail' }).text, /main red: cannot read/);
+  assert.equal(unblocksMainLine('Unblocks main: <fill in>'), null);
+  assert.equal(unblocksMainLine('<!-- Unblocks main: x -->'), null);
+  assert.ok(unblocksMainLine('- **Unblocks main:** revert of the clash'));
 });

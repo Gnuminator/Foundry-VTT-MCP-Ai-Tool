@@ -141,6 +141,7 @@ test('main: red twice opens a draft revert PR listing the streak', () => {
   const body = create[create.indexOf('--body') + 1];
   assert.match(body, /ccccccc: cancelled \(cancelled: no verdict/);
   assert.match(body, /bbbbbbb: failure/);
+  assert.match(body, /^Unblocks main: reverts /m);
   assert.match(io.files['changelog.d/auto-revert-ccccccc.md'], /Add the widget/);
   assert.doesNotMatch(io.files['changelog.d/auto-revert-ccccccc.md'], /Merge pull request/);
 });

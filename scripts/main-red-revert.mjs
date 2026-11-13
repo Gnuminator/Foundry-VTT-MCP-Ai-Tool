@@ -272,6 +272,7 @@ export function main(argv, io = realIo()) {
     "user's OK (planner skill, Main is red). A pushed token starts no CI here: close and reopen",
     'this PR to start it, then merge through the gate.',
     '',
+    `Unblocks main: reverts ${culprit} (${title})`,
     'Backlog: main-red-auto-revert',
   ].join('\n');
   const created = gh(

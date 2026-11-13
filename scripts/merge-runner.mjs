@@ -139,7 +139,7 @@ const MAX_TRANSIENT = 3;
 /**
  * What a gate run ended with.
  * @param {number} code @param {string} output @param {number} pr
- * @returns {{ kind: 'merged' | 'train-full' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
+ * @returns {{ kind: 'merged' | 'train-full' | 'main-red' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
  */
 export function gateOutcome(code, output, pr) {
   const lines = output.split(/\r?\n/);
@@ -155,6 +155,9 @@ export function gateOutcome(code, output, pr) {
       ? verdict.slice('lane:merge: wait-ci ended: '.length)
       : `the gate ended with exit ${code} and no reason line`;
   if (/merge train full/.test(because ?? '')) return { kind: 'train-full', reason };
+  // Main went red while the gate ran: not this PR's fault, its ready line stays.
+  if (/main red: main's last completed/.test(because ?? '')) return { kind: 'main-red', reason };
+  if (/main red: cannot read/.test(because ?? '')) return { kind: 'transient', reason };
   if (code === GATE_WAIT_TIMEOUT) return { kind: 'wait', reason };
   if (TRANSIENT.test(reason)) return { kind: 'transient', reason };
   return { kind: 'refused', reason };
@@ -346,7 +349,12 @@ export function round(d, tried, attempts) {
     d.log(`#${r.pr} (${r.id}): running main's gate on ${r.head.slice(0, 7)}`);
     const g = d.gate(r.pr);
     const out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
-    if (out.kind !== 'merged' && out.kind !== 'train-full' && mergedOnGitHub(r.pr)) {
+    if (
+      out.kind !== 'merged' &&
+      out.kind !== 'train-full' &&
+      out.kind !== 'main-red' &&
+      mergedOnGitHub(r.pr)
+    ) {
       // The gate ended without its merged line (killed, timed out) after the merge went through.
       tried.add(key);
       merged.push(r.pr);
@@ -361,6 +369,12 @@ export function round(d, tried, attempts) {
       d.log(`stopped: ${TRAIN_FULL_LINE} (#${r.pr} waits)`);
       d.post(`${TRAIN_FULL_LINE} (#${r.pr} waits; start the runner again after the train reset)`);
       return { stop: 'merge train full', merged };
+    } else if (out.kind === 'main-red') {
+      d.log(`stopped: ${oneLine(out.reason, 200)} (#${r.pr} waits)`);
+      d.post(
+        `merge runner stopped: main went red while the gate ran (#${r.pr} waits); ask a session to fix main, then start the runner again`
+      );
+      return { stop: 'main went red during the gate', merged };
     } else if (out.kind === 'killed') {
       // The gate's own children (drift-check, heavy lock) may still run in the gate checkout.
       d.log(`stopped: the gate on #${r.pr} was killed at the time limit`);

@@ -11,6 +11,15 @@
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
  * can take half an hour); a line that changed meanwhile waits for the next round.
  *
+ * Merge queue (main's ruleset has `merge_queue` and requires ci-all-green): the gate ends with
+ * `lane:merge: enqueued #<PR>`; the runner replaces the ready line with "PR #<n> enqueued in the
+ * merge queue, head <sha>" and each round follows those PRs: merged -> `backlog.mjs done` and one
+ * #pr-log line; out of the queue unmerged in two rounds -> off the merge train, a progress line,
+ * one #pr-log line. A main CI run still going then does not hold the next PR (the queue merges on
+ * ci-all-green, which stands for every job); a completed red one still stops the runner. Each round
+ * also reruns once a CI run that is completed but holds a check in progress for over 20 minutes
+ * (the ghost check, findGhosts). The gate's merged line below is the no-queue behaviour.
+ *
  *   - main's newest CI run (push, ci.yml) is red: post one line, exit 3. Nothing is merged and the
  *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round.
  *     A gate end that is not the PR's fault (gh/git blip, UNKNOWN mergeability) is tried again, up
@@ -64,6 +73,14 @@ import { fileURLToPath } from 'node:url';
 import { parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
 import { pidAlive } from './heavy-lock.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
+import { queueQuery } from './lane-merge/constants.mjs';
+import {
+  GHOST_MINUTES,
+  enqueuedItems,
+  enqueuedLine,
+  findGhosts,
+  makeQueueDeps,
+} from './merge-runner/queue.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -110,6 +127,8 @@ export function readyItems(backlogText) {
   return out;
 }
 
+export { GHOST_MINUTES, enqueuedItems, enqueuedLine, findGhosts };
+
 /**
  * Main's state from `gh run list --json conclusion,headSha,status` (newest first, push runs of
  * ci.yml, finished or not). Cancelled and skipped runs are passed over (a newer push cancels the
@@ -150,12 +169,15 @@ const MAX_TRANSIENT = 3;
 /**
  * What a gate run ended with.
  * @param {number} code @param {string} output @param {number} pr
- * @returns {{ kind: 'merged' | 'train-full' | 'main-red' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
+ * @returns {{ kind: 'merged' | 'enqueued' | 'train-full' | 'main-red' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
  */
 export function gateOutcome(code, output, pr) {
   const lines = output.split(/\r?\n/);
   if (code === 0 && lines.some(l => l.startsWith(`lane:merge: merged #${pr} `))) {
     return { kind: 'merged', reason: '' };
+  }
+  if (code === 0 && lines.some(l => l.startsWith(`lane:merge: enqueued #${pr} `))) {
+    return { kind: 'enqueued', reason: '' };
   }
   if (lines.includes(KILLED_LINE)) return { kind: 'killed', reason: KILLED_LINE };
   const because = lines.filter(l => l.startsWith('lane:merge: refused because ')).at(-1);
@@ -190,8 +212,15 @@ const norm = p => {
  *   backlog: (args: string[]) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
+ *   queueOn?: () => boolean,
+ *   ghosts?: () => { run: number, names: string[] }[],
+ *   trainRemove?: (pr: number) => void,
+ *   trainAdd?: (pr: number, head: string) => void,
  *   selfCheck?: () => import('./merge-runner/self-check.mjs').SelfCheckResult | null,
  * }} Deps
+ * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
+ * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
+ * findGhosts. `trainRemove`: take a PR that left the queue unmerged off the merge train.
  */
 
 /**
@@ -206,7 +235,7 @@ export function round(d, tried, attempts) {
   const text = d.readBacklog();
   if (text === null) return { stop: null, merged };
   const ready = readyItems(text).filter(r => !tried.has(`${r.pr}@${r.head}`));
-  if (!ready.length) return { stop: null, merged };
+  attempts ??= new Map();
 
   /** @param {string} id @param {string[]} args @param {string} what */
   const write = (id, args, what) => {
@@ -236,8 +265,8 @@ export function round(d, tried, attempts) {
     );
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
-  /** @param {{ id: string, pr: number, head: string }} r */
-  const markDone = r => {
+  /** @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line */
+  const markDone = (r, fromReady = true) => {
     // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
     // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
@@ -251,8 +280,7 @@ export function round(d, tried, attempts) {
           'progress',
           r.id,
           `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
-          '--if-ready',
-          `${r.pr}@${r.head}`,
+          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
         ],
         'progress'
       );
@@ -270,6 +298,78 @@ export function round(d, tried, attempts) {
       return false;
     }
   };
+
+  /** Is the PR waiting in the merge queue right now? @param {number} n */
+  const queuedOnGitHub = n => {
+    const v = d.gh(['api', 'graphql', '-f', `query=${queueQuery(n)}`]);
+    try {
+      const st = JSON.parse(v.stdout)?.data?.repository?.pullRequest;
+      return v.status === 0 && st?.state === 'OPEN' && st?.isInMergeQueue === true;
+    } catch {
+      return false;
+    }
+  };
+
+  // PRs the gate put into the merge queue: merged -> done; gone from the queue unmerged (a failed
+  // queue run, removed by hand) -> off the train, a progress line, one Discord line. Seen missing
+  // in two rounds in a row first, so the moment between `gh pr merge` and the queue entry is safe.
+  for (const q of enqueuedItems(text)) {
+    const key = `q${q.pr}@${q.head}`;
+    if (tried.has(key)) continue;
+    const v = d.gh(['api', 'graphql', '-f', `query=${queueQuery(q.pr)}`]);
+    /** @type {{ state?: string, isInMergeQueue?: boolean } | undefined} */
+    let st;
+    try {
+      st = JSON.parse(v.stdout)?.data?.repository?.pullRequest;
+    } catch {
+      /* unreadable: next round */
+    }
+    if (v.status !== 0 || !st) {
+      d.log(`#${q.pr} (${q.id}): merge queue state unreadable; next round`);
+      continue;
+    }
+    if (st.state === 'MERGED') {
+      tried.add(key);
+      merged.push(q.pr);
+      d.log(`#${q.pr} (${q.id}) merged by the queue`);
+      d.post(`merge runner: #${q.pr} merged by the merge queue`);
+      markDone(q, false);
+    } else if (st.state === 'OPEN' && st.isInMergeQueue) {
+      attempts.delete(key);
+    } else if ((attempts.get(key) ?? 0) + 1 < 2) {
+      attempts.set(key, (attempts.get(key) ?? 0) + 1);
+      d.log(`#${q.pr} (${q.id}) is not in the merge queue (${st.state}); looking again next round`);
+    } else {
+      tried.add(key);
+      // The line may have been replaced meanwhile (a lane's new ready line): then nothing is written.
+      const nowLine = enqueuedItems(d.readBacklog() ?? '').some(
+        x => x.id === q.id && x.pr === q.pr && x.head === q.head
+      );
+      if (!nowLine) continue;
+      const why = `PR #${q.pr} left the merge queue without merging (a failed queue run, or taken out by hand); fix it, then write a new ready line`;
+      d.log(`#${q.pr} (${q.id}): ${why}`);
+      d.trainRemove?.(q.pr);
+      write(q.id, ['progress', q.id, why], 'progress');
+      d.post(`merge runner: #${q.pr} left the merge queue without merging`);
+    }
+  }
+  // Ghost checks: a check in progress for over GHOST_MINUTES with its run completed gets one rerun.
+  for (const g of d.ghosts?.() ?? []) {
+    const key = `ghost${g.run}`;
+    if (tried.has(key)) continue;
+    tried.add(key);
+    const r = d.gh(['run', 'rerun', String(g.run), '-R', REPO]);
+    d.log(
+      `ghost check in run ${g.run} (${g.names.join(', ')}): rerun ${r.status === 0 ? 'started' : `failed (${oneLine(r.stderr, 200)})`}`
+    );
+    d.post(
+      `merge runner: CI run ${g.run} had a check stuck in progress (${g.names.join(', ')}); ${r.status === 0 ? 'rerun started' : 'rerun failed, rerun it by hand'}`
+    );
+  }
+  if (!ready.length) return { stop: null, merged };
+
+  /** @type {boolean | undefined} */
+  let queueOn;
 
   for (const first of ready) {
     // Read the line again: an earlier gate run in this round can take half an hour, and the lane
@@ -304,7 +404,10 @@ export function round(d, tried, attempts) {
             sha: '',
             why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
           };
-    if (main.wait) {
+    // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
+    // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
+    queueOn ??= d.queueOn?.() ?? false;
+    if (main.wait && !(queueOn && main.sha !== '')) {
       d.log(`${main.why}; next round`);
       return { stop: null, merged };
     }
@@ -360,9 +463,31 @@ export function round(d, tried, attempts) {
     }
     d.log(`#${r.pr} (${r.id}): running main's gate on ${r.head.slice(0, 7)}`);
     const g = d.gate(r.pr);
-    const out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
+    let out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
+    // A PR that is in the queue although the gate ended without saying so. Only a gate end with no
+    // verdict (killed, or "no reason line") is adopted: the PR is followed and counted on the train
+    // (the gate died before its train write). A real refusal stays a refusal, with a hint that the
+    // PR is queued and has to be taken out by hand (the queue would merge it).
+    if (
+      !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind) &&
+      queuedOnGitHub(r.pr)
+    ) {
+      if (out.kind === 'killed' || /no reason line/.test(out.reason)) {
+        d.log(
+          `#${r.pr} (${r.id}) is in the merge queue although the gate said: ${oneLine(out.reason, 200)}`
+        );
+        d.trainAdd?.(r.pr, r.head);
+        out = { kind: 'enqueued', reason: '' };
+      } else {
+        out = {
+          kind: 'refused',
+          reason: `${out.reason} (the PR is already in the merge queue, put there by hand: take it out of the queue or it will merge)`,
+        };
+      }
+    }
     if (
       out.kind !== 'merged' &&
+      out.kind !== 'enqueued' &&
       out.kind !== 'train-full' &&
       out.kind !== 'main-red' &&
       mergedOnGitHub(r.pr)
@@ -377,6 +502,15 @@ export function round(d, tried, attempts) {
       merged.push(r.pr);
       d.log(`#${r.pr} (${r.id}) merged`);
       markDone(r);
+    } else if (out.kind === 'enqueued') {
+      // The queue merges it later; the line below replaces the ready line, so it is not gated again.
+      tried.add(key);
+      d.log(`#${r.pr} (${r.id}) is in the merge queue`);
+      write(
+        r.id,
+        ['progress', r.id, enqueuedLine(r.pr, r.head), '--if-ready', `${r.pr}@${r.head}`],
+        'progress'
+      );
     } else if (out.kind === 'train-full') {
       d.log(`stopped: ${TRAIN_FULL_LINE} (#${r.pr} waits)`);
       d.post(`${TRAIN_FULL_LINE} (#${r.pr} waits; start the runner again after the train reset)`);
@@ -666,6 +800,7 @@ function realDeps(o) {
       }
     },
     log: stamp,
+    ...makeQueueDeps({ sh, stamp, repo: REPO }),
     selfCheck:
       makeSelfCheck({
         // backlog.mjs is started as its own process for every Backlog write: its code counts too.

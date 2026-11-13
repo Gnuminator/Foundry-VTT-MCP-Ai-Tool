@@ -52,6 +52,7 @@ import {
   runEntry,
   verdictLine,
   requiredContexts,
+  hasMergeQueue,
   riskyHits,
   rollupProblems,
   waitForCi,
@@ -149,6 +150,7 @@ function gate(o = {}) {
     statusCheckRollup: o.rollup ?? [
       { __typename: 'CheckRun', name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' },
       { __typename: 'CheckRun', name: 'codeql', status: 'COMPLETED', conclusion: 'SKIPPED' },
+      { __typename: 'CheckRun', name: 'ci-all-green', status: 'COMPLETED', conclusion: 'SUCCESS' },
     ],
     ...o.pr,
   };
@@ -190,6 +192,11 @@ function gate(o = {}) {
     }
     if (key === 'gh pr view') {
       return ok(JSON.stringify({ ...pr, ...o.prFor?.(views++) }));
+    }
+    if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+      // the merge queue state after `gh pr merge`; default: in the queue
+      const st = o.queueState ?? { state: 'OPEN', isInMergeQueue: true };
+      return ok(JSON.stringify({ data: { repository: { pullRequest: st } } }));
     }
     if (cmd === 'gh' && args[0] === 'api') {
       return o.rulesFail
@@ -261,6 +268,7 @@ function gate(o = {}) {
         : ok(JSON.stringify(o.mainRuns ?? [MAIN_GREEN]));
     }
     if (key === 'gh pr merge') {
+      if (args.includes('--disable-auto')) return ok('');
       return { status: o.merge ?? 0, stdout: '', stderr: o.merge ? 'not allowed' : '' };
     }
     return { status: 1, stdout: '', stderr: `unexpected ${key}` };
@@ -1196,6 +1204,151 @@ test('merge: calls gh pr merge with the head commit and prints the merged line',
   assert.ok(!fs.existsSync(r.state), 'a PR outside the module does not join the train');
 });
 
+const QUEUE_RULES = [
+  {
+    type: 'required_status_checks',
+    parameters: {
+      required_status_checks: [{ context: 'build-test' }, { context: 'ci-all-green' }],
+    },
+  },
+  { type: 'pull_request', parameters: {} },
+  { type: 'merge_queue', parameters: {} },
+];
+
+test('merge queue: without ci-all-green among the required checks the gate refuses to enqueue', () => {
+  const r = gate({ rules: [...RULES, { type: 'merge_queue', parameters: {} }] });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /does not require ci-all-green/);
+  assert.ok(!r.merged);
+});
+
+test('merge queue: a queue entry that shows up late is accepted (five reads, three seconds apart)', () => {
+  let reads = 0;
+  const r = gate({
+    rules: QUEUE_RULES,
+    get queueState() {
+      reads += 1;
+      return reads < 4
+        ? { state: 'OPEN', isInMergeQueue: false }
+        : { state: 'OPEN', isInMergeQueue: true };
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.deepEqual(r.sleeps, [3000, 3000, 3000]);
+});
+
+test('merge queue: auto-merge instead of a queue entry is switched off again and refused', () => {
+  const r = gate({ rules: QUEUE_RULES, queueState: { state: 'OPEN', isInMergeQueue: false } });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /did not put #312 into the merge queue/);
+  assert.ok(r.calls.some(c => c[0] === 'gh' && c[2] === 'merge' && c.includes('--disable-auto')));
+});
+
+test('merge queue: an enqueued PR is on the train once, even when the gate runs twice', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(
+    state,
+    JSON.stringify({ lastRoundtrip: null, since: [{ pr: 312, sha: 'old', at: 'x' }] })
+  );
+  const r = gate({ rules: QUEUE_RULES, files: MODULE_FILES, argv: ['--state', state] });
+  assert.equal(r.code, 0, r.text);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [312]
+  );
+});
+
+test('train reset drops merged, closed and open-but-unqueued PRs (a squash queue too), keeps an unreadable one', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(4)));
+  const code = main({
+    home,
+    run: trainRun({ states: { 300: 'MERGED', 301: 'CLOSED', 302: 'OPEN', 303: 'unreadable' } }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [303]
+  );
+});
+
+test('train reset keeps a PR the queue merged after the tested tip', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(2)));
+  const code = main({
+    home,
+    run: trainRun({ afterTip: ['m301'] }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [301]
+  );
+});
+
+test('train reset keeps a PR that is queued but not on main yet', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(3)));
+  const lines = [];
+  const code = main({
+    home,
+    run: trainRun({ queued: [302] }),
+    log: l => lines.push(l),
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [302]
+  );
+  assert.match(lines[0], /merge train 1\/4 \(still queued, not on main yet\)/);
+});
+
+test('merge queue: with a merge_queue rule the gate enqueues (no strategy flag), counts the train, posts nothing', () => {
+  const rules = QUEUE_RULES;
+  let announced = 0;
+  const r = gate({
+    rules,
+    files: MODULE_FILES,
+    announce: () => {
+      announced += 1;
+      return '';
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.match(r.lines.at(-1), /^lane:merge: enqueued #312 at 3d24f70; merge train 1\/4/);
+  const merge = r.calls.find(c => c[0] === 'gh' && c[2] === 'merge');
+  assert.deepEqual(merge, ['gh', 'pr', 'merge', '312', '--match-head-commit', HEAD]);
+  assert.equal(announced, 0, 'the runner posts when the queue has merged it');
+  assert.equal(JSON.parse(fs.readFileSync(r.state, 'utf8')).since.length, 1);
+});
+
+test('merge queue: a full train still refuses before enqueueing', () => {
+  const rules = [...RULES, { type: 'merge_queue', parameters: {} }];
+  const r = gate({ rules, files: MODULE_FILES, train: trainOf(TRAIN_SIZE) });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /train: merge train full \(4\/4\)/);
+  assert.ok(!r.merged);
+});
+
+test('hasMergeQueue: only a merge_queue rule counts; junk is no queue', () => {
+  assert.equal(hasMergeQueue(JSON.stringify([...RULES, { type: 'merge_queue' }])), true);
+  assert.equal(hasMergeQueue(JSON.stringify(RULES)), false);
+  assert.equal(hasMergeQueue('not json'), false);
+  assert.equal(hasMergeQueue('{}'), false);
+});
+
 test('merge: gh pr merge failing is reported and exits 1', () => {
   const r = gate({ merge: 1 });
   assert.equal(r.code, 1);
@@ -1731,9 +1884,26 @@ test('M2: a malformed train file refuses instead of reading as an empty train', 
 const TIP = 'ab12cd34'.repeat(5);
 
 /** A fake run for the train commands: fetch and rev-parse aitool/main. */
-function trainRun({ fetchFail = false, tip = TIP } = {}) {
+function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {}, afterTip = [] } = {}) {
   return (cmd, args) => {
     const key = `${cmd} ${args.join(' ')}`;
+    // a merge commit is in the tested tip unless the test says it landed after it
+    if (cmd === 'git' && args[0] === 'merge-base' && args[1] === '--is-ancestor') {
+      return { status: afterTip.includes(args[2]) ? 1 : 0, stdout: '', stderr: '' };
+    }
+    // GitHub's answer per train PR: merged unless the test says it is queued or gives a state
+    if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+      const pr = Number(/number:(\d+)/.exec(args[3])[1]);
+      if (states[pr] === 'unreadable') return { status: 1, stdout: '', stderr: 'HTTP 502' };
+      const st = queued.includes(pr)
+        ? { state: 'OPEN', isInMergeQueue: true }
+        : { state: states[pr] ?? 'MERGED', isInMergeQueue: false, mergeCommit: { oid: `m${pr}` } };
+      return {
+        status: 0,
+        stdout: JSON.stringify({ data: { repository: { pullRequest: st } } }),
+        stderr: '',
+      };
+    }
     if (key === 'git fetch aitool main') {
       return fetchFail
         ? { status: 1, stdout: '', stderr: 'offline' }

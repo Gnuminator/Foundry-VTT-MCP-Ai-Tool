@@ -11,9 +11,12 @@ import {
   TAIL_LINES,
   WAIT_TIMEOUT_MS,
   WAIT_POLL_MS,
+  QUEUE_RECHECK_MS,
   EXIT_HEAD_MOVED,
   ENV_FETCHED,
   PR_FIELDS,
+  AGGREGATE_CHECK,
+  queueQuery,
 } from './constants.mjs';
 import { riskyHits, isTrainRelevant } from './risky.mjs';
 import {
@@ -25,7 +28,7 @@ import {
   carriedReviews,
   judgeReviews,
 } from './reviews.mjs';
-import { requiredContexts, rollupProblems, waitForCi } from './ci.mjs';
+import { requiredContexts, rollupProblems, waitForCi, hasMergeQueue } from './ci.mjs';
 import { hasChangelogFragment, releasePr, parseNameStatus } from './changelog.mjs';
 import { readTrain, writeTrain, publishTrainNote, sleep, acquireLock } from './train.mjs';
 import { defaultAnnounce } from './announce.mjs';
@@ -149,18 +152,52 @@ export function main(options = {}) {
       return 1;
     }
     let release;
+    /** @type {TrainState['since']} */
+    let keptSince;
     try {
       release = acquireLock(statePath, { timeoutMs: lockTimeoutMs });
-      writeTrain(statePath, { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: [] });
+      // A PR that is enqueued but not on main yet was not in the roundtrip: it stays on the train.
+      /** @type {TrainState['since']} */
+      let before = [];
+      try {
+        before = readTrain(statePath).since;
+      } catch {
+        /* a malformed file does not block the reset: that is what the reset is for */
+      }
+      // GitHub decides (a squash or rebase queue never puts the PR head into main's history): an
+      // entry stays only while its PR is open and in the queue. Unreadable keeps it.
+      const kept = before.filter(s => {
+        const q = run('gh', ['api', 'graphql', '-f', `query=${queueQuery(s.pr)}`]);
+        try {
+          const st = JSON.parse(q.stdout)?.data?.repository?.pullRequest;
+          if (q.status !== 0 || !st) return true;
+          if (st.state === 'MERGED') {
+            // Covered by the roundtrip only when its merge commit is in the tested tip: one the
+            // queue merged after the tip check stays on the train (any doubt keeps it).
+            const oid = String(st.mergeCommit?.oid ?? '');
+            return !oid || run('git', ['merge-base', '--is-ancestor', oid, tipSha]).status !== 0;
+          }
+          return st.state === 'OPEN' && st.isInMergeQueue === true;
+        } catch {
+          return true;
+        }
+      });
+      keptSince = kept;
+      writeTrain(statePath, {
+        lastRoundtrip: { sha: tipSha, at: now().toISOString() },
+        since: kept,
+      });
     } catch (e) {
       log(`lane:merge: train not reset: ${message(e)}`);
       return 1;
     } finally {
       release?.();
     }
-    log(`lane:merge: merge train reset at ${short(tipSha)}; merge train 0/${TRAIN_SIZE}`);
+    log(
+      `lane:merge: merge train reset at ${short(tipSha)}; merge train ${keptSince.length}/${TRAIN_SIZE}${keptSince.length ?' (still queued, not on main yet)' : ''}`
+    );
     const resetWarning = recordTrain(
-      { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: [] },
+      { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: keptSince },
       'reset'
     );
     if (resetWarning) log(`lane:merge: ${resetWarning}`);
@@ -285,6 +322,14 @@ export function main(options = {}) {
   // b. CI: every check green, and every check the branch ruleset requires present.
   const rules = run('gh', ['api', `repos/${REPO}/rules/branches/main`]);
   const required = rules.status === 0 ? requiredContexts(rules.stdout) : null;
+  // With a merge queue on main the gate enqueues the PR; the queue merges it after its own CI run.
+  const queued = rules.status === 0 && hasMergeQueue(rules.stdout);
+  // The queue merges on the REQUIRED checks alone, so the aggregate check must be one of them.
+  if (queued && required !== null && !required.includes(AGGREGATE_CHECK)) {
+    failures.push(
+      `ci: main has a merge queue but the ruleset does not require ${AGGREGATE_CHECK}; the queue would merge on three of the checks only`
+    );
+  }
   if (required === null) {
     failures.push(
       rules.status === 0
@@ -544,19 +589,52 @@ export function main(options = {}) {
         return finish();
       }
     }
-    const merge = run('gh', ['pr', 'merge', String(n), '--merge', '--match-head-commit', head]);
+    // A queue picks the merge method itself (gh takes no strategy flag there).
+    const merge = run('gh', [
+      'pr',
+      'merge',
+      String(n),
+      ...(queued ? [] : ['--merge']),
+      '--match-head-commit',
+      head,
+    ]);
     if (merge.status !== 0) {
       failures.push(
         `merge: gh pr merge exited ${merge.status}: ${firstLine(merge.stderr || merge.stdout)}`
       );
       return finish();
     }
+    if (queued) {
+      // `gh pr merge` can also switch on auto-merge (it did not see the checks as passed): that is
+      // no queue entry. A readable "open, not queued" answer undoes it and refuses; unreadable only warns.
+      let state = null;
+      // GraphQL can lag a moment behind the enqueue: five reads, three seconds apart.
+      for (let i = 0; i < 5 && !state?.isInMergeQueue && state?.state !== 'MERGED'; i += 1) {
+        if (i > 0) pause(QUEUE_RECHECK_MS);
+        const q = run('gh', ['api', 'graphql', '-f', `query=${queueQuery(n)}`]);
+        try {
+          state = JSON.parse(q.stdout)?.data?.repository?.pullRequest ?? null;
+        } catch {
+          state = null;
+        }
+        if (!state) break;
+      }
+      if (state && state.state === 'OPEN' && !state.isInMergeQueue) {
+        run('gh', ['pr', 'merge', String(n), '--disable-auto']);
+        failures.push(
+          `merge: gh pr merge did not put #${n} into the merge queue (auto-merge was switched off again)`
+        );
+        return finish();
+      }
+      if (!state) warning = `; WARNING: queue entry of #${n} not confirmed`;
+    }
     if (trainRelevant) {
+      train.since = train.since.filter(s => s.pr !== n);
       train.since.push({ pr: n, sha: head, at: now().toISOString() });
       try {
         writeTrain(statePath, train);
       } catch (e) {
-        warning = `; WARNING: merge train not recorded (${message(e)})`;
+        warning += `; WARNING: merge train not recorded (${message(e)})`;
       }
     }
   } finally {
@@ -567,12 +645,15 @@ export function main(options = {}) {
     trainRelevant && k === TRAIN_SIZE - 1
       ? '; run live:roundtrip before the next module merge'
       : '';
+  // Queued: the PR counts on the train now (it merges unless its queue run fails; the merge runner
+  // takes it off again then). No Discord post here: the runner posts once the queue has merged it.
   log(
-    `lane:merge: merged #${n} at ${sha7}; merge train ${k}/${TRAIN_SIZE}${advice}${extras}${warning}`
+    `lane:merge: ${queued ? 'enqueued' : 'merged'} #${n} at ${sha7}; merge train ${k}/${TRAIN_SIZE}${advice}${extras}${warning}`
   );
   // After the merged line, so a slow or hanging vault push never hides a merge that happened.
   const noteWarning = recordTrain(train, 'merge', n, undefined, undefined, carriedFrom);
   if (noteWarning) log(`lane:merge: ${noteWarning}`);
+  if (queued) return 0;
   // The Discord post is a courtesy: a failure is a warning line and never changes the exit code.
   try {
     const postWarning = announce(n, String(pr.title ?? ''));

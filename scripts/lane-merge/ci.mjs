@@ -32,6 +32,21 @@ export function requiredContexts(json) {
   return contexts.length > 0 ? [...new Set(contexts)] : null;
 }
 
+/**
+ * Does the branch ruleset hold a merge queue? From `gh api .../rules/branches/main`. With a queue
+ * `gh pr merge` adds the PR to the queue instead of merging it; without one the gate merges as before.
+ * An unreadable answer is "no queue" (the required-checks read above refuses on its own then).
+ * @param {string} json
+ */
+export function hasMergeQueue(json) {
+  try {
+    const rules = JSON.parse(json);
+    return Array.isArray(rules) && rules.some(r => r && r.type === 'merge_queue');
+  } catch {
+    return false;
+  }
+}
+
 /** A job name an unexpanded expression leaks into ends at the "${{"; the rest is not a name. @param {any} name */
 export function stripExpression(name) {
   const t = String(name ?? '');

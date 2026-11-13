@@ -18,6 +18,9 @@ import {
   parseArgs,
   prepareCheckout,
   readyItems,
+  enqueuedItems,
+  enqueuedLine,
+  findGhosts,
   round as roundWith,
   takeRunnerLock,
 } from './merge-runner.mjs';
@@ -660,4 +663,236 @@ test('a gate killed at the time limit stops the runner (leftover processes)', ()
   const r = round(f.deps, new Set());
   assert.match(r.stop ?? '', /killed at the time limit/);
   assert.equal(f.calls.post.length, 1);
+});
+
+// ---- merge queue (github-merge-queue) -----------------------------------------------------------
+
+const enqueued = n => ({
+  status: 0,
+  stdout: `lane:merge: enqueued #${n} at aaaaaaa; merge train 1/4`,
+});
+const queueAnswer = (state, isInMergeQueue) => ({
+  status: 0,
+  stdout: JSON.stringify({ data: { repository: { pullRequest: { state, isInMergeQueue } } } }),
+  stderr: '',
+});
+
+/** fakes() with a queue answer per PR for `gh api graphql`, and the queue extras. */
+function queueFakes(o) {
+  const f = fakes(o);
+  const base = f.deps.gh;
+  f.calls.train = [];
+  f.calls.rerun = [];
+  f.deps.gh = args => {
+    if (args[0] === 'api' && args[1] === 'graphql') {
+      f.calls.gh.push(args);
+      const n = Number(/number:(\d+)/.exec(args[3])[1]);
+      return o.queue[n]();
+    }
+    if (args[0] === 'run' && args[1] === 'rerun') {
+      f.calls.rerun.push(args[2]);
+      return { status: o.rerunFails ? 1 : 0, stdout: '', stderr: 'nope' };
+    }
+    return base(args);
+  };
+  f.deps.queueOn = () => o.queueOn ?? true;
+  f.deps.ghosts = () => o.ghosts ?? [];
+  f.deps.trainRemove = pr => f.calls.train.push(pr);
+  return f;
+}
+
+test('gateOutcome: an enqueued line (exit 0) is its own outcome, not a merge', () => {
+  const line = n => `lane:merge: enqueued #${n} at abc1234; merge train 1/4`;
+  assert.equal(gateOutcome(0, line(5), 5).kind, 'enqueued');
+  assert.notEqual(gateOutcome(0, line(6), 5).kind, 'enqueued');
+});
+
+test('enqueuedItems: only the enqueued line of an item, with its full head', () => {
+  const text = backlog([
+    ['one', enqueuedLine(5, SHA)],
+    ['two', `PR #6 ready, head ${SHA2}`],
+  ]);
+  assert.deepEqual(enqueuedItems(text), [{ id: 'one', pr: 5, head: SHA }]);
+  assert.deepEqual(readyItems(text), [{ id: 'two', pr: 6, head: SHA2 }]);
+});
+
+test('queue: an enqueued gate end replaces the ready line, does not mark done, and is not gated again', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: enqueued(5) },
+    queue: {},
+  });
+  const tried = new Set();
+  const r = round(f.deps, tried);
+  assert.deepEqual(r, { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
+  ]);
+  assert.ok(tried.has(`5@${SHA}`));
+});
+
+test('queue: with a queue, a main CI run still going does not hold the next PR back; without one it does', () => {
+  const running = JSON.stringify([{ conclusion: '', status: 'in_progress', headSha: SHA2 }]);
+  const mk = queueOn =>
+    queueFakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: { 5: enqueued(5) },
+      main: running,
+      queueOn,
+      queue: {},
+    });
+  const on = mk(true);
+  round(on.deps, new Set());
+  assert.deepEqual(on.calls.gate, [5]);
+  const off = mk(false);
+  round(off.deps, new Set());
+  assert.deepEqual(off.calls.gate, []);
+});
+
+test('queue: a queued PR that the queue merged is marked done without --if-ready', () => {
+  const f = queueFakes({
+    text: backlog([['one', enqueuedLine(5, SHA)]]),
+    queue: { 5: () => queueAnswer('MERGED', false) },
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(r.merged, [5]);
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
+  assert.match(f.calls.post[0], /#5 merged by the merge queue/);
+});
+
+test('queue: still in the queue changes nothing', () => {
+  const f = queueFakes({
+    text: backlog([['one', enqueuedLine(5, SHA)]]),
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, []);
+  assert.deepEqual(f.calls.post, []);
+});
+
+test('queue: a failed group (open, out of the queue) is confirmed in a second round, then off the train with one line', () => {
+  const f = queueFakes({
+    text: backlog([['one', enqueuedLine(5, SHA)]]),
+    queue: { 5: () => queueAnswer('OPEN', false) },
+  });
+  const tried = new Set();
+  const attempts = new Map();
+  round(f.deps, tried, attempts);
+  assert.deepEqual(f.calls.train, [], 'one sighting is not enough');
+  assert.deepEqual(f.calls.backlog, []);
+  round(f.deps, tried, attempts);
+  assert.deepEqual(f.calls.train, [5]);
+  assert.equal(f.calls.backlog.length, 1);
+  assert.match(f.calls.backlog[0][2], /left the merge queue without merging/);
+  assert.equal(f.calls.post.length, 1);
+  round(f.deps, tried, attempts);
+  assert.equal(f.calls.backlog.length, 1, 'not handled twice');
+});
+
+test('queue: a gate killed after it enqueued the PR is followed as enqueued, not stopped on', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'x\nmerge-runner: gate killed at the time limit' } },
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  const trainAdds = [];
+  f.deps.trainAdd = (pr, head) => trainAdds.push([pr, head]);
+  const r = round(f.deps, new Set());
+  assert.equal(r.stop, null);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
+  ]);
+  assert.deepEqual(trainAdds, [[5, SHA]], 'the gate died before its train write');
+});
+
+test('queue: a real gate refusal of a PR that is queued stays a refusal, with the hint, and no train add', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because review: no Opus note' } },
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  const trainAdds = [];
+  f.deps.trainAdd = (pr, head) => trainAdds.push([pr, head]);
+  round(f.deps, new Set());
+  assert.equal(f.calls.backlog.length, 1);
+  assert.match(f.calls.backlog[0][2], /refused by the merge gate: review: no Opus note/);
+  assert.match(f.calls.backlog[0][2], /already in the merge queue/);
+  assert.match(f.calls.post[0], /already in the merge queue/);
+  assert.deepEqual(trainAdds, []);
+});
+
+test('queue: a line replaced while the runner decides it left the queue is not overwritten', () => {
+  let reads = 0;
+  const f = queueFakes({
+    text: () => {
+      reads += 1;
+      return reads === 1
+        ? backlog([['one', enqueuedLine(5, SHA)]])
+        : backlog([['one', `PR #5 ready, head ${SHA2}`]]);
+    },
+    queue: { 5: () => queueAnswer('OPEN', false) },
+  });
+  const tried = new Set();
+  const attempts = new Map([[`q5@${SHA}`, 1]]);
+  round(f.deps, tried, attempts);
+  assert.deepEqual(f.calls.backlog, []);
+  assert.deepEqual(f.calls.post, []);
+});
+
+test('queue: an unreadable queue state waits for the next round', () => {
+  const f = queueFakes({
+    text: backlog([['one', enqueuedLine(5, SHA)]]),
+    queue: { 5: () => ({ status: 1, stdout: '', stderr: 'HTTP 502' }) },
+  });
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, []);
+  assert.deepEqual(f.calls.train, []);
+});
+
+test('findGhosts: a completed run with a check in progress for over 20 minutes; nothing else', () => {
+  const now = Date.parse('2026-11-13T20:00:00Z');
+  const at = min => new Date(now - min * 60_000).toISOString();
+  const runs = [
+    { databaseId: 1, status: 'completed' },
+    { databaseId: 2, status: 'in_progress' },
+    { databaseId: 3, status: 'completed' },
+  ];
+  const checks = {
+    1: [
+      { name: 'build-test (Node 24)', status: 'in_progress', startedAt: at(31) },
+      { name: 'python-tests (Python 3.12)', status: 'completed', startedAt: at(40) },
+    ],
+    2: [{ name: 'running', status: 'in_progress', startedAt: at(90) }],
+    3: [{ name: 'fresh', status: 'in_progress', startedAt: at(5) }],
+  };
+  assert.deepEqual(findGhosts(runs, checks, now), [{ run: 1, names: ['build-test (Node 24)'] }]);
+});
+
+test('ghost check: one rerun and one Discord line per run, never a second', () => {
+  const f = queueFakes({
+    text: backlog([]),
+    queue: {},
+    ghosts: [{ run: 43475526555, names: ['build-test (Node 24)'] }],
+  });
+  const tried = new Set();
+  round(f.deps, tried);
+  round(f.deps, tried);
+  assert.deepEqual(f.calls.rerun, ['43475526555']);
+  assert.equal(f.calls.post.length, 1);
+  assert.match(f.calls.post[0], /43475526555.*stuck in progress.*rerun started/);
+});
+
+test('ghost check: a rerun that fails is said so in the Discord line', () => {
+  const f = queueFakes({
+    text: backlog([]),
+    queue: {},
+    rerunFails: true,
+    ghosts: [{ run: 7, names: ['x'] }],
+  });
+  round(f.deps, new Set());
+  assert.match(f.calls.post[0], /rerun failed/);
 });

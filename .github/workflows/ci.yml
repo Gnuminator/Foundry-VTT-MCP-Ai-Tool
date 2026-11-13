@@ -7,6 +7,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The merge queue (main's ruleset) builds each queued PR on top of the ones ahead of it and runs
+  # CI on that commit; the queue merges only when the required checks are green (ci-all-green stands
+  # for every job). The path filters below run everything on a queue commit (not a pull_request):
+  # a diff against the first parent would miss entries ahead under a rebase or a larger group.
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 # A new push to a branch or PR ref cancels the run still going for the old one. A push to main gets
@@ -559,3 +565,32 @@ jobs:
             success|skipped) ;;
             *) echo "A Pi container shard failed or was cancelled: see the pi-container jobs."; exit 1 ;;
           esac
+
+  ci-all-green:
+    # One check for the merge queue: the queue merges when the REQUIRED checks pass, and only three
+    # of ci.yml's checks are required, so this one stands for all of them. Green when every job above
+    # succeeded or was skipped by its filter; red when any failed or was cancelled. The ruleset
+    # requires it together with the merge queue, and the merge gate refuses to enqueue without it.
+    needs:
+      - build-test
+      - studio-pin
+      - dashboard-visual
+      - dashboard-e2e
+      - python-tests
+      - build-test-arm-summary
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: ci-all-green${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Every CI job passed or was skipped by its filter
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "A CI job did not pass ($r): see the jobs above."; exit 1 ;;
+            esac
+          done

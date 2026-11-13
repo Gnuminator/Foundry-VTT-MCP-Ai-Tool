@@ -8,6 +8,11 @@
  *   lane:merge: NOT merged #312        (then one line per failed check, the notices, and last
  *   lane:merge: refused because ...     every reason on one line; exit 1)
  *
+ * With a merge queue on main (a `merge_queue` rule in the ruleset, and the ci-all-green check
+ * required) the last step puts the PR into the queue instead and the line is
+ * `lane:merge: enqueued #312 at 1a2b3c4; merge train 2/4` (exit 0, the train counts it now; the
+ * queue merges it after its own CI run, and `--train-reset` keeps PRs not on main yet).
+ *
  * A release PR (the changelog fold plus version bumps, docs/dev/RELEASING.md) passes the changelog
  * check without a fragment; see releasePr.
  *

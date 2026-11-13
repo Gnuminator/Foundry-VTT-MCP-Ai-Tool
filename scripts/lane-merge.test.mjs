@@ -52,6 +52,7 @@ import {
   runEntry,
   verdictLine,
   requiredContexts,
+  hasMergeQueue,
   riskyHits,
   rollupProblems,
   waitForCi,
@@ -1194,6 +1195,40 @@ test('merge: calls gh pr merge with the head commit and prints the merged line',
   const merge = r.calls.find(c => c[0] === 'gh' && c[2] === 'merge');
   assert.deepEqual(merge, ['gh', 'pr', 'merge', '312', '--merge', '--match-head-commit', HEAD]);
   assert.ok(!fs.existsSync(r.state), 'a PR outside the module does not join the train');
+});
+
+test('merge queue: with a merge_queue rule the gate enqueues (no strategy flag), counts the train, posts nothing', () => {
+  const rules = [...RULES, { type: 'merge_queue', parameters: {} }];
+  let announced = 0;
+  const r = gate({
+    rules,
+    files: MODULE_FILES,
+    announce: () => {
+      announced += 1;
+      return '';
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.match(r.lines.at(-1), /^lane:merge: enqueued #312 at 3d24f70; merge train 1\/4/);
+  const merge = r.calls.find(c => c[0] === 'gh' && c[2] === 'merge');
+  assert.deepEqual(merge, ['gh', 'pr', 'merge', '312', '--match-head-commit', HEAD]);
+  assert.equal(announced, 0, 'the runner posts when the queue has merged it');
+  assert.equal(JSON.parse(fs.readFileSync(r.state, 'utf8')).since.length, 1);
+});
+
+test('merge queue: a full train still refuses before enqueueing', () => {
+  const rules = [...RULES, { type: 'merge_queue', parameters: {} }];
+  const r = gate({ rules, files: MODULE_FILES, train: trainOf(TRAIN_SIZE) });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /train: merge train full \(4\/4\)/);
+  assert.ok(!r.merged);
+});
+
+test('hasMergeQueue: only a merge_queue rule counts; junk is no queue', () => {
+  assert.equal(hasMergeQueue(JSON.stringify([...RULES, { type: 'merge_queue' }])), true);
+  assert.equal(hasMergeQueue(JSON.stringify(RULES)), false);
+  assert.equal(hasMergeQueue('not json'), false);
+  assert.equal(hasMergeQueue('{}'), false);
 });
 
 test('merge: gh pr merge failing is reported and exits 1', () => {

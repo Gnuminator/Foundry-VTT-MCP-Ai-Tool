@@ -25,7 +25,7 @@ import {
   carriedReviews,
   judgeReviews,
 } from './reviews.mjs';
-import { requiredContexts, rollupProblems, waitForCi } from './ci.mjs';
+import { requiredContexts, rollupProblems, waitForCi, hasMergeQueue } from './ci.mjs';
 import { hasChangelogFragment, releasePr, parseNameStatus } from './changelog.mjs';
 import { readTrain, writeTrain, publishTrainNote, sleep, acquireLock } from './train.mjs';
 import { defaultAnnounce } from './announce.mjs';
@@ -285,6 +285,8 @@ export function main(options = {}) {
   // b. CI: every check green, and every check the branch ruleset requires present.
   const rules = run('gh', ['api', `repos/${REPO}/rules/branches/main`]);
   const required = rules.status === 0 ? requiredContexts(rules.stdout) : null;
+  // With a merge queue on main the gate enqueues the PR; the queue merges it after its own CI run.
+  const queued = rules.status === 0 && hasMergeQueue(rules.stdout);
   if (required === null) {
     failures.push(
       rules.status === 0
@@ -544,7 +546,15 @@ export function main(options = {}) {
         return finish();
       }
     }
-    const merge = run('gh', ['pr', 'merge', String(n), '--merge', '--match-head-commit', head]);
+    // A queue picks the merge method itself (gh takes no strategy flag there).
+    const merge = run('gh', [
+      'pr',
+      'merge',
+      String(n),
+      ...(queued ? [] : ['--merge']),
+      '--match-head-commit',
+      head,
+    ]);
     if (merge.status !== 0) {
       failures.push(
         `merge: gh pr merge exited ${merge.status}: ${firstLine(merge.stderr || merge.stdout)}`
@@ -567,12 +577,15 @@ export function main(options = {}) {
     trainRelevant && k === TRAIN_SIZE - 1
       ? '; run live:roundtrip before the next module merge'
       : '';
+  // Queued: the PR counts on the train now (it merges unless its queue run fails; the merge runner
+  // takes it off again then). No Discord post here: the runner posts once the queue has merged it.
   log(
-    `lane:merge: merged #${n} at ${sha7}; merge train ${k}/${TRAIN_SIZE}${advice}${extras}${warning}`
+    `lane:merge: ${queued ? 'enqueued' : 'merged'} #${n} at ${sha7}; merge train ${k}/${TRAIN_SIZE}${advice}${extras}${warning}`
   );
   // After the merged line, so a slow or hanging vault push never hides a merge that happened.
   const noteWarning = recordTrain(train, 'merge', n, undefined, undefined, carriedFrom);
   if (noteWarning) log(`lane:merge: ${noteWarning}`);
+  if (queued) return 0;
   // The Discord post is a courtesy: a failure is a warning line and never changes the exit code.
   try {
     const postWarning = announce(n, String(pr.title ?? ''));

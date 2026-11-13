@@ -7,6 +7,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The merge queue (main's ruleset) builds each queued PR on top of the ones ahead of it and runs
+  # CI on that commit; the queue merges only when it is green. The path filters below treat a queue
+  # commit like a pull request commit (first parent = the entry ahead, so the diff is this PR).
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 # A new push to a branch or PR ref cancels the run still going for the old one. A push to main gets
@@ -107,7 +112,7 @@ jobs:
       - name: Did the stage 13 pin change?
         id: filter
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ github.event_name }}" != "merge_group" ]; then
             echo "Not a pull request: check the pin."
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -150,7 +155,7 @@ jobs:
       - name: Did the dashboard, the lockfile or this workflow change?
         id: filter
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ github.event_name }}" != "merge_group" ]; then
             echo "Not a pull request: run the screenshots."
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -300,7 +305,7 @@ jobs:
       - name: Did the dashboard, shared or their tooling change?
         id: filter
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ github.event_name }}" != "merge_group" ]; then
             echo "Not a pull request: run the dashboard browser tests."
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -489,7 +494,7 @@ jobs:
       - name: Did a Pi input change?
         id: filter
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ github.event_name }}" != "merge_group" ]; then
             echo "Not a pull request: run the Pi container tests."
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0

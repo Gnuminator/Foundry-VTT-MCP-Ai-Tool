@@ -54,6 +54,8 @@ import { fileURLToPath } from 'node:url';
 import { parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
 import { pidAlive } from './heavy-lock.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
+import { hasMergeQueue } from './lane-merge/ci.mjs';
+import { acquireLock, readTrain, writeTrain } from './lane-merge/train.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 const MAIN = 'aitool/main';
@@ -99,6 +101,60 @@ export function readyItems(backlogText) {
   return out;
 }
 
+/** The progress line the runner writes once the gate has put a PR into the merge queue. */
+export const enqueuedLine = (/** @type {number} */ pr, /** @type {string} */ head) =>
+  `PR #${pr} enqueued in the merge queue, head ${head}`;
+
+/**
+ * Items whose last progress line says the PR is in the merge queue.
+ * @param {string} backlogText
+ * @returns {{ id: string, pr: number, head: string }[]}
+ */
+export function enqueuedItems(backlogText) {
+  const out = [];
+  for (const [id, progress] of parseProgress(backlogText)) {
+    const last = progress.split('\n').at(-1) ?? '';
+    const m =
+      /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) enqueued in the merge queue, head ([0-9a-f]{40})\b/.exec(
+        last.trim()
+      );
+    if (m) out.push({ id, pr: Number(m[1]), head: m[2] });
+  }
+  return out;
+}
+
+/** GraphQL for one PR's queue state (gh pr view has no merge queue field). @param {number} pr */
+export const queueQuery = pr =>
+  `query{repository(owner:"${REPO.split('/')[0]}",name:"${REPO.split('/')[1]}"){pullRequest(number:${pr}){state isInMergeQueue}}}`;
+
+/** A check that sat in progress this long with its workflow run already completed is a ghost. */
+export const GHOST_MINUTES = 20;
+
+/**
+ * The ghost checks (2026-11-13, PR 1002, run 43475526555: a check stayed "in progress" with no runner
+ * while its run was completed, and held the queue for 30 minutes). Pure: `runs` is `gh run list` JSON
+ * (databaseId, status, event), `checksByRun` maps a run id to its check runs (name, status,
+ * startedAt). A run is a ghost when it is completed and still holds a check in progress or queued
+ * that started more than GHOST_MINUTES ago.
+ * @param {{ databaseId: number, status?: string, event?: string }[]} runs
+ * @param {Record<number, { name: string, status: string, startedAt?: string }[]>} checksByRun
+ * @param {number} nowMs
+ * @returns {{ run: number, names: string[] }[]}
+ */
+export function findGhosts(runs, checksByRun, nowMs) {
+  const out = [];
+  for (const r of runs) {
+    if (r.status !== 'completed') continue;
+    const stuck = (checksByRun[r.databaseId] ?? []).filter(c => {
+      if (c.status !== 'in_progress' && c.status !== 'queued') return false;
+      const at = Date.parse(c.startedAt ?? '');
+      return Number.isFinite(at) && nowMs - at > GHOST_MINUTES * 60_000;
+    });
+    if (stuck.length) out.push({ run: r.databaseId, names: stuck.map(c => c.name) });
+  }
+  return out;
+}
+
 /**
  * Main's state from `gh run list --json conclusion,headSha,status` (newest first, push runs of
  * ci.yml, finished or not). Cancelled and skipped runs are passed over (a newer push cancels the
@@ -139,12 +195,15 @@ const MAX_TRANSIENT = 3;
 /**
  * What a gate run ended with.
  * @param {number} code @param {string} output @param {number} pr
- * @returns {{ kind: 'merged' | 'train-full' | 'main-red' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
+ * @returns {{ kind: 'merged' | 'enqueued' | 'train-full' | 'main-red' | 'wait' | 'transient' | 'killed' | 'refused', reason: string }}
  */
 export function gateOutcome(code, output, pr) {
   const lines = output.split(/\r?\n/);
   if (code === 0 && lines.some(l => l.startsWith(`lane:merge: merged #${pr} `))) {
     return { kind: 'merged', reason: '' };
+  }
+  if (code === 0 && lines.some(l => l.startsWith(`lane:merge: enqueued #${pr} `))) {
+    return { kind: 'enqueued', reason: '' };
   }
   if (lines.includes(KILLED_LINE)) return { kind: 'killed', reason: KILLED_LINE };
   const because = lines.filter(l => l.startsWith('lane:merge: refused because ')).at(-1);
@@ -179,7 +238,13 @@ const norm = p => {
  *   backlog: (args: string[]) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
+ *   queueOn?: () => boolean,
+ *   ghosts?: () => { run: number, names: string[] }[],
+ *   trainRemove?: (pr: number) => void,
  * }} Deps
+ * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
+ * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
+ * findGhosts. `trainRemove`: take a PR that left the queue unmerged off the merge train.
  */
 
 /**
@@ -194,7 +259,7 @@ export function round(d, tried, attempts) {
   const text = d.readBacklog();
   if (text === null) return { stop: null, merged };
   const ready = readyItems(text).filter(r => !tried.has(`${r.pr}@${r.head}`));
-  if (!ready.length) return { stop: null, merged };
+  attempts ??= new Map();
 
   /** @param {string} id @param {string[]} args @param {string} what */
   const write = (id, args, what) => {
@@ -224,8 +289,8 @@ export function round(d, tried, attempts) {
     );
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
-  /** @param {{ id: string, pr: number, head: string }} r */
-  const markDone = r => {
+  /** @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line */
+  const markDone = (r, fromReady = true) => {
     // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
     // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
@@ -239,8 +304,7 @@ export function round(d, tried, attempts) {
           'progress',
           r.id,
           `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
-          '--if-ready',
-          `${r.pr}@${r.head}`,
+          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
         ],
         'progress'
       );
@@ -258,6 +322,62 @@ export function round(d, tried, attempts) {
       return false;
     }
   };
+
+  // PRs the gate put into the merge queue: merged -> done; gone from the queue unmerged (a failed
+  // queue run, removed by hand) -> off the train, a progress line, one Discord line. Seen missing
+  // in two rounds in a row first, so the moment between `gh pr merge` and the queue entry is safe.
+  for (const q of enqueuedItems(text)) {
+    const key = `q${q.pr}@${q.head}`;
+    if (tried.has(key)) continue;
+    const v = d.gh(['api', 'graphql', '-f', `query=${queueQuery(q.pr)}`]);
+    /** @type {{ state?: string, isInMergeQueue?: boolean } | undefined} */
+    let st;
+    try {
+      st = JSON.parse(v.stdout)?.data?.repository?.pullRequest;
+    } catch {
+      /* unreadable: next round */
+    }
+    if (v.status !== 0 || !st) {
+      d.log(`#${q.pr} (${q.id}): merge queue state unreadable; next round`);
+      continue;
+    }
+    if (st.state === 'MERGED') {
+      tried.add(key);
+      merged.push(q.pr);
+      d.log(`#${q.pr} (${q.id}) merged by the queue`);
+      d.post(`merge runner: #${q.pr} merged by the merge queue`);
+      markDone(q, false);
+    } else if (st.state === 'OPEN' && st.isInMergeQueue) {
+      attempts.delete(key);
+    } else if ((attempts.get(key) ?? 0) + 1 < 2) {
+      attempts.set(key, (attempts.get(key) ?? 0) + 1);
+      d.log(`#${q.pr} (${q.id}) is not in the merge queue (${st.state}); looking again next round`);
+    } else {
+      tried.add(key);
+      const why = `PR #${q.pr} left the merge queue without merging (a failed queue run, or taken out by hand); fix it, then write a new ready line`;
+      d.log(`#${q.pr} (${q.id}): ${why}`);
+      d.trainRemove?.(q.pr);
+      write(q.id, ['progress', q.id, why], 'progress');
+      d.post(`merge runner: #${q.pr} left the merge queue without merging`);
+    }
+  }
+  // Ghost checks: a check in progress for over GHOST_MINUTES with its run completed gets one rerun.
+  for (const g of d.ghosts?.() ?? []) {
+    const key = `ghost${g.run}`;
+    if (tried.has(key)) continue;
+    tried.add(key);
+    const r = d.gh(['run', 'rerun', String(g.run), '-R', REPO]);
+    d.log(
+      `ghost check in run ${g.run} (${g.names.join(', ')}): rerun ${r.status === 0 ? 'started' : `failed (${oneLine(r.stderr, 200)})`}`
+    );
+    d.post(
+      `merge runner: CI run ${g.run} had a check stuck in progress (${g.names.join(', ')}); ${r.status === 0 ? 'rerun started' : 'rerun failed, rerun it by hand'}`
+    );
+  }
+  if (!ready.length) return { stop: null, merged };
+
+  /** @type {boolean | undefined} */
+  let queueOn;
 
   for (const first of ready) {
     // Read the line again: an earlier gate run in this round can take half an hour, and the lane
@@ -292,7 +412,10 @@ export function round(d, tried, attempts) {
             sha: '',
             why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
           };
-    if (main.wait) {
+    // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
+    // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
+    queueOn ??= d.queueOn?.() ?? false;
+    if (main.wait && !(queueOn && main.sha !== '')) {
       d.log(`${main.why}; next round`);
       return { stop: null, merged };
     }
@@ -351,6 +474,7 @@ export function round(d, tried, attempts) {
     const out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
     if (
       out.kind !== 'merged' &&
+      out.kind !== 'enqueued' &&
       out.kind !== 'train-full' &&
       out.kind !== 'main-red' &&
       mergedOnGitHub(r.pr)
@@ -365,6 +489,15 @@ export function round(d, tried, attempts) {
       merged.push(r.pr);
       d.log(`#${r.pr} (${r.id}) merged`);
       markDone(r);
+    } else if (out.kind === 'enqueued') {
+      // The queue merges it later; the line below replaces the ready line, so it is not gated again.
+      tried.add(key);
+      d.log(`#${r.pr} (${r.id}) is in the merge queue`);
+      write(
+        r.id,
+        ['progress', r.id, enqueuedLine(r.pr, r.head), '--if-ready', `${r.pr}@${r.head}`],
+        'progress'
+      );
     } else if (out.kind === 'train-full') {
       d.log(`stopped: ${TRAIN_FULL_LINE} (#${r.pr} waits)`);
       d.post(`${TRAIN_FULL_LINE} (#${r.pr} waits; start the runner again after the train reset)`);
@@ -654,6 +787,67 @@ function realDeps(o) {
       }
     },
     log: stamp,
+    queueOn: () => {
+      const r = sh('gh', ['api', `repos/${REPO}/rules/branches/main`]);
+      return r.status === 0 && hasMergeQueue(r.stdout);
+    },
+    ghosts: () => {
+      const list = sh('gh', [
+        'run',
+        'list',
+        '-R',
+        REPO,
+        '-w',
+        'ci.yml',
+        '-L',
+        '15',
+        '--json',
+        'databaseId,status,event,headSha,createdAt',
+      ]);
+      if (list.status !== 0) return [];
+      try {
+        const nowMs = Date.now();
+        const runs = JSON.parse(list.stdout).filter(
+          (/** @type {any} */ r) =>
+            r.status === 'completed' &&
+            ['pull_request', 'merge_group'].includes(r.event) &&
+            nowMs - Date.parse(r.createdAt) < 6 * 3600_000
+        );
+        /** @type {Record<number, { name: string, status: string, startedAt?: string }[]>} */
+        const checksByRun = {};
+        for (const r of runs) {
+          const c = sh('gh', ['api', `repos/${REPO}/commits/${r.headSha}/check-runs?per_page=100`]);
+          if (c.status !== 0) continue;
+          checksByRun[r.databaseId] = (JSON.parse(c.stdout).check_runs ?? [])
+            .filter((/** @type {any} */ x) =>
+              String(x.details_url).includes(`/runs/${r.databaseId}/`)
+            )
+            .map((/** @type {any} */ x) => ({
+              name: x.name,
+              status: x.status,
+              startedAt: x.started_at,
+            }));
+        }
+        return findGhosts(runs, checksByRun, nowMs);
+      } catch {
+        return [];
+      }
+    },
+    trainRemove: pr => {
+      const file = path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json');
+      let release;
+      try {
+        release = acquireLock(file, { timeoutMs: 20_000 });
+        const t = readTrain(file);
+        writeTrain(file, { ...t, since: t.since.filter(s => s.pr !== pr) });
+      } catch (e) {
+        stamp(
+          `WARNING: #${pr} not taken off the merge train (${e instanceof Error ? e.message : e})`
+        );
+      } finally {
+        release?.();
+      }
+    },
   };
 }
 

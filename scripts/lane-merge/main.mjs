@@ -33,6 +33,7 @@ import { parseArgs } from './args.mjs';
 import { refusedBecause, mainModules, sameGate } from './relaunch.mjs';
 import { runDrift } from './drift.mjs';
 import { liveCheckProblem } from './live-check.mjs';
+import { mainRedProblem } from './main-red.mjs';
 
 /** @import { Run } from './run.mjs' */
 /** @import { TrainState, TrainEvent } from './train.mjs' */
@@ -438,6 +439,10 @@ export function main(options = {}) {
   // d2. Module and Pi PRs state their live check in the description.
   const liveCheck = liveCheckProblem(files, String(pr.body ?? ''));
   if (liveCheck) failures.push(liveCheck);
+
+  // d3. Main itself must be green, unless this PR says it unblocks main.
+  const mainRed = mainRedProblem(run, String(pr.body ?? ''));
+  if (mainRed) failures.push(mainRed);
 
   // e. This checkout is the PR head and clean.
   const status = run('git', ['status', '--porcelain']);

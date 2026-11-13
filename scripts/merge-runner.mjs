@@ -24,7 +24,8 @@
  *     copy of scripts/lane-merge.mjs runs there as `<PR> --wait-ci --vault <vault>`, nothing else
  *     (GATE_FLAGS: never a dry run, a force, a skip or a train reset). The gate posts its own
  *     #pr-log line on a merge.
- *       merged (a `lane:merge: merged #<PR>` line, exit 0): `backlog.mjs done <id> <PR> --sha <head>`.
+ *       merged (a `lane:merge: merged #<PR>` line, exit 0): `backlog.mjs done <id> <PR> --by
+ *         merge-runner` (no --sha: done reads the merge commit from GitHub).
  *       merge train full: post "merge train full: ask a session to run live:roundtrip", exit 3; the
  *         ready line stays, so the next logon or a manual start after `--train-reset` merges it.
  *       CI still running after the gate's wait (exit 5): left for the next round.
@@ -42,8 +43,14 @@
  * again in this run.
  * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
  *
+ * Its own code: at the start of each round (not with --once) it compares its files (this one and
+ * what it imports) with aitool/main (merge-runner/self-check.mjs). When they differ it fast-forwards
+ * the main checkout and runs itself again as a child, same arguments and output (the scheduled task
+ * has no restart count); if the checkout cannot be updated it posts one line and exits 3.
+ *
  * Exit codes: 0 --once finished, 1 another runner holds the lock, 2 usage, 3 stopped (main red,
- * merge train full, checkout problem). Every log line starts with `merge-runner:` and a time.
+ * merge train full, checkout problem, code changed but not updatable). Every log line starts with
+ * `merge-runner:` and a time.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -54,6 +61,7 @@ import { fileURLToPath } from 'node:url';
 import { parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
 import { pidAlive } from './heavy-lock.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
+import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 const MAIN = 'aitool/main';
@@ -179,6 +187,7 @@ const norm = p => {
  *   backlog: (args: string[]) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
+ *   selfCheck?: () => import('./merge-runner/self-check.mjs').SelfCheckResult | null,
  * }} Deps
  */
 
@@ -654,6 +663,15 @@ function realDeps(o) {
       }
     },
     log: stamp,
+    selfCheck:
+      makeSelfCheck({
+        entry: fileURLToPath(import.meta.url),
+        repoRoot: path.resolve(here, '..'),
+        ref: MAIN,
+        remote: 'aitool',
+        branch: 'main',
+        log: m => stamp(m),
+      }) ?? undefined,
   };
 }
 
@@ -689,6 +707,15 @@ export async function main(argv, inject = {}) {
     /** @type {Map<string, number>} */
     const attempts = new Map();
     for (;;) {
+      const sc = o.once ? null : d.selfCheck?.();
+      if (sc) {
+        d.log(`exiting: ${sc.why}`);
+        if (sc.action === 'restart') return EXIT_RESTART;
+        d.post(
+          `merge runner stopped: ${sc.why}; update the main checkout, then start the runner again`
+        );
+        return EXIT_STOPPED;
+      }
       const r = round(d, tried, attempts);
       if (r.stop) {
         d.log(`exiting: ${r.stop}`);
@@ -703,5 +730,11 @@ export async function main(argv, inject = {}) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  process.exitCode = await main(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const code = await main(argv);
+  // The lock is released by now; the child takes it. Same output stream, same arguments.
+  process.exitCode =
+    code === EXIT_RESTART
+      ? reexec({ script: fileURLToPath(import.meta.url), argv, log: stamp })
+      : code;
 }

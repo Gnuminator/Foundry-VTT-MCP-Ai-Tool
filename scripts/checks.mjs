@@ -164,6 +164,7 @@ export const CHECKS = [
     'scripts/backlog.test.mjs',
     'scripts/planner-state.test.mjs',
     'scripts/merge-runner.test.mjs',
+    'scripts/merge-runner/self-check.test.mjs',
     'scripts/main-red-revert.test.mjs',
     'scripts/line-ratchet.test.mjs',
     'scripts/unused-ratchet.test.mjs',

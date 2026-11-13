@@ -20,7 +20,7 @@ import type {
   Combatant,
   CombatState,
   SessionEvent,
-  WorldInfo,
+  FeedWorld,
 } from '../feed/types.js';
 
 /**
@@ -260,7 +260,7 @@ export function playerStatus(status: BridgeStatus): PlayerState['status'] {
 
 export interface PlayerStateInputs {
   status: BridgeStatus;
-  world: WorldInfo | null;
+  world: FeedWorld | null;
   visibility: PlayerVisibility | null;
   combat: CombatState | null;
   events: readonly SessionEvent[];

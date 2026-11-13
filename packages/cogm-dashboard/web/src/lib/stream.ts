@@ -78,7 +78,7 @@ export interface WorldTheme {
 export const SETTINGS_KEY = ['stream', 'settings'] as const;
 
 /** The Foundry world (app.ts world event, GM only); null while Foundry is not reachable. */
-export interface WorldInfo {
+export interface StreamWorld {
   id: string;
   title?: string;
 }
@@ -231,7 +231,7 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>
-    queryClient.setQueryData<WorldInfo | null>(WORLD_KEY, (data as WorldInfo | null) ?? null),
+    queryClient.setQueryData<StreamWorld | null>(WORLD_KEY, (data as StreamWorld | null) ?? null),
   // The world's theme, sent on connect and whenever any page changes it (lib/theme.ts applies it).
   theme: (queryClient, data) => {
     const theme = (data as { theme?: unknown } | null)?.theme;
@@ -497,11 +497,11 @@ export function useDashboardSettings(): DashboardSettings | undefined {
 }
 
 /** The world as the stream last reported it; null until the first world event or while away. */
-export function useWorld(): WorldInfo | null {
+export function useWorld(): StreamWorld | null {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: WORLD_KEY,
-    queryFn: () => queryClient.getQueryData<WorldInfo | null>(WORLD_KEY) ?? null,
+    queryFn: () => queryClient.getQueryData<StreamWorld | null>(WORLD_KEY) ?? null,
     staleTime: Infinity,
     gcTime: Infinity,
   });

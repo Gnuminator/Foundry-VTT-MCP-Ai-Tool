@@ -493,6 +493,21 @@ test('main: a gate end that is not the PR fault is refused after three rounds, n
   }
 });
 
+test('gateOutcome: main going red keeps the ready line; an unreadable main is transient', () => {
+  assert.equal(
+    gateOutcome(
+      1,
+      "lane:merge: refused because main red: main's last completed push run of ci.yml failed (run 9: failure)",
+      5
+    ).kind,
+    'main-red'
+  );
+  assert.equal(
+    gateOutcome(1, "lane:merge: refused because main red: cannot read main's CI runs (x)", 5).kind,
+    'transient'
+  );
+});
+
 test('gateOutcome: every real passing reason is transient, a review refusal is not', () => {
   for (const why of [
     'wait-ci: gh pr view 977 failed 3 times in a row: x',

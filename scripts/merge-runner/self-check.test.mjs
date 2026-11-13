@@ -9,9 +9,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { main } from '../merge-runner.mjs';
 import {
-  DEPTH_ENV,
+  CHILD_ENV,
   EXIT_RESTART,
-  MAX_RESTART_DEPTH,
+  MAX_QUICK_RESTARTS,
+  QUICK_RESTART_MS,
   changedFiles,
   diskShas,
   importClosure,
@@ -77,16 +78,39 @@ test('changed: a different sha on main updates the checkout and asks for a resta
   assert.equal(calls.update, 1);
 });
 
-test('changed: a runner file that main no longer has counts as changed', () => {
-  const { d } = fakes({ onMain: {}, onDisk: {} });
-  assert.equal(selfCheck(d)?.action, 'restart');
+test('changed: a runner file that main no longer has counts as changed, and only the files main still has are compared on disk', () => {
+  const asked = [];
+  const { d } = fakes({
+    loaded: { 'scripts/merge-runner.mjs': A, 'scripts/gone.mjs': B },
+    onMain: { 'scripts/merge-runner.mjs': A },
+  });
+  d.diskShas = files => {
+    asked.push(files);
+    return new Map(files.map(f => [f, A]));
+  };
+  const r = selfCheck(d);
+  assert.equal(r?.action, 'restart');
+  assert.deepEqual(r?.files, ['scripts/gone.mjs']);
+  assert.deepEqual(asked, [['scripts/merge-runner.mjs']]);
 });
 
-test('changed but the checkout cannot be updated: stop, with the reason', () => {
-  const { d } = fakes({ onMain: { 'scripts/merge-runner.mjs': C }, updateProblem: 'not on main' });
-  const r = selfCheck(d);
+test('update failures: the first two rounds only warn and try again, the third stops with the reason; a good round resets', () => {
+  const { d, calls } = fakes({
+    onMain: { 'scripts/merge-runner.mjs': C },
+    updateProblem: 'git merge --ff-only aitool/main failed (index.lock)',
+  });
+  const state = { failures: 0 };
+  assert.equal(selfCheck(d, state), null);
+  assert.equal(selfCheck(d, state), null);
+  assert.match(calls.log.at(-1), /update failed: .*index\.lock\); next round/);
+  const r = selfCheck(d, state);
   assert.equal(r?.action, 'stop');
-  assert.match(r?.why ?? '', /could not be updated: not on main/);
+  assert.match(r?.why ?? '', /could not be updated: git merge --ff-only/);
+
+  const ok = fakes({ onMain: { 'scripts/merge-runner.mjs': C } });
+  const s2 = { failures: 2 };
+  assert.equal(selfCheck(ok.d, s2)?.action, 'restart');
+  assert.equal(s2.failures, 0);
 });
 
 test('changed and the disk still differs after the update: stop, never a restart loop', () => {
@@ -154,8 +178,13 @@ test('importClosure: follows relative imports transitively, ignores packages, no
 
 test('importClosure: the real runner closure holds the runner, its modules and this module', () => {
   const root = path.resolve(scripts, '..');
-  const files = importClosure(path.join(scripts, 'merge-runner.mjs'), root);
+  const files = importClosure(
+    [path.join(scripts, 'merge-runner.mjs'), path.join(scripts, 'backlog.mjs')],
+    root
+  );
   for (const f of [
+    'scripts/backlog.mjs',
+    'scripts/planner-state.mjs',
     'scripts/merge-runner.mjs',
     'scripts/backlog-items.mjs',
     'scripts/heavy-lock.mjs',
@@ -272,6 +301,47 @@ test('makeSelfCheck on a real repo: same is null, then a new commit on the remot
   }
 });
 
+test('makeSelfCheck on a real repo: a module main deleted restarts (not a stop), and a change only in a second entry file counts', () => {
+  const { dir, g } = repo();
+  try {
+    fs.writeFileSync(path.join(dir, 'entry.mjs'), "import './run.mjs';\n");
+    fs.writeFileSync(path.join(dir, 'writer.mjs'), "import './helper.mjs';\n");
+    fs.writeFileSync(path.join(dir, 'helper.mjs'), 'export const h = 1;\n');
+    g(['add', '.']);
+    g(['commit', '-q', '-m', 'files']);
+    g(['update-ref', 'refs/remotes/aitool/main', 'HEAD']);
+    const run = (args, cwd) =>
+      args[0] === 'fetch' ? { status: 0, stdout: '', stderr: '' } : git(cwd)(args);
+    const make = () =>
+      makeSelfCheck({
+        entry: [path.join(dir, 'entry.mjs'), path.join(dir, 'writer.mjs')],
+        repoRoot: dir,
+        ref: 'aitool/main',
+        remote: 'aitool',
+        branch: 'main',
+        log: () => {},
+        run,
+      });
+    const check = make();
+    assert.equal(check(), null);
+
+    // main changes only the second entry's import and deletes run.mjs.
+    g(['checkout', '-q', '-b', 'next']);
+    fs.writeFileSync(path.join(dir, 'helper.mjs'), 'export const h = 2;\n');
+    fs.rmSync(path.join(dir, 'run.mjs'));
+    g(['add', '-A']);
+    g(['commit', '-q', '-m', 'change helper, delete run']);
+    g(['update-ref', 'refs/remotes/aitool/main', 'HEAD']);
+    g(['checkout', '-q', 'main']);
+    const r = check();
+    assert.equal(r?.action, 'restart');
+    assert.deepEqual(r?.files, ['helper.mjs', 'run.mjs']);
+    assert.equal(fs.existsSync(path.join(dir, 'run.mjs')), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('makeSelfCheck: git that cannot fingerprint the files turns the check off with one warning', () => {
   const lines = [];
   const check = makeSelfCheck({
@@ -287,7 +357,7 @@ test('makeSelfCheck: git that cannot fingerprint the files turns the check off w
   assert.equal(lines.length, 1);
 });
 
-test('reexec: runs the same script and arguments as a child with the depth raised, returns its exit code', () => {
+test('reexec: the first process runs the same script and arguments as a child and returns its exit code', () => {
   const calls = [];
   const spawn = (cmd, args, opts) => {
     calls.push({ cmd, args, opts });
@@ -301,37 +371,76 @@ test('reexec: runs the same script and arguments as a child with the depth raise
     log: () => {},
   });
   assert.equal(code, 3);
+  assert.equal(calls.length, 1);
   assert.equal(calls[0].cmd, process.execPath);
   assert.deepEqual(calls[0].args, ['/x/merge-runner.mjs', '--interval', '30']);
   assert.equal(calls[0].opts.stdio, 'inherit');
-  assert.equal(calls[0].opts.env[DEPTH_ENV], '1');
+  assert.equal(calls[0].opts.env[CHILD_ENV], '1');
 });
 
-test('reexec: a real child gets the depth in its environment and its exit code comes back', () => {
-  const dir = tmp('self-check-child-');
-  try {
-    const script = path.join(dir, 'child.mjs');
-    fs.writeFileSync(script, `process.exit(Number(process.env.${DEPTH_ENV}) + 5);\n`);
-    assert.equal(
-      reexec({ script, argv: [], env: { ...process.env, [DEPTH_ENV]: '2' }, log: () => {} }),
-      8
-    );
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('reexec: at the depth cap nothing is started and the exit code is 3', () => {
-  const lines = [];
+test('reexec: a child that wants new code makes the parent start the next child; one parent, one child at a time', () => {
+  const codes = [EXIT_RESTART, EXIT_RESTART, 0];
+  let t = 0;
+  const calls = [];
   const code = reexec({
     script: 'x',
     argv: [],
-    env: { [DEPTH_ENV]: String(MAX_RESTART_DEPTH) },
-    spawn: () => assert.fail('must not spawn'),
+    env: {},
+    spawn: (cmd, args, opts) => {
+      calls.push(opts.env[CHILD_ENV]);
+      t += QUICK_RESTART_MS * 2; // each child lived long: not a loop
+      return { status: codes.shift() };
+    },
+    now: () => t,
+    log: () => {},
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(calls, ['1', '1', '1']);
+});
+
+test('reexec: inside a child it only hands back the restart code and starts nothing', () => {
+  const code = reexec({
+    script: 'x',
+    argv: [],
+    env: { [CHILD_ENV]: '1' },
+    spawn: () => assert.fail('a child must not spawn'),
+    log: () => {},
+  });
+  assert.equal(code, EXIT_RESTART);
+});
+
+test('reexec: restarts that each end within a minute, five in a row, stop with a posted line', () => {
+  let spawned = 0;
+  const lines = [];
+  const posts = [];
+  const code = reexec({
+    script: 'x',
+    argv: [],
+    env: {},
+    spawn: () => {
+      spawned++;
+      return { status: EXIT_RESTART };
+    },
+    now: () => 0,
     log: l => lines.push(l),
+    post: t => posts.push(t),
   });
   assert.equal(code, 3);
-  assert.match(lines[0], /start the runner again by hand/);
+  assert.equal(spawned, MAX_QUICK_RESTARTS);
+  assert.equal(posts.length, 1);
+  assert.match(posts[0], /^merge runner stopped: restarted 5 times in a row/);
+  assert.match(lines[0], /exiting: restarted 5 times/);
+});
+
+test('reexec: a real child process gets the child marker and its exit code comes back', () => {
+  const dir = tmp('self-check-child-');
+  try {
+    const script = path.join(dir, 'child.mjs');
+    fs.writeFileSync(script, `process.exit(process.env.${CHILD_ENV} === '1' ? 7 : 1);\n`);
+    assert.equal(reexec({ script, argv: [], env: { ...process.env }, log: () => {} }), 7);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ---- the round loop in merge-runner.mjs --------------------------------------------------------
@@ -413,8 +522,6 @@ test('main: unchanged code runs the round as before; --once never checks', async
     assert.equal(await main(['--once'], { deps: a.deps, lockFile: path.join(dir, 'a.lock') }), 0);
     assert.equal(a.calls.self, 0);
     assert.equal(a.calls.read, 1);
-    const b = loopDeps(null);
-    assert.equal(await main(['--once'], { deps: b.deps, lockFile: path.join(dir, 'b.lock') }), 0);
     // Without --once, a null check lets the round run; stop the loop through the sleep.
     const c = loopDeps(null);
     const stop = new Error('stop');

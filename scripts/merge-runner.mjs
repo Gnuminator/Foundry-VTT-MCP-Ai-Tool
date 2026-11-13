@@ -43,13 +43,16 @@
  * again in this run.
  * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
  *
- * Its own code: at the start of each round (not with --once) it compares its files (this one and
- * what it imports) with aitool/main (merge-runner/self-check.mjs). When they differ it fast-forwards
- * the main checkout and runs itself again as a child, same arguments and output (the scheduled task
- * has no restart count); if the checkout cannot be updated it posts one line and exits 3.
+ * Its own code: at the start of each round (not with --once) it compares its files (this one,
+ * backlog.mjs and what they import) with aitool/main (merge-runner/self-check.mjs). When they
+ * differ it fast-forwards the main checkout and runs the runner again as a child, same arguments
+ * and output (the scheduled task has no restart count): the first process stays as the parent and
+ * starts each new child. A failed update is tried again next round; the third in a row posts one
+ * line and exits 3, as do five restarts in a row that each lived under a minute.
  *
  * Exit codes: 0 --once finished, 1 another runner holds the lock, 2 usage, 3 stopped (main red,
- * merge train full, checkout problem, code changed but not updatable). Every log line starts with
+ * merge train full, checkout problem, code changed but not updatable, restart loop), 75 a child that
+ * wants new code (to its parent only). Every log line starts with
  * `merge-runner:` and a time.
  */
 import { spawnSync } from 'node:child_process';
@@ -665,7 +668,8 @@ function realDeps(o) {
     log: stamp,
     selfCheck:
       makeSelfCheck({
-        entry: fileURLToPath(import.meta.url),
+        // backlog.mjs is started as its own process for every Backlog write: its code counts too.
+        entry: [fileURLToPath(import.meta.url), path.join(here, 'backlog.mjs')],
         repoRoot: path.resolve(here, '..'),
         ref: MAIN,
         remote: 'aitool',
@@ -732,9 +736,15 @@ export async function main(argv, inject = {}) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const argv = process.argv.slice(2);
   const code = await main(argv);
-  // The lock is released by now; the child takes it. Same output stream, same arguments.
+  // The lock is released by now; a child takes it. Same output stream, same arguments. The first
+  // process stays as the parent and starts one child after another; a child just exits with 75.
   process.exitCode =
     code === EXIT_RESTART
-      ? reexec({ script: fileURLToPath(import.meta.url), argv, log: stamp })
+      ? reexec({
+          script: fileURLToPath(import.meta.url),
+          argv,
+          log: stamp,
+          post: t => realDeps(parseArgs(argv)).post(t),
+        })
       : code;
 }

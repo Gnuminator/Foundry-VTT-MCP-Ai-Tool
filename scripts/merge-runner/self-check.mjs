@@ -3,36 +3,43 @@
  * or a module it imports, a runner that was started earlier keeps running the old code. This module
  * lets the runner notice that at the start of a round and start itself again.
  *
- *   - `importClosure` lists the runner's own files: the entry plus every file it (transitively)
- *     imports by a relative specifier, as loaded from disk at start.
+ *   - `importClosure` lists the runner's own files: the entries (the runner and scripts/backlog.mjs,
+ *     which it starts as its own process for every Backlog write) plus every file they
+ *     (transitively) import by a relative specifier, as on disk at start.
  *   - `makeSelfCheck` fingerprints them once at start (git blob shas, so the CRLF checkout of
  *     Windows hashes like the repository does) and, each round, fetches aitool/main and compares.
  *   - Different: it brings the main checkout to aitool/main (fast-forward only, branch main, no
- *     tracked changes), checks the files on disk now match main, and answers `restart`. Anything
- *     that stops that (not on main, dirty, no fast-forward, a mismatch after it) answers `stop`.
- *   - `reexec` is the restart: the scheduled task has no restart count, so the old process runs the
- *     new code as a child (same arguments, same output) and exits with the child's code.
+ *     tracked changes), checks the files on disk now match main (files main removed are skipped),
+ *     and answers `restart`. A failed update is tried again next round (a git lock in the shared
+ *     checkout passes); the third one in a row, or a mismatch after an update, answers `stop`.
+ *   - `reexec` is the restart: the scheduled task has no restart count, so the first process
+ *     stays as a thin parent and runs the runner as a child (same arguments, same output); a child
+ *     that wants new code exits with EXIT_RESTART and the parent starts the next one, so there is
+ *     one parent and one child however many restarts. Five restarts in a row that each lived under
+ *     a minute are a loop: stop.
  *
- * Not covered on purpose: scripts/backlog.mjs runs as its own process each time (so it reads the
- * pulled file), and the gate and the Discord sender run from `git show aitool/main:` copies.
+ * The gate and the Discord sender are not in the list: they run from `git show aitool/main:` copies.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** Restarts nested in one task run before the runner stops and asks for a manual start. */
-export const MAX_RESTART_DEPTH = 20;
-/** Environment variable that carries the nesting depth to the child. */
-export const DEPTH_ENV = 'MERGE_RUNNER_DEPTH';
+/** Environment variable that marks the process as the parent's child. */
+export const CHILD_ENV = 'MERGE_RUNNER_CHILD';
 /** The exit code `main` returns when the process should start itself again. */
 export const EXIT_RESTART = 75;
+/** A restart whose child lived less than this is "quick"; this many in a row stop the runner. */
+export const QUICK_RESTART_MS = 60_000;
+export const MAX_QUICK_RESTARTS = 5;
+/** Failed updates of the checkout in a row (one per round) before the runner stops. */
+export const MAX_UPDATE_FAILURES = 3;
 
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)(['"])(\.{1,2}\/[^'"]+)\1/gm;
 
 /**
- * The entry file and every file it imports (static, `export from`, dynamic with a literal) by a
+ * The entry files and every file they import (static, `export from`, dynamic with a literal) by a
  * relative specifier, transitively, as `/` separated paths relative to `repoRoot`, sorted.
- * @param {string} entry absolute path @param {string} repoRoot
+ * @param {string | string[]} entry absolute path(s) @param {string} repoRoot
  * @param {(file: string) => string} [read]
  * @returns {string[]}
  */
@@ -41,7 +48,7 @@ export function importClosure(entry, repoRoot, read = f => fs.readFileSync(f, 'u
   const seen = new Set();
   /** @type {Set<string>} */
   const missing = new Set();
-  const todo = [path.resolve(entry)];
+  const todo = [entry].flat().map(e => path.resolve(e));
   while (todo.length) {
     const file = /** @type {string} */ (todo.pop());
     if (seen.has(file) || missing.has(file)) continue;
@@ -131,7 +138,8 @@ export function updateCheckout(git, ref) {
 
 /**
  * The per-round check. `loaded` is fixed when the runner started. Returns null when nothing changed
- * (or main cannot be read this round: a warning is logged and the next round tries again).
+ * (or main cannot be read, or the update failed fewer than MAX_UPDATE_FAILURES times in a row: a
+ * warning is logged and the next round tries again). `state` carries the failed-update count.
  * @param {{
  *   loaded: Map<string, string>,
  *   fetchMain: () => string | null,
@@ -140,9 +148,10 @@ export function updateCheckout(git, ref) {
  *   diskShas: (files: string[]) => Map<string, string> | null,
  *   log: (line: string) => void,
  * }} d
+ * @param {{ failures: number }} [state]
  * @returns {SelfCheckResult | null}
  */
-export function selfCheck(d) {
+export function selfCheck(d, state = { failures: 0 }) {
   const files = [...d.loaded.keys()];
   const problem = d.fetchMain();
   if (problem) {
@@ -155,17 +164,28 @@ export function selfCheck(d) {
     return null;
   }
   const changed = changedFiles(d.loaded, onMain);
-  if (!changed.length) return null;
+  if (!changed.length) {
+    state.failures = 0;
+    return null;
+  }
   const list = changed.join(', ');
   const failed = d.update();
   if (failed) {
+    state.failures++;
+    if (state.failures < MAX_UPDATE_FAILURES) {
+      d.log(`WARNING: its code changed on main (${list}); update failed: ${failed}; next round`);
+      return null;
+    }
     return {
       action: 'stop',
       why: `its code changed on main (${list}) but the checkout could not be updated: ${failed}`,
       files: changed,
     };
   }
-  const now = d.diskShas(files);
+  state.failures = 0;
+  // A file main removed is gone from disk now: only the files main still has are compared.
+  const kept = files.filter(f => onMain.has(f));
+  const now = kept.length ? d.diskShas(kept) : new Map();
   if (!now || changedFiles(now, onMain).length) {
     return {
       action: 'stop',
@@ -181,9 +201,9 @@ export function selfCheck(d) {
 }
 
 /**
- * The real check for a runner whose entry file is `entry` in the checkout `repoRoot`. Fingerprints
+ * The real check for a runner whose entry files are `entry` in the checkout `repoRoot`. Fingerprints
  * the files now; returns a function for `Deps.selfCheck`, or null when git cannot fingerprint them.
- * @param {{ entry: string, repoRoot: string, ref: string, remote: string, branch: string,
+ * @param {{ entry: string | string[], repoRoot: string, ref: string, remote: string, branch: string,
  *   log: (line: string) => void, run?: (args: string[], cwd: string) => Ran }} o
  * @returns {(() => SelfCheckResult | null) | null}
  */
@@ -206,38 +226,54 @@ export function makeSelfCheck(o) {
     o.log('WARNING: could not fingerprint the runner files; the code check is off');
     return null;
   }
+  const state = { failures: 0 };
   return () =>
-    selfCheck({
-      loaded,
-      fetchMain: () => {
-        const r = git(['fetch', '-q', o.remote, o.branch]);
-        return r.status === 0 ? null : `git fetch ${o.remote} ${o.branch} failed`;
+    selfCheck(
+      {
+        loaded,
+        fetchMain: () => {
+          const r = git(['fetch', '-q', o.remote, o.branch]);
+          return r.status === 0 ? null : `git fetch ${o.remote} ${o.branch} failed`;
+        },
+        mainShas: f => refShas(git, o.ref, f),
+        update: () => updateCheckout(git, o.ref),
+        diskShas: f => diskShas(git, f),
+        log: o.log,
       },
-      mainShas: f => refShas(git, o.ref, f),
-      update: () => updateCheckout(git, o.ref),
-      diskShas: f => diskShas(git, f),
-      log: o.log,
-    });
+      state
+    );
 }
 
 /**
- * Run the runner again as a child (same node, script, arguments and output) and return its exit
- * code. The depth cap keeps a mismatch that no update can fix from nesting forever.
+ * Called by the entry when `main` returned EXIT_RESTART. In a child it hands the code back (the
+ * parent starts the next child). In the first process it supervises: run the runner as a child
+ * (same node, script, arguments and output) until a child ends with anything but EXIT_RESTART, and
+ * return that exit code. Quick restarts in a row end the loop with a posted line.
  * @param {{ script: string, argv: string[], env?: NodeJS.ProcessEnv,
- *   spawn?: typeof spawnSync, log: (line: string) => void }} o
+ *   spawn?: typeof spawnSync, log: (line: string) => void, post?: (text: string) => void,
+ *   now?: () => number }} o
  * @returns {number}
  */
 export function reexec(o) {
   const env = o.env ?? process.env;
-  const depth = Number(env[DEPTH_ENV] ?? 0) || 0;
-  if (depth >= MAX_RESTART_DEPTH) {
-    o.log(`exiting: restarted ${depth} times in this task run; start the runner again by hand`);
-    return 3;
-  }
+  if (env[CHILD_ENV]) return EXIT_RESTART;
   const spawn = o.spawn ?? spawnSync;
-  const r = spawn(process.execPath, [o.script, ...o.argv], {
-    stdio: 'inherit',
-    env: { ...env, [DEPTH_ENV]: String(depth + 1) },
-  });
-  return r.status ?? 1;
+  const now = o.now ?? Date.now;
+  let quick = 0;
+  for (;;) {
+    const start = now();
+    const r = spawn(process.execPath, [o.script, ...o.argv], {
+      stdio: 'inherit',
+      env: { ...env, [CHILD_ENV]: '1' },
+    });
+    const code = r.status ?? 1;
+    if (code !== EXIT_RESTART) return code;
+    quick = now() - start < QUICK_RESTART_MS ? quick + 1 : 0;
+    if (quick >= MAX_QUICK_RESTARTS) {
+      const why = `restarted ${quick} times in a row, each within a minute; start it again by hand`;
+      o.log(`exiting: ${why}`);
+      o.post?.(`merge runner stopped: ${why}`);
+      return 3;
+    }
+  }
 }

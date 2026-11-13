@@ -96,7 +96,7 @@ function unitKey(units: string): string {
     .replace(/^miles?$/, 'mi');
 }
 
-interface SceneInfo {
+interface NpcTurnScene {
   id: string;
   name: string;
   size: number;
@@ -121,7 +121,7 @@ function diagonalRule(grid: Rec | null): number {
   }
 }
 
-function currentScene(): SceneInfo {
+function currentScene(): NpcTurnScene {
   const scenes = rec(rec(game)?.scenes);
   const scene = rec(viewedScene(scenes));
   if (!scene) throw new Error('No current scene: open the scene with the fight first');
@@ -163,13 +163,13 @@ function currentScene(): SceneInfo {
 }
 
 /** True when a combat belongs to the scene (a combat with no scene counts for any). */
-function onScene(combat: Rec, scene: SceneInfo): boolean {
+function onScene(combat: Rec, scene: NpcTurnScene): boolean {
   const id = str(rec(combat.scene)?.id) ?? str(combat.scene);
   return id === null || id === scene.id;
 }
 
 /** The fight on the viewed scene: the active one, else the latest one on that scene. */
-function fight(scene: SceneInfo): Rec | null {
+function fight(scene: NpcTurnScene): Rec | null {
   const g = rec(game);
   const active = rec(g?.combat);
   if (active && onScene(active, scene)) return active;
@@ -180,7 +180,7 @@ function fight(scene: SceneInfo): Rec | null {
 }
 
 /** A token's stored top-left square and size in squares (Foundry 14 doc.x/y lag during a move). */
-function rectOf(scene: SceneInfo, token: Rec): Footprint {
+function rectOf(scene: NpcTurnScene, token: Rec): Footprint {
   const source = rec(token._source);
   const x = num(source?.x) ?? num(token.x) ?? 0;
   const y = num(source?.y) ?? num(token.y) ?? 0;
@@ -192,7 +192,7 @@ function rectOf(scene: SceneInfo, token: Rec): Footprint {
   };
 }
 
-function findToken(scene: SceneInfo, identifier: string): Rec {
+function findToken(scene: NpcTurnScene, identifier: string): Rec {
   const id = identifier.trim();
   const lower = id.toLowerCase();
   const byId = scene.tokens.find(t => t.id === id);
@@ -224,7 +224,7 @@ function sameLevel(a: Rec, b: Rec): boolean {
 }
 
 /** The NPC's usable items: those with an attack, save or damage activity. */
-function actionsOf(actor: Rec, scene: SceneInfo): NpcTurnAction[] {
+function actionsOf(actor: Rec, scene: NpcTurnScene): NpcTurnAction[] {
   const out: NpcTurnAction[] = [];
   for (const raw of contentsOf(actor.items)) {
     const item = rec(raw);
@@ -365,7 +365,7 @@ function multiattackOf(actor: Rec): string | null {
 }
 
 /** Speed in the scene's units; throws when the actor's movement units cannot be compared. */
-function speedOf(actor: Rec, scene: SceneInfo, tokenName: string): number | null {
+function speedOf(actor: Rec, scene: NpcTurnScene, tokenName: string): number | null {
   const raw = num(
     path(actor, 'system.attributes.movement.speeds.walk') ??
       path(actor, 'system.attributes.movement.walk')
@@ -413,7 +413,7 @@ function movementAutomation(): string {
  * create) adds 1 to that product once however many such regions overlap (so 2x core plus it is 3x),
  * unless the region ignores this disposition or the actor ignores its kind of difficult terrain.
  */
-function terrainOf(scene: SceneInfo, token: Rec, actor: Rec): Terrain {
+function terrainOf(scene: NpcTurnScene, token: Rec, actor: Rec): Terrain {
   const regions = contentsOf(scene.raw.regions)
     .map(rec)
     .filter((r): r is Rec => r !== null);
@@ -508,7 +508,7 @@ interface Occupancy {
  * "full"; difficult terrain needs anything but "none".
  */
 function occupancyOf(input: {
-  scene: SceneInfo;
+  scene: NpcTurnScene;
   token: Rec;
   actor: Rec;
   elevation: number;
@@ -1037,7 +1037,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
 }
 
 interface TargetsInput {
-  scene: SceneInfo;
+  scene: NpcTurnScene;
   combatants: Rec[];
   npcToken: Rec;
   levelTokens: Rec[];

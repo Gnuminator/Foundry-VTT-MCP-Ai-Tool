@@ -3,7 +3,7 @@ import type { PlayerHandout } from '@gnuminator/shared';
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { DashboardDeps } from './dashboard-types.js';
-import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
+import type { BridgeStatus, CombatState, GameFeedHandlers, FeedWorld } from './feed/types.js';
 import type { GameState } from './state.js';
 import type { SseHub } from './sse.js';
 import type { ReadCache } from './read-cache.js';
@@ -42,7 +42,7 @@ const RECORDING_HEALTH_MS = 15_000;
 /** Player-state broadcasts are coalesced over this window. */
 const PLAYER_BROADCAST_DEBOUNCE_MS = 250;
 
-function mapWorld(raw: unknown): WorldInfo {
+function mapWorld(raw: unknown): FeedWorld {
   const r = asRecord(raw);
   const system = asRecord(r.system);
   const foundry = asRecord(r.foundry);
@@ -80,7 +80,7 @@ interface LiveStateInputs {
 interface LiveState {
   handlers: GameFeedHandlers;
   playerView: PlayerViewSource;
-  world: () => WorldInfo | null;
+  world: () => FeedWorld | null;
   status: () => BridgeStatus;
   recordingHealth: () => RecordingHealth;
   stamped: <S extends object>(s: S) => S & { now: string };
@@ -113,7 +113,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     lastPollAt: null,
     foundryDownSince: null,
   };
-  let world: WorldInfo | null = null;
+  let world: FeedWorld | null = null;
   /** The last world id seen, kept when `world` is nulled on a drop, to spot a switch. */
   let lastWorldId: string | null = null;
   let lastCombatJson = '';

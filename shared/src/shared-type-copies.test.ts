@@ -92,9 +92,6 @@ const KNOWN_COPIES: string[] = [
   'RulesTag @ packages/foundry-module/src/systems/dnd5e/rules-version.ts',
   'RulesVersion @ packages/foundry-module/src/systems/dnd5e/rules-version.ts',
   'SanitizeUsageOptions @ packages/foundry-module/src/usage-recorder.ts',
-  // Private, differently shaped helpers in two module files (not the wire type).
-  'SceneInfo @ packages/foundry-module/src/live-plan-token.ts',
-  'SceneInfo @ packages/foundry-module/src/npc-turn.ts',
   'SceneNote @ packages/foundry-module/src/data-access/types.ts',
   'SceneToken @ packages/cogm-dashboard/web/src/lib/startCombat.ts',
   'SceneToken @ packages/foundry-module/src/data-access/types.ts',
@@ -117,8 +114,6 @@ const KNOWN_COPIES: string[] = [
   'UsageRole @ packages/foundry-module/src/usage-recorder.ts',
   'UsageSurface @ packages/foundry-module/src/usage-recorder.ts',
   'UsageWho @ packages/foundry-module/src/usage-recorder.ts',
-  'WorldInfo @ packages/cogm-dashboard/src/feed/types.ts',
-  'WorldInfo @ packages/cogm-dashboard/web/src/lib/stream.ts',
   'WorldUser @ packages/foundry-module/src/data-access/types.ts',
 ];
 

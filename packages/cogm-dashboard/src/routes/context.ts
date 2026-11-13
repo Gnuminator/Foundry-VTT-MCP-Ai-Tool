@@ -7,7 +7,7 @@ import type { PlayerViewSource } from '../player/source.js';
 import type { ReadCache } from '../read-cache.js';
 import type { ThemeStore } from '../theme.js';
 import type { Logger } from '../logger.js';
-import type { BridgeStatus, WorldInfo } from '../feed/types.js';
+import type { BridgeStatus, FeedWorld } from '../feed/types.js';
 import type { RecordingHealth } from '../recording-health.js';
 import type { SseHub } from '../sse.js';
 import type { GameState } from '../state.js';
@@ -41,7 +41,7 @@ export interface RouteContext {
   state: GameState;
   /** The GM stream hub; every broadcast on it is `gmOnly`. */
   sse: SseHub;
-  world(): WorldInfo | null;
+  world(): FeedWorld | null;
   status(): BridgeStatus;
   recordingHealth(): RecordingHealth;
   /** Express middleware: 401/403 unless the caller resolves to the GM role. */

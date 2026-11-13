@@ -21,8 +21,9 @@ Do not invent line numbers. Return the finished review note as your answer.
 2. **New bridge handler** is classified in `packages/foundry-module/src/write-gate.ts` (write or
    read list); a test fails otherwise, but check the classification is right (a read that changes
    the world, or a write listed as read, is a High).
-3. **New tool** is in exactly one set in `packages/mcp-server/src/tool-sets.ts` (core, play, prep,
-   build, admin). Prep is near its size budget: check the size figures in
+3. **New tool** has an entry in its module's `tools` map (`packages/mcp-server/src/tools/modules/*.ts`)
+   with exactly one `set` (core, play, prep, build, admin); `tool-sets.ts` derives its lists from the
+   modules, and a new family is one module plus one line in `tools/index.ts`. Prep is near its size budget: check the size figures in
    `docs/reference/TOOL-SETS.md` and the tool catalog test were updated and the description text
    is trimmed (`npm run docs:tools`). One feature gets one tool with an `action` parameter.
 4. **Shared types** in `shared/src/` are wire contracts: a changed field name, type or optional to

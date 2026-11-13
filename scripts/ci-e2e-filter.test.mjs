@@ -5,12 +5,15 @@
 // Playwright config may import only from the dashboard package and shared; anything wider would let
 // a change skip the very tests that guard it. This test reads the real filter and the real specs.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import yaml from 'js-yaml';
+
+import { CHECKS, E2E_SHARDS, VISUAL_SHARDS, shardList } from './checks.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
@@ -61,7 +64,10 @@ test('the filter covers the dashboard, shared, the lockfile, the Chromium script
 });
 
 test('the specs and the Playwright config import only from the dashboard and shared', () => {
-  assert.ok(specFiles.length > 20, `only ${specFiles.length} spec files found: the scan stopped matching`);
+  assert.ok(
+    specFiles.length > 20,
+    `only ${specFiles.length} spec files found: the scan stopped matching`
+  );
   const outside = [];
   for (const file of specFiles) {
     const text = read(file);
@@ -79,12 +85,18 @@ test('the specs and the Playwright config import only from the dashboard and sha
       if (!filter.test(resolved)) outside.push(`${file}: ${m[1]} -> ${resolved}`);
     }
   }
-  assert.deepEqual(outside, [], 'a browser test reads a path the dashboard-e2e-changes filter does not cover');
+  assert.deepEqual(
+    outside,
+    [],
+    'a browser test reads a path the dashboard-e2e-changes filter does not cover'
+  );
 });
 
 test('the dashboard code under test depends on no workspace the filter misses', () => {
   const pkg = JSON.parse(read('packages/cogm-dashboard/package.json'));
-  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(d => d.startsWith('@gnuminator/'));
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(d =>
+    d.startsWith('@gnuminator/')
+  );
   assert.deepEqual(
     deps.filter(d => d !== '@gnuminator/cogm-dashboard').sort(),
     ['@gnuminator/shared'],
@@ -95,18 +107,24 @@ test('the dashboard code under test depends on no workspace the filter misses', 
     for (const e of readdirSync(path.join(repo, dir), { withFileTypes: true })) {
       const rel = `${dir}/${e.name}`;
       if (e.isDirectory()) {
-        if (!/^(node_modules|dist|storybook-static|test-results|playwright-report)$/.test(e.name)) walk(rel);
+        if (!/^(node_modules|dist|storybook-static|test-results|playwright-report)$/.test(e.name))
+          walk(rel);
       } else if (/\.(?:ts|tsx|mjs)$/.test(e.name)) {
         for (const m of read(rel).matchAll(/(?:from|import)\s*\(?\s*'(\.{1,2}\/[^']+)'/g)) {
           const resolved = path.posix.normalize(path.posix.join(dir, m[1]));
           if (!filter.test(resolved)) outside.push(`${rel}: ${m[1]} -> ${resolved}`);
         }
-        if (/from '@gnuminator\/(?!shared|cogm-dashboard)/.test(read(rel))) outside.push(`${rel}: imports another workspace`);
+        if (/from '@gnuminator\/(?!shared|cogm-dashboard)/.test(read(rel)))
+          outside.push(`${rel}: imports another workspace`);
       }
     }
   };
   for (const d of ['packages/cogm-dashboard/src', 'packages/cogm-dashboard/web/src']) walk(d);
-  assert.deepEqual(outside, [], 'dashboard code imports a path the dashboard-e2e-changes filter does not cover');
+  assert.deepEqual(
+    outside,
+    [],
+    'dashboard code imports a path the dashboard-e2e-changes filter does not cover'
+  );
 });
 
 test('the shard job: needs the filter, runs only when it says so, not fail-fast, shards add up', () => {
@@ -115,7 +133,26 @@ test('the shard job: needs the filter, runs only when it says so, not fail-fast,
   assert.match(job.if, /dashboard-e2e-changes\.outputs\.run == 'true'/);
   assert.equal(job.strategy['fail-fast'], false);
   assert.equal(job['timeout-minutes'], 20);
-  const shards = job.strategy.matrix.shard;
+  // The shard list is E2E_SHARDS in checks.mjs, printed by the filter job (`--matrix e2e`).
+  assert.equal(job.strategy.matrix, '${{ fromJSON(needs.dashboard-e2e-changes.outputs.matrix) }}');
+  assert.equal(
+    doc.jobs['dashboard-e2e-changes'].outputs.matrix,
+    '${{ steps.matrix.outputs.matrix }}'
+  );
+  assert.match(
+    doc.jobs['dashboard-e2e-changes'].steps.find(s => s.id === 'matrix').run,
+    /node scripts\/checks\.mjs --matrix e2e/
+  );
+  const shards = shardList(E2E_SHARDS);
+  assert.deepEqual(
+    JSON.parse(
+      execFileSync(process.execPath, ['scripts/checks.mjs', '--matrix', 'e2e'], {
+        cwd: repo,
+        encoding: 'utf8',
+      })
+    ),
+    { shard: shards }
+  );
   assert.deepEqual(
     shards,
     shards.map((_, i) => i + 1),
@@ -135,15 +172,58 @@ test('the shard job: needs the filter, runs only when it says so, not fail-fast,
   assert.ok(existsSync(path.join(repo, 'scripts/ci-install-chromium.sh')));
 });
 
+test('the shard command is the e2e check plus --shard=i/N, so the two cannot drift apart', () => {
+  const check = CHECKS.find(c => c.name === 'e2e');
+  assert.ok(check, 'no e2e check in scripts/checks.mjs');
+  const norm = (/** @type {string} */ s) => s.replace(/\s+/g, ' ').trim();
+  const run = doc.jobs['dashboard-e2e-shard'].steps
+    .map((/** @type {any} */ s) => s.run ?? '')
+    .find((/** @type {string} */ r) => r.includes('test:e2e'));
+  assert.equal(
+    norm(run),
+    `${[check.cmd, ...check.args].join(' ')} -- --shard=\${{ matrix.shard }}/${E2E_SHARDS}`
+  );
+});
+
+test('the visual shard job takes its list from checks.mjs, with the same N in its name and command', () => {
+  const job = doc.jobs['dashboard-visual-shard'];
+  assert.equal(job.strategy.matrix, '${{ fromJSON(needs.visual-changes.outputs.matrix) }}');
+  assert.equal(doc.jobs['visual-changes'].outputs.matrix, '${{ steps.matrix.outputs.matrix }}');
+  assert.match(
+    doc.jobs['visual-changes'].steps.find((/** @type {any} */ s) => s.id === 'matrix').run,
+    /node scripts\/checks\.mjs --matrix visual/
+  );
+  assert.deepEqual(
+    JSON.parse(
+      execFileSync(process.execPath, ['scripts/checks.mjs', '--matrix', 'visual'], {
+        cwd: repo,
+        encoding: 'utf8',
+      })
+    ),
+    { shard: shardList(VISUAL_SHARDS) }
+  );
+  const run = job.steps
+    .map((/** @type {any} */ s) => s.run ?? '')
+    .find((/** @type {string} */ r) => r.includes('test:visual:ci'));
+  assert.match(run, new RegExp(`--shard=\\$\\{\\{ matrix\\.shard \\}\\}/${VISUAL_SHARDS}\\b`));
+  assert.match(job.name, new RegExp(`shard \\$\\{\\{ matrix\\.shard \\}\\}/${VISUAL_SHARDS}\\b`));
+});
+
 test('the summary job is one check: green when every shard passed or was skipped, red otherwise', () => {
   const summary = doc.jobs['dashboard-e2e'];
   assert.match(summary.name, /^dashboard-e2e \(browser tests\)/);
   assert.deepEqual([...summary.needs].sort(), ['dashboard-e2e-changes', 'dashboard-e2e-shard']);
-  assert.match(summary.if, /!cancelled\(\)/, 'without !cancelled() a red shard would leave the summary skipped');
+  assert.match(
+    summary.if,
+    /!cancelled\(\)/,
+    'without !cancelled() a red shard would leave the summary skipped'
+  );
   const run = summary.steps.map(s => s.run ?? '').join('\n');
   assert.match(run, /success\|skipped\) ;;/);
   assert.match(run, /exit 1/);
-  const holders = Object.entries(doc.jobs).filter(([, j]) => String(j.name).startsWith('dashboard-e2e (browser tests)'));
+  const holders = Object.entries(doc.jobs).filter(([, j]) =>
+    String(j.name).startsWith('dashboard-e2e (browser tests)')
+  );
   assert.deepEqual(
     holders.map(([id]) => id),
     ['dashboard-e2e']
@@ -153,7 +233,10 @@ test('the summary job is one check: green when every shard passed or was skipped
 test('build-test no longer runs the browser tests (they would run twice)', () => {
   const steps = doc.jobs['build-test'].steps;
   for (const s of steps) {
-    assert.ok(!String(s.run ?? '').includes('test:e2e'), `build-test still runs test:e2e in "${s.name}"`);
+    assert.ok(
+      !String(s.run ?? '').includes('test:e2e'),
+      `build-test still runs test:e2e in "${s.name}"`
+    );
   }
   assert.equal(doc.jobs['build-test']['timeout-minutes'], 25);
 });

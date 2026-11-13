@@ -135,10 +135,17 @@ jobs:
     name: visual-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     outputs:
       run: ${{ steps.filter.outputs.run }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
+
+      - name: The shard list (VISUAL_SHARDS in scripts/checks.mjs)
+        id: matrix
+        run: |
+          matrix=$(node scripts/checks.mjs --matrix visual)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
       - name: Did the dashboard, the lockfile or this workflow change?
         id: filter
@@ -180,8 +187,7 @@ jobs:
     strategy:
       # Every shard reports, so one red shard does not hide another's diffs.
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+      matrix: ${{ fromJSON(needs.visual-changes.outputs.matrix) }}
     container:
       image: mcr.microsoft.com/playwright:v1.64.0-noble
     env:
@@ -279,10 +285,17 @@ jobs:
     timeout-minutes: 10
     outputs:
       run: ${{ steps.filter.outputs.run }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
+
+      - name: The shard list (E2E_SHARDS in scripts/checks.mjs)
+        id: matrix
+        run: |
+          matrix=$(node scripts/checks.mjs --matrix e2e)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
       - name: Did the dashboard, shared or their tooling change?
         id: filter
@@ -315,8 +328,7 @@ jobs:
     strategy:
       # Every shard reports, so one red shard does not hide another's failures.
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
+      matrix: ${{ fromJSON(needs.dashboard-e2e-changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

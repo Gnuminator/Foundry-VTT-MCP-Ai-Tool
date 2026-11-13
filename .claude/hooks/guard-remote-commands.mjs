@@ -413,9 +413,9 @@ const dockerDestroys = text =>
 
 /**
  * Rules that ask: allowed only with the user's explicit OK, every time.
- * Decision (L113, 2026-11-07): `docker restart` and `compose restart` ask like `docker stop` (a restart is a stop),
- * and so does `compose up --force-recreate` (it removes the old container). A raw ssh command never goes through
- * the stage 24 quiet-table check, so the guard is the only place that asks. Plain `compose up -d` and `ps` stay free.
+ * Decision (L113, 2026-11-07): `docker restart`, `compose restart` and `compose up --force-recreate` ask like `docker stop`.
+ * A raw ssh command never goes through the stage 24 quiet-table check, so the guard is the only place that asks.
+ * Plain `compose up -d` and `ps` stay free. `TEST_ALLOW_CUTOVER=1` (container tests only) lets `MODE=up` start the live project unguarded.
  */
 const ASK = [
   [

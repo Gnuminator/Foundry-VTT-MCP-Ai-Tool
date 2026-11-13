@@ -606,7 +606,6 @@ test('main --json prints the raw numbers; the text form ends with the run time',
     assert.equal(j.total.sessions, 2);
     assert.equal(j.total.weeklyPoints, 40);
     assert.equal(j.total.prs, null);
-    assert.equal(j.advisorCalls, 0);
     assert.equal(j.figures.length, 5);
     assert.equal(j.targets, undefined);
     assert.ok(j.notes.some(n => /merged PRs skipped/.test(n)));
@@ -719,7 +718,7 @@ test('a missing folder reads as no calls', () => {
   assert.match(render(summarize([]), 7), /No tool calls/);
 });
 
-test('advisor calls: main-session tool_use items by their own id, once, inside the window', async () => {
+test('advisor calls are no longer counted or printed', async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'usage-week-advisor-'));
   try {
     const projects = path.join(root, 'projects');
@@ -737,50 +736,18 @@ test('advisor calls: main-session tool_use items by their own id, once, inside t
     put(
       ['a.jsonl'],
       [
-        // one response over two lines: the text line first, the tool_use line second
         withContent('m1', at(9, 9), [{ type: 'text', text: 'hi' }]),
-        withContent('m1', at(9, 9), [advisor('srv1')]),
         withContent('m2', at(9, 10), [advisor('srv2'), advisor('tool3', 'tool_use')]),
-        withContent('m3', at(9, 11), [{ type: 'tool_use', id: 't9', name: 'Read', input: {} }]),
-        withContent('side', at(9, 12), [advisor('srv-side')], { isSidechain: true }),
-        withContent('old', new Date(2026, 8, 20, 9), [advisor('srv-old')]),
-        JSON.stringify({
-          type: 'user',
-          timestamp: at(9, 13).toISOString(),
-          message: { content: '{"name": "advisor", "usage"}' },
-        }),
       ]
     );
-    put(
-      ['a', 'subagents', 'agent-1.jsonl'],
-      [withContent('s1', at(9, 9, 30), [advisor('srv-sub')])]
-    );
-    // a fork repeats the parent's lines
-    put(
-      ['fork.jsonl'],
-      [withContent('m2', at(9, 10), [advisor('srv2'), advisor('tool3', 'tool_use')])]
-    );
-    const report = await buildReport({ root: projects, now: NOW, days: 7 });
-    assert.equal(report.advisorCalls, 3);
-    assert.match(formatReport(report), /Advisor calls \(main sessions\): 3/);
-    assert.match(sectionFor(report), /- advisor-calls: 3/);
-    // without the merged-PR lookup there is no per-PR figure
-    assert.equal(report.advisorPerPr, null);
-    assert.doesNotMatch(formatReport(report), /per merged PR/);
-    assert.doesNotMatch(sectionFor(report), /advisor-per-pr/);
-    // with it: 3 calls over 2 merged PRs, next to the calls line and in --json
-    const prs = [
-      { number: 1, mergedAt: at(9, 15).toISOString() },
-      { number: 2, mergedAt: at(9, 16).toISOString() },
-    ];
-    const withPrs = await buildReport({ root: projects, now: NOW, days: 7, prs });
-    assert.equal(withPrs.advisorPerPr, 1.5);
-    assert.match(
-      formatReport(withPrs),
-      /Advisor calls \(main sessions\): 3 \(1\.5 per merged PR\)/
-    );
-    assert.match(sectionFor(withPrs), /- advisor-per-pr: 1\.5/);
-    assert.equal(JSON.parse(JSON.stringify(withPrs)).advisorPerPr, 1.5);
+    const prs = [{ number: 1, mergedAt: at(9, 15).toISOString() }];
+    const report = await buildReport({ root: projects, now: NOW, days: 7, prs });
+    // the advisor was dropped (the user, 2026-11-12): old transcripts still read, nothing is counted
+    assert.equal(report.responses, 2);
+    assert.equal(report.advisorCalls, undefined);
+    assert.equal(report.advisorPerPr, undefined);
+    assert.doesNotMatch(formatReport(report), /advisor/i);
+    assert.doesNotMatch(sectionFor(report), /advisor/i);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

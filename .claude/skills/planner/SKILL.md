@@ -53,7 +53,7 @@ the user placed), pushes the vault and archives itself (see Session cleanup).
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,905 words, planner under 1,169).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,889 words, planner under 1,169).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).

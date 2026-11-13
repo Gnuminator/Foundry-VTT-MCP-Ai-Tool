@@ -30,7 +30,6 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 
 ## Work
 
-- **Advisor:** call `advisor` once, after committing and before the PR; act on it or say in the PR why not.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; Opus only for design and
   the one risky-PR review; Haiku suits long notes, logs and read-only sweeps. Partition workers by
   file, lock shared contracts first, big files in parts of about 250 lines.

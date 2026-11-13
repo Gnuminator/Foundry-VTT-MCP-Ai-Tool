@@ -375,7 +375,7 @@ gm_browsers_joined() {
 # may still run and hold players, so require_quiet counts them anyway.
 foundry_answers_without_docker() {
   ! daemon_known || return 1
-  curl -fs --max-time 5 http://127.0.0.1:30000/api/status >/dev/null 2>&1
+  [ "$(users_online)" != "?" ]
 }
 
 # require_quiet WHAT: call before a stage stops or restarts Foundry (WHAT names the action). Refuses while players are

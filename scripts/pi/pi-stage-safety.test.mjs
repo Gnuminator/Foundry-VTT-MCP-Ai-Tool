@@ -942,6 +942,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       'restic',
       `echo "restic $*" >>"$LOG"
 if [ "$1" = backup ] && [ -n "\${RESTIC_RESTARTS:-}" ]; then touch "$LOG.restarted"; [ "$RESTIC_RESTARTS" = 1 ] && rm -f "$LOG.cstopped"; fi
+if [ "$1" = snapshots ]; then echo '[{"short_id":"abc12345","tags":["nightly"]}]'; fi
 exit 0`
     );
     // pgrep: PGREP_RC 1 (default) = no containerd-shim, 0 = one runs (live-restore), 127 = pgrep cannot run.
@@ -1187,13 +1188,16 @@ exit 0`
       const r = cut({ users: [0], env: { RESTIC_RESTARTS: '1' } });
       assert.equal(r.status, 1, r.out);
       assert.match(r.out, /started again while the worlds were being copied/);
-      assert.doesNotMatch(r.calls, /restic forget/);
+      assert.match(r.out, /torn snapshot abc12345 was removed/);
+      assert.match(r.calls, /restic forget abc12345\n/);
+      assert.doesNotMatch(r.calls, /restic forget --keep/);
     });
 
     test('the container came back and stopped again during the copy (new StartedAt): also a failed night', () => {
       const r = cut({ users: [0], env: { RESTIC_RESTARTS: '2' } });
       assert.equal(r.status, 1, r.out);
       assert.match(r.out, /started again while the worlds were being copied/);
+      assert.match(r.calls, /restic forget abc12345\n/);
     });
 
     test('docker_off: daemon silent, docker disabled, no foundry.service: the backup goes on (nothing can be writing)', () => {

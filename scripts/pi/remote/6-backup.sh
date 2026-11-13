@@ -296,7 +296,14 @@ restic backup --tag nightly \
 if [ "$stack" = containers ] && [ "$we_stopped_foundry" = 1 ]; then
   if [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || echo unknown)" != false ] ||
     [ "$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)" != "$stopped_started_at" ]; then
-    echo "ERROR: backup failed: the foundry container started again while the worlds were being copied (restart policy after a Docker restart?), so the snapshot may be torn. The next night copies again" >&2
+    # The snapshot is already in the repository as the newest nightly (and what "restic restore latest" would pick): drop it.
+    torn_id="$(restic snapshots --latest 1 --tag nightly --json </dev/null 2>/dev/null | grep -o '"short_id": *"[0-9a-f]*"' | head -n 1 | grep -o '[0-9a-f]\{6,\}' || true)"
+    if [ -n "$torn_id" ] && restic forget "$torn_id" </dev/null >/dev/null 2>&1; then
+      torn_note="the torn snapshot $torn_id was removed from the repository"
+    else
+      torn_note="the torn snapshot could not be removed: do not restore the newest nightly (restic forget it)"
+    fi
+    echo "ERROR: backup failed: the foundry container started again while the worlds were being copied (restart policy after a Docker restart?), so the snapshot may be torn; $torn_note. The next night copies again" >&2
     exit 1
   fi
 fi

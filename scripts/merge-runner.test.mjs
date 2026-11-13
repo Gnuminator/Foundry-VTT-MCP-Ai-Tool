@@ -69,6 +69,17 @@ function fakes(o) {
     gh: args => {
       calls.gh.push(args);
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
+      if (args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1])) {
+        if (o.tipFail) return { status: 1, stdout: '', stderr: 'HTTP 502' };
+        // main's tip: the newest run's sha unless the test says otherwise
+        let sha = SHA;
+        try {
+          sha = JSON.parse(o.main ?? GREEN)[0]?.headSha ?? SHA;
+        } catch {
+          /* keep SHA */
+        }
+        return { status: 0, stdout: `${o.tip ?? sha}\n`, stderr: '' };
+      }
       const n = Number(args[2]);
       const pr = o.prs?.[n];
       return pr
@@ -218,8 +229,13 @@ test('main red is read before each PR: a merge that turns main red stops the nex
   });
   let runs = 0;
   const gh = f.deps.gh;
-  f.deps.gh = args =>
-    args[0] === 'run' && ++runs > 1 ? { status: 0, stdout: RED, stderr: '' } : gh(args);
+  f.deps.gh = args => {
+    if (args[0] === 'run' && ++runs > 1) return { status: 0, stdout: RED, stderr: '' };
+    // once the second read shows the red run, main's tip is that run's sha
+    if (args[0] === 'api' && runs > 1 && /\/git\/ref\/heads\/main$/.test(args[1]))
+      return { status: 0, stdout: `${'d'.repeat(40)}\n`, stderr: '' };
+    return gh(args);
+  };
   const r = round(f.deps, new Set());
   assert.deepEqual(r.merged, [5]);
   assert.match(r.stop ?? '', /main is red/);
@@ -244,6 +260,52 @@ test('mainState: cancelled runs are passed over; unreadable or no run counts as 
     [false, true]
   );
   assert.equal(mainState(JSON.stringify([{ conclusion: 'timed_out', headSha: SHA }])).red, true);
+});
+
+test('mainState: a tip with no CI run waits; the run before it does not decide (f619fd86)', () => {
+  const TIP = 'f'.repeat(40);
+  const runs = JSON.stringify([{ conclusion: 'success', status: 'completed', headSha: SHA }]);
+  const s = mainState(runs, TIP);
+  assert.deepEqual([s.red, s.wait], [false, true]);
+  assert.match(s.why, /no CI run for main's tip fffffff yet/);
+  // the tip's own run decides, red or green; without a tip the old behaviour holds
+  const own = JSON.stringify([
+    { conclusion: 'failure', status: 'completed', headSha: TIP },
+    ...JSON.parse(runs),
+  ]);
+  assert.equal(mainState(own, TIP).red, true);
+  assert.equal(mainState(runs).wait, false);
+});
+
+test('main tip with no run yet: the round waits, no gate; an unreadable tip waits too', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    tip: 'f'.repeat(40),
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(r, { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+  assert.match(f.calls.log.join('\n'), /no CI run for main's tip fffffff yet; next round/);
+  const g = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    tipFail: true,
+  });
+  assert.deepEqual(round(g.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(g.calls.gate, []);
+  assert.match(g.calls.log.join('\n'), /main's tip unreadable/);
+});
+
+test('gateOutcome: no run to judge on main, a list that is not a list, no run for the tip: transient', () => {
+  for (const why of [
+    'main red: no completed push run of ci.yml on main to judge; refusing',
+    'main red: gh run list answered something that is not a list of runs; refusing',
+    "main red: no push run of ci.yml for main's tip fffffff yet; refusing",
+    "main red: cannot read main's tip (gh api failed: x); refusing",
+  ]) {
+    assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'transient', why);
+  }
 });
 
 test('a head moved since the ready line is refused without running the gate', () => {

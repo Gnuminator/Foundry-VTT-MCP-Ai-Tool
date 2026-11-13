@@ -115,6 +115,19 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
     `git -C C:/Users/me/Documents/Obsidian/vault add -u`,
     `cd vault && git add Waiting.md "Dev/Foundry AI Tool/Backlog.md"`,
     `cd vault && git commit -m x "Dev/Foundry AI Tool/Backlog.md"`,
+    `cd vault && git commit -m x -- .`,
+    `cd vault && git commit -m x "Dev/Foundry AI Tool"`,
+    `cd vault && git add "Dev/Foundry AI Tool/*.md"`,
+    `cd vault && git checkout -- .`,
+    `cd vault && git restore .`,
+    `cd vault && git reset --hard`,
+    `cd vault && git stash`,
+    `Set-Location "C:/Users/me/Documents/Obsidian/vault"; git add -A`,
+    `pushd vault && git add -A`,
+    `python -c "import pathlib; pathlib.Path('${VAULT}/Backlog.md').open('w')"`,
+    `[IO.File]::WriteAllText("${VAULT}\\Backlog.md", $t)`,
+    `python -c "import shutil; shutil.copy('x', '${VAULT}/Backlog.md')"`,
+    `node -e "fs.renameSync('x', '${VAULT}/Backlog.md')"`,
   ];
   for (const command of denied) {
     assert.ok(call('Bash', { command }), command);
@@ -130,6 +143,17 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
     `cd vault && git status && git diff`,
     `git add -A && git commit -am "in the repo, not the vault"`,
     `cd vault && git push && git pull --rebase`,
+    `cd vault && git add Waiting.md 2>&1`,
+    `cd vault && git add Waiting.md > NUL`,
+    `cd vault && git add Waiting.md 2>&1 | tail -3`,
+    `cd vault && git commit -m "git add -A was wrong" Waiting.md`,
+    `cd vault && git checkout main && git stash list && git stash pop && git reset HEAD~1`,
+    `cd vault && git status; cd "C:/Users/me/Projects/Foundry VTT AI Tool" && git add -A`,
+    `cd C:/repo/packages/cogm-dashboard/src/player-vault && git add -A`,
+    `git commit -am "Obsidian vault export fix"`,
+    `git -C vault log -3; git add -A`,
+    `python -c "print(open('${VAULT}/Backlog.md', encoding='utf-8').read())"`,
+    `Set-Location vault; Get-Content Backlog.md | Select-Object -First 5`,
   ];
   for (const command of allowed) assert.equal(call('Bash', { command }), null, command);
   assert.ok(

@@ -36,39 +36,78 @@ const WRITES = [
   /\bgit\b[^|;&]*\b(add|commit|checkout|restore)\b[^|;&]*backlog( done)?\.md/i,
   // a script that opens the file for writing: python open(f, 'w'), fs.openSync(f, 'a'), Path.write_text
   /\bopen(Sync)?\s*\([^,)]*,\s*(mode\s*=\s*)?["'][rbtU]*[wax+]/,
+  /\.open\s*\(\s*(mode\s*=\s*)?["'][rbtU]*[wax+]/, // pathlib.Path(f).open('w')
   /\b(write_text|write_bytes)\s*\(/,
+  /\b(WriteAll(Text|Lines|Bytes)|AppendAll(Text|Lines)|StreamWriter)\b/i, // [IO.File]::WriteAllText
+  /\b(shutil\.(copy\w*|move)|os\.(replace|rename)|(copyFile|rename)(Sync)?)\b/,
 ];
 
-/** The vault repo: the command or the working directory names it. */
-const VAULT_CTX = /obsidian[\\/]+vault|(\bcd|\s-C)\s+["']?[^\s"']*vault\b/i;
+/** A path that is the vault repo or inside it (`player-vault` does not count). */
+const VAULT_PATH = /obsidian[\\/]+vault|(^|[\\/])vault([\\/]|$)/i;
+const CD = /(?:\bcd|\bpushd|\bSet-Location|\bPush-Location|\s-C)\s+(?:-Path\s+|-LiteralPath\s+)?("[^"]*"|'[^']*'|\S+)/gi;
+const unquote = (/** @type {string} */ w) => w.replace(/^["']|["']$/g, '');
+const isGlob = (/** @type {string} */ w) => /[*?[]/.test(w);
+/** A pathspec that names no single file: `.`, a directory, a glob. */
+const sweepsPath = (/** @type {string} */ w) => {
+  const last = w.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? '';
+  return /[\\/]$/.test(w) || isGlob(w) || !/\.[A-Za-z0-9]+$/.test(last);
+};
 
 /**
- * A `git add` or `git commit` in the vault that sweeps in files without naming them, so it would
- * take Backlog.md along: `commit -a`/`-am`/`--all`, `add -A`/`-u`/`--all`, `add .` or `*`, or a
- * directory. A named file that is not the Backlog (`git add Waiting.md`) stays allowed.
+ * A git command in the vault that sweeps in files without naming them, so it would take (or
+ * throw away) Backlog.md along: `commit -a`/`--all` or a commit with a directory or glob,
+ * `add -A`/`-u`/`--all`/`.`/a directory/a glob, `checkout`/`restore` of `.` or a directory,
+ * `reset --hard`, `stash`. A named file that is not the Backlog (`git add Waiting.md`) stays allowed.
+ * The vault context is tracked per command segment: the payload cwd, a `cd`/`pushd`/`Set-Location`/
+ * `-C` into the vault, or a vault path in the segment; a `cd` elsewhere ends it.
  */
 export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd = '') {
-  if (!VAULT_CTX.test(cmd) && !VAULT_CTX.test(norm(cwd))) return false;
-  for (const seg of cmd.split(/[;&|\n]+/)) {
-    const words = (seg.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map(w => w.replace(/^["']|["']$/g, ''));
+  let inVault = VAULT_PATH.test(norm(cwd));
+  // a commit message and a redirect are not arguments
+  const body = cmd
+    .replace(/(\s(?:-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1')
+    .replace(/\d*>&\d+|\d*>>?\s*\S+|<\s*\S+/g, ' ');
+  for (const seg of body.split(/[;&|\n]+/)) {
+    let gitC = false; // `git -C <path>` applies to this command only
+    for (const m of seg.matchAll(CD)) {
+      if (/^\s-C/.test(m[0])) gitC = VAULT_PATH.test(unquote(m[1]));
+      else inVault = VAULT_PATH.test(unquote(m[1]));
+    }
+    const words = (seg.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map(unquote);
     const g = words.findIndex(w => /^git(\.exe)?$/i.test(w.replace(/^.*[\\/]/, '')));
     if (g < 0) continue;
-    const sub = words.findIndex((w, i) => i > g && /^(add|commit)$/.test(w));
+    if (!inVault && !gitC && !VAULT_PATH.test(seg)) continue;
+    const sub = words.findIndex(
+      (w, i) => i > g && /^(add|commit|checkout|restore|reset|stash)$/.test(w)
+    );
     if (sub < 0) continue;
     const rest = words.slice(sub + 1);
-    if (words[sub] === 'commit') {
-      // -m takes a value, which is not a flag; a combined `-am` carries -a
-      const flags = rest.filter(
-        (w, i) => /^--?[a-zA-Z]/.test(w) && !/^(-m|--message|-F|--file|-C|-c)$/.test(rest[i - 1] ?? '')
-      );
-      if (flags.some(w => w === '--all' || (/^-[a-zA-Z]+$/.test(w) && w.includes('a')))) return true;
-      continue;
-    }
-    for (const w of rest) {
-      if (/^(--all|--update|--no-all|--ignore-removal)$/.test(w) || /^-[a-zA-Z]*[Au]/.test(w)) return true;
-      if (w.startsWith('-')) continue;
-      const last = w.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? '';
-      if (/[\\/]$/.test(w) || w === '*' || !/\.[A-Za-z0-9]+$/.test(last)) return true;
+    const flag = (/** @type {string} */ w, /** @type {number} */ i) =>
+      /^--?[a-zA-Z]/.test(w) && !/^(-m|--message|-F|--file|-C|-c)$/.test(rest[i - 1] ?? '');
+    const paths = rest.filter((w, i) => w !== '--' && !flag(w, i) && !/^(-m|--message|-F|--file|-C|-c)$/.test(rest[i - 1] ?? ''));
+    const flags = rest.filter(flag);
+    switch (words[sub]) {
+      case 'commit':
+        // a combined `-am` carries -a; -m takes a value, which is not a flag
+        if (flags.some(w => w === '--all' || (/^-[a-zA-Z]+$/.test(w) && w.includes('a')))) return true;
+        if (paths.some(sweepsPath)) return true;
+        break;
+      case 'add':
+        if (flags.some(w => /^(--all|--update|--no-all|--ignore-removal)$/.test(w) || /^-[a-zA-Z]*[Au]/.test(w)))
+          return true;
+        if (paths.some(sweepsPath)) return true;
+        break;
+      case 'checkout':
+      case 'restore':
+        // a branch name is not a path; only `.`, a directory or a glob is a tree sweep
+        if (paths.some(w => w === '.' || /[\\/]$/.test(w) || isGlob(w))) return true;
+        break;
+      case 'reset':
+        if (flags.includes('--hard')) return true;
+        break;
+      case 'stash':
+        if (paths.length === 0 || /^(push|save)$/.test(paths[0])) return true;
+        break;
     }
   }
   return false;

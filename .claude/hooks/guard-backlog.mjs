@@ -62,7 +62,8 @@ const sweepsPath = (/** @type {string} */ w) => {
  * `-C` into the vault, or a vault path in the segment; a `cd` elsewhere ends it.
  */
 export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd = '') {
-  let inVault = VAULT_PATH.test(norm(cwd));
+  let dir = norm(cwd).replace(/\/+$/, '');
+  let inVault = VAULT_PATH.test(dir);
   // a commit message and a redirect are not arguments
   const body = cmd
     .replace(/(\s(?:-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1')
@@ -75,10 +76,13 @@ export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd
     for (const m of seg.matchAll(CD)) {
       if (/^\s-C/.test(m[0])) gitC = VAULT_PATH.test(unquote(m[1]));
       else {
-        // a relative move that stays below the current folder keeps the context; a path that
-        // starts elsewhere (absolute, `~`, a variable, a drive, `..`) is tested afresh
-        const t = unquote(m[1]);
-        if (VAULT_PATH.test(t) || /^([\\/]|~|\$|[A-Za-z]:|\.\.)/.test(t)) inVault = VAULT_PATH.test(t);
+        // keep the real current folder: a relative move (down or `..`) resolves against it, an
+        // absolute path, `~` or a variable replaces it; a variable ending in `vault` is the vault
+        const t = unquote(m[1]).replace(/\\/g, '/');
+        if (/^\$(env:)?\w*vault$/i.test(t)) dir = '/vault';
+        else if (/^(\/|~|\$|[A-Za-z]:)/.test(t)) dir = t;
+        else dir = path.posix.normalize(dir ? `${dir}/${t}` : t);
+        inVault = VAULT_PATH.test(dir);
       }
     }
     const words = (seg.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map(unquote);
@@ -91,7 +95,7 @@ export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd
     if (sub < 0) continue;
     const rest = words.slice(sub + 1);
     const takesValue = (/** @type {number} */ i) =>
-      /^(-m|--message|-F|--file|-C|-c|--author|--date|--fixup|--squash|--trailer|-t|--template)$/.test(
+      /^(-m|--message|-F|--file|-C|-c|--author|--date|--fixup|--squash|--trailer|-t|--template|-s|--source)$/.test(
         rest[i - 1] ?? ''
       );
     const flag = (/** @type {string} */ w, /** @type {number} */ i) =>

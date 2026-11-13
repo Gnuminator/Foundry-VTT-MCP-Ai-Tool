@@ -187,6 +187,26 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
     ),
     'a relative cd inside the vault keeps the context'
   );
+  const inSub = {
+    cwd: 'C:\\Users\\me\\Documents\\Obsidian\\vault\\Dev\\Foundry AI Tool',
+    tool_input: { command: 'cd .. && cd .. && git add -A' },
+  };
+  assert.ok(decide('Bash', inSub, { CLAUDE_PROJECT_DIR: LANE }), 'cd .. stays in the vault');
+  inSub.tool_input.command = 'cd ../../.. && git add -A';
+  assert.equal(decide('Bash', inSub, { CLAUDE_PROJECT_DIR: LANE }), null, 'cd out of the vault');
+  const cmds = {
+    denied: [
+      'cd vault && cd Handoff && cd .. && git add .',
+      'cd "$VAULT" && git add -A',
+      'cd $env:VAULT; git add -A',
+    ],
+    allowed: [
+      'cd vault && cd .. && git add -A',
+      'cd vault && git restore --source HEAD~1 Waiting.md',
+    ],
+  };
+  for (const command of cmds.denied) assert.ok(call('Bash', { command }), command);
+  for (const command of cmds.allowed) assert.equal(call('Bash', { command }), null, command);
   assert.equal(
     call('Bash', { command: 'cd vault && git commit -am x' }, MAIN),
     null,

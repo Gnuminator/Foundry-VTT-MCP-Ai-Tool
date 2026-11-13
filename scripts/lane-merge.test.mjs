@@ -357,6 +357,7 @@ test('judgeReviews: every refusal ends with the review-note helper command, the 
   for (const [name, r] of Object.entries(refusals)) {
     assert.equal(r.ok, false, name);
     assert.match(r.detail, cmd, `${name}: ${r.detail}`);
+    assert.ok(r.detail.endsWith(reviewNoteCommand(312)), `${name} ends with the command`);
   }
   // The named exception: a verdict that is not Merge is the reviewer's call, not a missing note.
   const veto = judgeReviews(
@@ -3083,8 +3084,9 @@ test('review refusal: names the naming rule, and lists notes of the PR that were
   );
   assert.match(
     line,
-    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md$/
+    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md; write it with: /
   );
+  assert.ok(line.endsWith(reviewNoteCommand(312)), 'the helper command stays last');
   assert.deepEqual(unreadPrNotes(vault, 312), ['Reviews 2026-10-10/312-merge-delta-3d24f70a.md']);
   assert.deepEqual(unreadPrNotes(path.join(os.tmpdir(), 'no-such-vault-xyz'), 312), []);
   // Only a Sonnet note for a risky PR gets the rule too; a Do not merge does not (the note was read).

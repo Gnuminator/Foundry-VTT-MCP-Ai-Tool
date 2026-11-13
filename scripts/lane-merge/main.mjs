@@ -413,8 +413,10 @@ export function main(options = {}) {
         const base = verdict.detail.endsWith(tail)
           ? verdict.detail.slice(0, -tail.length)
           : verdict.detail;
-        hint = `${base}; ${reviewNamingRule(n)}${tail}`;
-        if (skipped.length) hint += `; not read (no "review" in the name): ${skipped.join(', ')}`;
+        const unread = skipped.length
+          ? `; not read (no "review" in the name): ${skipped.join(', ')}`
+          : '';
+        hint = `${base}; ${reviewNamingRule(n)}${unread}${tail}`;
       }
       failures.push(`review: ${hint || verdict.detail}`);
     }

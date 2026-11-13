@@ -791,6 +791,38 @@ test('queue: a failed group (open, out of the queue) is confirmed in a second ro
   assert.equal(f.calls.backlog.length, 1, 'not handled twice');
 });
 
+test('queue: a gate killed after it enqueued the PR is followed as enqueued, not stopped on', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'x\nmerge-runner: gate killed at the time limit' } },
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  const r = round(f.deps, new Set());
+  assert.equal(r.stop, null);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
+  ]);
+});
+
+test('queue: a line replaced while the runner decides it left the queue is not overwritten', () => {
+  let reads = 0;
+  const f = queueFakes({
+    text: () => {
+      reads += 1;
+      return reads === 1
+        ? backlog([['one', enqueuedLine(5, SHA)]])
+        : backlog([['one', `PR #5 ready, head ${SHA2}`]]);
+    },
+    queue: { 5: () => queueAnswer('OPEN', false) },
+  });
+  const tried = new Set();
+  const attempts = new Map([[`q5@${SHA}`, 1]]);
+  round(f.deps, tried, attempts);
+  assert.deepEqual(f.calls.backlog, []);
+  assert.deepEqual(f.calls.post, []);
+});
+
 test('queue: an unreadable queue state waits for the next round', () => {
   const f = queueFakes({
     text: backlog([['one', enqueuedLine(5, SHA)]]),

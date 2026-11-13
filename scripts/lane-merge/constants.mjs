@@ -28,6 +28,13 @@ export const WAIT_POLL_MS = 30 * 1000;
 /** --wait-ci: GitHub answering with an error this many polls in a row ends the wait. */
 export const WAIT_MAX_ERRORS = 3;
 
+/** The ci.yml job that stands for every job; main's ruleset must require it once a merge queue is on. */
+export const AGGREGATE_CHECK = 'ci-all-green';
+
+/** GraphQL for one PR's merge queue state (gh pr view has no such field). @param {number} pr */
+export const queueQuery = pr =>
+  `query{repository(owner:"${REPO.split('/')[0]}",name:"${REPO.split('/')[1]}"){pullRequest(number:${pr}){state isInMergeQueue}}}`;
+
 /** A single gh call (spawnSync timeout). */
 export const GH_TIMEOUT_MS = 120_000;
 

@@ -14,6 +14,8 @@ import {
   EXIT_HEAD_MOVED,
   ENV_FETCHED,
   PR_FIELDS,
+  AGGREGATE_CHECK,
+  queueQuery,
 } from './constants.mjs';
 import { riskyHits, isTrainRelevant } from './risky.mjs';
 import {
@@ -149,18 +151,40 @@ export function main(options = {}) {
       return 1;
     }
     let release;
+    let keptAfterReset = 0;
+    /** @type {TrainState['since']} */
+    let keptSince = [];
     try {
       release = acquireLock(statePath, { timeoutMs: lockTimeoutMs });
-      writeTrain(statePath, { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: [] });
+      // A PR that is enqueued but not on main yet was not in the roundtrip: it stays on the train.
+      // Only a head that git says is an ancestor of the tip is dropped (any doubt keeps it).
+      /** @type {TrainState['since']} */
+      let before = [];
+      try {
+        before = readTrain(statePath).since;
+      } catch {
+        /* a malformed file does not block the reset: that is what the reset is for */
+      }
+      const kept = before.filter(
+        s => run('git', ['merge-base', '--is-ancestor', s.sha, tipSha]).status !== 0
+      );
+      keptAfterReset = kept.length;
+      keptSince = kept;
+      writeTrain(statePath, {
+        lastRoundtrip: { sha: tipSha, at: now().toISOString() },
+        since: kept,
+      });
     } catch (e) {
       log(`lane:merge: train not reset: ${message(e)}`);
       return 1;
     } finally {
       release?.();
     }
-    log(`lane:merge: merge train reset at ${short(tipSha)}; merge train 0/${TRAIN_SIZE}`);
+    log(
+      `lane:merge: merge train reset at ${short(tipSha)}; merge train ${keptAfterReset}/${TRAIN_SIZE}${keptAfterReset ? ' (still queued, not on main yet)' : ''}`
+    );
     const resetWarning = recordTrain(
-      { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: [] },
+      { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: keptSince },
       'reset'
     );
     if (resetWarning) log(`lane:merge: ${resetWarning}`);
@@ -287,6 +311,12 @@ export function main(options = {}) {
   const required = rules.status === 0 ? requiredContexts(rules.stdout) : null;
   // With a merge queue on main the gate enqueues the PR; the queue merges it after its own CI run.
   const queued = rules.status === 0 && hasMergeQueue(rules.stdout);
+  // The queue merges on the REQUIRED checks alone, so the aggregate check must be one of them.
+  if (queued && required !== null && !required.includes(AGGREGATE_CHECK)) {
+    failures.push(
+      `ci: main has a merge queue but the ruleset does not require ${AGGREGATE_CHECK}; the queue would merge on three of the checks only`
+    );
+  }
   if (required === null) {
     failures.push(
       rules.status === 0
@@ -561,12 +591,36 @@ export function main(options = {}) {
       );
       return finish();
     }
+    if (queued) {
+      // `gh pr merge` can also switch on auto-merge (it did not see the checks as passed): that is
+      // no queue entry. A readable "open, not queued" answer undoes it and refuses; unreadable only warns.
+      let state = null;
+      for (let i = 0; i < 3 && !state?.isInMergeQueue && state?.state !== 'MERGED'; i += 1) {
+        if (i > 0) pause(2000);
+        const q = run('gh', ['api', 'graphql', '-f', `query=${queueQuery(n)}`]);
+        try {
+          state = JSON.parse(q.stdout)?.data?.repository?.pullRequest ?? null;
+        } catch {
+          state = null;
+        }
+        if (!state) break;
+      }
+      if (state && state.state === 'OPEN' && !state.isInMergeQueue) {
+        run('gh', ['pr', 'merge', String(n), '--disable-auto']);
+        failures.push(
+          `merge: gh pr merge did not put #${n} into the merge queue (auto-merge was switched off again)`
+        );
+        return finish();
+      }
+      if (!state) warning = `; WARNING: queue entry of #${n} not confirmed`;
+    }
     if (trainRelevant) {
+      train.since = train.since.filter(s => s.pr !== n);
       train.since.push({ pr: n, sha: head, at: now().toISOString() });
       try {
         writeTrain(statePath, train);
       } catch (e) {
-        warning = `; WARNING: merge train not recorded (${message(e)})`;
+        warning += `; WARNING: merge train not recorded (${message(e)})`;
       }
     }
   } finally {

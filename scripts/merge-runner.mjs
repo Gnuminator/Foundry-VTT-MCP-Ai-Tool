@@ -11,6 +11,15 @@
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
  * can take half an hour); a line that changed meanwhile waits for the next round.
  *
+ * Merge queue (main's ruleset has `merge_queue` and requires ci-all-green): the gate ends with
+ * `lane:merge: enqueued #<PR>`; the runner replaces the ready line with "PR #<n> enqueued in the
+ * merge queue, head <sha>" and each round follows those PRs: merged -> `backlog.mjs done` and one
+ * #pr-log line; out of the queue unmerged in two rounds -> off the merge train, a progress line,
+ * one #pr-log line. A main CI run still going then does not hold the next PR (the queue merges on
+ * ci-all-green, which stands for every job); a completed red one still stops the runner. Each round
+ * also reruns once a CI run that is completed but holds a check in progress for over 20 minutes
+ * (the ghost check, findGhosts). The gate's merged line below is the no-queue behaviour.
+ *
  *   - main's newest CI run (push, ci.yml) is red: post one line, exit 3. Nothing is merged and the
  *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round.
  *     A gate end that is not the PR's fault (gh/git blip, UNKNOWN mergeability) is tried again, up
@@ -54,7 +63,8 @@ import { fileURLToPath } from 'node:url';
 import { parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
 import { pidAlive } from './heavy-lock.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
-import { hasMergeQueue } from './lane-merge/ci.mjs';
+import { hasMergeQueue, requiredContexts } from './lane-merge/ci.mjs';
+import { AGGREGATE_CHECK, queueQuery } from './lane-merge/constants.mjs';
 import { acquireLock, readTrain, writeTrain } from './lane-merge/train.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -122,10 +132,6 @@ export function enqueuedItems(backlogText) {
   }
   return out;
 }
-
-/** GraphQL for one PR's queue state (gh pr view has no merge queue field). @param {number} pr */
-export const queueQuery = pr =>
-  `query{repository(owner:"${REPO.split('/')[0]}",name:"${REPO.split('/')[1]}"){pullRequest(number:${pr}){state isInMergeQueue}}}`;
 
 /** A check that sat in progress this long with its workflow run already completed is a ghost. */
 export const GHOST_MINUTES = 20;
@@ -323,6 +329,17 @@ export function round(d, tried, attempts) {
     }
   };
 
+  /** Is the PR waiting in the merge queue right now? @param {number} n */
+  const queuedOnGitHub = n => {
+    const v = d.gh(['api', 'graphql', '-f', `query=${queueQuery(n)}`]);
+    try {
+      const st = JSON.parse(v.stdout)?.data?.repository?.pullRequest;
+      return v.status === 0 && st?.state === 'OPEN' && st?.isInMergeQueue === true;
+    } catch {
+      return false;
+    }
+  };
+
   // PRs the gate put into the merge queue: merged -> done; gone from the queue unmerged (a failed
   // queue run, removed by hand) -> off the train, a progress line, one Discord line. Seen missing
   // in two rounds in a row first, so the moment between `gh pr merge` and the queue entry is safe.
@@ -354,6 +371,11 @@ export function round(d, tried, attempts) {
       d.log(`#${q.pr} (${q.id}) is not in the merge queue (${st.state}); looking again next round`);
     } else {
       tried.add(key);
+      // The line may have been replaced meanwhile (a lane's new ready line): then nothing is written.
+      const nowLine = enqueuedItems(d.readBacklog() ?? '').some(
+        x => x.id === q.id && x.pr === q.pr && x.head === q.head
+      );
+      if (!nowLine) continue;
       const why = `PR #${q.pr} left the merge queue without merging (a failed queue run, or taken out by hand); fix it, then write a new ready line`;
       d.log(`#${q.pr} (${q.id}): ${why}`);
       d.trainRemove?.(q.pr);
@@ -471,7 +493,17 @@ export function round(d, tried, attempts) {
     }
     d.log(`#${r.pr} (${r.id}): running main's gate on ${r.head.slice(0, 7)}`);
     const g = d.gate(r.pr);
-    const out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
+    let out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
+    // A gate killed after it enqueued the PR (no enqueued line): it is in the queue, so follow it.
+    if (
+      !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind) &&
+      queuedOnGitHub(r.pr)
+    ) {
+      d.log(
+        `#${r.pr} (${r.id}) is in the merge queue although the gate said: ${oneLine(out.reason, 200)}`
+      );
+      out = { kind: 'enqueued', reason: '' };
+    }
     if (
       out.kind !== 'merged' &&
       out.kind !== 'enqueued' &&
@@ -789,7 +821,13 @@ function realDeps(o) {
     log: stamp,
     queueOn: () => {
       const r = sh('gh', ['api', `repos/${REPO}/rules/branches/main`]);
-      return r.status === 0 && hasMergeQueue(r.stdout);
+      // A queue merges on the required checks only: skipping the main-CI wait is safe only when the
+      // aggregate check, which stands for every CI job, is one of them.
+      return (
+        r.status === 0 &&
+        hasMergeQueue(r.stdout) &&
+        !!requiredContexts(r.stdout)?.includes(AGGREGATE_CHECK)
+      );
     },
     ghosts: () => {
       const list = sh('gh', [
@@ -802,7 +840,7 @@ function realDeps(o) {
         '-L',
         '15',
         '--json',
-        'databaseId,status,event,headSha,createdAt',
+        'databaseId,status,event,headSha,createdAt,attempt',
       ]);
       if (list.status !== 0) return [];
       try {
@@ -810,6 +848,8 @@ function realDeps(o) {
         const runs = JSON.parse(list.stdout).filter(
           (/** @type {any} */ r) =>
             r.status === 'completed' &&
+            // a rerun (attempt 2 or later) is never reran again: its first attempt's stuck check stays
+            Number(r.attempt ?? 1) === 1 &&
             ['pull_request', 'merge_group'].includes(r.event) &&
             nowMs - Date.parse(r.createdAt) < 6 * 3600_000
         );

@@ -18,9 +18,9 @@ const agentsDir = path.join(root, '.claude', 'agents');
 const files = [
   ...fs
     .readdirSync(agentsDir)
-    .filter((f) => /^review-.*\.md$/.test(f))
-    .map((f) => path.join(agentsDir, f)),
-  path.join(root, '.claude', 'skills', 'lane', 'review-checklist.md')
+    .filter(f => /^review-.*\.md$/.test(f))
+    .map(f => path.join(agentsDir, f)),
+  path.join(root, '.claude', 'skills', 'lane', 'review-checklist.md'),
 ];
 
 test('there are review agents to check', () => {

@@ -798,11 +798,31 @@ test('queue: a gate killed after it enqueued the PR is followed as enqueued, not
     gates: { 5: { status: 1, stdout: 'x\nmerge-runner: gate killed at the time limit' } },
     queue: { 5: () => queueAnswer('OPEN', true) },
   });
+  const trainAdds = [];
+  f.deps.trainAdd = (pr, head) => trainAdds.push([pr, head]);
   const r = round(f.deps, new Set());
   assert.equal(r.stop, null);
   assert.deepEqual(f.calls.backlog, [
     ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
   ]);
+  assert.deepEqual(trainAdds, [[5, SHA]], 'the gate died before its train write');
+});
+
+test('queue: a real gate refusal of a PR that is queued stays a refusal, with the hint, and no train add', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because review: no Opus note' } },
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  const trainAdds = [];
+  f.deps.trainAdd = (pr, head) => trainAdds.push([pr, head]);
+  round(f.deps, new Set());
+  assert.equal(f.calls.backlog.length, 1);
+  assert.match(f.calls.backlog[0][2], /refused by the merge gate: review: no Opus note/);
+  assert.match(f.calls.backlog[0][2], /already in the merge queue/);
+  assert.match(f.calls.post[0], /already in the merge queue/);
+  assert.deepEqual(trainAdds, []);
 });
 
 test('queue: a line replaced while the runner decides it left the queue is not overwritten', () => {

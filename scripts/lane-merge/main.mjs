@@ -157,7 +157,6 @@ export function main(options = {}) {
     try {
       release = acquireLock(statePath, { timeoutMs: lockTimeoutMs });
       // A PR that is enqueued but not on main yet was not in the roundtrip: it stays on the train.
-      // Only a head that git says is an ancestor of the tip is dropped (any doubt keeps it).
       /** @type {TrainState['since']} */
       let before = [];
       try {
@@ -165,9 +164,18 @@ export function main(options = {}) {
       } catch {
         /* a malformed file does not block the reset: that is what the reset is for */
       }
-      const kept = before.filter(
-        s => run('git', ['merge-base', '--is-ancestor', s.sha, tipSha]).status !== 0
-      );
+      // GitHub decides (a squash or rebase queue never puts the PR head into main's history): an
+      // entry stays only while its PR is open and in the queue. Unreadable keeps it.
+      const kept = before.filter(s => {
+        const q = run('gh', ['api', 'graphql', '-f', `query=${queueQuery(s.pr)}`]);
+        try {
+          const st = JSON.parse(q.stdout)?.data?.repository?.pullRequest;
+          if (q.status !== 0 || !st) return true;
+          return st.state === 'OPEN' && st.isInMergeQueue === true;
+        } catch {
+          return true;
+        }
+      });
       keptAfterReset = kept.length;
       keptSince = kept;
       writeTrain(statePath, {
@@ -595,8 +603,9 @@ export function main(options = {}) {
       // `gh pr merge` can also switch on auto-merge (it did not see the checks as passed): that is
       // no queue entry. A readable "open, not queued" answer undoes it and refuses; unreadable only warns.
       let state = null;
-      for (let i = 0; i < 3 && !state?.isInMergeQueue && state?.state !== 'MERGED'; i += 1) {
-        if (i > 0) pause(2000);
+      // GraphQL can lag a moment behind the enqueue: five reads, three seconds apart.
+      for (let i = 0; i < 5 && !state?.isInMergeQueue && state?.state !== 'MERGED'; i += 1) {
+        if (i > 0) pause(3000);
         const q = run('gh', ['api', 'graphql', '-f', `query=${queueQuery(n)}`]);
         try {
           state = JSON.parse(q.stdout)?.data?.repository?.pullRequest ?? null;

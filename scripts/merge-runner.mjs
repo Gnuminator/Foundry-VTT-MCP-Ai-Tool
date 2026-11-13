@@ -65,6 +65,7 @@ import { pidAlive } from './heavy-lock.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
 import { hasMergeQueue, requiredContexts } from './lane-merge/ci.mjs';
 import { AGGREGATE_CHECK, queueQuery } from './lane-merge/constants.mjs';
+import { isTrainRelevant } from './lane-merge/risky.mjs';
 import { acquireLock, readTrain, writeTrain } from './lane-merge/train.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -247,6 +248,7 @@ const norm = p => {
  *   queueOn?: () => boolean,
  *   ghosts?: () => { run: number, names: string[] }[],
  *   trainRemove?: (pr: number) => void,
+ *   trainAdd?: (pr: number, head: string) => void,
  * }} Deps
  * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
  * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
@@ -494,15 +496,26 @@ export function round(d, tried, attempts) {
     d.log(`#${r.pr} (${r.id}): running main's gate on ${r.head.slice(0, 7)}`);
     const g = d.gate(r.pr);
     let out = gateOutcome(g.status, `${g.stdout}\n${g.stderr}`, r.pr);
-    // A gate killed after it enqueued the PR (no enqueued line): it is in the queue, so follow it.
+    // A PR that is in the queue although the gate ended without saying so. Only a gate end with no
+    // verdict (killed, or "no reason line") is adopted: the PR is followed and counted on the train
+    // (the gate died before its train write). A real refusal stays a refusal, with a hint that the
+    // PR is queued and has to be taken out by hand (the queue would merge it).
     if (
       !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind) &&
       queuedOnGitHub(r.pr)
     ) {
-      d.log(
-        `#${r.pr} (${r.id}) is in the merge queue although the gate said: ${oneLine(out.reason, 200)}`
-      );
-      out = { kind: 'enqueued', reason: '' };
+      if (out.kind === 'killed' || /no reason line/.test(out.reason)) {
+        d.log(
+          `#${r.pr} (${r.id}) is in the merge queue although the gate said: ${oneLine(out.reason, 200)}`
+        );
+        d.trainAdd?.(r.pr, r.head);
+        out = { kind: 'enqueued', reason: '' };
+      } else {
+        out = {
+          kind: 'refused',
+          reason: `${out.reason} (the PR is already in the merge queue, put there by hand: take it out of the queue or it will merge)`,
+        };
+      }
     }
     if (
       out.kind !== 'merged' &&
@@ -871,6 +884,24 @@ function realDeps(o) {
         return findGhosts(runs, checksByRun, nowMs);
       } catch {
         return [];
+      }
+    },
+    trainAdd: (pr, head) => {
+      const file = path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json');
+      let release;
+      try {
+        const v = sh('gh', ['pr', 'view', String(pr), '-R', REPO, '--json', 'files']);
+        const paths = JSON.parse(v.stdout).files.map((/** @type {any} */ f) => String(f.path));
+        if (v.status !== 0 || !isTrainRelevant(paths)) return;
+        release = acquireLock(file, { timeoutMs: 20_000 });
+        const t = readTrain(file);
+        const since = t.since.filter(s => s.pr !== pr);
+        since.push({ pr, sha: head, at: new Date().toISOString() });
+        writeTrain(file, { ...t, since });
+      } catch (e) {
+        stamp(`WARNING: #${pr} not put on the merge train (${e instanceof Error ? e.message : e})`);
+      } finally {
+        release?.();
       }
     },
     trainRemove: pr => {

@@ -39,10 +39,10 @@ test('workspace packages are ignored', () => {
 test('the repository itself has one range per shared dependency', async () => {
   const { manifestPaths } = await import('./dep-ranges-check.mjs');
   const fs = await import('node:fs');
-  const manifests = manifestPaths().map((file) => ({
+  const manifests = manifestPaths().map(file => ({
     file,
     json: JSON.parse(fs.readFileSync(file, 'utf8')),
   }));
-  const bad = findDivergence(manifests).map((entry) => entry.name);
+  const bad = findDivergence(manifests).map(entry => entry.name);
   assert.deepEqual(bad, []);
 });

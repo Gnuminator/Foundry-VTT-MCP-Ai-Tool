@@ -34,7 +34,11 @@ test('ESLint ignores no tracked plain JS file outside the skip list', async () =
     if (Object.hasOwn(PLAIN_JS_SKIP, file)) continue;
     if (await eslint.isPathIgnored(path.join(root, file))) ignored.push(file);
   }
-  assert.deepEqual(ignored, [], `ESLint ignores plain JS files not in PLAIN_JS_SKIP: ${ignored.join(', ')}`);
+  assert.deepEqual(
+    ignored,
+    [],
+    `ESLint ignores plain JS files not in PLAIN_JS_SKIP: ${ignored.join(', ')}`
+  );
 });
 
 test('the skip list files really are ignored (the list is not stale)', async () => {

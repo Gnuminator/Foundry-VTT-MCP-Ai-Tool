@@ -834,7 +834,16 @@ test('git: a rebase conflict is aborted, so the shared vault is never left mid-r
 test('progress --ready writes the fixed ready line the merge runner reads back', () => {
   const sha = 'a'.repeat(40);
   const v = vaults();
-  const r = v.cli(['progress', 'first', '--ready', '12', '--head', sha, '--review', 'Handoff/x.md']);
+  const r = v.cli([
+    'progress',
+    'first',
+    '--ready',
+    '12',
+    '--head',
+    sha,
+    '--review',
+    'Handoff/x.md',
+  ]);
   assert.equal(r.code, 0, r.err);
   const line = parseProgress(v.remoteFile(BACKLOG)).get('first') ?? '';
   assert.equal(line, `${D} PR #12 ready, head ${sha}, review Handoff/x.md`);

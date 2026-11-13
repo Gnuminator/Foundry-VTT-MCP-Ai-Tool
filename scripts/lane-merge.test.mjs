@@ -1222,6 +1222,21 @@ test('merge queue: without ci-all-green among the required checks the gate refus
   assert.ok(!r.merged);
 });
 
+test('merge queue: a queue entry that shows up late is accepted (five reads, three seconds apart)', () => {
+  let reads = 0;
+  const r = gate({
+    rules: QUEUE_RULES,
+    get queueState() {
+      reads += 1;
+      return reads < 4
+        ? { state: 'OPEN', isInMergeQueue: false }
+        : { state: 'OPEN', isInMergeQueue: true };
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.deepEqual(r.sleeps, [3000, 3000, 3000]);
+});
+
 test('merge queue: auto-merge instead of a queue entry is switched off again and refused', () => {
   const r = gate({ rules: QUEUE_RULES, queueState: { state: 'OPEN', isInMergeQueue: false } });
   assert.equal(r.code, 1);
@@ -1244,6 +1259,24 @@ test('merge queue: an enqueued PR is on the train once, even when the gate runs 
   );
 });
 
+test('train reset drops merged, closed and open-but-unqueued PRs (a squash queue too), keeps an unreadable one', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(4)));
+  const code = main({
+    home,
+    run: trainRun({ states: { 300: 'MERGED', 301: 'CLOSED', 302: 'OPEN', 303: 'unreadable' } }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [303]
+  );
+});
+
 test('train reset keeps a PR that is queued but not on main yet', () => {
   const home = tmpDir();
   const state = path.join(home, 'merge-train.json');
@@ -1251,7 +1284,7 @@ test('train reset keeps a PR that is queued but not on main yet', () => {
   const lines = [];
   const code = main({
     home,
-    run: trainRun({ notOnMain: ['sha2aaaa'] }),
+    run: trainRun({ queued: [302] }),
     log: l => lines.push(l),
     now: () => new Date('2026-10-10T13:00:00Z'),
     argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
@@ -1833,12 +1866,21 @@ test('M2: a malformed train file refuses instead of reading as an empty train', 
 const TIP = 'ab12cd34'.repeat(5);
 
 /** A fake run for the train commands: fetch and rev-parse aitool/main. */
-function trainRun({ fetchFail = false, tip = TIP, notOnMain = [] } = {}) {
+function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {} } = {}) {
   return (cmd, args) => {
     const key = `${cmd} ${args.join(' ')}`;
-    // a train head is an ancestor of the tip (merged) unless the test says it is still queued
-    if (cmd === 'git' && args[0] === 'merge-base' && args[1] === '--is-ancestor') {
-      return { status: notOnMain.includes(args[2]) ? 1 : 0, stdout: '', stderr: '' };
+    // GitHub's answer per train PR: merged unless the test says it is queued or gives a state
+    if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+      const pr = Number(/number:(\d+)/.exec(args[3])[1]);
+      if (states[pr] === 'unreadable') return { status: 1, stdout: '', stderr: 'HTTP 502' };
+      const st = queued.includes(pr)
+        ? { state: 'OPEN', isInMergeQueue: true }
+        : { state: states[pr] ?? 'MERGED', isInMergeQueue: false };
+      return {
+        status: 0,
+        stdout: JSON.stringify({ data: { repository: { pullRequest: st } } }),
+        stderr: '',
+      };
     }
     if (key === 'git fetch aitool main') {
       return fetchFail

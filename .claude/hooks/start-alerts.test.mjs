@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   claudeMdAlert,
+  cloudflareAllowAlert,
   collectAlerts,
   foundryPart,
   formatOutput,
@@ -538,6 +539,101 @@ test('the hook as a process: silent when clean, JSON when an alert fires', () =>
     writeFileSync(path.join(f.testEnv, 'lock.json'), JSON.stringify({ holder: 'kit run' }));
     const out = JSON.parse(run());
     assert.match(out.systemMessage, /held by kit run/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+// --- the Cloudflare allow entry ------------------------------------------------------------------
+
+const EXECUTE = 'mcp__25eaf6dd-3fb3-49b4-b302-e9ce368379ed__execute';
+
+function writeLocal(f, value) {
+  mkdirSync(path.join(f.repo, '.claude'), { recursive: true });
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  writeFileSync(path.join(f.repo, '.claude', 'settings.local.json'), text);
+}
+
+test('cloudflare allow entry: present in permissions.allow gives one line', async () => {
+  const f = fixture();
+  try {
+    writeLocal(f, { permissions: { allow: ['Bash(git status)', EXECUTE] } });
+    const line = cloudflareAllowAlert({ repoRoot: f.repo });
+    assert.match(line, /allowed without a prompt/);
+    assert.ok(line.includes(EXECUTE));
+    assert.ok(!line.includes('git status'));
+    const lines = await collectAlerts(opts(f));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /__execute/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: absent, missing or unreadable file stays silent', async () => {
+  const f = fixture();
+  try {
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null); // no file
+    writeLocal(f, {
+      permissions: { allow: ['Bash(git status)', 'mcp__foundry-mcp__get-world-info'] },
+    });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, { permissions: { allow: [`${EXECUTE}-not`, 'Bash(echo __execute)'] } });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null); // does not END in __execute
+    writeLocal(f, { permissions: { deny: [EXECUTE] } }); // deny and ask lists are fine
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, { permissions: { allow: 'nope' } });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, '{ not json');
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, 'null');
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    assert.deepEqual(await collectAlerts(opts(f)), []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: never prints other entries, even an odd __execute one', () => {
+  const f = fixture();
+  try {
+    const odd = 'Bash(curl -H "Authorization: Bearer SECRET123" https://x/__execute';
+    writeLocal(f, { permissions: { allow: ['Bash(TOKEN=SECRET456 node x.js)', odd] } });
+    const line = cloudflareAllowAlert({ repoRoot: f.repo });
+    assert.match(line, /allowed without a prompt/);
+    assert.ok(!line.includes('SECRET'));
+    assert.ok(!line.includes('curl'));
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: a lane in a worktree reads the main checkout file', () => {
+  const f = fixture();
+  try {
+    writeLocal(f, { permissions: { allow: [EXECUTE] } });
+    const wt = path.join(f.repo, '.claude', 'worktrees', 'lane-a');
+    mkdirSync(wt, { recursive: true });
+    writeFileSync(
+      path.join(wt, '.git'),
+      `gitdir: ${f.repo.replaceAll('\\', '/')}/.git/worktrees/lane-a\n`
+    );
+    assert.match(cloudflareAllowAlert({ repoRoot: mainCheckout(wt) }), /__execute/);
+    const env = {
+      ...process.env,
+      START_ALERTS_REPO: wt,
+      START_ALERTS_VAULT: f.vault,
+      START_ALERTS_TEST_ROOT: f.testEnv,
+      START_ALERTS_SNAPSHOT_URL: 'off',
+      START_ALERTS_MAIN_CI: 'off',
+      START_ALERTS_SNAPSHOT_FILE: path.join(f.root, 'none.json'),
+      START_ALERTS_CC_DIR: path.join(f.root, 'none'),
+    };
+    const out = JSON.parse(
+      execFileSync(process.execPath, [HOOK], { env, encoding: 'utf8', input: '{}' })
+    );
+    assert.match(out.systemMessage, /allowed without a prompt/);
+    assert.ok(out.systemMessage.includes(EXECUTE));
   } finally {
     f.cleanup();
   }

@@ -2,6 +2,8 @@
 // SessionStart hook: alerts only (D-102 line 3). Silent when all is fine; otherwise at most ten
 // short lines, one per alert:
 //   - the main checkout's CLAUDE.md differs from the vault master (repo-docs/CLAUDE.md),
+//   - the main checkout's .claude/settings.local.json allows a connector `execute` tool without a
+//     prompt (an `__execute` entry in permissions.allow; the Cloudflare connector),
 //   - the due "Waiting on the user" items (vault Waiting.md, D-122),
 //   - somebody holds the test server lock (or it cannot be read, or a queue waits on a free lock),
 //   - a session-notes run was missed or paused on the usage limit (the watchdog),
@@ -138,6 +140,32 @@ export function claudeMdAlert({ repoRoot, vaultDir }) {
   if (normalizeDoc(repoText) === normalizeDoc(vaultText)) return null;
   const newer = (mtime(master) ?? 0) > (mtime(copy) ?? 0) ? 'the vault master' : 'the repo copy';
   return `CLAUDE.md differs from the vault master (newer: ${newer}); the planner syncs them (vault repo-docs/CLAUDE.md, pull first).`;
+}
+
+// --- the Cloudflare allow entry ---------------------------------------------------------------
+
+// The Cloudflare connector's `execute` tool can change the live Cloudflare setup. An entry for it
+// in `permissions.allow` lets writes run without a prompt; one came back through an "always allow"
+// click on 2026-11-13. Reads only the main checkout's .claude/settings.local.json (the user's file,
+// never written here) and prints at most the entry's tool name, and only when it has the plain
+// `mcp__<server>__execute` shape: other entries (Bash lines can hold secrets) are never printed.
+// Silent when the file is missing, unreadable, not JSON or has no such entry.
+const EXECUTE_ENTRY = /^mcp__[A-Za-z0-9_-]+__execute$/;
+
+export function cloudflareAllowAlert({ repoRoot }) {
+  const text = readText(path.join(repoRoot, '.claude', 'settings.local.json'));
+  if (text === null) return null;
+  let allow;
+  try {
+    allow = JSON.parse(text)?.permissions?.allow;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(allow)) return null;
+  const hit = allow.find(e => typeof e === 'string' && e.trim().endsWith('__execute'));
+  if (hit === undefined) return null;
+  const name = EXECUTE_ENTRY.test(hit.trim()) ? ` (${hit.trim()})` : '';
+  return `A connector execute tool is allowed without a prompt${name}: permissions.allow in the main checkout's .claude/settings.local.json ends in __execute, so Cloudflare writes would run unasked. Remove that entry (cloudflare-work skill).`;
 }
 
 // --- the Waiting list (vault Waiting.md) ----------------------------------------------------
@@ -397,6 +425,7 @@ export async function collectAlerts({
   // started first, awaited last: the gh calls run while the local checks and the snapshot fetch do
   const mainRed = mainCi ? mainRedAlert({ gh: mainCi }) : null;
   add(claudeMdAlert({ repoRoot, vaultDir }));
+  add(cloudflareAllowAlert({ repoRoot }));
   add(waitingAlert({ vaultDir, now }));
   add(lockAlert(readLockFile(testEnvRoot), now));
   // Test servers B (kit runs) and C (scripts/test-env/servers.json) have a lock of their own.

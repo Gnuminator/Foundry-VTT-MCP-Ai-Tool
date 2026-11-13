@@ -47,4 +47,13 @@ test('--except raises one entry and records the reason', () => {
   ]);
   assert.throws(() => addException({ 'a.ts': 1230 }, baseline, 'a.ts', ' '));
   assert.throws(() => addException({}, baseline, 'zz.ts', 'why'));
+  // at or under the limit: refused, the entry is not silently dropped
+  assert.throws(
+    () => addException({ 'a.ts': 1000 }, baseline, 'a.ts', 'why'),
+    /no exception needed/
+  );
+  assert.throws(
+    () => addException({ 'a.ts': 400 }, baseline, 'a.ts', 'why'),
+    /no exception needed/
+  );
 });

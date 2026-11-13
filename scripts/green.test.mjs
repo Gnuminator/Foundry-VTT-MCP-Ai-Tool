@@ -1046,6 +1046,7 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
     'typecheck-mcp-server',
     'unit-discord-bot',
     'unit-mcp-server',
+    'line-ratchet-quick',
   ]);
   // Markdown that is not there (deleted) gets only the link check.
   assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), ['docs-links-quick']);
@@ -1089,6 +1090,7 @@ test('quickSteps: a shared change typechecks every package and tests shared', ()
     'typecheck-all',
     'lint-changed',
     'unit-shared',
+    'line-ratchet-quick',
   ]);
 });
 
@@ -1146,6 +1148,7 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'typecheck-cogm-dashboard',
     'lint-changed',
     'unit-cogm-dashboard',
+    'line-ratchet-quick',
     'catalog-check',
     'docs-ui-quick',
     'build-dashboard',
@@ -1203,10 +1206,7 @@ test('main --quick: dashboard web changes end with the screenshot note, others d
     runStep: () => 0,
   };
   assert.equal(main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'] }), 0);
-  assert.equal(
-    lines.at(-1),
-    'Screenshots are not checked locally; CI dashboard-visual will run them.'
-  );
+  assert.equal(lines.at(-1), 'Screenshots are not checked locally; CI runs them.');
   lines.length = 0;
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
   assert.ok(!lines.some(l => l.includes('Screenshots')));
@@ -1215,10 +1215,7 @@ test('main --quick: dashboard web changes end with the screenshot note, others d
     main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'], runStep: () => 1 }),
     1
   );
-  assert.equal(
-    lines.at(-1),
-    'Screenshots are not checked locally; CI dashboard-visual will run them.'
-  );
+  assert.equal(lines.at(-1), 'Screenshots are not checked locally; CI runs them.');
 });
 
 test('quickSteps: no step name takes the heavy lock', () => {
@@ -1263,7 +1260,13 @@ test('main --quick --list: lists the quick steps, and no base is an error too', 
     log: l => lines.push(l),
   };
   assert.equal(main({ ...base, changed: ['shared/src/a.ts'] }), 0);
-  assert.deepEqual(lines, ['shared-link', 'build-shared', 'typecheck-all', 'unit-shared']);
+  assert.deepEqual(lines, [
+    'shared-link',
+    'build-shared',
+    'typecheck-all',
+    'unit-shared',
+    'line-ratchet-quick',
+  ]);
   lines.length = 0;
   assert.equal(main({ ...base, changed: null }), 2);
   assert.match(lines.at(-1), /found no base/);
@@ -1396,6 +1399,7 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
     'docs-lint-changed',
     'docs-links-quick',
     'unit-mcp-server',
+    'line-ratchet-quick',
   ]);
   for (const s of quickSteps(
     ['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md'],
@@ -1412,6 +1416,7 @@ test('quickSteps: a deleted package file still triggers that package', () => {
     'build-shared',
     'typecheck-mcp-server',
     'unit-mcp-server',
+    'line-ratchet-quick',
   ]);
 });
 
@@ -1443,9 +1448,15 @@ test('main --quick: runs the quick steps without the heavy lock, nothing to chec
     },
   };
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
-  assert.deepEqual(ran, ['shared-link', 'build-shared', 'typecheck-mcp-server', 'unit-mcp-server']);
+  assert.deepEqual(ran, [
+    'shared-link',
+    'build-shared',
+    'typecheck-mcp-server',
+    'unit-mcp-server',
+    'line-ratchet-quick',
+  ]);
   assert.equal(locked, 0, 'a quick run takes no heavy slot');
-  assert.match(lines.at(-1), /^green: OK, 4 steps/);
+  assert.match(lines.at(-1), /^green: OK, 5 steps/);
   lines.length = 0;
   assert.equal(main({ ...base, changed: ['package.json'] }), 0);
   assert.match(lines.at(-1), /OK \(quick\), nothing to check/);
@@ -1885,4 +1896,23 @@ test('scripts/tsconfig.json typechecks every gate script, and its file list only
   }
   const root = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
   assert.ok(root.scripts.typecheck.endsWith('tsc -p scripts/tsconfig.json'));
+});
+
+test('every file under scripts/lane-merge/ opts in to type checking with // @ts-check', () => {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'lane-merge');
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.mjs'));
+  assert.ok(files.length > 0);
+  for (const f of files) {
+    const head = fs.readFileSync(path.join(dir, f), 'utf8').split('\n').slice(0, 3).join('\n');
+    assert.match(head, /\/\/ @ts-check/, `scripts/lane-merge/${f} lost its // @ts-check line`);
+  }
+});
+
+test('quick run: the line ratchet runs when a counted source file changed, and not otherwise', () => {
+  const names = (/** @type {string[]} */ files) =>
+    quickSteps(files, '/nonexistent').map(s => s.name);
+  assert.ok(names(['packages/mcp-server/src/app.ts']).includes('line-ratchet-quick'));
+  assert.ok(names(['scripts/line-baseline.json']).includes('line-ratchet-quick'));
+  assert.ok(!names(['docs/dev/ARCHITECTURE.md']).includes('line-ratchet-quick'));
+  assert.ok(!names(['packages/mcp-server/src/app.test.ts']).includes('line-ratchet-quick'));
 });

@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { SHARED_STEPS } from './check-shared-link.mjs';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
+import { lineRatchetQuickSteps } from './line-ratchet.mjs';
 export { STEPS, HEAVY_STEPS, CI_ONLY };
 
 /**
@@ -822,8 +823,7 @@ export function touchesDashboardWeb(files) {
 }
 
 /** Printed at the end of a quick run that touched dashboard web files. */
-export const QUICK_SCREENSHOT_NOTE =
-  'Screenshots are not checked locally; CI dashboard-visual will run them.';
+export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI runs them.';
 
 /**
  * Changed file names longer than this, joined, lint the whole repo instead: the step runs through
@@ -958,9 +958,9 @@ export function quickSteps(files, cwd = process.cwd()) {
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0)
     steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  steps.push(...lineRatchetQuickSteps(files));
   const webTouched = touchesDashboardWeb(files);
-  // CI order: usage catalogue after typecheck, bundle budget after the build. The dashboard `typecheck`
-  // script already covers web/tsconfig.json (tsc --noEmit && tsc -p web --noEmit).
+  // CI order: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).
   if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {
     steps.push({ name: 'catalog-check', cmd: 'npm', args: ['run', 'usage:catalog:check'] });
   }

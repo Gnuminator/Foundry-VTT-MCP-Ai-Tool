@@ -18,6 +18,7 @@
  *   node scripts/checks.mjs --list         print every entry: name, group and where it runs
  *   node scripts/checks.mjs --run <group>  run a CI group; table of checks and seconds to the job summary
  *   node scripts/checks.mjs --matrix pi    the matrix of the Pi container job, as JSON
+ *   node scripts/checks.mjs --matrix e2e|visual   the shard list of a Playwright job, as JSON
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -111,7 +112,9 @@ export const CHECKS = [
     drift: { name: 'line baseline', order: 7.5 },
   }),
   npmRun('version-check', 'static', 'version:check', { drift: { name: 'version sync', order: 5 } }),
-  npmRun('dep-ranges', 'static', 'deps:check', { drift: { name: 'dependency ranges', order: 5.5 } }),
+  npmRun('dep-ranges', 'static', 'deps:check', {
+    drift: { name: 'dependency ranges', order: 5.5 },
+  }),
   npmRun('usage-catalog', 'static', 'usage:catalog:check', {
     drift: { name: 'usage catalog', order: 4 },
   }),
@@ -437,6 +440,29 @@ export const NAMED_GROUPS = {
 export const RUN_GROUPS = [...Object.keys(CI_GROUPS), ...Object.keys(NAMED_GROUPS)];
 
 /**
+ * Shard counts of the two Playwright jobs. The jobs `dashboard-e2e-changes` and `visual-changes` print
+ * the shard list (`node scripts/checks.mjs --matrix e2e|visual`) as the matrix of their shard job; the
+ * `/N` in the shard job's name and `--shard=i/N` stays literal there, and a test ties it to these.
+ */
+export const E2E_SHARDS = 3;
+export const VISUAL_SHARDS = 4;
+
+/** @param {number} n [1, 2, ... n] */
+export const shardList = n => Array.from({ length: n }, (_, i) => i + 1);
+
+/**
+ * Container scenario scripts (`scripts/pi/container-test/*-scenarios.sh`) that run outside the
+ * `pi-container` matrix, each with where it runs. A test fails for a scenario script that is in
+ * neither the matrix nor this list.
+ * @type {Record<string, string>}
+ */
+export const PI_SCENARIOS_ELSEWHERE = {
+  'stage23-scenarios.sh': 'pi-images.yml (docker-compose.test.mjs)',
+  'stage24-scenarios.sh': 'pi-images.yml (docker-compose.test.mjs)',
+  'cutover-guard-scenarios.sh': 'the ARM job, check pi-cutover-guard-container',
+};
+
+/**
  * The Pi container tests, one matrix entry each (scripts/pi/<test> with its switch `env` runs
  * scripts/pi/container-test/*-scenarios.sh in Debian 13 ARM64). The job `pi-changes` prints this as
  * the matrix of `pi-container` (`node scripts/checks.mjs --matrix pi`): a new scenario is one line here.
@@ -608,8 +634,10 @@ if (entry === 'mismatch') {
   } else if (process.argv.includes('--matrix')) {
     const name = process.argv[process.argv.indexOf('--matrix') + 1];
     if (name === 'pi') console.log(JSON.stringify({ include: PI_CONTAINER_MATRIX }));
+    else if (name === 'e2e') console.log(JSON.stringify({ shard: shardList(E2E_SHARDS) }));
+    else if (name === 'visual') console.log(JSON.stringify({ shard: shardList(VISUAL_SHARDS) }));
     else {
-      console.error('checks: --matrix needs a name: pi');
+      console.error('checks: --matrix needs a name: pi, e2e or visual');
       process.exitCode = 2;
     }
   } else if (process.argv.includes('--run')) {

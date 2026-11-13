@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import yaml from 'js-yaml';
 
-import { PI_CONTAINER_MATRIX } from '../checks.mjs';
+import { PI_CONTAINER_MATRIX, PI_SCENARIOS_ELSEWHERE } from '../checks.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
@@ -52,6 +52,29 @@ test('the matrix lists each container test once, with a test file that exists', 
       existsSync(path.join(repo, 'scripts/pi', e.test)),
       `scripts/pi/${e.test} does not exist`
     );
+  }
+});
+
+test('every container scenario script is in the matrix or in the named list that runs elsewhere', () => {
+  const dir = path.join(repo, 'scripts/pi/container-test');
+  const scenarios = readdirSync(dir).filter(f => /-scenarios\.sh$/.test(f));
+  assert.ok(scenarios.length > 0);
+  const inMatrix = new Set(
+    matrix.flatMap(e => scenarios.filter(s => read(`scripts/pi/${e.test}`).includes(s)))
+  );
+  for (const s of scenarios) {
+    const elsewhere = s in PI_SCENARIOS_ELSEWHERE;
+    assert.ok(
+      inMatrix.has(s) || elsewhere,
+      `${s} runs in no CI job: add its test to PI_CONTAINER_MATRIX or name it in PI_SCENARIOS_ELSEWHERE (scripts/checks.mjs) with where it runs`
+    );
+    assert.ok(
+      !(inMatrix.has(s) && elsewhere),
+      `${s} is in the matrix and in PI_SCENARIOS_ELSEWHERE: drop one`
+    );
+  }
+  for (const s of Object.keys(PI_SCENARIOS_ELSEWHERE)) {
+    assert.ok(scenarios.includes(s), `PI_SCENARIOS_ELSEWHERE names ${s}, which does not exist`);
   }
 });
 

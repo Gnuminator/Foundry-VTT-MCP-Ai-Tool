@@ -32,6 +32,16 @@ export function isCounted(/** @type {string} */ file) {
   return SOURCE_EXT.test(file) && !EXCLUDED.test(file);
 }
 
+/**
+ * The `green --quick` step: the ratchet runs when a counted source file or the baseline changed, so
+ * CI's `static` group is not the first to find a grown file.
+ * @param {string[]} files repo-relative changed paths
+ */
+export function lineRatchetQuickSteps(files) {
+  const hit = files.some(f => isCounted(f) || f === 'scripts/line-baseline.json');
+  return hit ? [{ name: 'line-ratchet-quick', cmd: 'npm', args: ['run', 'line:ratchet'] }] : [];
+}
+
 /** Lines of a text: split on `\n` after stripping `\r`; a trailing newline adds no line. */
 export function countLines(/** @type {string} */ text) {
   if (text === '') return 0;
@@ -95,8 +105,11 @@ export function addException(
   if (lines === undefined) throw new Error(`${file} is not a counted source file`);
   if (!reason.trim()) throw new Error('an exception needs a reason');
   const files = { ...(baseline.files ?? {}) };
-  if (lines > limit) files[file] = lines;
-  else delete files[file];
+  if (lines <= limit)
+    throw new Error(
+      `${file} is ${lines} lines, at or under the ${limit} limit: no exception needed`
+    );
+  files[file] = lines;
   const exceptions = [...(baseline.exceptions ?? []), { file, lines, reason: reason.trim(), pr }];
   return { limit, files: sortKeys(files), exceptions };
 }

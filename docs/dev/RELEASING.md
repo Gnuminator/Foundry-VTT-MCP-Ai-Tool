@@ -42,8 +42,17 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    Approve (also works on the phone in the GitHub app). The publish job is in the GitHub environment `release`,
    and only the user is its reviewer (Settings, Environments, `release`: required reviewer the user, "Prevent
    self-review" off; if the environment is ever deleted, recreate it before the next tag, or GitHub makes a
-   new one with no reviewer). Nothing is published until then, so a tag pushed by mistake can be
-   cancelled in the run.
+   new one with no reviewer). The environment also accepts only `v*` tags (deployment rule, type tag) and
+   "Allow administrators to bypass" is off, so the Approve click is always needed. Nothing is published
+   until then, so a tag pushed by mistake can be cancelled in the run.
+
+   **Seeing the approval without a real release (tried 2026-11-13, run 43474782305):** a manual
+   `workflow_dispatch` never reaches the publish job (it needs a tag), and a bare `v0.0.0-test` tag fails
+   the version check. Use a throwaway commit instead: `node scripts/sync-version.mjs --set 0.0.0-test`,
+   commit it on a local branch that is never pushed, `git tag -a v0.0.0-test -m "dry run"`, push only
+   the tag (needs the user's OK). The run builds, then shows "publish GitHub release: waiting". Cancel it
+   there (`gh run cancel <id>`, never approve), then delete the tag with
+   `git push aitool :refs/tags/v0.0.0-test` and `git tag -d v0.0.0-test`.
 
 6. **Verify the release** (the `curl` in DEPLOYMENT), then deploy to the Pi if wanted.
 7. **Tell the players in #changelog and the GM in #dashboard-changelog.** Write 2 to 5 short English lines per post

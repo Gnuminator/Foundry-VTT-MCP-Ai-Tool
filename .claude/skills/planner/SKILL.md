@@ -10,15 +10,13 @@ The planner runs on Opus, on demand, for one outcome, then ends (D-141, see Endi
 
 ## Read the state (measured)
 
-- `node scripts/backlog.mjs status`, `Waiting.md`, CLAUDE.md "Holds now". Its progress lines are the lanes' ready state
-  (lanes message nobody): read them every time, inherited lanes included. Message a lane only
-  when it has been idle under 55 minutes. A lane that stopped with a handover and no
-  running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if sessions cannot start), and the stopped lane is archived first (if the folder stays, `git checkout --detach` there once clean).
-- `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
-  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red: see Main is red).
-- `list_sessions` without `linked` (lanes start their own successors), then `get_usage` with each
-  running lane's id (lanes underreport) and `"self"` for yours and the plan
-  percentages.
+- `node scripts/backlog.mjs status --planner` (claims and progress lines, open PRs with CI and review verdict, the merge train,
+  main's CI, due Waiting), then `Waiting.md` and CLAUDE.md "Holds now". Lanes message nobody and the merge runner merges, so
+  read every progress line once, inherited lanes included. Message a lane only when it has been idle under 55 minutes. A lane
+  that stopped with a handover and no running successor gets one (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`;
+  a card if sessions cannot start); archive the stopped lane first (if the folder stays, `git checkout --detach` there once clean).
+- Main red: see Main is red. `list_sessions` without `linked` shows who runs; `get_usage` with each running lane's id (lanes
+  underreport) and `"self"` for the plan percentages.
 
 ## "What's next"
 

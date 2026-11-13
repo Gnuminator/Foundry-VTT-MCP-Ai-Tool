@@ -225,3 +225,31 @@ export function setField(body, name, newLines, after = []) {
   }
   return [...kept.slice(0, at), ...newLines, ...kept.slice(at)];
 }
+
+/**
+ * The newest `- progress:` line of an item: the latest date in front of it (an undated line is the
+ * oldest; on a tie the first written wins, since hand-written lines go newest first).
+ * @param {Item} item
+ */
+export function newestProgress(item) {
+  let best = '';
+  let bestDate = '';
+  for (const l of (item.fields.get('progress') ?? []).filter(Boolean)) {
+    const d = /^(\d{4}-\d{2}-\d{2})\b/.exec(l)?.[1] ?? '';
+    if (!best || d > bestDate) {
+      best = l;
+      bestDate = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * The one "is this item merged" test (claim, status and the Pi list flag use it): the newest
+ * progress line says `PR #<n> merged` or `merged at`. "main merged", "merges only after" and
+ * "(#866) merged" are not a merge of the item's own PR.
+ * @param {Item} item
+ */
+export function isMerged(item) {
+  return /\bPR #\d+ merged\b|\bmerged at\b/i.test(newestProgress(item));
+}

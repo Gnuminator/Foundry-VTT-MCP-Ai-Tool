@@ -32,7 +32,7 @@ const GREEN = JSON.stringify([{ conclusion: 'success', headSha: 'c'.repeat(40) }
 const RED = JSON.stringify([{ conclusion: 'failure', headSha: 'd'.repeat(40) }]);
 
 /** A Backlog with the given progress lines, one item each. @param {[string, string][]} items */
-const backlog = items =>
+const backlog = (items, extra = {}) =>
   [
     '---',
     'type: list',
@@ -45,6 +45,7 @@ const backlog = items =>
       '',
       `- id: ${id}`,
       `- progress: ${progress}`,
+      ...(extra[id] ?? []),
       '',
     ]),
   ].join('\n');
@@ -116,7 +117,7 @@ test('ready -> gate -> merged -> done; the gate is main copy with --wait-ci only
   assert.deepEqual(r, { stop: null, merged: [5] });
   assert.deepEqual(f.calls.gate, [5]);
   assert.deepEqual(f.calls.prepare, [{ id: 'one', pr: 5, head: SHA }]);
-  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']]);
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
   assert.deepEqual(f.calls.post, [], 'the gate posts the merge line itself');
 });
 
@@ -260,7 +261,7 @@ test('an already merged PR is marked done; a closed one is a refusal; neither ru
   });
   round(f.deps, new Set());
   assert.deepEqual(f.calls.gate, []);
-  assert.deepEqual(f.calls.backlog[0], ['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']);
+  assert.deepEqual(f.calls.backlog[0], ['done', 'one', '5', '--by', 'merge-runner']);
   assert.deepEqual(f.calls.backlog[1], [
     'progress',
     'two',
@@ -268,6 +269,31 @@ test('an already merged PR is marked done; a closed one is a refusal; neither ru
     '--if-ready',
     `6@${SHA2}`,
   ]);
+});
+
+test('an already merged item with pi: yes or a Waiting blocker is not closed without --pi-run', () => {
+  const f = fakes({
+    text: backlog(
+      [
+        ['one', `PR #5 ready, head ${SHA}`],
+        ['two', `PR #6 ready, head ${SHA2}`],
+      ],
+      { one: ['- pi: yes'], two: ['- blocked by: W12 (the user)'] }
+    ),
+    prs: { 5: { state: 'MERGED', headRefOid: SHA }, 6: { state: 'MERGED', headRefOid: SHA2 } },
+  });
+  round(f.deps, new Set());
+  assert.equal(
+    f.calls.backlog.some(a => a[0] === 'done'),
+    false
+  );
+  assert.deepEqual(
+    f.calls.backlog.map(a => [a[0], a[1], a[2].slice(0, 12), a[3], a[4]]),
+    [
+      ['progress', 'one', 'PR #5 merged', '--if-ready', `5@${SHA}`],
+      ['progress', 'two', 'PR #6 merged', '--if-ready', `6@${SHA2}`],
+    ]
+  );
 });
 
 test('a line rewritten while an earlier gate ran is read again: no gate and no refusal on the old head', () => {
@@ -287,7 +313,7 @@ test('a line rewritten while an earlier gate ran is read again: no gate and no r
   const r = round(f.deps, new Set());
   assert.deepEqual(r.merged, [5]);
   assert.deepEqual(f.calls.gate, [5], 'the new line waits for the next round');
-  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']]);
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
   assert.deepEqual(f.calls.post, []);
   // Next round: the new head is gated.
   round(f.deps, new Set(['5@' + SHA]));
@@ -304,7 +330,7 @@ test('a gate run that ends without its merged line but the PR is merged on GitHu
   });
   const r = round(f.deps, new Set());
   assert.deepEqual(r.merged, [5]);
-  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA, '--by', 'merge-runner']]);
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
   assert.deepEqual(f.calls.post, []);
 });
 

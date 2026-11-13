@@ -46,11 +46,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pidAlive, sleepSync } from './heavy-lock.mjs';
-import { plannerSections } from './planner-state.mjs';
+import { ghJson, plannerSections, REPO } from './planner-state.mjs';
 import {
   checkEdit,
   findItem,
+  isMerged,
   itemRefs,
+  newestProgress,
   newlineOf,
   parseBacklog,
   parseReady,
@@ -91,9 +93,10 @@ export function claimEdit(text, o) {
   const item = findItem(p, o.id);
   const claimed = field(item, 'claimed');
   if (claimed) throw new Error(`${o.id} is already claimed: ${claimed}`);
-  const progress = field(item, 'progress');
-  if (/\b(merged|fixed)\b/i.test(progress))
-    throw new Error(`${o.id} says it is merged or fixed (progress: ${progress}); ask the planner`);
+  if (isMerged(item) || /\bfixed\b/i.test(newestProgress(item)))
+    throw new Error(
+      `${o.id} says it is merged or fixed (progress: ${newestProgress(item)}); ask the planner`
+    );
   const open = new Set(p.items.map(i => i.id));
   const blockers = (item.fields.get('blocked by') ?? []).flatMap(itemRefs).filter(r => open.has(r));
   if (blockers.length)
@@ -342,7 +345,7 @@ export function statusText(text, o = {}) {
   }
   const free = p.items.filter(i => {
     if (!i.id || field(i, 'claimed')) return false;
-    if (/\b(merged|fixed)\b/i.test(field(i, 'progress'))) return false;
+    if (isMerged(i) || /\bfixed\b/i.test(newestProgress(i))) return false;
     return !(i.fields.get('blocked by') ?? []).flatMap(itemRefs).some(r => open.has(r));
   });
   const n = o.free ?? 6;
@@ -369,8 +372,8 @@ export function piListStatus(backlogText, piText, todayDate) {
   /** @type {string[]} */
   const stale = [];
   for (const i of parseBacklog(backlogText).items) {
-    const progress = field(i, 'progress');
-    if (!i.id || !/\bmerged\b/i.test(progress)) continue;
+    const progress = newestProgress(i);
+    if (!i.id || !isMerged(i)) continue;
     const d = /^(\d{4}-\d{2}-\d{2})/.exec(progress)?.[1];
     // An undated progress line counts as old.
     const age = d ? (Date.parse(todayDate) - Date.parse(d)) / 86400000 : Infinity;
@@ -719,6 +722,24 @@ export function run(argv, env = {}) {
         if (!pos[1]) throw new Usage('done <id> <PR>');
         const piRun = typeof flags['pi-run'] === 'string' ? oneLine(flags['pi-run']) : '';
         const paths = [BACKLOG, DONE, ...(piRun ? [PI_LIST] : [])];
+        // The merge commit comes from GitHub (a PR head is not on main after a squash merge);
+        // --sha overrides, and a PR gh cannot answer for gets a line without a sha.
+        const prNo = pos[1].replace(/^#/, '');
+        let sha = typeof flags.sha === 'string' ? flags.sha : undefined;
+        if (!sha && /^\d+$/.test(prNo)) {
+          const view = (env.gh ?? ghJson)([
+            'pr',
+            'view',
+            prNo,
+            '-R',
+            REPO,
+            '--json',
+            'state,mergeCommit',
+          ]);
+          const oid = view?.state === 'MERGED' ? view?.mergeCommit?.oid : undefined;
+          if (typeof oid === 'string' && /^[0-9a-f]{7,40}$/.test(oid)) sha = oid;
+          else notes.push(`note: no merge commit from gh for PR #${prNo}; the line has no sha`);
+        }
         job = {
           paths,
           message: `Backlog: done ${id} (PR #${pos[1].replace(/^#/, '')})`,
@@ -727,11 +748,11 @@ export function run(argv, env = {}) {
               id,
               pr: pos[1],
               date,
-              sha: typeof flags.sha === 'string' ? flags.sha : undefined,
+              sha,
               summary: typeof flags.summary === 'string' ? flags.summary : undefined,
               by: typeof flags.by === 'string' ? flags.by : undefined,
             });
-            notes = [r.line];
+            notes = [...notes, r.line];
             /** @type {Record<string, string>} */
             const files = { [BACKLOG]: r.text, [DONE]: r.done };
             if (piRun)

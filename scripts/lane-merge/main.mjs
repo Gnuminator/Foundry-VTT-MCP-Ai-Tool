@@ -11,6 +11,7 @@ import {
   TAIL_LINES,
   WAIT_TIMEOUT_MS,
   WAIT_POLL_MS,
+  QUEUE_RECHECK_MS,
   EXIT_HEAD_MOVED,
   ENV_FETCHED,
   PR_FIELDS,
@@ -151,9 +152,8 @@ export function main(options = {}) {
       return 1;
     }
     let release;
-    let keptAfterReset = 0;
     /** @type {TrainState['since']} */
-    let keptSince = [];
+    let keptSince;
     try {
       release = acquireLock(statePath, { timeoutMs: lockTimeoutMs });
       // A PR that is enqueued but not on main yet was not in the roundtrip: it stays on the train.
@@ -182,7 +182,6 @@ export function main(options = {}) {
           return true;
         }
       });
-      keptAfterReset = kept.length;
       keptSince = kept;
       writeTrain(statePath, {
         lastRoundtrip: { sha: tipSha, at: now().toISOString() },
@@ -195,7 +194,7 @@ export function main(options = {}) {
       release?.();
     }
     log(
-      `lane:merge: merge train reset at ${short(tipSha)}; merge train ${keptAfterReset}/${TRAIN_SIZE}${keptAfterReset ? ' (still queued, not on main yet)' : ''}`
+      `lane:merge: merge train reset at ${short(tipSha)}; merge train ${keptSince.length}/${TRAIN_SIZE}${keptSince.length ?' (still queued, not on main yet)' : ''}`
     );
     const resetWarning = recordTrain(
       { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: keptSince },
@@ -611,7 +610,7 @@ export function main(options = {}) {
       let state = null;
       // GraphQL can lag a moment behind the enqueue: five reads, three seconds apart.
       for (let i = 0; i < 5 && !state?.isInMergeQueue && state?.state !== 'MERGED'; i += 1) {
-        if (i > 0) pause(3000);
+        if (i > 0) pause(QUEUE_RECHECK_MS);
         const q = run('gh', ['api', 'graphql', '-f', `query=${queueQuery(n)}`]);
         try {
           state = JSON.parse(q.stdout)?.data?.repository?.pullRequest ?? null;

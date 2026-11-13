@@ -25,6 +25,9 @@ export const WAIT_TIMEOUT_MS = 30 * 60 * 1000;
 
 export const WAIT_POLL_MS = 30 * 1000;
 
+/** After `gh pr merge` enqueues: GraphQL can lag, so the queue state is read again after this. */
+export const QUEUE_RECHECK_MS = 3 * 1000;
+
 /** --wait-ci: GitHub answering with an error this many polls in a row ends the wait. */
 export const WAIT_MAX_ERRORS = 3;
 

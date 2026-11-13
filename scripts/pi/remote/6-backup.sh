@@ -284,24 +284,42 @@ fi
 
 # Left out on purpose: Foundry's logs, the Chromium profiles of the Assistant GM and the kit session (rebuilt by logging in)
 # and the recordings (this PC pulls them separately and the Pi deletes them after 7 days).
-restic backup --tag nightly \
-  --exclude /var/lib/foundry/Logs \
-  --exclude /var/lib/foundry-ai-tool/gm-browser \
-  --exclude /var/lib/foundry-ai-tool/kit-gm-browser \
-  --exclude /var/lib/foundry-ai-tool/recordings \
-  /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
+# The id of the snapshot this run made comes from restic's own summary line (--json), never from a listing: the repository
+# holds snapshots of other path sets too, and "restic snapshots --latest 1" is per host and path set and lists oldest first.
+# One status line per minute (RESTIC_PROGRESS_FPS), so the output stays small. Not printed; a failed backup exits here (set -e).
+backup_out="$(
+  RESTIC_PROGRESS_FPS=0.0166 restic backup --json --tag nightly \
+    --exclude /var/lib/foundry/Logs \
+    --exclude /var/lib/foundry-ai-tool/gm-browser \
+    --exclude /var/lib/foundry-ai-tool/kit-gm-browser \
+    --exclude /var/lib/foundry-ai-tool/recordings \
+    /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
+)"
+backup_id="$(printf '%s\n' "$backup_out" | grep '"message_type": *"summary"' | grep -o '"snapshot_id": *"[0-9a-f]*"' | grep -o '[0-9a-f]\{8,\}' | tail -n 1 || true)"
+if [ -n "$backup_id" ]; then
+  echo "restic made snapshot ${backup_id:0:8}"
+else
+  echo "WARNING: could not read the snapshot id from restic's summary" >&2
+fi
 
 # The container must have stayed down for the whole copy; if it came back, the snapshot may be torn: fail the night (the
-# next night copies again; the EXIT trap leaves Foundry running).
+# next night copies again; the EXIT trap leaves Foundry running). A daemon that does not answer here is not "it came back":
+# it is unknown, and the snapshot is kept (this run's id is not forgotten on a guess) with a note to look at it by hand.
 if [ "$stack" = containers ] && [ "$we_stopped_foundry" = 1 ]; then
-  if [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || echo unknown)" != false ] ||
-    [ "$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)" != "$stopped_started_at" ]; then
-    # The snapshot is already in the repository as the newest nightly (and what "restic restore latest" would pick): drop it.
-    torn_id="$(restic snapshots --latest 1 --tag nightly --json </dev/null 2>/dev/null | grep -o '"short_id": *"[0-9a-f]*"' | head -n 1 | grep -o '[0-9a-f]\{6,\}' || true)"
-    if [ -n "$torn_id" ] && restic forget "$torn_id" </dev/null >/dev/null 2>&1; then
-      torn_note="the torn snapshot $torn_id was removed from the repository"
+  running_now=unknown
+  started_now=unknown
+  running_now="$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null)" || running_now=unknown
+  started_now="$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null)" || started_now=unknown
+  if [ "$running_now" = unknown ] || [ "$started_now" = unknown ] || [ -z "$running_now" ] || [ -z "$started_now" ]; then
+    echo "ERROR: backup failed: the Docker daemon did not answer after the copy, so it is unknown whether the foundry container stayed down while the worlds were copied. The snapshot${backup_id:+ ${backup_id:0:8}} was kept: do not restore it until you have looked (systemctl status docker; restic forget it if in doubt). The next night copies again" >&2
+    exit 1
+  fi
+  if [ "$running_now" != false ] || [ "$started_now" != "$stopped_started_at" ]; then
+    # The snapshot is already in the repository (and may be what "restic restore latest" picks): drop this run's own.
+    if [ -n "$backup_id" ] && restic forget "$backup_id" </dev/null >/dev/null 2>&1; then
+      torn_note="the torn snapshot ${backup_id:0:8} was removed from the repository"
     else
-      torn_note="the torn snapshot could not be removed: do not restore the newest nightly (restic forget it)"
+      torn_note="the torn snapshot${backup_id:+ ${backup_id:0:8}} could not be removed: do not restore the newest nightly (restic forget it)"
     fi
     echo "ERROR: backup failed: the foundry container started again while the worlds were being copied (restart policy after a Docker restart?), so the snapshot may be torn; $torn_note. The next night copies again" >&2
     exit 1

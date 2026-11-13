@@ -8,8 +8,11 @@
 # (also when this runs from a worktree) with the portable Node 24, only while you are logged on (no
 # stored password), in a hidden console, and appends its output to
 # %USERPROFILE%\.foundry-ai-tool\merge-runner.log. It has no time limit: the runner watches the
-# Backlog all day and exits only at the merge train limit, on a red main or on a gate checkout
-# problem (each posts one #pr-log line). Start it again by hand with
+# Backlog all day and exits only at the merge train limit, on a red main, on a gate checkout
+# problem, or when its own code changed on main and the checkout cannot be updated (each posts one
+# #pr-log line). When its code changes and the checkout can be updated it restarts itself (the
+# task has no restart count, so the first process stays as the parent of each new child). Start it
+# again by hand with
 #   Start-ScheduledTask -TaskName 'Foundry AI Tool merge runner'
 # A second copy exits at once (the runner's lock file), and the task ignores a second start.
 [CmdletBinding(SupportsShouldProcess)]

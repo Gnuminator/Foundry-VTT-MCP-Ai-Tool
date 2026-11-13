@@ -212,7 +212,7 @@ export function ghJson(args) {
  */
 export function ledgerLines(lowsDir, today) {
   /** @type {string[]} */
-  let files = [];
+  let files;
   try {
     files = fs.readdirSync(lowsDir).filter(f => f.endsWith('.md'));
   } catch {

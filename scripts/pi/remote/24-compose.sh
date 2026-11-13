@@ -347,7 +347,7 @@ stop_project() { # $1 project; returns 1 when containers remain (or when that ca
 }
 
 rollback_now() {
-  local u fail="" list
+  local u fail="" list shim
   have_systemd || die "no systemd here: nothing to roll back to"
   if ! daemon_known; then
     # The containers come back with the daemon (restart: always for Foundry, unless-stopped for the rest), next to the units we are about to start.
@@ -359,7 +359,13 @@ rollback_now() {
     systemctl disable --now docker.service docker.socket >/dev/null 2>&1 || warn "systemctl disable --now docker.service docker.socket failed"
     # live-restore (stage 23) keeps containers running under containerd when dockerd stops: a shim left means a container
     # may still run on the data folders, so the units must not start next to it (same test as docker_cannot_return in lib.sh).
-    if pgrep -f containerd-shim >/dev/null 2>&1; then
+    shim=0
+    shim_state || shim=$?
+    if [ "$shim" = 2 ]; then
+      out "ERROR: pgrep is missing or failed, so it is unknown whether a container process (containerd-shim) still runs: the units were NOT started (two copies could clash). Install procps (apt install procps), or reboot (docker is disabled, so no container returns), then run MODE=rollback again" 1
+      return 1
+    fi
+    if [ "$shim" = 0 ]; then
       out "ERROR: a container process (containerd-shim) still runs after docker was disabled, so the units were NOT started (two copies would clash). Stop it with: ctr -n moby tasks ls (then kill the tasks), or reboot (docker is disabled, so no container returns). Then run MODE=rollback again" 1
       return 1
     fi
@@ -506,6 +512,10 @@ mode_cutover() {
     out "ERROR: the units are off but the stack is not healthy. MODE=rollback goes back to the units" 1
     return 1
   fi
+  # The cutover launches the live world: not while a dnd5e system trial or a kit session is open (afterwards stage 14 and
+  # kit-session MODE=down would be refused, and the trial's world would be launched on the compose stack).
+  refuse_during_system_trial "stage 24 MODE=cutover"
+  [ ! -e "$TOOL_DATA/kit-session.env" ] || die "a kit session is up ($TOOL_DATA/kit-session.env exists, the Kit GM browser holds strahd-kit): run kit-session.sh MODE=down first. Nothing was changed"
   need_daemon "cutting over"
   # The nightly backup script is a file stage 6 wrote on the Pi, not this checkout: an old one only knows foundry.service and
   # would copy the worlds under the running container (or start the unit next to it). Refuse until stage 6 ran again.

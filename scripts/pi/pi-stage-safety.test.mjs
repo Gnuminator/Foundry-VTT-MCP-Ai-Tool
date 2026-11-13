@@ -266,6 +266,18 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(forced.out, /FORCE=1: going on/);
   });
 
+  test('a silent Docker daemon while Foundry answers on port 30000: the players are counted anyway (PR 967 L4)', () => {
+    const silent = 'daemon_known() { return 1; }\ncontainers_of() { return 1; }\n';
+    const refused = run(silent + 'require_quiet "the test"; echo PASSED', { active: '', users: 2 });
+    assert.notEqual(refused.status, 0, refused.out);
+    assert.match(refused.out, /2 player\(s\) are online/);
+    const empty = run(silent + 'require_quiet "the test"; echo PASSED', { active: '', users: 0 });
+    assert.equal(empty.status, 0, empty.out);
+    // nothing answers on port 30000 and the daemon is silent: nobody to drop
+    const none = run(silent + 'require_quiet "the test"; echo PASSED', { active: '', readable: false });
+    assert.equal(none.status, 0, none.out);
+  });
+
   test('a Foundry that is not running has no players to drop', () => {
     const r = run('require_quiet "the test"; echo PASSED', { active: '', readable: false });
     assert.equal(r.status, 0, r.out);
@@ -924,7 +936,16 @@ esac`
 for f in today yesterday; do if [ -f "$DAYS/$f.next" ]; then mv "$DAYS/$f.next" "$DAYS/$f"; fi; done
 tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`
     );
-    tool('restic', 'echo "restic $*" >>"$LOG"');
+    // RESTIC_RESTARTS=1: Docker restarted during the copy and restart: always brought Foundry back (it runs); 2: it came back and
+    // stopped again (a new StartedAt, not running).
+    tool(
+      'restic',
+      `echo "restic $*" >>"$LOG"
+if [ "$1" = backup ] && [ -n "\${RESTIC_RESTARTS:-}" ]; then touch "$LOG.restarted"; [ "$RESTIC_RESTARTS" = 1 ] && rm -f "$LOG.cstopped"; fi
+exit 0`
+    );
+    // pgrep: PGREP_RC 1 (default) = no containerd-shim, 0 = one runs (live-restore), 127 = pgrep cannot run.
+    tool('pgrep', 'exit "${PGREP_RC:-1}"');
     // The docker stand-in (always there, so the PC's own docker never decides): DOCKER=none|live|down. In "live" the
     // stack is cut over: containers foundry and gm-browser of project foundry-ai-tool-pi; "docker stop" stops the
     // foundry one (STOP_FAILS=1: it keeps running) and "docker start" brings it back (RESTART_FAILS=1: it does not).
@@ -943,10 +964,10 @@ case "$1" in
       "") echo cid-foundry; echo cid-gm ;;
     esac ;;
   stop) [ "\${STOP_EXIT:-0}" != 1 ] || exit 1; [ "\${STOP_FAILS:-0}" = 1 ] || touch "$LOG.cstopped" ;;
-  start) touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.cstopped" ;;
+  start) [ "\${START_EXIT:-0}" != 1 ] || exit 1; touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.cstopped" ;;
   inspect)
     case "$*" in
-      *StartedAt*) echo 2026-11-11T04:00:00Z ;;
+      *StartedAt*) if [ -f "$LOG.restarted" ]; then echo 2026-11-11T04:30:00Z; else echo 2026-11-11T04:00:00Z; fi ;;
       *) if [ -f "$LOG.cstopped" ]; then echo false; else echo true; fi ;;
     esac ;;
   logs) [ "\${GM_JOINED:-0}" != 1 ] || echo "[assistant-gm] joined world curse-of-strahd" ;;
@@ -1150,6 +1171,49 @@ exit 0`
       assert.equal(r.status, 1, r.out);
       assert.doesNotMatch(r.calls, /restic/);
       assert.match(r.calls, /docker start/);
+    });
+
+    test('a docker start that exits non-zero: a warning, and the night fails because Foundry is not up', () => {
+      const r = cut({
+        users: [0],
+        env: { START_EXIT: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+      });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /WARNING: could not start the foundry container/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('Docker restarted during the copy and restart: always brought Foundry back: the torn snapshot fails the night (PR 967 round 2 L2)', () => {
+      const r = cut({ users: [0], env: { RESTIC_RESTARTS: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /started again while the worlds were being copied/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('the container came back and stopped again during the copy (new StartedAt): also a failed night', () => {
+      const r = cut({ users: [0], env: { RESTIC_RESTARTS: '2' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /started again while the worlds were being copied/);
+    });
+
+    test('docker_off: daemon silent, docker disabled, no foundry.service: the backup goes on (nothing can be writing)', () => {
+      const r = nightly({ docker: 'down', active: '', users: [0] });
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.calls, /restic backup/);
+      assert.doesNotMatch(r.calls, /docker stop/);
+    });
+
+    test('docker_off with a containerd-shim left (live-restore): an unknown state, nothing is copied', () => {
+      const r = nightly({ docker: 'down', active: '', users: [0], env: { PGREP_RC: '0' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /Docker daemon does not answer/);
+      assert.doesNotMatch(r.calls, /restic/);
+    });
+
+    test('docker_off with a pgrep that cannot run (exit 127) is not "no container": nothing is copied', () => {
+      const r = nightly({ docker: 'down', active: '', users: [0], env: { PGREP_RC: '127' } });
+      assert.equal(r.status, 1, r.out);
+      assert.doesNotMatch(r.calls, /restic/);
     });
 
     test('docker info answers but docker ps fails: an unknown state, nothing is stopped or copied', () => {

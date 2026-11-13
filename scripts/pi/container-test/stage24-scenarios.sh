@@ -147,7 +147,10 @@ EOF
 #!/usr/bin/env bash
 if [ "$*" = "-u" ]; then echo 0; else /usr/bin/id "$@"; fi
 EOF
-  chmod +x "$BIN/systemctl" "$BIN/ss" "$BIN/docker" "$BIN/id"
+  # pgrep: no container process by default (exit 1 = no match). The image may not have procps at all, and a missing pgrep is
+  # "cannot tell", so the stage always gets this stand-in.
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$BIN/pgrep"
+  chmod +x "$BIN/systemctl" "$BIN/ss" "$BIN/docker" "$BIN/id" "$BIN/pgrep"
 }
 
 run_stage() { # env assignments as arguments
@@ -156,7 +159,7 @@ run_stage() { # env assignments as arguments
     cat "$LIB"
     printf '%s\n' "have_systemd() { return 0; }" "sleep() { :; }" \
       "TOOL_DIR=$SB/tool" "TOOL_ETC=$SB/etc" "TOOL_DATA=$SB/data" "NODE_DIR=$SB/node24" \
-      "FOUNDRY_APP=$SB/foundry-app" "FOUNDRY_DATA=$SB/foundry-data" \
+      "FOUNDRY_APP=$SB/foundry-app" "FOUNDRY_DATA=$SB/foundry-data" "SYSTEM_TRIAL_DIR=$SB/system-trial" \
       'users_online() { cat "'"$FAKE"'/online"; }' \
       'control_port_check() { return "$(cat "'"$FAKE"'/ctl_rc")"; }'
     cat "$STAGE"
@@ -422,10 +425,16 @@ if [ "$RC" -eq 0 ] && all_on $all_units && order_ok 'disable --now docker.servic
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 touch "$FAKE/daemon-down"
-printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/pgrep"; chmod +x "$BIN/pgrep"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/pgrep"
 run_stage MODE=rollback FORCE=1
-rm -f "$BIN/pgrep"
 if [ "$RC" -eq 1 ] && all_off $all_units && echo "$OUT" | grep -q 'containerd-shim' && ! echo "$CALLS" | grep -qE 'enable --now foundry'; then pass "FORCE=1 rollback with a container process left (live-restore) starts no unit"; else fail "rollback force shim (rc $RC): $OUT / $CALLS"; fi
+# a pgrep that cannot run (exit 127, or any status above 1) is "cannot tell", not "no container": nothing starts
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+touch "$FAKE/daemon-down"
+printf '#!/usr/bin/env bash\nexit 127\n' >"$BIN/pgrep"
+run_stage MODE=rollback FORCE=1
+if [ "$RC" -eq 1 ] && all_off $all_units && echo "$OUT" | grep -q 'pgrep is missing or failed' && ! echo "$CALLS" | grep -qE 'enable --now foundry'; then pass "FORCE=1 rollback with a pgrep that exits 127 starts no unit (fail closed)"; else fail "rollback force pgrep 127 (rc $RC): $OUT / $CALLS"; fi
 
 # 14. no deploy/pi/.env (a stage 5 replaced the checkout) but the containers run: found by label, rollback removes them
 new_pi
@@ -517,5 +526,17 @@ run_stage MODE=cutover
 if [ -f "$SB/tool/compose-cutover.state" ] && [ ! -e "$SB/tool/compose-cutover.state.new" ]; then pass "the cutover record is complete (written through a temp file)"; else fail "record: $(ls "$SB/tool")"; fi
 run_stage MODE=rollback
 if [ "$RC" -eq 0 ] && [ ! -e "$SB/tool/compose-cutover.state" ]; then pass "the cutover record is cleared after a successful rollback"; else fail "record kept (rc $RC): $OUT"; fi
+
+# 22. the cutover is refused while a dnd5e system trial or a kit session is open (PR 967 review L2)
+new_pi
+mkdir -p "$SB/system-trial"
+echo "phase=trial" >"$SB/system-trial/state"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'system trial is open' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable --now|compose.* up'; then pass "cutover is refused while a system trial is open, nothing changed"; else fail "cutover trial (rc $RC): $OUT"; fi
+echo "phase=switched" >"$SB/system-trial/state"
+touch "$SB/data/kit-session.env"
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'kit session is up' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable --now|compose.* up'; then pass "cutover is refused while a kit session is up, nothing changed"; else fail "cutover kit (rc $RC): $OUT"; fi
+rm -f "$SB/data/kit-session.env"
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi

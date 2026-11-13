@@ -120,7 +120,11 @@ docker_off() { # 0 when systemd runs, docker.service and docker.socket are neith
   local u
   [ -d "$systemd_dir" ] || return 1
   # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped
-  ! pgrep -f containerd-shim >/dev/null 2>&1 || return 1
+  # A missing pgrep (exit 127) is "cannot tell", never "no container": only exit 1 (no match) passes. Same rule as shim_state in lib.sh.
+  local shim_rc=0
+  command -v pgrep >/dev/null 2>&1 || return 1
+  pgrep -f containerd-shim >/dev/null 2>&1 || shim_rc=$?
+  [ "$shim_rc" = 1 ] || return 1
   for u in docker.service docker.socket; do
     if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
     [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
@@ -233,6 +237,7 @@ fi
 # stopped for the backup. The trap starts it again whatever happens, including a failed backup.
 foundry_stopped=0
 we_stopped_foundry=0
+stopped_started_at=""
 start_foundry() {
   if [ "$foundry_stopped" = 1 ]; then
     foundry_stopped=0
@@ -262,6 +267,9 @@ if foundry_running; then
       echo "ERROR: backup failed: the foundry container is still running after docker stop, so the worlds were not copied" >&2
       exit 1
     fi
+    # Its start time while stopped: restart: always (compose.yml) brings the container back when dockerd restarts (a
+    # package upgrade, say), and that must not go unnoticed while restic copies.
+    stopped_started_at="$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)"
   else
     echo "stopping foundry.service for the backup"
     systemctl stop foundry.service </dev/null
@@ -282,6 +290,16 @@ restic backup --tag nightly \
   --exclude /var/lib/foundry-ai-tool/kit-gm-browser \
   --exclude /var/lib/foundry-ai-tool/recordings \
   /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
+
+# The container must have stayed down for the whole copy; if it came back, the snapshot may be torn: fail the night (the
+# next night copies again; the EXIT trap leaves Foundry running).
+if [ "$stack" = containers ] && [ "$we_stopped_foundry" = 1 ]; then
+  if [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || echo unknown)" != false ] ||
+    [ "$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)" != "$stopped_started_at" ]; then
+    echo "ERROR: backup failed: the foundry container started again while the worlds were being copied (restart policy after a Docker restart?), so the snapshot may be torn. The next night copies again" >&2
+    exit 1
+  fi
+fi
 
 start_foundry
 rm -f "$skip_marker"

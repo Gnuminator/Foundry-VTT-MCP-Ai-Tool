@@ -66,6 +66,22 @@ test('every uses: in .github/workflows is pinned to a full commit', () => {
   assert.deepEqual(bad, [], `unpinned or uncommented actions:\n${bad.join('\n')}`);
 });
 
+// Composite actions whose own steps call other actions by tag: the repository setting refuses
+// those at job setup, even though our `uses:` line is pinned. A PR cannot see this (the setting is
+// enforced by GitHub, not by a pin check), so the known offenders are banned by name; write their
+// steps inline with pinned actions instead. Add a name here when a pinned action turns out to be one.
+const COMPOSITE_WITH_UNPINNED_INTERNALS = ['actions/upload-pages-artifact'];
+
+test('no workflow uses a composite action with tag-pinned internals', () => {
+  const bad = [];
+  for (const f of fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n))) {
+    for (const u of usesOf(yaml.load(fs.readFileSync(path.join(dir, f), 'utf8')))) {
+      if (COMPOSITE_WITH_UNPINNED_INTERNALS.some((n) => u.startsWith(n + '@'))) bad.push(`${f}: ${u}`);
+    }
+  }
+  assert.deepEqual(bad, [], `inline these steps instead:\n${bad.join('\n')}`);
+});
+
 test('release.yml: the publish job runs in the environment "release"', () => {
   const doc = /** @type {any} */ (
     yaml.load(fs.readFileSync(path.join(dir, 'release.yml'), 'utf8'))

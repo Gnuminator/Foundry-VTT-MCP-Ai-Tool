@@ -110,11 +110,28 @@ jobs:
           path: build/wiki/site
           retention-days: 30
 
+      # The steps of actions/upload-pages-artifact v3.0.1 written out here: that composite action
+      # calls actions/upload-artifact by tag inside, which the repository's "pin every action to a
+      # commit" setting refuses at job setup. Same tar, same artifact name `github-pages`.
+      - name: Archive the site for Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WIKI_PAGES == 'true'
+        run: |
+          tar \
+            --dereference --hard-dereference \
+            --directory build/wiki/site \
+            -cvf "$RUNNER_TEMP/artifact.tar" \
+            --exclude=.git \
+            --exclude=.github \
+            .
+
       - name: Hand the site to Pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WIKI_PAGES == 'true'
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          path: build/wiki/site
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     needs: build

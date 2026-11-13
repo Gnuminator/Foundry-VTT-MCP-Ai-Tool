@@ -862,6 +862,8 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
   // The script dates its marker with `date +%F` and `date -d yesterday +%F`; the test's fake date answers with a fixed
   // calendar day (the 15th, "n days ago" counts back from it), so no test depends on the real clock.
   const dayAgo = n => `2026-03-${String(15 - n).padStart(2, '0')}`;
+  // The full id restic's --json summary reports for the snapshot a run makes (64 hex digits).
+  const NEW_ID = 'abc12345' + 'f'.repeat(56);
 
   // users: the number curl reports per look (the list is consumed by each sleep; the last one stays).
   // marker: the text of an existing skip marker ('' is one from an earlier version of the script), or null for none.
@@ -938,11 +940,19 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     );
     // RESTIC_RESTARTS=1: Docker restarted during the copy and restart: always brought Foundry back (it runs); 2: it came back and
     // stopped again (a new StartedAt, not running).
+    // RESTIC_DAEMON_DIES=1: the Docker daemon stops answering during the copy (docker info and inspect fail afterwards).
+    // The repository holds two snapshots of two path sets, oldest first (as restic lists them): an older one of another
+    // path set, and the one this run makes, which only the --json summary of "restic backup" names (NEW_SNAPSHOT_ID).
     tool(
       'restic',
       `echo "restic $*" >>"$LOG"
-if [ "$1" = backup ] && [ -n "\${RESTIC_RESTARTS:-}" ]; then touch "$LOG.restarted"; [ "$RESTIC_RESTARTS" = 1 ] && rm -f "$LOG.cstopped"; fi
-if [ "$1" = snapshots ]; then echo '[{"short_id":"abc12345","tags":["nightly"]}]'; fi
+if [ "$1" = backup ]; then
+  [ -z "\${RESTIC_RESTARTS:-}" ] || { touch "$LOG.restarted"; [ "$RESTIC_RESTARTS" = 1 ] && rm -f "$LOG.cstopped"; }
+  [ "\${RESTIC_DAEMON_DIES:-0}" != 1 ] || touch "$LOG.daemondead"
+  case "$*" in *--json*) echo '{"message_type":"status","percent_done":0.5}'
+    [ "\${NO_SUMMARY:-0}" = 1 ] || echo '{"message_type":"summary","files_new":3,"snapshot_id":"'"$NEW_SNAPSHOT_ID"'"}' ;; esac
+fi
+if [ "$1" = snapshots ]; then echo '[{"short_id":"old11111","paths":["/srv/other"],"tags":["nightly"]},{"short_id":"abc12345","paths":["/var/lib/foundry"],"tags":["nightly"]}]'; fi
 exit 0`
     );
     // pgrep: PGREP_RC 1 (default) = no containerd-shim, 0 = one runs (live-restore), 127 = pgrep cannot run.
@@ -954,7 +964,7 @@ exit 0`
       'docker',
       `echo "docker $*" >>"$LOG"
 case "$1" in
-  info) [ "$DOCKER" != down ] || exit 1; exit 0 ;;
+  info) [ "$DOCKER" != down ] || exit 1; [ ! -f "$LOG.daemondead" ] || exit 1; exit 0 ;;
   ps)
     svc=""; for a in "$@"; do case "$a" in label=com.docker.compose.service=*) svc="\${a#label=com.docker.compose.service=}" ;; esac; done
     [ "$DOCKER" != pserr ] || exit 1
@@ -967,6 +977,7 @@ case "$1" in
   stop) [ "\${STOP_EXIT:-0}" != 1 ] || exit 1; [ "\${STOP_FAILS:-0}" = 1 ] || touch "$LOG.cstopped" ;;
   start) [ "\${START_EXIT:-0}" != 1 ] || exit 1; touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.cstopped" ;;
   inspect)
+    [ ! -f "$LOG.daemondead" ] || exit 1
     case "$*" in
       *StartedAt*) if [ -f "$LOG.restarted" ]; then echo 2026-11-11T04:30:00Z; else echo 2026-11-11T04:00:00Z; fi ;;
       *) if [ -f "$LOG.cstopped" ]; then echo false; else echo true; fi ;;
@@ -995,6 +1006,7 @@ exit 0`
         ACTIVE: active,
         DOCKER: docker,
         GM_JOINED: gmJoined ? '1' : '0',
+        NEW_SNAPSHOT_ID: NEW_ID,
         CURL_FAILS: curlFails ? '1' : '0',
         FOUNDRY_BACKUP_SYSTEMD_DIR: posix(d),
         FOUNDRY_BACKUP_SKIP_MARKER: posix(join(d, 'marker', 'skipped-last-night')),
@@ -1019,6 +1031,21 @@ exit 0`
       body && body.includes('restic backup'),
       'could not cut the nightly script out of 6-backup.sh'
     );
+  });
+
+  // The nightly script is a stand-alone file, so it keeps its own copy of lib.sh's shim_state. Its two lines that decide
+  // "no container" (pgrep missing is "cannot tell", pgrep exit 1 is the only "none") must read the same in both.
+  test('the shim check of the nightly script and of lib.sh read the same (the two copies are tied)', () => {
+    const lib = read('scripts/pi/remote/lib.sh');
+    const shimFn = lib.match(/shim_state\(\) \{\n([\s\S]*?)\n\}/)?.[1];
+    assert.ok(shimFn, 'could not cut shim_state out of lib.sh');
+    for (const line of [
+      'command -v pgrep >/dev/null 2>&1',
+      'pgrep -f containerd-shim >/dev/null 2>&1',
+    ]) {
+      assert.ok(shimFn.includes(line), `lib.sh shim_state lost: ${line}`);
+      assert.ok(body.includes(line), `the nightly script lost: ${line}`);
+    }
   });
 
   test('nobody online: Foundry stops at once and the backup runs', () => {
@@ -1189,7 +1216,10 @@ exit 0`
       assert.equal(r.status, 1, r.out);
       assert.match(r.out, /started again while the worlds were being copied/);
       assert.match(r.out, /torn snapshot abc12345 was removed/);
-      assert.match(r.calls, /restic forget abc12345\n/);
+      // This run's own snapshot (from the --json summary), not the oldest one the repository lists first.
+      assert.match(r.calls, new RegExp(`restic forget ${NEW_ID}\\n`));
+      assert.doesNotMatch(r.calls, /restic forget old11111/);
+      assert.doesNotMatch(r.calls, /restic snapshots/);
       assert.doesNotMatch(r.calls, /restic forget --keep/);
     });
 
@@ -1197,7 +1227,22 @@ exit 0`
       const r = cut({ users: [0], env: { RESTIC_RESTARTS: '2' } });
       assert.equal(r.status, 1, r.out);
       assert.match(r.out, /started again while the worlds were being copied/);
-      assert.match(r.calls, /restic forget abc12345\n/);
+      assert.match(r.calls, new RegExp(`restic forget ${NEW_ID}\\n`));
+    });
+
+    test('a torn copy with no snapshot id in the summary forgets nothing and says so', () => {
+      const r = cut({ users: [0], env: { RESTIC_RESTARTS: '1', NO_SUMMARY: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /torn snapshot could not be removed/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('the Docker daemon stops answering during the copy: the night fails and the snapshot is not forgotten', () => {
+      const r = cut({ users: [0], env: { RESTIC_DAEMON_DIES: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /Docker daemon did not answer after the copy/);
+      assert.match(r.out, /snapshot abc12345 was kept/);
+      assert.doesNotMatch(r.calls, /restic forget/);
     });
 
     test('docker_off: daemon silent, docker disabled, no foundry.service: the backup goes on (nothing can be writing)', () => {

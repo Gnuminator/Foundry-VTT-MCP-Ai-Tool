@@ -14,14 +14,11 @@
  */
 import { vi, type Mock } from 'vitest';
 
-type QueryImpl = (method: string, data: any) => unknown;
+import { makeLogger } from './stub-tool-deps.js';
 
-/** A Logger stub: every level is a mock; `.child()` returns the same stub. */
-export function makeLogger(): any {
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  return logger;
-}
+export { makeLogger };
+
+type QueryImpl = (method: string, data: any) => unknown;
 
 /** A FoundryClient stub whose `query` is a mock (default: resolves `{ success: true }`). */
 function makeFoundryClient(queryImpl?: QueryImpl): {

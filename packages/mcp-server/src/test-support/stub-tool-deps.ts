@@ -11,13 +11,18 @@ import type { ToolRouterDeps } from '../tool-router.js';
 import { createTools } from '../tools/index.js';
 import type { ToolServices } from '../tools/tool-module.js';
 
-/** Stand-ins for every tool service: a mock Foundry client and logger, empty objects otherwise. */
-export function stubToolServices(): ToolServices {
+/** The one Logger stub for server tests: every level is a mock; `.child()` returns the same stub. */
+export function makeLogger(): any {
   const logger: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;
+  return logger;
+}
+
+/** Stand-ins for every tool service: a mock Foundry client and logger, empty objects otherwise. */
+export function stubToolServices(): ToolServices {
   return {
     foundryClient: { query: vi.fn() } as any,
-    logger,
+    logger: makeLogger(),
     gameEventHub: new GameEventHub(),
     guardedWrites: {} as any,
     worldIds: { current: vi.fn(() => Promise.resolve('world')) } as any,

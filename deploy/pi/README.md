@@ -80,7 +80,10 @@ runner.
   `set-dashboard-access`) stops at once with "the stack runs as containers", before it changes anything, because it would
   start a second copy next to the containers. `FORCE=1` does not lift it. It looks for any container of the live
   project, a stopped one too, and a Docker daemon that does not answer counts as "containers may exist". The way back is
-  `MODE=rollback`. The Discord bot is not a container (`compose.yml` has four services), so its stages (8, 26,
+  `MODE=rollback`. The read-only modes of the guarded stages (14 `MODE=status`, 30 `CHECK=1`, kit-session `MODE=status`)
+  are refused too: after the cutover look at the stack with stage 24 `MODE=status` and
+  `deploy/pi/deployed-state.sh`. The cutover itself is refused while a dnd5e system trial (stage 14) or a kit session is
+  open, so finish those first. The Discord bot is not a container (`compose.yml` has four services), so its stages (8, 26,
   `set-discord-token`) are not guarded.
 - **The nightly backup follows the stack.** `6-backup.sh` writes a nightly script that, after the cutover, stops the
   Foundry **container** (not `foundry.service`), checks that it is stopped, copies the worlds with restic and starts it

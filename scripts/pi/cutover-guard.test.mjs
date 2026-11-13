@@ -67,7 +67,7 @@ describe('env_file_value (the one reader of deploy/pi/.env)', { skip: !hasBash &
 // A docker stand-in: DOCKER_MODE=down (daemon silent) | none (no container) | live (a container of the live project) |
 // stopped (only a stopped one) | rehearsal (a container of the rehearsal project only).
 describe('refuse_when_cut_over', { skip: !hasBash && 'no bash here' }, () => {
-  function guard(mode, { noDocker = false, systemd = '' } = {}) {
+  function guard(mode, { noDocker = false, systemd = '', pgrep = '1' } = {}) {
     const dir = path.join(tmp, `g${++counter}`);
     const bin = path.join(dir, 'bin');
     mkdirSync(bin, { recursive: true });
@@ -102,6 +102,9 @@ exit 0
 `
     );
     chmodSync(path.join(bin, 'systemctl'), 0o755);
+    // pgrep stand-in (the host's own never decides): PGREP_RC 1 = no containerd-shim, 0 = one runs, 127 = cannot run.
+    writeFileSync(path.join(bin, 'pgrep'), '#!/usr/bin/env bash\nexit "${PGREP_RC:-1}"\n');
+    chmodSync(path.join(bin, 'pgrep'), 0o755);
     const hide = noDocker
       ? 'command() { if [ "$1" = -v ] && [ "$2" = docker ]; then return 1; fi; builtin command "$@"; }\n'
       : '';
@@ -112,6 +115,7 @@ exit 0
       BIN: posix(bin),
       DOCKER_MODE: mode,
       SYSTEMD_DOCKER: systemd,
+      PGREP_RC: pgrep,
     });
   }
 
@@ -141,6 +145,12 @@ exit 0
   });
   test('daemon silent and systemd will not start docker (a FORCE=1 rollback switched it off): the stage may run', () => {
     assert.match(guard('down', { systemd: 'off' }).stdout, /passed/);
+  });
+  test('daemon silent, docker off, but a containerd-shim runs (live-restore): refused', () => {
+    assert.equal(guard('down', { systemd: 'off', pgrep: '0' }).status, 1);
+  });
+  test('daemon silent, docker off, and pgrep cannot run (exit 127): refused, a missing pgrep is not "no container"', () => {
+    assert.equal(guard('down', { systemd: 'off', pgrep: '127' }).status, 1);
   });
   test('daemon silent while docker.service is enabled: still refused', () => {
     assert.equal(guard('down', { systemd: 'on' }).status, 1);

@@ -88,6 +88,17 @@ containers_of() {
 # True when docker is not installed or its daemon answers.
 daemon_known() { ! command -v docker >/dev/null 2>&1 || timeout 20 docker info >/dev/null 2>&1; }
 
+# shim_state: a containerd-shim process (a container under live-restore, stage 23, left running when dockerd is stopped)
+# is there or not. Returns 0 when one runs, 1 when none does, 2 when it cannot tell (pgrep missing or failing: exit 127
+# must never read as "no container", so every caller treats 2 like 0). 6-backup.sh keeps its own copy of this (the
+# nightly script is a stand-alone file); keep the two in step.
+shim_state() {
+  local rc=0
+  command -v pgrep >/dev/null 2>&1 || return 2
+  pgrep -f containerd-shim >/dev/null 2>&1 || rc=$?
+  case "$rc" in 0) return 0 ;; 1) return 1 ;; *) return 2 ;; esac
+}
+
 # docker_cannot_return: 0 when docker is installed, its daemon is down AND systemd will not bring it back (docker.service
 # and docker.socket are neither enabled nor active: stage 24's FORCE=1 rollback does that on purpose), so no container can
 # be there. Anything else about a silent daemon stays "unknown".
@@ -96,7 +107,9 @@ docker_cannot_return() {
   have_systemd || return 1
   # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped: a container process left
   # means "unknown", whatever systemd says about the docker units.
-  ! pgrep -f containerd-shim >/dev/null 2>&1 || return 1
+  local shim=0
+  shim_state || shim=$?
+  [ "$shim" = 1 ] || return 1
   for u in docker.service docker.socket; do
     if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
     [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
@@ -357,6 +370,14 @@ gm_browsers_joined() {
   printf '%s' "$n"
 }
 
+# foundry_answers_without_docker: 0 when Docker is installed but its daemon is silent AND something answers /api/status on
+# port 30000. After the cutover a silent daemon hides the Foundry container from live_container, but with live-restore it
+# may still run and hold players, so require_quiet counts them anyway.
+foundry_answers_without_docker() {
+  ! daemon_known || return 1
+  [ "$(users_online)" != "?" ]
+}
+
 # require_quiet WHAT: call before a stage stops or restarts Foundry (WHAT names the action). Refuses while players are
 # online (the Assistant GM browser counts as one user once it has joined, see browser_joined; so does the Kit GM browser of a kit session) or a recording
 # runs. Does nothing without systemd; Foundry not running means no one to drop.
@@ -364,7 +385,7 @@ require_quiet() {
   local what="$1" online assistant=0
   have_systemd || return 0
   # Foundry runs as the unit, or (after the cutover) as the container of the live project.
-  if systemctl is-active --quiet foundry.service || [ -n "$(live_container foundry)" ]; then
+  if systemctl is-active --quiet foundry.service || [ -n "$(live_container foundry)" ] || foundry_answers_without_docker; then
     online="$(users_online)"
     assistant="$(gm_browsers_joined)"
     if [ "$online" = "?" ]; then

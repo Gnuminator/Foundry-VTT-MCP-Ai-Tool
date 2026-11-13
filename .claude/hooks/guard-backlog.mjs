@@ -8,7 +8,10 @@
 //     `Backlog done.md`;
 //   - a Bash or PowerShell command that names one of those files and writes it (a `>` redirect to it,
 //     writeFileSync or appendFileSync, Set-Content, Add-Content, Out-File, tee, sed -i, perl -i,
-//     Move-Item, Copy-Item, mv, cp, git add or git commit), unless it runs scripts/backlog.mjs.
+//     Move-Item, Copy-Item, mv, cp, git add or git commit, or a script that opens it for writing:
+//     python open(f, 'w'), fs.openSync, write_text), unless it runs scripts/backlog.mjs;
+//   - a git add or commit in the vault that sweeps files in without naming them (commit -a, add -A,
+//     add . or a directory), since that would take Backlog.md along.
 // Only for a lane (see isLane: CLAUDE_PROJECT_DIR or the transcript folder, never the payload cwd).
 // The planner (main checkout) and the board stay free to edit. Reads are always allowed.
 //
@@ -30,8 +33,46 @@ const WRITES = [
   /\btee\b/,
   /\b(sed|perl)\b[^|;&]*\s-i/,
   /(^|[\s;&|])(mv|cp|rm)\s/,
-  /\bgit\b[^|;&]*\b(add|checkout|restore)\b[^|;&]*backlog( done)?\.md/i,
+  /\bgit\b[^|;&]*\b(add|commit|checkout|restore)\b[^|;&]*backlog( done)?\.md/i,
+  // a script that opens the file for writing: python open(f, 'w'), fs.openSync(f, 'a'), Path.write_text
+  /\bopen(Sync)?\s*\([^,)]*,\s*(mode\s*=\s*)?["'][rbtU]*[wax+]/,
+  /\b(write_text|write_bytes)\s*\(/,
 ];
+
+/** The vault repo: the command or the working directory names it. */
+const VAULT_CTX = /obsidian[\\/]+vault|(\bcd|\s-C)\s+["']?[^\s"']*vault\b/i;
+
+/**
+ * A `git add` or `git commit` in the vault that sweeps in files without naming them, so it would
+ * take Backlog.md along: `commit -a`/`-am`/`--all`, `add -A`/`-u`/`--all`, `add .` or `*`, or a
+ * directory. A named file that is not the Backlog (`git add Waiting.md`) stays allowed.
+ */
+export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd = '') {
+  if (!VAULT_CTX.test(cmd) && !VAULT_CTX.test(norm(cwd))) return false;
+  for (const seg of cmd.split(/[;&|\n]+/)) {
+    const words = (seg.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map(w => w.replace(/^["']|["']$/g, ''));
+    const g = words.findIndex(w => /^git(\.exe)?$/i.test(w.replace(/^.*[\\/]/, '')));
+    if (g < 0) continue;
+    const sub = words.findIndex((w, i) => i > g && /^(add|commit)$/.test(w));
+    if (sub < 0) continue;
+    const rest = words.slice(sub + 1);
+    if (words[sub] === 'commit') {
+      // -m takes a value, which is not a flag; a combined `-am` carries -a
+      const flags = rest.filter(
+        (w, i) => /^--?[a-zA-Z]/.test(w) && !/^(-m|--message|-F|--file|-C|-c)$/.test(rest[i - 1] ?? '')
+      );
+      if (flags.some(w => w === '--all' || (/^-[a-zA-Z]+$/.test(w) && w.includes('a')))) return true;
+      continue;
+    }
+    for (const w of rest) {
+      if (/^(--all|--update|--no-all|--ignore-removal)$/.test(w) || /^-[a-zA-Z]*[Au]/.test(w)) return true;
+      if (w.startsWith('-')) continue;
+      const last = w.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? '';
+      if (/[\\/]$/.test(w) || w === '*' || !/\.[A-Za-z0-9]+$/.test(last)) return true;
+    }
+  }
+  return false;
+}
 
 const norm = (/** @type {unknown} */ p) =>
   String(p ?? '')
@@ -89,8 +130,13 @@ export function decide(
   }
   if (SHELL_TOOLS.has(toolName)) {
     const cmd = String(args.command ?? '');
-    if (!NAMES.test(cmd) || isToolCall(cmd)) return null;
-    if (WRITES.some(re => re.test(cmd)))
+    if (isToolCall(cmd)) return null;
+    if (sweepsVault(cmd, input?.cwd))
+      return `this git add or commit in the vault would take Backlog.md along (commit -a, add -A, add . or a directory); name the files you mean. ${advice(env)}`;
+    if (!NAMES.test(cmd)) return null;
+    // a commit message may name the file; its text is not a path
+    const body = cmd.replace(/(\s(-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1');
+    if (WRITES.some(re => re.test(body)))
       return `this command looks like it writes the vault Backlog; ${advice(env)}`;
   }
   return null;

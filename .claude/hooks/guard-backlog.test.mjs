@@ -99,6 +99,57 @@ test('shell commands that write the Backlog are denied; reads and the tool pass'
   );
 });
 
+test('the two shell gaps: a script that opens the Backlog for writing, and a bulk git add or commit in the vault', () => {
+  const denied = [
+    `python -c "open(r'${VAULT}\\Backlog.md','a').write('x')"`,
+    `python -c "open('${VAULT}/Backlog.md', 'w').write('x')"`,
+    `python -c "open('Dev/Foundry AI Tool/Backlog.md', mode='r+')"`,
+    `node -e "require('fs').openSync('${VAULT}/Backlog.md','a')"`,
+    `python -c "import pathlib; pathlib.Path('${VAULT}/Backlog.md').write_text('x')"`,
+    `git -C C:/Users/me/Documents/Obsidian/vault commit -am "x"`,
+    `cd "C:/Users/me/Documents/Obsidian/vault" && git commit -a -m x`,
+    `cd vault && git commit --all -m x`,
+    `cd vault && git add -A && git commit -m x`,
+    `cd vault && git add .`,
+    `cd vault && git add "Dev/Foundry AI Tool"`,
+    `git -C C:/Users/me/Documents/Obsidian/vault add -u`,
+    `cd vault && git add Waiting.md "Dev/Foundry AI Tool/Backlog.md"`,
+    `cd vault && git commit -m x "Dev/Foundry AI Tool/Backlog.md"`,
+  ];
+  for (const command of denied) {
+    assert.ok(call('Bash', { command }), command);
+    assert.ok(call('PowerShell', { command }), `PowerShell ${command}`);
+  }
+  assert.match(call('Bash', { command: 'cd vault && git add .' }) ?? '', /scripts\/backlog\.mjs/);
+  const allowed = [
+    `python -c "print(open(r'${VAULT}\\Backlog.md').read()[:100])"`,
+    `python -c "print(open('${VAULT}/Backlog.md', 'r').read())"`,
+    `python -c "open('out.txt','w').write('x')"`,
+    `cd vault && git add Waiting.md "Dev/Foundry AI Tool/Lows/CI.md" && git commit -m "waiting: x"`,
+    `cd vault && git commit -m "add all the things" -m "-a"`,
+    `cd vault && git status && git diff`,
+    `git add -A && git commit -am "in the repo, not the vault"`,
+    `cd vault && git push && git pull --rebase`,
+  ];
+  for (const command of allowed) assert.equal(call('Bash', { command }), null, command);
+  assert.ok(
+    decide(
+      'Bash',
+      {
+        cwd: 'C:\\Users\\me\\Documents\\Obsidian\\vault',
+        tool_input: { command: 'git add .' },
+      },
+      { CLAUDE_PROJECT_DIR: LANE }
+    ),
+    'cwd in the vault'
+  );
+  assert.equal(
+    call('Bash', { command: 'cd vault && git commit -am x' }, MAIN),
+    null,
+    'the planner stays free'
+  );
+});
+
 test('a planner whose cwd is inside a worktree is not a lane', () => {
   const r = decide(
     'Edit',

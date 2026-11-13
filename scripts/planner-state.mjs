@@ -20,6 +20,8 @@ export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 
 export const UNCLAIMED_DAYS = 3;
 export const WAITING_LEAD_DAYS = 7;
+export const LEDGER_LIMIT = 10;
+export const LEDGER_OLD_DAYS = 30;
 
 /** @param {string} iso */
 export const dayNumber = iso => {
@@ -204,6 +206,41 @@ export function ghJson(args) {
 }
 
 /**
+ * Lows ledgers over `LEDGER_LIMIT` lines: count and how many lines are older than a month. A
+ * ledger line is a `- YYYY-MM-DD ...` bullet. Sweeping stays a planner call (the user, 2026-11-13).
+ * @param {string} lowsDir @param {string} today YYYY-MM-DD
+ */
+export function ledgerLines(lowsDir, today) {
+  /** @type {string[]} */
+  let files;
+  try {
+    files = fs.readdirSync(lowsDir).filter(f => f.endsWith('.md'));
+  } catch {
+    return 'Lows ledgers: not readable';
+  }
+  const now = dayNumber(today);
+  const over = [];
+  for (const f of files.sort()) {
+    const lines = fs
+      .readFileSync(path.join(lowsDir, f), 'utf8')
+      .split(/\r?\n/)
+      .filter(l => /^- \d{4}-\d{2}-\d{2}\b/.test(l));
+    if (lines.length <= LEDGER_LIMIT) continue;
+    const old = lines.filter(l => {
+      const d = dayNumber(l.slice(2, 12));
+      return d !== null && now !== null && now - d > LEDGER_OLD_DAYS;
+    }).length;
+    over.push(`- ${f.slice(0, -3)}: ${lines.length} lines, ${old} older than a month`);
+  }
+  return over.length
+    ? [
+        `Lows ledgers over ${LEDGER_LIMIT} lines (${over.length}); a sweep is a planner call:`,
+        ...over,
+      ].join('\n')
+    : `Lows ledgers over ${LEDGER_LIMIT} lines: none`;
+}
+
+/**
  * The extra sections of `status --planner`.
  * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any }} o
  */
@@ -252,6 +289,7 @@ export function plannerSections(o) {
     ).join('\n'),
     trainLine(read('Merge train.md') ?? ''),
     mainLine(runs?.[0] ?? null),
+    ledgerLines(path.join(o.devDir, 'Lows'), o.today),
     (() => {
       const w = read('Waiting.md');
       return w === null ? 'Waiting due: not readable' : dueWaiting(w, o.today);

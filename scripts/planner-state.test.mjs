@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   ciState,
   dueWaiting,
+  ledgerLines,
   mainLine,
   newestNote,
   plannerSections,
@@ -125,6 +126,25 @@ test('dueWaiting honours the 7-day lead and the from date', () => {
   assert.match(out, /Waiting due \(2\)/);
   assert.match(out, /W4 Late \(2026-11-10, overdue\)\n- W1 Due soon/);
   assert.doesNotMatch(out, /W2|W3/);
+});
+
+test('ledgerLines names ledgers over 10 lines with count and lines older than a month', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
+  const bullets = (n, date) =>
+    Array.from({ length: n }, (_, i) => `- ${date} PR 1 L${i + 1}: x, y`).join('\n');
+  fs.writeFileSync(
+    path.join(dir, 'Big.md'),
+    `# Lows: Big\n\n${bullets(7, '2026-09-01')}\n${bullets(5, '2026-11-10')}\n`
+  );
+  fs.writeFileSync(path.join(dir, 'Edge.md'), `# Lows: Edge\n\n${bullets(10, '2026-09-01')}\n`);
+  fs.writeFileSync(path.join(dir, 'Small.md'), `# Lows: Small\n\n${bullets(3, '2026-11-10')}\n`);
+  const s = ledgerLines(dir, '2026-11-13');
+  assert.match(s, /over 10 lines \(1\); a sweep is a planner call/);
+  assert.match(s, /- Big: 12 lines, 7 older than a month/);
+  assert.doesNotMatch(s, /Edge|Small/);
+  fs.rmSync(path.join(dir, 'Big.md'));
+  assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
+  assert.equal(ledgerLines(path.join(dir, 'nope'), '2026-11-13'), 'Lows ledgers: not readable');
 });
 
 test('plannerSections assembles every section from a vault dir and a fake gh', () => {

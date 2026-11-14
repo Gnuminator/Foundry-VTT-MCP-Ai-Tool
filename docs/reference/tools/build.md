@@ -6,7 +6,7 @@ description: Every tool in the Build set with its description and parameters. Ge
 
 # Build tools
 
-Make and change NPCs, monsters, items and player characters: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: `foundry-mcp-build`.
+Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: `foundry-mcp-build`.
 
 ## manage-world-items
 

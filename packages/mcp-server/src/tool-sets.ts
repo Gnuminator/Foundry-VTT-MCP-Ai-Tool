@@ -67,7 +67,7 @@ const SET_TEXT: Readonly<Record<ToolSetName, Omit<ToolSetSpec, 'tools'>>> = {
   build: {
     title: 'Build',
     purpose:
-      'Make and change NPCs, monsters, items and player characters: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.',
+      'Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.',
   },
   admin: {
     title: 'Admin',

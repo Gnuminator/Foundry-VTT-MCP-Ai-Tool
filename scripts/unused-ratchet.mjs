@@ -22,6 +22,10 @@ const KINDS = ['files', 'exports', 'types'];
 
 /** Count knip's JSON report per "<workspace>: <kind>". Workspace = first path segment(s). */
 export function countReport(report) {
+  // A knip release that renames these would otherwise read as "nothing unused" and pass.
+  if (!Array.isArray(report?.files) || !Array.isArray(report?.issues)) {
+    throw new Error('unused-ratchet: the knip report has no `files` and `issues` arrays (format changed?)');
+  }
   const counts = {};
   const bump = (file, kind, n) => {
     if (n === 0) return;
@@ -79,6 +83,10 @@ function main() {
   const total = sum(current);
   const hasBaseline = existsSync(baselinePath);
   const baseline = hasBaseline ? JSON.parse(readFileSync(baselinePath, 'utf8')) : { total: 0, counts: {} };
+  if (hasBaseline && (typeof baseline.counts !== 'object' || baseline.counts === null)) {
+    console.error('unused-ratchet: scripts/unused-baseline.json has no `counts` object.');
+    process.exit(1);
+  }
   const { increases, decreases } = compare(baseline.counts ?? {}, current);
 
   if (update) {

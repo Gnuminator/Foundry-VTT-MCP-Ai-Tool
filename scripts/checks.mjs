@@ -650,7 +650,7 @@ if (entry === 'mismatch') {
       process.exitCode = runGroup(name, { summaryFile: process.env.GITHUB_STEP_SUMMARY });
     }
   } else {
-    console.error('usage: node scripts/checks.mjs --list | --run <group> | --matrix pi');
+    console.error('usage: node scripts/checks.mjs --list | --run <group> | --matrix pi|e2e|visual');
     process.exitCode = 2;
   }
 }

@@ -72,11 +72,17 @@ test('every uses: in .github/workflows is pinned to a full commit', () => {
 // steps inline with pinned actions instead. Add a name here when a pinned action turns out to be one.
 const COMPOSITE_WITH_UNPINNED_INTERNALS = ['actions/upload-pages-artifact'];
 
+/** GitHub owner and repo names are case-insensitive, so the match is too. @param {string} u */
+export function isBannedComposite(u) {
+  const lower = u.toLowerCase();
+  return COMPOSITE_WITH_UNPINNED_INTERNALS.some((n) => lower.startsWith(n.toLowerCase() + '@'));
+}
+
 test('no workflow uses a composite action with tag-pinned internals', () => {
   const bad = [];
   for (const f of fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n))) {
     for (const u of usesOf(yaml.load(fs.readFileSync(path.join(dir, f), 'utf8')))) {
-      if (COMPOSITE_WITH_UNPINNED_INTERNALS.some((n) => u.startsWith(n + '@'))) bad.push(`${f}: ${u}`);
+      if (isBannedComposite(u)) bad.push(`${f}: ${u}`);
     }
   }
   assert.deepEqual(bad, [], `inline these steps instead:\n${bad.join('\n')}`);
@@ -90,6 +96,13 @@ test('release.yml: the publish job runs in the environment "release"', () => {
   assert.deepEqual(publishJobsWithoutEnvironment(doc), []);
   const env = doc.jobs.publish.environment;
   assert.equal(typeof env === 'string' ? env : env?.name, 'release');
+});
+
+test('the composite ban matches by name, ignoring case, and only that name', () => {
+  assert.equal(isBannedComposite('actions/upload-pages-artifact@v3'), true);
+  assert.equal(isBannedComposite('Actions/Upload-Pages-Artifact@' + 'a'.repeat(40)), true);
+  assert.equal(isBannedComposite('actions/upload-pages-artifact-extra@v1'), false);
+  assert.equal(isBannedComposite('actions/checkout@v4'), false);
 });
 
 test('the guards catch a bad workflow', () => {

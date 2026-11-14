@@ -178,6 +178,28 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(r.out, /PASSED/);
   });
 
+  test('a count that settles within the retries passes (GM browser joining race)', () => {
+    // The first two reads see 1 user, then Foundry settles to 0; sleep is stubbed, so this is instant.
+    const r = run(
+      'c=$(mktemp); users_online() { echo x >>"$c"; if [ "$(wc -l <"$c")" -le 2 ]; then printf 1; else printf 0; fi; }\n' +
+        'require_quiet "the test"; echo "PASSED reads=$(wc -l <"$c" | tr -d " ")"',
+      { active: 'foundry.service', users: 0 }
+    );
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /PASSED reads=3/);
+  });
+
+  test('a count that never settles still refuses after the retries', () => {
+    const r = run(
+      'c=$(mktemp); users_online() { echo x >>"$c"; printf 1; }\n' +
+        'trap \'echo "reads=$(wc -l <"$c" | tr -d " ")"\' EXIT\n' +
+        'require_quiet "the test"',
+      { active: 'foundry.service', users: 1 }
+    );
+    assert.match(r.out, /1 player\(s\) are online/);
+    assert.match(r.out, /reads=6/);
+  });
+
   test('players online refuse, and the message names the count', () => {
     const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 2 });
     assert.notEqual(r.status, 0);

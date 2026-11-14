@@ -386,8 +386,18 @@ require_quiet() {
   have_systemd || return 0
   # Foundry runs as the unit, or (after the cutover) as the container of the live project.
   if systemctl is-active --quiet foundry.service || [ -n "$(live_container foundry)" ] || foundry_answers_without_docker; then
-    online="$(users_online)"
-    assistant="$(gm_browsers_joined)"
+    # The two counts come from different places (Foundry's /api/status and the GM browser's journal) and change at
+    # slightly different moments when a GM browser joins or leaves (Pi sitting 2026-11-10: two refusals with only the
+    # Assistant GM online, the third run passed). Read them again for up to 10 s before refusing; people really
+    # online keep the count up, so a real refusal only comes a few seconds later.
+    local tries=0
+    while :; do
+      online="$(users_online)"
+      assistant="$(gm_browsers_joined)"
+      if [ "$online" = "?" ] || [ "$online" -le "$assistant" ] || [ "$tries" -ge 5 ]; then break; fi
+      tries=$((tries + 1))
+      sleep 2
+    done
     if [ "$online" = "?" ]; then
       refuse "cannot read who is online in Foundry (/api/status on port 30000), so $what is not safe"
     elif [ "$online" -gt "$assistant" ]; then

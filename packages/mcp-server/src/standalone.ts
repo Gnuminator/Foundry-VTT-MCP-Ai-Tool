@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   } else {
     console.error(
       `✗ control channel did not come up on ${host}:${port} within 15s ` +
-        `(another backend may already hold this port, or startup failed, check the backend log)`
+        `(another backend may already hold this port, or startup failed; check the backend log)`
     );
   }
 }

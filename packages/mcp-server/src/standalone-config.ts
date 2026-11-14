@@ -38,7 +38,7 @@ Usage:
 Options:
   --host <addr>     Control-channel bind host   (default 127.0.0.1, env MCP_CONTROL_HOST)
   --port <n>        Control-channel bind port    (default 31414,     env MCP_CONTROL_PORT)
-  --control-only    Serve the control channel only, do NOT bind the Foundry
+  --control-only    Serve the control channel only; do NOT bind the Foundry
                     connector (31415). (env MCP_FOUNDRY_LINK=off)
   -h, --help        Show this help and exit
 

@@ -147,7 +147,8 @@ export const CHECKS = [
     '.claude/hooks/guard-model.test.mjs',
     '.claude/hooks/guard-cloudflare.test.mjs',
     '.claude/hooks/format-on-edit.test.mjs',
-    '.claude/hooks/guard-backlog.test.mjs'
+    '.claude/hooks/guard-backlog.test.mjs',
+    '.claude/hooks/guard-registration.test.mjs'
   ),
   nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
   nodeTest(

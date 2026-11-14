@@ -57,7 +57,7 @@ lost"-markering, og **Layout** øverst på During-skærmen viser det layout, du 
 - **"Connection lost", eller Pre-flight siger, at Foundry ikke er forbundet:** se
   [Fejlfinding](troubleshooting.md).
 - **GM-knapper bliver afvist, selv om dashboardet er forbundet:** browseren har ikke GM-token'et endnu.
-  Åbn den adresse, den, der byggede værktøjet, gav dig til GM'en (den ender på `?token=` og en lang
+  Åbn GM-adressen, som den, der byggede værktøjet, gav dig (den ender på `?token=` og en lang
   tekststreng), én gang i den browser, du bruger til dashboardet; browseren husker den for den adresse.
   Brug derefter dit bogmærke. En anden browser eller en ændret adresse kræver linket igen.
 - **Kortet "Pick your During layout" er der ikke:** brug **Advanced ▾**, **▦ Try the During layouts** i

@@ -90,6 +90,8 @@ test('shell commands that write the Backlog are denied; reads and the tool pass'
     'echo hi > out.txt',
     'git commit -m "lanes stop hand-editing Backlog.md"',
     `node "${MAIN}/scripts/backlog.mjs" progress x "a; b > c"`,
+    // a quoted path with spaces is still one plain tool call, even if the text names a write verb
+    `node "${MAIN}/scripts/backlog.mjs" progress x "Backlog.md: do not tee or cp it"`,
   ];
   for (const command of allowed) assert.equal(call('Bash', { command }), null, command);
   assert.equal(

@@ -495,19 +495,15 @@ export function writeWithRetry(o) {
   };
   const gitDir = must(['rev-parse', '--absolute-git-dir'], 'git rev-parse').stdout.trim();
   const release = takeLock(gitDir, o.lockWaitMs);
-  // A kill mid-run must not leave the shared vault in a rebase or the lock held.
-  const onSignal = (/** @type {NodeJS.Signals} */ sig) => {
-    o.git(['rebase', '--abort']); // fails harmlessly when no rebase is running
-    release();
-    process.exit(sig === 'SIGINT' ? 130 : 143);
-  };
-  process.once('SIGINT', onSignal);
-  process.once('SIGTERM', onSignal);
   try {
+    // This run is synchronous, so a signal handler could never fire. Recover instead: holding
+    // the lock proves the run that started a rebase is gone, so abort what it left behind.
+    if (['rebase-merge', 'rebase-apply'].some(d => fs.existsSync(path.join(gitDir, d)))) {
+      (o.log ?? (s => console.error(s)))('backlog: aborting a rebase left by a killed run');
+      must(['rebase', '--abort'], 'git rebase --abort');
+    }
     return writeLocked(o, must);
   } finally {
-    process.off('SIGINT', onSignal);
-    process.off('SIGTERM', onSignal);
     release();
   }
 }

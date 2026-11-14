@@ -540,6 +540,22 @@ test('git: claim pushes one commit with only Backlog.md; an unrelated dirty file
   assert.equal(fs.readFileSync(path.join(v.a, 'other.md'), 'utf8'), 'someone else is editing\n');
 });
 
+test('git: a rebase left in the vault by a killed run is aborted by the next run', () => {
+  const v = vaults();
+  fs.writeFileSync(path.join(v.b, 'other.md'), 'from b\n');
+  git(v.b, ['commit', '-q', '-am', 'b edit']);
+  git(v.b, ['push', '-q']);
+  fs.writeFileSync(path.join(v.a, 'other.md'), 'from a\n');
+  git(v.a, ['commit', '-q', '-am', 'a edit']);
+  git(v.a, ['fetch', '-q']);
+  assert.throws(() => git(v.a, ['rebase', '-q', 'origin/main'])); // stops on the conflict
+  const gitDir = path.join(v.a, '.git');
+  assert.ok(fs.existsSync(path.join(gitDir, 'rebase-merge')), 'the test left a half rebase');
+  const r = v.cli(['progress', 'first', 'x']);
+  assert.match(r.err, /aborting a rebase left by a killed run/);
+  assert.ok(!fs.existsSync(path.join(gitDir, 'rebase-merge')), 'no rebase is left');
+});
+
 test('git: a dirty Backlog.md is refused before anything happens', () => {
   const v = vaults();
   fs.appendFileSync(path.join(v.a, BACKLOG), 'half an edit\r\n');

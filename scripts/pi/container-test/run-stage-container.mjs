@@ -27,11 +27,11 @@ export function ensureImage() {
   if (ready) return ready;
   const tag = imageTag();
   const local = `foundry-ai-tool-pi-test:${tag}`;
-  const docker = args =>
+  const docker = (args, timeout = 10 * 60_000) =>
     spawnSync('docker', args, {
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
-      timeout: 10 * 60_000, // a hung pull or mirror fails here, not at the shard's 20 minutes
+      timeout, // a hung pull or mirror fails here, not at the shard's 20 minutes
     });
   if (docker(['image', 'inspect', local]).status !== 0) {
     let got = false;
@@ -43,7 +43,11 @@ export function ensureImage() {
     }
     if (!got) {
       const build = () =>
-        docker(['build', '--platform', 'linux/arm64', '-t', local, '-f', DOCKERFILE, here]);
+        docker(
+          ['build', '--platform', 'linux/arm64', '-t', local, '-f', DOCKERFILE, here],
+          // CI shards are native ARM and stop at 20 minutes (two attempts must fit); a local QEMU build is slower.
+          process.env.CI ? 8 * 60_000 : 30 * 60_000,
+        );
       let b = build();
       if (b.status !== 0) {
         // One retry: a Debian mirror hiccup should not fail a required CI check.

@@ -416,6 +416,16 @@ test('judgeReviews: every refusal ends with the review-note helper command, the 
   assert.match(judgeReviews([], HEAD, false).detail, /review-note\.mjs <PR> --verdict/);
 });
 
+test('gate: a vault that exists but cannot be read refuses with the helper command', () => {
+  // a folder named like a note makes reading it throw (EISDIR) after the vault was found
+  const vault = vaultWith([{ name: '312-review.md', text: note() }]);
+  const dir = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff', 'Reviews 2026-10-10');
+  fs.mkdirSync(path.join(dir, '312-review-dir.md'));
+  const line = gate({ vault }).lines.find(l => l.startsWith('review: '));
+  assert.match(line, /review: cannot read the vault /);
+  assert.match(line, /review-note\.mjs 312 --verdict/);
+});
+
 test('gate: the vault refusal prints the helper command too', () => {
   const r = gate({ vault: path.join(os.tmpdir(), 'no-such-vault-xyz') });
   const line = r.lines.find(l => l.startsWith('review: '));
@@ -1043,6 +1053,32 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
       check(200, 'lint', 'SUCCESS'),
     ]).failing,
     []
+  );
+  // the SKIPPED clause needs a newer run known to be a normal run: an unclassified one (only a raw
+  // name) does not clear the cancelled raw shard
+  assert.deepEqual(
+    rollupProblems([check(100, rawShard, 'CANCELLED'), check(200, rawShard, 'SKIPPED')]).failing,
+    [rawShard + ' (CANCELLED)']
+  );
+  // a SKIPPED raw leg of a dispatch run does not clear it either
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, rawShard, 'SKIPPED'),
+      check(200, 'lint [dispatch]', 'SUCCESS'),
+    ]).failing,
+    [rawShard + ' (CANCELLED)', 'lint (CANCELLED)']
+  );
+  // nor does a SKIPPED leg of an older run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(50, rawShard, 'SKIPPED'),
+      check(50, 'lint', 'SUCCESS'),
+      check(100, 'lint', 'SUCCESS'),
+    ]).failing,
+    [rawShard + ' (CANCELLED)']
   );
   // only a run of the same check supersedes: a newer dispatch run leaves the cancelled pull_request check blocking
   const dispatch = check(300, 'lint [dispatch]', 'SUCCESS');

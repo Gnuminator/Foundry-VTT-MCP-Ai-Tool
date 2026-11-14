@@ -60,7 +60,10 @@ export function sameGate(selfPath, mainEntry, mainFiles) {
   /** @type {string[]} */
   let local = [];
   try {
-    local = fs.readdirSync(dir).filter(n => fs.statSync(path.join(dir, n)).isFile());
+    local = fs
+      .readdirSync(dir, { recursive: true })
+      .map(String)
+      .filter(n => fs.statSync(path.join(dir, n)).isFile());
   } catch {
     // no module folder here: differs unless main has none either
   }
@@ -116,7 +119,11 @@ export function relaunchFromMain(o) {
   const file = path.join(dir, 'lane-merge.mjs');
   fs.writeFileSync(file, show.stdout);
   fs.mkdirSync(path.join(dir, MODULE_DIR), { recursive: true });
-  for (const m of parts.files) fs.writeFileSync(path.join(dir, MODULE_DIR, m.name), m.text);
+  for (const m of parts.files) {
+    const target = path.join(dir, MODULE_DIR, m.name);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, m.text);
+  }
   log(`lane:merge: this checkout's gate differs from ${MAIN}; running main's copy`);
   const r = spawn(execPath, [file, ...argv], {
     cwd: o.cwd ?? process.cwd(),

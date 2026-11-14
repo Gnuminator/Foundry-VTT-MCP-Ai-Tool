@@ -370,6 +370,17 @@ gm_browsers_joined() {
   printf '%s' "$n"
 }
 
+# gm_browsers_pending: prints how many GM browsers (the two units, the Assistant GM container) are running but have not
+# joined the world in their current run: users Foundry may count that browser_joined does not (yet). Read-only.
+gm_browsers_pending() {
+  local n=0 unit
+  for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
+    if systemctl is-active --quiet "$unit" && ! browser_joined "$unit"; then n=$((n + 1)); fi
+  done
+  if [ -n "$(live_container gm-browser)" ] && ! gm_container_joined; then n=$((n + 1)); fi
+  printf '%s' "$n"
+}
+
 # foundry_answers_without_docker: 0 when Docker is installed but its daemon is silent AND something answers /api/status on
 # port 30000. After the cutover a silent daemon hides the Foundry container from live_container, but with live-restore it
 # may still run and hold players, so require_quiet counts them anyway.
@@ -388,13 +399,19 @@ require_quiet() {
   if systemctl is-active --quiet foundry.service || [ -n "$(live_container foundry)" ] || foundry_answers_without_docker; then
     # The two counts come from different places (Foundry's /api/status and the GM browser's journal) and change at
     # slightly different moments when a GM browser joins or leaves (Pi sitting 2026-11-10: two refusals with only the
-    # Assistant GM online, the third run passed). Read them again for up to 10 s before refusing; people really
-    # online keep the count up, so a real refusal only comes a few seconds later.
-    local tries=0
+    # Assistant GM online, the third run passed). Read them again for up to 10 s, but only while the excess users could
+    # be a GM browser that is running and has not logged "joined world" yet: a count with a real player beyond that
+    # refuses on the first reading. (Each read can take longer when Docker does not answer.)
+    local tries=0 pending=0
     while :; do
       online="$(users_online)"
+      case "$online" in '' | *[!0-9]*) online="?" ;; esac
       assistant="$(gm_browsers_joined)"
-      if [ "$online" = "?" ] || [ "$online" -le "$assistant" ] || [ "$tries" -ge 5 ]; then break; fi
+      [ "$online" != "?" ] || break
+      [ "$online" -gt "$assistant" ] || break
+      pending="$(gm_browsers_pending)"
+      [ "$((online - assistant))" -le "$pending" ] || break
+      [ "$tries" -lt 5 ] || break
       tries=$((tries + 1))
       sleep 2
     done

@@ -1,5 +1,7 @@
 Backlog: `id`
 
+<!-- Backlog: closes the item at merge. A PR that is one part of an item that stays open uses `Backlog-part: id` instead. -->
+
 ## What changed
 
 ## How it was verified

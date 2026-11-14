@@ -21,7 +21,7 @@ interface ButtonProps extends ComponentProps<'button'> {
 }
 
 /** How long a busy button waits before it says the answer is slow. */
-export const SLOW_AFTER_MS = 2000;
+const SLOW_AFTER_MS = 2000;
 
 /** True once `active` has been true for `ms`; false again as soon as it stops. */
 export function useAfter(active: boolean, ms: number): boolean {

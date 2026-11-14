@@ -621,7 +621,7 @@ describe('EventTracker session events', () => {
   });
 });
 
-describe('EventTracker session events — visibility stamp (M2)', () => {
+describe('EventTracker session events: visibility stamp (M2)', () => {
   it('damage/death: stamps visibility from the actor (pc)', () => {
     const t = new EventTracker();
     t.registerHooks();

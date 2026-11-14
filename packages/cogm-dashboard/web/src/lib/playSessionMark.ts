@@ -34,7 +34,7 @@ type Toast = (text: string, kind: 'ok' | 'err') => void;
  * Actions are on. The switches are read first when this page has not seen them (Pre-flight never
  * opened). A failure is toasted; the end of the session itself has already happened.
  */
-export async function endTonightsSwitches(queryClient: QueryClient, toast: Toast): Promise<void> {
+async function endTonightsSwitches(queryClient: QueryClient, toast: Toast): Promise<void> {
   try {
     let ready = queryClient.getQueryData<SwitchesRead>(SWITCHES_KEY)?.switches?.ready ?? null;
     let gmActions =
@@ -65,7 +65,7 @@ export async function endTonightsSwitches(queryClient: QueryClient, toast: Toast
  * Turns on live play when the session starts: the same call as Turn on for tonight. The session
  * itself has already started, so a failure is toasted and the header line offers Turn on again.
  */
-export async function startTonightsSwitches(queryClient: QueryClient, toast: Toast): Promise<void> {
+async function startTonightsSwitches(queryClient: QueryClient, toast: Toast): Promise<void> {
   try {
     const data = await api<SwitchesWrite>('/api/session/switches', {
       method: 'POST',

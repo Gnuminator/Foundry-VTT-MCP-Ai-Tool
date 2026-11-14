@@ -49,4 +49,4 @@ Tool words:
 - **Play session:** one evening of play. You mark its start and end in the dashboard.
 - **The Veil:** the campaign's look: the castle in the mist and a lamplit line. It is one choice of
   the Theme setting (Neutral, The Veil or Off), it can dress Foundry's join page, and it is also the
-  name of a Dice So Nice dice theme, "AI Tool: The Veil".
+  name of a Dice So Nice dice theme, "AI Tool: The Veil (campaign look)".

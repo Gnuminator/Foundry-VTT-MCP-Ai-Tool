@@ -146,6 +146,18 @@ describe('main: hands the link over to the bridge link lifecycle (R9)', () => {
     expect(bridge.getStatus().connected).toBe(true);
   });
 
+  it('restart() with the bridge switched off stops the link and creates no second bridge', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    world.setSetting(MODULE_ID, 'enabled', false);
+    const restarting = bridge.restart();
+    await vi.advanceTimersByTimeAsync(1000);
+    await restarting;
+    expect(fake.state.instances).toHaveLength(1);
+    expect(fake.state.instances[0].disconnected).toBe(true);
+    expect(bridge.getStatus().connected).toBe(false);
+  });
+
   it('the global handle the settings menu calls is the module instance', () => {
     expect(g.window.foundryMCPBridge).toBe(bridge);
     expect(typeof g.window.foundryMCPBridge.start).toBe('function');

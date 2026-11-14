@@ -444,7 +444,7 @@ export function makeToken(opts: MakeTokenOptions = {}): AnyDoc {
     texture = { src: '' },
     ...rest
   } = opts;
-  // A token is a document — it needs `update()` (moveToken/updateToken) and the
+  // A token is a document, it needs `update()` (moveToken/updateToken) and the
   // embedded surface; `delete()` is bound when it lands in a scene collection.
   return withDocumentMethods({
     id,
@@ -515,7 +515,7 @@ export function makePack(opts: MakePackOptions = {}): AnyDoc {
   } = opts;
   const docs = new MockCollection(documents);
   // Foundry compendium index entries carry `_id` (the canonical id field), plus
-  // name/type/img and any configured index fields — NOT a bare `id`. Mirror that
+  // name/type/img and any configured index fields, NOT a bare `id`. Mirror that
   // so consumers that read `entry._id` / `entry.img` behave as they do live.
   const buildIndex = (): MockCollection<Identified> =>
     new MockCollection(
@@ -676,7 +676,7 @@ export function makeModule(opts: MakeModuleOptions = {}): AnyDoc {
 // --- Generic document --------------------------------------------------------
 
 /**
- * A generic Foundry document with the standard instance methods — for the
+ * A generic Foundry document with the standard instance methods, for the
  * world-level collections that don't need a specialized builder (world items,
  * folders, chat messages). Honors a provided `id`/`_id`, else generates one.
  */

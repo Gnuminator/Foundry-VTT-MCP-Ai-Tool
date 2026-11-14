@@ -55,17 +55,11 @@
   --shadow-row: 0 1px 1px rgba(20, 28, 45, 0.1);
   --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
-  /* Player page tokens veil.css sets, for the pages that share this file's tokens. */
-  --panel: #ffffff;
-  --panel-2: #f0f2f6;
-  --line: #cfd4de;
-  --muted: #485165;
-
   color-scheme: light;
 }
 
 /* brand.css gives the neutral body a dark gradient and hex grid; the light ground is flat. */
-:root[data-scheme='light'] body:not(.paper) {
+:root[data-scheme='light'][data-theme] body:not(.paper) {
   background: var(--bg);
 }
 

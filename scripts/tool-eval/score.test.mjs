@@ -44,7 +44,7 @@ test('the set-off gate wants no call and a reply that names Play', () => {
 test('the language gate wants Danish with hit points kept', () => {
   assert.equal(danishWithGameTerms('Ismark har 27 hit points af 33.'), true);
   assert.equal(danishWithGameTerms('Ismark has 27 hit points.'), false);
-  assert.equal(danishWithGameTerms('Ismark har 27 hit points av 33, nå.'), false);
+  assert.equal(danishWithGameTerms('Ismark har 27 hit points av 33.'), false);
   assert.equal(danishWithGameTerms('Ismark har 27 livspoeng.'), false);
 });
 
@@ -78,8 +78,9 @@ test('the case set has 22 cases, unique ids and a valid chain', () => {
   }
 });
 
-test('the Norwegian check sees words with å, and the Danish check keeps passing', () => {
-  assert.equal(danishWithGameTerms('Han har 12 hit points nå.'), false);
+test('the Norwegian check sees Norwegian words, and the Danish check keeps passing', () => {
+  assert.equal(danishWithGameTerms('Han har 12 hit points, dessverre.'), false);
+  assert.equal(danishWithGameTerms('Han har 12 hit points nå.'), true);
   assert.equal(danishWithGameTerms('Det gjelder hit points. Han har 12.'), false);
   assert.equal(danishWithGameTerms('Han har også 12 hit points lige nu.'), true);
   assert.equal(danishWithGameTerms('Han har 12 hit points lige nu.'), true);

@@ -361,6 +361,22 @@ describe('the live window open state', () => {
     expect(openFlag()).toBe(false);
   });
 
+  it('watches the core uiConfig setting for the scheme and lets go when it closes', async () => {
+    vi.resetModules();
+    install(true, true);
+    g.foundry.applications = { api: { ApplicationV2: FakeApp } };
+    const on = vi.spyOn(g.Hooks, 'on');
+    const off = vi.spyOn(g.Hooks, 'off');
+    const mod = await import('./live-window.js');
+    await mod.openLiveWindow();
+    const call = on.mock.calls.find(c => c[0] === 'clientSettingChanged');
+    expect(call).toBeDefined();
+    expect(() => (call![1] as (key: string) => void)('core.uiConfig')).not.toThrow();
+    expect(() => (call![1] as (key: string) => void)('core.other')).not.toThrow();
+    await mod.toggleLiveWindow();
+    expect(off).toHaveBeenCalledWith('clientSettingChanged', expect.anything());
+  });
+
   it('keeps open as it was when the switch closes it, so a reload brings it back', async () => {
     const mod = await openWindow();
     mod.closeLiveWindow();

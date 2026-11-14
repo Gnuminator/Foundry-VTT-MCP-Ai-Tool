@@ -95,7 +95,9 @@ function resolveOwner(ref: string): UserLike {
  * at the new item ids (the actor is created with `keepId`, so they hold).
  */
 function sheetLinks(itemData: Rec[]): Rec | null {
-  const first = (type: string): Rec | undefined => itemData.find(i => i.type === type);
+  // Only top-level items count: a class that sits inside a container is cargo, not the character's class.
+  const first = (type: string): Rec | undefined =>
+    itemData.find(i => i.type === type && !rec(i.system)?.container);
   const race = first('race');
   const background = first('background');
   const cls = first('class');

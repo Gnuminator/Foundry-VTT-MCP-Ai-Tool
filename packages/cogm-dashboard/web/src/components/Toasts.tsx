@@ -60,7 +60,14 @@ function handOnEscape(event: KeyboardEvent): void {
  * The toast stack (bottom right), styled by styles.css (.toast-stack, .toast.ok/.err/.warn, and
  * .toast-undo with its .toast-action button).
  */
-export function ToastProvider({ children }: { children: ReactNode }): JSX.Element {
+export function ToastProvider({
+  children,
+  persistent = false,
+}: {
+  children: ReactNode;
+  /** Toasts never time out (Storybook, so a story shot still has them on screen). */
+  persistent?: boolean;
+}): JSX.Element {
   const [items, setItems] = useState<ToastItem[]>([]);
   const show = useCallback<ShowToast>((text, kind = 'ok', action, code) => {
     if (kind === 'err') {
@@ -100,7 +107,7 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
           <Toast.Root
             key={t.id}
             className={`toast ${t.kind}${t.action ? ' toast-undo' : ''}`}
-            duration={duration(t)}
+            duration={persistent ? Infinity : duration(t)}
             onEscapeKeyDown={handOnEscape}
             open
             onOpenChange={open => {

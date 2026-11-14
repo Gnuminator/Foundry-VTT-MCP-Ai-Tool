@@ -17,6 +17,7 @@ import {
   type DiscordGatewayAdapterCreator,
   type VoiceConnection,
 } from '@discordjs/voice';
+import { bi } from '../i18n.js';
 import type { RecorderHealth } from './health.js';
 import { installRtpTap, type RtpTap } from './rtp-tap.js';
 import type { RecordingSession, SpeakerInfo } from './session.js';
@@ -189,7 +190,12 @@ export class VoiceRecorder {
       ]);
     } catch {
       if (this.stopping || this.connection !== connection) return;
-      this.opts.alert?.('Recording bot lost the voice connection; trying to rejoin.');
+      this.opts.alert?.(
+        bi(
+          'Optagebotten mistede voice-forbindelsen og prøver at komme ind igen.',
+          'Recording bot lost the voice connection; trying to rejoin.'
+        )
+      );
       this.destroyConnection(); // the Destroyed handler rejoins
     }
   }
@@ -204,7 +210,12 @@ export class VoiceRecorder {
       await this.start();
       this.opts.session.log({ type: 'rejoined', attempt: this.rejoinAttempt });
       this.opts.health?.rejoined();
-      this.opts.alert?.('Recording bot is back in the voice channel.');
+      this.opts.alert?.(
+        bi(
+          'Optagebotten er tilbage i voice channel.',
+          'Recording bot is back in the voice channel.'
+        )
+      );
     } catch (err) {
       this.opts.session.log({ type: 'rejoin_failed', message: (err as Error).message });
       // From attempt 3 on, repeated every 5 minutes (it used to say so once and then go quiet).

@@ -1,6 +1,6 @@
 ---
 title: The D&D helper for players
-description: Install Claude Desktop, add the Foundry player connector and the D&D helper skill, then build, level up and check your own character and look up rules, step by step.
+description: Install Claude Desktop and your Foundry player connector, then build, level up and check your own character and look up rules, step by step.
 ---
 
 # The D&D helper for players
@@ -16,15 +16,16 @@ works the same without it.
 ## What it is, in one minute
 
 Claude is an AI assistant from Anthropic. Claude Desktop is the app you chat with it in. Out of the
-box Claude knows nothing about our game. Three small pieces change that:
+box Claude knows nothing about our game. Two small pieces change that:
 
 - **The extension** (a file called `foundry-player.mcpb`) is a plug that lets Claude Desktop ask
-  our Foundry for a few things. It is called the **player connector**.
+  our Foundry for a few things. It is called the **player connector**. It also carries the
+  helper's instructions, which teach Claude how to help with D&D at our table: how to plan a
+  character, how to walk you through a level-up, how to check your sheet, how to answer a rules
+  question. There is nothing extra to install or switch on for that.
 - **Your two values** (a Client ID and a Client Secret) are your personal key to that plug. They
-  tell the server who you are, so you see your own character and nobody else's.
-- **The skill** (a file called `foundry-dnd-helper-player.zip`) is a set of instructions that
-  teaches Claude how to help with D&D at our table: how to plan a character, how to walk you
-  through a level-up, how to check your sheet, how to answer a rules question.
+  tell the server who you are, so you see your own character and nobody else's. In the file you
+  download from your page they are already inside.
 
 What it **does**: reads your own characters, reads the books our table allows players to read,
 and talks you through the choices.
@@ -44,7 +45,7 @@ You need:
   who runs the tool sends them to you privately, and you can also see them on your own **My
   character** page under **Your Claude connector** (there are copy buttons next to each).
   Treat the secret like a password: do not post it in Discord, do not put it in a screenshot.
-- Two files, which you download in step 2. You do not need Claude Desktop installed yet: step 1
+- One file, which you download in step 2. You do not need Claude Desktop installed yet: step 1
   does that.
 
 ## Step 1: install Claude Desktop and sign in
@@ -60,17 +61,14 @@ You need:
 Anthropic changes the menus now and then. If a button is not where this guide says, look for the
 same word nearby, or use the search box in Settings.
 
-## Step 2: download your helper and the skill
+## Step 2: download your helper
 
 1. Open your **My character** page (the private link you were sent), open **Your Claude
    connector** and press **Download my helper**. Your browser saves `foundry-player.mcpb` in
    your **Downloads** folder. This file is made for you and holds your own login, so do not
    share it, and delete it after step 3 if you like.
-2. Download the skill:
-   [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
 
-If your browser asks whether to keep a file it does not know, choose **Keep**. Do not unzip the
-skill.
+If your browser asks whether to keep a file it does not know, choose **Keep**.
 
 ## Step 3: add the extension
 
@@ -91,17 +89,12 @@ install it the same way, and when a form asks, paste your **Client ID** into the
 your **Client Secret** into the second (the **My character** page has both with copy buttons).
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
-You should see **Foundry** (or **foundry-player**) listed with five tools. If you do, the plug is
-in.
+You should see **Foundry** (or **foundry-player**) listed with six tools (the five table tools and
+**get-helper-guide**). If you do, the plug is in. The helper's instructions come with the extension,
+so you should not need to add a skill or switch on Code execution. If Claude does not follow the
+helper's steps, see Troubleshooting.
 
-## Step 4: add the skill
-
-1. In Claude Desktop open **Settings**, then **Customize**, then **Skills**.
-2. Choose to add a skill and pick `foundry-dnd-helper-player.zip` from your Downloads folder.
-   **Do not unzip it first.**
-3. Make sure the skill is switched on.
-
-## Step 5: your first question
+## Step 4: your first question
 
 Start a new chat and ask:
 
@@ -242,9 +235,13 @@ and label the rest as general knowledge. If it never says so, tell the person wh
 The table may not allow that book for players, or the entry's name may differ. Try a different
 word ("grapple" and "grappled"), or ask for a search by what the thing does.
 
-**The skill is not used.**
-Open Settings, Customize, Skills and check "foundry-dnd-helper-player" is on. Start your message
-with "Use the D&D helper skill to..." the first time.
+**It does not follow the helper's steps (a build card, a sheet check).**
+Ask: "Read the Foundry helper guide first, then answer." Claude then opens the guide through the
+**get-helper-guide** tool. If it still does not, the extension may be an old version: download your
+helper again from your **My character** page and install it over the old one.
+
+**I installed the old skill zip earlier.**
+It still works, but you no longer need it. You can remove it in Settings, Customize, Skills.
 
 **It claims it changed my character.**
 It cannot, and it should never say so. Check your sheet in Foundry, then tell the person who runs

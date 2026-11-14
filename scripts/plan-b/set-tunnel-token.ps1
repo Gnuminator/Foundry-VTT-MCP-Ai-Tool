@@ -5,7 +5,7 @@
   YOU run this, in your own PowerShell window: Claude never types or sees the token.
 
 .DESCRIPTION
-  Part C must be live first (your domain in Cloudflare, Waiting item 13). In Zero Trust create a
+  Part C must be live first (your domain in Cloudflare). In Zero Trust create a
   second tunnel named foundry-pc (Windows, 64-bit) and copy its token, or the whole install command
   it shows: this script picks out the token. Do not run Cloudflare's command itself (it would install
   an always-on Windows service).

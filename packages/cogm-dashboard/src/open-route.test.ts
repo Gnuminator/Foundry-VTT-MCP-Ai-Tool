@@ -636,7 +636,7 @@ describe('POST /api/open with the player/GM split on', () => {
   });
 });
 
-describe('POST /api/open with the split off (legacy)', () => {
+describe('POST /api/open with the split off (single-user mode)', () => {
   it('acts for any caller, but the cross-site and header guards still refuse', async () => {
     const h = await start(SPLIT_OFF);
     expect((await postOpen(h, { uuid: ACTOR })).status).toBe(200);

@@ -167,6 +167,19 @@ describe('Diagnostics world key migration', () => {
     expect(store.get('foundry-mcp-bridge.diagnosticsWorld')).toBe('strahd');
   });
 
+  it('clear() before bindWorld empties the buffer and the stored copy, and binding keeps it empty', () => {
+    store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
+    store.set('foundry-mcp-bridge.diagnosticsWorld', 'test-world');
+    const d = new Diagnostics();
+    d.install();
+
+    expect(d.clear()).toBe(1);
+    expect(store.has('foundry-mcp-bridge.diagnostics')).toBe(false);
+    d.bindWorld('test-world');
+    expect(d.getErrors()).toEqual([]);
+    expect(JSON.parse(store.get('foundry-mcp-bridge.diagnostics') ?? '[]')).toEqual([]);
+  });
+
   it('leaves storage that expandObject can read (no key is a dotted prefix of another)', () => {
     store.set('foundry-mcp-bridge.diagnostics', JSON.stringify([entry('old', 1)]));
     store.set('foundry-mcp-bridge.diagnostics.world', 'strahd');

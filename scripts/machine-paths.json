@@ -1,0 +1,7 @@
+{
+  "planBRoot": "C:\\FoundryPlanB",
+  "testServerRoot": "C:\\FoundryTest",
+  "backupDestination": "E:\\PiBackup",
+  "moduleArchive": "C:\\FoundryAI\\module-archive",
+  "secretsFolderUnderAppData": "foundry-ai-tool"
+}

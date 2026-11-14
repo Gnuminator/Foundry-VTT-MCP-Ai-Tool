@@ -40,7 +40,7 @@ export const SWITCHES_KEY = ['session-switches'] as const;
 /** "AI Tool: Handouts (writes)" reads "Handouts (writes)" on the chips and in toasts. */
 export const shortName = (name: string): string => name.replace(/^AI Tool: /, '');
 
-export function switchNames(list: SessionSwitch[], ids: string[]): string[] {
+function switchNames(list: SessionSwitch[], ids: string[]): string[] {
   return ids.map(id => shortName(list.find(s => s.id === id)?.name ?? id));
 }
 

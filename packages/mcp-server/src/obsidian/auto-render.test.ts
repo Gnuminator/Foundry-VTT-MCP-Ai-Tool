@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import type { VaultStore } from '../vault/store.js';
 
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './auto-render.js';
@@ -39,7 +40,7 @@ function setup(
     calls.push(args);
     return impl ? impl(args) : result(args.worldId);
   });
-  const logger = { info: vi.fn(), warn: vi.fn() };
+  const logger = makeLogger();
   const render = new ObsidianAutoRender({
     store: {} as VaultStore,
     audit: { list: (): Promise<never[]> => Promise.resolve([]) },

@@ -4,6 +4,7 @@
  * `collectToolDefinitions()` / `buildToolRouter()` in a unit test (tool-catalog.test.ts,
  * prompts/prompts.test.ts). A new tool family needs nothing here unless it needs a new service.
  */
+import { PORTS } from '@gnuminator/shared';
 import { vi } from 'vitest';
 
 import { GameEventHub } from '../game-event-hub.js';
@@ -38,7 +39,11 @@ export function stubToolServices(): ToolServices {
     obsidianVaultDir: null,
     sessionsDir: '',
     mirrorStatus: () => null,
-    mirrorEnv: {} as any,
+    mirrorEnv: {
+      vaultDirSet: false,
+      openBase: `http://localhost:${PORTS.testA.dashboard}`,
+      pollMs: 6000,
+    },
     playerExtraDenyTerms: () => [],
   };
 }

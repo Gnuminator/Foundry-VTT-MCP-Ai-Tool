@@ -15,7 +15,9 @@
 // --pi, which always reads the Pi folder).
 // An empty log is not always quiet days: connectorLogging() reads the Claude Desktop config and
 // says when a connector runs a build that predates call logging (the PC log was empty from
-// 2026-10-29 because the config ran an older build).
+// 2026-10-29 because the config ran an older build). The hint is printed only for an empty log
+// of the default folder (not with --dir, --pi or USAGE_WEEK_CALLS_DIR), and then whenever any
+// connector is stale, even if others do log.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -145,9 +147,14 @@ export function connectorLogging(env = process.env) {
     const servers = JSON.parse(readFileSync(config, 'utf8')).mcpServers ?? {};
     const stale = [];
     for (const [name, entry] of Object.entries(servers)) {
-      const script = Array.isArray(entry?.args) ? String(entry.args[0] ?? '') : '';
-      if (!/foundry-mcp.*\.cjs$/.test(script) || !existsSync(script)) continue;
-      if (!readFileSync(script, 'utf8').includes('.calls.jsonl')) stale.push(name);
+      // One unreadable entry must not hide the others.
+      try {
+        const script = Array.isArray(entry?.args) ? String(entry.args[0] ?? '') : '';
+        if (!/foundry-mcp.*\.cjs$/.test(script) || !existsSync(script)) continue;
+        if (!readFileSync(script, 'utf8').includes('.calls.jsonl')) stale.push(name);
+      } catch {
+        // skip this entry
+      }
     }
     return { config, stale };
   } catch {
@@ -158,7 +165,8 @@ export function connectorLogging(env = process.env) {
 /** One line for an empty log when a connector build is the likely reason; null otherwise. */
 export function emptyLogHint(info) {
   if (!info || !info.stale.length) return null;
-  return `Note: ${info.stale.length} Claude Desktop connector(s) (${info.stale.join(', ')}) run a server build that predates call logging, so nothing is written. Build a newer one (scripts/desktop/build-connector.ps1) and repoint with scripts/desktop/repoint-connectors.ps1 (config: ${info.config}).`;
+  const n = info.stale.length;
+  return `Note: ${n} Claude Desktop connector${n === 1 ? '' : 's'} (${info.stale.join(', ')}) ${n === 1 ? 'runs' : 'run'} a server build that predates call logging, so that connector writes nothing. Build a newer one (scripts/desktop/build-connector.ps1) and repoint with scripts/desktop/repoint-connectors.ps1 (config: ${info.config}).`;
 }
 
 function quantile(sorted, q) {
@@ -295,7 +303,7 @@ async function main(argv) {
     process.stderr.write('usage:calls: --days needs a whole number (0 = all days).\n');
     process.exit(2);
   }
-  if (argv.includes('--pi') && arg('--dir') !== undefined) {
+  if (argv.includes('--pi') && argv.includes('--dir')) {
     process.stderr.write(
       'usage:calls: --pi reads the Pi folder; it cannot be combined with --dir.\n'
     );
@@ -313,7 +321,8 @@ async function main(argv) {
     }
   } else calls = readCalls(dir, days);
   const summary = summarize(calls, await loadCatalog());
-  if (!summary.total && !argv.includes('--pi')) {
+  const customDir = argv.includes('--dir') || process.env.USAGE_WEEK_CALLS_DIR;
+  if (!summary.total && !argv.includes('--pi') && !customDir) {
     const hint = emptyLogHint(connectorLogging());
     if (hint) process.stderr.write(`${hint}\n`);
   }

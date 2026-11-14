@@ -147,8 +147,17 @@ export function createToolInstances(
     built.set(module, instance);
     return instance;
   };
-  const get = <T>(module: ToolModule<T>): T => build(module) as T;
-  const ctx: ToolContext = { services, use: get };
+  // `use` inside `create` may reach a module outside the list (built lazily); the returned `get`
+  // may not, so a typo or a forgotten line in tools/index.ts fails loudly.
+  const use = <T>(module: ToolModule<T>): T => build(module) as T;
+  const listed = new Set<AnyToolModule>(modules);
+  const get = <T>(module: ToolModule<T>): T => {
+    if (!listed.has(module)) {
+      throw new Error(`Tool module not in the list: ${module.id}`);
+    }
+    return use(module);
+  };
+  const ctx: ToolContext = { services, use };
   for (const module of modules) build(module);
   return { modules, get };
 }

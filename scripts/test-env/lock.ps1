@@ -8,6 +8,9 @@
 #   pwsh scripts/test-env/lock.ps1 leave -Session <local_id>
 #   pwsh scripts/test-env/lock.ps1 publish   write this server's state to the vault note again (reads only)
 #   ... -Server B   test server B's lock (<B's Root>/lock.json); default A, or FOUNDRY_TEST_SERVER
+#   ... -Server GPU the GPU lock: one GPU job at a time (Real-ESRGAN, Blender, audio or speech models,
+#                   anything on the RTX 5080); same commands, state in C:\FoundryAI\gpu-lock\lock.json,
+#                   shown on the vault note as server-gpu. Not a test server: no ports, no start.
 #
 # State is <Root>/lock.json: { holder, session, since, purpose, queue: [ { holder, session, since, purpose } ] }.
 # Every change is serialised through lock.json.lck and written as lock.json.tmp, then moved over
@@ -31,15 +34,19 @@ param(
   [switch]$Force,
   [string]$Root,
   [string]$Vault,
-  [ValidateSet('A', 'B', 'C')] [string]$Server
+  [ValidateSet('A', 'B', 'C', 'GPU')] [string]$Server
 )
+# GPU is a lock only: load the config as server A (for the lock helpers), point the lock elsewhere.
+$isGpu = ($Server -eq 'GPU') -or (-not $Server -and $env:FOUNDRY_TEST_SERVER -eq 'GPU')
+if ($isGpu) { $Server = 'A'; $env:FOUNDRY_TEST_SERVER = 'A' }
 . (Join-Path $PSScriptRoot 'config.ps1')
 
-$lockRoot = if ($Root) { $Root } else { $TestEnv.Root }
+$gpuRoot = if ($IsWindows) { 'C:\FoundryAI\gpu-lock' } else { Join-Path $HOME 'foundry-ai/gpu-lock' }
+$lockRoot = if ($Root) { $Root } elseif ($isGpu) { $gpuRoot } else { $TestEnv.Root }
 $lockFile = Join-Path $lockRoot 'lock.json'
-$label = if ($TestEnv.Server -eq 'A') { 'Test server lock' } else { "Test server $($TestEnv.Server) lock" }
+$label = if ($isGpu) { 'GPU lock' } elseif ($TestEnv.Server -eq 'A') { 'Test server lock' } else { "Test server $($TestEnv.Server) lock" }
 $cmd = "pwsh scripts/test-env/lock.ps1"
-$sv = $TestEnv.ServerArg
+$sv = if ($isGpu) { ' -Server GPU' } else { $TestEnv.ServerArg }
 
 function Limit([string]$Text) {
   $t = $Text.Trim()
@@ -304,7 +311,7 @@ function Get-NoteText([string]$Existing, $Lock, [string]$Name) {
   $keep = [ordered]@{}
   if ($Existing -match '(?s)^---\r?\n(.*?)\r?\n---') {
     foreach ($line in ($Matches[1] -split '\r?\n')) {
-      if ($line -match '^(server-[abc](?:-[a-z]+)?): (.*)$') { $keep[$Matches[1]] = $Matches[2].TrimEnd() }
+      if ($line -match '^(server-(?:[abc]|gpu)(?:-[a-z]+)?): (.*)$') { $keep[$Matches[1]] = $Matches[2].TrimEnd() }
     }
   }
   $id = "server-$($Name.ToLowerInvariant())"
@@ -365,9 +372,9 @@ function Publish-LockNote {
       # read the lock inside the note lock: the run that writes last writes the newest state
       $lock = Read-TestLock $lockRoot
       if ($lock.Unreadable) { return }
-      $name = $TestEnv.Server
+      $name = if ($isGpu) { 'GPU' } else { $TestEnv.Server }
       $state = if ($lock.Holder) { 'held' } else { 'free' }
-      $subject = "Test server ${name}: $state, queue $(@($lock.Queue).Count)"
+      $subject = "$(if ($isGpu) { 'GPU lock' } else { "Test server $name" }): $state, queue $(@($lock.Queue).Count)"
       $pushError = ''
       foreach ($attempt in 1, 2) {
         [void](Invoke-VaultGit $dir @('restore', '--staged', '--worktree', '--', $NotePath))  # an earlier failed try; fine to fail

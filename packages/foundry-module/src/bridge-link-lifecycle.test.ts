@@ -127,7 +127,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('link:one bridge at a time (PB-03)', () => {
+describe('link: one bridge at a time (PB-03)', () => {
   it('a second start() after a failed one disconnects the first bridge', async () => {
     fake.state.connectOk = false;
     await expect(bridge.start()).rejects.toThrow();
@@ -160,7 +160,7 @@ describe('link:one bridge at a time (PB-03)', () => {
   });
 });
 
-describe('link:no world writes for connection state (PB-03)', () => {
+describe('link: no world writes for connection state (PB-03)', () => {
   it('connecting, heartbeats and stopping write no settings', async () => {
     vi.useFakeTimers();
     await bridge.start();
@@ -454,7 +454,7 @@ describe('link:no world writes for connection state (PB-03)', () => {
   });
 });
 
-describe('link:bridge user gating (PB-02)', () => {
+describe('link: bridge user gating (PB-02)', () => {
   it('dials when no bridge user is set', async () => {
     await bridge.start();
     expect(fake.state.instances).toHaveLength(1);
@@ -473,7 +473,7 @@ describe('link:bridge user gating (PB-02)', () => {
   });
 });
 
-describe('link:"MCP server not found" notice (PB-03)', () => {
+describe('link: "MCP server not found" notice (PB-03)', () => {
   const warnings = (): string[] =>
     world.notifications.filter(n => n.level === 'warn').map(n => n.message);
 
@@ -502,7 +502,7 @@ describe('link:"MCP server not found" notice (PB-03)', () => {
   });
 });
 
-describe('link:link toasts', () => {
+describe('link: link toasts', () => {
   const messages = (): string[] => world.notifications.map(n => n.message);
   const linkToasts = (): string[] =>
     messages().filter(m => m.includes('link to the AI Tool') || m.includes('link is back'));
@@ -628,8 +628,9 @@ describe('link: lives here, not in main.ts (R9)', () => {
   const mainSource = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
 
   it.each([
-    ['imports the socket bridge', /from '\.\/socket-bridge\.js'/],
-    ['imports the link toasts', /from '\.\/link-notice\.js'/],
+    // Any mention trips these, also a comment that names the file (or the heartbeat, below).
+    ['imports the socket bridge', /socket-bridge/],
+    ['imports the link toasts', /link-notice/],
     ['sets the bridge link', /setBridgeLink/],
     ['runs a timer of its own', /setInterval|clearInterval/],
     [

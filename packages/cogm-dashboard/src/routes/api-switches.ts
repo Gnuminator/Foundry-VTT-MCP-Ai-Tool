@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
 
+import type { FeaturesBody, SessionSwitchesBody } from '../api-bodies.js';
 import { runDashboardPreflight } from '../preflight.js';
 import {
   isSessionSwitchAction,
@@ -36,7 +37,11 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
   // control method feature_switches; switching stays in Foundry or Turn on for tonight.
   app.get('/api/features', requireGm, (_req: Request, res: Response) => {
     if (typeof client.featureSwitches !== 'function') {
-      res.json({ features: null, writesAllowed: null, error: 'This bridge cannot list features.' });
+      res.json({
+        features: null,
+        writesAllowed: null,
+        error: 'This bridge cannot list features.',
+      } satisfies FeaturesBody);
       return;
     }
     client
@@ -47,7 +52,7 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
           features: Array.isArray(r.features) ? r.features : null,
           writesAllowed: typeof r.writesAllowed === 'boolean' ? r.writesAllowed : null,
           error: null,
-        });
+        } satisfies FeaturesBody);
       })
       .catch((error: unknown) => {
         logger.warn('Could not read the features', {
@@ -57,14 +62,18 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
           features: null,
           writesAllowed: null,
           error: 'Could not read the switches from Foundry.',
-        });
+        } satisfies FeaturesBody);
       });
   });
 
   app.get('/api/session/switches', requireGm, (_req: Request, res: Response) => {
     moduleSwitches('get')
       .then(switches =>
-        res.json({ switches, gmActionsEnabled: settings.gmActionsEnabled, error: null })
+        res.json({
+          switches,
+          gmActionsEnabled: settings.gmActionsEnabled,
+          error: null,
+        } satisfies SessionSwitchesBody)
       )
       .catch((error: unknown) => {
         logger.warn('Could not read the switches', {
@@ -74,7 +83,7 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
           switches: null,
           gmActionsEnabled: settings.gmActionsEnabled,
           error: 'Could not read the switches from Foundry.',
-        });
+        } satisfies SessionSwitchesBody);
       });
   });
 

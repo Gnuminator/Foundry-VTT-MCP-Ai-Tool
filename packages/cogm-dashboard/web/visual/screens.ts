@@ -8,7 +8,7 @@ import { GM_TOKEN, fromMenu } from '../e2e/support';
 import { fakeDashboard, type Moment, type Setup, type Theme } from './fixtures';
 
 export interface Screen {
-  /** The file stem of the baseline, and the test title. */
+  /** The file stem of the page shot, and the test title. */
   name: string;
   /** The play session behind the screen; it decides the moment and which panels are docked. */
   moment: Moment;
@@ -233,7 +233,7 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
   await page.waitForLoadState('networkidle');
   await page.mouse.move(0, 0);
   // Let every running CSS transition end (the tab pill's border colour was still a few units off in
-  // the advanced-menu shot on a loaded runner): `toHaveScreenshot` only finishes them on its own
+  // the advanced-menu shot on a loaded runner): the screenshot call only finishes them on its own
   // capture, not the ones the mouse move above just started.
   await page.evaluate(() =>
     Promise.all(

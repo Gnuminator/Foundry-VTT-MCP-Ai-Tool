@@ -115,7 +115,7 @@ test('connectorLogging flags a connector build without call logging', () => {
     assert.deepEqual(info.stale, ['foundry-mcp']);
     assert.match(
       emptyLogHint(info),
-      /foundry-mcp\)? run a server build that predates call logging/
+      /^Note: 1 Claude Desktop connector \(foundry-mcp\) runs a server build that predates call logging/
     );
     assert.equal(emptyLogHint({ config: 'c', stale: [] }), null);
     assert.equal(connectorLogging({ LOCALAPPDATA: path.join(root, 'none') }), null);
@@ -144,7 +144,8 @@ test('the Pi command ends a file without trailing newline before the next header
     let out;
     try {
       out = execFileSync('sh', ['-c', local], { encoding: 'utf8' });
-    } catch {
+    } catch (e) {
+      if (e?.code !== 'ENOENT') throw e;
       t.skip('sh is not available');
       return;
     }

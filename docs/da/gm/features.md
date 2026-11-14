@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 4c06cdaec3a4
+sourceHash: ab14fe9c3764
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -174,12 +174,12 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 ## Themed dice
 
 - **Hvad den gør:** når modulet **Dice So Nice** er installeret og slået til, passer to terningesæt
-  til dashboardets temaer: **AI Tool: The Veil** (røgfarvet gråt-grønt glas med drivende tåge,
+  til dashboardets temaer: **AI Tool: The Veil (campaign look)** (røgfarvet gråt-grønt glas med drivende tåge,
   tallene i lampeguld) og **AI Tool: Neutral** (dyb marineblå med blå-hvide tal). Kun de 3D-terningers
   udseende ændrer sig. Roll og play log forbliver de samme.
 - **Starter:** sættene findes, så snart Dice So Nice gør, men ingen bruger dem, før de vælger dem.
 - **Slå den til, når:** før session 1. Åbn **Game Settings**, kategorien **Dice So Nice!**, klik på
-  **3D Dice Settings**, bliv på fanen **Appearance**, vælg **AI Tool: The Veil** (eller **AI Tool:
+  **3D Dice Settings**, bliv på fanen **Appearance**, vælg **AI Tool: The Veil (campaign look)** (eller **AI Tool:
   Neutral**) i listen **Theme** og klik på **Save**. Dice So Nice har ingen standard for hele
   bordet (vinduet **Configure Dice Roles** sætter kun udseendet for skadestyper som Fire), så hver
   spiller vælger sine egne terninger på samme måde.

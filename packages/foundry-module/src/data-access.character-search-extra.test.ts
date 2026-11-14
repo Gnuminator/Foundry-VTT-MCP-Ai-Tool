@@ -1,5 +1,5 @@
 /**
- * Extra characterization for `FoundryDataAccess.searchCharacterItems` — the
+ * Extra characterization for `FoundryDataAccess.searchCharacterItems`, the
  * dnd5e spell/equipment category + field surface that the frozen
  * `data-access.character-search.test.ts` does not pin in detail.
  *
@@ -12,7 +12,7 @@
  *   - `category=cantrip`/`prepared` (dnd5e-valid) filter as before.
  *   - `category=focus`/`invested` (pf2e-only) are INERT in dnd5e: with no pf2e
  *     focus/invested data on a dnd5e actor they apply no filter and return every
- *     matching-type item. (Pre-prune they matched nothing — see the prune commit.)
+ *     matching-type item. (Pre-prune they matched nothing, see the prune commit.)
  *
  * Do not fold these into the frozen net; that file is the parity contract for
  * the rewrite and stays untouched.
@@ -93,10 +93,10 @@ const names = (r: { matches: Array<{ name: string }> }): string[] =>
   r.matches.map(m => m.name).sort();
 
 // ---------------------------------------------------------------------------
-// Spell fields — level + prepared (dnd5e sources)
+// Spell fields, level + prepared (dnd5e sources)
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — dnd5e spell fields', () => {
+describe('searchCharacterItems: dnd5e spell fields', () => {
   it('reports level from system.level (no pf2e rank fallback)', async () => {
     world.actors.add(makeCaster());
     const lvl4 = await da.searchCharacterItems({
@@ -142,10 +142,10 @@ describe('searchCharacterItems — dnd5e spell fields', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Spell categories — cantrip/prepared honored; focus inert
+// Spell categories, cantrip/prepared honored; focus inert
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — dnd5e spell categories', () => {
+describe('searchCharacterItems: dnd5e spell categories', () => {
   it('category="cantrip" keeps only level-0 spells', async () => {
     world.actors.add(makeCaster());
     const result = await da.searchCharacterItems({
@@ -167,7 +167,7 @@ describe('searchCharacterItems — dnd5e spell categories', () => {
     expect(names(result)).toEqual(['Default Spell', 'Prepared Bolt', 'Spark']);
   });
 
-  it('category="focus" is inert in dnd5e — returns every spell (no pf2e focus filter)', async () => {
+  it('category="focus" is inert in dnd5e: returns every spell (no pf2e focus filter)', async () => {
     world.actors.add(makeCaster());
     const result = await da.searchCharacterItems({
       characterIdentifier: 'Caster',
@@ -179,10 +179,10 @@ describe('searchCharacterItems — dnd5e spell categories', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Equipment categories — equipped honored; invested inert
+// Equipment categories, equipped honored; invested inert
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — dnd5e equipment categories', () => {
+describe('searchCharacterItems: dnd5e equipment categories', () => {
   it('category="equipped" keeps only equipped equipment', async () => {
     world.actors.add(makeCaster());
     const result = await da.searchCharacterItems({
@@ -193,7 +193,7 @@ describe('searchCharacterItems — dnd5e equipment categories', () => {
     expect(names(result)).toEqual(['Ring of Protection']);
   });
 
-  it('category="invested" is inert in dnd5e — returns every equipment item (no pf2e invested filter)', async () => {
+  it('category="invested" is inert in dnd5e: returns every equipment item (no pf2e invested filter)', async () => {
     world.actors.add(makeCaster());
     const result = await da.searchCharacterItems({
       characterIdentifier: 'Caster',

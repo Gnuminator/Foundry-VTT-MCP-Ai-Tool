@@ -66,7 +66,7 @@ one again; it skips a world A has open, so stop A or copy from a quiet moment). 
 them at `http://localhost:30002` / `30003` (join as `Claude` or `Kit GM`, passwordless).
 **Licence:** only one instance may be reachable by users other than the licence owner at a time
 (the Pi is that one), so B and C are owner-only on localhost. RAM for three servers running:
-see `docs/dev/TEST-KIT.md`, "Three test servers".
+see `docs/dev/test-kit/what-it-runs.md`, "Three test servers".
 
 This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
 separately with the GM. World data, users and test data are not shared between machines, even
@@ -175,7 +175,7 @@ lock. The board warns on Today when a lock is older than 6 hours: release when y
 
 Each server has its own lock (`<Root>\lock.json`); add `-Server B` to every `lock.ps1` call for
 server B. A whole test kit run with B's lock taken and released for you: `npm run kit:run`
-(options and exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"; `--server A` runs it on
+(options and exit codes in `docs/dev/test-kit/what-it-runs.md`, "The kit run command"; `--server A` runs it on
 A). It restarts that server's test environment on the kit world and stops it afterwards.
 
 ## Kit worlds

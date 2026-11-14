@@ -373,7 +373,7 @@ export const CHECKS = [
   },
 ];
 
-/** The steps of the CI job `build-test` that `npm run green` runs, in CI order. @type {Step[]} */
+/** The steps of the CI job `build-test` that `npm run green` runs, in the order of CHECKS. @type {Step[]} */
 export const STEPS = CHECKS.filter(c => c.steps !== false).map(({ name, cmd, args, env }) => ({
   name,
   cmd,

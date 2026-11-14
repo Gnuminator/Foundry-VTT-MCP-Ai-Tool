@@ -5,7 +5,19 @@
 // the reason, and nothing is planned. The bridge and the stream are faked; nothing needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, toast, type ToolCall } from './support';
+import {
+  GM_TOKEN,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  SPACE_UNAVAILABLE,
+  apiBody,
+  fakeCommonRoutes,
+  fakeTools,
+  ok,
+  switchesBody,
+  toast,
+  type ToolCall,
+} from './support';
 
 const MOODS = {
   sceneId: 's1',
@@ -35,14 +47,12 @@ async function setup(
   } = {}
 ): Promise<ToolCall[]> {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await page.route('**/api/features', route =>
     route.fulfill({
-      json: {
+      json: apiBody('/api/features', {
         features: [
           {
             id: 'scene-mood',
@@ -52,7 +62,7 @@ async function setup(
         ],
         writesAllowed: true,
         error: null,
-      },
+      }),
     })
   );
   const calls = await fakeTools(
@@ -298,9 +308,7 @@ test('when the viewed scene changed, the click reloads the moods instead of plan
 test('unreadable switches are described without "live play"', async ({ page }) => {
   await setup(page);
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: { switches: null, gmActionsEnabled: true, error: 'The bridge is away' },
-    })
+    route.fulfill({ json: switchesBody(true, null, 'The bridge is away') })
   );
   const panel = await openPanel(page);
   await expect(panel.getByRole('button', { name: 'Storm' })).toHaveAttribute(

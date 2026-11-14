@@ -107,7 +107,7 @@ export function parseArgs(argv) {
 
 /**
  * The steps a run executes: from `--from`, then `--only`, then without `--skip`, in CI order except
- * that the light steps move ahead of the first heavy one (see lightFirst).
+ * that the light steps move ahead of the first heavy one (see lightFirst); "CI order" is checks.mjs order.
  * @param {Step[]} steps @param {ReturnType<typeof parseArgs>} opts
  * @returns {{ steps: Step[], error: string | null }}
  */
@@ -960,7 +960,7 @@ export function quickSteps(files, cwd = process.cwd()) {
     steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
   steps.push(...lineRatchetQuickSteps(files));
   const webTouched = touchesDashboardWeb(files);
-  // CI order: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).
+  // Same order as the checks list: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).
   if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {
     steps.push({ name: 'catalog-check', cmd: 'npm', args: ['run', 'usage:catalog:check'] });
   }

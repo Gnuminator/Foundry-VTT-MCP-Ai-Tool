@@ -11,6 +11,9 @@ import {
   fakeTools,
   fromMenu,
   ok,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  switchesBody,
   type ToolCall,
 } from './support';
 
@@ -24,19 +27,11 @@ interface Session {
 
 /** The bridge as the views need it; `session()` answers get-play-session at each poll. */
 async function fakeBridge(page: Page, session: () => Session): Promise<ToolCall[]> {
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: {
-        switches: { switches: [], ready: null, changed: [], failed: [] },
-        gmActionsEnabled: false,
-        error: null,
-      },
-    })
+    route.fulfill({ json: switchesBody(false) })
   );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   return fakeTools(
     page,
     call => {
@@ -212,9 +207,7 @@ test('outside the Veil theme the selected tab keeps its ring and glow', async ({
 });
 
 test('a failed session read shows Before', async ({ page }) => {
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   const calls = await fakeTools(
     page,
     call =>

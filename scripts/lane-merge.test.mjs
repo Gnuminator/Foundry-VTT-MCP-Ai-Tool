@@ -416,6 +416,16 @@ test('judgeReviews: every refusal ends with the review-note helper command, the 
   assert.match(judgeReviews([], HEAD, false).detail, /review-note\.mjs <PR> --verdict/);
 });
 
+test('gate: a vault that exists but cannot be read refuses with the helper command', () => {
+  // a folder named like a note makes reading it throw (EISDIR) after the vault was found
+  const vault = vaultWith([{ name: '312-review.md', text: note() }]);
+  const dir = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff', 'Reviews 2026-10-10');
+  fs.mkdirSync(path.join(dir, '312-review-dir.md'));
+  const line = gate({ vault }).lines.find(l => l.startsWith('review: '));
+  assert.match(line, /review: cannot read the vault /);
+  assert.match(line, /review-note\.mjs 312 --verdict/);
+});
+
 test('gate: the vault refusal prints the helper command too', () => {
   const r = gate({ vault: path.join(os.tmpdir(), 'no-such-vault-xyz') });
   const line = r.lines.find(l => l.startsWith('review: '));
@@ -1044,6 +1054,32 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
     ]).failing,
     []
   );
+  // the SKIPPED clause needs a newer run known to be a normal run: an unclassified one (only a raw
+  // name) does not clear the cancelled raw shard
+  assert.deepEqual(
+    rollupProblems([check(100, rawShard, 'CANCELLED'), check(200, rawShard, 'SKIPPED')]).failing,
+    [rawShard + ' (CANCELLED)']
+  );
+  // a SKIPPED raw leg of a dispatch run does not clear it either
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, rawShard, 'SKIPPED'),
+      check(200, 'lint [dispatch]', 'SUCCESS'),
+    ]).failing,
+    [rawShard + ' (CANCELLED)', 'lint (CANCELLED)']
+  );
+  // nor does a SKIPPED leg of an older run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(50, rawShard, 'SKIPPED'),
+      check(50, 'lint', 'SUCCESS'),
+      check(100, 'lint', 'SUCCESS'),
+    ]).failing,
+    [rawShard + ' (CANCELLED)']
+  );
   // only a run of the same check supersedes: a newer dispatch run leaves the cancelled pull_request check blocking
   const dispatch = check(300, 'lint [dispatch]', 'SUCCESS');
   assert.deepEqual(rollupProblems([check(100, 'lint', 'CANCELLED'), dispatch]).failing, [
@@ -1289,6 +1325,24 @@ test('train reset drops merged, closed and open-but-unqueued PRs (a squash queue
   assert.deepEqual(
     readTrain(state).since.map(s => s.pr),
     [303]
+  );
+});
+
+test('train reset keeps a MERGED PR whose merge commit GitHub did not return', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(2)));
+  const code = main({
+    home,
+    run: trainRun({ states: { 300: 'MERGED-NO-OID' } }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [300]
   );
 });
 
@@ -1914,7 +1968,12 @@ function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {}, afte
       if (states[pr] === 'unreadable') return { status: 1, stdout: '', stderr: 'HTTP 502' };
       const st = queued.includes(pr)
         ? { state: 'OPEN', isInMergeQueue: true }
-        : { state: states[pr] ?? 'MERGED', isInMergeQueue: false, mergeCommit: { oid: `m${pr}` } };
+        : {
+            state: states[pr] === 'MERGED-NO-OID' ? 'MERGED' : (states[pr] ?? 'MERGED'),
+            isInMergeQueue: false,
+            // a MERGED answer without its merge commit cannot be placed against the tip
+            mergeCommit: states[pr] === 'MERGED-NO-OID' ? null : { oid: `m${pr}` },
+          };
       return {
         status: 0,
         stdout: JSON.stringify({ data: { repository: { pullRequest: st } } }),
@@ -2016,6 +2075,7 @@ test('lane-merge split: the entry file stays small and every gate module is a fi
   );
   const dir = path.join(path.dirname(SELF), 'lane-merge');
   for (const name of fs.readdirSync(dir)) {
+    // nested folders are supported by the relaunch copy; the gate itself keeps flat files for now
     assert.match(name, /\.mjs$/, `${name} in scripts/lane-merge/ is not a module`);
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
     assert.ok(text.split('\n').length <= 700, `${name} is over 700 lines: split it by gate`);
@@ -2038,6 +2098,7 @@ function relaunch({
   fs.writeFileSync(selfPath, selfText);
   if (Object.keys(selfModules).length) fs.mkdirSync(path.join(dir, 'lane-merge'));
   for (const [n, text] of Object.entries(selfModules)) {
+    fs.mkdirSync(path.dirname(path.join(dir, 'lane-merge', n)), { recursive: true });
     fs.writeFileSync(path.join(dir, 'lane-merge', n), text);
   }
   const calls = [];
@@ -2077,6 +2138,19 @@ function relaunch({
   });
   return { out, calls, lines, spawned, dir };
 }
+
+test('relaunch: a nested module folder is compared and copied', () => {
+  const mods = { 'a.mjs': 'one\n', 'sub/b.mjs': 'two\n' };
+  const same = relaunch({ selfModules: mods, mainModules: mods });
+  assert.deepEqual([same.out.relaunched, same.spawned.length], [false, 0]);
+  const changed = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\n', 'sub/b.mjs': 'X\n' },
+  });
+  assert.equal(changed.out.relaunched, true);
+  const copied = path.join(path.dirname(changed.spawned[0].args[0]), 'lane-merge', 'sub', 'b.mjs');
+  assert.equal(fs.readFileSync(copied, 'utf8'), 'X\n');
+});
 
 test('H1: a gate identical to main runs in place (line endings do not matter)', () => {
   const same = relaunch();

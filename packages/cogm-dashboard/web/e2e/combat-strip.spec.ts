@@ -8,6 +8,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
   GM_TOKEN,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  SPACE_UNAVAILABLE,
+  switchesBody,
   fakeCommonRoutes,
   fakeTools,
   fromMenu,
@@ -197,11 +201,9 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
     await page.addInitScript(flag => localStorage.setItem('cogm_boss_prompts', flag), bossFlag);
   }
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await page.route('**/api/tools', route =>
     route.fulfill({ json: { tools: TOOLS, gmActionsEnabled: gmActions } })
   );
@@ -2046,9 +2048,7 @@ test.describe('when a write or a roll request fails', () => {
     const { calls } = await setup(page, { initial: [fight(BOSS_FIGHT)] });
     // What the real route answers when the bridge is away: 200 with no switches and the reason.
     await page.route('**/api/session/switches', route =>
-      route.fulfill({
-        json: { switches: null, gmActionsEnabled: true, error: 'The bridge is away' },
-      })
+      route.fulfill({ json: switchesBody(true, null, 'The bridge is away') })
     );
     await load(page);
     const ask = page.locator('#strip-roll-party');

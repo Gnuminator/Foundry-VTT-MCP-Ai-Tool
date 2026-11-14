@@ -2,8 +2,11 @@
 // mark-play-session (a log-only tool: no GM Actions, no confirm) and the refresh after it.
 import { expect, test, type Page } from '@playwright/test';
 
+import type { SessionSwitch } from '../../src/session-switches';
 import {
   GM_TOKEN,
+  PREFLIGHT_OK,
+  apiBody,
   fakeCommonRoutes,
   fakeStream,
   fakeTools,
@@ -51,9 +54,7 @@ async function fakeBridge(
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, []);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
 });
 
 test('Start session marks the log, then the header reads Session since and End session', async ({
@@ -94,7 +95,7 @@ interface SwitchCalls {
 /** The module's switches: `readyOn` has Turn on for tonight on (a write switch and GM Actions). */
 async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> {
   const calls: SwitchCalls = { posts: [] };
-  const list = (on: boolean): unknown[] => [
+  const list = (on: boolean): SessionSwitch[] => [
     { id: 'handouts', name: 'AI Tool: Handouts (writes)', on },
   ];
   await page.route('**/api/session/switches', route => {
@@ -110,7 +111,7 @@ async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> 
       });
     }
     return route.fulfill({
-      json: {
+      json: apiBody('/api/session/switches', {
         switches: {
           switches: list(readyOn),
           ready: readyOn ? { at: Date.now(), turnedOn: ['handouts'] } : null,
@@ -119,7 +120,7 @@ async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> 
         },
         gmActionsEnabled: readyOn,
         error: null,
-      },
+      }),
     });
   });
   return calls;

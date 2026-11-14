@@ -17,12 +17,13 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { PageForPlayers } from '@gnuminator/shared';
 
 import { GuardedWriteService } from '../guarded-write/service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { HandoutsService } from './service.js';
@@ -104,8 +105,7 @@ beforeEach(async () => {
     uuids: string[];
   }): { pages: PageForPlayers[] } => ({ pages: data.uuids.map(pageForPlayers) });
   store = new VaultStore({ dataDir });
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const worldIds = { current: (): Promise<string> => Promise.resolve(WORLD) };
   guarded = new GuardedWriteService({
     foundryClient: foundry,

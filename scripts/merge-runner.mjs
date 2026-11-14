@@ -198,7 +198,10 @@ export function mainState(json, tip = '') {
  * the check against GitHub that follows every end other than merged.
  */
 const TRANSIENT =
-  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line|non-200 OK status code: 5\d\d|HTTP 5\d\d/;
+  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
+/** GitHub answered `gh pr merge` with a 5xx (GraphQL `non-200 OK status code: 502 ...` or REST `HTTP 502: ...`). */
+export const GH_MERGE_5XX =
+  /merge: gh pr merge exited \d+: .*?(?:non-200 OK status code: |\bHTTP )5\d\d\b/;
 const MAX_TRANSIENT = 3;
 
 /**
@@ -233,7 +236,7 @@ export function gateOutcome(code, output, pr) {
   )
     return { kind: 'transient', reason };
   if (code === GATE_WAIT_TIMEOUT) return { kind: 'wait', reason };
-  if (TRANSIENT.test(reason)) return { kind: 'transient', reason };
+  if (TRANSIENT.test(reason) || GH_MERGE_5XX.test(reason)) return { kind: 'transient', reason };
   return { kind: 'refused', reason };
 }
 
@@ -531,7 +534,12 @@ export function round(d, tried, attempts) {
       !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind) &&
       queuedOnGitHub(r.pr)
     ) {
-      if (out.kind === 'killed' || /no reason line/.test(out.reason)) {
+      // A 5xx on `gh pr merge` may come after GitHub queued the PR: adopt it too.
+      if (
+        out.kind === 'killed' ||
+        /no reason line/.test(out.reason) ||
+        GH_MERGE_5XX.test(out.reason)
+      ) {
         d.log(
           `#${r.pr} (${r.id}) is in the merge queue although the gate said: ${oneLine(out.reason, 200)}`
         );

@@ -664,6 +664,8 @@ test('gateOutcome: every real passing reason is transient, a review refusal is n
     'review: no note says Merge',
     'merge: gh pr merge exited 1: non-200 OK status code: 422 Unprocessable Entity',
     'merge: gh pr merge exited 1: HTTP 405: Pull Request is not mergeable',
+    'ci: failing: deploy HTTP 502 smoke (FAILURE)',
+    'merge: gh pr merge exited 1: HTTP 5020: odd',
   ]) {
     assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'refused', why);
   }
@@ -921,6 +923,30 @@ test('queue: a gate killed after it enqueued the PR is followed as enqueued, not
     ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
   ]);
   assert.deepEqual(trainAdds, [[5, SHA]], 'the gate died before its train write');
+});
+
+test('queue: a 5xx on gh pr merge after GitHub queued the PR is followed as enqueued', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: {
+        status: 1,
+        stdout:
+          'lane:merge: refused because merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "x"',
+      },
+    },
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  const trainAdds = [];
+  f.deps.trainAdd = (pr, head) => trainAdds.push([pr, head]);
+  const r = round(f.deps, new Set());
+  assert.equal(r.stop, null);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
+  ]);
+  assert.deepEqual(f.calls.post, [], 'no refusal posted');
+  assert.deepEqual(trainAdds, [[5, SHA]]);
 });
 
 test('queue: a real gate refusal of a PR that is queued stays a refusal, with the hint, and no train add', () => {

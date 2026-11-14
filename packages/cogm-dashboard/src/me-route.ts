@@ -114,6 +114,33 @@ function openRollRequests(result: unknown): Array<{ buttonId: string; label: str
 export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   const { client, links, directory, requireGm, worldId } = options;
 
+  // The flag is read from the bridge at most every 20 s (the page asks on every refresh).
+  const FLAG_TTL_MS = 20_000;
+  let flagCache: { at: number; value: boolean | null } | null = null;
+  function portraitFlag(): Promise<boolean | null> {
+    if (typeof client.featureSwitches !== 'function') return Promise.resolve(null);
+    if (flagCache && Date.now() - flagCache.at < FLAG_TTL_MS) {
+      return Promise.resolve(flagCache.value);
+    }
+    return client
+      .featureSwitches()
+      .then(raw => {
+        const r = raw as { features?: unknown; writesAllowed?: unknown } | null;
+        const entry = Array.isArray(r?.features)
+          ? (r.features as Array<{ id?: unknown; enabled?: unknown }>).find(
+              f => f.id === 'player-portrait'
+            )
+          : undefined;
+        const value =
+          entry && typeof entry.enabled === 'boolean'
+            ? entry.enabled && r?.writesAllowed !== false
+            : null;
+        flagCache = { at: Date.now(), value };
+        return value;
+      })
+      .catch(() => null);
+  }
+
   app.get('/me', (_req: Request, res: Response) => {
     options.pageHeaders(res);
     res.sendFile('me.html', { root: options.publicDir });
@@ -134,23 +161,10 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       res.status(501).json({ error: 'Your sheet is not available here. Ask your GM.' });
       return;
     }
-    // Is "Player portraits" on? The page hides the upload control when it is off. null when the
-    // bridge cannot say (an old backend): the page keeps the control and the refusal explains.
-    const portraitEnabled: Promise<boolean | null> =
-      typeof client.featureSwitches === 'function'
-        ? client
-            .featureSwitches()
-            .then(raw => {
-              const list = (raw as { features?: unknown } | null)?.features;
-              const entry = Array.isArray(list)
-                ? (list as Array<{ id?: unknown; enabled?: unknown }>).find(
-                    f => f.id === 'player-portrait'
-                  )
-                : undefined;
-              return entry && typeof entry.enabled === 'boolean' ? entry.enabled : null;
-            })
-            .catch(() => null)
-        : Promise.resolve(null);
+    // Is "Player portraits" on, and are writes allowed at all? The page hides the upload control
+    // when either is off. null when the bridge cannot say (an old backend): the page keeps the
+    // control and the refusal explains.
+    const portraitEnabled = portraitFlag();
     Promise.all([client.characterSheet(userId), portraitEnabled])
       .then(([result, portraitOn]) =>
         res.json({

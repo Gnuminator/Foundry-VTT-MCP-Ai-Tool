@@ -202,7 +202,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: 'player-portrait',
         name: 'AI Tool: Player portraits (writes)',
-        hint: "Lets a player change the picture of their own character from the dashboard's player page (the file goes into their own folder under assets/players).",
+        hint: "Lets a player change the picture of their own character from the dashboard's player page, and the tokens of that character already placed on scenes when they pick the token picture too (the file goes into their own folder under assets/players).",
         defaultEnabled: true,
       });
       registerGuardedFeature({

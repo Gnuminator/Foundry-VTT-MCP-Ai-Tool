@@ -17,7 +17,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  * Also counts `Router(` so a router defined inside `app.ts` cannot hide new endpoints.
  */
 function countInlineRoutes(source: string): number {
-  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // One pass: a string or template is kept as it is (so a `/*` or `//` inside it hides nothing),
+  // a block comment or a line comment is dropped.
+  const code = source.replace(
+    /('(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    (_match, str?: string) => str ?? ''
+  );
   const calls = code.match(/\bapp\s*\.\s*[A-Za-z]+\s*\(/g) ?? [];
   const routers = code.match(/\bRouter\s*\(/g) ?? [];
   return calls.length + routers.length;
@@ -47,5 +52,11 @@ describe('app.ts inline route ratchet', () => {
     const sample =
       "  app.get('/x', h);\n  // app.post('/y')\n /* app.use(z)\n app.use(q) */\n  app.use(a);\n  app\n    .post('/z', h);\n  const r = Router();";
     expect(countInlineRoutes(sample)).toBe(4);
+  });
+
+  it('does not let a comment marker inside a string hide a route', () => {
+    const sample =
+      "  app.get('/files/*', h);\n  app.get('/a', h); const u = 'http://x';\n  app.use(b);";
+    expect(countInlineRoutes(sample)).toBe(3);
   });
 });

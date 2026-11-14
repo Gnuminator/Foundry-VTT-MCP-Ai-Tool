@@ -83,7 +83,7 @@ describe('handlePlayerPortrait', () => {
     });
   });
 
-  it('also updates the tokens already placed, in the same plan, when the token picture is chosen', async () => {
+  it('also updates the tokens already placed, as a second change, when the token picture is chosen', async () => {
     const tok = 'Scene.scene00000000001.Token.tok0000000001';
     const s = setup({
       upload: {

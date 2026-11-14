@@ -40,7 +40,7 @@ afterEach(() => {
   restore();
 });
 
-describe('ModuleSettings — access defaults', () => {
+describe('ModuleSettings: access defaults', () => {
   it('allowNonGmAccess is a world setting, default OFF, shown in the config UI', () => {
     const config = registered.get(`${MODULE_ID}.allowNonGmAccess`);
     expect(config).toMatchObject({ scope: 'world', config: true, type: Boolean, default: false });
@@ -62,7 +62,7 @@ describe('ModuleSettings: linkState relay', () => {
   });
 });
 
-describe('ModuleSettings — bridge port default', () => {
+describe('ModuleSettings: bridge port default', () => {
   it('defaults to 31415 without a manifest flag', () => {
     expect(registered.get(`${MODULE_ID}.serverPort`)).toMatchObject({
       scope: 'world',
@@ -88,7 +88,7 @@ describe('ModuleSettings — bridge port default', () => {
   });
 });
 
-describe('ModuleSettings — validateSettings', () => {
+describe('ModuleSettings: validateSettings', () => {
   const valid = {
     serverHost: 'localhost',
     serverPort: 31415,

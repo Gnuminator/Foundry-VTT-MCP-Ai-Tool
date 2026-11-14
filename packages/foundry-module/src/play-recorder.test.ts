@@ -352,7 +352,7 @@ describe('items on actors', () => {
     // time `createItem` fires; the plain-array fixture needs this spelled out.
     actor.items.push(classItem);
     Hooks.callAll('createItem', classItem, {}, 'u1');
-    // Level goes from 3 (seeded at create) — bump it to see a level record.
+    // Level goes from 3 (seeded at create), bump it to see a level record.
     classItem._stats.modifiedTime = 11_000;
     fireUpdate('updateItem', classItem, { system: { levels: 4 } }, {}, 'u1');
     const level = recorder.getPlayRecords({}).records.find(r => r.kind === 'level');

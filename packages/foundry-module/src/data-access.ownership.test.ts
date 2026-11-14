@@ -41,7 +41,7 @@ afterEach(() => {
 // getActorOwnership
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getActorOwnership', () => {
+describe('FoundryDataAccess: getActorOwnership', () => {
   /** Minimal testUserPermission that checks actor.ownership[userId] against a level map. */
   function makeOwnershipActor(opts: {
     id: string;

@@ -15,7 +15,7 @@
  * Merge a Foundry-style partial `changed` object into `target` in place and
  * return it. Real Foundry documents already reflect the new values by the
  * time an `update*` hook fires, so tests that fire `updateActor`/`updateItem`
- * should apply the same patch to the fixture first (see {@link fireUpdate}) —
+ * should apply the same patch to the fixture first (see {@link fireUpdate}) -
  * otherwise a lazily-seeded shadow would read the document's stale value.
  */
 export function mergeFixture(

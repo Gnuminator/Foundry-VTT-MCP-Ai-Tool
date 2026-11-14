@@ -67,7 +67,7 @@ function hpDowned(
 // No-combat cases
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: no combat', () => {
+describe('FoundryDataAccess: getCombatState: no combat', () => {
   it('returns active:false with a descriptive message when no combat exists', async () => {
     // Neither game.combat nor game.combats holds anything.
     const result = await da.getCombatState();
@@ -84,7 +84,7 @@ describe('FoundryDataAccess — getCombatState: no combat', () => {
 // Basic shape with a started combat
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: top-level shape', () => {
+describe('FoundryDataAccess: getCombatState: top-level shape', () => {
   it('returns success:true with round/turn/current/combatants/downed when combat exists', async () => {
     const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     world.setCombat({
@@ -132,7 +132,7 @@ describe('FoundryDataAccess — getCombatState: top-level shape', () => {
   });
 
   it('sets current to null when turn index exceeds combatants length', async () => {
-    // turn=1 but only one combatant (index 0) — combatants[1] is undefined → null
+    // turn=1 but only one combatant (index 0), combatants[1] is undefined → null
     const actor = makeActor({ type: 'npc', system: hp(5) });
     world.setCombat({
       turns: [
@@ -159,7 +159,7 @@ describe('FoundryDataAccess — getCombatState: top-level shape', () => {
 // Per-combatant isCurrentTurn / actedThisRound
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: turn tracking', () => {
+describe('FoundryDataAccess: getCombatState: turn tracking', () => {
   it('marks only the combatant at turn index as isCurrentTurn', async () => {
     const actorA = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     const actorB = makeActor({ type: 'npc', system: hp(8) });
@@ -267,7 +267,7 @@ describe('FoundryDataAccess — getCombatState: turn tracking', () => {
 // Category: pc / enemy / npc
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: category', () => {
+describe('FoundryDataAccess: getCombatState: category', () => {
   it('assigns category "pc" for hasPlayerOwner + type character', async () => {
     const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     world.setCombat({
@@ -350,7 +350,7 @@ describe('FoundryDataAccess — getCombatState: category', () => {
 // HP
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: HP field', () => {
+describe('FoundryDataAccess: getCombatState: HP field', () => {
   it('maps hp value/max/temp from the actor system', async () => {
     const actor = makeActor({
       type: 'character',
@@ -396,7 +396,7 @@ describe('FoundryDataAccess — getCombatState: HP field', () => {
 // Defeated / downed list
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: defeated + downed', () => {
+describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
   it('marks a combatant defeated when isDefeated is true (overrides hp)', async () => {
     const actor = makeActor({ type: 'npc', system: hp(5), hasPlayerOwner: false });
     world.setCombat({
@@ -516,7 +516,7 @@ describe('FoundryDataAccess — getCombatState: defeated + downed', () => {
 // Hidden
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: hidden', () => {
+describe('FoundryDataAccess: getCombatState: hidden', () => {
   it('picks combatant.hidden when set (truthy)', async () => {
     const actor = makeActor({ type: 'npc', system: hp(8) });
     world.setCombat({
@@ -583,7 +583,7 @@ describe('FoundryDataAccess — getCombatState: hidden', () => {
 // Conditions (actorConditionNames indirectly tested)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: conditions', () => {
+describe('FoundryDataAccess: getCombatState: conditions', () => {
   it('returns empty conditions array when the actor has no effects', async () => {
     const actor = makeActor({
       type: 'character',
@@ -876,7 +876,7 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
 // tokenId / actorId / sceneId / statuses (M2: player-visibility naming)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses', () => {
+describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', () => {
   it('reads tokenId from c.tokenId, falling back to c.token.id, else null', async () => {
     const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     world.setCombat({

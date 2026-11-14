@@ -6,7 +6,7 @@
  *
  * Built from the evaluated roll's own terms (order preserved) plus label
  * inference against the acting actor's current ability modifier,
- * proficiency bonus and (for weapon attacks) the item's magical bonus —
+ * proficiency bonus and (for weapon attacks) the item's magical bonus -
  * verified against the real dnd5e 6.0.5 source on disk
  * (`Activity#getAttackData`: `actor.system.abilities.<key>.mod`,
  * `actor.system.attributes.prof`, `item.system.magicalBonus` gated by
@@ -150,7 +150,7 @@ function resolveActor(message: ChatMessage): { name: string; actor: ActorLike | 
 
 /**
  * The live item document a roll/usage message names, resolved synchronously
- * from the acting actor's own items (matched by uuid) — the message itself
+ * from the acting actor's own items (matched by uuid), the message itself
  * only carries a name/type/uuid descriptor (`dnd5eMessageItemRef`), not the
  * full system data a magic-bonus label needs.
  */

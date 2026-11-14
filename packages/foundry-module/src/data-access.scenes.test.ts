@@ -7,10 +7,10 @@
  *
  * Harness gaps worked around locally (never editing shared files):
  *   - `makeToken` does not include `rotation`, `alpha`, `elevation`,
- *     `lockRotation`, `actorLink`, or `actor` — supplied via rest-spread in
+ *     `lockRotation`, `actorLink`, or `actor`, supplied via rest-spread in
  *     each call that needs them.
  *   - `makeToken` `texture` only types `{ src? }`, but `getTokenDetails` reads
- *     `texture.scaleX` — supplied as extra props via rest-spread.
+ *     `texture.scaleX`: supplied as extra props via rest-spread.
  *   - `makeScene` wraps `img` in `_source.background.src` (null when absent),
  *     so a scene without `img` produces `background: ''` (null short-circuits to
  *     the `|| scene.img || ''` fallback, which is also absent → `''`).
@@ -47,7 +47,7 @@ afterEach(() => {
 // listScenes
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — listScenes', () => {
+describe('FoundryDataAccess: listScenes', () => {
   it('returns an empty array when there are no scenes', async () => {
     const result = await da.listScenes();
     expect(result).toEqual([]);
@@ -100,7 +100,7 @@ describe('FoundryDataAccess — listScenes', () => {
   });
 
   it('reads a v14 scene (Scene Levels) background via sceneBackgroundSrc', async () => {
-    // v14 has no top-level `background`/`_source.background` — it lives on each
+    // v14 has no top-level `background`/`_source.background`, it lives on each
     // Level (`Scene#levels`/`Scene#initialLevel`, verified `systems/core.ts`).
     const levels = {
       get: (id: string): { id: string; background: { src: string } } | undefined =>
@@ -193,7 +193,7 @@ describe('FoundryDataAccess — listScenes', () => {
 // getTokenDetails
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getTokenDetails', () => {
+describe('FoundryDataAccess: getTokenDetails', () => {
   it('throws wrapped error when there is no active scene', async () => {
     // No scene installed → game.scenes.current is undefined
     await expect(da.getTokenDetails({ tokenId: 'tok1' })).rejects.toThrow(

@@ -6,7 +6,7 @@
  * Harness: Phase 9 Foundry-mock (`test-support/foundry-mock`). Ownership is
  * exercised through the mock's `testUserPermission`/`getUserLevel`/
  * `hasPlayerOwner` surface (added for this domain; see `documents.ts`), which
- * reads `game.users` — built by `world.install()` — so fixtures are built
+ * reads `game.users`, built by `world.install()`, so fixtures are built
  * before or after install interchangeably (the collections are live).
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -46,10 +46,10 @@ const HOVER = 30;
 const ALWAYS = 50;
 
 // ---------------------------------------------------------------------------
-// computePlayerVisibility — pcActorIds
+// computePlayerVisibility: pcActorIds
 // ---------------------------------------------------------------------------
 
-describe('computePlayerVisibility — pcActorIds', () => {
+describe('computePlayerVisibility: pcActorIds', () => {
   it('includes an actor a non-GM user owns, excludes one only the GM owns', () => {
     world.addUser({ id: 'p1', name: 'Alice', isGM: false });
     world.addActor({ id: 'hero', name: 'Silvera', type: 'character', ownership: { p1: 3 } });
@@ -68,10 +68,10 @@ describe('computePlayerVisibility — pcActorIds', () => {
 });
 
 // ---------------------------------------------------------------------------
-// computePlayerVisibility — scene
+// computePlayerVisibility: scene
 // ---------------------------------------------------------------------------
 
-describe('computePlayerVisibility — scene', () => {
+describe('computePlayerVisibility: scene', () => {
   it('is null when there is no active scene', () => {
     world.addScene({ id: 's1', name: 'Death House Basement', active: false });
     expect(computePlayerVisibility().scene).toBeNull();
@@ -144,10 +144,10 @@ describe('computePlayerVisibility — scene', () => {
 });
 
 // ---------------------------------------------------------------------------
-// computePlayerVisibility — tokens
+// computePlayerVisibility: tokens
 // ---------------------------------------------------------------------------
 
-describe('computePlayerVisibility — tokens', () => {
+describe('computePlayerVisibility: tokens', () => {
   it('excludes hidden tokens', () => {
     const shown = makeToken({ id: 't1', name: 'Guard', hidden: false, displayName: ALWAYS });
     const hidden = makeToken({ id: 't2', name: 'Ambusher', hidden: true, displayName: ALWAYS });
@@ -230,13 +230,13 @@ describe('computePlayerVisibility — tokens', () => {
 
   it('an unlinked token uses its own synthetic actor for ownership, not the base actor', () => {
     // Base (world) actor: GM-only. The unlinked token's own delta actor has
-    // been given to a player instead — the token must reflect the synthetic
+    // been given to a player instead, the token must reflect the synthetic
     // actor's ownership, not the base actor's.
     world.addUser({ id: 'p1', name: 'Alice', isGM: false });
     world.addActor({ id: 'hero', name: 'Silvera', type: 'character', ownership: { default: 0 } });
     // A detached actor (not registered in `world.actors`): its own delta,
     // built the same way `makeActor` builds any actor so it gets the live
-    // `hasPlayerOwner` getter — never looked up by id.
+    // `hasPlayerOwner` getter, never looked up by id.
     const syntheticActor = makeActor({
       id: 'hero',
       name: 'Silvera (disguised)',

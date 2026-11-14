@@ -1,12 +1,12 @@
 /**
- * MockCollection — a stand-in for Foundry's `Collection` / `WorldCollection` /
+ * MockCollection: a stand-in for Foundry's `Collection` / `WorldCollection` /
  * embedded-document collections (`game.actors`, `actor.items`, `scene.tokens`, …).
  *
  * Foundry's `Collection` extends `Map` and layers array-like helpers on top
  * (`get`, `getName`, `find`, `filter`, `map`, `forEach`, `some`, `contents`,
  * `size`, iteration). `data-access.ts` only ever leans on that subset, so this
- * reproduces exactly those semantics — keyed by each entry's `id`, iterating in
- * insertion order — without pulling in the real Foundry runtime.
+ * reproduces exactly those semantics, keyed by each entry's `id`, iterating in
+ * insertion order, without pulling in the real Foundry runtime.
  *
  * Part of the Phase 9 Foundry-mock harness (see `index.ts`). Test-only: this
  * folder is excluded from the shipped `tsc` build via `tsconfig.json`.
@@ -60,7 +60,7 @@ export class MockCollection<T extends Identified> implements Iterable<T> {
     return this.contents.find(entry => entry.name === name);
   }
 
-  /** Array snapshot in insertion order — mirrors Foundry's `Collection#contents`. */
+  /** Array snapshot in insertion order, mirrors Foundry's `Collection#contents`. */
   get contents(): T[] {
     return [...this.entries_.values()];
   }

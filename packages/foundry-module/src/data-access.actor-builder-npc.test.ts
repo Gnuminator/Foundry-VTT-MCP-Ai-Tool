@@ -1,17 +1,17 @@
 /**
  * Characterization tests for the NPC STAT-BLOCK half of the `actor-builder`
- * domain of `FoundryDataAccess` — building / populating an NPC combat stat
+ * domain of `FoundryDataAccess`, building / populating an NPC combat stat
  * block. Driven through the Phase 9 Foundry-mock harness (in-memory).
  *
  * Methods pinned here (the "build the stat block" theme):
- *   - createNpcActor             — create the NPC + abilities/AC/HP/movement/
+ *   - createNpcActor            : create the NPC + abilities/AC/HP/movement/
  *                                  senses/skills/traits
- *   - addAttackToActor           — weapon attack item (single attack activity)
- *   - addAttackWithSaveToActor   — weapon with attack + save activities
- *   - addAuraToActor             — automatic-damage aura/emanation feat
- *   - addPassiveFeatureToActor   — pure-description feat (no activities)
- *   - addSaveFeatureToActor      — save feat (single save activity + area)
- *   - addFeaturesFromCompendium  — import monster/class FEATURES from packs
+ *   - addAttackToActor          : weapon attack item (single attack activity)
+ *   - addAttackWithSaveToActor  : weapon with attack + save activities
+ *   - addAuraToActor            : automatic-damage aura/emanation feat
+ *   - addPassiveFeatureToActor  : pure-description feat (no activities)
+ *   - addSaveFeatureToActor     : save feat (single save activity + area)
+ *   - addFeaturesFromCompendium : import monster/class FEATURES from packs
  *
  * Ceded to the sibling net (`data-access.actor-builder-items.test.ts`):
  *   - useItem, useNpcActivity (item use/roll, not stat-block building)
@@ -112,7 +112,7 @@ function dmg(number: number, denomination: number, type: string): any {
 // createNpcActor
 // ===========================================================================
 
-describe('FoundryDataAccess — createNpcActor', () => {
+describe('FoundryDataAccess: createNpcActor', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(da.createNpcActor(npcData())).rejects.toThrow(
@@ -353,7 +353,7 @@ describe('FoundryDataAccess — createNpcActor', () => {
 // addAttackToActor
 // ===========================================================================
 
-describe('FoundryDataAccess — addAttackToActor', () => {
+describe('FoundryDataAccess: addAttackToActor', () => {
   function attackData(overrides: Record<string, any> = {}): any {
     return {
       actorIdentifier: 'Atk Target',
@@ -513,7 +513,7 @@ describe('FoundryDataAccess — addAttackToActor', () => {
 // addAttackWithSaveToActor
 // ===========================================================================
 
-describe('FoundryDataAccess — addAttackWithSaveToActor', () => {
+describe('FoundryDataAccess: addAttackWithSaveToActor', () => {
   function awsData(overrides: Record<string, any> = {}): any {
     return {
       actorIdentifier: 'AWS Target',
@@ -640,7 +640,7 @@ describe('FoundryDataAccess — addAttackWithSaveToActor', () => {
 // addAuraToActor
 // ===========================================================================
 
-describe('FoundryDataAccess — addAuraToActor', () => {
+describe('FoundryDataAccess: addAuraToActor', () => {
   function auraData(overrides: Record<string, any> = {}): any {
     return {
       actorIdentifier: 'Aura Target',
@@ -759,7 +759,7 @@ describe('FoundryDataAccess — addAuraToActor', () => {
 // addPassiveFeatureToActor
 // ===========================================================================
 
-describe('FoundryDataAccess — addPassiveFeatureToActor', () => {
+describe('FoundryDataAccess: addPassiveFeatureToActor', () => {
   function passiveData(overrides: Record<string, any> = {}): any {
     return {
       actorIdentifier: 'Passive Target',
@@ -846,7 +846,7 @@ describe('FoundryDataAccess — addPassiveFeatureToActor', () => {
 // addSaveFeatureToActor
 // ===========================================================================
 
-describe('FoundryDataAccess — addSaveFeatureToActor', () => {
+describe('FoundryDataAccess: addSaveFeatureToActor', () => {
   function saveData(overrides: Record<string, any> = {}): any {
     return {
       actorIdentifier: 'Save Target',
@@ -865,7 +865,7 @@ describe('FoundryDataAccess — addSaveFeatureToActor', () => {
     };
   }
 
-  it('throws when the system is not dnd5e (actor must exist first — guard is after lookup)', async () => {
+  it('throws when the system is not dnd5e (actor must exist first: guard is after lookup)', async () => {
     // Unlike the other add* methods, this one resolves the actor BEFORE the
     // system guard, so the actor must be present to reach the guard branch.
     addTargetActor('Save Target');
@@ -953,10 +953,10 @@ describe('FoundryDataAccess — addSaveFeatureToActor', () => {
 });
 
 // ===========================================================================
-// addFeaturesFromCompendium — importing monster/class FEATURES into a stat block
+// addFeaturesFromCompendium: importing monster/class FEATURES into a stat block
 // ===========================================================================
 
-describe('FoundryDataAccess — addFeaturesFromCompendium', () => {
+describe('FoundryDataAccess: addFeaturesFromCompendium', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(

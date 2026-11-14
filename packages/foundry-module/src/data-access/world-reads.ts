@@ -21,7 +21,7 @@ interface SceneExtraFields {
  *
  * Backs the tools that give an AI model a quick orientation to the live game:
  * who's in the world, what scene is active, what actors exist, and which
- * compendium packs are available. All four methods are read-only — no writes,
+ * compendium packs are available. All four methods are read-only, no writes,
  * no permission gates, no audit trail. Everything here is metadata that helps
  * the model decide what follow-up queries to make.
  *
@@ -35,7 +35,7 @@ export class WorldReadsDataAccess {
   /**
    * List every world actor with lightweight identity metadata.
    *
-   * The `img` key is omitted entirely when the actor has no image — the model
+   * The `img` key is omitted entirely when the actor has no image, the model
    * should not have to filter `undefined` image values from its roster view.
    */
   async listActors(): Promise<Array<{ id: string; name: string; type: string; img?: string }>> {
@@ -63,7 +63,7 @@ export class WorldReadsDataAccess {
 
     // `sceneBackgroundSrc` (systems/core.ts): the current Scene Level's
     // background on v14, `_source.background.src` on v13. Spread in only when
-    // present — `exactOptionalPropertyTypes` forbids assigning `undefined`
+    // present: `exactOptionalPropertyTypes` forbids assigning `undefined`
     // itself to the (typed) optional `background` field.
     const background = sceneBackgroundSrc(scene);
 
@@ -93,7 +93,7 @@ export class WorldReadsDataAccess {
   /**
    * Report world/system/engine version metadata and the current user roster.
    *
-   * No permission gate — this is basic orientation data the model needs to
+   * No permission gate, this is basic orientation data the model needs to
    * know which system rules apply and who's online.
    */
   async getWorldInfo(): Promise<WorldInfo> {
@@ -112,7 +112,7 @@ export class WorldReadsDataAccess {
    *
    * The model uses this to know which packs to search when looking up
    * creatures, spells, or items. `private` distinguishes packs the GM has
-   * hidden from players — relevant when deciding what to surface.
+   * hidden from players, relevant when deciding what to surface.
    */
   async getAvailablePacks(): Promise<
     Array<{
@@ -137,7 +137,7 @@ export class WorldReadsDataAccess {
   /**
    * Flatten a Foundry token document to the wire shape the scene tool exposes.
    *
-   * `actorId` is omitted when absent — a token without an actor link (e.g. a
+   * `actorId` is omitted when absent, a token without an actor link (e.g. a
    * decorative prop) should not carry a spurious `undefined` key. Disposition
    * is coerced to a number through `shared.getTokenDisposition` in case the
    * document carries an unexpected non-numeric value.

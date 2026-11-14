@@ -7,7 +7,7 @@
  * (`common/documents/region.mjs:23-90`, verified). `common/data/data.mjs:200-461`
  * defines the shape data models this file targets: `RectangleShapeData`
  * (x,y,width,height,anchorX,anchorY,rotation), `CircleShapeData` (x,y,radius),
- * `ConeShapeData` (x,y,radius,angle,rotation,curvature — default "round",
+ * `ConeShapeData` (x,y,radius,angle,rotation,curvature, default "round",
  * `common/data/data.mjs:369`), `LineShapeData` (x,y,length,width,rotation). All
  * coordinates/sizes are in pixels, same as a MeasuredTemplate.
  *
@@ -27,7 +27,7 @@
  * verified) creates Regions the same way: `visibility: CONST.REGION_VISIBILITY.ALWAYS`,
  * `highlightMode: "coverage"`. It also sets `restriction.enabled: true` (move-blocking)
  * for spell templates; this tool's freeform AoE marker instead defaults
- * `restriction.enabled: false` — matching the old MeasuredTemplate's visual-only,
+ * `restriction.enabled: false`, matching the old MeasuredTemplate's visual-only,
  * non-obstructing behavior, since a GM using this tool is marking an area, not
  * necessarily physically obstructing it.
  *
@@ -103,7 +103,7 @@ export function templateToRegionShape(
       };
     case 'rect':
       // Simplified: a `distance`-side square anchored at the origin, rotated by
-      // `direction` — see the file-level comment.
+      // `direction`: see the file-level comment.
       return {
         type: 'rectangle',
         x: params.x,
@@ -124,7 +124,7 @@ export function templateToRegionShape(
 /**
  * Full `createEmbeddedDocuments('Region', ...)` payload for one AoE template,
  * flagged so {@link isToolTemplateRegion} (and a `clear-templates` plan's
- * `all=true`) can find only regions this tool created — never a hand-made GM
+ * `all=true`) can find only regions this tool created, never a hand-made GM
  * region.
  */
 export function buildTemplateRegionData(

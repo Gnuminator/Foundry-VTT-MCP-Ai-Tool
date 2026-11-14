@@ -16,7 +16,7 @@ interface PageSummary {
  * existing pages. Foundry's `JournalEntry` documents are duck-typed throughout
  * (`game.journal` is a Collection of entries; each entry's `.pages` is an
  * embedded Collection), so everything is read defensively with `|| ''`-style
- * fallbacks — Foundry hands us partially-populated docs in the wild.
+ * fallbacks: Foundry hands us partially-populated docs in the wild.
  *
  * Writes go through {@link permissionManager} at the `createActor` risk level
  * (journals are treated as equivalent to actor creation for the safety gate).
@@ -78,7 +78,7 @@ export class JournalDataAccess {
 
     const firstText = journal.pages.find(page => page.type === 'text');
     if (!firstText) {
-      // No prose to surface — return the manifest only, omitting currentPage/note.
+      // No prose to surface, return the manifest only, omitting currentPage/note.
       return { content: '', allPages, pageCount };
     }
 
@@ -95,7 +95,7 @@ export class JournalDataAccess {
    * Read one page by id. Returns `null` if the journal or the page is unknown.
    * Text pages expose their HTML `text.content`; any other page type exposes its
    * `src` instead. (The reported `type` falls back to `'text'`, but the
-   * content branch keys off the *raw* type — an untyped page therefore reads its
+   * content branch keys off the *raw* type, an untyped page therefore reads its
    * `src`, matching the historical behavior.)
    */
   async getJournalPageContent(

@@ -85,10 +85,10 @@ function addActorWithProtoToken(
 }
 
 // ===========================================================================
-// createActorFromCompendium — permission + lookup guards
+// createActorFromCompendium: permission + lookup guards
 // ===========================================================================
 
-describe('FoundryDataAccess — createActorFromCompendium: guards', () => {
+describe('FoundryDataAccess: createActorFromCompendium: guards', () => {
   it('throws ACCESS_DENIED when write operations are disabled', async () => {
     // no enableWrites() → allowWriteOperations is undefined → permission denied
     await expect(da.createActorFromCompendium({ creatureType: 'Goblin' })).rejects.toThrow(
@@ -115,10 +115,10 @@ describe('FoundryDataAccess — createActorFromCompendium: guards', () => {
 });
 
 // ===========================================================================
-// createActorFromCompendium — success paths
+// createActorFromCompendium: success paths
 // ===========================================================================
 
-describe('FoundryDataAccess — createActorFromCompendium: success', () => {
+describe('FoundryDataAccess: createActorFromCompendium: success', () => {
   it('creates a single actor and returns the full result shape', async () => {
     world.enableWrites();
     addActorPack('world.monsters', 'SRD Monsters', [
@@ -252,10 +252,10 @@ describe('FoundryDataAccess — createActorFromCompendium: success', () => {
 });
 
 // ===========================================================================
-// createActorFromCompendium — addToScene branch
+// createActorFromCompendium: addToScene branch
 // ===========================================================================
 
-describe('FoundryDataAccess — createActorFromCompendium: addToScene', () => {
+describe('FoundryDataAccess: createActorFromCompendium: addToScene', () => {
   it('runs the scene placement when addToScene=true and reports tokensPlaced', async () => {
     // `createActor` and `modifyScene` share the `allowWriteOperations` toggle, so
     // enableWrites() satisfies both gates and the scene path actually executes.
@@ -302,10 +302,10 @@ describe('FoundryDataAccess — createActorFromCompendium: addToScene', () => {
 });
 
 // ===========================================================================
-// createActorFromCompendium — rollback on significant failure
+// createActorFromCompendium: rollback on significant failure
 // ===========================================================================
 
-describe('FoundryDataAccess — createActorFromCompendium: rollback', () => {
+describe('FoundryDataAccess: createActorFromCompendium: rollback', () => {
   it('rolls back and throws when fewer than half the requested actors are created', async () => {
     world.enableWrites(3);
     addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
@@ -327,10 +327,10 @@ describe('FoundryDataAccess — createActorFromCompendium: rollback', () => {
 });
 
 // ===========================================================================
-// createActorFromCompendiumEntry — input + lookup validation
+// createActorFromCompendiumEntry: input + lookup validation
 // ===========================================================================
 
-describe('FoundryDataAccess — createActorFromCompendiumEntry: validation', () => {
+describe('FoundryDataAccess: createActorFromCompendiumEntry: validation', () => {
   // P-036: these write paths are gated; the refusal is tested separately.
   beforeEach(() => {
     world.enableWrites();
@@ -390,10 +390,10 @@ describe('FoundryDataAccess — createActorFromCompendiumEntry: validation', () 
 });
 
 // ===========================================================================
-// createActorFromCompendiumEntry — success paths
+// createActorFromCompendiumEntry: success paths
 // ===========================================================================
 
-describe('FoundryDataAccess — createActorFromCompendiumEntry: success', () => {
+describe('FoundryDataAccess: createActorFromCompendiumEntry: success', () => {
   // P-036: these write paths are gated; the refusal is tested separately.
   beforeEach(() => {
     world.enableWrites();
@@ -512,7 +512,7 @@ describe('FoundryDataAccess — createActorFromCompendiumEntry: success', () => 
 // addActorItems
 // ===========================================================================
 
-describe('FoundryDataAccess — addActorItems', () => {
+describe('FoundryDataAccess: addActorItems', () => {
   // P-036: these write paths are gated; the refusal is tested separately.
   beforeEach(() => {
     world.enableWrites();
@@ -599,10 +599,10 @@ describe('FoundryDataAccess — addActorItems', () => {
 });
 
 // ===========================================================================
-// addActorsToScene — permission + scene guards
+// addActorsToScene: permission + scene guards
 // ===========================================================================
 
-describe('FoundryDataAccess — addActorsToScene: guards', () => {
+describe('FoundryDataAccess: addActorsToScene: guards', () => {
   it('throws ACCESS_DENIED when modifyScene is disabled', async () => {
     await expect(
       da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
@@ -620,10 +620,10 @@ describe('FoundryDataAccess — addActorsToScene: guards', () => {
 });
 
 // ===========================================================================
-// addActorsToScene — placement + result shape
+// addActorsToScene: placement + result shape
 // ===========================================================================
 
-describe('FoundryDataAccess — addActorsToScene: placement', () => {
+describe('FoundryDataAccess: addActorsToScene: placement', () => {
   function activeScene(): any {
     const scene = world.addScene({
       id: 'scene1',

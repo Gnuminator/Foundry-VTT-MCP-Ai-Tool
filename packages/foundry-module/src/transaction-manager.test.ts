@@ -1,5 +1,5 @@
 /**
- * Characterization tests for the TransactionManager — the write-safety rollback
+ * Characterization tests for the TransactionManager, the write-safety rollback
  * layer used by actor/token creation. Pins the current (upstream-derived)
  * behavior so the Phase 9 from-scratch rewrite can be verified to parity.
  *
@@ -28,7 +28,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('TransactionManager — lifecycle', () => {
+describe('TransactionManager: lifecycle', () => {
   it('starts a transaction and lists it as active', () => {
     const id = tm.startTransaction('create goblins');
     expect(typeof id).toBe('string');
@@ -118,7 +118,7 @@ describe('TransactionManager — lifecycle', () => {
   });
 });
 
-describe('TransactionManager — rollback (happy paths)', () => {
+describe('TransactionManager: rollback (happy paths)', () => {
   it('rolls back an Actor create by deleting the actor', async () => {
     world.addActor({ id: 'a1', name: 'Goblin' });
     const id = tm.startTransaction('t');
@@ -236,7 +236,7 @@ describe('TransactionManager — rollback (happy paths)', () => {
   });
 });
 
-describe('TransactionManager — rollback (error handling)', () => {
+describe('TransactionManager: rollback (error handling)', () => {
   it('throws when rolling back an unknown transaction', async () => {
     await expect(tm.rollbackTransaction('nope')).rejects.toThrow('Transaction nope not found');
   });

@@ -5,7 +5,7 @@
 // fixtures.ts). One list, used by the screenshot tests and by the axe check.
 import { expect, type Page } from '@playwright/test';
 
-import { fakeCommonRoutes } from '../e2e/support';
+import { apiBody, fakeCommonRoutes } from '../e2e/support';
 
 import { NOW } from './fixtures';
 
@@ -372,11 +372,11 @@ export async function showPlayerScreen(page: Page, screen: PlayerScreen): Promis
   await fakeCommonRoutes(page);
   await page.route('**/api/player/names', route =>
     route.fulfill({
-      json: [
+      json: apiBody('/api/player/names', [
         { userId: 'u1', name: 'Mara' },
         { userId: 'u2', name: 'Tobias' },
         { userId: 'u3', name: 'Nell' },
-      ],
+      ]),
     })
   );
   // Opening a handout tells the GM's seen log: answered here, so no shot depends on the server.

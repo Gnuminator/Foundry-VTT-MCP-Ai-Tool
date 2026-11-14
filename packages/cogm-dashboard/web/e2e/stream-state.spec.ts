@@ -3,7 +3,7 @@
 // gave up, and gone again as soon as the stream is back. The stream is faked in the browser.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, settle } from './support';
+import { GM_TOKEN, SPACE_UNAVAILABLE, fakeCommonRoutes, settle } from './support';
 
 const pill = (page: Page): Locator => page.locator('#stream-state .status-pill');
 
@@ -12,7 +12,7 @@ const body = (retry: number): string => `retry: ${retry}\n\n${SETTINGS}`;
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
 });
 
 async function load(page: Page): Promise<void> {

@@ -4,27 +4,61 @@
 // drawer closes.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession } from './support';
+import type { ApiBodies } from '../../src/api-bodies';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, preflightBody } from './support';
 
-const CHECKS = [
+type Check = ApiBodies['/api/preflight']['checks'][number];
+
+const CHECKS: Check[] = [
   {
     id: 'versions',
     label: 'Versions match',
     status: 'ok',
     detail: 'Bridge 0.21.0, module 0.21.0.',
   },
-  { id: 'scene', label: 'Starting scene', status: 'fail', detail: 'No scene is active.' },
+  { id: 'world-settings', label: 'Starting scene', status: 'fail', detail: 'No scene is active.' },
   { id: 'ready', label: 'Turn on for tonight', status: 'warn', detail: 'Some switches are off.' },
-  { id: 'odd', label: 'A new check', status: 'later', detail: 'Status this page does not know.' },
+  // A check the page has never heard of (a newer bridge): the cast is the point of the row.
+  {
+    id: 'odd',
+    label: 'A new check',
+    status: 'later',
+    detail: 'Status this page does not know.',
+  } as unknown as Check,
 ];
 
-const SCAN = {
-  settings: [{ setting: 'core.worldTitle', masked: 'shown', reason: 'names Greywatch' }],
-  names: [{ kind: 'Actor', name: 'Sorvan', terms: ['Sorvan', 'vampire'] }],
-  modules: [{ title: 'Spoiler Module', reason: 'shows hidden tokens' }],
+const SCAN: NonNullable<ApiBodies['/api/preflight']['scan']> = {
+  computedAt: 1_700_000_000_000,
+  settingsChecked: 12,
+  settings: [
+    {
+      setting: 'core.worldTitle',
+      namespace: 'core',
+      rule: 'key-name',
+      severity: 'warn',
+      reason: 'names Greywatch',
+      masked: 'shown',
+    },
+  ],
+  namesChecked: 40,
+  names: [{ kind: 'actor', id: 'a1', name: 'Sorvan', terms: ['Sorvan', 'vampire'] }],
+  modules: [
+    {
+      moduleId: 'spoiler-module',
+      title: 'Spoiler Module',
+      rule: 'shows-hidden',
+      severity: 'warn',
+      reason: 'shows hidden tokens',
+    },
+  ],
 };
 
-async function fakePreflight(page: Page, body: unknown, status = 200): Promise<() => number> {
+/** Answers /api/preflight with `body` (a 200) or, with a `status`, an error shape. */
+async function fakePreflight(
+  page: Page,
+  body: ApiBodies['/api/preflight'] | { error: string },
+  status = 200
+): Promise<() => number> {
   let calls = 0;
   await page.route('**/api/preflight', route => {
     calls += 1;
@@ -51,7 +85,7 @@ test.beforeEach(async ({ page }) => {
 
 test('runs the checks on open and shows the verdict', async ({ page }) => {
   await fakeStream(page, []);
-  await fakePreflight(page, { ready: false, checks: CHECKS, scan: SCAN });
+  await fakePreflight(page, preflightBody(CHECKS, false, SCAN));
   const drawer = await openPreflight(page);
 
   await expect(drawer.getByRole('status')).toHaveText('Not ready: 1 to fix, 1 to look at.');
@@ -78,7 +112,7 @@ test('runs the checks on open and shows the verdict', async ({ page }) => {
 
 test('all clear says so, in the drawer and on the header button', async ({ page }) => {
   await fakeStream(page, []);
-  await fakePreflight(page, { ready: true, checks: [CHECKS[0]], scan: null });
+  await fakePreflight(page, preflightBody([CHECKS[0]]));
   const drawer = await openPreflight(page);
   await expect(drawer.getByRole('status')).toHaveText('Ready for the session.');
   await expect(drawer.getByRole('status')).toHaveClass(/pf-ok/);
@@ -88,14 +122,14 @@ test('all clear says so, in the drawer and on the header button', async ({ page 
 
 test('the findings fold away and stay open across a new run', async ({ page }) => {
   await fakeStream(page, []);
-  const calls = await fakePreflight(page, { ready: false, checks: CHECKS, scan: SCAN });
+  const calls = await fakePreflight(page, preflightBody(CHECKS, false, SCAN));
   const drawer = await openPreflight(page);
 
   const findings = drawer.locator('details.preflight-findings');
   await findings.getByText('3 finding(s)').click();
   await expect(findings.getByRole('listitem')).toHaveText([
     'core.worldTitle shown: names Greywatch',
-    'Actor "Sorvan" names Sorvan, vampire',
+    'actor "Sorvan" names Sorvan, vampire',
     'Spoiler Module: shows hidden tokens',
   ]);
   await expect(findings.locator('code')).toHaveText('core.worldTitle');
@@ -126,7 +160,7 @@ test('a failed run after a good one drops the old verdict', async ({ page }) => 
   await page.route('**/api/preflight', route => {
     calls += 1;
     return calls === 1
-      ? route.fulfill({ json: { ready: true, checks: [CHECKS[0]], scan: null } })
+      ? route.fulfill({ json: preflightBody([CHECKS[0]]) })
       : route.fulfill({ status: 500, json: { error: 'Bridge gone.' } });
   });
   const drawer = await openPreflight(page);
@@ -138,15 +172,19 @@ test('a failed run after a good one drops the old verdict', async ({ page }) => 
 
 test('the versions check failing raises the page banner', async ({ page }) => {
   await fakeStream(page, []);
-  const versions = { ...CHECKS[0], status: 'fail', detail: 'The module is 0.20.0; update it.' };
-  await fakePreflight(page, { ready: false, checks: [versions], scan: null });
+  const versions: Check = {
+    ...CHECKS[0],
+    status: 'fail',
+    detail: 'The module is 0.20.0; update it.',
+  };
+  await fakePreflight(page, preflightBody([versions], false));
   await openPreflight(page);
   await expect(page.getByRole('alert')).toHaveText('The module is 0.20.0; update it.');
 });
 
 test('the hand checklist stays ticked in this browser until Clear ticks', async ({ page }) => {
   await fakeStream(page, []);
-  await fakePreflight(page, { ready: true, checks: [], scan: null });
+  await fakePreflight(page, preflightBody());
   let drawer = await openPreflight(page);
 
   const manual = drawer.getByRole('list', { name: 'Check by hand' }).getByRole('checkbox');
@@ -179,7 +217,7 @@ test('runs quietly when Foundry becomes reachable, before the drawer opens', asy
     foundryDownSince: null,
   };
   await fakeStream(page, [{ event: 'status', data: status }]);
-  const calls = await fakePreflight(page, { ready: false, checks: CHECKS, scan: null });
+  const calls = await fakePreflight(page, preflightBody(CHECKS, false));
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await expect(header(page)).toHaveText('✈ Pre-flight: 1 to fix');
   expect(calls()).toBe(1);
@@ -188,7 +226,7 @@ test('runs quietly when Foundry becomes reachable, before the drawer opens', asy
 
 test('the drawer closes with ✕, Escape and the backdrop', async ({ page }) => {
   await fakeStream(page, []);
-  await fakePreflight(page, { ready: true, checks: [], scan: null });
+  await fakePreflight(page, preflightBody());
   const drawer = await openPreflight(page);
 
   await drawer.getByRole('button', { name: 'Close' }).click();

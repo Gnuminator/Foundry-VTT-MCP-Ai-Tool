@@ -3,27 +3,29 @@
 // and the one Turn on that sets everything, the same call Start session makes.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession } from './support';
+import type { ApiBodies } from '../../src/api-bodies';
+import type { SessionSwitch } from '../../src/session-switches';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, switchesBody } from './support';
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await holdPlaySession(page);
 });
 
-const list = (on: boolean): unknown[] => [
+const list = (on: boolean): SessionSwitch[] => [
   { id: 'writes', name: 'Allow Write Operations', on: true },
   { id: 'handouts', name: 'AI Tool: Handouts (writes)', on },
   { id: 'live-play', name: 'AI Tool: Live play (writes)', on: true },
 ];
 
-const read = (on: boolean, gmActionsEnabled: boolean): unknown => ({
-  switches: { switches: list(on), ready: null, changed: [], failed: [] },
-  gmActionsEnabled,
-  error: null,
-});
+const read = (on: boolean, gmActionsEnabled: boolean): ApiBodies['/api/session/switches'] =>
+  switchesBody(gmActionsEnabled, list(on));
 
 /** GET answers `first`; a POST turns everything on and answers like the server. */
-async function fakeSwitches(page: Page, first: unknown): Promise<unknown[]> {
+async function fakeSwitches(
+  page: Page,
+  first: ApiBodies['/api/session/switches']
+): Promise<unknown[]> {
   const posts: unknown[] = [];
   let answer = first;
   await page.route('**/api/session/switches', (route, request) => {
@@ -85,9 +87,7 @@ test('switches that could not be read do not read "on"', async ({ page }) => {
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: true } }]);
   // What the route answers when the bridge is away: 200 with no switches and the reason.
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: { switches: null, gmActionsEnabled: true, error: 'The bridge is away' },
-    })
+    route.fulfill({ json: switchesBody(true, null, 'The bridge is away') })
   );
   await page.goto(`/next/?token=${GM_TOKEN}`);
 

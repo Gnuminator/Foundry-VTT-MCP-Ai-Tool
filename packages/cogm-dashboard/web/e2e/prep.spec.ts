@@ -3,7 +3,16 @@
 // empty and failed states, and the jump to Pre-flight.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, fromMenu } from './support';
+import {
+  GM_TOKEN,
+  PREFLIGHT_OK,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+  fromMenu,
+  switchesBody,
+} from './support';
 
 const DIGEST = {
   schema: 1,
@@ -254,11 +263,9 @@ test('a failed load says why and a refresh recovers', async ({ page }) => {
 
 test('"Open Pre-flight" swaps to the Pre-flight drawer; Escape closes Prep', async ({ page }) => {
   await fakeTools(page, () => ok(DIGEST));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: false } })
+    route.fulfill({ json: switchesBody(false) })
   );
   const drawer = await openPrep(page);
 

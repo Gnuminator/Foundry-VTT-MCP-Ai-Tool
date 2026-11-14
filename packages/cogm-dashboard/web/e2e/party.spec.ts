@@ -15,6 +15,8 @@ import {
   toast,
   type ToolCall,
   fromMenu,
+  PREFLIGHT_OK,
+  switchesBody,
 } from './support';
 
 const ILVARA = {
@@ -102,11 +104,9 @@ async function openParty(page: Page): Promise<Locator> {
 
 /** Pre-flight's own routes, for the tests where a refusal opens it. */
 async function fakePreflight(page: Page): Promise<void> {
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: false } })
+    route.fulfill({ json: switchesBody(false) })
   );
 }
 
@@ -574,12 +574,8 @@ test('Pre-flight reading GM Actions on opens the gate before the stream says so'
   page,
 }) => {
   await fakeStream(page, []);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true, error: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/session/switches', route => route.fulfill({ json: switchesBody(true) }));
   const calls = await fakeTools(page, bridge);
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await page.locator('#btn-preflight').click();
@@ -597,12 +593,8 @@ test('Pre-flight reading GM Actions on opens the gate before the stream says so'
 
 test('the stream saying GM Actions are off wins over the Pre-flight read', async ({ page }) => {
   await fakeStream(page, gmActions(false));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true, error: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/session/switches', route => route.fulfill({ json: switchesBody(true) }));
   const calls = await fakeTools(page, bridge);
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await page.locator('#btn-preflight').click();

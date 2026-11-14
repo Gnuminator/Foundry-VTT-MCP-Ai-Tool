@@ -80,6 +80,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
   report with its `run.gitSha`), what is open, follow-ups. Put a line `Backlog: <id>` (the item's
   `- id:`, several comma separated) in the body: the board shows the open PR on your lane card.
+  `Backlog-part: <id>` keeps it open.
 - **`Live check:` line (gate-enforced):** a PR touching `packages/foundry-module/src/` or
   `scripts/pi/remote/` needs one in its description. Module: the run on test server A with real
   dnd5e data. Pi: the ARM64 container run plus `deploy/pi/deployed-state.ps1`. Or why there was none.

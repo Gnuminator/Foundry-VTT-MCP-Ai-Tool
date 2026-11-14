@@ -19,6 +19,7 @@ import {
   parseArgs,
   prepareCheckout,
   readyItems,
+  isPartOnly,
   enqueuedItems,
   enqueuedLine,
   findGhosts,
@@ -1005,4 +1006,49 @@ test('ghost check: a rerun that fails is said so in the Discord line', () => {
   });
   round(f.deps, new Set());
   assert.match(f.calls.post[0], /rerun failed/);
+});
+
+// ---- Backlog-part: multi-PR items stay open -------------------------------------------------------
+
+test('isPartOnly: Backlog-part names the item, Backlog closes it, both lines for one id close it', () => {
+  assert.equal(isPartOnly('x\nBacklog-part: one\n', 'one'), true);
+  assert.equal(isPartOnly('Backlog-part: `one`, two', 'two'), true);
+  assert.equal(isPartOnly('Backlog: one', 'one'), false);
+  assert.equal(isPartOnly('Backlog-part: one\nBacklog: one', 'one'), false);
+  assert.equal(isPartOnly('Backlog-part: other', 'one'), false);
+  assert.equal(isPartOnly('', 'one'), false);
+});
+
+test('Backlog-part PR merged: a progress line, no done; the item stays open (PR 1003 on 2026-11-13)', () => {
+  const f = fakes({
+    text: backlog([['server-harness-migration', `PR #1003 ready, head ${SHA}`]]),
+    prs: {
+      1003: {
+        ...open(),
+        body: 'Backlog-part: server-harness-migration',
+        mergeCommit: { oid: 'abcdef0123456789' },
+      },
+    },
+    gates: { 1003: merged(1003) },
+  });
+  round(f.deps, new Set());
+  assert.deepEqual(f.calls.backlog, [
+    [
+      'progress',
+      'server-harness-migration',
+      'PR #1003 merged at abcdef0',
+      '--if-ready',
+      `1003@${SHA}`,
+    ],
+  ]);
+});
+
+test('Backlog line PR merged: done, as before', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: { ...open(), body: 'Backlog: one' } },
+    gates: { 5: merged(5) },
+  });
+  round(f.deps, new Set());
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
 });

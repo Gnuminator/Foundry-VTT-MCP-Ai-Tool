@@ -117,6 +117,21 @@ export const oneLine = (s, max = 400) => {
 };
 
 /**
+ * Does the PR body name the item on a `Backlog-part: <id>` line (a PR that is one part of an item
+ * that stays open)? `Backlog: <id>` closes the item; the part line wins only when both name it.
+ * @param {string} body
+ * @param {string} id
+ */
+export function isPartOnly(body, id) {
+  /** @param {string} key */
+  const ids = key =>
+    [...String(body).matchAll(new RegExp(`^\\s*${key}:[ \\t]*(.+)$`, 'gim'))].flatMap(m =>
+      m[1].split(/[\s,]+/).map(s => s.replace(/`/g, ''))
+    );
+  return ids('Backlog-part').includes(id) && !ids('Backlog').includes(id);
+}
+
+/**
  * Ready items in Backlog order.
  * @param {string} backlogText
  * @returns {{ id: string, pr: number, head: string }[]}
@@ -319,6 +334,30 @@ export function round(d, tried, attempts) {
           'progress',
           r.id,
           `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
+          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
+        ],
+        'progress'
+      );
+      return;
+    }
+    // A PR body with `Backlog-part: <id>` is one part of a multi-PR item: it stays claimed and open.
+    const pv = d.gh(['pr', 'view', String(r.pr), '-R', REPO, '--json', 'body,mergeCommit']);
+    /** @type {{ body?: string, mergeCommit?: { oid?: string } }} */
+    let info = {};
+    try {
+      if (pv.status === 0) info = JSON.parse(pv.stdout);
+    } catch {
+      /* unreadable: close as before */
+    }
+    if (isPartOnly(info.body ?? '', r.id)) {
+      const sha = (info.mergeCommit?.oid ?? '').slice(0, 7);
+      d.log(`#${r.pr} (${r.id}) merged as a part (Backlog-part line); the item stays open`);
+      write(
+        r.id,
+        [
+          'progress',
+          r.id,
+          `PR #${r.pr} merged at ${sha || 'main'}`,
           ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
         ],
         'progress'

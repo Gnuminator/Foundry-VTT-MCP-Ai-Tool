@@ -63,7 +63,28 @@ const GLOBAL_NAMES = new Set([
   'FormData', 'Blob', 'TextEncoder', 'TextDecoder', 'console', 'setTimeout', 'structuredClone',
 ]);
 // The only option keys a read may carry; each must be a plain `key: value` (or shorthand) property.
-const OPTION_KEYS = new Set(['method', 'path', 'query', 'body', 'headers']);
+/** An object, array or string/number/boolean/null literal tree with plain keys and no template or call. */
+function isLiteralTree(node) {
+  if (node.type === 'Literal') return true;
+  if (node.type === 'ArrayExpression')
+    return node.elements.every(e => e !== null && isLiteralTree(e));
+  if (node.type === 'ObjectExpression')
+    return node.properties.every(
+      p => p.type === 'Property' && !p.computed && p.kind === 'init' && !p.method && isLiteralTree(p.value)
+    );
+  return false;
+}
+
+const OVERRIDE_HEADER = /^x-(http-)?method(-override)?$/i;
+/** True when a literal headers object names a method-override header (any quoting of the key). */
+function hasOverrideHeader(node) {
+  return (
+    node.type === 'ObjectExpression' &&
+    node.properties.some(p => OVERRIDE_HEADER.test(String(p.key.name ?? p.key.value ?? '')))
+  );
+}
+
+const OPTION_KEYS =new Set(['method', 'path', 'query', 'body', 'headers']);
 
 function children(node) {
   const out = [];
@@ -220,6 +241,13 @@ export function classify(code) {
         continue;
       }
       if (name === 'path') pathText = textOf(p.value);
+      if (name === 'headers' || name === 'body') {
+        // On a read these carry only written-out values: nothing computed, nothing that can
+        // turn the GET into a write on the server side.
+        if (!isLiteralTree(p.value)) problems.push(`the ${name} is not literal values only`);
+        else if (name === 'headers' && hasOverrideHeader(p.value))
+          problems.push('a method-override header');
+      }
       if (name !== 'method') continue;
       methodCount++;
       const ok = p.kind === 'init' && !p.shorthand && !p.method && p.value.type === 'Literal' && typeof p.value.value === 'string';

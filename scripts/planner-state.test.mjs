@@ -147,6 +147,21 @@ test('ledgerLines names ledgers over 10 lines with count and lines older than a 
   assert.equal(ledgerLines(path.join(dir, 'nope'), '2026-11-13'), 'Lows ledgers: not readable');
 });
 
+test('ledgerLines skips a folder named *.md and a malformed date', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
+  fs.mkdirSync(path.join(dir, 'Odd.md'));
+  const good = Array.from({ length: 10 }, (_, i) => `- 2026-11-10 PR 1 L${i}: x, y`).join('\n');
+  fs.writeFileSync(path.join(dir, 'Big.md'), `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`);
+  assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
+});
+
+test('newestNote picks the note whose last Head reviewed line is the head', () => {
+  const both = { file: '1-review.md', text: `Head reviewed: ${H1}\nHead reviewed: ${H2}\n` };
+  const other = { file: '1-review-round2.md', text: `Head reviewed: ${H1}\n` };
+  assert.equal(newestNote([both, other], 1, H2)?.file, both.file);
+  assert.equal(newestNote([both, other], 1, H1)?.file, other.file);
+});
+
 test('plannerSections assembles every section from a vault dir and a fake gh', () => {
   const dev = fs.mkdtempSync(path.join(os.tmpdir(), 'planner-state-'));
   fs.mkdirSync(path.join(dev, 'Handoff', 'Reviews 2026-11-12'), { recursive: true });

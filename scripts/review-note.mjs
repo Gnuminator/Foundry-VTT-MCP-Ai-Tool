@@ -211,6 +211,7 @@ function syncVault(vault) {
  */
 function writeAndPush(vault, file, text, pr) {
   const rel = path.relative(vault, file).split(path.sep).join('/');
+  let lastError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     syncVault(vault);
     if (fs.existsSync(file)) throw new Error(`${file} already exists; use another --round`);
@@ -218,10 +219,12 @@ function writeAndPush(vault, file, text, pr) {
     fs.writeFileSync(file, text);
     must('git', ['add', '--', rel], vault);
     must('git', ['commit', '-q', '-m', `Review note for PR #${pr}`, '--', rel], vault);
-    if (run('git', ['push', '-q'], vault).ok) return;
+    const pushed = run('git', ['push', '-q'], vault);
+    if (pushed.ok) return;
+    lastError = pushed.err || pushed.out;
     must('git', ['reset', '-q', '--keep', 'HEAD~1'], vault);
   }
-  throw new Error('the push was rejected 3 times; nothing was written');
+  throw new Error(`the push failed 3 times; nothing was written. Last git error: ${lastError}`);
 }
 
 /**

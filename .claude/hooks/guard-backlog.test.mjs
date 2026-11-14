@@ -199,6 +199,7 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
       'cd vault && cd Handoff && cd .. && git add .',
       'cd "$VAULT" && git add -A',
       'cd $env:VAULT; git add -A',
+      'cd "$VAULT/Dev/Foundry AI Tool" && git add .',
     ],
     allowed: [
       'cd vault && cd .. && git add -A',

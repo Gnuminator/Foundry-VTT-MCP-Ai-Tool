@@ -22,7 +22,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
    `claim <id> "<session title>" --link <link>` (`get_session "self"`, field `link`). If the item has
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
    the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
-   own worktree (the context lines are fixed at session start).
+   own worktree.
 2. `git branch --show-current`. New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. More than about eight files to read goes to an Explore subagent
@@ -40,8 +40,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Servers A, B, C (same `ai-tool-test` world): check `lock.ps1
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
-  status. Kit runs default to B. Verify a feature live
-  before calling it done. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
+  status. Kit runs default to B. None free: wait or ask the user. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
 31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child running: check the PID.
 - **Commands over 2 minutes** run in the background, never polled. On Windows never call
   `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
@@ -52,7 +51,7 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 ## Before the PR
 
 - **CI on the PR head is the green.** No full `npm run green` before a PR: quick
-  local checks, push, fix what CI reports, also after review fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
+  local checks, push, fix what CI reports, also after review fixes (`npm run green -- --cloud` runs CI for the pushed head). `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
   - **Quick checks:** `npm run green -- --quick`. It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of

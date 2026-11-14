@@ -180,6 +180,13 @@ function main() {
     console.log(
       `line-ratchet: baseline written (${Object.keys(next.files).length} files over ${next.limit}).`
     );
+    const grew = Object.entries(counts)
+      .filter(([f, n]) => n > (next.files[f] ?? next.limit) && f in (baseline.files ?? {}))
+      .map(([f]) => f);
+    if (grew.length)
+      console.log(
+        `line-ratchet: --update never raises an entry; still over the baseline: ${grew.join(', ')}`
+      );
     return;
   }
 

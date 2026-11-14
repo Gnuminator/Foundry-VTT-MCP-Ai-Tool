@@ -363,6 +363,9 @@ test('isMerged: the three false positives of 2026-11-12 are not merged, the two 
     isMerged(itemWith(['2026-10-28 HELD, merge-ready: PR #534 (main merged, round 2 fixes)'])),
     false
   );
+  // "main merged at <sha>" is also a merge of main; "PR#5 merged" is the item's own
+  assert.equal(isMerged(itemWith(['2026-11-12 main merged at abc1234, work left'])), false);
+  assert.equal(isMerged(itemWith(['2026-11-12 PR#5 merged'])), true);
   // real-tool-usage and main-red-auto-revert style: PR #n merged
   assert.equal(isMerged(itemWith(['2026-11-10 planner: PR #909 merged (weekly line)'])), true);
   assert.equal(isMerged(itemWith(['2026-10-28 PR #301 MERGED at ad13367 after rounds'])), true);
@@ -576,6 +579,24 @@ test("git: a push race redoes the edit on the board's new text and keeps both ch
   assert.match(final, /- claimed: board 2026-11-12\r\n/);
   assert.equal(final.split('\r\n').length, crlf(FIXTURE).split('\r\n').length + 1);
   assert.equal(git(v.a, ['status', '--porcelain']).trim(), '');
+});
+
+test('git: done prints its note once when a rejected push redoes the edit', () => {
+  const v = vaults();
+  let raced = 0;
+  const r = v.cli(['done', 'second', '42'], {
+    gh: () => ({ state: 'MERGED', mergeCommit: { oid: 'a1b2c3d4e5f6' } }),
+    beforePush: () => {
+      if (raced++) return;
+      git(v.b, ['pull', '-q']);
+      fs.appendFileSync(path.join(v.b, 'other.md'), 'x\n');
+      git(v.b, ['add', 'other.md']);
+      git(v.b, ['commit', '-q', '-m', 'race']);
+      git(v.b, ['push', '-q']);
+    },
+  });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out.split('\n').filter(l => /second: PR #42 merged/.test(l)).length, 1);
 });
 
 test('git: five rejected pushes give up and leave nothing behind', () => {

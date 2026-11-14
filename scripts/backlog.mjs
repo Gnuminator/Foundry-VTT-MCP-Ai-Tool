@@ -495,9 +495,19 @@ export function writeWithRetry(o) {
   };
   const gitDir = must(['rev-parse', '--absolute-git-dir'], 'git rev-parse').stdout.trim();
   const release = takeLock(gitDir, o.lockWaitMs);
+  // A kill mid-run must not leave the shared vault in a rebase or the lock held.
+  const onSignal = (/** @type {NodeJS.Signals} */ sig) => {
+    o.git(['rebase', '--abort']); // fails harmlessly when no rebase is running
+    release();
+    process.exit(sig === 'SIGINT' ? 130 : 143);
+  };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
   try {
     return writeLocked(o, must);
   } finally {
+    process.off('SIGINT', onSignal);
+    process.off('SIGTERM', onSignal);
     release();
   }
 }
@@ -740,6 +750,7 @@ export function run(argv, env = {}) {
           if (typeof oid === 'string' && /^[0-9a-f]{7,40}$/.test(oid)) sha = oid;
           else notes.push(`note: no merge commit from gh for PR #${prNo}; the line has no sha`);
         }
+        const baseNotes = notes; // the edit reruns on a push retry: it must not append twice
         job = {
           paths,
           message: `Backlog: done ${id} (PR #${pos[1].replace(/^#/, '')})`,
@@ -752,7 +763,7 @@ export function run(argv, env = {}) {
               summary: typeof flags.summary === 'string' ? flags.summary : undefined,
               by: typeof flags.by === 'string' ? flags.by : undefined,
             });
-            notes = [...notes, r.line];
+            notes = [...baseNotes, r.line];
             /** @type {Record<string, string>} */
             const files = { [BACKLOG]: r.text, [DONE]: r.done };
             if (piRun)

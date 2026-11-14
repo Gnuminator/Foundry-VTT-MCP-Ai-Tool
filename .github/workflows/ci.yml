@@ -362,7 +362,7 @@ jobs:
 
       - name: Install Chromium for the dashboard browser tests
         # Retries the apt/browser install on a runner DNS blip; see the script.
-        timeout-minutes: 30
+        timeout-minutes: 35
         run: bash scripts/ci-install-chromium.sh
 
       - name: Dashboard browser tests (React dashboard)

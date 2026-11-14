@@ -107,6 +107,8 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
     `python -c "open(r'${VAULT}\\Backlog.md','a').write('x')"`,
     `node "${MAIN}/scripts/backlog.mjs" progress x "$(cp mine.md Backlog.md)"`,
     'node "' + MAIN + '/scripts/backlog.mjs" progress x "`cp mine.md Backlog.md`"',
+    `git commit -m "$(cp mine.md Backlog.md)"`,
+    `node "${MAIN}/scripts/backlog.mjs" progress x "Danni's $(cp mine.md Backlog.md) 'ok'"`,
     `python -c "open('${VAULT}/Backlog.md', 'w').write('x')"`,
     `python -c "open('Dev/Foundry AI Tool/Backlog.md', mode='r+')"`,
     `node -e "require('fs').openSync('${VAULT}/Backlog.md','a')"`,

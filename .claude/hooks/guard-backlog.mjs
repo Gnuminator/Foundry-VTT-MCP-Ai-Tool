@@ -175,8 +175,14 @@ export const advice = (/** @type {NodeJS.ProcessEnv} */ env = process.env) =>
 const isToolCall = (/** @type {string} */ cmd) =>
   /^\s*(&\s*)?node(\.exe)?\s+(?:"[^"]*|'[^']*|[^\s"']*)scripts[\\/]backlog\.mjs/i.test(cmd) &&
   !/[;&|<>\n]/.test(cmd.replace(/"[^"]*"|'[^']*'/g, '')) &&
-  // bash still runs a substitution inside double quotes; only single quotes hide it
-  !/`|\$\(/.test(cmd.replace(/'[^']*'/g, ''));
+  !hasSubstitution(cmd);
+
+/**
+ * A backtick or `$(` the shell would run: bash expands both inside double quotes, so only a
+ * single-quoted segment hides one (an apostrophe inside double quotes is literal).
+ */
+const hasSubstitution = (/** @type {string} */ s) =>
+  /`|\$\(/.test(s.replace(/"([^"]*)"|'[^']*'/g, (_m, d) => d ?? ''));
 
 /** The deny reason, or null when the call is allowed. */
 export function decide(
@@ -201,7 +207,7 @@ export function decide(
     // a commit message may name the file; its text is not a path
     const body = cmd.replace(/(\s(-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1');
     // a substitution outside single quotes can hide the write from the patterns below
-    if (WRITES.some(re => re.test(body)) || /`|\$\(/.test(body.replace(/'[^']*'/g, '')))
+    if (WRITES.some(re => re.test(body)) || hasSubstitution(cmd))
       return `this command looks like it writes the vault Backlog; ${advice(env)}`;
   }
   return null;

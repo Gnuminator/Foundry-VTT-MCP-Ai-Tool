@@ -480,6 +480,17 @@ export function round(d, tried, attempts) {
               sha: '',
               why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
             };
+    // A ready head already on main merged, whatever the PR reads: GitHub can land a merge and lose
+    // its event, and then main's tip gets no CI run either, so this goes before the wait on main.
+    if (tipRead.status === 0 && /^[0-9a-f]{40}$/.test(tip) && headOnMain(r.head)) {
+      tried.add(`${r.pr}@${r.head}`);
+      d.log(`#${r.pr} (${r.id}): head ${r.head.slice(0, 7)} is already on main; marking it done`);
+      d.post(
+        `merge runner: #${r.pr} head is already on main (if the PR still reads open, GitHub lost the merge event); marked done, not gated again`
+      );
+      markDone(r, true, tip);
+      continue;
+    }
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
     // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
     queueOn ??= d.queueOn?.() ?? false;
@@ -539,18 +550,6 @@ export function round(d, tried, attempts) {
       );
       continue;
     }
-    if (headOnMain(r.head)) {
-      tried.add(key);
-      d.log(
-        `#${r.pr} (${r.id}) reads OPEN, but its head ${r.head.slice(0, 7)} is already on main; marking it done`
-      );
-      d.post(
-        `merge runner: #${r.pr} reads open on GitHub, but its head is already on main (GitHub lost the merge event); marked done, not gated again`
-      );
-      markDone(r, true, tip);
-      continue;
-    }
-
     const problem = d.prepare(r);
     if (problem) {
       d.log(`stopped: gate checkout: ${problem}`);

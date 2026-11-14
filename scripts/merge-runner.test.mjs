@@ -160,6 +160,21 @@ test('an OPEN PR whose head is already on main (a lost merge event) is marked do
   assert.match(f.calls.post[0], /head is already on main/);
 });
 
+test('a head on main is marked done even while main tip has no CI run (the 2026-11-14 lost merge event)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+    compare: 'ahead',
+    tip: SHA2,
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(f.calls.gate, []);
+  assert.deepEqual(r, { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA2, '--by', 'merge-runner']]);
+  assert.ok(!f.calls.log.some(l => /next round/.test(l)), 'did not wait on main');
+});
+
 test('a head that is behind or diverged from main is gated as usual', () => {
   for (const status of ['behind', 'diverged']) {
     const f = fakes({

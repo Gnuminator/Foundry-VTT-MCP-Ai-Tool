@@ -4,7 +4,7 @@
  * with `scripts/mutation-baseline.json`. Weekly in `.github/workflows/mutation-core.yml`, never in
  * ci.yml (a run takes a long time).
  *
- * Shared is read from source (`vitest.shared-source.ts`), `ignoreStatic` skips the constant
+ * Shared is read from source (`vitest.shared.mts`), `ignoreStatic` skips the constant
  * initialisers that only run at import time and make most of a run's time.
  */
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */

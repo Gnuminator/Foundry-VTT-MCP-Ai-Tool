@@ -103,6 +103,8 @@ describe('ports', () => {
     expect(countInText('setTimeout(f, 10); const port = 31515;')).toBe(1);
     // named durations
     expect(countInText('{ timeout: 30000 }')).toBe(0);
+    expect(countInText('{ timeout: 30000, port: 31514 }')).toBe(1);
+    expect(countInText('const timeoutMs = 30000;')).toBe(0);
     expect(countInText('ConnectTimeout=30000')).toBe(0);
     expect(countInText('const delay = 3000;')).toBe(0);
     expect(countInText('Start-Sleep -Milliseconds 3000')).toBe(0);

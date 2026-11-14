@@ -83,7 +83,7 @@ export function countDrift(mutants, baselineMutants) {
   if (typeof baselineMutants !== 'number' || baselineMutants <= 0) return null;
   const change = Math.abs(mutants - baselineMutants) / baselineMutants;
   return change > COUNT_TOLERANCE
-    ? `${mutants} mutants against ${baselineMutants} in the baseline (more than ${COUNT_TOLERANCE * 100}% apart); check the mutate list, then run with --update`
+    ? `${mutants} mutants against ${baselineMutants} in the baseline (more than ${COUNT_TOLERANCE * 100}% apart); check the mutate list; if the new count is right, set "mutants" in scripts/mutation-baseline.json by hand (--update does not reset it)`
     : null;
 }
 

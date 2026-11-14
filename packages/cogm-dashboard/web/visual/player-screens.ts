@@ -10,7 +10,7 @@ import { fakeCommonRoutes } from '../e2e/support';
 import { NOW } from './fixtures';
 
 export interface PlayerScreen {
-  /** The file stem of the baseline, and the test title. */
+  /** The file stem of the page shot, and the test title. */
   name: string;
   path: '/player' | '/me';
   /** The name picked under "Who are you?" (kept on the device); null shows the name picker. */

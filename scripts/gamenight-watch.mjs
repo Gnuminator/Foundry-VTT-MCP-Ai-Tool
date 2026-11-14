@@ -240,10 +240,11 @@ export function withLateNote({ text, at }, now = Date.now()) {
 export function envFileList(args) {
   const raw = typeof args['env-files'] === 'string' ? args['env-files'] : args['env-file'];
   if (typeof raw !== 'string') return [defaultEnvFile()];
-  return raw
+  const files = raw
     .split(',')
     .map(f => f.trim())
     .filter(Boolean);
+  return files.length > 0 ? files : [defaultEnvFile()];
 }
 
 /** Reads the files in order (a later file wins); a missing file is skipped. */

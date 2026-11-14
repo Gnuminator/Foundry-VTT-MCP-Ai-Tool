@@ -2,7 +2,7 @@
 // pages) are rendered on every CI run and uploaded as an artifact (web/visual/page-shot.ts), not
 // committed: a control added to a page used to change dozens of committed PNGs. Only the story
 // shots are committed, in __screenshots__/stories/. This test fails if any other file comes back.
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +17,7 @@ const root = path.join(
 );
 
 function filesBelow(dir: string): string[] {
+  if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap(name => {
     const full = path.join(dir, name);
     return statSync(full).isDirectory() ? filesBelow(full) : [full];

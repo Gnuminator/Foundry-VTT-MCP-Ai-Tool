@@ -11,7 +11,7 @@
  * Driven through the Phase 9 Foundry-mock harness (in-memory, no browser).
  *
  * Harness gaps worked around locally (never editing shared harness files):
- *   - `makeItem` carries no dnd5e `system.activities`; an attack activity with
+ *   - `makeItem` gives a weapon an empty `system.activities` map; an attack activity with
  *     `rollAttack`/`rollDamage` `vi.fn()` stubs is attached per-test (and the
  *     item's own `use` stub for the no-activity path).
  *   - `game.user.targets` is set locally to exercise targeted-token AC resolution.

@@ -551,9 +551,16 @@ test('git: a rebase left in the vault by a killed run is aborted by the next run
   assert.throws(() => git(v.a, ['rebase', '-q', 'origin/main'])); // stops on the conflict
   const gitDir = path.join(v.a, '.git');
   assert.ok(fs.existsSync(path.join(gitDir, 'rebase-merge')), 'the test left a half rebase');
+  // the tool's own rebase leaves its marker; a hand-started one has none
+  const refused = v.cli(['progress', 'first', 'x']);
+  assert.equal(refused.code, 1);
+  assert.match(refused.err, /middle of a rebase started by another session/);
+  assert.ok(fs.existsSync(path.join(gitDir, 'rebase-merge')), "another session's rebase survives");
+  fs.writeFileSync(path.join(gitDir, 'backlog-tool.rebase'), '1');
   const r = v.cli(['progress', 'first', 'x']);
   assert.match(r.err, /aborting a rebase left by a killed run/);
   assert.ok(!fs.existsSync(path.join(gitDir, 'rebase-merge')), 'no rebase is left');
+  assert.ok(!fs.existsSync(path.join(gitDir, 'backlog-tool.rebase')), 'the marker is gone');
 });
 
 test('git: a dirty Backlog.md is refused before anything happens', () => {

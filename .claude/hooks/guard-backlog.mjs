@@ -174,7 +174,9 @@ export const advice = (/** @type {NodeJS.ProcessEnv} */ env = process.env) =>
 /** A command that is one plain call of the tool: no second command, pipe or redirect outside quotes. */
 const isToolCall = (/** @type {string} */ cmd) =>
   /^\s*(&\s*)?node(\.exe)?\s+(?:"[^"]*|'[^']*|[^\s"']*)scripts[\\/]backlog\.mjs/i.test(cmd) &&
-  !/[;&|<>`\n]|\$\(/.test(cmd.replace(/"[^"]*"|'[^']*'/g, ''));
+  !/[;&|<>\n]/.test(cmd.replace(/"[^"]*"|'[^']*'/g, '')) &&
+  // bash still runs a substitution inside double quotes; only single quotes hide it
+  !/`|\$\(/.test(cmd.replace(/'[^']*'/g, ''));
 
 /** The deny reason, or null when the call is allowed. */
 export function decide(
@@ -198,7 +200,8 @@ export function decide(
     if (!NAMES.test(cmd)) return null;
     // a commit message may name the file; its text is not a path
     const body = cmd.replace(/(\s(-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1');
-    if (WRITES.some(re => re.test(body)))
+    // a substitution outside single quotes can hide the write from the patterns below
+    if (WRITES.some(re => re.test(body)) || /`|\$\(/.test(body.replace(/'[^']*'/g, '')))
       return `this command looks like it writes the vault Backlog; ${advice(env)}`;
   }
   return null;

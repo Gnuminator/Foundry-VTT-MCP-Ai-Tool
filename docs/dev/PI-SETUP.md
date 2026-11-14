@@ -136,7 +136,9 @@ listed).
   a brand-new Pi need `NO_SNAPSHOT=1`, as there is no snapshot yet (`FORCE=1` does not skip this check; the check
   reads the last "Backup completed" line, so a started or cancelled run does not count).
 - **A stage that stops or restarts a service refuses while players are online** (Foundry's `/api/status`; the
-  Assistant GM browser counts as one user while it runs, an unreadable answer counts as "not safe") **or a Discord
+  Assistant GM browser counts as one user while it runs, an unreadable answer counts as "not safe"; when the only
+  excess could be a GM browser that has not logged "joined world" yet, the count is re-read for about 10 s first, longer
+  when Docker does not answer) **or a Discord
   recording runs** (a session folder in `recordings` whose `raw/` has no `session.json`, `convert-report.json` or
   `convert-failed.json` and was written to in the last 10 minutes, or, while the bot runs, changed since the bot
   last started: the bot writes nothing while nobody speaks). Put `FORCE=1` in front of `bash` on the ssh line to go on anyway: `... | ssh foundry-pi 'FORCE=1 bash -s'`.

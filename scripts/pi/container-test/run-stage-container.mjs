@@ -45,7 +45,8 @@ export function ensureImage() {
       const build = () =>
         docker(
           ['build', '--platform', 'linux/arm64', '-t', local, '-f', DOCKERFILE, here],
-          30 * 60_000, // a build under QEMU is slower than a pull
+          // CI shards are native ARM and stop at 20 minutes (two attempts must fit); a local QEMU build is slower.
+          process.env.CI ? 8 * 60_000 : 30 * 60_000,
         );
       let b = build();
       if (b.status !== 0) {

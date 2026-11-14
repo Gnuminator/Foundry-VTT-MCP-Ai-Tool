@@ -18,6 +18,9 @@ import {
   toast,
   type ToolCall,
   settle,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  switchesBody,
 } from './support';
 
 const SESSION = { success: true, worldId: 'w', open: true, endedAt: null };
@@ -117,13 +120,9 @@ async function setup(page: Page, s: Setup = {}): Promise<ToolCall[]> {
       json: { tools: catalog.map(name => ({ name })), gmActionsEnabled: true },
     })
   );
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true } })
-  );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/session/switches', route => route.fulfill({ json: switchesBody(true) }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await fakeStream(page, s.stream ?? [GM_ON]);
   return fakeTools(
     page,

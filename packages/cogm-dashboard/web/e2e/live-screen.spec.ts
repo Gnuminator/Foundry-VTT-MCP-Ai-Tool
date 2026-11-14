@@ -4,7 +4,15 @@
 // and the default dashboard's header switch that gets here. The bridge and the stream are faked.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, toast, type ToolCall } from './support';
+import {
+  GM_TOKEN,
+  apiBody,
+  fakeCommonRoutes,
+  fakeTools,
+  ok,
+  toast,
+  type ToolCall,
+} from './support';
 
 const NL = String.fromCharCode(10);
 const sse = (events: { event: string; data: unknown }[]): string =>
@@ -328,7 +336,7 @@ test('How do I... opens the GM coach guide', async ({ page }) => {
 test('the default dashboard has one Live views menu with the three views', async ({ page }) => {
   await setup(page);
   await page.route('**/api/gm-page', route =>
-    route.fulfill({ json: { foundryUrl: null, foundryOrigin: null } })
+    route.fulfill({ json: apiBody('/api/gm-page', { foundryUrl: null, foundryOrigin: null }) })
   );
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await page.locator('#btn-live-views').click();
@@ -356,7 +364,9 @@ test('Live views shows a player only the Live screen, and no address note with F
   await expect(page.locator('#live-views-gm')).toHaveCount(0);
   await page.unroute('**/api/gm-page');
   await page.route('**/api/gm-page', route =>
-    route.fulfill({ json: { foundryUrl: 'http://f/', foundryOrigin: 'http://f' } })
+    route.fulfill({
+      json: apiBody('/api/gm-page', { foundryUrl: 'http://f/', foundryOrigin: 'http://f' }),
+    })
   );
   await page.reload();
   await page.locator('#btn-live-views').click();

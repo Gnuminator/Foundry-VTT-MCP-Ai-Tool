@@ -1,6 +1,7 @@
 import type { Response } from 'express';
 import type { PlayerHandout } from '@gnuminator/shared';
 
+import type { ThemeBody } from './api-bodies.js';
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { DashboardDeps } from './dashboard-types.js';
 import type { BridgeStatus, CombatState, FeedWorld, GameFeedHandlers } from './feed/types.js';
@@ -90,7 +91,7 @@ interface LiveState {
     open: ReturnType<typeof openRolls>;
   };
   attachPlayerStream: (res: Response) => void;
-  themePayload: () => { theme: string; themes: readonly string[] };
+  themePayload: () => ThemeBody;
   prefsPayload: () => Record<string, unknown>;
   settingsPayload: () => Record<string, unknown>;
   broadcastTheme: () => void;
@@ -249,7 +250,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
   }
 
   /** The current world's theme. Not game state: the same for the GM and the players. */
-  function themePayload(): { theme: string; themes: readonly string[] } {
+  function themePayload(): ThemeBody {
     return { theme: themes.get(world?.id), themes: THEMES };
   }
 

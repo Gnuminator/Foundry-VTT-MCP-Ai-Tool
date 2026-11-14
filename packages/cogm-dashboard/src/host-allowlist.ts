@@ -5,7 +5,7 @@
  * A page on `http://attacker.example:3000` can make its host name resolve to
  * 127.0.0.1 after it loaded ("DNS rebinding"). The browser then treats the
  * dashboard as that page's own origin, so it can read the GM state and call the
- * GM endpoints (in legacy mode every caller is the GM). Every such request still
+ * GM endpoints (in single-user mode every caller is the GM). Every such request still
  * carries `Host: attacker.example:3000`, so refusing unknown host names stops
  * it. The port is left out of the default check: the attacker's port is the
  * dashboard's port, so checking it adds nothing.
@@ -65,7 +65,7 @@ export const HOST_NOT_ALLOWED_MESSAGE =
   'LAN address, add that name to DASHBOARD_ALLOWED_HOSTS and restart the dashboard.';
 
 /** Allowed on any port, in every configuration. */
-export const LOOPBACK_HOSTNAMES: readonly string[] = ['localhost', '127.0.0.1', '[::1]'];
+const LOOPBACK_HOSTNAMES: readonly string[] = ['localhost', '127.0.0.1', '[::1]'];
 
 const MAX_HOST_LENGTH = 300;
 const MAX_NAME_LENGTH = 254;

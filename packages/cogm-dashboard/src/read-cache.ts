@@ -7,7 +7,7 @@
 /** Tools whose answer may be a few seconds old. */
 export const CACHED_READ_TOOLS: ReadonlySet<string> = new Set(['get-play-stats', 'list-scenes']);
 
-export const READ_CACHE_TTL_MS = 5_000;
+const READ_CACHE_TTL_MS = 5_000;
 
 interface Entry {
   at: number;

@@ -13,7 +13,7 @@ interface GmPageInfo {
 }
 
 /** The ways to see the live strip, one sentence each on when to use it. */
-export const LIVE_VIEWS = {
+const LIVE_VIEWS = {
   live: 'The strip and the combat order on one fixed page. Use it on a second screen or a tablet.',
   gm: 'Foundry and the strip in one browser window. Use it when there is only one screen. Close your normal Foundry tab first: a user can be joined once.',
   glance:
@@ -22,7 +22,7 @@ export const LIVE_VIEWS = {
     'A small window inside Foundry, next to the map. Turn it on in Foundry: the Settings tab, Game Settings, category Foundry AI Tool, "AI Tool: Live window". Then the Live button shows in the AI Tool group.',
 } as const;
 
-export const NO_FOUNDRY_ADDRESS_NOTE =
+const NO_FOUNDRY_ADDRESS_NOTE =
   'The dashboard does not know Foundry’s address yet, so the GM page cannot show Foundry and the Live window inside Foundry stays empty. Ask whoever set up the dashboard to add it.';
 
 /**

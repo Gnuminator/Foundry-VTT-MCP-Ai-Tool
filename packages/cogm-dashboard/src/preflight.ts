@@ -38,7 +38,7 @@ export interface DashboardPreflightInput {
 }
 
 /** Foundry's address for the GM page and the Live window: both stay blank without it. */
-export function foundryAddressCheck(foundryUrl: string | undefined): DashboardPreflightCheck {
+function foundryAddressCheck(foundryUrl: string | undefined): DashboardPreflightCheck {
   const label = 'Foundry address set';
   if (gmPageInfo(foundryUrl).foundryUrl !== null) {
     return {

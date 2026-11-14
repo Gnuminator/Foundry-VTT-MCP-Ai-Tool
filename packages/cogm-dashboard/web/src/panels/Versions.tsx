@@ -39,7 +39,7 @@ export type VersionsView =
       kit: KitResult | null;
     };
 
-export const VERSIONS_KEY = ['versions'] as const;
+const VERSIONS_KEY = ['versions'] as const;
 const CHECKING_POLL_MS = 3000;
 
 const STATUS_TEXT: Record<VersionStatus, string> = {
@@ -49,7 +49,7 @@ const STATUS_TEXT: Record<VersionStatus, string> = {
 };
 
 /** How many rows are behind (the pane's meta line). */
-export function behindCount(rows: VersionRow[] | null): number {
+function behindCount(rows: VersionRow[] | null): number {
   return rows ? rows.filter(r => r.status === 'behind').length : 0;
 }
 

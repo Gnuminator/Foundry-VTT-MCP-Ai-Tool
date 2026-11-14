@@ -5,7 +5,7 @@
 
 export type RollKind = 'check' | 'save' | 'skill';
 
-export const ABILITIES = [
+const ABILITIES = [
   { id: 'str', label: 'Strength' },
   { id: 'dex', label: 'Dexterity' },
   { id: 'con', label: 'Constitution' },
@@ -14,7 +14,7 @@ export const ABILITIES = [
   { id: 'cha', label: 'Charisma' },
 ] as const;
 
-export const SKILLS = [
+const SKILLS = [
   'Acrobatics',
   'Animal Handling',
   'Arcana',

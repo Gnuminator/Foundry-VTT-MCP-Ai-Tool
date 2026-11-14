@@ -41,10 +41,10 @@ export const DOCKS: Record<Moment, readonly DockName[]> = {
 };
 
 /** After shows for this long after a session ended. */
-export const AFTER_WINDOW_MS = 12 * 60 * 60 * 1000;
+const AFTER_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 /** The moment the session asks for: During while open, After for 12 hours after the end. */
-export function momentFromSession(session: PlaySession, now: number): Moment {
+function momentFromSession(session: PlaySession, now: number): Moment {
   if (session.open) return 'during';
   const ended = session.endedAt ? Date.parse(session.endedAt) : NaN;
   return Number.isFinite(ended) && now - ended <= AFTER_WINDOW_MS ? 'after' : 'before';

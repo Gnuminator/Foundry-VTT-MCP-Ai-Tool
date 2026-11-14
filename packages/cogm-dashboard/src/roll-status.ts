@@ -36,7 +36,7 @@ export interface OpenRoll {
 }
 
 /** A request older than this no longer counts as waiting. */
-export const OPEN_WINDOW_MS = 30 * 60 * 1000;
+const OPEN_WINDOW_MS = 30 * 60 * 1000;
 
 /** Roll families that answer a request; attacks, damage and initiative never do. */
 const ANSWERING = new Set(['check', 'skill', 'save', 'tool']);

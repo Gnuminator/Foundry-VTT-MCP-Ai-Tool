@@ -57,7 +57,7 @@ const CATEGORY_RULES: [RegExp, string][] = [
   [/(compendium|creature)/, 'Compendium'],
 ];
 
-export function categoryOf(name: string): string {
+function categoryOf(name: string): string {
   for (const [re, cat] of CATEGORY_RULES) if (re.test(name)) return cat;
   return 'World & Info';
 }

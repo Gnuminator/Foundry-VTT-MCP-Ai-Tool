@@ -14,7 +14,7 @@ export interface GmLayout {
 }
 
 /** Browser storage key (per browser, like the cogm_ keys next to it). */
-export const GM_LAYOUT_KEY = 'cogm_gm_layout';
+const GM_LAYOUT_KEY = 'cogm_gm_layout';
 export const DEFAULT_STRIP_PX = 420;
 export const MIN_STRIP_PX = 320;
 const MAX_STRIP_PX = 720;
@@ -23,7 +23,7 @@ export const MIN_FOUNDRY_PX = 1024;
 /** The divider's hit area, between the panes. */
 const DIVIDER_PX = 12;
 /** Below this the page shows the strip alone (no side by side): both panes plus the divider. */
-export const SIDE_BY_SIDE_MIN_PX = MIN_STRIP_PX + DIVIDER_PX + MIN_FOUNDRY_PX;
+const SIDE_BY_SIDE_MIN_PX = MIN_STRIP_PX + DIVIDER_PX + MIN_FOUNDRY_PX;
 /** How long after the frame loads before the page says Foundry may not show here. */
 export const FRAME_WAIT_MS = 8000;
 

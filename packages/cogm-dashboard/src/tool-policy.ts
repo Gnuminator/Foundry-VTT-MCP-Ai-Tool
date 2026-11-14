@@ -20,7 +20,7 @@ export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /** Tools that read state but don't match the read prefixes. */
-export const READ_TOOLS_EXTRA: ReadonlySet<string> = new Set([
+const READ_TOOLS_EXTRA: ReadonlySet<string> = new Set([
   'check-action',
   'check-secret-terms',
   'find-book-entries',

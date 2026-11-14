@@ -72,7 +72,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       config: arg('config'),
       out: arg('out'),
     });
-    console.log(`player-preset: wrote ${file} for ${playerName}. It holds that player's login.`);
+    console.log(`player-preset: wrote ${file} for ${playerName}. It holds that player's login. Send it only to them, privately, and delete it after sending.`);
   } catch (error) {
     // Only our own fixed messages: a JSON parse error could quote the file.
     const own = error instanceof Error && !(error instanceof SyntaxError);

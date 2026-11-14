@@ -67,6 +67,7 @@ describe('plan-pc-creation', () => {
       feature: 'pc-creation',
       summary: 'Create the character "Ebbe"',
       ops,
+      notes: ['w'],
     });
     expect(out).toMatchObject({ id: 'plan1', autoApply: false, warnings: ['w'] });
   });
@@ -77,6 +78,19 @@ describe('plan-pc-creation', () => {
     await expect(
       t.handleToolCall('plan-pc-creation', { name: 'A', items: [{}] })
     ).rejects.toThrow();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('caps items at 200 and refuses a repeated uuid', async () => {
+    const item = (n: number): { uuid: string } => ({ uuid: `Compendium.p.Item.i${n}` });
+    const { t, query } = tools(true);
+    const many = Array.from({ length: 201 }, (_, n) => item(n));
+    await expect(
+      t.handleToolCall('plan-pc-creation', { name: 'A', items: many })
+    ).rejects.toThrow();
+    await expect(
+      t.handleToolCall('plan-pc-creation', { name: 'A', items: [item(1), item(1)] })
+    ).rejects.toThrow(/only once/);
     expect(query).not.toHaveBeenCalled();
   });
 });

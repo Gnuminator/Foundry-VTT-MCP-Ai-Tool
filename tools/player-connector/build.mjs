@@ -41,7 +41,8 @@ export function presetSlug(name) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 24);
+    .slice(0, 24)
+    .replace(/^-+|-+$/g, '');
 }
 
 /**

@@ -6,7 +6,7 @@ description: Every tool in the Build set with its description and parameters. Ge
 
 # Build tools
 
-Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: `foundry-mcp-build`.
+Make and change NPCs, monsters, items and player characters: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: `foundry-mcp-build`.
 
 ## manage-world-items
 
@@ -253,7 +253,7 @@ Parameters:
 
 ## plan-pc-creation
 
-Plan a new player character: a character actor with items copied from compendium packs by uuid (a container brings its contents). Advancement does not run: add class features by uuid. Apply with apply-planned-change, undo with undo-change.
+Plan a new player character: a character actor with items copied from compendium packs by uuid (a container brings its contents). Advancement does not run: add class features by uuid. Apply with apply-planned-change, undo with undo-change. Needs the switch "AI Tool: Character creation (writes)" on.
 
 Kind: read-only. Title: Plan a new player character with pack items.
 

@@ -241,8 +241,14 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         });
         res.end(bytes);
       })
-      .catch(() => {
-        // Never the error text: it could carry a value. A fixed sentence only.
+      .catch((error: unknown) => {
+        // Log the code or name only, never the message: it could carry a value.
+        const code = (error as { code?: unknown } | null)?.code;
+        options.logger?.warn('Player helper build failed', {
+          userId,
+          error: typeof code === 'string' ? code : error instanceof Error ? error.name : 'unknown',
+        });
+        // A fixed sentence only.
         res.status(503).json({ error: 'Could not make your helper file. Ask your GM.' });
       });
   });

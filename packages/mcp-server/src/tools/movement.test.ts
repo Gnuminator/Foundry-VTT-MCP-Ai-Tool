@@ -4,7 +4,7 @@ import { MovementTools } from './movement.js';
 
 /**
  * Template for chunk-4 tool tests: a tool class is a thin, deterministic layer
- * over `FoundryClient.query` — validate args → dispatch the right
+ * over `FoundryClient.query`: validate args → dispatch the right
  * `foundry-mcp-bridge.*` method → propagate a foundry-side failure → shape the
  * result. We mock the client so the layer is tested in isolation (no bridge),
  * which is the whole reason the Node-side tool layer is the safe rewrite target.

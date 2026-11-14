@@ -153,14 +153,14 @@ export class DnD5eFeaturesFromCompendiumTools {
     if (failed.length > 0) parts.push(`${failed.length} failed`);
 
     const statusIcon = failed.length > 0 ? '⚠️' : notFound.length > 0 ? '🔍' : '✅';
-    const summary = `${statusIcon} Features imported to "${actor.name}" — ${
+    const summary = `${statusIcon} Features imported to "${actor.name}", ${
       parts.length > 0 ? parts.join(', ') : 'nothing changed'
     }`;
 
     // ── Sections ──────────────────────────────────────────────────────────────
     const lines: string[] = [
       `**Actor:** ${actor.name} (id: \`${actor.id}\`)`,
-      `**Requested:** ${totalRequested} — Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
+      `**Requested:** ${totalRequested}, Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
     ];
 
     if (added.length > 0) {
@@ -173,7 +173,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     if (skipped.length > 0) {
       lines.push('\n⏭️ **Skipped:**');
       for (const f of skipped) {
-        lines.push(`  - ${f.name} — *${f.reason}*`);
+        lines.push(`  - ${f.name}, *${f.reason}*`);
       }
     }
 
@@ -187,7 +187,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     if (failed.length > 0) {
       lines.push('\n⚠️ **Failed during import:**');
       for (const f of failed) {
-        lines.push(`  - ${f.name} — *${f.error}*`);
+        lines.push(`  - ${f.name}, *${f.error}*`);
       }
     }
 

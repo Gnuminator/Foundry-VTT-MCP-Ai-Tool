@@ -530,7 +530,7 @@ export class DnD5eNpcTools {
     const parsed = schema.parse(args);
 
     // -----------------------------------------------------------------------
-    // Soft validation — collect warnings, do NOT block creation
+    // Soft validation: collect warnings, do NOT block creation
     // -----------------------------------------------------------------------
     const warnings: string[] = [];
 
@@ -541,14 +541,14 @@ export class DnD5eNpcTools {
     ];
     for (const { field, value } of allDamageValues) {
       if (!DAMAGE_CANONICAL.has(value)) {
-        const msg = `Unknown damage type "${value}" in ${field} — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${value}" in ${field}, verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { field, value });
       }
     }
     for (const value of parsed.conditionImmunities) {
       if (!CONDITION_CANONICAL.has(value)) {
-        const msg = `Unknown condition "${value}" in conditionImmunities — verify it matches dnd5e system values`;
+        const msg = `Unknown condition "${value}" in conditionImmunities, verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value });
       }

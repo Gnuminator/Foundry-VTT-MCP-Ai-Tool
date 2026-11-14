@@ -3,7 +3,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { ResourceTools } from './resources.js';
 
 /**
- * Tests for ResourceTools — the thin deterministic layer over FoundryClient.query
+ * Tests for ResourceTools: the thin deterministic layer over FoundryClient.query
  * for limited-use resource tracking (spell slots, class resources, item charges, etc.).
  *
  * Pattern: mock FoundryClient + Logger stub, test each handler in isolation.

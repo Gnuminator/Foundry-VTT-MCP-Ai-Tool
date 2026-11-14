@@ -3,12 +3,12 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { ActorCreationTools } from './actor-creation.js';
 
 /**
- * Tests for ActorCreationTools — a thin, deterministic layer over FoundryClient.query.
- * Pattern: validate args (via zod.parse — throws on failure) → dispatch correct
+ * Tests for ActorCreationTools: a thin, deterministic layer over FoundryClient.query.
+ * Pattern: validate args (via zod.parse, throws on failure) → dispatch correct
  * `foundry-mcp-bridge.*` method → shape result → propagate Foundry-side failures
  * (query throws → errorHandler.handleToolError → rethrows formatted Error).
  *
- * Neither handler returns a "Parameter error" string — both throw on validation failure
+ * Neither handler returns a "Parameter error" string, both throw on validation failure
  * (schema.parse) and on Foundry failure (errorHandler.handleToolError), matching source.
  *
  * The FoundryClient is mocked so these tests run with no bridge connection.
@@ -185,7 +185,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
       itemId: 'goblin-id',
       names: ['Flameheart'],
     });
-    // Result is shaped — not the raw query response
+    // Result is shaped: not the raw query response
     expect(result).toHaveProperty('summary');
     expect(result).toHaveProperty('success', true);
     expect(result).toHaveProperty('details');

@@ -31,7 +31,7 @@ export const DnD5eCreatureTypes = [
 export type DnD5eCreatureType = (typeof DnD5eCreatureTypes)[number];
 
 /**
- * Common creature sizes — the display words tool callers naturally write.
+ * Common creature sizes: the display words tool callers naturally write.
  */
 export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
 export type CreatureSize = (typeof CreatureSizes)[number];
@@ -42,9 +42,9 @@ export type CreatureSize = (typeof CreatureSizes)[number];
  * hold them. Pre-existing bug (plan `filters.ts:34`): the index stores the
  * dnd5e key ('med') while this filter only accepted the display word
  * ('medium'), so a `size: 'medium'` filter never matched a medium creature.
- * verified: dnd5e.mjs 6.0.5 — `CONFIG.DND5E.actorSizes` keys are
+ * verified: dnd5e.mjs 6.0.5, `CONFIG.DND5E.actorSizes` keys are
  * tiny/sm/med/lg/huge/grg (fullKey small/medium/large/gargantuan; tiny/huge
- * have no separate fullKey — the key already is the full word). Unchanged
+ * have no separate fullKey: the key already is the full word). Unchanged
  * from dnd5e 5.3's actorSizes keys.
  */
 export const DnD5eSizeKeys = ['tiny', 'sm', 'med', 'lg', 'huge', 'grg'] as const;
@@ -141,7 +141,7 @@ export function matchesDnD5eFilters(creature: unknown, filters: DnD5eFilters): b
     }
   }
 
-  // Size filter — compare via the dnd5e size key so a filter written as the
+  // Size filter: compare via the dnd5e size key so a filter written as the
   // display word ('medium') matches a stored dnd5e key ('med') and vice versa
   // (see normalizeDnD5eSizeKey / DnD5eSizeKeys above).
   if (filters.size) {

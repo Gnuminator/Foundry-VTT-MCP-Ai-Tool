@@ -1,9 +1,9 @@
 /**
  * Tests for the control-channel call_tool dispatch table. This routing used to
- * live in a ~70-case switch inside backend.ts (untestable — backend.ts runs a
+ * live in a ~70-case switch inside backend.ts (untestable, backend.ts runs a
  * process lock + server bootstrap at import). As a pure builder it can now be
  * checked directly: the route count is pinned (a dropped/added route fails), and
- * both dispatch shapes are verified — direct `tool.method(args)` and the generic
+ * both dispatch shapes are verified, direct `tool.method(args)` and the generic
  * `ownershipTools.handleToolCall(name, args)` dispatcher.
  */
 import { describe, expect, it, vi } from 'vitest';

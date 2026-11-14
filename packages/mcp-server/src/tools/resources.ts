@@ -10,7 +10,7 @@ interface ResourceToolsOptions {
 }
 
 /**
- * 3C: Limited-use resource tracking — spell slots, class resources (Sorcery
+ * 3C: Limited-use resource tracking, spell slots, class resources (Sorcery
  * Points, Ki, Rages, etc.), item charges, concentration, hit dice, death saves.
  */
 export class ResourceTools {

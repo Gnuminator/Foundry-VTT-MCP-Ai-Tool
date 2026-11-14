@@ -10,7 +10,7 @@ interface SessionLogToolsOptions {
 }
 
 /**
- * 3H: Session event log — the "memory" layer. Returns a structured log of
+ * 3H: Session event log, the "memory" layer. Returns a structured log of
  * significant events accumulated by the Foundry module for the current browser
  * session (combat start/end, HP changes, deaths/stabilizations, conditions,
  * resource spend, scene changes, journal create/update).
@@ -49,7 +49,7 @@ export class SessionLogTools {
               // `damage-roll` events copy their actorName straight from the chat
               // log's speakerName (session-events.ts onCreateChatMessage), which
               // falls back to the acting user's name when no actor/token speaker
-              // is set (session-events.ts parseChatMessage) — same reasoning as
+              // is set (session-events.ts parseChatMessage): same reasoning as
               // chat-log.ts's speakerName picker.
               ...toolRef(['actor', 'token', 'user'], 'name'),
             },

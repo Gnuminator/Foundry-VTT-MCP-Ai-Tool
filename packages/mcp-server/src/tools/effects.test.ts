@@ -3,7 +3,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { EffectsTools } from './effects.js';
 
 /**
- * Test suite for EffectsTools — condition / status-effect management.
+ * Test suite for EffectsTools: condition / status-effect management.
  * Follows the chunk-4 template established by movement.test.ts:
  *   makeTools() builds the class with a mocked FoundryClient and Logger stub,
  *   then each describe block exercises one handler.

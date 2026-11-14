@@ -4,7 +4,7 @@ import { DnD5eFeaturesFromCompendiumTools } from './features.js';
 import { makeTools, type ToolHarness } from '../../test-support/make-tool-harness.js';
 
 /**
- * Tests for DnD5eFeaturesFromCompendiumTools — a thin, deterministic layer over
+ * Tests for DnD5eFeaturesFromCompendiumTools: a thin, deterministic layer over
  * FoundryClient.query. Pattern: validate args (ZodError throws on bad input) →
  * detect game system via detectGameSystem (mocked) → dispatch the correct
  * `foundry-mcp-bridge.*` method → propagate foundry-side failures via
@@ -100,10 +100,10 @@ describe('DnD5eFeaturesFromCompendiumTools.getToolDefinitions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleAddFeaturesFromCompendium — query dispatch
+// handleAddFeaturesFromCompendium: query dispatch
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — dispatch', () => {
+describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: dispatch', () => {
   beforeEach(() => {
     mockDetectGameSystem.mockResolvedValue('dnd5e');
   });
@@ -163,10 +163,10 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — d
 });
 
 // ---------------------------------------------------------------------------
-// handleAddFeaturesFromCompendium — Zod validation (throws, not string)
+// handleAddFeaturesFromCompendium: Zod validation (throws, not string)
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — validation', () => {
+describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: validation', () => {
   beforeEach(() => {
     mockDetectGameSystem.mockResolvedValue('dnd5e');
   });
@@ -228,10 +228,10 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
 });
 
 // ---------------------------------------------------------------------------
-// handleAddFeaturesFromCompendium — non-dnd5e system guard
+// handleAddFeaturesFromCompendium: non-dnd5e system guard
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — system guard', () => {
+describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: system guard', () => {
   it('throws when system is not dnd5e', async () => {
     mockDetectGameSystem.mockResolvedValue('other');
     const { tools, query } = makeFeatureTools();
@@ -262,10 +262,10 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — s
 });
 
 // ---------------------------------------------------------------------------
-// handleAddFeaturesFromCompendium — Foundry failure propagation
+// handleAddFeaturesFromCompendium: Foundry failure propagation
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — Foundry failure', () => {
+describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: Foundry failure', () => {
   beforeEach(() => {
     mockDetectGameSystem.mockResolvedValue('dnd5e');
   });
@@ -285,10 +285,10 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — F
 });
 
 // ---------------------------------------------------------------------------
-// handleAddFeaturesFromCompendium — formatResponse shaping
+// handleAddFeaturesFromCompendium: formatResponse shaping
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — result shaping', () => {
+describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: result shaping', () => {
   beforeEach(() => {
     mockDetectGameSystem.mockResolvedValue('dnd5e');
   });

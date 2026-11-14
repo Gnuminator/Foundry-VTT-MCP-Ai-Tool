@@ -398,3 +398,16 @@ def test_a_tell_with_no_discord_settings_is_not_recorded_as_sent(
     assert not (sessions / ".notes-tells.json").exists()
     run_pass(sessions, bin_dir)
     assert len(tells(calls)) == 2  # tried again on the next pass
+
+
+@pytest.mark.parametrize("complete,writes", [(False, True), (True, False)])
+def test_notes_with_missing_depth_layer_are_not_done(
+    tmp_path: Path, sessions: Path, folder_with_notes: Path, complete: bool, writes: bool
+) -> None:
+    # I-066: with the Danish layers a session counts as done only when every scene has in-depth notes.
+    (folder_with_notes / "notes" / "notes.json").write_text(
+        json.dumps({"session": {}, "layers": {"depth_complete": complete}}), encoding="utf-8"
+    )
+    bin_dir, _calls = make_bin(tmp_path, run=76, publish=0)
+    _code, out = run_pass(sessions, bin_dir)
+    assert ("writing notes" in out) is writes

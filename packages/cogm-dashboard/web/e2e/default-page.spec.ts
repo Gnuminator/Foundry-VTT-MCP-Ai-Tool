@@ -3,21 +3,25 @@
 // (/?plan=<planId>) opens the plan's confirm window once GM Actions are on.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, toast, settle } from './support';
+import {
+  GM_TOKEN,
+  PREFLIGHT_OK,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+  toast,
+  settle,
+  switchesBody,
+} from './support';
 
 const gmActions = (on: boolean): { event: string; data: unknown }[] => [
   { event: 'settings', data: { gmActionsEnabled: on } },
 ];
 
 async function fakeBridge(page: Page): ReturnType<typeof fakeTools> {
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: { switches: { switches: [] }, gmActionsEnabled: true, error: null },
-    })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/session/switches', route => route.fulfill({ json: switchesBody(true) }));
   return fakeTools(page, call => {
     if (call.name === 'get-planned-change') {
       return ok({

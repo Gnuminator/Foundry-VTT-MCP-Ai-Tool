@@ -13,7 +13,7 @@ interface ChatLogFilters {
   sinceTimestamp?: string;
 }
 
-/** Numeric message-style constants — prefer CHAT_MESSAGE_STYLES (v11+), fall
+/** Numeric message-style constants, prefer CHAT_MESSAGE_STYLES (v11+), fall
  *  back to CHAT_MESSAGE_TYPES (v10). Defaults cover both. */
 interface ChatMessageStyles {
   IC?: number;
@@ -43,7 +43,7 @@ interface SendChatMessageResult {
  * If an actor was resolved, `ChatMessage.getSpeaker({ actor })` fills the
  * alias from the actor's name, token name, or scene overrides as Foundry sees
  * fit. Without an actor (GM / world voice) we supply `{ alias: game.user?.name }`
- * so the current user's display name appears in chat — `getSpeaker` does NOT
+ * so the current user's display name appears in chat, `getSpeaker` does NOT
  * accept a `user` key, only `{ scene, actor, token, alias }`.
  */
 function resolveSpeaker(actor: Actor | null): ChatSpeakerData {
@@ -103,7 +103,7 @@ function resolveWhisperTargets(targets: string[]): { ids: string[]; warning: str
   }
 
   if (ids.length === 0) {
-    // No requested targets resolved — whisper to GM(s) to prevent public post.
+    // No requested targets resolved, whisper to GM(s) to prevent public post.
     const gmIds = (game.users?.filter(u => u.isGM) ?? []).map(u => u.id).filter(Boolean);
     if (gmIds.length > 0) {
       return {
@@ -135,11 +135,11 @@ function resolveWhisperTargets(targets: string[]): { ids: string[]; warning: str
 // ---------------------------------------------------------------------------
 
 /**
- * Chat log read + chat message send domain — extracted from FoundryDataAccess.
+ * Chat log read + chat message send domain, extracted from FoundryDataAccess.
  *
  * `getChatLog` reads the ring-buffer maintained by the EventTracker (it does
  * NOT query `game.messages` directly), forwarding only the filters that were
- * explicitly supplied — undefined keys are omitted from the filter object so
+ * explicitly supplied, undefined keys are omitted from the filter object so
  * EventTracker can distinguish "no filter" from "filter to undefined".
  *
  * `sendChatMessage` is a thin orchestration layer: it resolves an optional
@@ -151,7 +151,7 @@ export class ChatDataAccess {
   /**
    * Return the buffered chat log captured by the EventTracker, with filters.
    *
-   * Only keys whose incoming value is not `undefined` are forwarded — this lets
+   * Only keys whose incoming value is not `undefined` are forwarded, this lets
    * EventTracker distinguish "caller did not mention limit" from "caller passed
    * limit: undefined".
    */
@@ -203,7 +203,7 @@ export class ChatDataAccess {
   }): Promise<SendChatMessageResult> {
     shared.validateFoundryState();
 
-    // Validate early — empty string is also invalid.
+    // Validate early, empty string is also invalid.
     if (!data.message || typeof data.message !== 'string') {
       throw new Error('message is required');
     }

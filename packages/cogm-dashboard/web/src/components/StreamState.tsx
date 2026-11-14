@@ -7,7 +7,7 @@ import type { JSX } from 'react';
 import { useStreamTrouble } from '../lib/stream';
 
 /** What the header says for each kind of trouble, and what the GM can do about it. */
-export const STREAM_TEXT = {
+const STREAM_TEXT = {
   dropped: {
     label: 'Connection lost, reconnecting…',
     detail:

@@ -1029,7 +1029,7 @@ export class PlayerRollsDataAccess {
       await this.updateRollButtonMessage(buttonId, userId, rollLabel);
     } catch (error) {
       console.error(`[${MODULE_ID}] Legacy saveRollState redirect failed:`, error);
-      // Don't throw — we don't want to break the old system completely.
+      // Don't throw, we don't want to break the old system completely.
     }
   }
 
@@ -1202,7 +1202,7 @@ export class PlayerRollsDataAccess {
    * an explicit roll-state broadcast is no longer needed.
    */
   broadcastRollState(_buttonId: string, _rollState: unknown): void {
-    // Intentionally empty — superseded by ChatMessage.update() auto-sync.
+    // Intentionally empty, superseded by ChatMessage.update() auto-sync.
   }
 
   /**
@@ -1310,7 +1310,7 @@ export class PlayerRollsDataAccess {
           targetName: ownerUser.name || 'Unknown Player',
         };
       }
-      // No (non-GM) player owner — the GM can still roll for this character.
+      // No (non-GM) player owner, the GM can still roll for this character.
       return {
         found: true,
         character,

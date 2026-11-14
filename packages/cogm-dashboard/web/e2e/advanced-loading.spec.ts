@@ -4,7 +4,15 @@
 // that fails to load leaves the page working.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, toast } from './support';
+import {
+  GM_TOKEN,
+  SPACE_UNAVAILABLE,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+  toast,
+} from './support';
 
 interface HeldChunk {
   release: () => void;
@@ -15,7 +23,7 @@ interface HeldChunk {
 /** Loads the page with the menu chunk held back until `release()` (or failing, with `abort`). */
 async function loadHoldingChunk(page: Page, abort = false): Promise<HeldChunk> {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
   await fakeTools(page, () => ok({}));
   let release: () => void = () => undefined;

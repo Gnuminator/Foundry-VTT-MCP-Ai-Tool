@@ -178,7 +178,7 @@ const kitTree = page =>
       "export const KIT_SIZES = ['smoke', 'full']; export const KIT_WORLDS = ['ai-tool-kit-a'];\n",
     'scripts/test-kit/lib/loader.mjs':
       "export async function loadScenarios() { return { problems: [], scenarios: [{ scenario: { id: 'one', sizes: ['smoke', 'full'], tags: ['t'], title: 'It works' } }] }; }\n",
-    'docs/dev/TEST-KIT.md': page,
+    'docs/dev/test-kit/scenarios.md': page,
   });
 const runKit = (root, ...args) =>
   spawnSync(process.execPath, [path.join(import.meta.dirname, 'docs-kit.mjs'), '--root', root, ...args], {
@@ -192,7 +192,7 @@ test('docs-kit --check passes on a current table, fails on a stale one, and a re
   assert.match(stale.stderr, /stale/);
   const written = runKit(root);
   assert.equal(written.status, 0, written.stderr);
-  const page = fs.readFileSync(path.join(root, 'docs/dev/TEST-KIT.md'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'docs/dev/test-kit/scenarios.md'), 'utf8');
   assert.match(page, /1 scenarios ship in the repo \(1 in `smoke`, 1 in `full`\)/);
   assert.match(page, /`one`/);
   assert.equal(runKit(root, '--check').status, 0);

@@ -3,7 +3,7 @@
 // parent like the module does, or refuses to be framed. Nothing here needs a world.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, settle } from './support';
+import { GM_TOKEN, apiBody, fakeCommonRoutes, fakeTools, ok, settle } from './support';
 
 const FOUNDRY = 'http://foundry.test:30000';
 const NL = String.fromCharCode(10);
@@ -29,7 +29,7 @@ const FIGHT = [
 async function setup(
   page: Page,
   info: { status?: number; json: unknown } = {
-    json: { foundryUrl: FOUNDRY, foundryOrigin: FOUNDRY },
+    json: apiBody('/api/gm-page', { foundryUrl: FOUNDRY, foundryOrigin: FOUNDRY }),
   }
 ): Promise<void> {
   await page.setViewportSize({ width: 1700, height: 900 });
@@ -245,7 +245,7 @@ test('is for the GM: a player is sent to the player view, and a missing address 
     '/player'
   );
 
-  await setup(page, { json: { foundryUrl: null, foundryOrigin: null } });
+  await setup(page, { json: apiBody('/api/gm-page', { foundryUrl: null, foundryOrigin: null }) });
   await load(page);
   await expect(page.getByRole('alert')).toContainText('does not know Foundry’s address');
 });

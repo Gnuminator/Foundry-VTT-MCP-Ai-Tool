@@ -90,7 +90,11 @@ function Invoke-Notes([string[]]$argList) {
 function Test-NotesDone([string]$folder) {
   $json = Join-Path $folder 'notes\notes.json'
   if (-not (Test-Path $json)) { return $false }
-  try { return $null -ne (Get-Content $json -Raw -Encoding utf8 | ConvertFrom-Json).session } catch { return $false }
+  # With the Danish layers (I-066) notes.json carries layers.depth_complete; older notes have no layers part.
+  try {
+    $n = Get-Content $json -Raw -Encoding utf8 | ConvertFrom-Json
+    return ($null -ne $n.session) -and (-not $n.layers -or [bool]$n.layers.depth_complete)
+  } catch { return $false }
 }
 
 function Test-RawScenes([string]$folder) {
@@ -177,7 +181,7 @@ try {
     if ((Test-Path $timeline) -and -not (Test-NotesDone $folder)) {
       Say "$($dir.Name): writing notes"
       if (-not $DryRun) {
-        $code = Invoke-Notes @('run', $folder)
+        $code = Invoke-Notes @('run', $folder, '--layers')
         switch ($code) {
           0 { Say "$($dir.Name): notes done" }
           75 {

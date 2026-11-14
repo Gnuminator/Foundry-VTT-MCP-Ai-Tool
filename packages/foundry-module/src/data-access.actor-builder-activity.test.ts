@@ -1,5 +1,5 @@
 /**
- * Characterization tests for `useNpcActivity` in the `actor-builder` domain —
+ * Characterization tests for `useNpcActivity` in the `actor-builder` domain -
  * the one method the two parallel actor-builder nets each ceded to the other
  * (a blind-split gap). This file closes it.
  *
@@ -80,7 +80,7 @@ function npcWith(name: string, items: any[]): any {
 
 // ===========================================================================
 
-describe('FoundryDataAccess — useNpcActivity', () => {
+describe('FoundryDataAccess: useNpcActivity', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' })).rejects.toThrow(

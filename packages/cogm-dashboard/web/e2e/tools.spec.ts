@@ -15,6 +15,7 @@ import {
   toast,
   type ToolCall,
   fromMenu,
+  apiBody,
 } from './support';
 
 const PAGE_UUID = 'JournalEntry.j1.JournalEntryPage.p1';
@@ -240,10 +241,10 @@ test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await page.route('**/api/player/names', route =>
     route.fulfill({
-      json: [
+      json: apiBody('/api/player/names', [
         { userId: 'u1', name: 'Anna' },
         { userId: 'u2', name: 'Bo' },
-      ],
+      ]),
     })
   );
 });

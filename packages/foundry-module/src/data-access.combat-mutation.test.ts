@@ -28,7 +28,7 @@
  *     (`requireDnd5e`) are exercised by overriding `game.system.version` /
  *     `game.system.id` after `world.install()`.
  *   - Targets resolve via `shared.resolveTargetActor`, which (with no current
- *     scene) falls back to `game.actors` by id/name — so target actors are added
+ *     scene) falls back to `game.actors` by id/name, so target actors are added
  *     as world actors and addressed by name.
  */
 
@@ -119,7 +119,7 @@ describe('FoundryDataAccess: combat writes end the AI change group', () => {
 // advanceCombatTurn
 // ===========================================================================
 
-describe('FoundryDataAccess — advanceCombatTurn', () => {
+describe('FoundryDataAccess: advanceCombatTurn', () => {
   it('throws when there is no active combat', async () => {
     await expect(da.advanceCombatTurn({})).rejects.toThrow('No active combat encounter.');
   });
@@ -194,7 +194,7 @@ describe('FoundryDataAccess — advanceCombatTurn', () => {
 // setInitiative
 // ===========================================================================
 
-describe('FoundryDataAccess — setInitiative', () => {
+describe('FoundryDataAccess: setInitiative', () => {
   it('throws when there is no active combat', async () => {
     await expect(da.setInitiative({ combatantName: 'Hero', initiative: 18 })).rejects.toThrow(
       'No active combat encounter.'
@@ -241,7 +241,7 @@ describe('FoundryDataAccess — setInitiative', () => {
 // rollInitiativeForNpcs
 // ===========================================================================
 
-describe('FoundryDataAccess — rollInitiativeForNpcs', () => {
+describe('FoundryDataAccess: rollInitiativeForNpcs', () => {
   it('throws when there is no active combat', async () => {
     await expect(da.rollInitiativeForNpcs({})).rejects.toThrow('No active combat encounter.');
   });
@@ -347,7 +347,7 @@ describe('FoundryDataAccess — rollInitiativeForNpcs', () => {
 // rollSavingThrows
 // ===========================================================================
 
-describe('FoundryDataAccess — rollSavingThrows', () => {
+describe('FoundryDataAccess: rollSavingThrows', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -474,7 +474,7 @@ describe('FoundryDataAccess — rollSavingThrows', () => {
 // manageRest
 // ===========================================================================
 
-describe('FoundryDataAccess — manageRest', () => {
+describe('FoundryDataAccess: manageRest', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(da.manageRest({ targets: ['x'], restType: 'long' })).rejects.toThrow(
@@ -534,7 +534,7 @@ describe('FoundryDataAccess — manageRest', () => {
 // suggestBalancedEncounter
 // ===========================================================================
 
-describe('FoundryDataAccess — suggestBalancedEncounter', () => {
+describe('FoundryDataAccess: suggestBalancedEncounter', () => {
   it('uses explicit partyLevels with the built-in 2014 DMG table (no CONFIG.DND5E)', async () => {
     // harness CONFIG.DND5E = {} → no ENCOUNTER_DIFFICULTY → model '2014'; CR_EXP_LEVELS absent → []
     const result = await da.suggestBalancedEncounter({ partyLevels: [5, 5, 5, 5] });

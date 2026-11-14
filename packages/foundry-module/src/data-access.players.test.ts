@@ -36,9 +36,9 @@ afterEach(() => {
 // getFriendlyNPCs
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getFriendlyNPCs', () => {
+describe('FoundryDataAccess: getFriendlyNPCs', () => {
   it('returns [] when there is no active scene', async () => {
-    // No scene installed — game.scenes.find(s => s.active) returns undefined.
+    // No scene installed, game.scenes.find(s => s.active) returns undefined.
     const result = await da.getFriendlyNPCs();
     expect(result).toEqual([]);
   });
@@ -126,13 +126,13 @@ describe('FoundryDataAccess — getFriendlyNPCs', () => {
 // getPartyCharacters
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getPartyCharacters', () => {
+describe('FoundryDataAccess: getPartyCharacters', () => {
   it('returns actors where hasPlayerOwner === true AND type === "character"', async () => {
     world.addActor({ id: 'pc1', name: 'Silvera', type: 'character', hasPlayerOwner: true });
     world.addActor({ id: 'pc2', name: 'Thorn', type: 'character', hasPlayerOwner: true });
-    // NPC with player owner — must not appear
+    // NPC with player owner, must not appear
     world.addActor({ id: 'npc1', name: 'Sidekick', type: 'npc', hasPlayerOwner: true });
-    // Character without player owner — must not appear
+    // Character without player owner, must not appear
     world.addActor({ id: 'pc3', name: 'Unmanned', type: 'character', hasPlayerOwner: false });
 
     const result = await da.getPartyCharacters();
@@ -153,11 +153,11 @@ describe('FoundryDataAccess — getPartyCharacters', () => {
 // getConnectedPlayers
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getConnectedPlayers', () => {
+describe('FoundryDataAccess: getConnectedPlayers', () => {
   it('returns non-GM users that are active', async () => {
     world.addUser({ id: 'p1', name: 'Alice', active: true, isGM: false });
     world.addUser({ id: 'p2', name: 'Bob', active: false, isGM: false });
-    // The default GM user installed by createTestWorld is isGM:true — must not appear.
+    // The default GM user installed by createTestWorld is isGM:true, must not appear.
 
     const result = await da.getConnectedPlayers();
 
@@ -191,7 +191,7 @@ describe('FoundryDataAccess — getConnectedPlayers', () => {
 // findPlayers
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — findPlayers', () => {
+describe('FoundryDataAccess: findPlayers', () => {
   it('finds a player by exact user name', async () => {
     world.addUser({ id: 'p1', name: 'Alice', active: true, isGM: false });
 
@@ -217,7 +217,7 @@ describe('FoundryDataAccess — findPlayers', () => {
   });
 
   it('never returns GM users by name', async () => {
-    // createTestWorld creates a GM named Gamemaster — ensure it is excluded.
+    // createTestWorld creates a GM named Gamemaster, ensure it is excluded.
     const result = await da.findPlayers({ identifier: 'Gamemaster' });
     expect(result).toEqual([]);
   });
@@ -248,13 +248,13 @@ describe('FoundryDataAccess — findPlayers', () => {
 
     const result = await da.findPlayers({ identifier: 'Silvera', includeCharacterOwners: false });
 
-    // No direct user named Silvera and includeCharacterOwners=false — should return [].
+    // No direct user named Silvera and includeCharacterOwners=false, should return [].
     expect(result).toEqual([]);
   });
 
   it('does not duplicate a player who appears through both user-name and character-owner paths', async () => {
     // A user whose name happens to match the search term AND owns a character
-    // that also matches — the user-name path fills `players` so the character
+    // that also matches, the user-name path fills `players` so the character
     // lookup is skipped (it only runs when players.length === 0).
     world.addUser({ id: 'p1', name: 'Alice', active: true, isGM: false });
     world.addActor({
@@ -276,7 +276,7 @@ describe('FoundryDataAccess — findPlayers', () => {
 // findActor
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — findActor', () => {
+describe('FoundryDataAccess: findActor', () => {
   it('resolves by exact id (16-char id triggers get() branch)', async () => {
     world.addActor({ id: 'aaaaaaaaaaaaaaaa', name: 'Silvera', type: 'character' });
 

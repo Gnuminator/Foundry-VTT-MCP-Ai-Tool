@@ -31,7 +31,7 @@ const field = (body: unknown, key: string): string | undefined => {
  * The refusal of a route: `{error: "text"}` (most routes) or `{error: {message, code}}` (session
  * notes), with the code of either shape. A body with neither says nothing.
  */
-export function refusalOf(body: unknown): { message?: string; code?: string } {
+function refusalOf(body: unknown): { message?: string; code?: string } {
   if (!body || typeof body !== 'object') return {};
   const error: unknown = (body as Record<string, unknown>)['error'];
   if (typeof error === 'string') {

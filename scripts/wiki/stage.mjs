@@ -122,6 +122,10 @@ const SIDEBAR = [
     label: 'The tool',
     pages: [
       'gm/dashboard',
+      'gm/dashboard-header',
+      'gm/dashboard-panels',
+      'gm/dashboard-drawers',
+      'gm/dashboard-player-pages',
       'gm/gm-windows',
       'gm/loot-with-item-piles',
       'gm/live-views',

@@ -6,7 +6,7 @@ import type { AuthConfig } from './config.js';
  *
  * This is pure plumbing — no Express coupling beyond a tiny structural request
  * shape — so it unit-tests without a server. The split is OPT-IN: when
- * `auth.splitEnabled` is false the dashboard is single-user GM (legacy/default).
+ * `auth.splitEnabled` is false the dashboard is single-user GM (single-user mode, the default).
  *
  * Resolution order when the split is active:
  *   1. Cloudflare Access email ∈ GM allow-list           → 'gm' (only an email from a
@@ -77,7 +77,7 @@ function safeEqual(a: string, b: string): boolean {
 
 /** Resolve the caller's role, or null if the split is active and they're unauthorized. */
 export function resolveRole(req: AuthRequest, auth: AuthConfig): Role | null {
-  // Legacy single-user mode: no split configured → everyone is the GM.
+  // Single-user mode: no split configured → everyone is the GM.
   if (!auth.splitEnabled) return 'gm';
 
   // 1. Cloudflare Access identity: only a verified token's email (I-022).

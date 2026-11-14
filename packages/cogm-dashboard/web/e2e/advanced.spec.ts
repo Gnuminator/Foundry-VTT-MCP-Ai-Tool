@@ -2,11 +2,18 @@
 // focus goes, and opening a drawer from it with the keyboard while another drawer is open.
 import { expect, test } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok } from './support';
+import {
+  GM_TOKEN,
+  SPACE_UNAVAILABLE,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+} from './support';
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
   await fakeTools(page, () => ok({}));
   await page.goto(`/next/?token=${GM_TOKEN}`);

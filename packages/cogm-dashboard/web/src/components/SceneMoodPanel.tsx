@@ -31,9 +31,9 @@ import { TurnOnNote } from './TurnOnNote';
 type SceneMoods = NonNullable<ReturnType<typeof readMoods>>;
 
 /** Under the game state key: an applied mood or its Undo reads the scene's look again. */
-export const SCENE_MOODS_KEY = [...GAME_STATE_KEY, 'scene-moods'] as const;
+const SCENE_MOODS_KEY = [...GAME_STATE_KEY, 'scene-moods'] as const;
 /** The module's feature switches (GET /api/features), read again after a switch-off refusal. */
-export const MOOD_FEATURES_KEY = ['scene-mood-features'] as const;
+const MOOD_FEATURES_KEY = ['scene-mood-features'] as const;
 
 /** Scene mood does not use live play: its "cannot read the switches" says no more than that. */
 const MOOD_UNREADABLE = "Can't read the switches";

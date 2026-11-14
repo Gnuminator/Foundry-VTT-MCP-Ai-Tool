@@ -78,6 +78,33 @@ test('every container scenario script is in the matrix or in the named list that
   }
 });
 
+test('each PI_SCENARIOS_ELSEWHERE place names a workflow, a runner file or a check that exists', () => {
+  for (const [s, where] of Object.entries(PI_SCENARIOS_ELSEWHERE)) {
+    const yml = /(\S+\.ya?ml)\b/.exec(where)?.[1];
+    const runner = /\(([\w.-]+\.mjs)\)/.exec(where)?.[1];
+    const check = /\bcheck ([\w-]+)/.exec(where)?.[1];
+    assert.ok(yml || runner || check, `${s}: "${where}" names no workflow, runner or check`);
+    if (yml) {
+      assert.ok(
+        existsSync(path.join(repo, '.github/workflows', yml)),
+        `${s}: workflow ${yml} does not exist`
+      );
+    }
+    if (runner) {
+      assert.ok(
+        read(`scripts/pi/${runner}`).includes(s),
+        `${s}: scripts/pi/${runner} never mentions it`
+      );
+    }
+    if (check) {
+      assert.ok(
+        read('scripts/checks.mjs').includes(`name: '${check}'`),
+        `${s}: check ${check} is not in scripts/checks.mjs`
+      );
+    }
+  }
+});
+
 test('each matrix switch is read by its test file', () => {
   for (const e of matrix) {
     assert.ok(

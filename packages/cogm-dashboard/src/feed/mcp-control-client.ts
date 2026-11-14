@@ -46,7 +46,7 @@ import type { SessionNotesAction } from '../session-notes-route.js';
  * loopback socket and one reply is one JSON line, so a big world's tool result (play stats, a
  * journal list) can be several MB. The cap only guards against a line that never ends.
  */
-export const MAX_LINE_CHARS = 32 * 1024 * 1024;
+const MAX_LINE_CHARS = 32 * 1024 * 1024;
 
 /** The control channel/transport failed (down, write error, protocol error). */
 export class ChannelError extends Error {

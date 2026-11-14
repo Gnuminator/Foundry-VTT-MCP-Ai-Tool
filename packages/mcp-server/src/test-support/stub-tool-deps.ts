@@ -38,7 +38,7 @@ export function stubToolServices(): ToolServices {
     obsidianVaultDir: null,
     sessionsDir: '',
     mirrorStatus: () => null,
-    mirrorEnv: {} as any,
+    mirrorEnv: { vaultDirSet: false, openBase: 'http://localhost:3100', pollMs: 6000 },
     playerExtraDenyTerms: () => [],
   };
 }

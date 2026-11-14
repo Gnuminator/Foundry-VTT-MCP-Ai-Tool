@@ -70,7 +70,7 @@ function describeFailure({ status, kind }) {
   }
   if (kind === 'redirect' || status === 401 || status === 403) {
     const what = status ? `HTTP ${status}` : 'sent to a sign-in page';
-    return `The table refused the login (${what}). Check the Client ID and Client Secret in the extension settings, or ask whoever gave them to you for new ones.`;
+    return `The table refused the login (${what}). Check the Client ID and Client Secret in the extension settings (if you installed a ready-made helper there is no form: download a fresh one with Download my helper on your page), or ask whoever gave them to you for new ones.`;
   }
   if (status === 404)
     return 'The player endpoint was not found at that address (HTTP 404). Check the Endpoint address in the extension settings.';

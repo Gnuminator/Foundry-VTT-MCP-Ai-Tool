@@ -227,6 +227,9 @@ only after you confirm a plan, and it shows in Recent Changes with Undo.
 - **Paper sync** ("AI Tool: Paper sync (writes)"): writes the numbers from a paper sheet back into
   a character after a night played on paper. XP, level and class are never changed. Starts off.
   Turn it on after a paper night.
+- **Character creation** ("AI Tool: Character creation (writes)"): lets Claude make a new player
+  character and copy items from the packs onto it. Class features are added by hand, because level-up
+  advancement does not run. Starts off. Turn it on when you build characters with Claude.
 - **Rules check** ("AI Tool: Rules check"): lets Claude say whether an attack, spell or item looks
   legal right now and why. It only reads and changes nothing. Starts on. Turn it off
   if you would rather Claude did not add its advice to attacks, spells and token moves.

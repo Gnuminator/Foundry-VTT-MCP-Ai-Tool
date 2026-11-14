@@ -89,6 +89,8 @@ if [ -n "$UNDO" ]; then
     exit 0
   fi
   ok "UNDO: putting $prev back"
+  # A second UNDO picks the next-newest file only after the first one is deployed again: show what else is kept.
+  find "$(dirname "$driver")" -maxdepth 1 -name 'assistant-gm.mjs.prev-*' ! -path "$prev" -print | sort | sed 's/^/     older, kept: /'
   require_recent_snapshot
   require_quiet_if_active "$GM_UNIT" "restarting the Assistant GM browser (the bridge link drops for about a minute)"
   cp -p -- "$driver" "$driver.undone-$stamp"

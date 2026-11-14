@@ -136,10 +136,13 @@ describe('a scenario script without its folder refuses', () => {
   test('fed on stdin it exits 98 and writes nothing', () => {
     const cwd = mkdtempSync(path.join(tmpdir(), 'scenario-stdin-'));
     try {
-      const script = readFileSync(path.join(dir, 'stage32-scenarios.sh'), 'utf8');
+      const full = readFileSync(path.join(dir, 'stage32-scenarios.sh'), 'utf8');
+      // Only the lines up to the guard, then a marker: the destructive body never reaches host bash.
+      const script = `${full.split(/^require_test_container$/m)[0]}require_test_container\necho REACHED\n`;
       const r = spawnSync('bash', ['-s'], { input: script, cwd, encoding: 'utf8' });
       assert.equal(r.status, 98, r.stdout + r.stderr);
       assert.match(r.stdout, /REFUSED: container-test\/lib\.sh not found/);
+      assert.doesNotMatch(r.stdout, /REACHED/);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

@@ -6,8 +6,9 @@
 # to $TOOL_DATA/ssh-log/ssh-commands.log and keeps a copy of every `bash -s` script (the stage scripts),
 # then runs the command unchanged. If logging fails, the command still runs (fail open).
 # The exact commands the token scripts send (`bash -s -- no-log` from scripts/pi/set-discord-token.ps1,
-# `bash /tmp/set-tunnel-token.sh`, `bash /tmp/set-dashboard-access.sh ...`, and put-runner-token.sh's
+# `bash /tmp/set-tunnel-token.sh`, `bash /tmp/set-dashboard-access.sh`, and put-runner-token.sh's
 # write) are logged by kind without their text ("command text not saved"); their input is never saved.
+# Options after a script name (set-dashboard-access.sh with a flag) are not covered: that command keeps its full text in the log.
 # Only those exact strings count (no wildcard tails): any other command, including one that holds ; & | a
 # backtick, $( or a newline after a token script's name, keeps its full text. Root only (0700 folder, 0600 files), 12 weeks kept.
 #

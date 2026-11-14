@@ -16,8 +16,9 @@ function Line({ text, link }: { text: string; link: string | null }): JSX.Elemen
     <>
       {before}
       {url ? (
-        <a href={url} target="_blank" rel="noopener noreferrer">
-          {url}
+        <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
+          {/* The file name reads better than the whole release url; the url is the hover title. */}
+          {url.split('/').pop() || url}
         </a>
       ) : null}
     </>

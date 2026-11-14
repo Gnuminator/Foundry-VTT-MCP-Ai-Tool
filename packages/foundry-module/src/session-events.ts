@@ -23,7 +23,7 @@ import type { EventVisibility } from '@gnuminator/shared';
  * This module owns two rolling in-memory buffers that live for the duration of
  * the browser session (i.e. while the world is loaded):
  *
- *   1. A chat-log buffer , every ChatMessage as it is created, parsed into a
+ *   1. A chat-log buffer: every ChatMessage as it is created, parsed into a
  *      structured shape (rolls, damage, flavor, advantage, crit/fumble, etc.).
  *   2. A session-event log, significant world events (combat start/end, HP
  *      changes, deaths, conditions, resource spend, scene changes, journals).

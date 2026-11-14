@@ -309,7 +309,7 @@ interface RecordTime {
  * `PlayRecord.t` for a create/update hook: `doc`'s own `_stats.modifiedTime`
  * when it is within 60s of now, else `Date.now()`. A `synthetic` document (an
  * unlinked token's actor, or an item on one) never carries a reliable
- * `modifiedTime`: Foundry returns the base actor's old one: so it always
+ * `modifiedTime`: Foundry returns the base actor's old one, so it always
  * falls back to `Date.now()` even when that stale value looks "fresh".
  */
 function createOrUpdateTime(doc: unknown, synthetic: boolean): RecordTime {

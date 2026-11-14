@@ -140,8 +140,8 @@ export class ResourcesEffectsDataAccess {
   /**
    * List every game condition defined in `CONFIG.statusEffects`, normalizing the
    * field names across Foundry versions (icon vs img, name vs label) and the
-   * storage shape (array in core/dnd5e 5.x, an object keyed by id in dnd5e 6.0
-   *, verified `dnd5e.mjs:96370` `_configureStatusEffects`; read only through
+   * storage shape (array in core/dnd5e 5.x, an object keyed by id in dnd5e 6.0;
+   * verified `dnd5e.mjs:96370` `_configureStatusEffects`; read only through
    * {@link statusEffectList}).
    */
   async getAvailableConditions(): Promise<AvailableConditionsResult> {

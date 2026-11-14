@@ -59,7 +59,7 @@ export class TransactionManager {
 
   /**
    * Open a new transaction and return its id. The transaction stays "active"
-   *, accepting `addAction` calls, until it is committed or cancelled.
+   * (accepting `addAction` calls) until it is committed or cancelled.
    */
   startTransaction(description: string): string {
     const id = foundry.utils.randomID();

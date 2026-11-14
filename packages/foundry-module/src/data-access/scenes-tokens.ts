@@ -441,7 +441,7 @@ export class ScenesTokensDataAccess {
    * Measurement uses Foundry's own grid math when the scene is the one on the
    * canvas; otherwise it falls back to a manual calculation: Chebyshev (D&D 5e
    * "every square is one step") for square/gridless grids, and a Euclidean
-   * approximation: flagged `approximate: true`: for hex grids, whose true
+   * approximation (flagged `approximate: true`) for hex grids, whose true
    * distance needs the on-canvas grid.
    */
   async measureDistance(data: {

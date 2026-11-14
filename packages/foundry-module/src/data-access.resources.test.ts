@@ -327,7 +327,7 @@ describe('FoundryDataAccess: getCharacterResources', () => {
   it('detects concentration via statuses Set containing "concentrating"', async () => {
     // dnd5e's `Actor5e.createConcentrationEffectData` (verified `dnd5e.mjs:8259-8290`)
     // never writes `flags.dnd5e.item.name`, only `.item.{type,id,uuid}` and
-    // `origin`: so the spell name here comes from the "Concentrating: X" name
+    // `origin`, so the spell name here comes from the "Concentrating: X" name
     // fallback (the uuid-resolution path is covered separately in
     // `data-access.effects.test.ts`).
     world.actors.add(

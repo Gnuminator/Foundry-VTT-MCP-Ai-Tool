@@ -21,7 +21,10 @@
  * (the ghost check, findGhosts). The gate's merged line below is the no-queue behaviour.
  *
  *   - main's newest CI run (push, ci.yml) is red: post one line, exit 3. Nothing is merged and the
- *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round.
+ *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round, and
+ *     so does a main tip with no usable CI run (none yet, or only a cancelled one: a push run on
+ *     main is never cancelled by a newer push); after 16 minutes of that one Discord line says to
+ *     start its CI (`gh workflow run ci.yml --ref main`, or `gh run rerun`).
  *     A gate end that is not the PR's fault (gh/git blip, UNKNOWN mergeability) is tried again, up
  *     to 3 times per head. A gate killed at its time limit stops the runner (leftover processes).
  *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below).
@@ -129,22 +132,52 @@ export function readyItems(backlogText) {
 
 export { GHOST_MINUTES, enqueuedItems, enqueuedLine, findGhosts };
 
+/** Rounds (2 minutes each) a tip without a usable CI run is waited for before one Discord line. */
+export const TIP_WAIT_ROUNDS = 8;
+const TIP_WAIT_KEY = 'main-tip-wait';
+
 /**
- * Main's state from `gh run list --json conclusion,headSha,status` (newest first, push runs of
- * ci.yml, finished or not). Cancelled and skipped runs are passed over (a newer push cancels the
- * older run). The newest run is the one for main's latest push, so a run still going means "not yet
- * known": the round waits (an earlier merge in it may not have finished its CI). Only a finished
- * red run is red.
+ * Main's state from `gh run list --json conclusion,headSha,status,event` (newest first, push runs
+ * and hand-dispatched runs of ci.yml, finished or not). Cancelled and skipped runs are passed over
+ * (an older run of main is still judged by its own result). The newest run is the one for main's
+ * latest push, so a run still going means "not yet known": the round waits (an earlier merge in it
+ * may not have finished its CI). Only a finished red run is red. With `tip` (main's head sha) a
+ * list with no run for the tip, or only cancelled or skipped ones, waits too (`tipWait`): a merge
+ * GitHub has not started CI for yet (or never will) is not judged by the run before it. A push run
+ * on main is never cancelled by a newer push, so a cancelled tip run means the tip was not tested.
  * @param {string} json
- * @returns {{ red: boolean, wait: boolean, sha: string, why: string }}
+ * @param {string} [tip]
+ * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean }}
  */
-export function mainState(json) {
-  /** @type {{ conclusion?: string | null, status?: string, headSha?: string }[]} */
+export function mainState(json, tip = '') {
+  /** @type {{ conclusion?: string | null, status?: string, headSha?: string, event?: string }[]} */
   let runs;
   try {
     runs = JSON.parse(json);
   } catch {
     return { red: false, wait: true, sha: '', why: 'main CI unreadable (gh answered no JSON)' };
+  }
+  if (Array.isArray(runs)) {
+    runs = runs.filter(r => ['push', 'workflow_dispatch'].includes(String(r.event ?? 'push')));
+  }
+  if (tip && Array.isArray(runs)) {
+    const tipRuns = runs.filter(r => String(r.headSha ?? '') === tip);
+    const short = tip.slice(0, 7);
+    const none = tipRuns.length === 0;
+    if (
+      none ||
+      tipRuns.every(r => ['cancelled', 'skipped', 'neutral'].includes(String(r.conclusion)))
+    ) {
+      return {
+        red: false,
+        wait: true,
+        sha: '',
+        tipWait: true,
+        why: none
+          ? `no CI run for main's tip ${short} yet`
+          : `main's tip ${short} has only a cancelled or skipped CI run`,
+      };
+    }
   }
   const run = Array.isArray(runs)
     ? runs.find(r => !['cancelled', 'skipped', 'neutral'].includes(String(r.conclusion)))
@@ -190,7 +223,13 @@ export function gateOutcome(code, output, pr) {
   if (/merge train full/.test(because ?? '')) return { kind: 'train-full', reason };
   // Main went red while the gate ran: not this PR's fault, its ready line stays.
   if (/main red: main's last completed/.test(because ?? '')) return { kind: 'main-red', reason };
-  if (/main red: cannot read/.test(because ?? '')) return { kind: 'transient', reason };
+  // Main's CI could not be judged yet (unreadable, no run to judge, no run for the tip): try again.
+  if (
+    /main red: (cannot read|no completed push run|gh run list answered something that is not a list|no push run of ci\.yml for main's tip)/.test(
+      because ?? ''
+    )
+  )
+    return { kind: 'transient', reason };
   if (code === GATE_WAIT_TIMEOUT) return { kind: 'wait', reason };
   if (TRANSIENT.test(reason)) return { kind: 'transient', reason };
   return { kind: 'refused', reason };
@@ -388,29 +427,47 @@ export function round(d, tried, attempts) {
       'main',
       '-w',
       'ci.yml',
-      '--event',
-      'push',
       '-L',
       '10',
       '--json',
-      'conclusion,headSha,status',
+      'conclusion,headSha,status,event',
     ]);
+    const tipRead = d.gh(['api', `repos/${REPO}/git/ref/heads/main`, '--jq', '.object.sha']);
+    const tip = tipRead.stdout.trim();
     const main =
-      runs.status === 0
-        ? mainState(runs.stdout)
-        : {
-            red: false,
-            wait: true,
-            sha: '',
-            why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
-          };
+      runs.status === 0 && tipRead.status === 0 && /^[0-9a-f]{40}$/.test(tip)
+        ? mainState(runs.stdout, tip)
+        : runs.status === 0
+          ? {
+              red: false,
+              wait: true,
+              sha: '',
+              why: `main's tip unreadable (${oneLine(tipRead.stderr || tipRead.stdout, 200)})`,
+            }
+          : {
+              red: false,
+              wait: true,
+              sha: '',
+              why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
+            };
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
     // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
     queueOn ??= d.queueOn?.() ?? false;
     if (main.wait && !(queueOn && main.sha !== '')) {
       d.log(`${main.why}; next round`);
+      // A tip with no usable run does not clear itself when GitHub never started its CI: say so once.
+      if ('tipWait' in main && main.tipWait) {
+        const n = (attempts.get(TIP_WAIT_KEY) ?? 0) + 1;
+        attempts.set(TIP_WAIT_KEY, n);
+        if (n === TIP_WAIT_ROUNDS) {
+          d.post(
+            `merge runner waiting: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; start its CI (gh workflow run ci.yml --ref main, or gh run rerun for a cancelled one), the runner goes on by itself`
+          );
+        }
+      } else attempts.delete(TIP_WAIT_KEY);
       return { stop: null, merged };
     }
+    attempts.delete(TIP_WAIT_KEY);
     if (main.red) {
       d.log(`stopped: ${main.why}; nothing merged`);
       d.post(

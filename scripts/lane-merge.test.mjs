@@ -123,7 +123,8 @@ const isDriftCall = (cmd, args) =>
  * @param {{ vault?: string, files?: string[], ghFiles?: string[], rollup?: any[], pr?: object,
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
- *   lockSource?: string | null,
+ *   lockSource?: string | null, mainTip?: string, tipFail?: boolean, prevConclusion?: string,
+ *   attemptFail?: boolean, attempts?: Record<number, string>,
  *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void, fetched?: boolean,
  *   mainGate?: string | null, prFor?: (viewIndex: number) => object }} o. `mainGate` is what
  *   aitool/main holds as lane-merge.mjs (default: this very file; null: none yet). `prFor` overrides fields of the PR for each
@@ -198,6 +199,20 @@ function gate(o = {}) {
       const st = o.queueState ?? { state: 'OPEN', isInMergeQueue: true };
       return ok(JSON.stringify({ data: { repository: { pullRequest: st } } }));
     }
+    if (cmd === 'gh' && args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1])) {
+      // main's tip; default: the sha of the default main run
+      return o.tipFail
+        ? { status: 1, stdout: '', stderr: 'HTTP 502' }
+        : ok(`${o.mainTip ?? MAIN_GREEN.headSha}\n`);
+    }
+    if (cmd === 'gh' && args[0] === 'api' && /\/actions\/runs\/\d+\/attempts\/\d+$/.test(args[1])) {
+      // the conclusion of the attempt before a rerun; default: it failed
+      return o.attemptFail
+        ? { status: 1, stdout: '', stderr: 'HTTP 404' }
+        : ok(
+            `${o.attempts?.[Number(args[1].split('/').at(-1))] ?? o.prevConclusion ?? 'failure'}\n`
+          );
+    }
     if (cmd === 'gh' && args[0] === 'api') {
       return o.rulesFail
         ? { status: 1, stdout: '', stderr: 'HTTP 403' }
@@ -257,7 +272,7 @@ function gate(o = {}) {
       return { status: o.drift ?? 0, stdout: 'local drift\n', stderr: '' };
     }
     if (key === 'gh run list') {
-      for (const flag of ['--branch main', '--event push', '--workflow ci.yml', '-R aitool-repo']) {
+      for (const flag of ['--branch main', '--workflow ci.yml', '-R aitool-repo']) {
         const [f, v] = flag.split(' ');
         const at = args.indexOf(f);
         const want = v === 'aitool-repo' ? REPO : v;
@@ -1841,6 +1856,8 @@ function gateRun() {
     const key = `${cmd} ${args.slice(0, 2).join(' ')}`;
     if (key === 'gh pr view') return ok(JSON.stringify(pr));
     if (key === 'gh run list') return ok(JSON.stringify([MAIN_GREEN]));
+    if (cmd === 'gh' && args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1]))
+      return ok(`${MAIN_GREEN.headSha}\n`);
     if (cmd === 'gh' && args[0] === 'api') return ok(JSON.stringify(RULES));
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
     if (key === 'git diff -z') {
@@ -3984,11 +4001,101 @@ test('main red: refuses while the last completed push run of main failed, unless
     assert.equal(gate({ mainRuns: [{ ...red, conclusion }] }).code, 1, conclusion);
   }
   // nothing to judge refuses; "none" is no reason
-  assert.match(gate({ mainRuns: [] }).text, /no completed push run/);
+  assert.match(
+    gate({ mainRuns: [{ ...running, headSha: MAIN_GREEN.headSha }] }).text,
+    /no completed push run/
+  );
   assert.equal(unblocksMainLine('Unblocks main: none'), null);
   // unreadable run data refuses
   assert.match(gate({ mainRuns: 'fail' }).text, /main red: cannot read/);
   assert.equal(unblocksMainLine('Unblocks main: <fill in>'), null);
   assert.equal(unblocksMainLine('<!-- Unblocks main: x -->'), null);
   assert.ok(unblocksMainLine('- **Unblocks main:** revert of the clash'));
+});
+
+test("main red: the judged run belongs to main's tip (f619fd86, 2026-11-13: a merge with no CI run yet)", () => {
+  const TIP = 'f'.repeat(40);
+  // the tip has no run yet: the older green run says nothing; refused, and the runner retries it
+  const noRun = gate({ mainRuns: [MAIN_GREEN], mainTip: TIP });
+  assert.equal(noRun.code, 1);
+  assert.match(noRun.text, /main red: no push run of ci\.yml for main's tip fffffff yet/);
+  // the tip's own run decides
+  assert.equal(gate({ mainRuns: [{ ...MAIN_GREEN, headSha: TIP }], mainTip: TIP }).code, 0);
+  // a tip run still going: the run before it decides, as before
+  const going = { databaseId: 9, status: 'in_progress', conclusion: '', headSha: TIP };
+  assert.equal(gate({ mainRuns: [going, MAIN_GREEN], mainTip: TIP }).code, 0);
+  // an unreadable tip refuses; the PR may still say it unblocks main
+  const noTip = gate({ tipFail: true });
+  assert.equal(noTip.code, 1);
+  assert.match(noTip.text, /main red: cannot read main's tip/);
+  assert.equal(
+    gate({ tipFail: true, body: 'Live check: test server A\nUnblocks main: reverts the clash' })
+      .code,
+    0
+  );
+});
+
+test('main red: the rerun of a cancelled or green attempt is not "a rerun after a failure"', () => {
+  const rerun = {
+    databaseId: 4300,
+    status: 'in_progress',
+    conclusion: '',
+    attempt: 2,
+    headSha: MAIN_GREEN.headSha,
+  };
+  for (const prevConclusion of ['cancelled', 'success', 'skipped']) {
+    const r = gate({ mainRuns: [rerun, MAIN_GREEN], prevConclusion });
+    assert.equal(r.code, 0, `${prevConclusion}: ${r.text}`);
+  }
+  for (const prevConclusion of ['failure', 'timed_out']) {
+    const r = gate({ mainRuns: [rerun, MAIN_GREEN], prevConclusion });
+    assert.match(r.text, /being rerun after a failure/, prevConclusion);
+  }
+  // an attempt that cannot be read is a refusal the runner retries, not "main failed"
+  const unreadable = gate({ mainRuns: [rerun, MAIN_GREEN], attemptFail: true });
+  assert.equal(unreadable.code, 1);
+  assert.match(unreadable.text, /main red: cannot read the attempts before attempt 2 of run 4300/);
+  // a failure, then a cancelled rerun, then a rerun going: the failure still counts
+  const third = { ...rerun, attempt: 3 };
+  const walked = gate({
+    mainRuns: [third, MAIN_GREEN],
+    attempts: { 2: 'cancelled', 1: 'failure' },
+  });
+  assert.match(walked.text, /being rerun after a failure/);
+  // cancelled all the way back: not a rerun after a failure
+  assert.equal(
+    gate({ mainRuns: [third, MAIN_GREEN], attempts: { 2: 'cancelled', 1: 'cancelled' } }).code,
+    0
+  );
+});
+
+test('main red: a tip whose only run was cancelled is not judged by the run before it; a dispatched run counts', () => {
+  const TIP = 'f'.repeat(40);
+  const cancelled = { databaseId: 77, status: 'completed', conclusion: 'cancelled', headSha: TIP };
+  const r = gate({ mainRuns: [cancelled, MAIN_GREEN], mainTip: TIP });
+  assert.equal(r.code, 1);
+  assert.match(
+    r.text,
+    /main red: no push run of ci\.yml for main's tip fffffff that was not cancelled or skipped; rerun it \(gh run rerun 77\)/
+  );
+  // a run dispatched by hand on main for the tip stands in for the missing push run
+  const dispatched = { ...MAIN_GREEN, databaseId: 78, headSha: TIP, event: 'workflow_dispatch' };
+  assert.equal(gate({ mainRuns: [dispatched], mainTip: TIP }).code, 0);
+  // other events on main are not main's CI
+  const other = { ...dispatched, event: 'schedule' };
+  assert.match(
+    gate({ mainRuns: [other], mainTip: TIP }).text,
+    /no push run of ci\.yml for main's tip/
+  );
+  // a PR that unblocks main passes an unjudgeable main, and the output says it was not judged
+  const ok = gate({
+    mainRuns: [MAIN_GREEN],
+    mainTip: TIP,
+    body: 'Live check: test server A\nUnblocks main: reverts the clash',
+  });
+  assert.equal(ok.code, 0, ok.text);
+  assert.match(
+    ok.text,
+    /main was not judged \(main red: no push run of ci\.yml for main's tip fffffff/
+  );
 });

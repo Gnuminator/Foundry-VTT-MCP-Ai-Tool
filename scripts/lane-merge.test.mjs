@@ -2052,6 +2052,7 @@ test('lane-merge split: the entry file stays small and every gate module is a fi
   );
   const dir = path.join(path.dirname(SELF), 'lane-merge');
   for (const name of fs.readdirSync(dir)) {
+    // nested folders are supported by the relaunch copy; the gate itself keeps flat files for now
     assert.match(name, /\.mjs$/, `${name} in scripts/lane-merge/ is not a module`);
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
     assert.ok(text.split('\n').length <= 700, `${name} is over 700 lines: split it by gate`);
@@ -2074,6 +2075,7 @@ function relaunch({
   fs.writeFileSync(selfPath, selfText);
   if (Object.keys(selfModules).length) fs.mkdirSync(path.join(dir, 'lane-merge'));
   for (const [n, text] of Object.entries(selfModules)) {
+    fs.mkdirSync(path.dirname(path.join(dir, 'lane-merge', n)), { recursive: true });
     fs.writeFileSync(path.join(dir, 'lane-merge', n), text);
   }
   const calls = [];
@@ -2113,6 +2115,19 @@ function relaunch({
   });
   return { out, calls, lines, spawned, dir };
 }
+
+test('relaunch: a nested module folder is compared and copied', () => {
+  const mods = { 'a.mjs': 'one\n', 'sub/b.mjs': 'two\n' };
+  const same = relaunch({ selfModules: mods, mainModules: mods });
+  assert.deepEqual([same.out.relaunched, same.spawned.length], [false, 0]);
+  const changed = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\n', 'sub/b.mjs': 'X\n' },
+  });
+  assert.equal(changed.out.relaunched, true);
+  const copied = path.join(path.dirname(changed.spawned[0].args[0]), 'lane-merge', 'sub', 'b.mjs');
+  assert.equal(fs.readFileSync(copied, 'utf8'), 'X\n');
+});
 
 test('H1: a gate identical to main runs in place (line endings do not matter)', () => {
   const same = relaunch();

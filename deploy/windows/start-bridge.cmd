@@ -24,7 +24,7 @@ set "REPO_ROOT=%CD%"
 
 set "NODE_SCRIPT=%REPO_ROOT%\packages\mcp-server\dist\standalone.js"
 if not exist "%NODE_SCRIPT%" (
-  echo [start-bridge] REFUSED: build artifacts not found at:
+  echo [start-bridge] build artifacts not found at:
   echo     "%NODE_SCRIPT%"
   echo.
   echo [start-bridge] Run "npm run build:server" first, then re-run this script.

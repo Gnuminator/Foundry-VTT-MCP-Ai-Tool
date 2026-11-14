@@ -1,5 +1,6 @@
 // Tests for scripts/merge-runner.mjs: fake gh, gate, backlog and Discord; real lock files and a
 // real git checkout for prepareCheckout. No network, no vault, no merge.
+import { isMerged } from './backlog-items.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -865,6 +866,7 @@ test('queue: with a queue, a main CI run still going does not hold the next PR b
 test('queue: a queued PR that the queue merged is marked done without --if-ready', () => {
   const f = queueFakes({
     text: backlog([['one', enqueuedLine(5, SHA)]]),
+    prs: { 5: { state: 'MERGED', body: 'Backlog: one' } },
     queue: { 5: () => queueAnswer('MERGED', false) },
   });
   const r = round(f.deps, new Set());
@@ -1036,11 +1038,48 @@ test('Backlog-part PR merged: a progress line, no done; the item stays open (PR 
     [
       'progress',
       'server-harness-migration',
-      'PR #1003 merged at abcdef0',
+      'part PR #1003 landed on main (abcdef0)',
       '--if-ready',
       `1003@${SHA}`,
     ],
   ]);
+  assert.equal(
+    isMerged({ fields: new Map([['progress', ['part PR #1003 landed on main (abcdef0)']]]) }),
+    false
+  );
+});
+
+test('Backlog-part: an unreadable PR body keeps the item open (a progress line, no done)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+  });
+  const gh = f.deps.gh;
+  f.deps.gh = args =>
+    args.includes('body,mergeCommit') ? { status: 1, stdout: '', stderr: 'HTTP 502' } : gh(args);
+  round(f.deps, new Set());
+  assert.equal(f.calls.backlog.length, 1);
+  assert.equal(f.calls.backlog[0][0], 'progress');
+  assert.match(f.calls.backlog[0][2], /body unreadable/);
+});
+
+test('Backlog-part through the merge queue: no --if-ready, sha from the PR', () => {
+  const f = fakes({
+    text: backlog([['one', enqueuedLine(5, SHA)]]),
+    prs: { 5: { ...open(), body: 'Backlog-part: one', mergeCommit: { oid: 'abcdef0123' } } },
+  });
+  const gh = f.deps.gh;
+  f.deps.gh = args =>
+    args[0] === 'api' && args[1] === 'graphql'
+      ? {
+          status: 0,
+          stdout: JSON.stringify({ data: { repository: { pullRequest: { state: 'MERGED' } } } }),
+          stderr: '',
+        }
+      : gh(args);
+  round(f.deps, new Set());
+  assert.deepEqual(f.calls.backlog, [['progress', 'one', 'part PR #5 landed on main (abcdef0)']]);
 });
 
 test('Backlog line PR merged: done, as before', () => {

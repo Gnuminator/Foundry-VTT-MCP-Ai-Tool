@@ -341,25 +341,38 @@ export function round(d, tried, attempts) {
       return;
     }
     // A PR body with `Backlog-part: <id>` is one part of a multi-PR item: it stays claimed and open.
-    const pv = d.gh(['pr', 'view', String(r.pr), '-R', REPO, '--json', 'body,mergeCommit']);
-    /** @type {{ body?: string, mergeCommit?: { oid?: string } }} */
-    let info = {};
-    try {
-      if (pv.status === 0) info = JSON.parse(pv.stdout);
-    } catch {
-      /* unreadable: close as before */
+    // The wording avoids "PR #n merged" and "merged at": isMerged would then treat the item as merged.
+    /** @type {{ body?: string, mergeCommit?: { oid?: string } } | null} */
+    let info = null;
+    for (let attempt = 0; attempt < 2 && !info; attempt++) {
+      const pv = d.gh(['pr', 'view', String(r.pr), '-R', REPO, '--json', 'body,mergeCommit']);
+      try {
+        if (pv.status === 0) info = JSON.parse(pv.stdout);
+      } catch {
+        /* unreadable: try again, then keep the item open */
+      }
     }
-    if (isPartOnly(info.body ?? '', r.id)) {
-      const sha = (info.mergeCommit?.oid ?? '').slice(0, 7);
-      d.log(`#${r.pr} (${r.id}) merged as a part (Backlog-part line); the item stays open`);
+    const ifReady = fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : [];
+    if (!info) {
+      d.log(`#${r.pr} (${r.id}): could not read the PR body; not closing the item`);
       write(
         r.id,
         [
           'progress',
           r.id,
-          `PR #${r.pr} merged at ${sha || 'main'}`,
-          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
+          `PR #${r.pr} landed on main, PR body unreadable: close the item with done or keep it open (merge runner)`,
+          ...ifReady,
         ],
+        'progress'
+      );
+      return;
+    }
+    if (isPartOnly(info.body ?? '', r.id)) {
+      const sha = (info.mergeCommit?.oid ?? '').slice(0, 7);
+      d.log(`#${r.pr} (${r.id}) landed as a part (Backlog-part line); the item stays open`);
+      write(
+        r.id,
+        ['progress', r.id, `part PR #${r.pr} landed on main (${sha || 'sha unknown'})`, ...ifReady],
         'progress'
       );
       return;

@@ -23,11 +23,12 @@
  *   - main's newest CI run (push, ci.yml) is red: post one line, exit 3. Nothing is merged and the
  *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round, and
  *     so does a main tip with no usable CI run (none yet, or only a cancelled one: a push run on
- *     main is never cancelled by a newer push); after 16 minutes of that one Discord line says to
- *     start its CI (`gh workflow run ci.yml --ref main`, or `gh run rerun`).
- *     A gate end that is not the PR's fault (gh/git blip, UNKNOWN mergeability) is tried again, up
+ *     main is never cancelled by a newer push); after 16 minutes the runner starts its CI once
+ *     (`gh workflow run ci.yml --ref main`) and posts one line (a failed start: asks a person).
+ *     A gate end that is not the PR's fault (gh/git blip, a GitHub 5xx, UNKNOWN mergeability) is tried again, up
  *     to 3 times per head. A gate killed at its time limit stops the runner (leftover processes).
- *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below).
+ *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below). Open, but the ready
+ *     head is already on main (GitHub lost the merge event): `done --sha <main's tip>`, one line.
  *   - the PR head is not the sha of the ready line: a refusal. The gate never judges a head the
  *     ready line did not name.
  *   - else the gate checkout (default: the sibling folder `<main checkout>-gate`, a built worktree
@@ -132,7 +133,7 @@ export function readyItems(backlogText) {
 
 export { GHOST_MINUTES, enqueuedItems, enqueuedLine, findGhosts };
 
-/** Rounds (2 minutes each) a tip without a usable CI run is waited for before one Discord line. */
+/** Rounds (2 minutes each) a tip without a usable CI run waits before the runner starts its CI once. */
 export const TIP_WAIT_ROUNDS = 8;
 const TIP_WAIT_KEY = 'main-tip-wait';
 
@@ -192,11 +193,17 @@ export function mainState(json, tip = '') {
 }
 
 /**
- * Gate ends that are not the PR's fault (GitHub or git blipped, main moved, mergeability not yet
- * computed, the gate was killed with no reason): tried again, up to MAX_TRANSIENT times per head.
+ * Gate ends that are not the PR's fault (GitHub or git blipped, GitHub answered a 5xx such as a 502
+ * on `gh pr merge`, main moved, mergeability not yet computed, the gate was killed with no reason):
+ * tried again, up to MAX_TRANSIENT times per head. A merge that landed despite the 5xx is caught after
+ * the gate (any end but merged, enqueued, train full or main red): the PR reads MERGED, or its head is
+ * already on main while the PR still reads OPEN (GitHub lost the merge event).
  */
 const TRANSIENT =
   /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
+/** GitHub answered `gh pr merge` with a 5xx (GraphQL `non-200 OK status code: 502 ...` or REST `HTTP 502: ...`). */
+export const GH_MERGE_5XX =
+  /merge: gh pr merge exited \d+: .*?(?:non-200 OK status code: |\bHTTP )5\d\d\b/;
 const MAX_TRANSIENT = 3;
 
 /**
@@ -231,7 +238,7 @@ export function gateOutcome(code, output, pr) {
   )
     return { kind: 'transient', reason };
   if (code === GATE_WAIT_TIMEOUT) return { kind: 'wait', reason };
-  if (TRANSIENT.test(reason)) return { kind: 'transient', reason };
+  if (TRANSIENT.test(reason) || GH_MERGE_5XX.test(reason)) return { kind: 'transient', reason };
   return { kind: 'refused', reason };
 }
 
@@ -304,8 +311,11 @@ export function round(d, tried, attempts) {
     );
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
-  /** @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line */
-  const markDone = (r, fromReady = true) => {
+  /**
+   * @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line
+   * @param {string} [sha] main's commit that holds the head, when GitHub has no merge commit for the PR
+   */
+  const markDone = (r, fromReady = true, sha = '') => {
     // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
     // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
@@ -326,7 +336,23 @@ export function round(d, tried, attempts) {
       return;
     }
     // No --sha: `backlog.mjs done` reads the merge commit from GitHub (the head is not on main).
-    write(r.id, ['done', r.id, String(r.pr), '--by', 'merge-runner'], 'done');
+    // With a sha: GitHub lost the merge event and the PR still reads OPEN, so there is none to read.
+    write(
+      r.id,
+      ['done', r.id, String(r.pr), ...(sha ? ['--sha', sha] : []), '--by', 'merge-runner'],
+      'done'
+    );
+  };
+  /** Is this head on main? A landed merge can lose its event (PR reads OPEN). @param {string} head */
+  const headOnMain = head => {
+    const v = d.gh(['api', `repos/${REPO}/compare/${head}...main`, '--jq', '.status']);
+    return v.status === 0 && ['ahead', 'identical'].includes(v.stdout.trim());
+  };
+  /** main's tip sha, or '' when unreadable. */
+  const mainTip = () => {
+    const v = d.gh(['api', `repos/${REPO}/git/ref/heads/main`, '--jq', '.object.sha']);
+    const s = v.stdout.trim();
+    return v.status === 0 && /^[0-9a-f]{40}$/.test(s) ? s : '';
   };
   /** Is the PR merged after all (a gate run killed after `gh pr merge`)? @param {number} n */
   const mergedOnGitHub = n => {
@@ -450,6 +476,17 @@ export function round(d, tried, attempts) {
               sha: '',
               why: `main CI unreadable (${oneLine(runs.stderr, 200)})`,
             };
+    // A ready head already on main merged, whatever the PR reads: GitHub can land a merge and lose
+    // its event, and then main's tip gets no CI run either, so this goes before the wait on main.
+    if (tipRead.status === 0 && /^[0-9a-f]{40}$/.test(tip) && headOnMain(r.head)) {
+      tried.add(`${r.pr}@${r.head}`);
+      d.log(`#${r.pr} (${r.id}): head ${r.head.slice(0, 7)} is already on main; marking it done`);
+      d.post(
+        `merge runner: #${r.pr} head is already on main (if the PR still reads open, GitHub lost the merge event); marked done, not gated again`
+      );
+      markDone(r, true, tip);
+      continue;
+    }
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
     // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
     queueOn ??= d.queueOn?.() ?? false;
@@ -460,9 +497,18 @@ export function round(d, tried, attempts) {
         const n = (attempts.get(TIP_WAIT_KEY) ?? 0) + 1;
         attempts.set(TIP_WAIT_KEY, n);
         if (n === TIP_WAIT_ROUNDS) {
-          d.post(
-            `merge runner waiting: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; start its CI (gh workflow run ci.yml --ref main, or gh run rerun for a cancelled one), the runner goes on by itself`
-          );
+          // A lost push event (2026-11-14); a dispatched run counts as main's run (mainState).
+          const run = d.gh(['workflow', 'run', 'ci.yml', '-R', REPO, '--ref', 'main']);
+          if (run.status === 0) {
+            d.log(`${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; started main's CI`);
+            d.post(
+              `merge runner: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; started it (gh workflow run ci.yml --ref main), the runner goes on by itself once it is green`
+            );
+          } else {
+            d.post(
+              `merge runner waiting: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes and starting its CI failed (${oneLine(run.stderr || run.stdout, 200)}); start it (gh workflow run ci.yml --ref main, or gh run rerun for a cancelled one), the runner goes on by itself`
+            );
+          }
         }
       } else attempts.delete(TIP_WAIT_KEY);
       return { stop: null, merged };
@@ -509,7 +555,6 @@ export function round(d, tried, attempts) {
       );
       continue;
     }
-
     const problem = d.prepare(r);
     if (problem) {
       d.log(`stopped: gate checkout: ${problem}`);
@@ -529,7 +574,12 @@ export function round(d, tried, attempts) {
       !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind) &&
       queuedOnGitHub(r.pr)
     ) {
-      if (out.kind === 'killed' || /no reason line/.test(out.reason)) {
+      // A 5xx on `gh pr merge` may come after GitHub queued the PR: adopt it too.
+      if (
+        out.kind === 'killed' ||
+        /no reason line/.test(out.reason) ||
+        GH_MERGE_5XX.test(out.reason)
+      ) {
         d.log(
           `#${r.pr} (${r.id}) is in the merge queue although the gate said: ${oneLine(out.reason, 200)}`
         );
@@ -542,18 +592,24 @@ export function round(d, tried, attempts) {
         };
       }
     }
-    if (
-      out.kind !== 'merged' &&
-      out.kind !== 'enqueued' &&
-      out.kind !== 'train-full' &&
-      out.kind !== 'main-red' &&
-      mergedOnGitHub(r.pr)
-    ) {
+    const notMergedEnd = !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind);
+    if (notMergedEnd && mergedOnGitHub(r.pr)) {
       // The gate ended without its merged line (killed, timed out) after the merge went through.
       tried.add(key);
       merged.push(r.pr);
       d.log(`#${r.pr} (${r.id}) is merged although the gate said: ${oneLine(out.reason, 200)}`);
       markDone(r);
+    } else if (notMergedEnd && headOnMain(r.head)) {
+      // The merge landed but GitHub lost its event (the PR still reads OPEN).
+      tried.add(key);
+      merged.push(r.pr);
+      d.log(
+        `#${r.pr} (${r.id}) reads OPEN, but its head is on main although the gate said: ${oneLine(out.reason, 200)}`
+      );
+      d.post(
+        `merge runner: #${r.pr} landed on main although GitHub answered: ${oneLine(out.reason, 200)}; the PR may still read open and main's tip may get no CI run`
+      );
+      markDone(r, true, mainTip());
     } else if (out.kind === 'merged') {
       tried.add(key);
       merged.push(r.pr);

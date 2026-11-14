@@ -60,7 +60,9 @@ const backlog = (items, extra = {}) =>
  * `text` may be a function (read again before each PR); `afterGate` runs after each fake gate run.
  * @param {{ text: string | null | (() => string | null), prs?: Record<number, object>,
  *   gates?: Record<number, { status: number, stdout: string }>, main?: string,
- *   prepare?: string | null, afterGate?: (pr: number) => void }} o
+ *   prepare?: string | null, afterGate?: (pr: number) => void,
+ *   compare?: string | (() => string) }} o `compare`: the status of `compare/<head>...main`
+ *   (`ahead` or `identical` = the head is on main); unset = the compare call fails
  */
 function fakes(o) {
   const calls = { gh: [], gate: [], backlog: [], post: [], log: [], prepare: [] };
@@ -70,6 +72,11 @@ function fakes(o) {
     gh: args => {
       calls.gh.push(args);
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
+      if (args[0] === 'workflow') {
+        return o.dispatchFail
+          ? { status: 1, stdout: '', stderr: 'HTTP 403: no' }
+          : { status: 0, stdout: '', stderr: '' };
+      }
       if (args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1])) {
         if (o.tipFail) return { status: 1, stdout: '', stderr: 'HTTP 502' };
         // main's tip: the newest run's sha unless the test says otherwise
@@ -80,6 +87,12 @@ function fakes(o) {
           /* keep SHA */
         }
         return { status: 0, stdout: `${o.tip ?? sha}\n`, stderr: '' };
+      }
+      if (args[0] === 'api' && /\/compare\/[0-9a-f]+\.\.\.main$/.test(args[1])) {
+        const st = typeof o.compare === 'function' ? o.compare() : o.compare;
+        return st
+          ? { status: 0, stdout: `${st}\n`, stderr: '' }
+          : { status: 1, stdout: '', stderr: 'x' };
       }
       const n = Number(args[2]);
       const pr = o.prs?.[n];
@@ -134,6 +147,77 @@ test('ready -> gate -> merged -> done; the gate is main copy with --wait-ci only
   assert.deepEqual(f.calls.prepare, [{ id: 'one', pr: 5, head: SHA }]);
   assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
   assert.deepEqual(f.calls.post, [], 'the gate posts the merge line itself');
+});
+
+test('an OPEN PR whose head is already on main (a lost merge event) is marked done with main tip, not gated', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+    compare: 'ahead',
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(f.calls.gate, [], 'not gated again');
+  assert.deepEqual(r, { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, [
+    ['done', 'one', '5', '--sha', 'c'.repeat(40), '--by', 'merge-runner'],
+  ]);
+  assert.match(f.calls.post[0], /head is already on main/);
+});
+
+test('a head on main is marked done even while main tip has no CI run (the 2026-11-14 lost merge event)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+    compare: 'ahead',
+    tip: SHA2,
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(f.calls.gate, []);
+  assert.deepEqual(r, { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--sha', SHA2, '--by', 'merge-runner']]);
+  assert.ok(!f.calls.log.some(l => /next round/.test(l)), 'did not wait on main');
+});
+
+test('a head that is behind or diverged from main is gated as usual', () => {
+  for (const status of ['behind', 'diverged']) {
+    const f = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: { 5: merged(5) },
+      compare: status,
+    });
+    round(f.deps, new Set());
+    assert.deepEqual(f.calls.gate, [5], status);
+  }
+});
+
+test('a 5xx on gh pr merge whose merge landed (PR still OPEN, head on main) is done, not retried', () => {
+  let landed = false;
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: {
+        status: 1,
+        stdout:
+          'lane:merge: refused because merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "x"',
+      },
+    },
+    compare: () => (landed ? 'ahead' : 'behind'),
+    afterGate: () => {
+      landed = true;
+    },
+  });
+  const tried = new Set();
+  const r = round(f.deps, tried);
+  assert.deepEqual(r.merged, [5]);
+  assert.deepEqual(f.calls.backlog, [
+    ['done', 'one', '5', '--sha', 'c'.repeat(40), '--by', 'merge-runner'],
+  ]);
+  assert.ok(tried.has(`5@${SHA}`), 'not tried again');
+  assert.match(f.calls.post[0], /landed on main/);
 });
 
 test('a refusal writes the reason as a progress line and posts one line; it is not tried again', () => {
@@ -317,7 +401,7 @@ test('main tip with no run yet: the round waits, no gate; an unreadable tip wait
   assert.match(g.calls.log.join('\n'), /main's tip unreadable/);
 });
 
-test('main tip with no run: one Discord line after the waiting rounds, never a second; the count resets', () => {
+test('main tip with no run: after the waiting rounds the runner starts main CI once and posts one line; the count resets', () => {
   const h = fakes({
     text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
     prs: { 5: open() },
@@ -325,14 +409,22 @@ test('main tip with no run: one Discord line after the waiting rounds, never a s
   });
   const tried = new Set();
   const attempts = new Map();
+  const dispatches = () => h.calls.gh.filter(a => a[0] === 'workflow');
   for (let i = 1; i <= TIP_WAIT_ROUNDS + 3; i += 1) {
     round(h.deps, tried, attempts);
     assert.equal(h.calls.post.length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
+    assert.equal(dispatches().length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
   }
-  assert.match(
-    h.calls.post[0],
-    /no CI run for main's tip fffffff yet.*gh workflow run ci\.yml --ref main/
-  );
+  assert.deepEqual(dispatches()[0], [
+    'workflow',
+    'run',
+    'ci.yml',
+    '-R',
+    'Gnuminator/Foundry-VTT-MCP-Ai-Tool',
+    '--ref',
+    'main',
+  ]);
+  assert.match(h.calls.post[0], /no CI run for main's tip fffffff yet.*started it/);
   assert.deepEqual(h.calls.gate, []);
   // main becomes judgeable again: the counter is dropped
   attempts.set('main-tip-wait', 5);
@@ -343,6 +435,21 @@ test('main tip with no run: one Discord line after the waiting rounds, never a s
   });
   round(ok.deps, new Set(), attempts);
   assert.equal(attempts.has('main-tip-wait'), false);
+});
+
+test('main tip with no run: a failed CI start posts one line asking a person to start it', () => {
+  const h = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    tip: 'f'.repeat(40),
+    dispatchFail: true,
+  });
+  const tried = new Set();
+  const attempts = new Map();
+  for (let i = 1; i <= TIP_WAIT_ROUNDS + 2; i += 1) round(h.deps, tried, attempts);
+  assert.equal(h.calls.post.length, 1);
+  assert.match(h.calls.post[0], /starting its CI failed \(HTTP 403: no\).*gh workflow run ci\.yml/);
+  assert.deepEqual(h.calls.gate, []);
 });
 
 test('gateOutcome: no run to judge on main, a list that is not a list, no run for the tip: transient', () => {
@@ -655,13 +762,20 @@ test('gateOutcome: every real passing reason is transient, a review refusal is n
     'wait-ci: the gate on aitool/main changed during the wait (or this copy cannot be read); start again',
     'pr: mergeable is UNKNOWN; merge main into the branch and resolve conflicts',
     'unexpected error: boom',
+    'merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "<html>"',
+    'merge: gh pr merge exited 1: HTTP 503: Service Unavailable',
   ]) {
     assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'transient', why);
   }
-  assert.equal(
-    gateOutcome(1, 'lane:merge: refused because review: no note says Merge', 5).kind,
-    'refused'
-  );
+  for (const why of [
+    'review: no note says Merge',
+    'merge: gh pr merge exited 1: non-200 OK status code: 422 Unprocessable Entity',
+    'merge: gh pr merge exited 1: HTTP 405: Pull Request is not mergeable',
+    'ci: failing: deploy HTTP 502 smoke (FAILURE)',
+    'merge: gh pr merge exited 1: HTTP 5020: odd',
+  ]) {
+    assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'refused', why);
+  }
 });
 
 test('parseArgs: the gate checkout defaults to the sibling -gate folder of the main checkout', () => {
@@ -916,6 +1030,30 @@ test('queue: a gate killed after it enqueued the PR is followed as enqueued, not
     ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
   ]);
   assert.deepEqual(trainAdds, [[5, SHA]], 'the gate died before its train write');
+});
+
+test('queue: a 5xx on gh pr merge after GitHub queued the PR is followed as enqueued', () => {
+  const f = queueFakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: {
+        status: 1,
+        stdout:
+          'lane:merge: refused because merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "x"',
+      },
+    },
+    queue: { 5: () => queueAnswer('OPEN', true) },
+  });
+  const trainAdds = [];
+  f.deps.trainAdd = (pr, head) => trainAdds.push([pr, head]);
+  const r = round(f.deps, new Set());
+  assert.equal(r.stop, null);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', enqueuedLine(5, SHA), '--if-ready', `5@${SHA}`],
+  ]);
+  assert.deepEqual(f.calls.post, [], 'no refusal posted');
+  assert.deepEqual(trainAdds, [[5, SHA]]);
 });
 
 test('queue: a real gate refusal of a PR that is queued stays a refusal, with the hint, and no train add', () => {

@@ -42,10 +42,10 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
   status. Kit runs default to B. None free: wait or ask the user. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
 31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child running: check the PID.
-- **Commands over 2 minutes** run in the background, never polled. Logs go to the scratchpad. On Windows never call
-  `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
-  or regex through Write/Edit.
-- Review checklist: `review-checklist.md` here. For dashboard or player-page UI the reviewer also
+- **Commands over 2 minutes** run in the background, never polled; logs go to the scratchpad. Never call
+  `python3` (Store stub hangs); use `python`. Heredocs drop backslashes: put `\n` or regex code
+  through Write/Edit.
+- Review checklist: `review-checklist.md`. For dashboard or player-page UI the reviewer also
   checks `docs/dev/UX-REVIEW-LIST.md`; name it in the brief.
 
 ## Before the PR

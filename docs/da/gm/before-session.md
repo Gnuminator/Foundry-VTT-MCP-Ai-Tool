@@ -1,6 +1,6 @@
 ---
 source: gm/before-session.md
-sourceHash: 9830b5294680
+sourceHash: 812361362401
 title: Før hver session
 description: En kort tjekliste til GM'en, før en spilsession starter.
 ---
@@ -47,7 +47,8 @@ som fire trin med tider.
       slået fra.
 
 - [ ] Én gang, før session 1 (kun med modulet Dice So Nice): vælg dine egne terninger, **AI
-      Tool: The Veil** eller **AI Tool: Neutral**: **Game Settings**, **3D Dice Settings**, fanen
+      Tool: The Veil (campaign look)** eller **AI Tool: Neutral**: **Game Settings**, **3D Dice
+      Settings**, fanen
       **Appearance**, **Theme**, **Save**. Hver spiller vælger sine egne på samme måde; der er
       ingen standard for hele bordet. Se [Themed dice](features.md#themed-dice).
 

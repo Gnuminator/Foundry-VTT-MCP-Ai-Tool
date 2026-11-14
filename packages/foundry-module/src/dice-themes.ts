@@ -28,7 +28,7 @@ export const DICE_COLORSETS: readonly DiceColorset[] = [
     // The Veil: pewter grey-green smoky glass with drifting mist, the numbers in the lamp's gold
     // and silver edges (picked from four variants rendered on the test server).
     name: 'ai-tool-veil',
-    description: 'AI Tool: The Veil',
+    description: 'AI Tool: The Veil (campaign look)',
     category: 'AI Tool',
     foreground: '#f2d88a',
     background: '#5e6b66',

@@ -1292,6 +1292,24 @@ test('train reset drops merged, closed and open-but-unqueued PRs (a squash queue
   );
 });
 
+test('train reset keeps a MERGED PR whose merge commit GitHub did not return', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(2)));
+  const code = main({
+    home,
+    run: trainRun({ states: { 300: 'MERGED-NO-OID' } }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [300]
+  );
+});
+
 test('train reset keeps a PR the queue merged after the tested tip', () => {
   const home = tmpDir();
   const state = path.join(home, 'merge-train.json');
@@ -1914,7 +1932,12 @@ function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {}, afte
       if (states[pr] === 'unreadable') return { status: 1, stdout: '', stderr: 'HTTP 502' };
       const st = queued.includes(pr)
         ? { state: 'OPEN', isInMergeQueue: true }
-        : { state: states[pr] ?? 'MERGED', isInMergeQueue: false, mergeCommit: { oid: `m${pr}` } };
+        : {
+            state: states[pr] === 'MERGED-NO-OID' ? 'MERGED' : (states[pr] ?? 'MERGED'),
+            isInMergeQueue: false,
+            // a MERGED answer without its merge commit cannot be placed against the tip
+            mergeCommit: states[pr] === 'MERGED-NO-OID' ? null : { oid: `m${pr}` },
+          };
       return {
         status: 0,
         stdout: JSON.stringify({ data: { repository: { pullRequest: st } } }),

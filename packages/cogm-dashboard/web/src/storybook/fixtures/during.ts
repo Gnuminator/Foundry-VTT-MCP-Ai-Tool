@@ -12,7 +12,7 @@ export const PICKED: DuringPrefs = { ...DEFAULT_PREFS, layoutPicked: true, hintD
 /** Prefs of a world that has not picked a layout yet: the Before card and the hint show. */
 export const NOT_PICKED: DuringPrefs = { ...DEFAULT_PREFS };
 
-export const STARTED_AT = '2026-10-08T18:00:00.000Z';
+const STARTED_AT = '2026-10-08T18:00:00.000Z';
 
 /** An open session with a start time, which the hint needs. */
 export const PLAY_SESSION_STARTED = {

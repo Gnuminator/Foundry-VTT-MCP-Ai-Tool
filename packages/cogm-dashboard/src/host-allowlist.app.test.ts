@@ -29,7 +29,7 @@ const SPLIT_OFF: AuthConfig = {
 };
 const SPLIT_ON: AuthConfig = { ...SPLIT_OFF, splitEnabled: true, gmToken: GM_TOKEN };
 const MODES: Array<[string, AuthConfig]> = [
-  ['split off (legacy: every caller is the GM)', SPLIT_OFF],
+  ['split off (single-user mode: every caller is the GM)', SPLIT_OFF],
   ['split on', SPLIT_ON],
 ];
 

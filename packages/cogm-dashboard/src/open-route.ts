@@ -45,7 +45,7 @@ export const OPEN_PAGE_CSP =
   "base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 /** The confirm page's static files; each is served with the page headers. */
-export const OPEN_PAGE_FILES: readonly string[] = ['open.html', 'open.js', 'open.css'];
+const OPEN_PAGE_FILES: readonly string[] = ['open.html', 'open.js', 'open.css'];
 
 /** At most `max` opens per `windowMs`, across the process (counted after auth). */
 export const OPEN_RATE_LIMIT = { max: 10, windowMs: 10_000 } as const;

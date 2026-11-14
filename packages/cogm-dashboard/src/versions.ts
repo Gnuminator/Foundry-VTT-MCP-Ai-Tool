@@ -342,7 +342,7 @@ function versionOf(json: unknown): { version: string; minCore: string | null } |
 }
 
 /** The online check. Every lookup that fails counts in `errors`; the others still fill in. */
-export async function fetchNewest(
+async function fetchNewest(
   installed: InstalledPackage[],
   fetchImpl: FetchLike
 ): Promise<NewestVersions> {

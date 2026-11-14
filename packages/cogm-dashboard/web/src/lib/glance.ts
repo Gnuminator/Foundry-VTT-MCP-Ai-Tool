@@ -10,7 +10,7 @@ export { GLANCE_HREF } from './liveScreen';
 export const GLANCE_REFRESH_MS = 15_000;
 
 /** A panel older than this is marked old. */
-export const GLANCE_OLD_MS = 45_000;
+const GLANCE_OLD_MS = 45_000;
 
 /** "just now", "12 s ago", "3 min ago": how old a panel's data is. */
 export function ageText(updatedAt: number | null, now: number): string {

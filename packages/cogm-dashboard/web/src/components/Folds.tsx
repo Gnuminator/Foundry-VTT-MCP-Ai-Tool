@@ -138,7 +138,7 @@ export interface CardFold {
 }
 
 /** Set around a panel that docks in During (Handouts, Party); Drawer reads it when docked. */
-export const FoldContext = createContext<CardFold | null>(null);
+const FoldContext = createContext<CardFold | null>(null);
 
 export function useCardFold(): CardFold | null {
   return useContext(FoldContext);

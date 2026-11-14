@@ -28,7 +28,7 @@ import type { PlayerConnectorOptions } from './player-connector.js';
 import type { PlayerDirectory } from './usage-route.js';
 
 /** The only tools this endpoint runs; the backend checks the same list again. */
-export const PLAYER_ENDPOINT_TOOLS: readonly string[] = [
+const PLAYER_ENDPOINT_TOOLS: readonly string[] = [
   'get-my-character',
   'get-my-level-up-options',
   'search-books',

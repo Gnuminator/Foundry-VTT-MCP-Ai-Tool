@@ -21,7 +21,7 @@ export const FOLD_TITLES: Record<FoldCard, string> = {
 };
 
 /** The element ids of the cards (#pane-feed, #party-drawer, ...). */
-export const FOLD_IDS: Record<FoldCard, string> = {
+const FOLD_IDS: Record<FoldCard, string> = {
   feed: 'pane-feed',
   changes: 'pane-changes',
   handouts: 'handouts-drawer',

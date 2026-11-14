@@ -96,7 +96,7 @@ export interface Config {
  * Player/GM split + auth configuration.
  *
  * The split is OPT-IN: with no GM token and no GM email allow-list configured,
- * `splitEnabled` is false and the dashboard runs in legacy single-user GM mode
+ * `splitEnabled` is false and the dashboard runs in single-user GM mode
  * (every request is the GM, zero config — today's localhost behavior). Setting
  * `GM_DASHBOARD_TOKEN` and/or `GM_EMAILS` turns the split on, after which a
  * caller must prove GM identity (token or Cloudflare Access email) to reach the

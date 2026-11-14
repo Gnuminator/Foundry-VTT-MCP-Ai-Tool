@@ -19,7 +19,7 @@ export type TableEntry = { twin: string } | { twin: null; reason: string; closes
  * `closest` is shown as a pointer only, never as a twin. Renames get added here after a check
  * against the 2024 pack.
  */
-export const TWIN_TABLE: Readonly<Record<string, TableEntry>> = {
+const TWIN_TABLE: Readonly<Record<string, TableEntry>> = {
   'strahd von zarovich': {
     twin: null,
     reason:

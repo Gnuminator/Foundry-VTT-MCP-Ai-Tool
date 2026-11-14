@@ -27,7 +27,7 @@ function req(
   return { headers, query };
 }
 
-describe('resolveRole — legacy single-user mode', () => {
+describe('resolveRole — single-user mode', () => {
   it('returns gm for everyone when the split is disabled', () => {
     const auth = authConfig({ splitEnabled: false, gmToken: '', gmEmails: [] });
     expect(resolveRole(req(), auth)).toBe('gm');

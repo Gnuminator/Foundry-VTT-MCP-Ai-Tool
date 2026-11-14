@@ -9,7 +9,7 @@ export interface PrivateRollLine {
 }
 
 /** How many lines /me shows. */
-export const PRIVATE_ROLL_LIMIT = 10;
+const PRIVATE_ROLL_LIMIT = 10;
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);

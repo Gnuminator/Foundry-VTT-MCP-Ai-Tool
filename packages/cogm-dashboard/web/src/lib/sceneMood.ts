@@ -8,10 +8,8 @@ import { featureOffMessage } from '../../../../../shared/src/switch-off.js';
 
 import type { FeatureList } from './switchOff';
 
-export { SCENE_MOOD_FEATURE_ID };
-
 /** The switch as Foundry's Game Settings name it, when the feature list does not say. */
-export const SCENE_MOOD_SWITCH = 'AI Tool: Scene mood and music (writes)';
+const SCENE_MOOD_SWITCH = 'AI Tool: Scene mood and music (writes)';
 
 /** The viewed scene's presets and how it looks now, as the panel shows them. */
 export interface MoodList {

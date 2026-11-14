@@ -283,7 +283,14 @@ function createForwarder(env, fetchImpl) {
 function loadGuide(dir = __dirname) {
   try {
     const g = JSON.parse(fs.readFileSync(path.join(dir, 'guide.json'), 'utf8'));
-    if (g && typeof g.instructions === 'string' && g.pages && typeof g.pages === 'object') return g;
+    if (
+      g &&
+      typeof g.instructions === 'string' &&
+      g.pages &&
+      typeof g.pages === 'object' &&
+      Object.values(g.pages).every(p => typeof p === 'string')
+    )
+      return g;
   } catch {
     /* no guide */
   }

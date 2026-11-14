@@ -940,6 +940,7 @@ test('the guide is built from the player skill: instructions, topics, no skill f
   ]);
   const all = JSON.stringify(g);
   assert.ok(!/references\//.test(all), 'no path into the skill zip is left');
+  assert.ok(!/of the skill|\]\([\w-]+\.md\)/.test(all), 'no skill wording or .md link is left');
   assert.ok(g.instructions.length < 8000, 'instructions stay short');
   // Only the player tools: none of the GM set, and nothing that changes the game.
   assert.ok(!/search-compendium|get-compendium-item|list-characters|get-character\b/.test(all));
@@ -993,6 +994,22 @@ test('get-helper-guide answers locally per topic and refuses an unknown one', as
   assert.equal((await call({ topic: 'toString' })).result.isError, true);
 });
 
+test('a forwarded reply is still scrubbed after the guide is added', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const { handleMessage } = loadServer();
+  const f = fakeForwarder();
+  f.forward = async () => ({
+    message: { result: { protocolVersion: '2025-06-18', serverInfo: { name: SECRET } } },
+  });
+  const init = await handleMessage(
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+    f,
+    buildGuide()
+  );
+  assert.ok(!JSON.stringify(init).includes(SECRET));
+  assert.ok(init.result.instructions);
+});
+
 test('without guide.json nothing changes: no instructions, no extra tool', async () => {
   const { handleMessage, loadGuide } = loadServer();
   assert.equal(loadGuide(tmpdir()), null);
@@ -1017,6 +1034,8 @@ test('the built extension carries a guide.json the server can load', () => {
   const entries = unzip(buildPreset(PRESET));
   const dir = mkdtempSync(path.join(tmpdir(), 'player-guide-'));
   try {
+    assert.ok(!entries.get('server/guide.json').includes(PRESET.clientSecret));
+    assert.ok(!entries.get('server/guide.json').includes(PRESET.clientId));
     writeFileSync(path.join(dir, 'guide.json'), entries.get('server/guide.json'));
     const g = loadServer().loadGuide(dir);
     assert.ok(g && g.instructions.length > 1000 && g.pages.overview === g.instructions);

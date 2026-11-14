@@ -90,8 +90,9 @@ your **Client Secret** into the second (the **My character** page has both with 
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
 You should see **Foundry** (or **foundry-player**) listed with six tools (the five table tools and
-**get-helper-guide**). If you do, the plug is in. You do not need to add a skill or switch on Code
-execution: the helper's instructions come with the extension.
+**get-helper-guide**). If you do, the plug is in. The helper's instructions come with the extension,
+so you should not need to add a skill or switch on Code execution. If Claude does not follow the
+helper's steps, see Troubleshooting.
 
 ## Step 4: your first question
 

@@ -11,7 +11,7 @@ import { viewedScene } from './viewed-scene.js';
  * as a reversible {@link TransactionAction}; on failure the caller asks for a
  * rollback and the recorded actions are undone newest-first.
  *
- * The manager is deliberately a *ledger*, not an executor — callers perform the
+ * The manager is deliberately a *ledger*, not an executor, callers perform the
  * real writes themselves and report what they did via {@link addAction}. That
  * keeps the rollback logic decoupled from the (large, system-specific) creation
  * code paths and lets a single recorded action describe how to reverse itself.
@@ -59,7 +59,7 @@ export class TransactionManager {
 
   /**
    * Open a new transaction and return its id. The transaction stays "active"
-   * — accepting `addAction` calls — until it is committed or cancelled.
+   *, accepting `addAction` calls, until it is committed or cancelled.
    */
   startTransaction(description: string): string {
     const id = foundry.utils.randomID();
@@ -118,8 +118,8 @@ export class TransactionManager {
    * Undo every recorded action of a transaction, newest-first.
    *
    * Resolvable both for an active (uncommitted) transaction and for a committed
-   * one still in history. A single action failing does not abort the rollback —
-   * the error is collected and the remaining actions are still attempted — so a
+   * one still in history. A single action failing does not abort the rollback -
+   * the error is collected and the remaining actions are still attempted, so a
    * partial failure leaves as little behind as possible. Throws only when the
    * transaction cannot be found or was already rolled back.
    */

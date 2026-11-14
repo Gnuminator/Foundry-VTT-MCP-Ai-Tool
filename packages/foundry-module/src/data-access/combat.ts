@@ -182,7 +182,7 @@ export function bossResources(actor: unknown): BossResources | null {
   return { legendary, resistances, lair };
 }
 
-/** Combat tracker + resolution domain — extracted from FoundryDataAccess. */
+/** Combat tracker + resolution domain, extracted from FoundryDataAccess. */
 export class CombatDataAccess {
   /**
    * Build a structured, human-readable play-by-play of the current/most-recent
@@ -247,7 +247,7 @@ export class CombatDataAccess {
   /**
    * Build one combatant's snapshot. `defeated` honours an explicit `isDefeated`,
    * otherwise treats 0-or-less HP as down; `deathSaves` surface only while a
-   * combatant is at 0 HP. `actedThisRound` is index-based — the turn index
+   * combatant is at 0 HP. `actedThisRound` is index-based, the turn index
    * resets to 0 each round, so any combatant before the current index has
    * already acted. `hidden` mirrors the tracker's GM-hidden flag (falling back
    * to the token) so the dashboard can drop it from the player view (Phase 6).
@@ -417,7 +417,7 @@ export class CombatDataAccess {
           .map(c => c.id);
         if (ids.length > 0) await combat.rollInitiative(ids);
       } else {
-        // 'npcs' — Foundry core rolls initiative for all non-player-owned combatants
+        // 'npcs', Foundry core rolls initiative for all non-player-owned combatants
         await combat.rollNPC();
       }
     }

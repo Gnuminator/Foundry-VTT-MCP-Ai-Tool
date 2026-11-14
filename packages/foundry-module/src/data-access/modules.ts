@@ -102,14 +102,14 @@ type ModuleCompatibility = NonNullable<FoundryModule['compatibility']>;
 // ---------------------------------------------------------------------------
 
 /**
- * `ModulesDataAccess` — module inventory, compatibility analysis, and runtime
+ * `ModulesDataAccess`: module inventory, compatibility analysis, and runtime
  * diagnostics for the Foundry bridge.
  *
  * Four responsibilities, each a public method:
- *   - `getModules`        — full inventory with dep-resolution + compat issues
- *   - `getModuleErrors`   — filtered view of the diagnostics ring-buffer
- *   - `clearModuleErrors` — drain the diagnostics buffer
- *   - `getModuleManifest` — sanitized full manifest for a single module
+ *   - `getModules`       : full inventory with dep-resolution + compat issues
+ *   - `getModuleErrors`  : filtered view of the diagnostics ring-buffer
+ *   - `clearModuleErrors`: drain the diagnostics buffer
+ *   - `getModuleManifest`: sanitized full manifest for a single module
  */
 export class ModulesDataAccess {
   // =========================================================================
@@ -176,7 +176,7 @@ export class ModulesDataAccess {
    * optional filtering.
    *
    * Only filter keys whose values are not `undefined` are forwarded to
-   * `diagnostics.getErrors()` — the diagnostics API treats a missing key
+   * `diagnostics.getErrors()`: the diagnostics API treats a missing key
    * differently from an explicit `undefined`, so we must omit rather than
    * assign undefined.
    */
@@ -278,7 +278,7 @@ export class ModulesDataAccess {
   }
 
   /**
-   * Build a complete `ModuleSummary` for one module — dependency resolution
+   * Build a complete `ModuleSummary` for one module, dependency resolution
    * and compat-issue collection included.
    */
   private summarizeModule(
@@ -349,7 +349,7 @@ export class ModulesDataAccess {
    * Push compatibility warnings onto `issues` when the running core version
    * falls outside the module's declared minimum/maximum range.
    *
-   * Skipped entirely when `foundry.utils.isNewerVersion` is absent — the
+   * Skipped entirely when `foundry.utils.isNewerVersion` is absent, the
    * `isNewer` wrapper returns `false` for any missing utility, so no issues
    * are generated in that environment.
    */
@@ -381,7 +381,7 @@ export class ModulesDataAccess {
   /**
    * Build the filters object passed to `diagnostics.getErrors()`.
    *
-   * Keys whose values are `undefined` are intentionally omitted — the
+   * Keys whose values are `undefined` are intentionally omitted, the
    * diagnostics API distinguishes between "filter not set" and an explicit
    * `undefined`, so we must not include the key at all when no value was
    * provided.

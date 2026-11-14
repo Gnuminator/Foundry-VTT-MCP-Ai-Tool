@@ -38,7 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('getCharacterInfo — forgiving resolution', () => {
+describe('getCharacterInfo: forgiving resolution', () => {
   it('resolves a unique partial name ("Silvera" → "Silvera Frostmantle")', async () => {
     world.actors.add(makeActor({ id: 'silv1', name: 'Silvera Frostmantle', type: 'character' }));
 
@@ -91,7 +91,7 @@ describe('getCharacterInfo — forgiving resolution', () => {
   });
 });
 
-describe('getCharacterInfo — rules version (2014 vs 2024)', () => {
+describe('getCharacterInfo: rules version (2014 vs 2024)', () => {
   it('reports the stored tag and the current detection', async () => {
     world.actors.add(
       makeActor({

@@ -5,7 +5,7 @@
  * injects (`game`, `ui`, `CONST`, `CONFIG`, `foundry.utils`, `Hooks`, and the
  * document-class constructors). A test builds a {@link TestWorld}, installs it
  * onto `globalThis`, exercises a `FoundryDataAccess` method, and tears the
- * globals down again — the same pattern the existing `session-events.test.ts`
+ * globals down again, the same pattern the existing `session-events.test.ts`
  * uses, generalized so every data-access domain can reuse it.
  *
  * Test-only: excluded from the shipped build (see `tsconfig.json`).
@@ -34,7 +34,7 @@ import {
 type AnyDoc = Record<string, any> & Identified;
 
 export interface TestWorldOptions {
-  /** dnd5e by default — the only supported system after the Phase 2.5 trim. */
+  /** dnd5e by default, the only supported system after the Phase 2.5 trim. */
   systemId?: string;
   systemVersion?: string;
   foundryVersion?: string;
@@ -59,7 +59,7 @@ export class TestWorld {
   readonly folders = new MockCollection<AnyDoc>();
   readonly playlists = new MockCollection<AnyDoc>();
   readonly combats = new MockCollection<AnyDoc>();
-  /** `game.modules` — a Map (Foundry's module registry has `.get`/`.values`). */
+  /** `game.modules`, a Map (Foundry's module registry has `.get`/`.values`). */
   readonly modules = new Map<string, AnyDoc>();
 
   /** Module-setting store (`game.settings.get(module, key)`), keyed `module.key`. */
@@ -412,7 +412,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   g.JournalEntry = docClass(d => world.addJournal(d), world.journal);
   g.ChatMessage = {
     create: async (data: any): Promise<AnyDoc> => world.addMessage(firstOf(data)),
-    // Foundry's getSpeaker({scene,actor,token,alias}) — we only need the alias
+    // Foundry's getSpeaker({scene,actor,token,alias}), we only need the alias
     // (the world/GM voice falls back to actor.name) for the chat write paths.
     getSpeaker: ({ actor, alias, token, scene }: any = {}): Record<string, unknown> => ({
       scene: scene?.id ?? null,

@@ -23,9 +23,9 @@ import type { EventVisibility } from '@gnuminator/shared';
  * This module owns two rolling in-memory buffers that live for the duration of
  * the browser session (i.e. while the world is loaded):
  *
- *   1. A chat-log buffer  — every ChatMessage as it is created, parsed into a
+ *   1. A chat-log buffer , every ChatMessage as it is created, parsed into a
  *      structured shape (rolls, damage, flavor, advantage, crit/fumble, etc.).
- *   2. A session-event log — significant world events (combat start/end, HP
+ *   2. A session-event log, significant world events (combat start/end, HP
  *      changes, deaths, conditions, resource spend, scene changes, journals).
  *
  * The MCP server requests these buffers on demand via the query handlers; the
@@ -180,7 +180,7 @@ export class EventTracker {
   }
 
   /**
-   * Register all Foundry hooks. Safe to call multiple times — only registers
+   * Register all Foundry hooks. Safe to call multiple times, only registers
    * once. Called from the module init hook so every capability is live as soon
    * as the module loads.
    */
@@ -560,7 +560,7 @@ export class EventTracker {
    * The acting actor behind a message's speaker, resolved the same way
    * `resolveActor` does in `systems/dnd5e/roll-breakdown.ts`: the speaker
    * token first (`speaker.scene` + `speaker.token`), else `speaker.actor`.
-   * Returns `unknown` (not `any`) — the only use is `eventVisibilityFor`,
+   * Returns `unknown` (not `any`), the only use is `eventVisibilityFor`,
    * which narrows it itself.
    */
   private resolveSpeakerActor(message: ChatMessage): unknown {
@@ -1176,7 +1176,7 @@ export class EventTracker {
     return this.combatTimeline.slice();
   }
 
-  /** Raw chat log (unfiltered) — used by combat play-by-play synthesis. */
+  /** Raw chat log (unfiltered), used by combat play-by-play synthesis. */
   getRawChatLog(): ChatLogEntry[] {
     return this.chatLog.slice();
   }

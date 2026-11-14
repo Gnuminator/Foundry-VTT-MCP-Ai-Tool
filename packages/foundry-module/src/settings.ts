@@ -334,7 +334,7 @@ export class ModuleSettings {
       },
     });
 
-    // Chat log buffer size — how many recent chat messages the EventTracker
+    // Chat log buffer size, how many recent chat messages the EventTracker
     // keeps in memory for the get-chat-log / play-by-play tools.
     game.settings.register(this.moduleId, 'chatLogBufferSize', {
       name: 'AI Tool: Chat messages kept',

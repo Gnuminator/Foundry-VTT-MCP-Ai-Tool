@@ -24,7 +24,7 @@ import type {
 import { viewedScene } from './viewed-scene.js';
 
 /**
- * PlayRecorder — the full play-log recorder (docs/design/OBSIDIAN-PLAN.md section 8,
+ * PlayRecorder: the full play-log recorder (docs/design/OBSIDIAN-PLAN.md section 8,
  * O3). A singleton, mirroring `eventTracker` in `session-events.ts`, which it
  * runs alongside (and does not replace): the event tracker's chat-log /
  * session-event buffers are unchanged.
@@ -292,7 +292,7 @@ function modifiedTimeOf(doc: unknown): number | null {
 /** A create/update hook's `_stats.modifiedTime` is trusted only within this many ms of now. */
 const FRESH_MODIFIED_TIME_WINDOW_MS = 60_000;
 
-/** `doc`'s `_stats.modifiedTime`, but only when it is within 60s of now (else null — stale or synthetic). */
+/** `doc`'s `_stats.modifiedTime`, but only when it is within 60s of now (else null, stale or synthetic). */
 function freshModifiedTimeOf(doc: unknown): number | null {
   const mt = modifiedTimeOf(doc);
   if (mt === null) return null;
@@ -309,7 +309,7 @@ interface RecordTime {
  * `PlayRecord.t` for a create/update hook: `doc`'s own `_stats.modifiedTime`
  * when it is within 60s of now, else `Date.now()`. A `synthetic` document (an
  * unlinked token's actor, or an item on one) never carries a reliable
- * `modifiedTime` — Foundry returns the base actor's old one — so it always
+ * `modifiedTime`: Foundry returns the base actor's old one: so it always
  * falls back to `Date.now()` even when that stale value looks "fresh".
  */
 function createOrUpdateTime(doc: unknown, synthetic: boolean): RecordTime {
@@ -320,7 +320,7 @@ function createOrUpdateTime(doc: unknown, synthetic: boolean): RecordTime {
   return { t: Date.now(), fresh: false };
 }
 
-/** `PlayRecord.t` for a delete hook: always `Date.now()` — by the time the hook fires the document's own `_stats` is gone or stale. */
+/** `PlayRecord.t` for a delete hook: always `Date.now()`, by the time the hook fires the document's own `_stats` is gone or stale. */
 function deleteTime(): RecordTime {
   return { t: Date.now(), fresh: false };
 }
@@ -678,7 +678,7 @@ export const playRecordKeys = {
     t: number
   ): string =>
     `${kind}:${uuid}:${path}:${String(before)}->${String(after)}:${Math.floor(t / KEY_TIME_BUCKET_MS)}`,
-  /** A fresh modifiedTime is available (creates only — deletes never have one; see `createDeleteBucketed`). */
+  /** A fresh modifiedTime is available (creates only, deletes never have one; see `createDeleteBucketed`). */
   createDelete: (kind: string, uuid: string): string => `${kind}:${uuid}`,
   /** No fresh modifiedTime: every delete, and a create whose actor/item is synthetic or has a stale/missing modifiedTime. */
   createDeleteBucketed: (kind: string, uuid: string, t: number): string =>
@@ -733,7 +733,7 @@ const RECENT_ROLL_TTL_MS = 15_000;
 /**
  * A recent damage/healing roll, kept around for HP-change attribution. A
  * single roll can be an area effect hitting several targets, so it is usable
- * once per DISTINCT target actor (`attributedTo`), not once overall —
+ * once per DISTINCT target actor (`attributedTo`), not once overall -
  * otherwise a second, later HP change on the same target could wrongly reuse
  * a roll already credited to that same actor.
  */

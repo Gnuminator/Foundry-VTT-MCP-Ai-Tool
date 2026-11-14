@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 
 import { buildActions, type ChangeAction } from '../change-history.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog, type AuditEntry } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 
@@ -567,8 +568,7 @@ describe('plan, apply, redo with the real service', () => {
   it('records what the undo undid, lets the undo be undone, and then plans again', async () => {
     const store = new VaultStore({ dataDir });
     const audit = new AuditLog(store);
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    const logger = makeLogger();
     foundry.features.push({
       id: 'change-undo',
       name: 'Undo',

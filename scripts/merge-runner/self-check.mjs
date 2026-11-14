@@ -267,7 +267,13 @@ export function reexec(o) {
       env: { ...env, [CHILD_ENV]: '1' },
     });
     const code = r.status ?? 1;
-    if (code !== EXIT_RESTART) return code;
+    if (code !== EXIT_RESTART) {
+      // The runner itself ends with 0, 1 or 3; anything else (a signal, a crash) leaves a line.
+      if (![0, 1, 3].includes(code) || r.status == null) {
+        o.post?.(`merge runner child ended with ${r.status == null ? `signal ${r.signal ?? 'unknown'}` : `exit code ${code}`}`);
+      }
+      return code;
+    }
     quick = now() - start < QUICK_RESTART_MS ? quick + 1 : 0;
     if (quick >= MAX_QUICK_RESTARTS) {
       const why = `restarted ${quick} times in a row, each within a minute; start it again by hand`;

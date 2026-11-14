@@ -378,6 +378,22 @@ test('reexec: the first process runs the same script and arguments as a child an
   assert.equal(calls[0].opts.env[CHILD_ENV], '1');
 });
 
+test('reexec: a child code other than 0, 1, 3 or a signal posts one line; the usual codes post nothing', () => {
+  const run = result => {
+    const posts = [];
+    const code = reexec({ script: '/x', argv: [], env: {}, spawn: () => result, log: () => {}, post: t => posts.push(t) });
+    return { code, posts };
+  };
+  for (const status of [0, 1, 3]) assert.deepEqual(run({ status }).posts, []);
+  const odd = run({ status: 9 });
+  assert.equal(odd.code, 9);
+  assert.equal(odd.posts.length, 1);
+  assert.match(odd.posts[0], /exit code 9/);
+  const sig = run({ status: null, signal: 'SIGKILL' });
+  assert.equal(sig.code, 1);
+  assert.match(sig.posts[0], /SIGKILL/);
+});
+
 test('reexec: a child that wants new code makes the parent start the next child; one parent, one child at a time', () => {
   const codes = [EXIT_RESTART, EXIT_RESTART, 0];
   let t = 0;

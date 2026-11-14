@@ -31,7 +31,7 @@ async function start(
     shared?: boolean;
     failFor?: string;
     bare?: boolean;
-    portrait?: 'on' | 'off' | 'unknown';
+    portrait?: 'on' | 'off' | 'unknown' | 'nowrites';
   } = {}
 ): Promise<{ base: string; asked: string[]; rolled: string[][]; portraits: string[][] }> {
   const asked: string[] = [];
@@ -88,7 +88,7 @@ async function start(
         ? Promise.reject(new Error('no features'))
         : Promise.resolve({
             features: [{ id: 'player-portrait', enabled: options.portrait !== 'off' }],
-            writesAllowed: true,
+            writesAllowed: options.portrait !== 'nowrites',
           }),
     characterSheet: (userId: string): Promise<unknown> => {
       asked.push(userId);
@@ -177,6 +177,7 @@ describe('/api/me and the player links', () => {
       ['on', true],
       ['off', false],
       ['unknown', null],
+      ['nowrites', false],
     ] as const) {
       const { base } = await start({ portrait });
       const res = await me(base, keyOf(await makeLink(base, PLAYER)));

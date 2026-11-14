@@ -3,7 +3,7 @@ import type { PlayerHandout } from '@gnuminator/shared';
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { DashboardDeps } from './dashboard-types.js';
-import type { BridgeStatus, CombatState, GameFeedHandlers, FeedWorld } from './feed/types.js';
+import type { BridgeStatus, CombatState, FeedWorld, GameFeedHandlers } from './feed/types.js';
 import type { GameState } from './state.js';
 import type { SseHub } from './sse.js';
 import type { ReadCache } from './read-cache.js';

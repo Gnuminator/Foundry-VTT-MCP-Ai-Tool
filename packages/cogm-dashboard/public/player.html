@@ -336,7 +336,7 @@
         border: 1px solid var(--line);
         border-radius: 6px;
         padding: 4px 6px;
-        font-size: 0.9em;
+        font-size: 1em;
         min-height: 2.25rem;
       }
       .mine-char a {
@@ -454,9 +454,6 @@
               <span>Character</span>
               <select id="portrait-actor" class="portrait-token"></select>
             </label>
-            <button type="button" id="portrait-pick" data-track="player.mine.portrait">
-              Upload my portrait
-            </button>
             <label class="portrait-field">
               <span>Use the picture for</span>
               <select id="portrait-token" class="portrait-token">
@@ -464,9 +461,12 @@
                 <option value="portrait">Portrait only</option>
               </select>
             </label>
+            <button type="button" id="portrait-pick" data-track="player.mine.portrait">
+              Upload my portrait
+            </button>
             <input type="file" id="portrait-file" accept="image/png,image/jpeg,image/webp" hidden />
-            <span id="portrait-note" class="roll-note" role="status"></span>
           </div>
+          <span id="portrait-note" class="roll-note" role="status"></span>
         </div>
       </section>
       <section class="card" id="card-sheet" style="grid-column: 1 / -1">

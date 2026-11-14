@@ -19,8 +19,8 @@ import type {
   BridgeStatus,
   Combatant,
   CombatState,
-  SessionEvent,
   FeedWorld,
+  SessionEvent,
 } from '../feed/types.js';
 
 /**

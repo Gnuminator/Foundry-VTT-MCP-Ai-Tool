@@ -33,6 +33,7 @@ import {
 import { shortSuffix } from './mirror-paths.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 const converter = vi.hoisted(() => ({
   html: vi.fn<(html: string, ctx: LinkContext) => string>(),
@@ -88,7 +89,7 @@ beforeEach(async () => {
   for (const entry of [HERO, WOLF, ARENA, LORE, SWORD, CLOCK]) fake.put(entry);
   clock = { t: T0 };
   currentWorld = WORLD;
-  logger = { info: vi.fn(), warn: vi.fn() };
+  logger = makeLogger();
   converter.html.mockReset();
   converter.markdown.mockReset();
   converter.html.mockImplementation(html => {

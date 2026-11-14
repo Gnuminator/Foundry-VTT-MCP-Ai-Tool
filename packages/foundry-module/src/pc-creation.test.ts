@@ -153,6 +153,42 @@ describe('planPcCreation', () => {
       expect(op.data.system.details.originalClass).toBe(idOf(op, 'class'));
     });
 
+    it('with two classes in one request the first one is the original class', async () => {
+      docs.set(
+        'Compendium.p.Item.wizard',
+        item('Wizard', 'class', { spellcasting: { ability: 'int', progression: 'full' } })
+      );
+      docs.set(
+        'Compendium.p.Item.cleric',
+        item('Cleric', 'class', { spellcasting: { ability: 'wis', progression: 'full' } })
+      );
+      const result = await planPcCreation({
+        name: 'Mira',
+        items: [{ uuid: 'Compendium.p.Item.wizard' }, { uuid: 'Compendium.p.Item.cleric' }],
+      });
+      const op: any = result.ops[0];
+      expect(op.data.system.details.originalClass).toBe(idOf(op, 'class'));
+      expect(op.data.system.attributes.spellcasting).toBe('int');
+    });
+
+    it('a class inside a container is not the original class', async () => {
+      docs.set(
+        'Compendium.p.Item.pack',
+        item('Odd Pack', 'container', {}, [
+          item('Wizard', 'class', { spellcasting: { ability: 'int', progression: 'full' } }),
+        ])
+      );
+      docs.set('Compendium.p.Item.fighter', item('Fighter', 'class'));
+      const result = await planPcCreation({
+        name: 'Mira',
+        items: [{ uuid: 'Compendium.p.Item.pack' }, { uuid: 'Compendium.p.Item.fighter' }],
+      });
+      const op: any = result.ops[0];
+      const fighter = op.data.items.find((i: any) => i.name === 'Fighter');
+      expect(op.data.system.details.originalClass).toBe(fighter._id);
+      expect(op.data.system.attributes).toBeUndefined();
+    });
+
     it('sets attributes.spellcasting to the class spellcasting ability', async () => {
       const op = await plan();
       expect(op.data.system.attributes.spellcasting).toBe('int');

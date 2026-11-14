@@ -509,6 +509,7 @@ Hooks.once('ready', () => {
   try {
     const worldId = (game as { world?: { id?: string } }).world?.id;
     if (worldId) diagnostics.bindWorld(worldId);
+    else console.warn(`[${MODULE_ID}] No world id at ready: the error buffer is not saved.`);
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
   }

@@ -20,7 +20,7 @@ Parameters:
 - `itemIdentifier` (string, required): Item name or ID (spell, feat, equipment, consumable, etc.)
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
-- `spellLevel` (number): For spells: cast at a higher level than base (D&D 5e upcasting)
+- `spellLevel` (integer): For spells: cast at a higher level than base (D&D 5e upcasting)
 - `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.
 
 ## switch-scene

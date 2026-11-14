@@ -5,7 +5,7 @@
 // Read-only: nothing is written or sent anywhere except the one GET to the release host.
 //
 //   node scripts/pi/check-studio-pin.mjs                  (npm run studio:pin-check)
-//   node scripts/pi/check-studio-pin.mjs --stage <file>   (another copy of stage 13, for tests)
+//   node scripts/pi/check-studio-pin.mjs --stage <file>   (or --stage=<file>; another copy of stage 13, for tests)
 //   node scripts/pi/check-studio-pin.mjs --base <url>     (another release host, for tests)
 //
 // Exit codes: 0 pin matches (or the pin is PENDING-RELEASE, which stage 13 refuses on its own),
@@ -100,22 +100,31 @@ export async function checkPin(opts = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  /** A flag without a value is a usage error, not a quiet fall back to the real stage 13. */
+  /** Both `--flag value` and `--flag=value`; a flag without a value or an unknown argument is exit 2. */
+  /** @type {Record<string, string>} */
+  const values = {};
   let usageError = false;
-  /** @param {string} flag */
-  const arg = flag => {
-    const i = args.indexOf(flag);
-    if (i < 0) return undefined;
-    const v = args[i + 1];
-    if (v === undefined || v.startsWith('--')) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    const eq = a.indexOf('=');
+    const flag = eq < 0 ? a : a.slice(0, eq);
+    if (flag !== '--stage' && flag !== '--base') {
+      console.log(`studio pin check: unknown argument ${a}`);
+      usageError = true;
+      continue;
+    }
+    const v = eq < 0 ? args[++i] : a.slice(eq + 1);
+    if (v === undefined || v === '' || v.startsWith('--')) {
       console.log(`studio pin check: ${flag} needs a value`);
       usageError = true;
-      return undefined;
+      if (eq < 0 && v !== undefined) i--;
+      continue;
     }
-    return v;
-  };
-  const stage = arg('--stage');
-  const base = arg('--base');
-  if (usageError) process.exit(2);
-  checkPin({ stage, base }).then(code => process.exit(code));
+    values[flag] = v;
+  }
+  if (usageError) process.exitCode = 2;
+  else
+    checkPin({ stage: values['--stage'], base: values['--base'] }).then(code => {
+      process.exitCode = code;
+    });
 }

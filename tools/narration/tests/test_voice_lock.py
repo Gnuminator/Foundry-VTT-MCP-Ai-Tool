@@ -14,8 +14,10 @@ def test_voice_lock_is_fully_pinned_with_cu128_torch() -> None:
     pins = {ln.split("==")[0].lower(): ln.split("==")[1] for ln in lines}
     assert pins["torch"].endswith("+cu128") and pins["torchaudio"].endswith("+cu128")
     assert "chatterbox-tts" in pins
+    assert len(pins) == len(lines)
 
 
 def test_readme_installs_from_the_lock_with_the_cuda_index() -> None:
     assert "requirements-voice.lock.txt" in README
     assert "https://download.pytorch.org/whl/cu128" in README
+    assert "--no-deps" in README and "--extra-index-url" in README

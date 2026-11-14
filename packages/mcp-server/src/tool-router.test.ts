@@ -8,7 +8,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { buildToolRouter, DETACHED_TOOLS, type ToolRouterDeps } from './tool-router.js';
-import { TOOL_MODULES } from './tools/index.js';
+import { TOOL_MODULES, playerModule } from './tools/index.js';
 import { type ToolModule, createToolInstances, defineToolModule } from './tools/tool-module.js';
 import { stubToolServices } from './test-support/stub-tool-deps.js';
 
@@ -20,12 +20,14 @@ describe('createToolInstances', () => {
       create: () => ({ n: ++built }),
       definitions: () => [],
       routes: {},
+      tools: {},
     });
     const user = defineToolModule({
       id: 'user',
       create: ({ use }) => ({ base: use(base) }),
       definitions: () => [],
       routes: {},
+      tools: {},
     });
     const tools = createToolInstances(stubToolServices(), [user, base]);
     expect(built).toBe(1);
@@ -33,8 +35,61 @@ describe('createToolInstances', () => {
   });
 
   it('refuses two modules with one id', () => {
-    const a = defineToolModule({ id: 'a', create: () => 1, definitions: () => [], routes: {} });
+    const a = defineToolModule({
+      id: 'a',
+      create: () => 1,
+      definitions: () => [],
+      routes: {},
+      tools: {},
+    });
     expect(() => createToolInstances(stubToolServices(), [a, { ...a }])).toThrow(/Duplicate/);
+  });
+
+  it('refuses a module that uses itself through another one (a cycle)', () => {
+    const a: ToolModule<unknown> = defineToolModule({
+      id: 'a',
+      create: ({ use }) => use(b),
+      definitions: () => [],
+      routes: {},
+      tools: {},
+    });
+    const b: ToolModule<unknown> = defineToolModule({
+      id: 'b',
+      create: ({ use }) => use(a),
+      definitions: () => [],
+      routes: {},
+      tools: {},
+    });
+    expect(() => createToolInstances(stubToolServices(), [a, b])).toThrow(/cycle at: a/);
+  });
+
+  it('lets a module use one outside the list, but get refuses it', () => {
+    const outside = defineToolModule({
+      id: 'outside',
+      create: () => ({ n: 1 }),
+      definitions: () => [],
+      routes: {},
+      tools: {},
+    });
+    const inside = defineToolModule({
+      id: 'inside',
+      create: ({ use }) => use(outside),
+      definitions: () => [],
+      routes: {},
+      tools: {},
+    });
+    const tools = createToolInstances(stubToolServices(), [inside]);
+    expect(tools.get(inside)).toEqual({ n: 1 });
+    expect(() => tools.get(outside)).toThrow(/not in the list: outside/);
+  });
+
+  it('builds the player module with the services playerExtraDenyTerms', () => {
+    const extraDenyTerms = (): string[] => ['tester'];
+    const tools = createToolInstances(
+      { ...stubToolServices(), playerExtraDenyTerms: extraDenyTerms },
+      TOOL_MODULES
+    );
+    expect((tools.get(playerModule) as any).extraDenyTerms).toBe(extraDenyTerms);
   });
 });
 
@@ -181,6 +236,7 @@ describe('buildToolRouter', () => {
       create: () => ({}),
       definitions: () => [],
       routes: { 'same-name': async () => 1 },
+      tools: {},
     });
     const two = defineToolModule({ ...one, id: 'two' });
     const deps = { modules: [one, two], get: <T>(): T => ({}) as T };

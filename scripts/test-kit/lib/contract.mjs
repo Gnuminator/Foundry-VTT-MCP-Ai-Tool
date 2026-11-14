@@ -353,7 +353,7 @@ export const GM_ACTIONS = {
  * @property {string[]} tags        from {@link KIT_TAGS}
  * @property {boolean} [licensed]   true for scenarios that need licensed content (never in the repo)
  * @property {string[]} needs       manifest sections it relies on: 'heroes' | 'monsters' | 'scene'
- * @property {string[]} tools       every bridge tool it calls; CI checks each exists in tool-sets.ts
+ * @property {string[]} tools       every bridge tool it calls; CI checks each exists in a tool set (derived from the tool modules)
  * @property {string[]} [gmActions] every GM action it calls (keys of {@link GM_ACTIONS})
  * @property {number} [timeoutMs]   whole scenario, default 120000
  * @property {string[]} [knownConsoleErrors]  regular expressions (as text) for console errors the scenario reports itself;

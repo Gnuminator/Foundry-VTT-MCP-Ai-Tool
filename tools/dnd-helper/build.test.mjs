@@ -95,13 +95,24 @@ function toolSetLists() {
     new URL('../../docs/reference/TOOL-SETS.md', import.meta.url),
     'utf8'
   ).replace(/\r\n/g, '\n');
+  const start = doc.indexOf('## What each set holds');
+  assert.ok(start >= 0, 'TOOL-SETS.md has a "What each set holds" section');
+  const rest = doc.slice(start + 1);
+  const next = rest.indexOf('\n## ');
+  const section = next >= 0 ? rest.slice(0, next) : rest;
   const sets = new Map();
-  for (const m of doc.matchAll(/^- \*\*([a-z]+):\*\*((?:[^\n]|\n(?!\n|- ))*)/gm)) {
+  for (const m of section.matchAll(/^- \*\*([a-z]+):\*\*((?:[^\n]|\n(?!\n|- ))*)/gm)) {
+    if (sets.has(m[1])) continue; // keep the first bullet per set
     sets.set(
       m[1],
-      [...m[2].matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)+)`/g)].map(n => n[1])
+      [...m[2].matchAll(/`([^`]+)`/g)].map(n => n[1])
     );
   }
+  assert.deepEqual(
+    [...sets.keys()].sort(),
+    ['admin', 'build', 'core', 'play', 'player', 'prep'],
+    'the six set names'
+  );
   return sets;
 }
 

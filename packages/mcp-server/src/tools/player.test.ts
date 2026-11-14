@@ -22,6 +22,7 @@ import {
 } from '../tool-sets.js';
 import {
   PLAYER_ENTRY_CHARS,
+  PLAYER_TOOL_NAMES,
   PLAYER_EXCERPT_CHARS,
   PlayerTools,
   handlePlayerTool,
@@ -63,6 +64,10 @@ function make(
 describe('the player set is never served on stdio and has no call_tool route', () => {
   const deps = stubToolRouterDeps();
   const names = TOOL_SETS[PLAYER_TOOL_SET].tools;
+
+  it('tags exactly the runtime allowlist as the player set', () => {
+    expect([...names].sort()).toEqual([...PLAYER_TOOL_NAMES].sort());
+  });
 
   it('resolveToolSets drops "player" and "all" excludes it', () => {
     const named = resolveToolSets('player');

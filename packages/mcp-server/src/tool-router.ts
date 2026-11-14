@@ -2,8 +2,9 @@
  * Tool dispatch table for the control-channel `call_tool` requests, and the tool list.
  *
  * Both are derived from the tool modules (tools/index.ts, R9): each module names the routes and
- * definitions of its family, and the backend builds one instance per module. This file stays
- * pure and imports no tool class, because the stdio wrapper loads it for `capToolResult`.
+ * definitions of its family, and the backend builds one instance per module. This file builds
+ * no tool instance and imports no tool class itself. The stdio wrapper loads it for
+ * `capToolResult`, and so loads the tool modules (not their instances) through tool-hints.ts.
  */
 import { type ToolAnnotations, withToolHints } from './tool-hints.js';
 import { type ToolInstances, instanceOf } from './tools/tool-module.js';

@@ -5,8 +5,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
+import type { ClientPiece, ClientVersionsView } from '@gnuminator/shared';
+
 import { OverlayPane } from '../components/OverlayPane';
 import { api, errorText } from '../lib/api';
+import { CLIENT_VERSIONS_KEY } from '../lib/clientNotices';
 import { Button } from '../ui';
 
 export type VersionStatus = 'ok' | 'behind' | 'unknown';
@@ -80,6 +83,64 @@ function Row({ row }: { row: VersionRow }): JSX.Element {
   );
 }
 
+const PIECE_NAME: Record<ClientPiece, string> = {
+  connectors: 'Claude Desktop connectors',
+  'player-extension': 'Player extension',
+  obsidian: 'Obsidian plugin',
+};
+
+/** What each person's own pieces report, compared with the version this table runs. */
+function ClientsSection({
+  clients,
+}: {
+  clients: ClientVersionsView | undefined;
+}): JSX.Element | null {
+  if (!clients || !Array.isArray(clients.seen)) return null;
+  return (
+    <section aria-labelledby="ver-clients-title">
+      <h3 className="ver-clients-title" id="ver-clients-title">
+        Clients
+      </h3>
+      <p className="ver-foot">
+        Compared with the version this table runs ({clients.current}), not with the newest online.
+      </p>
+      {clients.seen.length === 0 ? (
+        <p className="ver-foot">No client has reported its version yet.</p>
+      ) : (
+        <table className="ver-table">
+          <thead>
+            <tr>
+              <th scope="col">Piece</th>
+              <th scope="col">Who</th>
+              <th scope="col">Version</th>
+              <th scope="col">Status</th>
+              <th scope="col">Last seen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients.seen.map(s => (
+              <tr
+                className={`ver-row st-${s.behind ? 'behind' : 'ok'}`}
+                key={`${s.piece}:${s.who}`}
+              >
+                <th scope="row">{PIECE_NAME[s.piece]}</th>
+                <td>{s.who}</td>
+                <td>{s.version ?? 'not reported'}</td>
+                <td>
+                  <span className="ver-status">
+                    {s.behind ? STATUS_TEXT.behind : STATUS_TEXT.ok}
+                  </span>
+                </td>
+                <td>{new Date(s.lastSeen).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 export function VersionsPane({
   open,
   onOpenChange,
@@ -96,6 +157,13 @@ export function VersionsPane({
       const answer = query.state.data;
       return answer?.enabled && answer.checking ? CHECKING_POLL_MS : false;
     },
+  });
+  // The pieces on people's own computers; an older server without the route just shows no section.
+  const clients = useQuery({
+    queryKey: CLIENT_VERSIONS_KEY,
+    queryFn: () => api<ClientVersionsView>('/api/client-versions'),
+    enabled: open,
+    retry: false,
   });
   const queryClient = useQueryClient();
   const recheckNow = useMutation({
@@ -162,6 +230,7 @@ export function VersionsPane({
               ))}
             </tbody>
           </table>
+          <ClientsSection clients={clients.data} />
           <p className="ver-foot">
             {view.checkedAt
               ? `Newest versions checked ${new Date(view.checkedAt).toLocaleString()}.`

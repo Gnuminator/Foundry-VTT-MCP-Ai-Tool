@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { ClientVersionsView } from '@gnuminator/shared';
 import type { JSX } from 'react';
 
 import { Opened } from '../storybook/Opened';
@@ -45,10 +46,34 @@ const view = (patch: Partial<Extract<VersionsView, { enabled: true }>> = {}): Ve
   ...patch,
 });
 
+const CLIENTS: ClientVersionsView = {
+  current: '1.5.0',
+  downloads: { connectors: null, obsidian: null },
+  seen: [
+    {
+      piece: 'connectors',
+      who: 'GM',
+      version: '1.5.0',
+      behind: false,
+      lastSeen: '2026-11-14T10:00:00Z',
+    },
+    {
+      piece: 'player-extension',
+      who: 'Mara',
+      version: '1.5.0',
+      behind: false,
+      lastSeen: '2026-11-14T09:40:00Z',
+    },
+  ],
+};
+
 const serve = (
-  answer: VersionsView
+  answer: VersionsView,
+  clients: ClientVersionsView = CLIENTS
 ): { dashboard: { api: { routes: Record<string, unknown> } } } => ({
-  dashboard: { api: { routes: { '/api/versions': reply(answer) } } },
+  dashboard: {
+    api: { routes: { '/api/versions': reply(answer), '/api/client-versions': reply(clients) } },
+  },
 });
 
 const meta = {
@@ -75,6 +100,34 @@ export const LookupsFailedKitFailed: Story = {
       kit: { state: 'failed', at: '2026-10-18T03:10:00Z', text: '3 failed: dashboard sweep' },
     })
   ),
+};
+export const ClientsOutdated: Story = {
+  parameters: serve(view(), {
+    ...CLIENTS,
+    seen: [
+      {
+        piece: 'connectors',
+        who: 'GM',
+        version: '1.4.0',
+        behind: true,
+        lastSeen: '2026-11-14T10:00:00Z',
+      },
+      {
+        piece: 'player-extension',
+        who: 'Mara',
+        version: null,
+        behind: false,
+        lastSeen: '2026-11-14T09:40:00Z',
+      },
+      {
+        piece: 'obsidian',
+        who: 'GM',
+        version: '1.3.2',
+        behind: true,
+        lastSeen: '2026-11-13T20:00:00Z',
+      },
+    ],
+  }),
 };
 export const NoKitResult: Story = { parameters: serve(view({ kit: null })) };
 export const FoundryNotAnswering: Story = { parameters: serve(view({ rows: null })) };

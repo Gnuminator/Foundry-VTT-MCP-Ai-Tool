@@ -18,10 +18,17 @@
  */
 import { readFileSync } from 'fs';
 
+import {
+  TOOL_VERSION,
+  clientToolNotice,
+  isClientBehind,
+  playerExtensionVersion,
+} from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
 
 import { AccessJwtVerifier, type AccessJwtConfig } from './access-jwt.js';
 import { isLoopbackHost } from './bind-policy.js';
+import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
 import type { PlayerConnectorOptions } from './player-connector.js';
@@ -48,6 +55,8 @@ export interface PlayerRouteOptions {
   client: PlayerRouteClient;
   directory: PlayerDirectory;
   logger: Logger;
+  /** Client versions seen (item client-updates); absent on fakes. */
+  clients?: ClientRegistry;
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
 }
 
@@ -67,6 +76,19 @@ const SERVER_VERSION = ((): string => {
 const MAX_BODY = '64kb';
 
 type JsonRpcId = string | number | null;
+
+/** A successful tool result with a content array: the only kind that gets the outdated line. */
+function canCarryNotice(result: unknown): result is { content: unknown[] } {
+  if (result === null || typeof result !== 'object') return false;
+  const r = result as { isError?: unknown; content?: unknown };
+  return r.isError !== true && Array.isArray(r.content);
+}
+
+/** One more text item on a successful tool result; an error or odd-shaped result is left alone. */
+function withNotice(result: unknown, text: string): unknown {
+  if (!canCarryNotice(result)) return result;
+  return { ...result, content: [...result.content, { type: 'text', text }] };
+}
 
 function rpcError(id: JsonRpcId, code: number, message: string): object {
   return { jsonrpc: '2.0', id, error: { code, message } };
@@ -234,6 +256,15 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       return;
     }
 
+    // Auth has passed: remember which extension version this player runs (the version only).
+    const extVersion = playerExtensionVersion(req.headers['user-agent']);
+    // Keyed by the Foundry user id (stable, unique); the name is only the GM list's label.
+    const playerKey = who.userId;
+    if (extVersion && options.clients) {
+      const label = directory.get(who.userId)?.name ?? who.userId;
+      options.clients.record('player-extension', playerKey, extVersion, Date.now(), label);
+    }
+
     const body: unknown = req.body;
     if (body === null || typeof body !== 'object' || Array.isArray(body)) {
       res.status(400).end();
@@ -309,7 +340,16 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           : {};
       try {
         const result = await client.playerTool(who.userId, p.name, args);
-        res.json({ jsonrpc: '2.0', id, result });
+        // Only a result that can carry the line spends this player's six-hour slot.
+        const notice =
+          extVersion &&
+          options.clients &&
+          isClientBehind(extVersion, TOOL_VERSION) &&
+          canCarryNotice(result) &&
+          options.clients.shouldNotify(`player-extension:${playerKey}`, Date.now())
+            ? clientToolNotice('player-extension', extVersion, TOOL_VERSION)
+            : null;
+        res.json({ jsonrpc: '2.0', id, result: notice ? withNotice(result, notice) : result });
       } catch {
         res.json({
           jsonrpc: '2.0',

@@ -23,10 +23,16 @@
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
-import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
+import {
+  PORTRAIT_MAX_BYTES,
+  TOOL_VERSION,
+  clientNoticeText,
+  sniffPortraitType,
+} from '@gnuminator/shared';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
 import type { PlayerLinksBody } from './api-bodies.js';
+import type { ClientRegistry } from './client-versions.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
 import type { PlayerLinkStore } from './player-links.js';
@@ -57,6 +63,8 @@ export interface MeRouteOptions {
   connector?: Pick<import('./player-connector.js').ConnectorStore, 'credentialsFor'> | null;
   /** Builds one player's extension file; the real one loads tools/player-connector. For tests. */
   buildPreset?: (p: PresetInput) => Buffer | Promise<Buffer>;
+  /** Client versions seen (item client-updates); absent on fakes. */
+  clients?: ClientRegistry;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
@@ -142,6 +150,13 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .catch(() => null);
   }
 
+  /** The banner for this player's own extension when it is older than the table; else null. */
+  function playerUpdateNotice(userId: string): { da: string; en: string } | null {
+    const seen = options.clients?.get('player-extension', userId);
+    if (!seen?.behind || seen.version === null) return null;
+    return clientNoticeText('player-extension', seen.version, TOOL_VERSION);
+  }
+
   app.get('/me', (_req: Request, res: Response) => {
     options.pageHeaders(res);
     res.sendFile('me.html', { root: options.publicDir });
@@ -174,6 +189,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
           theme: options.theme(),
           privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
           portraitEnabled: portraitOn,
+          clientUpdate: playerUpdateNotice(userId),
         })
       )
       .catch(() => {

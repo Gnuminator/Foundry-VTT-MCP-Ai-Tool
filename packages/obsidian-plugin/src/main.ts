@@ -95,6 +95,7 @@ import {
   prepUuid,
   type PrepKind,
 } from './prep.js';
+import { CLIENT_CHECK_INTERVAL_MS, updateNotice } from './client-update.js';
 import { pickTheme, sameThemeState, syncTheme, type ThemeState } from './theme-sync.js';
 
 /** The plugin settings, plus the theme state (I-099, theme-sync.ts). */
@@ -204,6 +205,8 @@ export default class FoundryAiToolPlugin extends Plugin {
   settings: PluginSettings = { ...DEFAULT_SETTINGS };
   private client!: DashboardClient;
   private statusEl!: HTMLElement;
+  private updateEl!: HTMLElement;
+  private updateLink: string | null = null;
   private revealCache: { at: number; state: RevealState } | null = null;
   /** The documents that carry the theme classes: the main window's, plus any popouts. */
   private readonly docs = new Set<Document>([document]);
@@ -214,8 +217,17 @@ export default class FoundryAiToolPlugin extends Plugin {
       http,
       () => this.settings.dashboardUrl,
       () => this.token(),
-      () => this.access()
+      () => this.access(),
+      () => this.manifest.version
     );
+
+    // A second, separate status bar item, shown only while the plugin is behind the table.
+    this.updateEl = this.addStatusBarItem();
+    this.updateEl.addClass('foundry-ai-tool-update');
+    this.updateEl.hide();
+    this.registerDomEvent(this.updateEl, 'click', () => {
+      if (this.updateLink) window.open(this.updateLink);
+    });
 
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass('foundry-ai-tool-status');
@@ -334,6 +346,12 @@ export default class FoundryAiToolPlugin extends Plugin {
     );
     this.addSettingTab(new FoundryAiToolSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => void this.refreshStatus(false));
+
+    // Version handshake: ask the table which version it runs, now and every 6 hours.
+    this.registerInterval(
+      window.setInterval(() => void this.checkForUpdate(), CLIENT_CHECK_INTERVAL_MS)
+    );
+    this.app.workspace.onLayoutReady(() => void this.checkForUpdate());
 
     // The theme (I-099): classes on <body> and on each Markdown view; the CSS does the rest.
     this.applyTheme();
@@ -797,6 +815,23 @@ export default class FoundryAiToolPlugin extends Plugin {
     const state = await this.client.revealState();
     this.revealCache = { at: now, state };
     return state;
+  }
+
+  /** Shows the update notice when the plugin is older than the table; silent on any failure. */
+  private async checkForUpdate(): Promise<void> {
+    const answer = await this.client.clientVersions();
+    const notice = answer
+      ? updateNotice(this.manifest.version, answer.current, answer.obsidianLink)
+      : null;
+    this.updateLink = notice?.link ?? null;
+    if (!notice) {
+      this.updateEl.hide();
+      return;
+    }
+    this.updateEl.setText(notice.text);
+    this.updateEl.setAttribute('aria-label', notice.title);
+    this.updateEl.setAttribute('title', notice.title);
+    this.updateEl.show();
   }
 
   private async refreshStatus(force: boolean): Promise<void> {

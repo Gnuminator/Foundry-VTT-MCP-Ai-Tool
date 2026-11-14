@@ -12,7 +12,8 @@
  *                                                      download URLs point at that tag's release
  *
  * Stamped places: every workspace package.json, packages/foundry-module/module.json, the Obsidian
- * plugin's packages/obsidian-plugin/manifest.json, the workspace
+ * plugin's packages/obsidian-plugin/manifest.json, the player extension's
+ * tools/player-connector/manifest.json and the VERSION constant in its server/index.js, the workspace
  * entries in package-lock.json, shared/src/version.ts (TOOL_VERSION, read by code at runtime) and
  * the fallback version in the NSIS script.
  */
@@ -41,7 +42,9 @@ const WORKSPACE_PACKAGES = [
 ];
 const MODULE_JSON = 'packages/foundry-module/module.json';
 const PLUGIN_MANIFEST = 'packages/obsidian-plugin/manifest.json';
-const VERSION_TS = 'shared/src/version.ts';
+const PLAYER_MANIFEST = 'tools/player-connector/manifest.json';
+const PLAYER_SERVER = 'tools/player-connector/server/index.js';
+const VERSION_TS ='shared/src/version.ts';
 const NSIS = 'installer/nsis/foundry-mcp-server.nsi';
 
 const argv = process.argv.slice(2);
@@ -96,6 +99,20 @@ function targets() {
     label: PLUGIN_MANIFEST,
     current: () => readJson(PLUGIN_MANIFEST).version,
     apply: v => writeJson(PLUGIN_MANIFEST, { ...readJson(PLUGIN_MANIFEST), version: v }),
+  });
+  list.push({
+    label: PLAYER_MANIFEST,
+    current: () => readJson(PLAYER_MANIFEST).version,
+    apply: v => writeJson(PLAYER_MANIFEST, { ...readJson(PLAYER_MANIFEST), version: v }),
+  });
+  list.push({
+    label: `${PLAYER_SERVER} (VERSION)`,
+    current: () => /const VERSION = '([^']+)'/.exec(read(PLAYER_SERVER))?.[1] ?? '(missing)',
+    apply: v =>
+      writeText(
+        PLAYER_SERVER,
+        read(PLAYER_SERVER).replace(/(const VERSION = ')[^']+(')/, `$1${v}$2`)
+      ),
   });
   list.push({
     label: 'package-lock.json (workspace entries)',

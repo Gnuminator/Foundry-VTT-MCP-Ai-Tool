@@ -232,6 +232,15 @@ export class McpControlClient extends EventEmitter {
     return this.send('player_roll', { userId, buttonId });
   }
 
+  /**
+   * The connected connector wrappers and their versions (item client-updates):
+   * `{ current, build, wrappers: [{ version, build, sets }], behind }`. A control method. An old
+   * backend answers "Unknown method" (a ChannelError): callers treat that as unavailable.
+   */
+  async wrapperStatus(): Promise<unknown> {
+    return this.send('wrapper_status');
+  }
+
   /** The player tool definitions, for `/mcp/player` `tools/list` (D-136). A control method. */
   async listPlayerTools(): Promise<unknown> {
     return this.send('list_player_tools');

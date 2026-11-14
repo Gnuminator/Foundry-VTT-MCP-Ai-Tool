@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import type { RecordUsageResult, UsageEvent } from '@gnuminator/shared';
 
 import type { AccessJwtVerifier } from './access-jwt.js';
+import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { GameFeedHandlers } from './feed/types.js';
 import type { Logger } from './logger.js';
@@ -47,6 +48,8 @@ export interface DashboardClient {
   /** The player connector (D-136): the five tool definitions and one tool run; absent on fakes. */
   listPlayerTools?(): Promise<unknown>;
   playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
+  /** The connected connector wrappers and their versions; absent on fakes, "Unknown method" on old backends. */
+  wrapperStatus?(): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;
@@ -68,6 +71,8 @@ export interface DashboardDeps {
   spaceStatusFile?: string;
   /** Test clock for the space check's age. */
   spaceNow?: () => number;
+  /** Test only: the client version registry (default a fresh one). */
+  clients?: ClientRegistry;
   /** Test only: the status heartbeat interval in ms (default STATUS_HEARTBEAT_MS). */
   statusHeartbeatMs?: number;
   /** Test only: the bot status URL (default config.botStatusUrl). */

@@ -73,6 +73,71 @@ describe('WrapperRegistry', () => {
     expect(reg.status().behind).toBe(false);
   });
 
+  describe('noticeFor', () => {
+    const HOUR = 3600 * 1000;
+
+    it('gives an older wrapper the connectors line', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.hello(1, { version: '0.24.0', sets: 'all' });
+      const n = reg.noticeFor(1, 1000);
+      expect(n).toContain('0.24.0');
+      expect(n).toContain('0.25.0');
+      expect(n).toContain('Update available');
+    });
+
+    it('says nothing for an equal or newer wrapper', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.hello(1, { version: '0.25.0', sets: 'all' });
+      reg.hello(2, { version: '0.26.0', sets: 'all' });
+      expect(reg.noticeFor(1, 1000)).toBeNull();
+      expect(reg.noticeFor(2, 1000)).toBeNull();
+    });
+
+    it('says nothing for the same version from another build', () => {
+      const reg = new WrapperRegistry('0.25.0', 'aaaaaaaaaaaa');
+      reg.hello(1, { version: '0.25.0', build: 'bbbbbbbbbbbb', sets: 'core' });
+      expect(reg.status().behind).toBe(true);
+      expect(reg.noticeFor(1, 1000)).toBeNull();
+    });
+
+    it('treats a wrapper with no version (old, no hello) as older', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.toolCallWithoutRequester(5);
+      expect(reg.noticeFor(5, 1000)).toContain('an older version');
+    });
+
+    it('says nothing for a connection that is not a known wrapper', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      expect(reg.noticeFor(9, 1000)).toBeNull();
+    });
+
+    it('never notices the dashboard', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.hello(3, { client: 'dashboard', version: '0.1.0' });
+      reg.toolCallWithoutRequester(3);
+      expect(reg.noticeFor(3, 1000)).toBeNull();
+    });
+
+    it('repeats at most once per interval per connection', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.hello(1, { version: '0.24.0', sets: 'all' });
+      reg.hello(2, { version: '0.24.0', sets: 'all' });
+      expect(reg.noticeFor(1, 0)).not.toBeNull();
+      expect(reg.noticeFor(1, 5 * HOUR)).toBeNull();
+      expect(reg.noticeFor(2, 5 * HOUR)).not.toBeNull();
+      expect(reg.noticeFor(1, 6 * HOUR)).not.toBeNull();
+    });
+
+    it('starts over after the connection closes', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.hello(1, { version: '0.24.0', sets: 'all' });
+      expect(reg.noticeFor(1, 0)).not.toBeNull();
+      reg.close(1);
+      reg.hello(1, { version: '0.24.0', sets: 'all' });
+      expect(reg.noticeFor(1, 1000)).not.toBeNull();
+    });
+  });
+
   it('forgets a closed connection', () => {
     const reg = new WrapperRegistry('0.25.0');
     reg.toolCallWithoutRequester(2);

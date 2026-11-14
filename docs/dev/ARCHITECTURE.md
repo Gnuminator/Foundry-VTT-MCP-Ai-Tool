@@ -215,7 +215,11 @@ methods outside that list; they are listed below the table.
 wrapper's `build` is a hash of its tool-set lists (`build-id.ts`); `get-preflight` warns when a
 connected wrapper is older than the bridge, sends no version, or has the bridge's version from a
 different build. A wrapper that sends no `build` is compared by version only. There is no control
-call that returns the wrapper list: `get-preflight` reads it in-process. The backend also answers
+call in the list above that returns the wrapper list: `get-preflight` reads it in-process, and the
+read-only `wrapper_status` call (no params; result `{ current, build, wrappers: [{ version, build,
+sets }], behind }`, names and versions only) hands the same object to the dashboard. A connector
+older than the backend also gets one outdated line appended to a successful `call_tool` answer, at
+most once per connection every 6 hours. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
 switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,

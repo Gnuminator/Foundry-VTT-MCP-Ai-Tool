@@ -553,6 +553,14 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // The connected connectors, names and versions only (read-only; the same object
+          // get-preflight reads).
+          if (msg.method === 'wrapper_status') {
+            socket.write(`${JSON.stringify({ id: msg.id, result: wrapperRegistry.status() })}\n`);
+
+            continue;
+          }
+
           if (msg.method === 'list_tools') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
 
@@ -609,6 +617,12 @@ async function startBackend(): Promise<void> {
                     },
                   ],
                 };
+
+                // An older connector gets one outdated line, appended to a successful answer.
+                if (!socket.destroyed) {
+                  const notice = wrapperRegistry.noticeFor(connectionId, Date.now());
+                  if (notice !== null) payload.content.push({ type: 'text', text: notice });
+                }
 
                 if (!socket.destroyed) {
                   socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);

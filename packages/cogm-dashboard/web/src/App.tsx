@@ -39,6 +39,7 @@ import {
   type DrawerDockName,
   type Moment,
 } from './components/Moments';
+import { ClientNotice } from './components/ClientNotice';
 import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
 import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
@@ -473,6 +474,7 @@ function Dashboard(): JSX.Element {
       <PlanLink />
       <RoleNotice />
       <VersionBanner />
+      <ClientNotice />
       <MomentViews
         moment={moment}
         slotRefs={slotRefs}

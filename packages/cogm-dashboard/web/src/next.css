@@ -332,6 +332,20 @@ main.moment-views #moment-during.during-no-bar {
 .ver-kit.kit-failed {
   color: var(--bad-text);
 }
+/* Outdated client pieces: the Danish line, the English one smaller below it. */
+.client-banner a {
+  color: inherit;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+.client-banner-en {
+  font-size: var(--fs-sm);
+  margin-top: 0.2rem;
+}
+.ver-clients-title {
+  font-size: var(--fs-md, 1rem);
+  margin: 1rem 0.6rem 0.2rem;
+}
 .ver-off {
   font-weight: 400;
   color: var(--text-dim, inherit);

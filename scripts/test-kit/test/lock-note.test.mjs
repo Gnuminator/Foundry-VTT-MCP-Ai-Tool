@@ -278,3 +278,17 @@ test('the GPU lock takes, queues and releases on its own lock, beside server A, 
   assert.equal(lock(s, ['release', '-Session', 'local_i'], gpu).status, 0);
   assert.equal(readNote(noteFile)['server-gpu'], 'free');
 });
+
+test('FOUNDRY_TEST_SERVER=GPU without -Server picks the GPU lock, not server A', { skip }, () => {
+  const s = scratch();
+  const r = spawnSync(
+    'pwsh',
+    ['-NoProfile', '-NonInteractive', '-File', script, ...take('lane-env', 'local_e'), '-Root', path.join(s.dir, 'rootGPU'), '-Vault', s.vault],
+    { encoding: 'utf8', env: { ...process.env, FOUNDRY_TEST_SERVER: 'GPU' } }
+  );
+  assert.equal(r.status, 0, r.stderr);
+  const n = readNote(path.join(s.vault, NOTE));
+  assert.equal(n['server-gpu'], 'held');
+  assert.equal(n['server-gpu-holder'], 'lane-env');
+  assert.equal(n['server-a'], undefined, 'server A is untouched');
+});

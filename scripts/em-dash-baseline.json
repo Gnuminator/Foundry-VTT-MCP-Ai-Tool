@@ -20,7 +20,7 @@
     "docs/dev/REMOTE-ACCESS.md": 7,
     "docs/dev/RUNTIME-TEST-PLAN.md": 18,
     "packages/cogm-dashboard/.env.example": 4,
-    "packages/cogm-dashboard/public/styles.css": 4,
+    "packages/cogm-dashboard/web/src/styles/styles.css": 4,
     "packages/cogm-dashboard/README.md": 9,
     "packages/cogm-dashboard/src/auth.test.ts": 4,
     "packages/cogm-dashboard/src/auth.ts": 2,

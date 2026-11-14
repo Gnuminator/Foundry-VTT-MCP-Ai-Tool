@@ -26,6 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
+import type { PlayerLinksBody } from './api-bodies.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
 import type { PlayerLinkStore } from './player-links.js';
@@ -417,7 +418,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .catch(() => undefined)
       .then(() => {
         const byUser = new Map((world ? links.list(world) : []).map(l => [l.userId, l]));
-        res.json({
+        const body: PlayerLinksBody = {
           players: directory.list().map(p => {
             const link = byUser.get(p.userId);
             return {
@@ -427,7 +428,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
               createdAt: link?.createdAt ?? null,
             };
           }),
-        });
+        };
+        res.json(body);
       });
   });
 

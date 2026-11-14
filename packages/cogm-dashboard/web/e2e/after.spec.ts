@@ -13,6 +13,8 @@ import {
   toast,
   type ToolCall,
   settle,
+  PREFLIGHT_OK,
+  switchesBody,
 } from './support';
 
 const NOW = new Date(2026, 9, 10, 20, 0).getTime();
@@ -78,17 +80,9 @@ async function fakeAfter(
   const posts: string[] = [];
   let items = setup.notes ?? [NOTES];
   await fakeCommonRoutes(page);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: {
-        switches: { switches: [] },
-        gmActionsEnabled: setup.gmActions !== false,
-        error: null,
-      },
-    })
+    route.fulfill({ json: switchesBody(setup.gmActions !== false) })
   );
   await page.route('**/api/session-notes', route => route.fulfill({ json: { items } }));
   await page.route('**/api/session-notes/pipeline', route =>

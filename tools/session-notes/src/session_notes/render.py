@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from . import layers
 from .model import Line, Roster, clock
 
 LANGS = ("da", "en")
@@ -157,7 +158,10 @@ def write_outputs(
     roster: Roster,
     notes: list[dict[str, Any]],
     session: dict[str, Any] | None,
+    depth: dict[int, dict[str, Any]] | None = None,
 ) -> list[Path]:
+    """``depth`` is None unless the three Danish layers are on (I-066): then raw, in-depth and
+    index files are written too (an empty dict means no in-depth notes yet)."""
     notes_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     # No session part means the run did not finish (pending raw scenes, a pause, a failed summary):
@@ -174,6 +178,14 @@ def write_outputs(
         put(f"scenes.{lang}.md", render_scenes(lang, lines, notes, incomplete))
         put(f"summary.{lang}.md", render_summary(lang, session))
         put(f"recap.player.{lang}.md", render_recap(lang, session))
+    layers_info: dict[str, Any] | None = None
+    if depth is not None:
+        wanted = [n["index"] for n in notes if not n.get("fallback")]
+        depth_complete = not incomplete and all(i in depth for i in wanted)
+        put("raw.da.md", layers.render_raw(lines, notes))
+        put("depth.da.md", layers.render_depth(lines, notes, depth, not depth_complete))
+        put("index.da.md", layers.render_index(session, depth_complete))
+        layers_info = {"depth_complete": depth_complete}
     put(
         "notes.json",
         json.dumps(
@@ -183,6 +195,8 @@ def write_outputs(
                 "complete": not incomplete,
                 "scenes": notes,
                 "session": session,
+                "depth": {str(k): v for k, v in (depth or {}).items()} or None,
+                "layers": layers_info,
             },
             ensure_ascii=False,
             indent=1,

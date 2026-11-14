@@ -2,14 +2,14 @@
 // by the build), the "?" that opens a pane's own heading, and the error path.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fromMenu } from './support';
+import { GM_TOKEN, SPACE_UNAVAILABLE, fakeCommonRoutes, fakeStream, fromMenu } from './support';
 
 const helpPane = (page: Page): Locator => page.locator('#pane-help');
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, []);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 });
 

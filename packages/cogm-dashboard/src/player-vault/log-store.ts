@@ -18,7 +18,7 @@ import crypto from 'crypto';
 import { promises as fsp, readdirSync, readFileSync } from 'fs';
 import * as path from 'path';
 
-import type { PlayerEvent } from '@gnuminator/shared';
+import { errorMessage, type PlayerEvent } from '@gnuminator/shared';
 
 import type { Logger } from '../logger.js';
 import { safeFileName } from './names.js';
@@ -89,10 +89,6 @@ function trimNoteText(dropped: number, cap: number): string {
 function droppedIn(note: PlayerEvent): number {
   const n = Number.parseInt(note.text, 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export class PlayerLogStore {

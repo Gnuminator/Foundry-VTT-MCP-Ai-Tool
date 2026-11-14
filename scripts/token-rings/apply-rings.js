@@ -56,15 +56,17 @@
         report.reverted.push(actor.name);
       }
       // Back to Foundry's default fit mode once no actor keeps a backup (clients reload to see it).
-      if (!dryRun && !game.actors.some(a => a.getFlag(FLAG_SCOPE, FLAG_KEY))) {
+      if (
+        !dryRun &&
+        report.reverted.length &&
+        !game.actors.some(a => a.getFlag(FLAG_SCOPE, FLAG_KEY))
+      ) {
         await game.settings.set('core', 'dynamicTokenRingFitMode', 'subject');
       }
       return report;
     }
 
     if (!dryRun && actors.length) {
-      // The setting needs a reload of every client to take effect.
-      await game.settings.set('core', 'dynamicTokenRingFitMode', 'grid');
       try {
         await FP.createDirectory('data', dir);
       } catch (e) {
@@ -72,6 +74,7 @@
       }
     }
 
+    let fitModeSet = false;
     for (const actor of actors) {
       const src = actor.prototypeToken.texture.src;
       if (!src || SKIP_SRC.test(src) || actor.getFlag(FLAG_SCOPE, FLAG_KEY)) {
@@ -112,8 +115,22 @@
           { notify: false }
         );
         const backup = { src, ring: foundry.utils.deepClone(actor._source.prototypeToken.ring) };
-        await actor.update({ 'prototypeToken.texture.src': up.path, 'prototypeToken.ring': RING });
+        // The backup goes in first, so a failed update never loses the original art.
         await actor.setFlag(FLAG_SCOPE, FLAG_KEY, backup);
+        try {
+          await actor.update({
+            'prototypeToken.texture.src': up.path,
+            'prototypeToken.ring': RING,
+          });
+        } catch (updateError) {
+          await actor.unsetFlag(FLAG_SCOPE, FLAG_KEY);
+          throw updateError;
+        }
+        if (!fitModeSet) {
+          // The setting needs a reload of every client to take effect.
+          await game.settings.set('core', 'dynamicTokenRingFitMode', 'grid');
+          fitModeSet = true;
+        }
         report.changed.push(actor.name);
       } catch (error) {
         report.failed.push(`${actor.name}: ${error?.message ?? error}`);

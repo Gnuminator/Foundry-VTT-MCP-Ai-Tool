@@ -7,6 +7,10 @@
  * glance, on the TV and on a phone. This wraps `getRingColors` on the token document class so a
  * token whose actor carries the dnd5e `bloodied` status shows a red ring. Defeated still wins
  * (dnd5e's own black ring), and the ring goes back when the status goes away.
+ *
+ * Known choice: dnd5e's `bloodied` player setting (who sees the status) is not consulted. The
+ * ring follows the status itself, so on a table that hides bloodied from players the ring still
+ * shows it; this is wanted here because the TV is the table's shared view of the monsters.
  */
 export const BLOODIED_RING_COLOR = 0xff1a1a;
 const BLOODIED_STATUS = 'bloodied';

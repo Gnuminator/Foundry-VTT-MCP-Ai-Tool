@@ -53,12 +53,13 @@ describe('light or dark', () => {
     expect(LIVE_SCHEME_MESSAGE).toBe('fmb-live-scheme');
   });
 
-  it('follows the scheme chosen for windows, then the interface, then the browser', () => {
+  it("follows Foundry's window rule: the windows scheme, else the browser, never the interface", () => {
     expect(pickScheme({ colorScheme: { applications: 'light', interface: 'dark' } }, false)).toBe(
       'light'
     );
+    // The interface scheme does not touch windows: an empty windows scheme follows the browser.
     expect(pickScheme({ colorScheme: { applications: '', interface: 'light' } }, false)).toBe(
-      'light'
+      'dark'
     );
     expect(pickScheme({ colorScheme: { applications: 'default' } }, true)).toBe('light');
     expect(pickScheme({ colorScheme: {} }, false)).toBe('dark');

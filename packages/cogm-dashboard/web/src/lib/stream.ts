@@ -112,13 +112,13 @@ export interface StreamLink {
 export const STREAM_LINK_KEY = ['stream', 'link'] as const;
 
 /** The page keeps 150 entries on screen; the server keeps the newest 100. */
-export const MAX_ERROR_ENTRIES = 150;
+const MAX_ERROR_ENTRIES = 150;
 
 export const MODULE_ERRORS_KEY = ['stream', 'errors'] as const;
 const EMPTY_LOG: ModuleErrorLog = { entries: [], errors: 0, warns: 0 };
 
 /** Adds a batch to the log: unseen ids only, newest first, capped. */
-export function addModuleErrors(log: ModuleErrorLog, batch: ModuleError[]): ModuleErrorLog {
+function addModuleErrors(log: ModuleErrorLog, batch: ModuleError[]): ModuleErrorLog {
   const seen = new Set(log.entries.map(e => e.id));
   const fresh = batch.filter(e => {
     if (seen.has(e.id)) return false;
@@ -255,7 +255,7 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
 };
 
 /** The wait before the first new connection after the browser gave up on the stream, then doubling. */
-export const STREAM_RETRY_MIN_MS = 2000;
+const STREAM_RETRY_MIN_MS = 2000;
 /** The longest wait between two new connections. */
 export const STREAM_RETRY_MAX_MS = 10_000;
 /**
@@ -497,7 +497,7 @@ export function useDashboardSettings(): DashboardSettings | undefined {
 }
 
 /** The world as the stream last reported it; null until the first world event or while away. */
-export function useWorld(): StreamWorld | null {
+function useWorld(): StreamWorld | null {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: WORLD_KEY,

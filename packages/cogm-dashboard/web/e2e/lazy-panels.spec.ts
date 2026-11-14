@@ -3,7 +3,16 @@
 // closes the drawer again with a toast. The chunk request is held or refused in the browser.
 import { expect, test, type Page, type Route } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, fromMenu, ok, toast } from './support';
+import {
+  GM_TOKEN,
+  PREFLIGHT_OK,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  fromMenu,
+  ok,
+  toast,
+} from './support';
 
 /** The Tool Runner's chunk (Vite names it Tools-<hash>.js). */
 const TOOLS_CHUNK = '**/assets/Tools-*.js';
@@ -94,9 +103,7 @@ test('Escape closes the loading drawer while the chunk is still on its way', asy
 test('a docked loading panel with the focus hands it to the real panel', async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, []);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await fakeTools(
     page,
     call => {

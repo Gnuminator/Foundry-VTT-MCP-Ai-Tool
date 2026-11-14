@@ -15,6 +15,8 @@ import {
   toast,
   type ToolCall,
   fromMenu,
+  PREFLIGHT_OK,
+  switchesBody,
 } from './support';
 
 // The subtitle shows the reading's time in the browser's locale and zone.
@@ -205,11 +207,9 @@ const pos = (drawer: Locator, position: string): Locator =>
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   // The GM Actions gate opens Pre-flight.
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: false } })
+    route.fulfill({ json: switchesBody(false) })
   );
 });
 

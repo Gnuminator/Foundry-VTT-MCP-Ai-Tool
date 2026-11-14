@@ -5,7 +5,17 @@
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok } from './support';
+import {
+  GM_TOKEN,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  SPACE_UNAVAILABLE,
+  fakeCommonRoutes,
+  fakeTools,
+  fromMenu,
+  ok,
+  switchesBody,
+} from './support';
 
 const STARTED = '2026-10-10T18:00:00.000Z';
 
@@ -33,20 +43,12 @@ interface Fakes {
  */
 async function setup(page: Page, layout: Layout = 'layered', full = false): Promise<Fakes> {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: {
-        switches: { switches: [], ready: null, changed: [], failed: [] },
-        gmActionsEnabled: false,
-        error: null,
-      },
-    })
+    route.fulfill({ json: switchesBody(false) })
   );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   const calls = await fakeTools(
     page,
     call => {

@@ -41,7 +41,7 @@ export interface SessionMarker {
   previousEndedAtMs: number | null;
 }
 
-export function sessionMarker(session: unknown): SessionMarker | null {
+function sessionMarker(session: unknown): SessionMarker | null {
   const r = asRecord(session);
   if (!r) return null;
   const ms = (at: unknown): number | null => {

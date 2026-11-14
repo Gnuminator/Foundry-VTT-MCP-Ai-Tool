@@ -42,7 +42,7 @@ import type {
  */
 
 /** How many feed lines the player page keeps. */
-export const PLAYER_FEED_LIMIT = 60;
+const PLAYER_FEED_LIMIT = 60;
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;

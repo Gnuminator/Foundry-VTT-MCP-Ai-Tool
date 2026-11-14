@@ -11,7 +11,7 @@
  */
 import { createHash } from 'crypto';
 
-import { DEFAULT_STORY_ITEM_TYPES, LIBRARY_PACK_ID_PATTERN } from '@gnuminator/shared';
+import { DEFAULT_STORY_ITEM_TYPES, LIBRARY_PACK_ID_PATTERN, isRecord } from '@gnuminator/shared';
 
 import type { VaultStore } from '../vault/store.js';
 
@@ -64,10 +64,6 @@ export const DEFAULT_MIRROR_SETTINGS: MirrorSettings = freezeSettings({
   storyItemTypes: [...DEFAULT_STORY_ITEM_TYPES],
   libraryPacks: [],
 });
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** Valid ids only, deduplicated, sorted, at most `MAX_IDS`. Anything else is dropped. */
 function normalizeIds(raw: unknown): string[] {

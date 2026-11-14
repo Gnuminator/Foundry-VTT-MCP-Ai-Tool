@@ -19,7 +19,7 @@
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
-import { errorMessage as sharedErrorMessage } from '@gnuminator/shared';
+import { errorMessage } from '@gnuminator/shared';
 
 import { writeFileAtomic } from './atomic-write.js';
 import type { OwnershipResult } from './ownership.js';
@@ -27,9 +27,7 @@ import type { OwnershipResult } from './ownership.js';
 /** The status line of an edited note that stays in a folder it no longer belongs in (I-100). */
 export const KEPT_AT_OLD_PATH = 'kept at its old path because it was edited';
 
-export function errorMessage(error: unknown): string {
-  return sharedErrorMessage(error);
-}
+export { errorMessage };
 
 export function errorCode(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | undefined)?.code;

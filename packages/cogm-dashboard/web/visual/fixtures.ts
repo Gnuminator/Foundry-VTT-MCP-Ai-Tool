@@ -7,7 +7,17 @@
 // The /api fakes are the e2e helpers (../e2e/support); only the data is new.
 import type { Page } from '@playwright/test';
 
-import { fakeCommonRoutes, fakeStream, fakeTools, ok, type ToolCall } from '../e2e/support';
+import type { ApiBodies } from '../../src/api-bodies';
+import {
+  SPACE_UNAVAILABLE,
+  apiBody,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+  preflightBody,
+  type ToolCall,
+} from '../e2e/support';
 
 /** 2026-10-10 20:00 UTC: "now" for every screenshot. */
 export const NOW = Date.UTC(2026, 9, 10, 20, 0);
@@ -118,7 +128,7 @@ const SESSIONS: Record<Moment, { open: boolean; endedAt: string | null }> = {
   after: { open: false, endedAt: iso(NOW - 2 * HOUR) },
 };
 
-const PREFLIGHT_CHECKS = (versionMismatch: boolean): unknown[] => [
+const PREFLIGHT_CHECKS = (versionMismatch: boolean): ApiBodies['/api/preflight']['checks'] => [
   {
     id: 'versions',
     label: 'Versions match',
@@ -127,23 +137,40 @@ const PREFLIGHT_CHECKS = (versionMismatch: boolean): unknown[] => [
       ? 'The Foundry module is 0.20.2 but the bridge is 0.21.0. Update the module.'
       : 'Bridge 0.21.0, module 0.21.0.',
   },
-  { id: 'scene', label: 'Starting scene', status: 'ok', detail: 'Harbor Market is active.' },
   {
-    id: 'hidden',
+    id: 'world-settings',
+    label: 'Starting scene',
+    status: 'ok',
+    detail: 'Harbor Market is active.',
+  },
+  {
+    id: 'visible-names',
     label: 'Hidden tokens',
     status: 'warn',
     detail: 'One token on the active scene is hidden.',
   },
-  { id: 'journals', label: 'Handout pages', status: 'ok', detail: 'All set to None.' },
+  { id: 'modules', label: 'Handout pages', status: 'ok', detail: 'All set to None.' },
 ];
 
-const PREFLIGHT_SCAN = {
-  settings: [{ setting: 'core.worldTitle', masked: 'shown', reason: 'names the harbor' }],
-  names: [{ kind: 'Actor', name: 'Old Gull', terms: ['gull'] }],
+const PREFLIGHT_SCAN: NonNullable<ApiBodies['/api/preflight']['scan']> = {
+  computedAt: at(19),
+  settingsChecked: 12,
+  settings: [
+    {
+      setting: 'core.worldTitle',
+      namespace: 'core',
+      rule: 'key-name',
+      severity: 'warn',
+      reason: 'names the harbor',
+      masked: 'shown',
+    },
+  ],
+  namesChecked: 40,
+  names: [{ kind: 'actor', id: 'a1', name: 'Old Gull', terms: ['gull'] }],
   modules: [],
 };
 
-const SWITCHES = {
+const SWITCHES = apiBody('/api/session/switches', {
   switches: {
     switches: [
       { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
@@ -156,18 +183,18 @@ const SWITCHES = {
   },
   gmActionsEnabled: true,
   error: null,
-};
+});
 
-const PLAYERS = [
+const PLAYERS = apiBody('/api/player/names', [
   { userId: 'u1', name: 'Mara' },
   { userId: 'u2', name: 'Tobias' },
   { userId: 'u3', name: 'Nell' },
-];
+]);
 
-const PLAYER_LINKS = [
-  { userId: 'aaaaaaaaaaaaaaaa', name: 'Mara', link: '/me?k=maraKey', createdAt: at(18) },
+const PLAYER_LINKS: ApiBodies['/api/player-links']['players'] = [
+  { userId: 'aaaaaaaaaaaaaaaa', name: 'Mara', link: '/me?k=maraKey', createdAt: iso(at(18)) },
   { userId: 'bbbbbbbbbbbbbbbb', name: 'Tobias', link: null, createdAt: null },
-  { userId: 'cccccccccccccccc', name: 'Nell', link: '/me?k=nellKey', createdAt: at(19) },
+  { userId: 'cccccccccccccccc', name: 'Nell', link: '/me?k=nellKey', createdAt: iso(at(19)) },
 ];
 
 const SCENES = [
@@ -607,18 +634,14 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
   await page.clock.setFixedTime(NOW);
 
   await fakeCommonRoutes(page, setup.theme);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await page.route('**/api/player/names', route => route.fulfill({ json: PLAYERS }));
   await page.route('**/api/player-links**', route =>
-    route.fulfill({ json: { players: PLAYER_LINKS } })
+    route.fulfill({ json: apiBody('/api/player-links', { players: PLAYER_LINKS }) })
   );
   await page.route('**/api/preflight', route =>
     route.fulfill({
-      json: {
-        ready: !versionMismatch,
-        checks: PREFLIGHT_CHECKS(versionMismatch),
-        scan: PREFLIGHT_SCAN,
-      },
+      json: preflightBody(PREFLIGHT_CHECKS(versionMismatch), !versionMismatch, PREFLIGHT_SCAN),
     })
   );
   await page.route('**/api/session/switches', route => route.fulfill({ json: SWITCHES }));

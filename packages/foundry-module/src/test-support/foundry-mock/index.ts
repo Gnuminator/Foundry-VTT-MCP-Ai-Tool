@@ -1,5 +1,5 @@
 /**
- * Foundry-mock harness — Phase 9 prerequisite.
+ * Foundry-mock harness, Phase 9 prerequisite.
  *
  * A lightweight, in-memory stand-in for the Foundry VTT browser runtime so the
  * ~9.5k-LOC `data-access.ts` (untestable browser plumbing until now) can finally

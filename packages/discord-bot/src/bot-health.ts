@@ -3,6 +3,8 @@
  * from the Discord client so they can be tested.
  */
 
+import { bi } from './i18n.js';
+
 export interface VoiceStateLike {
   channelId: string | null;
   selfMute?: boolean | null;
@@ -45,8 +47,11 @@ export function statusText(
   speakerLines: string[]
 ): string {
   return [
-    `Recording in ${channelName}: ${tracks} track(s), RTP tap ${rtpTap ? 'on' : 'off'}.`,
-    `Voice connection: ${connection}.`,
+    bi(
+      `Optager i ${channelName}: ${tracks} spor, RTP tap ${rtpTap ? 'til' : 'fra'}.`,
+      `Recording in ${channelName}: ${tracks} track(s), RTP tap ${rtpTap ? 'on' : 'off'}.`
+    ),
+    `Voice-forbindelse / Voice connection: ${connection}.`,
     ...speakerLines,
   ].join('\n');
 }

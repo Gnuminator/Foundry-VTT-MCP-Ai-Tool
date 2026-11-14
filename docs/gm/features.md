@@ -166,12 +166,12 @@ GM Actions. **End session** turns off again what it turned on. See
 ## Themed dice
 
 - **What it does:** with the module **Dice So Nice** installed and enabled, two dice colour sets
-  match the dashboard's themes: **AI Tool: The Veil** (smoky grey-green glass with drifting mist, the
+  match the dashboard's themes: **AI Tool: The Veil (campaign look)** (smoky grey-green glass with drifting mist, the
   numbers in lamp gold) and **AI Tool: Neutral** (deep navy with blue-white numbers). Only the
   look of the 3D dice changes; rolls and the play log stay the same.
 - **Starts:** the sets are there as soon as Dice So Nice is; nobody uses them until they pick them.
 - **Turn it on when:** before session 1. Open **Game Settings**, category **Dice So Nice!**, click
-  **3D Dice Settings**, stay on the **Appearance** tab, pick **AI Tool: The Veil** (or **AI Tool:
+  **3D Dice Settings**, stay on the **Appearance** tab, pick **AI Tool: The Veil (campaign look)** (or **AI Tool:
   Neutral**) in the **Theme** list and click **Save**. Dice So Nice has no table-wide default (its
   **Configure Dice Roles** window only sets the look of damage types such as Fire), so every player
   picks their own dice the same way.

@@ -6,7 +6,7 @@
 import { frameParentOrigin } from './mapPick';
 
 /** The `type` the Foundry module posts (packages/foundry-module/src/live-window.ts). */
-export const LIVE_SCHEME_MESSAGE = 'fmb-live-scheme';
+const LIVE_SCHEME_MESSAGE = 'fmb-live-scheme';
 
 export type Scheme = 'light' | 'dark';
 

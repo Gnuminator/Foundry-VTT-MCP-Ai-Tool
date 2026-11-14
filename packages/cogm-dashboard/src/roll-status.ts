@@ -1,3 +1,5 @@
+import { isRecord } from '@gnuminator/shared';
+
 import type { SessionEvent } from './feed/types.js';
 
 /**
@@ -36,16 +38,13 @@ export interface OpenRoll {
 }
 
 /** A request older than this no longer counts as waiting. */
-export const OPEN_WINDOW_MS = 30 * 60 * 1000;
+const OPEN_WINDOW_MS = 30 * 60 * 1000;
 
 /** Roll families that answer a request; attacks, damage and initiative never do. */
 const ANSWERING = new Set(['check', 'skill', 'save', 'tool']);
 
 /** A result may be stamped a moment before the request on a clock that runs behind. */
 const CLOCK_SLACK_MS = 2000;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 

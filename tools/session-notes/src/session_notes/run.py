@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -18,8 +19,16 @@ from pathlib import Path
 from typing import Any
 
 from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
-from .model import Roster, Scene, apply_speakers, load_roster, load_timeline
-from .prompts import SCENE_SCHEMA, SESSION_SCHEMA, scene_prompt, session_prompt
+from .layers import (
+    DEPTH_SCHEMA,
+    check_depth,
+    depth_prompt,
+    prompt_context,
+    repair_depth,
+    scene_key,
+)
+from .model import Line, Roster, Scene, apply_speakers, load_roster, load_timeline
+from .prompts import SCENE_SCHEMA, SESSION_SCHEMA, roster_block, scene_prompt, session_prompt
 from .scenes import split_scenes
 from .validate import check_lines, combine, raw_fallback, repair
 
@@ -41,6 +50,10 @@ class Options:
     # A raw scene counts as one more failed run only if the last count is older than this, so
     # three quick passes during one outage do not accept hollow scenes (tests set 0).
     fallback_gap_s: float = 1800.0
+    # The three Danish layers (I-066): also write raw, in-depth notes per scene and an index.
+    layers: bool = False
+    depth_model: str = "sonnet"
+    depth_effort: str = "medium"
 
 
 @dataclass(slots=True)
@@ -50,6 +63,7 @@ class RunResult:
     paused: str | None = None  # the usage-limit or login message when the run had to stop
     login_needed: bool = False  # the stop was a logged-out claude, not a usage limit
     pending: int = 0  # raw fallback scenes that the next run tries again
+    depth_missing: int = 0  # scenes without in-depth notes yet (layers only); the next run tries
     audit: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -187,8 +201,17 @@ class Writer:
             session_notes = self._session_notes(notes, roster)
             if session_notes is None:
                 paused_reason = self.session_pause
+        depth: dict[int, dict[str, Any]] | None = None
+        depth_missing = 0
+        if self.opts.layers:
+            depth = {}
+            if complete and session_notes is not None:
+                depth, depth_missing, depth_pause = self._depth_notes(notes, roster, lines)
+                paused_reason = paused_reason or depth_pause
+            else:
+                depth_missing = sum(1 for n in notes if not n.get("fallback"))
         # Written even when the session summary is missing: the scene notes are useful alone.
-        write_outputs(self.notes_dir, lines, roster, notes, session_notes)
+        write_outputs(self.notes_dir, lines, roster, notes, session_notes, depth)
         self._flush_audit()
         return RunResult(
             scenes=len(notes),
@@ -196,8 +219,121 @@ class Writer:
             paused=paused_reason,
             login_needed=self.login_needed,
             pending=len(retry),
+            depth_missing=depth_missing,
             audit=self.audit,
         )
+
+    # --- in-depth layer ------------------------------------------------------------------------
+
+    def _depth_notes(
+        self, notes: list[dict[str, Any]], roster: Roster, lines: list[Line]
+    ) -> tuple[dict[int, dict[str, Any]], int, str | None]:
+        """One call per scene; returns (depth by scene index, scenes still missing, pause text)."""
+        starts = {ln.id: ln.start for ln in lines}
+        who = prompt_context(lines)
+        block = roster_block(roster)
+        done: dict[int, dict[str, Any]] = {}
+        todo: list[dict[str, Any]] = []
+        for scene in notes:
+            if scene.get("fallback"):
+                continue
+            cached = self.work / f"depth-{scene['index']:03d}.json"
+            try:
+                data = json.loads(cached.read_text(encoding="utf-8"))
+                if data.get("key") == scene_key(scene) and isinstance(data["notes"], dict):
+                    done[scene["index"]] = data["notes"]
+                    continue
+            except (ValueError, KeyError, OSError, AttributeError, TypeError):
+                pass  # missing, partial or old: written again
+            todo.append(scene)
+        paused: list[str] = []
+        lock = threading.Lock()
+
+        def work(scene: dict[str, Any]) -> None:
+            if paused:
+                return
+            started = time.monotonic()
+            hint = ""
+            for _attempt in range(2):
+                try:
+                    result = self.runner(
+                        depth_prompt(scene, block, starts, who) + hint,
+                        DEPTH_SCHEMA,
+                        self.opts.depth_model,
+                        self.opts.depth_effort,
+                    )
+                except UsageLimitError as exc:
+                    with lock:
+                        paused.append(str(exc))
+                        self.login_needed = self.login_needed or isinstance(exc, AuthError)
+                    self._log("paused", scene=scene["index"], reason=str(exc), layer="depth")
+                    return
+                except ClaudeError as exc:
+                    self._log("depth_error", scene=scene["index"], error=str(exc))
+                    continue
+                problems = check_depth(result, scene)
+                if problems:
+                    self._log("depth_invalid", scene=scene["index"], problems=problems)
+                    hint = (
+                        "\n\nYour previous answer was rejected: "
+                        + "; ".join(problems)
+                        + ". Fix this."
+                    )
+                    continue
+                fixes = repair_depth(result, scene)
+                self._save_depth(scene, result)
+                self._log(
+                    "depth_ok",
+                    scene=scene["index"],
+                    beats=len(result["beats"]),
+                    seconds=round(time.monotonic() - started, 1),
+                    fixes=fixes,
+                )
+                with lock:
+                    done[scene["index"]] = result
+                return
+            # Both tries failed. Like a raw scene, it is tried again on the next runs; after
+            # MAX_FALLBACK_RUNS counted runs it is accepted without in-depth notes, so a scene
+            # that never passes the checks cannot cost two calls every hour for ever.
+            if self._count_depth_failure(scene):
+                gave_up = {"beats": [], "fallback": True}
+                self._save_depth(scene, gave_up)
+                with lock:
+                    done[scene["index"]] = gave_up
+
+        with ThreadPoolExecutor(max_workers=max(1, self.opts.workers)) as pool:
+            list(pool.map(work, todo))
+        total = sum(1 for n in notes if not n.get("fallback"))
+        return done, total - len(done), (paused[0] if paused else None)
+
+    def _save_depth(self, scene: dict[str, Any], result: dict[str, Any]) -> None:
+        path = self.work / f"depth-{scene['index']:03d}.json"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps({"key": scene_key(scene), "notes": result}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp, path)
+
+    def _count_depth_failure(self, scene: dict[str, Any]) -> bool:
+        """Count this run for a scene whose in-depth notes failed; True once it is given up."""
+        marker = self.work / f"depth-{scene['index']:03d}.fail.json"
+        key = scene_key(scene)
+        tries, last = 0, 0.0
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            if data.get("key") == key:
+                tries, last = int(data.get("tries", 0)), float(data.get("at", 0))
+        except (ValueError, OSError, AttributeError, TypeError):
+            pass
+        now = time.time()
+        if tries == 0 or now - last >= self.opts.fallback_gap_s:
+            tries += 1
+            marker.write_text(
+                json.dumps({"key": key, "tries": tries, "at": now}), encoding="utf-8"
+            )
+        self._log("depth_failed_run", scene=scene["index"], tries=tries)
+        return tries >= MAX_FALLBACK_RUNS
 
     def _fallback_tries(self, scene: Scene) -> int:
         marker = self.work / f"scene-{scene.index:03d}.fallback.json"

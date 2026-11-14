@@ -167,8 +167,9 @@ describe('isNodeProcess', () => {
 
 describe('getProcessName', () => {
   it('returns a node-related name for a running Node.js process', async () => {
-    // A child process, not process.pid: Vitest 5 runs tests in worker threads, and on Linux the
-    // test process then reports its main thread name ("mainthread"), not "node".
+    // A child process, not process.pid: under Vitest 5 on Linux the test process was seen to report
+    // "mainthread" instead of "node" (cause not found; the pool is not threads), so the name is
+    // read from a plain child.
     const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
       stdio: 'ignore',
     });

@@ -102,7 +102,7 @@ export function pipelineView(p: PipelineStatus): { line: string; problem: boolea
   };
 }
 
-export function notesTime(iso: string | undefined): string {
+function notesTime(iso: string | undefined): string {
   return iso
     ? new Date(iso).toLocaleString([], {
         day: 'numeric',

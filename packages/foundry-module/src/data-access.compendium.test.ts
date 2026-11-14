@@ -2,7 +2,7 @@
  * Characterization tests for the basic (non-enhanced) compendium-search paths
  * of `FoundryDataAccess`, driven through the Phase 9 Foundry-mock harness.
  *
- * Enhanced creature index is kept OFF (the default — `game.settings.get` returns
+ * Enhanced creature index is kept OFF (the default, `game.settings.get` returns
  * `undefined` for `enableEnhancedCreatureIndex`). See inline comments where the
  * harness pack/document shape needed local workarounds.
  */
@@ -42,10 +42,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// searchCompendium — input validation
+// searchCompendium: input validation
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — searchCompendium — input validation', () => {
+describe('FoundryDataAccess: searchCompendium: input validation', () => {
   it('throws when query is an empty string', async () => {
     await expect(da.searchCompendium('')).rejects.toThrow(
       'Search query must be a string with at least 2 characters'
@@ -79,10 +79,10 @@ describe('FoundryDataAccess — searchCompendium — input validation', () => {
 });
 
 // ---------------------------------------------------------------------------
-// searchCompendium — name matching and packType filtering
+// searchCompendium: name matching and packType filtering
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — searchCompendium — name matching', () => {
+describe('FoundryDataAccess: searchCompendium: name matching', () => {
   it('returns an entry whose name contains the query term', async () => {
     const goblin = makeActor({ id: 'g1', name: 'Goblin Warrior', type: 'npc' });
     world.addPack({
@@ -210,7 +210,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
     expect(results[0].img).toBeUndefined();
   });
 
-  it('filters by packType — Actor packs only', async () => {
+  it('filters by packType: Actor packs only', async () => {
     world.addPack({
       id: 'world.actors',
       label: 'Actors Pack',
@@ -473,10 +473,10 @@ describe('FoundryDataAccess: searchCompendium, Item summary fields (dnd5e 6)', (
 });
 
 // ---------------------------------------------------------------------------
-// listCreaturesByCriteria — enhanced index OFF → fallbackBasicCreatureSearch
+// listCreaturesByCriteria: enhanced index OFF → fallbackBasicCreatureSearch
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — listCreaturesByCriteria (enhanced OFF → fallback)', () => {
+describe('FoundryDataAccess: listCreaturesByCriteria (enhanced OFF → fallback)', () => {
   it('returns {creatures, searchSummary} with fallback metadata when no criteria given', async () => {
     // fallbackBasicCreatureSearch searches for 'monster' when no criteria terms
     world.addPack({
@@ -572,10 +572,10 @@ describe('FoundryDataAccess — listCreaturesByCriteria (enhanced OFF → fallba
 });
 
 // ---------------------------------------------------------------------------
-// searchCompendium — enhanced fast path (index ON)
+// searchCompendium: enhanced fast path (index ON)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — searchCompendium — enhanced fast path', () => {
+describe('FoundryDataAccess: searchCompendium: enhanced fast path', () => {
   it('passes challengeRating 0 to the enhanced index instead of dropping it', async () => {
     world.setSetting('foundry-mcp-bridge', 'enableEnhancedCreatureIndex', true);
     const compendium = (da as any).compendium;
@@ -591,10 +591,10 @@ describe('FoundryDataAccess — searchCompendium — enhanced fast path', () => 
 });
 
 // ---------------------------------------------------------------------------
-// listCreaturesByCriteria — enhanced index ON: criteria matching (M3)
+// listCreaturesByCriteria: enhanced index ON: criteria matching (M3)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — listCreaturesByCriteria (enhanced index matching)', () => {
+describe('FoundryDataAccess: listCreaturesByCriteria (enhanced index matching)', () => {
   const entry = (over: Record<string, unknown>): Record<string, unknown> => ({
     id: String(over.name),
     type: 'npc',
@@ -754,7 +754,7 @@ describe('FoundryDataAccess: listCreaturesByCriteria while the creature index bu
 // getCompendiumDocumentFull
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCompendiumDocumentFull', () => {
+describe('FoundryDataAccess: getCompendiumDocumentFull', () => {
   it('throws when the pack is not found', async () => {
     await expect(da.getCompendiumDocumentFull('nonexistent.pack', 'doc1')).rejects.toThrow(
       'Compendium pack nonexistent.pack not found'

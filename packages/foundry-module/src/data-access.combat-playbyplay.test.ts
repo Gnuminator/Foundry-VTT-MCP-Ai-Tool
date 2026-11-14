@@ -4,8 +4,8 @@
  * `data-access.combat.test.ts` pins `getCombatState` exhaustively but does NOT
  * touch `getCombatPlayByPlay`; only the pure `EventTracker.buildPlayByPlay`
  * helper it delegates to is pinned (in `session-events.test.ts`). This file pins
- * `getCombatPlayByPlay`'s OWN logic — which combat document it resolves and the
- * lightweight descriptor it forwards — so the Phase 9 rewrite of the combat
+ * `getCombatPlayByPlay`'s OWN logic, which combat document it resolves and the
+ * lightweight descriptor it forwards, so the Phase 9 rewrite of the combat
  * reads can be verified to parity across both read methods.
  *
  * `eventTracker.buildPlayByPlay` is spied so the assertions isolate the
@@ -38,7 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('FoundryDataAccess — getCombatPlayByPlay', () => {
+describe('FoundryDataAccess: getCombatPlayByPlay', () => {
   it('passes null to buildPlayByPlay when there is no combat, and returns its result verbatim', async () => {
     const marker = { playByPlay: 'no-combat-marker' };
     const spy = vi.spyOn(eventTracker, 'buildPlayByPlay').mockReturnValue(marker as any);

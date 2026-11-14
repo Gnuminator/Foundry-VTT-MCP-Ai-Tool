@@ -4,7 +4,15 @@
 // wide. The bridge and the stream are faked; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, type ToolCall } from './support';
+import {
+  GM_TOKEN,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+  switchesBody,
+  type ToolCall,
+} from './support';
 
 interface Raw {
   id: string;
@@ -65,17 +73,14 @@ async function setup(
     const off = opts.switchesOff;
     await page.route('**/api/session/switches', route =>
       route.fulfill({
-        json: {
-          switches: {
-            switches: ['writes', 'live-play', 'handouts'].map(id => ({
-              id,
-              name: `AI Tool: ${id}`,
-              on: !off.includes(id),
-            })),
-          },
-          gmActionsEnabled: opts.gmActions ?? true,
-          error: null,
-        },
+        json: switchesBody(
+          opts.gmActions ?? true,
+          ['writes', 'live-play', 'handouts'].map(id => ({
+            id,
+            name: `AI Tool: ${id}`,
+            on: !off.includes(id),
+          }))
+        ),
       })
     );
   }

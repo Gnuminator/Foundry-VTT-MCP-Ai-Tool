@@ -9,7 +9,7 @@
  * (dnd5e's own black ring), and the ring goes back when the status goes away.
  */
 export const BLOODIED_RING_COLOR = 0xff1a1a;
-export const BLOODIED_STATUS = 'bloodied';
+const BLOODIED_STATUS = 'bloodied';
 
 interface RingColors {
   ring?: number;

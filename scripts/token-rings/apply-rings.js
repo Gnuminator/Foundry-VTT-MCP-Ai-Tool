@@ -3,10 +3,13 @@
  *
  * Run it as a GM in the browser console (or a script macro) of the world to change:
  *
- *   const run = <paste this file>;   // it evaluates to an async function
+ *   const run = <paste this file>;   // it evaluates to the async function run
  *   await run({ dryRun: true });     // lists what it would do
  *   await run({});                   // cuts round token art and turns the rings on
- *   await run({ revert: true });     // puts every changed actor back exactly as it was
+ *   await run({ revert: true });     // puts every changed actor back, and the fit mode to Foundry's default
+ *
+ * Reload every client after a run: the fit mode setting needs it. Revert does not delete the
+ * uploaded PNGs, and tokens already placed on scenes keep their own copy of the art and ring.
  *
  * What it does per NPC actor (character actors, the party, are left alone: their art is a later step):
  *  - cuts the prototype token art into a round PNG and uploads it to `worlds/<world>/token-rings/`
@@ -20,7 +23,8 @@
  * Square portraits do not work with a ring on their own: Foundry does not clip the art, so the
  * corners poke out over the ring. Round art is what makes the ring look right.
  */
-(async function () {
+/* global game, foundry, Image, document */
+(function () {
   const FLAG_SCOPE = 'foundry-mcp-bridge';
   const FLAG_KEY = 'tokenRingBackup';
   const RING = {
@@ -51,10 +55,15 @@
         }
         report.reverted.push(actor.name);
       }
+      // Back to Foundry's default fit mode once no actor keeps a backup (clients reload to see it).
+      if (!dryRun && !game.actors.some(a => a.getFlag(FLAG_SCOPE, FLAG_KEY))) {
+        await game.settings.set('core', 'dynamicTokenRingFitMode', 'subject');
+      }
       return report;
     }
 
-    if (!dryRun) {
+    if (!dryRun && actors.length) {
+      // The setting needs a reload of every client to take effect.
       await game.settings.set('core', 'dynamicTokenRingFitMode', 'grid');
       try {
         await FP.createDirectory('data', dir);
@@ -63,7 +72,6 @@
       }
     }
 
-    const slugs = new Set();
     for (const actor of actors) {
       const src = actor.prototypeToken.texture.src;
       if (!src || SKIP_SRC.test(src) || actor.getFlag(FLAG_SCOPE, FLAG_KEY)) {
@@ -75,17 +83,16 @@
           report.changed.push(actor.name);
           continue;
         }
-        let slug =
-          actor.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '') || actor.id;
-        if (slugs.has(slug)) slug = `${slug}-${actor.id}`;
-        slugs.add(slug);
+        // The actor id in the file name keeps two actors with one name from sharing a file.
+        const slug = `${actor.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')}-${actor.id}`;
         const img = new Image();
         img.src = src.startsWith('http') || src.startsWith('/') ? src : `/${src}`;
         await img.decode();
         const side = Math.min(img.naturalWidth, img.naturalHeight);
+        if (!side) throw new Error('the art has no pixel size');
         const canvasEl = document.createElement('canvas');
         canvasEl.width = canvasEl.height = 512;
         const ctx = canvasEl.getContext('2d');
@@ -104,11 +111,9 @@
           {},
           { notify: false }
         );
-        await actor.setFlag(FLAG_SCOPE, FLAG_KEY, {
-          src,
-          ring: foundry.utils.deepClone(actor._source.prototypeToken.ring),
-        });
+        const backup = { src, ring: foundry.utils.deepClone(actor._source.prototypeToken.ring) };
         await actor.update({ 'prototypeToken.texture.src': up.path, 'prototypeToken.ring': RING });
+        await actor.setFlag(FLAG_SCOPE, FLAG_KEY, backup);
         report.changed.push(actor.name);
       } catch (error) {
         report.failed.push(`${actor.name}: ${error?.message ?? error}`);

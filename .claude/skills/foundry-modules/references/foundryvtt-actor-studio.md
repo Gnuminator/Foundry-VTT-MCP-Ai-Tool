@@ -1,6 +1,6 @@
 # Actor Studio, AI Tool fork (`foundryvtt-actor-studio`)
 
-Verified on Foundry 14.370 / dnd5e 6.0.6, module 2.10.5-aitool.5, 2026-11-07 (test server B, test kit). Stage 13 pins `2.10.5-aitool.12` (2026-11-10, the Pi shows the installed build in its module.json); the live Actor Studio checks of `.8` to `.12` are not done yet. The tabs and settings below were clicked through on aitool.4 on 2026-10-28; the Select Spells window of aitool.5 on test server A on 2026-11-04; the test kit builds Fighters with aitool.5 on 2026-11-07. Parts not clicked through are marked "(not verified)".
+Verified on Foundry 14.370 / dnd5e 6.0.6, module 2.10.5-aitool.5, 2026-11-07 (test server B, test kit). Stage 13 pins `2.10.5-aitool.12` (2026-11-10; the Pi had `2.10.5-aitool.10` from the 2026-11-08 run); the live Actor Studio checks of `.8` to `.12` are not done yet. The tabs and settings below were clicked through on aitool.4 on 2026-10-28; the Select Spells window of aitool.5 on test server A on 2026-11-04; the test kit builds Fighters with aitool.5 on 2026-11-07. Parts not clicked through are marked "(not verified)".
 
 **Verdict: keep.** The table builds its characters with it: players make their level-1 heroes with it at session 0. The test kit drives it too (decisions D-112 and D-113). We run our own fork, `2.10.5-aitool.12` (pinned by stage 13 on 2026-11-10; the Pi had `aitool.10` from the 2026-11-08 run), not the upstream release. `.12` adds the edition filter: the species, subclass, feat and spell pickers hide a 2014 entry when a 2024 version is offered.
 

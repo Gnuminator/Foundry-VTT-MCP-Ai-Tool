@@ -363,6 +363,9 @@ test('isMerged: the three false positives of 2026-11-12 are not merged, the two 
     isMerged(itemWith(['2026-10-28 HELD, merge-ready: PR #534 (main merged, round 2 fixes)'])),
     false
   );
+  // "main merged at <sha>" is also a merge of main; "PR#5 merged" is the item's own
+  assert.equal(isMerged(itemWith(['2026-11-12 main merged at abc1234, work left'])), false);
+  assert.equal(isMerged(itemWith(['2026-11-12 PR#5 merged'])), true);
   // real-tool-usage and main-red-auto-revert style: PR #n merged
   assert.equal(isMerged(itemWith(['2026-11-10 planner: PR #909 merged (weekly line)'])), true);
   assert.equal(isMerged(itemWith(['2026-10-28 PR #301 MERGED at ad13367 after rounds'])), true);
@@ -537,6 +540,29 @@ test('git: claim pushes one commit with only Backlog.md; an unrelated dirty file
   assert.equal(fs.readFileSync(path.join(v.a, 'other.md'), 'utf8'), 'someone else is editing\n');
 });
 
+test('git: a rebase left in the vault by a killed run is aborted by the next run', () => {
+  const v = vaults();
+  fs.writeFileSync(path.join(v.b, 'other.md'), 'from b\n');
+  git(v.b, ['commit', '-q', '-am', 'b edit']);
+  git(v.b, ['push', '-q']);
+  fs.writeFileSync(path.join(v.a, 'other.md'), 'from a\n');
+  git(v.a, ['commit', '-q', '-am', 'a edit']);
+  git(v.a, ['fetch', '-q']);
+  assert.throws(() => git(v.a, ['rebase', '-q', 'origin/main'])); // stops on the conflict
+  const gitDir = path.join(v.a, '.git');
+  assert.ok(fs.existsSync(path.join(gitDir, 'rebase-merge')), 'the test left a half rebase');
+  // the tool's own rebase leaves its marker; a hand-started one has none
+  const refused = v.cli(['progress', 'first', 'x']);
+  assert.equal(refused.code, 1);
+  assert.match(refused.err, /middle of a rebase started by another session/);
+  assert.ok(fs.existsSync(path.join(gitDir, 'rebase-merge')), "another session's rebase survives");
+  fs.writeFileSync(path.join(gitDir, 'backlog-tool.rebase'), '1');
+  const r = v.cli(['progress', 'first', 'x']);
+  assert.match(r.err, /aborting a rebase left by a killed run/);
+  assert.ok(!fs.existsSync(path.join(gitDir, 'rebase-merge')), 'no rebase is left');
+  assert.ok(!fs.existsSync(path.join(gitDir, 'backlog-tool.rebase')), 'the marker is gone');
+});
+
 test('git: a dirty Backlog.md is refused before anything happens', () => {
   const v = vaults();
   fs.appendFileSync(path.join(v.a, BACKLOG), 'half an edit\r\n');
@@ -576,6 +602,24 @@ test("git: a push race redoes the edit on the board's new text and keeps both ch
   assert.match(final, /- claimed: board 2026-11-12\r\n/);
   assert.equal(final.split('\r\n').length, crlf(FIXTURE).split('\r\n').length + 1);
   assert.equal(git(v.a, ['status', '--porcelain']).trim(), '');
+});
+
+test('git: done prints its note once when a rejected push redoes the edit', () => {
+  const v = vaults();
+  let raced = 0;
+  const r = v.cli(['done', 'second', '42'], {
+    gh: () => ({ state: 'MERGED', mergeCommit: { oid: 'a1b2c3d4e5f6' } }),
+    beforePush: () => {
+      if (raced++) return;
+      git(v.b, ['pull', '-q']);
+      fs.appendFileSync(path.join(v.b, 'other.md'), 'x\n');
+      git(v.b, ['add', 'other.md']);
+      git(v.b, ['commit', '-q', '-m', 'race']);
+      git(v.b, ['push', '-q']);
+    },
+  });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out.split('\n').filter(l => /second: PR #42 merged/.test(l)).length, 1);
 });
 
 test('git: five rejected pushes give up and leave nothing behind', () => {

@@ -251,5 +251,5 @@ export function newestProgress(item) {
  * @param {Item} item
  */
 export function isMerged(item) {
-  return /\bPR #\d+ merged\b|\bmerged at\b/i.test(newestProgress(item));
+  return /\bPR ?#\d+ merged\b|(?<!\bmain )(?<!\bnot )\bmerged at\b/i.test(newestProgress(item));
 }

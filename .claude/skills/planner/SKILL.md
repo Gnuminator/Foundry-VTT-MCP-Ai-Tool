@@ -33,9 +33,9 @@ lines together. The board's Lanes zone warns on two lanes on one path or a claim
 
 ## Starting lanes
 
-- Turn Remote Control on for this session (`set_remote_control` "self" true) for the phone.
+- Turn Remote Control on for this session (`set_remote_control` "self" true).
 - Lows: one sweep lane per area when `Lows/<area>.md` passes about 10 lines; drop lines older than a month.
-- Each lane owns its own files and test server. Respect every hold in CLAUDE.md.
+- Each lane owns its files and test server. Respect CLAUDE.md holds.
 - Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md", claim and report "ready to merge" through `backlog.mjs`, message nobody, ask the user through `AskUserQuestion`, never through the planner. Pi work carries `pi-work`.
 - `start_session` takes `model` as a full id (e.g. `claude-sonnet-5-5`): Sonnet for coding, Haiku for read-only work,
@@ -64,7 +64,7 @@ The merge runner (`scripts/merge-runner.mjs`, D-140) merges ready lines and post
 stops in #pr-log. At "merge train full" (4 module, bridge link or guarded-write merges): run
 `npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through the test
 server lock, on green `npm run lane:merge -- --train-reset <main sha>`, bisect if red (`--train`
-shows the count), then start the runner again (`Start-ScheduledTask 'Foundry AI Tool merge runner'`).
+shows the count), then restart the runner: `Stop-Process` the pid in `~/.foundry-ai-tool/merge-runner.lock` (Stop-ScheduledTask leaves node alive), `Start-ScheduledTask 'Foundry AI Tool merge runner'`.
 Run it before any Pi deploy.
 
 ## Main is red

@@ -90,6 +90,9 @@ test('shell commands that write the Backlog are denied; reads and the tool pass'
     'echo hi > out.txt',
     'git commit -m "lanes stop hand-editing Backlog.md"',
     `node "${MAIN}/scripts/backlog.mjs" progress x "a; b > c"`,
+    `node "${MAIN}/scripts/backlog.mjs" progress x 'text with $(cp a Backlog.md) kept literal'`,
+    // a quoted path with spaces is still one plain tool call, even if the text names a write verb
+    `node "${MAIN}/scripts/backlog.mjs" progress x "Backlog.md: do not tee or cp it"`,
   ];
   for (const command of allowed) assert.equal(call('Bash', { command }), null, command);
   assert.equal(
@@ -102,6 +105,10 @@ test('shell commands that write the Backlog are denied; reads and the tool pass'
 test('the two shell gaps: a script that opens the Backlog for writing, and a bulk git add or commit in the vault', () => {
   const denied = [
     `python -c "open(r'${VAULT}\\Backlog.md','a').write('x')"`,
+    `node "${MAIN}/scripts/backlog.mjs" progress x "$(cp mine.md Backlog.md)"`,
+    'node "' + MAIN + '/scripts/backlog.mjs" progress x "`cp mine.md Backlog.md`"',
+    `git commit -m "$(cp mine.md Backlog.md)"`,
+    `node "${MAIN}/scripts/backlog.mjs" progress x "Danni's $(cp mine.md Backlog.md) 'ok'"`,
     `python -c "open('${VAULT}/Backlog.md', 'w').write('x')"`,
     `python -c "open('Dev/Foundry AI Tool/Backlog.md', mode='r+')"`,
     `node -e "require('fs').openSync('${VAULT}/Backlog.md','a')"`,
@@ -199,6 +206,7 @@ test('the two shell gaps: a script that opens the Backlog for writing, and a bul
       'cd vault && cd Handoff && cd .. && git add .',
       'cd "$VAULT" && git add -A',
       'cd $env:VAULT; git add -A',
+      'cd "$VAULT/Dev/Foundry AI Tool" && git add .',
     ],
     allowed: [
       'cd vault && cd .. && git add -A',

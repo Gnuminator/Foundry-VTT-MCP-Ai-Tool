@@ -52,6 +52,18 @@ test('a call with no method, options built elsewhere, a spread or an alias asks'
   assert.ok(call('await cloudflare.request()'), 'no arguments');
 });
 
+test('headers and body on a read are literal values only, and no method-override header', () => {
+  const g = extra => `await cloudflare.request({ method: 'GET', path: '/a', ${extra} })`;
+  assert.equal(call(g("headers: { 'X-Note': 'hi' }, body: { a: [1, 'b'] }")), null);
+  assert.ok(call(g("headers: { 'X-HTTP-Method-Override': 'DELETE' }")), 'override header');
+  assert.ok(call(g("headers: { 'x-method-override': 'PUT' }")), 'override lower-case');
+  assert.ok(call(g("headers: { 'X-Http-Method': 'DELETE' }")), 'x-http-method');
+  assert.ok(call(g('headers: h')), 'headers from a variable');
+  assert.ok(call(g("headers: { ['X-HTTP-Method-Override']: 'DELETE' }")), 'computed key');
+  assert.ok(call(g('body: { a: b }')), 'body value from a variable');
+  assert.ok(call(g('body: `x${y}`')), 'template body');
+});
+
 test('mixed code (a GET and a write) asks', () => {
   const reason = call(
     "await cloudflare.request({ method: 'GET', path: '/a' });\nawait cloudflare.request({ method: 'DELETE', path: '/b' });"

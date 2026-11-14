@@ -29,6 +29,12 @@ export const dayNumber = iso => {
   return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null;
 };
 
+/** @param {string} iso true for a calendar date: 2026-13-45 and 2026-02-30 are not */
+const realDate = iso => {
+  const n = dayNumber(iso);
+  return n !== null && new Date(n * 86400000).toISOString().slice(0, 10) === iso;
+};
+
 /**
  * Accepted (`user verdict accept` in the source line) free items nobody claimed for more than
  * `UNCLAIMED_DAYS`. The age counts from the newest date in the source line; an item whose source
@@ -76,10 +82,11 @@ export function newestNote(notes, pr, head) {
   mine.sort((a, b) => b.round - a.round || b.delta - a.delta || Number(b.opus) - Number(a.opus));
   // The note written for the head wins whatever its name; else the newest by name.
   const forHead = head
-    ? mine.find(n =>
-        [...n.text.matchAll(/^Head reviewed:\s*([0-9a-f]{40})/gim)].some(
-          m => m[1].toLowerCase() === head.toLowerCase()
-        )
+    ? mine.find(
+        n =>
+          [...n.text.matchAll(/^Head reviewed:\s*([0-9a-f]{40})/gim)]
+            .at(-1)?.[1]
+            .toLowerCase() === head.toLowerCase()
       )
     : undefined;
   return forHead ?? mine[0];
@@ -221,10 +228,15 @@ export function ledgerLines(lowsDir, today) {
   const now = dayNumber(today);
   const over = [];
   for (const f of files.sort()) {
-    const lines = fs
-      .readFileSync(path.join(lowsDir, f), 'utf8')
+    let text;
+    try {
+      text = fs.readFileSync(path.join(lowsDir, f), 'utf8');
+    } catch {
+      continue; // a folder named *.md or an unreadable file is not a ledger
+    }
+    const lines = text
       .split(/\r?\n/)
-      .filter(l => /^- \d{4}-\d{2}-\d{2}\b/.test(l));
+      .filter(l => /^- \d{4}-\d{2}-\d{2}\b/.test(l) && realDate(l.slice(2, 12)));
     if (lines.length <= LEDGER_LIMIT) continue;
     const old = lines.filter(l => {
       const d = dayNumber(l.slice(2, 12));

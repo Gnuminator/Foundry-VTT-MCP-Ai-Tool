@@ -408,6 +408,7 @@ export const gitIn = vault => args => {
 // dead pid (or a lock far older than any run) counts as stale.
 export const LOCK_STALE_MS = 15 * 60 * 1000;
 export const LOCK_WAIT_MS = 30 * 1000;
+const REBASE_MARKER = 'backlog-tool.rebase';
 
 /** The lock file's text when it is stale, else null. @param {string} lockFile @param {number} now */
 function staleLockText(lockFile, now) {
@@ -496,7 +497,23 @@ export function writeWithRetry(o) {
   const gitDir = must(['rev-parse', '--absolute-git-dir'], 'git rev-parse').stdout.trim();
   const release = takeLock(gitDir, o.lockWaitMs);
   try {
-    return writeLocked(o, must);
+    // This run is synchronous, so a signal handler could never fire. Recover instead: syncVault
+    // writes a marker before its own rebase, so a marker plus a rebase folder, with the lock
+    // held, is a rebase of a killed run. A rebase without the marker is someone else's.
+    const marker = path.join(gitDir, REBASE_MARKER);
+    const midRebase = ['rebase-merge', 'rebase-apply'].some(d =>
+      fs.existsSync(path.join(gitDir, d))
+    );
+    if (midRebase && !fs.existsSync(marker))
+      throw new Error(
+        'the vault is in the middle of a rebase started by another session; finish or abort it, then retry'
+      );
+    if (midRebase) {
+      (o.log ?? (s => console.error(s)))('backlog: aborting a rebase left by a killed run');
+      must(['rebase', '--abort'], 'git rebase --abort');
+    }
+    fs.rmSync(marker, { force: true });
+    return writeLocked(o, must, marker);
   } finally {
     release();
   }
@@ -508,7 +525,7 @@ export function writeWithRetry(o) {
  * commits and no tracked file is dirty (a rebase would have to stash it), else it refuses.
  * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log
  */
-function syncVault(must, log) {
+function syncVault(must, log, marker) {
   must(['fetch', '-q'], 'git fetch');
   const ahead = Number(must(['rev-list', '--count', '@{u}..HEAD'], 'git rev-list').stdout.trim());
   if (ahead === 0) {
@@ -521,12 +538,15 @@ function syncVault(must, log) {
       `the vault has ${ahead} unpushed commit(s) and uncommitted edits by another session; retry in a minute:\n${edits}`
     );
   log(`backlog: the vault has ${ahead} unpushed commit(s); rebasing them (they are pushed too)`);
+  fs.writeFileSync(marker, String(process.pid)); // before the rebase it describes
   try {
     must(['rebase', '-q', '@{u}'], 'git rebase');
   } catch (e) {
     // Never leave the shared vault in the middle of a rebase.
     must(['rebase', '--abort'], 'git rebase --abort');
     throw e;
+  } finally {
+    fs.rmSync(marker, { force: true });
   }
 }
 
@@ -534,11 +554,11 @@ function syncVault(must, log) {
  * @param {Parameters<typeof writeWithRetry>[0]} o
  * @param {(args: string[], what: string) => { stdout: string }} must
  */
-function writeLocked(o, must) {
+function writeLocked(o, must, marker) {
   const log = o.log ?? (s => console.error(s));
   const retries = o.retries ?? RETRIES;
   for (let attempt = 1; attempt <= retries; attempt++) {
-    syncVault(must, log);
+    syncVault(must, log, marker);
     // After the sync, on every attempt: a half edit of another session must not enter our commit.
     const dirty = must(['status', '--porcelain', '--', ...o.paths], 'git status').stdout.trim();
     if (dirty)
@@ -740,6 +760,7 @@ export function run(argv, env = {}) {
           if (typeof oid === 'string' && /^[0-9a-f]{7,40}$/.test(oid)) sha = oid;
           else notes.push(`note: no merge commit from gh for PR #${prNo}; the line has no sha`);
         }
+        const baseNotes = notes; // the edit reruns on a push retry: it must not append twice
         job = {
           paths,
           message: `Backlog: done ${id} (PR #${pos[1].replace(/^#/, '')})`,
@@ -752,7 +773,7 @@ export function run(argv, env = {}) {
               summary: typeof flags.summary === 'string' ? flags.summary : undefined,
               by: typeof flags.by === 'string' ? flags.by : undefined,
             });
-            notes = [...notes, r.line];
+            notes = [...baseNotes, r.line];
             /** @type {Record<string, string>} */
             const files = { [BACKLOG]: r.text, [DONE]: r.done };
             if (piRun)

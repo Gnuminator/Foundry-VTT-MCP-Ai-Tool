@@ -8,7 +8,7 @@ set -eo pipefail
 installed=0
 for attempt in 1 2 3 4; do
   # A hung apt or download counts as a failed attempt (5 minutes each).
-  if timeout 300 npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium; then
+  if timeout -k 30 300 npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium; then
     installed=1
     break
   fi
@@ -19,9 +19,9 @@ for attempt in 1 2 3 4; do
 done
 if [ "$installed" = 0 ]; then
   echo "::warning::falling back to playwright install without apt"
-  timeout 300 npm exec -w @gnuminator/cogm-dashboard -- playwright install chromium
+  timeout -k 30 300 npm exec -w @gnuminator/cogm-dashboard -- playwright install chromium
 fi
 
 # Fail here, not later in the tests, if Chromium cannot start (missing libraries after the
 # apt-free fallback, or a bad cache restore).
-node -e "require('@playwright/test').chromium.launch().then(b => b.close())"
+(cd packages/cogm-dashboard && node -e "require('@playwright/test').chromium.launch().then(b => b.close())")

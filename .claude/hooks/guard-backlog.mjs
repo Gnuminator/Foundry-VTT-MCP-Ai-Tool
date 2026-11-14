@@ -10,8 +10,9 @@
 //     writeFileSync or appendFileSync, Set-Content, Add-Content, Out-File, tee, sed -i, perl -i,
 //     Move-Item, Copy-Item, mv, cp, git add or git commit, or a script that opens it for writing:
 //     python open(f, 'w'), fs.openSync, write_text), unless it runs scripts/backlog.mjs;
-//   - a git add or commit in the vault that sweeps files in without naming them (commit -a, add -A,
-//     add . or a directory), since that would take Backlog.md along.
+//   - a git command in the vault that sweeps files in or throws them away without naming them
+//     (commit -a, add -A, add . or a directory, checkout or restore of . or a directory, reset
+//     --hard, stash), since that would take Backlog.md along or discard it.
 // Only for a lane (see isLane: CLAUDE_PROJECT_DIR or the transcript folder, never the payload cwd).
 // The planner (main checkout) and the board stay free to edit. Reads are always allowed.
 //
@@ -79,7 +80,7 @@ export function sweepsVault(/** @type {string} */ cmd, /** @type {string} */ cwd
         // keep the real current folder: a relative move (down or `..`) resolves against it, an
         // absolute path, `~` or a variable replaces it; a variable ending in `vault` is the vault
         const t = unquote(m[1]).replace(/\\/g, '/');
-        if (/^\$(env:)?\w*vault$/i.test(t)) dir = '/vault';
+        if (/^\$(env:)?\w*vault(\/.*)?$/i.test(t)) dir = `/vault${t.replace(/^[^/]*/, '')}`;
         else if (/^(\/|~|\$|[A-Za-z]:)/.test(t)) dir = t;
         else dir = path.posix.normalize(dir ? `${dir}/${t}` : t);
         inVault = VAULT_PATH.test(dir);
@@ -172,8 +173,16 @@ export const advice = (/** @type {NodeJS.ProcessEnv} */ env = process.env) =>
 
 /** A command that is one plain call of the tool: no second command, pipe or redirect outside quotes. */
 const isToolCall = (/** @type {string} */ cmd) =>
-  /^\s*(&\s*)?node(\.exe)?\s+["']?[^\s"']*scripts[\\/]backlog\.mjs/i.test(cmd) &&
-  !/[;&|<>`\n]|\$\(/.test(cmd.replace(/"[^"]*"|'[^']*'/g, ''));
+  /^\s*(&\s*)?node(\.exe)?\s+(?:"[^"]*|'[^']*|[^\s"']*)scripts[\\/]backlog\.mjs/i.test(cmd) &&
+  !/[;&|<>\n]/.test(cmd.replace(/"[^"]*"|'[^']*'/g, '')) &&
+  !hasSubstitution(cmd);
+
+/**
+ * A backtick or `$(` the shell would run: bash expands both inside double quotes, so only a
+ * single-quoted segment hides one (an apostrophe inside double quotes is literal).
+ */
+const hasSubstitution = (/** @type {string} */ s) =>
+  /`|\$\(/.test(s.replace(/"([^"]*)"|'[^']*'/g, (_m, d) => d ?? ''));
 
 /** The deny reason, or null when the call is allowed. */
 export function decide(
@@ -193,11 +202,12 @@ export function decide(
     const cmd = String(args.command ?? '');
     if (isToolCall(cmd)) return null;
     if (sweepsVault(cmd, input?.cwd))
-      return `this git add or commit in the vault would take Backlog.md along (commit -a, add -A, add . or a directory); name the files you mean. ${advice(env)}`;
+      return `this git command in the vault would take Backlog.md along or throw it away (commit -a, add -A, add . or a directory, checkout or restore of . or a directory, reset --hard, stash); name the files you mean. ${advice(env)}`;
     if (!NAMES.test(cmd)) return null;
     // a commit message may name the file; its text is not a path
     const body = cmd.replace(/(\s(-m|--message)[\s=]*)("[^"]*"|'[^']*')/g, '$1');
-    if (WRITES.some(re => re.test(body)))
+    // a substitution outside single quotes can hide the write from the patterns below
+    if (WRITES.some(re => re.test(body)) || hasSubstitution(cmd))
       return `this command looks like it writes the vault Backlog; ${advice(env)}`;
   }
   return null;

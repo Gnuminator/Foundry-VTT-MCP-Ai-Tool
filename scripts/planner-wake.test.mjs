@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -200,7 +200,9 @@ test('exit 1 with a stderr line when the first read fails', () => {
  * hook or script may tell a writer to put a line under `## Done` of Backlog.md, and the planner skill names the new file. */
 const repoRoot = path.resolve(here, '..');
 const walk = (dir, out = []) => {
+  if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
+    if (name === 'node_modules') continue;
     const p = path.join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
     else out.push(p);
@@ -216,9 +218,8 @@ test('Done list: no skill, hook or script (outside tests) names a `## Done` sect
   const files = [
     ...walk(path.join(repoRoot, '.claude', 'skills')),
     ...walk(path.join(repoRoot, '.claude', 'hooks')),
-    ...readdirSync(path.join(repoRoot, 'scripts'))
-      .filter((f) => f.endsWith('.mjs') && !f.endsWith('.test.mjs'))
-      .map((f) => path.join(repoRoot, 'scripts', f)),
+    ...walk(path.join(repoRoot, '.claude', 'agents')),
+    ...walk(path.join(repoRoot, 'scripts')),
     path.join(repoRoot, 'CLAUDE.md'),
   ].filter((f) => /\.(md|mjs)$/.test(f) && !/\.test\.mjs$/.test(f));
   const bad = [];

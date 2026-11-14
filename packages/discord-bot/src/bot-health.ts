@@ -51,7 +51,7 @@ export function statusText(
       `Optager i ${channelName}: ${tracks} spor, RTP tap ${rtpTap ? 'til' : 'fra'}.`,
       `Recording in ${channelName}: ${tracks} track(s), RTP tap ${rtpTap ? 'on' : 'off'}.`
     ),
-    `Voice connection: ${connection}.`,
+    `Voice-forbindelse / Voice connection: ${connection}.`,
     ...speakerLines,
   ].join('\n');
 }

@@ -410,6 +410,7 @@ export class RecorderBot {
   ): void {
     const detail = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host; other files of this recording may be affected too.`;
     log.error(detail, err);
+    const daDetail = `Optageproblem: ${what} kunne ikke skrives (${err.message}). Tjek diskpladsen på recorder-værten; andre filer i optagelsen kan også være ramt.`;
     if (told.value) return;
     told.value = true;
     const text = bi(
@@ -417,7 +418,7 @@ export class RecorderBot {
       'Recording problem: part of the recording could not be saved. Tell the owner, who should check the disk space on the recorder host.'
     );
     void this.alertGm(text, channel);
-    if (this.notifyOwner) void this.notifyOwner(detail);
+    if (this.notifyOwner) void this.notifyOwner(bi(daDetail, detail));
   }
 
   private speakerResolver(guild: Guild): (userId: string) => SpeakerInfo {

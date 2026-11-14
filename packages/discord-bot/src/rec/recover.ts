@@ -99,5 +99,12 @@ export function recoverMessage(outcomes: RecoverOutcome[]): string | undefined {
     `Recorderen fandt ${outcomes.length} optagelse(r) fra en stoppet eller nedbrudt kørsel og tog sig af dem ved opstart:`,
     `The recorder found ${outcomes.length} recording(s) from a stopped or crashed run and handled them on startup:`
   );
-  return `${head}\n${lines.join('\n')}`;
+  // A Discord message holds 2000 characters: show the first folders and count the rest.
+  const MAX_LINES = 8;
+  const shown = lines.slice(0, MAX_LINES);
+  if (lines.length > MAX_LINES) {
+    const more = lines.length - MAX_LINES;
+    shown.push(`... og ${more} flere / and ${more} more`);
+  }
+  return `${head}\n${shown.join('\n')}`;
 }

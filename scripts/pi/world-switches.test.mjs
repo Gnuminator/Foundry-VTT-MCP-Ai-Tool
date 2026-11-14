@@ -169,14 +169,11 @@ describe('world-switches.mjs against a fake game', () => {
 });
 
 describe('PROFILE and the docs', () => {
-  const doc = readFileSync(path.join(repo, 'docs', 'dev', 'PI-SETUP.md'), 'utf8');
-  const section = doc.slice(
-    doc.indexOf('### World switches'),
-    doc.indexOf('## Player character creation')
-  );
+  const doc = readFileSync(path.join(repo, 'docs', 'dev', 'pi', 'licensed-content.md'), 'utf8');
+  const section = doc.slice(doc.indexOf('### World switches'), doc.indexOf('## Seven-book trim'));
 
-  test('the table in PI-SETUP.md is PROFILE', () => {
-    assert.ok(section.length > 100, 'no "World switches" section in PI-SETUP.md');
+  test('the table in pi/licensed-content.md is PROFILE', () => {
+    assert.ok(section.length > 100, 'no "World switches" section in pi/licensed-content.md');
     const rows = [...section.matchAll(/^\| `([\w.-]+)`\s*\| ([^|]+?)\s*\|/gm)].map(m => ({
       key: m[1],
       value: m[2].trim(),

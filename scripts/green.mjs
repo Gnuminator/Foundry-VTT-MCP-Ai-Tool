@@ -808,7 +808,7 @@ const QUICK_TEST_OF = /** @type {Record<string, string>} */ ({
 const DOCS_UI_INPUT =
   /^(?:docs\/(?:gm|da\/gm|player|da\/player)\/|docs\/dev\/SMOKE-TEST\.md$|scripts\/docs-ui-|packages\/(?:cogm-dashboard\/(?:web\/src|public|src)|foundry-module\/(?:src|templates)|obsidian-plugin\/src)\/)/;
 const DOCS_KIT_INPUT =
-  /^(?:docs\/dev\/TEST-KIT\.md$|scripts\/docs-kit\.mjs$|scripts\/test-kit\/(?:scenarios|lib)\/)/;
+  /^(?:docs\/dev\/(?:TEST-KIT\.md|test-kit\/)|scripts\/docs-kit\.mjs$|scripts\/test-kit\/(?:scenarios|lib)\/)/;
 
 /** What `scripts/usage-catalog.mjs` scans (plus the script and its output): a change here can stale the catalogue. */
 const USAGE_CATALOG_INPUT =

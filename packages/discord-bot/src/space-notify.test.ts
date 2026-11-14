@@ -262,6 +262,15 @@ describe('spaceMessage', () => {
     expect(text).not.toMatch(/\u2014/);
   });
 
+  it('is Danish first, then English', () => {
+    const text = spaceMessage('worse', 'low', status('low'), T0);
+    expect(text).toContain('Lagerpladsen er lav');
+    expect(text.indexOf('Lagerpladsen')).toBeLessThan(text.indexOf('Storage space is low'));
+    expect(text).toContain('12.3% fri');
+    expect(spaceMessage('worse', 'critical', status('critical'), T0)).toContain('KRITISK');
+    expect(spaceMessage('recovered', 'ok', status('ok'), T0)).toContain('tilbage til normalt');
+  });
+
   it('only lists the disks that are not ok', () => {
     const s = status('low');
     s.disks.push({ ...s.disks[0], mount: '/', level: 'ok', freePercent: 70 });

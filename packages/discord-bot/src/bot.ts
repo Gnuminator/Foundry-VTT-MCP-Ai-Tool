@@ -29,6 +29,7 @@ import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.j
 import { VoiceRecorder } from './rec/voice.js';
 import { RecorderHealth } from './rec/health.js';
 import { startStatusServer } from './status-server.js';
+import { bi, da, plural } from './i18n.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
 import {
   claimOnReady,
@@ -56,15 +57,35 @@ import {
 export const RECORD_COMMAND = new SlashCommandBuilder()
   .setName('record')
   .setDescription('Record the voice channel, one track per speaker')
+  .setDescriptionLocalizations(da('Optag voice channel, ét spor pr. person'))
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addSubcommand(s => s.setName('start').setDescription('Join your voice channel and record'))
-  .addSubcommand(s => s.setName('stop').setDescription('Stop recording and prepare the audio'))
-  .addSubcommand(s => s.setName('status').setDescription('Show what is being recorded'));
+  .addSubcommand(s =>
+    s
+      .setName('start')
+      .setDescription('Join your voice channel and record')
+      .setDescriptionLocalizations(da('Kom ind i din voice channel og optag'))
+  )
+  .addSubcommand(s =>
+    s
+      .setName('stop')
+      .setDescription('Stop recording and prepare the audio')
+      .setDescriptionLocalizations(da('Stop optagelsen og gør lyden klar'))
+  )
+  .addSubcommand(s =>
+    s
+      .setName('status')
+      .setDescription('Show what is being recorded')
+      .setDescriptionLocalizations(da('Vis, hvad der bliver optaget'))
+  );
 
-const NOTICE =
+const NOTICE = bi(
+  'Optagelsen er startet: denne voice channel bliver optaget, ét spor pr. person, til session notes. ' +
+    'Dit spor ligger på arrangørens pc, også som træningsdata, indtil du beder om at få det slettet.',
   'Recording started: this voice channel is recorded, one track per person, for the session ' +
-  "notes. Your track is kept on the organiser's PC, also as training data, until you ask to " +
-  'have it deleted.';
+    "notes. Your track is kept on the organiser's PC, also as training data, until you ask to " +
+    'have it deleted.'
+);
+const NOT_RECORDING = bi('Der optages ikke.', 'Not recording.');
 
 interface Active {
   session: RecordingSession;
@@ -95,10 +116,14 @@ export function uniqueSessionDir(sessionsDir: string, d: Date): string {
 export function stopSummary(trackSeconds: number[], incomplete: boolean): string {
   const minutes = Math.max(1, Math.round(Math.max(0, ...trackSeconds) / 60));
   const n = trackSeconds.length;
-  const base = `Recording stopped and saved: ${n} ${n === 1 ? 'track' : 'tracks'}, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
+  const daText = `Optagelsen er stoppet og gemt: ${n} spor, cirka ${minutes} ${plural(minutes, 'minut', 'minutter')}.`;
+  const enText = `Recording stopped and saved: ${n} ${plural(n, 'track', 'tracks')}, about ${minutes} ${plural(minutes, 'minute', 'minutes')}.`;
   return incomplete
-    ? `${base} Part of the recording may be missing. Tell the owner before the next session.`
-    : base;
+    ? bi(
+        `${daText} Dele af optagelsen mangler måske. Sig det til ejeren før næste session.`,
+        `${enText} Part of the recording may be missing. Tell the owner before the next session.`
+      )
+    : bi(daText, enText);
 }
 
 export class RecorderBot {
@@ -387,8 +412,10 @@ export class RecorderBot {
     log.error(detail, err);
     if (told.value) return;
     told.value = true;
-    const text =
-      'Recording problem: part of the recording could not be saved. Tell the owner, who should check the disk space on the recorder host.';
+    const text = bi(
+      'Optageproblem: en del af optagelsen kunne ikke gemmes. Sig det til ejeren, som skal tjekke diskpladsen på recorder-værten.',
+      'Recording problem: part of the recording could not be saved. Tell the owner, who should check the disk space on the recorder host.'
+    );
     void this.alertGm(text, channel);
     if (this.notifyOwner) void this.notifyOwner(detail);
   }
@@ -417,13 +444,13 @@ export class RecorderBot {
             a.recorder.connectionStatus,
             a.health.speakerLines(Date.now())
           )
-        : 'Not recording.';
+        : NOT_RECORDING;
       await i.reply({ content: text, flags: MessageFlags.Ephemeral });
       return;
     }
     if (sub === 'stop') {
       if (!this.active) {
-        await i.reply({ content: 'Not recording.', flags: MessageFlags.Ephemeral });
+        await i.reply({ content: NOT_RECORDING, flags: MessageFlags.Ephemeral });
         return;
       }
       await i.deferReply();
@@ -434,7 +461,10 @@ export class RecorderBot {
     // start
     if (this.active) {
       await i.reply({
-        content: `Already recording in ${this.active.channel.name}.`,
+        content: bi(
+          `Der optages allerede i ${this.active.channel.name}.`,
+          `Already recording in ${this.active.channel.name}.`
+        ),
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -443,7 +473,10 @@ export class RecorderBot {
     const member = guild ? await guild.members.fetch(i.user.id) : undefined;
     const channel = member?.voice.channel;
     if (!guild || channel?.type !== ChannelType.GuildVoice) {
-      await i.reply({ content: 'Join a voice channel first.', flags: MessageFlags.Ephemeral });
+      await i.reply({
+        content: bi('Kom ind i en voice channel først.', 'Join a voice channel first.'),
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
     await i.deferReply();
@@ -497,7 +530,10 @@ export class RecorderBot {
       log.error(`Could not join ${channel.name}`, err);
       await this.stop('join failed');
       await i.editReply(
-        `Could not join ${channel.name}. Check that the bot may join that channel, then try /record start again.`
+        bi(
+          `Kunne ikke komme ind i ${channel.name}. Tjek, at botten må komme ind i den channel, og prøv /record start igen.`,
+          `Could not join ${channel.name}. Check that the bot may join that channel, then try /record start again.`
+        )
       );
       return;
     }
@@ -507,13 +543,16 @@ export class RecorderBot {
   /** Stop the active recording, convert it and return a short summary. */
   async stop(reason: string): Promise<string> {
     const a = this.active;
-    if (!a) return 'Not recording.';
+    if (!a) return NOT_RECORDING;
     this.active = undefined;
     clearInterval(a.healthTimer);
     a.recorder.stop();
     const tracks = await a.session.stop(reason);
     if (tracks.length === 0)
-      return 'Recording stopped. Nobody spoke, so there is nothing to convert.';
+      return bi(
+        'Optagelsen er stoppet. Ingen sagde noget, så der er intet at konvertere.',
+        'Recording stopped. Nobody spoke, so there is nothing to convert.'
+      );
     try {
       const result = convertSession(a.session.dir);
       // Paths, packet counts and per-file detail stay in the log; the channel gets the short form.
@@ -535,7 +574,10 @@ export class RecorderBot {
       );
     } catch (err) {
       log.error(`Converting the recording failed; raw files kept in ${a.session.dir}`, err);
-      return 'Recording stopped, but the audio could not be prepared. The raw files are kept. Ask the owner to look at the recorder log.';
+      return bi(
+        'Optagelsen er stoppet, men lyden kunne ikke gøres klar. Råfilerne er gemt. Bed ejeren se i recorder-loggen.',
+        'Recording stopped, but the audio could not be prepared. The raw files are kept. Ask the owner to look at the recorder log.'
+      );
     }
   }
 

@@ -13,6 +13,8 @@
  * The state lives in memory: a session that ends while the bot is down is not announced.
  */
 
+import { bi } from './i18n.js';
+
 export const SESSION_POST_INTERVAL_MS = 2 * 60 * 1000;
 
 /** What the dashboard's player state says about the session (shared `PlayerSession`). */
@@ -31,7 +33,10 @@ export function sessionFlagFrom(state: unknown): SessionFlag | null {
 }
 
 export function sessionPostMessage(pageUrl: string): string {
-  return `The session is over. Handouts and quests are on the player page, and the recap shows up there once it is written: ${pageUrl}`;
+  return `${bi(
+    'Sessionen er slut. Handouts og quests ligger på spillersiden, og recap dukker op dér, når den er skrevet:',
+    'The session is over. Handouts and quests are on the player page, and the recap shows up there once it is written:'
+  )}\n${pageUrl}`;
 }
 
 export interface SessionPostOptions {

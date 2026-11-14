@@ -30,7 +30,7 @@ describe('alertTarget', () => {
 describe('statusText', () => {
   it('lists the connection and each speaker', () => {
     expect(statusText('Table', 2, false, 'ready', ['Ann: last packet 3 s ago'])).toBe(
-      'Recording in Table: 2 track(s), RTP tap off.\nVoice connection: ready.\nAnn: last packet 3 s ago'
+      'Optager i Table: 2 spor, RTP tap fra.\nRecording in Table: 2 track(s), RTP tap off.\nVoice connection: ready.\nAnn: last packet 3 s ago'
     );
   });
 });

@@ -110,8 +110,8 @@ describe('status wording', () => {
     h.join('u2', 'Brenna', true, T);
     h.packet('u1', 'Mara', T + 10_000);
     expect(h.speakerLines(T + 52_000)).toEqual([
-      'Brenna: nothing recorded yet (muted)',
-      'Mara: last packet 42 s ago',
+      'Brenna: intet optaget endnu / nothing recorded yet (muted)',
+      'Mara: sidste pakke for 42 s siden / last packet 42 s ago',
     ]);
   });
 

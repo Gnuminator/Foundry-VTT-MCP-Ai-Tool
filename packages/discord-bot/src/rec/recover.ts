@@ -6,6 +6,7 @@
 import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { convertSession } from '../convert/convert.js';
+import { bi } from '../i18n.js';
 
 /** A folder touched more recently than this may still belong to a recording in progress. */
 export const ORPHAN_MIN_AGE_MS = 10 * 60 * 1000;
@@ -91,8 +92,12 @@ export function recoverMessage(outcomes: RecoverOutcome[]): string | undefined {
   if (outcomes.length === 0) return undefined;
   const lines = outcomes.map(o =>
     o.ok
-      ? `${o.dir}: converted ${o.tracks} track(s)`
-      : `${o.dir}: could not convert (${o.error ?? 'unknown error'}), raw files kept`
+      ? `${o.dir}: konverterede ${o.tracks} spor / converted ${o.tracks} track(s)`
+      : `${o.dir}: kunne ikke konverteres / could not convert (${o.error ?? 'unknown error'}), raw files kept`
   );
-  return `The recorder found ${outcomes.length} recording(s) from a stopped or crashed run and handled them on startup:\n${lines.join('\n')}`;
+  const head = bi(
+    `Recorderen fandt ${outcomes.length} optagelse(r) fra en stoppet eller nedbrudt kørsel og tog sig af dem ved opstart:`,
+    `The recorder found ${outcomes.length} recording(s) from a stopped or crashed run and handled them on startup:`
+  );
+  return `${head}\n${lines.join('\n')}`;
 }

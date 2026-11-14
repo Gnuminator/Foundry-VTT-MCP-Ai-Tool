@@ -15,6 +15,7 @@
  * The state lives in memory: a bot restart can repeat one DM.
  */
 
+import { bi } from './i18n.js';
 import type { SpaceDisk, SpaceReading, SpaceStatus } from './space-status.js';
 
 export const SPACE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
@@ -45,7 +46,13 @@ function pct(value: number): string {
   return `${Math.round(value * 10) / 10}%`;
 }
 
-function diskLine(disk: SpaceDisk): string {
+type Lang = 'da' | 'en';
+
+function diskLine(disk: SpaceDisk, lang: Lang): string {
+  if (lang === 'da') {
+    const jobs = disk.jobs.length > 0 ? ` Bruges af: ${disk.jobs.join(', ')}.` : '';
+    return `${disk.mount} har ${pct(disk.freePercent)} fri (${gb(disk.freeBytes)}).${jobs}`;
+  }
   const jobs = disk.jobs.length > 0 ? ` Used by: ${disk.jobs.join(', ')}.` : '';
   return `${disk.mount} has ${pct(disk.freePercent)} free (${gb(disk.freeBytes)}).${jobs}`;
 }
@@ -54,38 +61,60 @@ function hoursSince(iso: string, now: number): number {
   return Math.max(0, Math.floor((now - Date.parse(iso)) / 3_600_000));
 }
 
-/** The DM text. Plain English; names the disk, the free space and the jobs it affects. */
+function buildSpaceMessage(
+  lang: Lang,
+  kind: SpaceNoticeKind,
+  state: SpaceState,
+  status: SpaceStatus,
+  now: number
+): string {
+  const da = lang === 'da';
+  if (kind === 'recovered') {
+    const lowest = [...status.disks].sort((a, b) => a.freePercent - b.freePercent)[0];
+    const where = lowest
+      ? da
+        ? ` Den mest pressede disk, ${lowest.mount}, har ${pct(lowest.freePercent)} fri.`
+        : ` The tightest disk, ${lowest.mount}, has ${pct(lowest.freePercent)} free.`
+      : '';
+    return da
+      ? `Lagerpladsen på ${status.host} er tilbage til normalt.${where}`
+      : `Storage space on ${status.host} is back to normal.${where}`;
+  }
+  const again = kind === 'reminder' ? (da ? ' (påmindelse)' : ' (reminder)') : '';
+  if (state === 'stale') {
+    const hours = hoursSince(status.checkedAt, now);
+    return da
+      ? `Tjekket af lagerpladsen på ${status.host} har ikke kørt i ${hours} timer` +
+          `${again}. Det seneste tjek var ${status.checkedAt}. Bed Claude kigge på Pi'ens space-check timer.`
+      : `The storage space check on ${status.host} has not run for ${hours} hours` +
+          `${again}. The last check was at ${status.checkedAt}. Ask Claude to look at the Pi's space-check timer.`;
+  }
+  const bad = status.disks.filter(d => d.level !== 'ok');
+  const lines = (bad.length > 0 ? bad : status.disks).map(d => diskLine(d, lang)).join('\n');
+  if (state === 'critical') {
+    return da
+      ? `Lagerpladsen er KRITISK på ${status.host}${again}.\n${lines}\n` +
+          'En backup, snapshot eller sync, der skal bruge mere plads end der er ledig, stopper. Frigør plads nu.'
+      : `Storage space is CRITICAL on ${status.host}${again}.\n${lines}\n` +
+          'A backup, snapshot or sync that needs more space than is free will stop. Free some space now.';
+  }
+  return da
+    ? `Lagerpladsen er lav på ${status.host}${again} (under ${status.thresholdPercent}% fri).\n${lines}\n` +
+        'Backups kører stadig, men frigør plads snart.'
+    : `Storage space is low on ${status.host}${again} (under ${status.thresholdPercent}% free).\n${lines}\n` +
+        'Backups still run, but free some space soon.';
+}
+
+/** The DM text, Danish then English; names the disk, the free space and the jobs it affects. */
 export function spaceMessage(
   kind: SpaceNoticeKind,
   state: SpaceState,
   status: SpaceStatus,
   now: number
 ): string {
-  if (kind === 'recovered') {
-    const lowest = [...status.disks].sort((a, b) => a.freePercent - b.freePercent)[0];
-    const where = lowest
-      ? ` The tightest disk, ${lowest.mount}, has ${pct(lowest.freePercent)} free.`
-      : '';
-    return `Storage space on ${status.host} is back to normal.${where}`;
-  }
-  const again = kind === 'reminder' ? ' (reminder)' : '';
-  if (state === 'stale') {
-    return (
-      `The storage space check on ${status.host} has not run for ${hoursSince(status.checkedAt, now)} hours` +
-      `${again}. The last check was at ${status.checkedAt}. Ask Claude to look at the Pi's space-check timer.`
-    );
-  }
-  const bad = status.disks.filter(d => d.level !== 'ok');
-  const lines = (bad.length > 0 ? bad : status.disks).map(diskLine).join('\n');
-  if (state === 'critical') {
-    return (
-      `Storage space is CRITICAL on ${status.host}${again}.\n${lines}\n` +
-      'A backup, snapshot or sync that needs more space than is free will stop. Free some space now.'
-    );
-  }
-  return (
-    `Storage space is low on ${status.host}${again} (under ${status.thresholdPercent}% free).\n${lines}\n` +
-    'Backups still run, but free some space soon.'
+  return bi(
+    buildSpaceMessage('da', kind, state, status, now),
+    buildSpaceMessage('en', kind, state, status, now)
   );
 }
 

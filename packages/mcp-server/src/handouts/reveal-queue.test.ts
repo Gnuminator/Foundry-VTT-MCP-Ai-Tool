@@ -13,6 +13,7 @@ import type { PageForPlayers } from '@gnuminator/shared';
 
 import { GuardedWriteService } from '../guarded-write/service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { QUEUE_FILE } from './queue.js';
@@ -77,8 +78,7 @@ beforeEach(async () => {
   }): { pages: PageForPlayers[] } => ({ pages: data.uuids.map(pageForPlayers) });
   store = new VaultStore({ dataDir });
   now = Date.parse('2026-09-30T20:00:00.000Z');
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const worldIds = { current: (): Promise<string> => Promise.resolve(WORLD) };
   guarded = new GuardedWriteService({
     foundryClient: foundry,

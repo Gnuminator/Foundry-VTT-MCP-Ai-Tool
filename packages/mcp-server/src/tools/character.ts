@@ -146,7 +146,7 @@ export class CharacterTools {
               description: 'Whether to consume charges/uses (default: true)',
             },
             spellLevel: {
-              type: 'number',
+              type: 'integer',
               description: 'For spells: cast at a higher level than base (D&D 5e upcasting)',
             },
             rollAttack: {
@@ -391,7 +391,7 @@ export class CharacterTools {
       itemIdentifier: z.string().min(1, 'Item identifier cannot be empty'),
       targets: z.array(z.string()).optional(),
       consume: z.boolean().optional(),
-      spellLevel: z.number().optional(),
+      spellLevel: z.number().int().min(1).max(9).optional(),
       skipDialog: z.boolean().optional(),
       rollAttack: z.boolean().optional(),
     });

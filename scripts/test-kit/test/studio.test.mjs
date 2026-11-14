@@ -183,6 +183,18 @@ test('a Constitution shortfall on top of a per-level hit point effect keeps its 
   // the effect alone is the system's
   assert.equal(hero(level, 140)?.id, plain);
   assert.equal(hero(level, 140)?.kind, 'SYSTEM');
+  // a per-level bonus with no source behind it explains nothing: the 12 stay the Constitution's
+  const bare = pair();
+  bare.studio.actor.level = 17;
+  bare.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  bare.studio.actor.hp.max = 157;
+  bare.studio.actor.hp.value = 157 - 12;
+  bare.studio.actor.hp.bonuses = { level: 2, overall: 0 };
+  bare.studio.actor.hp.sources = [];
+  assert.equal(
+    compareHeroes(bare).problems.find(p => p.category === 'current hit points')?.id,
+    own
+  );
   // a source of unknown shape explains any shortfall
   assert.equal(hero([], 145)?.kind, 'SYSTEM');
   // Tough gives two per level: at level 12 its 24 are the effect's, not a Constitution increase (12 would fit)

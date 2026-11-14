@@ -8,6 +8,7 @@ import '../../public/styles.css';
 import '../../public/moments.css';
 import '../../public/themes/brand.css';
 import '../../public/themes/veil.css';
+import '../../public/themes/light.css';
 import '../src/next.css';
 import './preview.css';
 

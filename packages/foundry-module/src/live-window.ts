@@ -286,12 +286,10 @@ function startSchemeWatch(): void {
   } catch {
     media = null;
   }
-  const hookId = Hooks.on('closeSettingsConfig', onMedia);
   schemeWatch = {
     stop: (): void => {
       observer?.disconnect();
       media?.removeEventListener?.('change', onMedia);
-      Hooks.off('closeSettingsConfig', hookId);
     },
   };
 }

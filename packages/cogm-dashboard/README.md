@@ -176,7 +176,7 @@ production dependencies only) and the bundle budget do not change.
   `storybook-static/` (not committed). The wiki workflow builds it and publishes it under
   `/storybook/` next to the wiki.
 - The preview loads the same stylesheets as the real page, in the same order (`styles.css`,
-  `moments.css`, `themes/brand.css`, `themes/veil.css`, `next.css`), so a story looks as the panel
+  `moments.css`, `themes/brand.css`, `themes/veil.css`, `themes/light.css`, `next.css`), so a story looks as the panel
   does in the dashboard. The toolbar's **Theme** sets `data-theme` (neutral or veil) on `<html>`
   and **Mist** sets `data-mist` (calm, drift, clear), as `theme.ts` does.
 - Every story runs inside the providers of `main.tsx` and `App.tsx` (TanStack Query, tooltips,

@@ -3,6 +3,7 @@ import * as shared from './shared.js';
 import { logInfo } from '../log.js';
 import { isDnd5eV6 } from '../systems/dnd5e/version.js';
 import { findAttackActivity } from './attack-activity.js';
+import { slotLevelFor } from './spell-slots.js';
 import {
   slugify,
   NPC_DAMAGE_CANONICAL,
@@ -200,52 +201,6 @@ export class ActorBuilderDataAccess {
     }
   }
 
-  /**
-   * The leveled slot a slot-cast spell (dnd5e method "spell", level 1+) needs: undefined when the
-   * item is not one or the slot at its wanted level has a use left (nothing to change), the lowest
-   * higher level with a slot when it is empty, 'none' when no slot at that level or above is left.
-   */
-  private slotLevelFor(
-    actor: Actor,
-    item: Item,
-    wanted: number | undefined
-  ): number | 'none' | undefined {
-    const sys = item.system as
-      | { level?: unknown; method?: unknown; activities?: unknown; linkedActivity?: unknown }
-      | undefined;
-    const level = sys?.level;
-    if (item.type !== 'spell' || typeof level !== 'number' || level < 1) return undefined;
-    if (sys?.method !== 'spell') return undefined;
-    // dnd5e spends no slot for a spell granted by a Cast activity (it uses the linked item's uses),
-    // for a fixed-level spell, or for an activity whose "consume spell slot" box is off: leave those
-    // to dnd5e (and its dialog) instead of refusing or forcing a slot.
-    const flags = item.flags as
-      | { dnd5e?: { cachedFor?: unknown; spellLevel?: unknown } }
-      | undefined;
-    if (flags?.dnd5e?.cachedFor || flags?.dnd5e?.spellLevel || sys.linkedActivity) return undefined;
-    const acts = sys.activities as { values?: () => Iterable<unknown> } | unknown[] | undefined;
-    const list = Array.isArray(acts) ? acts : acts?.values ? Array.from(acts.values()) : [];
-    if (
-      list.some(
-        a => (a as { consumption?: { spellSlot?: unknown } })?.consumption?.spellSlot === false
-      )
-    )
-      return undefined;
-    const spells = (actor.system as { spells?: Record<string, { value?: unknown } | undefined> })
-      ?.spells;
-    if (!spells) return undefined;
-    const left = (n: number): number => {
-      const v = spells[`spell${n}`]?.value;
-      return typeof v === 'number' ? v : 0;
-    };
-    const from = Math.max(wanted ?? level, level);
-    if (left(from) > 0) return undefined;
-    // An explicit level is the caller's choice: no silent switch to a bigger slot.
-    if (wanted !== undefined) return 'none';
-    for (let n = from + 1; n <= 9; n++) if (left(n) > 0) return n;
-    return 'none';
-  }
-
   async useItem(params: UseItemInput): Promise<UseItemResult> {
     shared.validateFoundryState();
 
@@ -285,18 +240,24 @@ export class ActorBuilderDataAccess {
 
     // A slot spell with no slot at its level: upcast into the lowest higher slot, or refuse before
     // anything is targeted. dnd5e itself only warns and casts nothing, which would read as "initiated".
-    let upcastLevel = options.spellLevel;
+    let upcastSlot = options.spellLevel !== undefined ? `spell${options.spellLevel}` : undefined;
     let autoUpcast: number | undefined;
     if (systemId === 'dnd5e' && options.consume !== false) {
-      const slotLevel = this.slotLevelFor(actor, item, options.spellLevel);
+      const slotLevel = slotLevelFor(actor, item, options.spellLevel, attackActivity);
+      if (slotLevel === 'below') {
+        throw new Error(
+          `${item.name} is a level ${String((item.system as { level?: unknown }).level)} spell; spellLevel ${String(options.spellLevel)} is below that. Nothing was used or rolled`
+        );
+      }
       if (slotLevel === 'none') {
         throw new Error(
           `${actor.name} has no spell slot left to cast ${item.name}; nothing was used or rolled`
         );
       }
       if (slotLevel !== undefined) {
-        upcastLevel = slotLevel;
-        autoUpcast = slotLevel;
+        const level = typeof slotLevel === 'object' ? slotLevel.pact : slotLevel;
+        upcastSlot = typeof slotLevel === 'object' ? 'pact' : `spell${level}`;
+        autoUpcast = level;
       }
     }
 
@@ -440,8 +401,8 @@ export class ActorBuilderDataAccess {
           // Upcast slot for spells. Best-effort: assumes a leveled slot key
           // (`spellN`); pact-caster slot ids aren't derivable without the
           // item's casting method, same limitation the old `slotLevel` had.
-          if (upcastLevel !== undefined) {
-            usage.spell = { slot: `spell${upcastLevel}` };
+          if (upcastSlot !== undefined) {
+            usage.spell = { slot: upcastSlot };
           }
           // Show the dialog so the GM can make choices, except in a headless browser (the Pi's
           // Assistant GM): nobody can click it, the card would never be made, so dnd5e's defaults apply.
@@ -516,7 +477,7 @@ export class ActorBuilderDataAccess {
           attackActivity
             ? 'The attack is rolled without a dialog; the roll appears in chat.'
             : headless && systemId === 'dnd5e'
-              ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.'
+              ? `This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, ${autoUpcast ? `cast at level ${autoUpcast}` : 'no upcasting unless a spell level was given'}) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.`
               : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
         } The result will appear in chat.`,
         itemName: item.name,

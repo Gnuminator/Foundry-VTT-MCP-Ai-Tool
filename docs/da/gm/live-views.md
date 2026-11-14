@@ -1,6 +1,6 @@
 ---
 source: gm/live-views.md
-sourceHash: 19a7a1ee0607
+sourceHash: a218ef44bb1d
 title: Live-visningerne
 description: De tre måder at have combat-strippen ved siden af Foundry (Live screen, GM page, Live window), hvor knappen Live views er, og hvornår du bruger hvilken.
 ---
@@ -46,5 +46,7 @@ Live window ligger inde i Foundry. Slå det til dér: fanen **Settings**, **Game
 Settings**, kategorien **Foundry AI Tool**, **AI Tool: Live window**. En knap **Live** kommer så frem i gruppen AI Tool.
 Hvis vinduet er tomt, siger det hvorfor og hvad der skal ændres; den sædvanlige årsag er indstillingen
 **AI Tool: Live window address**.
+
+Live window følger Foundrys lyse eller mørke indstilling.
 
 Dashboardet har endnu ingen knap til den; slå den til i Foundry.

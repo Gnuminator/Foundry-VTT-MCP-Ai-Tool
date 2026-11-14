@@ -54,6 +54,19 @@ describe('followFrameScheme', () => {
     expect(root.dataset.scheme).toBe('dark');
   });
 
+  it('ignores a message whose origin is not the parent origin the browser names', () => {
+    const { win, send, root } = fakeWindow('?strip=1');
+    (win.location as unknown as { ancestorOrigins: string[] }).ancestorOrigins = [
+      'https://foundry.example',
+    ];
+    followFrameScheme(win);
+    const data = { type: 'fmb-live-scheme', scheme: 'light' };
+    send({ source: win.parent, origin: 'https://evil.example', data });
+    expect(root.dataset.scheme).toBeUndefined();
+    send({ source: win.parent, origin: 'https://foundry.example', data });
+    expect(root.dataset.scheme).toBe('light');
+  });
+
   it('leaves the page alone without a scheme', () => {
     const { win, root } = fakeWindow('?strip=1');
     followFrameScheme(win);

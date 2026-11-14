@@ -97,6 +97,26 @@ In `<session>/notes/`, for `da` and `en` each:
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 
+### The three Danish layers (I-066)
+
+With `--layers`, a run also writes, in Danish only:
+
+| File            | Layer    | What                                                                                                                                                     |
+| --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw.da.md`     | raw      | the recogniser's text exactly as it came, by scene and time, words it was unsure about as `[ord?]`; no Claude call (word times stay in `timeline.jsonl`) |
+| `depth.da.md`   | in-depth | per scene a detailed account in beats (who said and did what, rulings, names, numbers said aloud), each beat linked to transcript lines; GM only         |
+| `summary.da.md` | summary  | the existing summary                                                                                                                                     |
+| `index.da.md`   |          | links the three layers, with the cleaned transcript and scene notes between them                                                                         |
+
+The in-depth layer is one more Claude call per scene (`--depth-model`, `--depth-effort`, default
+Sonnet at medium), checked (at least one beat, citations of real lines only, not too thin for a
+long scene) and cached per scene in `notes/.work/depth-NNN.json`, so a usage limit only pauses.
+Until every scene has its in-depth notes the run exits 76 (75 when paused) and `depth.da.md` says
+so at the top; `notes.json` gets `layers.depth_complete`. `auto.ps1` runs with `--layers` (the
+user's OK 2026-11-14) and counts a session as done only when `layers.depth_complete` is true (notes
+written before the layers existed have no `layers` part and stay done), so a pass cut short by the
+usage limit finishes the in-depth notes on the next hourly pass.
+
 ## Into Foundry (D-087)
 
 ```bash

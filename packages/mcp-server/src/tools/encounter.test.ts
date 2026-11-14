@@ -3,7 +3,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { EncounterTools } from './encounter.js';
 
 /**
- * Tests for EncounterTools — a thin, deterministic layer over FoundryClient.query.
+ * Tests for EncounterTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures → shape the result.
  *

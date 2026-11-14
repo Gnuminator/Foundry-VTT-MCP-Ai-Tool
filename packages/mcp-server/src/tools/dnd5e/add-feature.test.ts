@@ -8,7 +8,7 @@ import { clearSystemCache } from '../../utils/system-detection.js';
  * Characterization tests for DnD5eAddFeatureTool.
  *
  * Pattern: mock FoundryClient.query (+ detectGameSystem via getWorldInfo) and
- * assert the tool layer behaves exactly as the source defines — arg parsing,
+ * assert the tool layer behaves exactly as the source defines, arg parsing,
  * dispatch method, result shaping, system guard, and error propagation.
  *
  * One tool definition (`dnd5e-add-feature`) with featureType discriminator,
@@ -155,7 +155,7 @@ describe('DnD5eAddFeatureTool.getToolDefinitions', () => {
 // handleAddFeature dispatcher
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool.handleAddFeature — dispatcher', () => {
+describe('DnD5eAddFeatureTool.handleAddFeature: dispatcher', () => {
   it('throws ZodError for an unknown featureType', async () => {
     const { tools } = makeAddFeatureTools();
     await expect(
@@ -173,7 +173,7 @@ describe('DnD5eAddFeatureTool.handleAddFeature — dispatcher', () => {
 // passive handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — passive', () => {
+describe('DnD5eAddFeatureTool: passive', () => {
   const BASE_ARGS = {
     featureType: 'passive' as const,
     actorIdentifier: 'Flame Drake',
@@ -285,7 +285,7 @@ describe('DnD5eAddFeatureTool — passive', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  describe('passive — system guard', () => {
+  describe('passive: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -326,7 +326,7 @@ describe('DnD5eAddFeatureTool — passive', () => {
 // save handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — save', () => {
+describe('DnD5eAddFeatureTool: save', () => {
   const BASE_ARGS = {
     featureType: 'save' as const,
     actorIdentifier: 'Flame Drake',
@@ -466,7 +466,7 @@ describe('DnD5eAddFeatureTool — save', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  describe('save — system guard', () => {
+  describe('save: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -507,7 +507,7 @@ describe('DnD5eAddFeatureTool — save', () => {
 // attack handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — attack', () => {
+describe('DnD5eAddFeatureTool: attack', () => {
   const BASE_ARGS = {
     featureType: 'attack' as const,
     actorIdentifier: 'Flame Drake',
@@ -714,7 +714,7 @@ describe('DnD5eAddFeatureTool — attack', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  describe('attack — system guard', () => {
+  describe('attack: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -755,7 +755,7 @@ describe('DnD5eAddFeatureTool — attack', () => {
 // attack-with-save handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — attack-with-save', () => {
+describe('DnD5eAddFeatureTool: attack-with-save', () => {
   const BASE_ARGS = {
     featureType: 'attack-with-save' as const,
     actorIdentifier: 'Stinger Scorpion',
@@ -841,14 +841,14 @@ describe('DnD5eAddFeatureTool — attack-with-save', () => {
     expect(result.message).toContain('2d8 poison');
   });
 
-  it('saveOnSave defaults to "none" — message says "no damage on save"', async () => {
+  it('saveOnSave defaults to "none": message says "no damage on save"', async () => {
     const { tools } = makeAddFeatureTools();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('no damage on save');
   });
 
-  it('saveOnSave "half" — message says "half on save"', async () => {
+  it('saveOnSave "half": message says "half on save"', async () => {
     const { tools } = makeAddFeatureTools();
     const result = await tools.handleAddFeature({ ...BASE_ARGS, saveOnSave: 'half' });
 
@@ -889,7 +889,7 @@ describe('DnD5eAddFeatureTool — attack-with-save', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  describe('attack-with-save — system guard', () => {
+  describe('attack-with-save: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -920,7 +920,7 @@ describe('DnD5eAddFeatureTool — attack-with-save', () => {
 // aura handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — aura', () => {
+describe('DnD5eAddFeatureTool: aura', () => {
   const BASE_ARGS = {
     featureType: 'aura' as const,
     actorIdentifier: 'Flame Drake',
@@ -976,7 +976,7 @@ describe('DnD5eAddFeatureTool — aura', () => {
     expect(result.message).toContain('10ft emanation');
   });
 
-  it('message contains "(automatic — no attack roll, no saving throw)"', async () => {
+  it('message contains "(automatic: no attack roll, no saving throw)"', async () => {
     const { tools } = makeAddFeatureTools();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -1035,7 +1035,7 @@ describe('DnD5eAddFeatureTool — aura', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  describe('aura — system guard', () => {
+  describe('aura: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -1076,7 +1076,7 @@ describe('DnD5eAddFeatureTool — aura', () => {
 // spellcasting handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — spellcasting', () => {
+describe('DnD5eAddFeatureTool: spellcasting', () => {
   const BASE_ARGS = {
     featureType: 'spellcasting' as const,
     actorIdentifier: 'Wizard NPC',
@@ -1251,7 +1251,7 @@ describe('DnD5eAddFeatureTool — spellcasting', () => {
     );
   });
 
-  describe('spellcasting — system guard', () => {
+  describe('spellcasting: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -1282,7 +1282,7 @@ describe('DnD5eAddFeatureTool — spellcasting', () => {
 // spells handler
 // ===========================================================================
 
-describe('DnD5eAddFeatureTool — spells', () => {
+describe('DnD5eAddFeatureTool: spells', () => {
   const BASE_ARGS = {
     featureType: 'spells' as const,
     actorIdentifier: 'Wizard NPC',
@@ -1472,7 +1472,7 @@ describe('DnD5eAddFeatureTool — spells', () => {
     );
   });
 
-  describe('spells — system guard', () => {
+  describe('spells: system guard', () => {
     let consoleErr: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});

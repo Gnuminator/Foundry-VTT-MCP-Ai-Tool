@@ -83,7 +83,7 @@ const CONTROL_PORT = parseInt(
 );
 
 // When the Foundry link is disabled (MCP_FOUNDRY_LINK=off) the backend serves the
-// control channel ONLY — it does not bind the Foundry connector (WS 31415).
+// control channel ONLY: it does not bind the Foundry connector (WS 31415).
 // Used to smoke-test the standalone entrypoint on an
 // alternate port without colliding with a live bridge. Default: enabled (full backend).
 const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
@@ -128,7 +128,7 @@ function acquireLock(): boolean {
               } catch {}
               lockFd = fs.openSync(LOCK_FILE, 'wx');
             } else {
-              // Backend is genuinely running — exit gracefully
+              // Backend is genuinely running: exit gracefully
               return false;
             }
           } catch {
@@ -503,7 +503,7 @@ async function startBackend(): Promise<void> {
       mirrorPump.start();
     }
   } else {
-    logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
+    logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off), serving control channel only');
   }
 
   // Control channel (TCP JSON-lines)

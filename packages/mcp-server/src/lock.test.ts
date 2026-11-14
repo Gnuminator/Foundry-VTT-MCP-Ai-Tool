@@ -21,7 +21,7 @@ import {
 } from './lock.js';
 
 // ---------------------------------------------------------------------------
-// evaluateLockFile — the four core scenarios from the bug report
+// evaluateLockFile: the four core scenarios from the bug report
 // ---------------------------------------------------------------------------
 
 describe('evaluateLockFile', () => {
@@ -45,7 +45,7 @@ describe('evaluateLockFile', () => {
     expect(result).toBe('valid');
   });
 
-  // Test 3: PID does not exist — process.kill throws ESRCH → caught upstream,
+  // Test 3: PID does not exist, process.kill throws ESRCH → caught upstream,
   // this path is never reached. evaluateLockFile is only called AFTER
   // process.kill(pid, 0) succeeds. We verify the function handles a
   // "non-existent PID" gracefully if checkProcessName returns false.
@@ -88,7 +88,7 @@ describe('evaluateLockFile', () => {
 });
 
 // ---------------------------------------------------------------------------
-// isLockStale — real filesystem, controlled mtime
+// isLockStale: real filesystem, controlled mtime
 // ---------------------------------------------------------------------------
 
 describe('isLockStale', () => {
@@ -133,7 +133,7 @@ describe('isLockStale', () => {
 });
 
 // ---------------------------------------------------------------------------
-// isNodeProcess — mocks getProcessName via vi.mock
+// isNodeProcess: mocks getProcessName via vi.mock
 // ---------------------------------------------------------------------------
 
 describe('isNodeProcess', () => {
@@ -162,7 +162,7 @@ describe('isNodeProcess', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getProcessName — current process is always node
+// getProcessName: current process is always node
 // ---------------------------------------------------------------------------
 
 describe('getProcessName', () => {

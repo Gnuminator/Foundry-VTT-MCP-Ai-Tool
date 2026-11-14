@@ -1,5 +1,5 @@
 /**
- * Unit tests for DnD5eAdapter — pure Node logic, no FoundryClient, no bridge.
+ * Unit tests for DnD5eAdapter: pure Node logic, no FoundryClient, no bridge.
  *
  * All inputs are constructed from the fields the adapter source actually reads.
  * Tests are organized one describe-block per public method.
@@ -607,7 +607,7 @@ describe('DnD5eAdapter', () => {
     });
 
     // Regression: dnd5e always populates `resources.legact` as a {max, spent}
-    // container (default max: 0) on every NPC — both 5.3 and 6.0 — so its
+    // container (default max: 0) on every NPC, both 5.3 and 6.0, so its
     // mere presence used to make every NPC report legendaryActions. Only a
     // positive max should.
     it('does not include legendaryActions when legact.max is 0 (dnd5e always populates the container)', () => {

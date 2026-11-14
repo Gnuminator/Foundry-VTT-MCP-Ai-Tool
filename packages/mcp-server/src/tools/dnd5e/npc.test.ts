@@ -5,8 +5,8 @@ import { makeLogger, makeTools, type ToolHarness } from '../../test-support/make
 import { clearSystemCache } from '../../utils/system-detection.js';
 
 /**
- * Tests for DnD5eNpcTools — a thin, deterministic layer over FoundryClient.query.
- * Pattern: validate args (Zod — throws on failure) → detect game system via
+ * Tests for DnD5eNpcTools: a thin, deterministic layer over FoundryClient.query.
+ * Pattern: validate args (Zod, throws on failure) → detect game system via
  * foundry-mcp-bridge.getWorldInfo → dispatch foundry-mcp-bridge.createNpcActor
  * → propagate errors through ErrorHandler (always throws).
  *
@@ -16,7 +16,7 @@ import { clearSystemCache } from '../../utils/system-detection.js';
  */
 
 // ---------------------------------------------------------------------------
-// Minimal valid args for handleCreateNpc — override fields per test as needed.
+// Minimal valid args for handleCreateNpc, override fields per test as needed.
 // ---------------------------------------------------------------------------
 const VALID_ARGS = {
   name: 'Test Goblin',
@@ -117,10 +117,10 @@ describe('DnD5eNpcTools.getToolDefinitions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateNpc — happy path dispatch
+// handleCreateNpc: happy path dispatch
 // ---------------------------------------------------------------------------
 
-describe('DnD5eNpcTools.handleCreateNpc — happy path', () => {
+describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
   it('calls getWorldInfo then createNpcActor with parsed args', async () => {
     const actorResult = { actor: { id: 'npc-1', name: 'Test Goblin', cr: '1/4' } };
     const query = makeQueryForDnd5e(actorResult);
@@ -130,7 +130,7 @@ describe('DnD5eNpcTools.handleCreateNpc — happy path', () => {
 
     await tools.handleCreateNpc({ ...VALID_ARGS });
 
-    // detectGameSystem calls query with only one arg — no second param
+    // detectGameSystem calls query with only one arg, no second param
     const worldInfoCall = query.mock.calls.find(
       ([m]: [string]) => m === 'foundry-mcp-bridge.getWorldInfo'
     );
@@ -235,10 +235,10 @@ describe('DnD5eNpcTools.handleCreateNpc — happy path', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateNpc — warnings (soft validation — does NOT block creation)
+// handleCreateNpc: warnings (soft validation, does NOT block creation)
 // ---------------------------------------------------------------------------
 
-describe('DnD5eNpcTools.handleCreateNpc — soft validation warnings', () => {
+describe('DnD5eNpcTools.handleCreateNpc: soft validation warnings', () => {
   it('returns warnings for non-canonical damage types but still succeeds', async () => {
     const actorResult = { actor: { id: 'npc-2', name: 'Test Goblin', cr: '1/4' } };
     const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
@@ -282,10 +282,10 @@ describe('DnD5eNpcTools.handleCreateNpc — soft validation warnings', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateNpc — validation errors (Zod throws — query NOT called)
+// handleCreateNpc: validation errors (Zod throws, query NOT called)
 // ---------------------------------------------------------------------------
 
-describe('DnD5eNpcTools.handleCreateNpc — Zod validation throws', () => {
+describe('DnD5eNpcTools.handleCreateNpc: Zod validation throws', () => {
   it('throws (ZodError) when name is missing', async () => {
     const { tools, query } = makeNpcTools();
     const { name: _name, ...noName } = VALID_ARGS as any;
@@ -366,10 +366,10 @@ describe('DnD5eNpcTools.handleCreateNpc — Zod validation throws', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateNpc — system check failure
+// handleCreateNpc: system check failure
 // ---------------------------------------------------------------------------
 
-describe('DnD5eNpcTools.handleCreateNpc — system check', () => {
+describe('DnD5eNpcTools.handleCreateNpc: system check', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -410,17 +410,17 @@ describe('DnD5eNpcTools.handleCreateNpc — system check', () => {
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     // detectGameSystem catches the error and caches 'other', which then triggers
-    // the "not dnd5e" branch — so we still expect a throw
+    // the "not dnd5e" branch: so we still expect a throw
     await expect(tools.handleCreateNpc({ ...VALID_ARGS })).rejects.toThrow();
     expect(query).not.toHaveBeenCalledWith('foundry-mcp-bridge.createNpcActor', expect.anything());
   });
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateNpc — Foundry-side failure
+// handleCreateNpc: Foundry-side failure
 // ---------------------------------------------------------------------------
 
-describe('DnD5eNpcTools.handleCreateNpc — Foundry-side failure', () => {
+describe('DnD5eNpcTools.handleCreateNpc: Foundry-side failure', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -474,10 +474,10 @@ describe('DnD5eNpcTools.handleCreateNpc — Foundry-side failure', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateNpc — formatResponse shape
+// handleCreateNpc: formatResponse shape
 // ---------------------------------------------------------------------------
 
-describe('DnD5eNpcTools.handleCreateNpc — response shape', () => {
+describe('DnD5eNpcTools.handleCreateNpc: response shape', () => {
   it('response has summary, success, actor, warnings, message keys', async () => {
     const actorResult = {
       actor: { id: 'npc-5', name: 'Test Goblin', cr: '1/4', folder: 'Foundry MCP Creatures' },

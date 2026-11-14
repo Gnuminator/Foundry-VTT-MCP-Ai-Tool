@@ -52,7 +52,7 @@ export class DnD5eAdapter implements SystemAdapter {
   /**
    * Creature-index extraction runs in the Foundry module's browser context
    * (packages/foundry-module/src/data-access.ts), where the live compendium
-   * documents are available — not in this MCP-server adapter. This method
+   * documents are available: not in this MCP-server adapter. This method
    * exists only to satisfy the SystemAdapter interface and always throws.
    */
   extractCreatureData(
@@ -298,13 +298,13 @@ export class DnD5eAdapter implements SystemAdapter {
         stats.alignment = alignment;
       }
 
-      // Legendary actions — only report the block when the creature actually
+      // Legendary actions: only report the block when the creature actually
       // has legendary actions. `system.resources.legact` is always a
       // `{max, spent}` container on every NPC in both dnd5e 5.3 and 6.0
       // (default max: 0), so its mere presence is not a signal; a positive
       // max is. Same pre-existing-bug family as creature-index.ts:520-535
       // (plan `creature-index.ts:520-535`).
-      // verified: dnd5e.mjs 6.0.5 — NPCData.resources.legact SchemaField,
+      // verified: dnd5e.mjs 6.0.5, NPCData.resources.legact SchemaField,
       // initial max: 0.
       const legact = asRecord(at(system, 'resources', 'legact'));
       const legactMax = typeof legact?.max === 'number' ? legact.max : 0;
@@ -320,7 +320,7 @@ export class DnD5eAdapter implements SystemAdapter {
     // dnd5e always populates `system.spells` (a fixed level map, each slot
     // defaulting to value: 0), and `attributes.spellcasting` (the ability) is
     // not one either (see below). Same pre-existing-bug family as creature-index.ts:520-535.
-    // verified: dnd5e.mjs 6.0.5 — SpellcastingTemplate.spells (MappingField,
+    // verified: dnd5e.mjs 6.0.5, SpellcastingTemplate.spells (MappingField,
     // initialKeys spellLevels, value default 0); AttributesFields.creature
     // spellcasting (StringField, blank: true, default "").
     const spellsRecord = asRecord(system.spells);

@@ -3,7 +3,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { CombatTools, SET_INITIATIVE_NOTE } from './combat.js';
 
 /**
- * Tests for CombatTools — a thin, deterministic layer over FoundryClient.query.
+ * Tests for CombatTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures → return validation errors as strings
  * (handleSetInitiative only; all others throw).

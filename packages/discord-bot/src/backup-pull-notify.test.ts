@@ -378,6 +378,17 @@ describe('messages', () => {
     expect(text).toContain('Foundry Pi snapshot pull');
   });
 
+  it('is Danish first, then English', () => {
+    const text = backupPullMessage('stale', reading({ restic: 4 * DAY, snapshot: 5 * DAY }));
+    expect(text).toContain("Pi'ens restic og snapshot-backups er ikke kopieret til din PC");
+    expect(text).toContain('restic i 4 dage og snapshot i 5 dage');
+    expect(text).toContain('grænsen er 3 dage');
+    expect(text).toContain('Seneste restic-kopi: 4 dage siden.');
+    expect(text.indexOf('grænsen er')).toBeLessThan(text.indexOf('the limit is'));
+    const back = backupPullMessage('recovered', FRESH, ['restic']);
+    expect(back).toContain("PC'en har kopieret Pi'ens restic-backups igen (5 timer siden)");
+  });
+
   it('says "not recorded yet" for a kind that was never copied', () => {
     const text = backupPullMessage('stale', reading({ restic: 4 * DAY }));
     expect(text).toContain('Last snapshot copy: not recorded yet.');

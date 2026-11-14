@@ -115,7 +115,9 @@ Until every scene has its in-depth notes the run exits 76 (75 when paused) and `
 so at the top; `notes.json` gets `layers.depth_complete`. `auto.ps1` runs with `--layers` (the
 user's OK 2026-11-14) and counts a session as done only when `layers.depth_complete` is true (notes
 written before the layers existed have no `layers` part and stay done), so a pass cut short by the
-usage limit finishes the in-depth notes on the next hourly pass.
+usage limit finishes the in-depth notes on the next hourly pass. A scene whose in-depth notes fail
+the checks on three runs at least 30 minutes apart is accepted without them (`depth.da.md` says
+so); to try it again, delete `notes/.work/depth-NNN.json` and `depth-NNN.fail.json`.
 
 ## Into Foundry (D-087)
 

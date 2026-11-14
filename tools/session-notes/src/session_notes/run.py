@@ -243,7 +243,7 @@ class Writer:
                 if data.get("key") == scene_key(scene) and isinstance(data["notes"], dict):
                     done[scene["index"]] = data["notes"]
                     continue
-            except (ValueError, KeyError, OSError):
+            except (ValueError, KeyError, OSError, AttributeError, TypeError):
                 pass  # missing, partial or old: written again
             todo.append(scene)
         paused: list[str] = []
@@ -324,7 +324,7 @@ class Writer:
             data = json.loads(marker.read_text(encoding="utf-8"))
             if data.get("key") == key:
                 tries, last = int(data.get("tries", 0)), float(data.get("at", 0))
-        except (ValueError, OSError):
+        except (ValueError, OSError, AttributeError, TypeError):
             pass
         now = time.time()
         if tries == 0 or now - last >= self.opts.fallback_gap_s:

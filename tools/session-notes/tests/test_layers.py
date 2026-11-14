@@ -149,7 +149,7 @@ def test_corrupt_depth_cache_is_a_miss_and_changed_lines_invalidate(session: Pat
     third = FakeClaude()
     Writer(session, third, opts()).run()
     kinds = [k for k, _ in third.calls]
-    assert kinds.count("depth") >= 1
+    assert kinds.count("depth") == 1  # scene 1 again, scene 2 still cached
 
 
 def test_layers_with_a_raw_scene_skip_its_depth(session: Path) -> None:

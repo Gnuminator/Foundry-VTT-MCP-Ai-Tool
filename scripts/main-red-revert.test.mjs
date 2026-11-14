@@ -49,6 +49,7 @@ test('commitTitle uses the PR title of a merge commit', () => {
   );
   assert.equal(commitTitle('Fix the thing (#12)', ''), 'Fix the thing');
   assert.equal(commitTitle('Merge pull request #5 from a/b', ''), 'a merge to main');
+  assert.equal(commitTitle('Fix #12 in the parser (#34)', ''), 'Fix #12 in the parser');
 });
 
 /** A fake gh/git: records every call; `runState` answers the run lookups in order. */
@@ -172,6 +173,19 @@ test('main: a failed status poll is retried until the rerun ends', () => {
 test('main: an endless failing poll ends at the deadline with an error', () => {
   const io = fakeIo({ runStates: [done(1, 'failure'), 'fail'], runs: RUNS });
   assert.throws(() => main(ARGS, io), /did not finish within 50 minutes/);
+});
+
+test('main: a missing arg exits 2 with the usage line through io', () => {
+  const io = fakeIo({ runStates: [done(1, 'failure')], runs: RUNS });
+  assert.equal(main(['--run', '9'], io), 2);
+  assert.match(io.logs[0], /^usage:/);
+  assert.equal(io.calls.length, 0);
+});
+
+test('main: an unreadable first state read is retried before rerunning', () => {
+  const io = fakeIo({ runStates: ['fail', done(2, null), done(2, 'success')], runs: RUNS });
+  main(ARGS, io);
+  assert.ok(!has(io, 'gh', 'run', 'rerun'));
 });
 
 test('main: an open auto-revert PR, a manual attempt and a missing arg do nothing', () => {

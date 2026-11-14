@@ -18,6 +18,13 @@ test('countReport counts files, exports and types per workspace', () => {
   });
 });
 
+test('countReport throws when the knip report lacks files or issues arrays', () => {
+  assert.throws(() => countReport({}), /format changed/);
+  assert.throws(() => countReport({ files: [] }), /format changed/);
+  assert.throws(() => countReport({ files: [], issues: {} }), /format changed/);
+  assert.deepEqual(countReport({ files: [], issues: [] }), {});
+});
+
 test('compare fails a rise and a new key, reports a drop', () => {
   const base = { 'shared: files': 2, 'shared: exports': 3 };
   const { increases, decreases } = compare(base, {

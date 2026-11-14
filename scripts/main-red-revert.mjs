@@ -5,8 +5,9 @@
  *
  *   node scripts/main-red-revert.mjs --run <run id> --attempt <n> --sha <head sha> [--dry-run]
  *
- * - attempt 1 only (a later attempt is a person's rerun and is left alone): `gh run rerun <id>
- *   --failed`, then wait in this same job until attempt 2 has finished (a rerun started with
+ * - attempt 1 only (a later attempt is a person's rerun and is left alone). The event is minutes
+ *   old, so the run is read first: if a person already reran it by hand (attempt 2 or more), this
+ *   job waits for that attempt instead of rerunning. Otherwise `gh run rerun <id> --failed`, then wait in this same job until attempt 2 has finished (a rerun started with
  *   GITHUB_TOKEN may not fire a second workflow_run, so nothing depends on one). Green: done.
  * - Red again: find the merge that started the current red streak (the oldest consecutive
  *   non-green main CI push run ending at this sha), revert it on a branch `auto-revert/<sha7>` and
@@ -83,7 +84,7 @@ export function commitTitle(subject, body) {
   if (/^Merge (pull request|branch)/.test(subject)) {
     t = body.split('\n').find(l => l.trim()) ?? '';
   }
-  t = t.replace(/\s*\(?#\d+\)?/g, '').trim();
+  t = t.replace(/\s*\(#\d+\)$/, '').trim();
   return t || 'a merge to main';
 }
 
@@ -149,6 +150,16 @@ function readRun(io, id) {
   }
 }
 
+/** Like readRun, but a few tries: one blip must not turn a hand-made rerun into a second one. */
+function readRunWithRetry(io, id) {
+  for (let i = 0; i < 3; i++) {
+    if (i > 0) io.sleep(5 * 1000);
+    const r = readRun(io, id);
+    if (r) return r;
+  }
+  return null;
+}
+
 /**
  * Polls the run until attempt 2 has finished. True when it ended red. A failed or unreadable poll
  * is retried until the deadline: one API blip must not end the wait.
@@ -178,7 +189,7 @@ export function main(argv, io = realIo()) {
   const { gh, git } = io;
   const o = parseArgs(argv);
   if (!o.run || !o.sha || !Number.isInteger(o.attempt)) {
-    console.error('usage: main-red-revert.mjs --run <id> --attempt <n> --sha <sha> [--dry-run]');
+    io.log('usage: main-red-revert.mjs --run <id> --attempt <n> --sha <sha> [--dry-run]');
     return 2;
   }
   if (o.attempt > 1) {
@@ -187,12 +198,9 @@ export function main(argv, io = realIo()) {
   }
   if (!o.dryRun) {
     // The event is minutes old: someone may have rerun it by hand since. Read the run first.
-    const live = readRun(io, o.run);
+    const live = readRunWithRetry(io, o.run);
     if (live && live.run_attempt > 1) {
       io.log('the run was already rerun by hand: waiting for that attempt instead of rerunning');
-    } else if (live && live.status !== 'completed') {
-      io.log('the run is not finished (attempt 1 still going): nothing to do');
-      return 0;
     } else {
       io.log(`attempt 1 failed on ${o.sha.slice(0, 7)}: rerunning the failed jobs once`);
       gh(['run', 'rerun', o.run, '--failed']);

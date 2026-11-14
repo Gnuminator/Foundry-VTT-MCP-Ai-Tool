@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 
 import { describe, expect, it } from 'vitest';
 
-const css = readFileSync(new URL('../public/moments.css', import.meta.url), 'utf8').replace(
+const css = readFileSync(new URL('../web/src/styles/moments.css', import.meta.url), 'utf8').replace(
   /\/\*[\s\S]*?\*\//g,
   ''
 );

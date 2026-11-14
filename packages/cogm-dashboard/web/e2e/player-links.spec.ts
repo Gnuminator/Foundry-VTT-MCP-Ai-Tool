@@ -87,13 +87,13 @@ test('the page loads on / with the old look and keeps the token out of the addre
   // The real stream would send its own theme on connect and replace the faked world theme.
   await fakeCommonRoutes(page, 'veil');
   await fakeStream(page, []);
-  const styles = page.waitForResponse(res => res.url().endsWith('/styles.css'));
+  const styles = page.waitForResponse(res => /\/assets\/.*\.css$/.test(res.url()));
   await page.goto(`/?token=${GM_TOKEN}`);
   expect((await styles).status()).toBe(200);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Foundry AI Tool');
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'veil');
-  // The topbar is styled by the old styles.css (a flex row), not left as plain blocks.
+  // The topbar is styled by the bundled old styles.css (a flex row), not left as plain blocks.
   await expect(page.locator('header.topbar')).toHaveCSS('display', 'flex');
 });
 

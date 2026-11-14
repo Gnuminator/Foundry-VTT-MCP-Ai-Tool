@@ -138,7 +138,7 @@ describe('the player page CSP on every URL that serves it', () => {
     expect(index.status).toBe(200);
     // The dashboard page itself says only the dashboard may frame it (live-frame.ts).
     expect(index.headers['content-security-policy']).toBe("frame-ancestors 'self'");
-    for (const p of ['/player.js', '/styles.css']) {
+    for (const p of ['/player.js', '/me.css']) {
       const answer = await get(p);
       expect([p, answer.status]).toEqual([p, 200]);
       expect([p, answer.headers['content-security-policy']]).toEqual([p, undefined]);
@@ -227,14 +227,14 @@ describe('staticHeaders', () => {
 
   it('leaves every other file alone, and survives odd stat values', () => {
     const hook = staticHeaders(PUBLIC_DIR, [player, open]);
-    for (const name of ['player.js', 'styles.css']) {
+    for (const name of ['player.js', 'me.css']) {
       const { res, set } = recorder();
       hook(res, path.join(PUBLIC_DIR, name), statOf(name));
       expect([name, set]).toEqual([name, {}]);
     }
     for (const stat of [undefined, null, {}, { dev: '1', ino: '2' }, 42]) {
       const { res, set } = recorder();
-      hook(res, path.join(PUBLIC_DIR, 'styles.css'), stat);
+      hook(res, path.join(PUBLIC_DIR, 'me.css'), stat);
       expect(set).toEqual({});
     }
   });

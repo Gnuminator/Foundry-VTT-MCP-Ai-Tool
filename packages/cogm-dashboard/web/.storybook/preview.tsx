@@ -1,15 +1,10 @@
-// The preview iframe: the same stylesheets as the real page, in the same order (index.html links
-// them: styles.css and moments.css, then the themes), so a story looks as the
-// panel does in the dashboard. Vite resolves them from public/, fonts included.
+// The preview iframe: the same stylesheets as the real page, in the same order
+// (src/styles/index.css: styles.css, moments.css, the themes, next.css), so a story looks as the
+// panel does in the dashboard.
 import { withThemeByDataAttribute } from '@storybook/addon-themes';
 import type { Decorator, Preview } from '@storybook/react-vite';
 
-import '../../public/styles.css';
-import '../../public/moments.css';
-import '../../public/themes/brand.css';
-import '../../public/themes/veil.css';
-import '../../public/themes/light.css';
-import '../src/next.css';
+import '../src/styles/index.css';
 import './preview.css';
 
 import { dashboardBeforeEach, withDashboard } from '../src/storybook/withDashboard';

@@ -122,15 +122,14 @@ which has no Blackwell support:
 
 ```powershell
 python -m venv C:\path\to\venv
-C:\path\to\venv\Scripts\pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
-C:\path\to\venv\Scripts\pip install --no-deps chatterbox-tts==0.1.7
-C:\path\to\venv\Scripts\pip install "numpy<2" librosa==0.11.0 s3tokenizer transformers==5.2.0 `
-  diffusers==0.29.0 "resemble-perth>=1.0.0" conformer==0.3.2 safetensors==0.5.3 spacy-pkuseg `
-  pykakasi==2.3.0 pyloudnorm omegaconf
+C:\path\to\venv\Scripts\pip install --no-deps -r tools\narration\requirements-voice.lock.txt `
+  --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
-That is chatterbox-tts 0.1.7's own list without torch (kept at the cu128 build) and without
-gradio (only its demo app uses it).
+`requirements-voice.lock.txt` is the frozen working venv with exact versions, including the
+`+cu128` torch builds. `--no-deps` is deliberate: chatterbox-tts 0.1.7's own pins ask for torch
+2.6, so everything it needs is listed in the file (without gradio, which only its demo app uses).
+A test (`tests/test_voice_lock.py`) keeps this recipe and the file in step.
 
 The models (about 5.4 GB for Roest, 3 GB for Turbo) download into `HF_HOME` on first use; no
 Hugging Face login is needed. ffmpeg must be on PATH (`winget install Gyan.FFmpeg`). On the

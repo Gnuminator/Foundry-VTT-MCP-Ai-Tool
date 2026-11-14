@@ -4,13 +4,15 @@
  * higher level with a slot when it is empty ({ pact: level } when the pact slot is the lowest one
  * that fits: a multiclass warlock casts a "spell" method spell with it), 'none' when no slot at
  * that level or above is left, 'below' when the caller asked for a level under the spell's own.
- * `attack` is the attack activity of a rollAttack call: only its slot box counts then.
+ * `attack` is the attack activity of a rollAttack call: only its slot box counts then; `headless`
+ * (no dialog) means the first usable activity runs.
  */
 export function slotLevelFor(
   actor: Actor,
   item: Item,
   wanted: number | undefined,
-  attack?: unknown
+  attack?: unknown,
+  headless = false
 ): number | { pact: number } | 'none' | 'below' | undefined {
   const sys = item.system as
     | { level?: unknown; method?: unknown; activities?: unknown; linkedActivity?: unknown }
@@ -27,10 +29,13 @@ export function slotLevelFor(
   const list = Array.isArray(acts) ? acts : acts?.values ? Array.from(acts.values()) : [];
   const noSlot = (a: unknown): boolean =>
     (a as { consumption?: { spellSlot?: unknown } })?.consumption?.spellSlot === false;
-  // A rollAttack call uses the attack activity alone, so only its box decides; otherwise the
-  // item skips the slot only when every activity does.
-  if (attack !== undefined ? noSlot(attack) : list.length > 0 && list.every(noSlot))
-    return undefined;
+  // One activity runs when a rollAttack call names it, when no dialog shows (dnd5e takes the first
+  // usable activity) or when only one can be used: its box alone decides. Otherwise the GM picks in
+  // the dialog and the module cannot know which one, so a spell with any no-slot activity is left
+  // to dnd5e.
+  const usable = list.filter(a => (a as { canUse?: unknown })?.canUse !== false);
+  const chosen: unknown = attack ?? (headless || usable.length === 1 ? usable[0] : undefined);
+  if (chosen !== undefined ? noSlot(chosen) : list.some(noSlot)) return undefined;
   const spells = (
     actor.system as {
       spells?: Record<string, { value?: unknown; level?: unknown } | undefined>;

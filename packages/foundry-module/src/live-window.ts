@@ -286,10 +286,15 @@ function startSchemeWatch(): void {
   } catch {
     media = null;
   }
+  // The interface theme alone changes no class on body or html: listen for the setting itself.
+  const schemeHookId = Hooks.on('clientSettingChanged', (key: string) => {
+    if (key === 'core.uiConfig') syncScheme();
+  });
   schemeWatch = {
     stop: (): void => {
       observer?.disconnect();
       media?.removeEventListener?.('change', onMedia);
+      Hooks.off('clientSettingChanged', schemeHookId);
     },
   };
 }

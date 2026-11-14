@@ -243,7 +243,13 @@ export class ActorBuilderDataAccess {
     let upcastSlot = options.spellLevel !== undefined ? `spell${options.spellLevel}` : undefined;
     let autoUpcast: number | undefined;
     if (systemId === 'dnd5e' && options.consume !== false) {
-      const slotLevel = slotLevelFor(actor, item, options.spellLevel, attackActivity);
+      const slotLevel = slotLevelFor(
+        actor,
+        item,
+        options.spellLevel,
+        attackActivity,
+        this.clientHasNoCanvas()
+      );
       if (slotLevel === 'below') {
         throw new Error(
           `${item.name} is a level ${String((item.system as { level?: unknown }).level)} spell; spellLevel ${String(options.spellLevel)} is below that. Nothing was used or rolled`

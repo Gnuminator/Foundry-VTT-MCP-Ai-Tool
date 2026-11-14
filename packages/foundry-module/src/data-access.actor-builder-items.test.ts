@@ -623,7 +623,7 @@ describe('FoundryDataAccess — useItem', () => {
       expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell2' } });
     });
 
-    it('item.use: one activity without a slot box does not skip the check', async () => {
+    const twoActivities = (firstSlot: boolean): Mock => {
       const use = vi.fn(() => Promise.resolve());
       const item = makeItem({
         id: 'gb',
@@ -632,7 +632,56 @@ describe('FoundryDataAccess — useItem', () => {
         system: {
           level: 1,
           method: 'spell',
-          activities: [{ consumption: { spellSlot: false } }, { consumption: { spellSlot: true } }],
+          activities: [
+            { consumption: { spellSlot: firstSlot } },
+            { consumption: { spellSlot: !firstSlot } },
+          ],
+        },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 } } },
+      });
+      return use;
+    };
+
+    it('with a dialog and activities that disagree, leaves the choice to dnd5e', async () => {
+      const use = twoActivities(true);
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('headless: the first usable activity decides (no slot box off casts)', async () => {
+      const use = twoActivities(false);
+      headless();
+      (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('headless: a first activity that spends a slot is refused with none left', async () => {
+      const use = twoActivities(true);
+      headless();
+      (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('item.use: when every activity spends a slot the check still refuses', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: {
+          level: 1,
+          method: 'spell',
+          activities: [{ consumption: { spellSlot: true } }, { consumption: { spellSlot: true } }],
         },
       });
       (item as any).use = use;

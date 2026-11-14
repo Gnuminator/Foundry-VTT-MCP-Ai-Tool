@@ -95,4 +95,67 @@ def test_check_and_repair_depth() -> None:
 
 def test_mark_uncertain_words() -> None:
     line = Line("u000001", 0, 1, "a", "A", "A", "Ved Sær Pool, ikke.", ("Pool",))
-    assert mark_uncertain(line) == "Ved Sær [Pool,?] ikke."
+    assert mark_uncertain(line) == "Ved Sær [Pool?], ikke."
+
+
+class Empty(FakeClaude):
+    """Every in-depth answer fails the check; the retry prompts are kept."""
+
+    def __call__(self, prompt, schema, model, effort="low"):  # type: ignore[no-untyped-def]
+        if "beats" in schema["properties"]:
+            self.calls.append(("depth", prompt))
+            return {"beats": []}
+        return super().__call__(prompt, schema, model, effort)
+
+
+def test_retry_prompt_names_the_problem(session: Path) -> None:
+    fake = Empty()
+    Writer(session, fake, opts()).run()
+    depth_prompts = [p for k, p in fake.calls if k == "depth"]
+    assert "Your previous answer was rejected: no beats" in depth_prompts[1]
+    assert "rejected" not in depth_prompts[0]
+
+
+def test_a_scene_that_never_passes_is_given_up_after_three_runs(session: Path) -> None:
+    for run in range(3):
+        fake = Empty()
+        result = Writer(session, fake, opts(fallback_gap_s=0)).run()
+        assert [k for k, _ in fake.calls].count("depth") == 4, run  # both scenes, two tries
+    assert result.depth_missing == 0
+    again = FakeClaude()
+    assert Writer(session, again, opts(fallback_gap_s=0)).run().depth_missing == 0
+    assert [k for k, _ in again.calls].count("depth") == 0  # accepted, not asked again
+    text = (session / "notes" / "depth.da.md").read_text(encoding="utf-8")
+    assert "ingen dybdegående noter" in text and "Ufærdige" not in text
+
+
+def test_quick_reruns_do_not_use_up_the_depth_retries(session: Path) -> None:
+    for _ in range(4):
+        result = Writer(session, Empty(), opts()).run()  # default gap: 30 minutes
+    assert result.depth_missing == 2
+
+
+def test_corrupt_depth_cache_is_a_miss_and_changed_lines_invalidate(session: Path) -> None:
+    Writer(session, FakeClaude(), opts()).run()
+    work = session / "notes" / ".work"
+    (work / "depth-001.json").write_text('{"key": "x", "no', encoding="utf-8")  # cut mid-write
+    again = FakeClaude()
+    assert Writer(session, again, opts()).run().depth_missing == 0
+    assert [k for k, _ in again.calls] == ["depth"]  # only scene 1, written again
+    # the scene notes changed (a new title): the old in-depth notes are not reused
+    cached = json.loads((work / "scene-001.json").read_text(encoding="utf-8"))
+    cached["notes"]["title_da"] = "Ny titel"
+    (work / "scene-001.json").write_text(json.dumps(cached), encoding="utf-8")
+    third = FakeClaude()
+    Writer(session, third, opts()).run()
+    kinds = [k for k, _ in third.calls]
+    assert kinds.count("depth") >= 1
+
+
+def test_layers_with_a_raw_scene_skip_its_depth(session: Path) -> None:
+    fake = FakeClaude(fail={1: "error", 2: "error", 3: "error", 4: "error"})
+    result = Writer(session, fake, opts()).run()
+    assert result.pending == 1 and result.depth_missing == 1  # scene 2 waits for the summary
+    assert [k for k, _ in fake.calls].count("depth") == 0
+    text = (session / "notes" / "depth.da.md").read_text(encoding="utf-8")
+    assert "Ufærdige" in text

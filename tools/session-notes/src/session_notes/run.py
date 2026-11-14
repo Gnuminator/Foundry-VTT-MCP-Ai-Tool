@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -237,11 +238,13 @@ class Writer:
             if scene.get("fallback"):
                 continue
             cached = self.work / f"depth-{scene['index']:03d}.json"
-            if cached.exists():
+            try:
                 data = json.loads(cached.read_text(encoding="utf-8"))
-                if data.get("key") == scene_key(scene):
+                if data.get("key") == scene_key(scene) and isinstance(data["notes"], dict):
                     done[scene["index"]] = data["notes"]
                     continue
+            except (ValueError, KeyError, OSError):
+                pass  # missing, partial or old: written again
             todo.append(scene)
         paused: list[str] = []
         lock = threading.Lock()
@@ -250,10 +253,11 @@ class Writer:
             if paused:
                 return
             started = time.monotonic()
+            hint = ""
             for _attempt in range(2):
                 try:
                     result = self.runner(
-                        depth_prompt(scene, block, starts, who),
+                        depth_prompt(scene, block, starts, who) + hint,
                         DEPTH_SCHEMA,
                         self.opts.depth_model,
                         self.opts.depth_effort,
@@ -270,12 +274,14 @@ class Writer:
                 problems = check_depth(result, scene)
                 if problems:
                     self._log("depth_invalid", scene=scene["index"], problems=problems)
+                    hint = (
+                        "\n\nYour previous answer was rejected: "
+                        + "; ".join(problems)
+                        + ". Fix this."
+                    )
                     continue
                 fixes = repair_depth(result, scene)
-                (self.work / f"depth-{scene['index']:03d}.json").write_text(
-                    json.dumps({"key": scene_key(scene), "notes": result}, ensure_ascii=False),
-                    encoding="utf-8",
-                )
+                self._save_depth(scene, result)
                 self._log(
                     "depth_ok",
                     scene=scene["index"],
@@ -286,11 +292,48 @@ class Writer:
                 with lock:
                     done[scene["index"]] = result
                 return
+            # Both tries failed. Like a raw scene, it is tried again on the next runs; after
+            # MAX_FALLBACK_RUNS counted runs it is accepted without in-depth notes, so a scene
+            # that never passes the checks cannot cost two calls every hour for ever.
+            if self._count_depth_failure(scene):
+                gave_up = {"beats": [], "fallback": True}
+                self._save_depth(scene, gave_up)
+                with lock:
+                    done[scene["index"]] = gave_up
 
         with ThreadPoolExecutor(max_workers=max(1, self.opts.workers)) as pool:
             list(pool.map(work, todo))
         total = sum(1 for n in notes if not n.get("fallback"))
         return done, total - len(done), (paused[0] if paused else None)
+
+    def _save_depth(self, scene: dict[str, Any], result: dict[str, Any]) -> None:
+        path = self.work / f"depth-{scene['index']:03d}.json"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps({"key": scene_key(scene), "notes": result}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp, path)
+
+    def _count_depth_failure(self, scene: dict[str, Any]) -> bool:
+        """Count this run for a scene whose in-depth notes failed; True once it is given up."""
+        marker = self.work / f"depth-{scene['index']:03d}.fail.json"
+        key = scene_key(scene)
+        tries, last = 0, 0.0
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            if data.get("key") == key:
+                tries, last = int(data.get("tries", 0)), float(data.get("at", 0))
+        except (ValueError, OSError):
+            pass
+        now = time.time()
+        if tries == 0 or now - last >= self.opts.fallback_gap_s:
+            tries += 1
+            marker.write_text(
+                json.dumps({"key": key, "tries": tries, "at": now}), encoding="utf-8"
+            )
+        self._log("depth_failed_run", scene=scene["index"], tries=tries)
+        return tries >= MAX_FALLBACK_RUNS
 
     def _fallback_tries(self, scene: Scene) -> int:
         marker = self.work / f"scene-{scene.index:03d}.fallback.json"

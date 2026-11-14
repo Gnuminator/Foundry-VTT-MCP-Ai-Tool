@@ -110,7 +110,15 @@ def repair_depth(result: dict[str, Any], scene: dict[str, Any]) -> list[str]:
 def scene_key(scene: dict[str, Any]) -> str:
     """Cache key: the in-depth notes are about exactly these cleaned lines and notes."""
     blob = json.dumps(
-        [scene["index"], scene["lines"], scene["summary_da"], scene.get("events")],
+        [
+            scene["index"],
+            scene["lines"],
+            scene["title_da"],
+            scene["summary_da"],
+            scene.get("events"),
+            scene.get("decisions"),
+            hashlib.sha256(DEPTH_RULES.encode("utf-8")).hexdigest(),  # new rules, new notes
+        ],
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -146,11 +154,17 @@ HEAD = {
 def mark_uncertain(line: Line) -> str:
     if not line.uncertain:
         return line.text
-    unsure = {w.strip(".,;:!?\"'()").lower() for w in line.uncertain}
+    punct = ".,;:!?\"'()"
+    unsure = {w.strip(punct).lower() for w in line.uncertain}
     out = []
     for token in line.text.split():
-        core = token.strip(".,;:!?\"'()").lower()
-        out.append(f"[{token}?]" if core and core in unsure else token)
+        core = token.strip(punct)
+        if core and core.lower() in unsure:
+            head = token[: len(token) - len(token.lstrip(punct))]
+            tail = token[len(head) + len(core) :]
+            out.append(f"{head}[{core}?]{tail}")
+        else:
+            out.append(token)
     return " ".join(out)
 
 
@@ -193,15 +207,16 @@ def render_depth(
             f"*{clock(sc['start'])} to {clock(sc['end'])}*",
             "",
         ]
-        if sc.get("fallback"):
+        notes = depth.get(sc["index"])
+        if sc.get("fallback") or (notes is not None and notes.get("fallback")):
             out += [f"> {HEAD['depth_fallback']}", ""]
             continue
-        notes = depth.get(sc["index"])
         if notes is None:
             out += [f"> {HEAD['depth_missing']}", ""]
             continue
-        for beat in notes["beats"]:
-            out += [f"### {beat['heading']}", "", f"{beat['text']}{_cite(beat['cites'], starts)}", ""]
+        for beat in notes.get("beats", []):
+            cites = _cite(beat.get("cites", []), starts)
+            out += [f"### {beat.get('heading', '')}", "", f"{beat.get('text', '')}{cites}", ""]
     return "\n".join(out)
 
 

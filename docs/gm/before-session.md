@@ -44,7 +44,8 @@ four stages with times.
       of the scene controls. A world that was saved earlier may have it off.
 
 - [ ] Once, before session 1 (only with the module Dice So Nice): pick your own dice, **AI
-      Tool: The Veil** or **AI Tool: Neutral**: **Game Settings**, **3D Dice Settings**, tab
+      Tool: The Veil (campaign look)** or **AI Tool: Neutral**: **Game Settings**, **3D Dice
+      Settings**, tab
       **Appearance**, **Theme**, **Save**. Every player picks their own the same way; there is no
       table-wide default. See [Themed dice](features.md#themed-dice).
 

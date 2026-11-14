@@ -111,15 +111,14 @@ export function liveFrameUrl(
 export type LiveScheme = 'light' | 'dark';
 
 /**
- * Light or dark as Foundry shows it: the colour scheme chosen for applications (windows), else
- * for the interface; "default" or nothing follows the browser's own setting.
+ * Light or dark as Foundry shows it. Foundry's own rule: the colour scheme chosen for applications
+ * (windows) decides; the interface scheme does not touch windows; "default" or nothing follows the
+ * browser, where a dark preference is checked before a light one (so both set means dark).
  */
 export function pickScheme(uiConfig: unknown, browserPrefersLight: boolean): LiveScheme {
-  const cs = (uiConfig as { colorScheme?: { applications?: unknown; interface?: unknown } } | null)
-    ?.colorScheme;
-  for (const value of [cs?.applications, cs?.interface]) {
-    if (value === 'light' || value === 'dark') return value;
-  }
+  const cs = (uiConfig as { colorScheme?: { applications?: unknown } } | null)?.colorScheme;
+  const value = cs?.applications;
+  if (value === 'light' || value === 'dark') return value;
   return browserPrefersLight ? 'light' : 'dark';
 }
 
@@ -133,7 +132,8 @@ export function foundryScheme(): LiveScheme {
   }
   let light = false;
   try {
-    light = window.matchMedia?.('(prefers-color-scheme: light)')?.matches === true;
+    const dark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches === true;
+    light = !dark && window.matchMedia?.('(prefers-color-scheme: light)')?.matches === true;
   } catch {
     // No matchMedia: dark, the dashboard's own look.
   }

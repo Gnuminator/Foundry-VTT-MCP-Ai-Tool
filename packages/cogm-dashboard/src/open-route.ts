@@ -21,6 +21,7 @@ import type { IncomingHttpHeaders, ServerResponse } from 'http';
 import {
   OPEN_REQUEST_HEADER,
   OPEN_REQUEST_VALUE,
+  asRecord,
   isFoundryUuid,
   type OpenLinkError,
   type OpenLinkErrorCode,
@@ -163,12 +164,6 @@ function authStatus(req: Request, auth: AuthConfig): 200 | 401 | 403 {
   const role = resolveRole(view, auth);
   if (isGm(role)) return 200;
   return role === 'player' && auth.playerToken !== '' ? 403 : 401;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 function toResult(raw: unknown): OpenLinkResult {

@@ -1,3 +1,5 @@
+import { isRecord } from '@gnuminator/shared';
+
 import type { SessionEvent } from './feed/types.js';
 
 /**
@@ -43,9 +45,6 @@ const ANSWERING = new Set(['check', 'skill', 'save', 'tool']);
 
 /** A result may be stamped a moment before the request on a clock that runs behind. */
 const CLOCK_SLACK_MS = 2000;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 

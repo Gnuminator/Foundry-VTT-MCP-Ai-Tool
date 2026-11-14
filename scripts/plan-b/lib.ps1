@@ -26,22 +26,28 @@ $ErrorActionPreference = 'Stop'
 $PlanBRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $PlanBModuleId = 'foundry-mcp-bridge'
 
+# Machine paths (drives and folders) for Plan B, pull-restic.ps1 and the module archive live in
+# scripts/machine-paths.json. The scheduled-task registrars and the other pull scripts under
+# scripts/pi still carry the backup drive letter themselves.
+$MachinePaths = Get-Content (Join-Path $PlanBRepoRoot 'scripts/machine-paths.json') -Raw | ConvertFrom-Json
+
 $PlanBDefaults = [ordered]@{
-  Root     = if ($IsWindows) { 'C:\FoundryPlanB' } else { Join-Path $HOME 'foundry-plan-b' }
+  Root     = if ($IsWindows) { $MachinePaths.planBRoot } else { Join-Path $HOME 'foundry-plan-b' }
   World    = 'curse-of-strahd'
-  Repo     = 'E:\PiBackup\restic'
-  PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'restic-pc.pass' } else { '' }
+  # String concatenation, not Join-Path: Join-Path throws when the drive (an unplugged E:) is absent.
+  Repo     = ($MachinePaths.backupDestination.TrimEnd('\') + '\restic')
+  PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA $MachinePaths.secretsFolderUnderAppData 'restic-pc.pass' } else { '' }
   # Where the Pi answers when it is up (Tailscale name and address, and its home network address
   # from the SSH config; scripts/pi/find-pi.ps1 finds it if it moves). start.ps1 -GameNight refuses
   # while Foundry answers on one of them, so two copies of the world never run at once.
   PiAddresses = @('foundry-pi.tailf949aa.ts.net', '100.110.82.102', '192.168.1.191')
   # Folders Plan B's root must stay out of: the test server (Test-PlanBRoot adds the home folder
   # and the repo).
-  ForbiddenRoots = @(if ($IsWindows) { 'C:\FoundryTest' })
+  ForbiddenRoots = @(if ($IsWindows) { $MachinePaths.testServerRoot })
   # The test server's licence: bound to this PC's host name, so it works for Plan B too (the
   # Pi's own licence is bound to the Pi). Only read, never changed.
-  LicenseFrom = if ($IsWindows) { 'C:\FoundryTest\data\Config\license.json' } else { '' }
-  TunnelTokenFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'plan-b-tunnel.token' } else { '' }
+  LicenseFrom = if ($IsWindows) { Join-Path $MachinePaths.testServerRoot 'data\Config\license.json' } else { '' }
+  TunnelTokenFile = if ($env:APPDATA) { Join-Path $env:APPDATA $MachinePaths.secretsFolderUnderAppData 'plan-b-tunnel.token' } else { '' }
 }
 
 # The ports per mode. Game night = the Pi's (stage 3 and 5): Foundry 30000, bridge control 31414,

@@ -2,7 +2,7 @@
  * The M2 proof (campaign plan in the private vault, feature 2): GM state is seeded
  * with unique canary strings, and none of them may appear in anything a player
  * can fetch or stream: `/api/player/state`, the player stream, the player role
- * on the legacy `/api/state` and `/api/stream`, `/player` and `player.js`,
+ * on the GM `/api/state` and `/api/stream`, `/player` and `player.js`,
  * whatever credential is presented. As a control, the GM endpoint does show
  * them (so the seeding is real). Runs the real Express app against a fake
  * bridge.
@@ -422,7 +422,7 @@ describe('canary suite: nothing GM-only reaches a player', () => {
     }
   });
 
-  it('the legacy /api/state gives the player role the same projection', async () => {
+  it('the GM /api/state gives the player role the same projection', async () => {
     const res = await get('/api/state');
     expect(res.status).toBe(200);
     expect(leaks(res.text)).toEqual([]);
@@ -434,7 +434,7 @@ describe('canary suite: nothing GM-only reaches a player', () => {
     const opened = await Promise.all([
       openStream('/api/player/stream', 800),
       openStream('/api/player/stream', 800, GM_TOKEN),
-      openStream('/api/stream', 800), // the player role on the legacy stream
+      openStream('/api/stream', 800), // the player role on the GM stream
     ]);
     const reading = Promise.all(opened.map(o => o.text));
     dashboard.handlers.onEvents(

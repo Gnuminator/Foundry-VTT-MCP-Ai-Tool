@@ -17,7 +17,7 @@ import { projectPlayStats } from './stats.js';
 import { writePlayerVault } from './writer.js';
 
 /** The most events the one-time backfill asks the bridge for (`get-session-log`). */
-export const PLAYER_VAULT_BACKFILL_LIMIT = 1000;
+const PLAYER_VAULT_BACKFILL_LIMIT = 1000;
 
 /** Events seen before the world is known are held here, at most this many. */
 const PENDING_LIMIT = 1000;

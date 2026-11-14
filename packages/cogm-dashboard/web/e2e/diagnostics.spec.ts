@@ -2,7 +2,14 @@
 // counter, the empty state, the space note and the help "?".
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fromMenu } from './support';
+import {
+  GM_TOKEN,
+  SPACE_UNAVAILABLE,
+  apiBody,
+  fakeCommonRoutes,
+  fakeStream,
+  fromMenu,
+} from './support';
 
 const at = (minute: number): number => Date.UTC(2026, 9, 8, 19, minute);
 
@@ -43,7 +50,7 @@ async function openDiagnostics(page: Page): Promise<Locator> {
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
 });
 
 test('shows the streamed errors newest first, with the counter', async ({ page }) => {
@@ -95,7 +102,7 @@ test('a space check that stopped running is noted', async ({ page }) => {
   await page.unroute('**/api/space');
   await page.route('**/api/space', route =>
     route.fulfill({
-      json: {
+      json: apiBody('/api/space', {
         available: true,
         level: 'ok',
         stale: true,
@@ -103,7 +110,7 @@ test('a space check that stopped running is noted', async ({ page }) => {
         host: 'pi',
         thresholdPercent: 90,
         disks: [],
-      },
+      }),
     })
   );
   const pane = await openDiagnostics(page);

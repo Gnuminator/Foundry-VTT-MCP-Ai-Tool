@@ -1,5 +1,5 @@
 /**
- * Tests for {@link QueryHandlers} — the MCP→data-access dispatch router that
+ * Tests for {@link QueryHandlers}, the MCP→data-access dispatch router that
  * registers every `foundry-mcp-bridge.*` handler into the module-private
  * handler table (never into Foundry's `CONFIG.queries`, see bridge-handlers.ts).
  *
@@ -63,7 +63,7 @@ afterEach(() => {
 // Registration / unregistration
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — registration', () => {
+describe('QueryHandlers: registration', () => {
   it('registers handlers as functions under the module prefix', () => {
     qh.registerHandlers();
     for (const key of ['getCharacterInfo', 'listActors', 'ping', 'getModules', 'sendChatMessage']) {
@@ -141,7 +141,7 @@ describe('QueryHandlers — registration', () => {
 // Query lockdown: nothing reachable through Foundry's query relay
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — query lockdown', () => {
+describe('QueryHandlers: query lockdown', () => {
   const bridgeKeysInConfigQueries = (): string[] =>
     Object.keys((globalThis as any).CONFIG.queries).filter(k => k.startsWith(`${MODULE_ID}.`));
 
@@ -177,7 +177,7 @@ describe('QueryHandlers — query lockdown', () => {
 // Guarded writes (plan/apply/undo live in the backend; the module executes)
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — guarded-write handlers', () => {
+describe('QueryHandlers: guarded-write handlers', () => {
   const GUARDED = [
     'snapshotGuardedOps',
     'applyGuardedOps',
@@ -277,10 +277,10 @@ describe('QueryHandlers: aiChangesUpdated (I-108)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleQuery — the internal dispatch entry point
+// handleQuery: the internal dispatch entry point
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — handleQuery dispatch', () => {
+describe('QueryHandlers: handleQuery dispatch', () => {
   it('invokes the registered handler and returns its result', async () => {
     queries()[`${MODULE_ID}.x`] = async (d: any): Promise<unknown> => ({ got: d });
     const res = await qh.handleQuery(`${MODULE_ID}.x`, { a: 1 });
@@ -308,7 +308,7 @@ describe('QueryHandlers — handleQuery dispatch', () => {
 // GM gate
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — GM gate', () => {
+describe('QueryHandlers: GM gate', () => {
   it('non-GM callers get a silent Access denied without touching dataAccess', async () => {
     (globalThis as any).game.user.isGM = false;
     const da = stubDataAccess({ getCharacterInfo: vi.fn() });
@@ -319,7 +319,7 @@ describe('QueryHandlers — GM gate', () => {
     expect(da.getCharacterInfo).not.toHaveBeenCalled();
   });
 
-  it('handlePing is ungated — returns status/version/world/user even for non-GM', async () => {
+  it('handlePing is ungated: returns status/version/world/user even for non-GM', async () => {
     (globalThis as any).game.user.isGM = false;
     const res = await (qh as any).handlePing();
     expect(res).toMatchObject({ status: 'ok', module: MODULE_ID });
@@ -369,7 +369,7 @@ describe('QueryHandlers — GM gate', () => {
 // Handler convention: validation, delegation, error wrapping
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — handler convention', () => {
+describe('QueryHandlers: handler convention', () => {
   it('delegates the resolved identifier to dataAccess and returns its result', async () => {
     const da = stubDataAccess({ getCharacterInfo: vi.fn().mockResolvedValue({ name: 'Aldric' }) });
     const res = await (qh as any).handleGetCharacterInfo({ characterName: 'Aldric' });

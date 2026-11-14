@@ -2,7 +2,7 @@
  * Characterization tests for `PersistentCreatureIndex` (the creature-index
  * domain), driven through the Phase 9 Foundry-mock harness.
  *
- * Unlike the other data-access domains, this is a standalone class — the
+ * Unlike the other data-access domains, this is a standalone class, the
  * `compendium` domain injects an instance of it for its enhanced fast path.
  * It is instantiated directly here (`new PersistentCreatureIndex()`; the ctor
  * takes no args and only registers Foundry hooks).
@@ -10,18 +10,18 @@
  * These pin the *current* observable behaviour so the Phase 9 from-scratch
  * rewrite can be verified to parity. The assertions are the spec.
  *
- * Storage model the class uses (NOT settings/flags — it is file-based):
+ * Storage model the class uses (NOT settings/flags, it is file-based):
  *   - `(game as any).system.id`, `game.world.id`, `game.packs`, `ui.notifications`,
- *     `Hooks`, `game.settings.get(module,'autoRebuildIndex')` — all supplied by
+ *     `Hooks`, `game.settings.get(module,'autoRebuildIndex')`, all supplied by
  *     the harness.
- *   - `foundry.applications.apps.FilePicker.implementation.browse/upload` — NOT in
+ *   - `foundry.applications.apps.FilePicker.implementation.browse/upload`: NOT in
  *     the harness (its `foundry` only carries `.utils`), so we attach a stub
  *     `foundry.applications` locally AFTER install (the whole `foundry` global is
  *     saved/restored by the harness, so this never leaks).
- *   - `globalThis.fetch` — used to read the index file (GET); stubbed locally
+ *   - `globalThis.fetch`: used to read the index file (GET); stubbed locally
  *     with `vi.fn` and restored. (Foundry's server ignores DELETE, so the module
  *     marks the index stale with the `creatureIndexDirtyAt` world setting.)
- *   - `File` / `btoa` — real Node globals; used as-is.
+ *   - `File` / `btoa`, real Node globals; used as-is.
  *
  * A tiny in-memory "disk" wires `upload` (writes) to `fetch`/`browse` (reads) so
  * the persistence round-trip can be characterized end to end.
@@ -108,7 +108,7 @@ function installStorageStubs(): void {
     },
   };
 
-  // FilePicker lives under foundry.applications.apps — attach it onto the
+  // FilePicker lives under foundry.applications.apps, attach it onto the
   // harness-provided `foundry` global (restored wholesale on teardown).
   g.foundry.applications = {
     apps: {
@@ -183,10 +183,10 @@ function addMonsterPack(documents: any[], id = 'world.monsters', label = 'Monste
 }
 
 // ===========================================================================
-// constructor — hook registration
+// constructor: hook registration
 // ===========================================================================
 
-describe('PersistentCreatureIndex — constructor', () => {
+describe('PersistentCreatureIndex: constructor', () => {
   it('constructs without throwing and registers Foundry hooks', () => {
     const onSpy = vi.spyOn((globalThis as any).Hooks, 'on');
     const index = new PersistentCreatureIndex();
@@ -198,10 +198,10 @@ describe('PersistentCreatureIndex — constructor', () => {
 });
 
 // ===========================================================================
-// buildEnhancedIndex (via rebuildIndex) — system routing + extraction
+// buildEnhancedIndex (via rebuildIndex), system routing + extraction
 // ===========================================================================
 
-describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
+describe('PersistentCreatureIndex: rebuildIndex / build (dnd5e)', () => {
   it('builds an index from Actor packs and returns one record per npc/character', async () => {
     addMonsterPack([
       makeActor({ id: 'g1', name: 'Goblin', type: 'npc' }),
@@ -375,7 +375,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
         name: 'Goblin',
         type: 'npc',
         system: {
-          attributes: { spellcasting: '' }, // blank StringField — the dnd5e default for non-casters
+          attributes: { spellcasting: '' }, // blank StringField, the dnd5e default for non-casters
           spells: {
             spell1: { value: 0, override: null },
             spell2: { value: 0, override: null },
@@ -492,7 +492,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
   it('falls back to a basic record (description "Data extraction failed") when extraction throws', async () => {
     // Force the extractor's try/catch: a getter on `system.details` that throws.
     // (`makePack`'s index builder only touches `system.description`, so this does
-    // not blow up at pack-build time — only when the extractor reads `details`.)
+    // not blow up at pack-build time, only when the extractor reads `details`.)
     const broken = makeActor({ id: 'bad', _id: 'bad', name: 'Broken', type: 'npc', img: 'b.webp' });
     Object.defineProperty(broken.system, 'details', {
       configurable: true,
@@ -757,7 +757,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
 // persistence round-trip + savePersistedIndex shape
 // ===========================================================================
 
-describe('PersistentCreatureIndex — persistence', () => {
+describe('PersistentCreatureIndex: persistence', () => {
   it('uploads the index as a JSON File named enhanced-creature-index.json', async () => {
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
@@ -823,11 +823,11 @@ describe('PersistentCreatureIndex — persistence', () => {
 });
 
 // ===========================================================================
-// loadPersistedIndex — null/empty paths
+// loadPersistedIndex: null/empty paths
 // ===========================================================================
 
-describe('PersistentCreatureIndex — load failure paths force a rebuild', () => {
-  it('rebuilds when browse throws (directory missing) — load returns null', async () => {
+describe('PersistentCreatureIndex: load failure paths force a rebuild', () => {
+  it('rebuilds when browse throws (directory missing): load returns null', async () => {
     disk.browseThrows = true;
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
@@ -866,10 +866,10 @@ describe('PersistentCreatureIndex — load failure paths force a rebuild', () =>
 });
 
 // ===========================================================================
-// isIndexValid — staleness invalidation (forces rebuild on next getEnhancedIndex)
+// isIndexValid: staleness invalidation (forces rebuild on next getEnhancedIndex)
 // ===========================================================================
 
-describe('PersistentCreatureIndex — index validity / staleness', () => {
+describe('PersistentCreatureIndex: index validity / staleness', () => {
   /** Seed a persisted index whose JSON we control, then read it back. */
   async function seedAndCount(): Promise<PersistentCreatureIndex> {
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
@@ -942,7 +942,7 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     world.packs.delete('world.monsters');
 
     // With no Actor packs left, the rebuild produces an empty index but still
-    // persists — the point is that the stale index was rejected (rebuild ran).
+    // persists: the point is that the stale index was rejected (rebuild ran).
     await expect(index.ensureIndexCurrent()).resolves.toEqual({ rebuilt: true, totalCreatures: 0 });
     expect(disk.uploads.length).toBe(1);
   });
@@ -1471,7 +1471,7 @@ describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () 
 // hooks → creatureIndexDirtyAt stamp (autoRebuildIndex gate, GM browsers only)
 // ===========================================================================
 
-describe('PersistentCreatureIndex — hook-driven invalidation', () => {
+describe('PersistentCreatureIndex: hook-driven invalidation', () => {
   /** Fire a registered Foundry hook through the harness dispatcher. */
   function fireHook(name: string, ...args: any[]): void {
     (globalThis as any).Hooks.callAll(name, ...args);

@@ -20,7 +20,7 @@ export interface RollRow {
 }
 
 /** A request this old no longer shows under the roll bar. */
-export const ROUND_SHOWN_MS = 2 * 60 * 60 * 1000;
+const ROUND_SHOWN_MS = 2 * 60 * 60 * 1000;
 
 /** Requests of one ask are sent within a moment of each other. */
 const ROUND_SPREAD_MS = 30_000;

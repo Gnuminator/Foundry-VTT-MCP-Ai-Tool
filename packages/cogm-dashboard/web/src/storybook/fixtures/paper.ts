@@ -35,7 +35,7 @@ const sheet = (i: number): Record<string, unknown> => {
   };
 };
 
-export const paperSheets = (count: number, unreadable: string[] = []): unknown => ({
+const paperSheets = (count: number, unreadable: string[] = []): unknown => ({
   sheets: Array.from({ length: count }, (_, i) => sheet(i)),
   unreadable,
 });

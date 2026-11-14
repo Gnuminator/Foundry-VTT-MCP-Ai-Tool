@@ -35,17 +35,18 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
   file, lock shared contracts first, big files in parts of about 250 lines.
   Workers never build, sync or commit.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
-  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts and the title-only offer
-  are exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
+  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts, title-only offers
+  exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
-  any live check and release it after. Servers A, B, C (same `ai-tool-test` world): check `lock.ps1
-status -Server B` (and C), take a free one with `-Server X` and pass it to start, stop, sync and
-  status. Kit runs default to B. None free: wait or ask the user. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child running: check the PID.
-- **Commands over 2 minutes** run in the background, never polled. On Windows never call
-  `python3` (Store stub, hangs); use `python`. Bash heredocs drop backslashes: write code with `\n`
-  or regex through Write/Edit.
-- Review checklist: `review-checklist.md` here. For dashboard or player-page UI the reviewer also
+  any live check and release it after. Servers A, B, C: check `lock.ps1
+status -Server B`, take a free one with `-Server X` and pass it to start, stop, sync and
+  status. None free: wait or ask the user. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
+31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child: check PID.
+- **Commands over 2 minutes** run in the background, never polled; logs go to the scratchpad. Never call
+  `python3` (Store stub, hangs); use `python`.
+- **GPU lock:** take `lock.ps1 take -Server GPU` before any GPU job (Real-ESRGAN, Blender, audio,
+  speech or headless models), release after; one at a time.
+- Review checklist: `review-checklist.md`. For dashboard or player-page UI the reviewer also
   checks `docs/dev/UX-REVIEW-LIST.md`; name it in the brief.
 
 ## Before the PR

@@ -10,7 +10,7 @@ import { eventTracker, type SessionLogEntry } from '../session-events.js';
  * envelopes: `getSessionLog` is a simple filtered list; `getRecentEvents` layers
  * on `latestTimestamp` and `serverTime` so callers can poll incrementally.
  *
- * Filter objects are built with only the keys that are *defined* — undefined
+ * Filter objects are built with only the keys that are *defined*, undefined
  * values are never forwarded to the tracker, so the tracker's own defaults
  * (e.g. "no limit") apply naturally.
  */
@@ -94,7 +94,7 @@ export class SessionLogDataAccess {
 
 /**
  * Build a filters object from a bag of optional values, omitting any key whose
- * value is `undefined`. This keeps the object passed to `eventTracker` clean —
+ * value is `undefined`. This keeps the object passed to `eventTracker` clean -
  * the tracker inspects `key in filters` in some code paths, so a present-but-
  * undefined key would be misread as an explicit override.
  */

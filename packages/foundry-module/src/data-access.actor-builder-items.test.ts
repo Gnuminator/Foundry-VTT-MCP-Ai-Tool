@@ -84,7 +84,7 @@ const flush = (): Promise<unknown> => new Promise(resolve => setTimeout(resolve,
 // useItem
 // ===========================================================================
 
-describe('FoundryDataAccess — useItem', () => {
+describe('FoundryDataAccess: useItem', () => {
   it('throws when the actor cannot be resolved', async () => {
     await expect(
       da.useItem({ actorIdentifier: 'ghost', itemIdentifier: 'Fireball' })
@@ -139,7 +139,7 @@ describe('FoundryDataAccess — useItem', () => {
     await flush();
 
     expect(use).toHaveBeenCalledTimes(1);
-    // dnd5e branch (game.system.id === 'dnd5e'): Item5e#use(usage, dialog, message) —
+    // dnd5e branch (game.system.id === 'dnd5e'): Item5e#use(usage, dialog, message) -
     // three config objects. No explicit `consume` (default: false, gets not passed,
     // to let dnd5e default it itself, matches "consume unless told not to").
     expect(use.mock.calls[0]).toEqual([{}, { configure: true }, { create: true }]);
@@ -712,7 +712,7 @@ describe('FoundryDataAccess — useItem', () => {
 
     // dnd5e's `_prepareUsageConfig` assigns properties onto `config.consume` when
     // it isn't `false` (`config.consume ??= {}` then `.action ??=`, `.resources
-    // ??=`, ...) — passing the boolean `true` would throw in strict mode, so
+    // ??=`, ...), passing the boolean `true` would throw in strict mode, so
     // `consume` must be `false` or simply absent, never `true`.
     expect(use.mock.calls[0][0]).toEqual({ consume: false });
   });
@@ -1052,7 +1052,7 @@ describe('FoundryDataAccess — useItem', () => {
 // setActorSpellcasting
 // ===========================================================================
 
-describe('FoundryDataAccess — setActorSpellcasting', () => {
+describe('FoundryDataAccess: setActorSpellcasting', () => {
   it('throws under a non-dnd5e system', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -1172,7 +1172,7 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
     );
   });
 
-  it('artificer uses the artificer slot table (rounds up — slots at level 1)', async () => {
+  it('artificer uses the artificer slot table (rounds up: slots at level 1)', async () => {
     const actor = world.addActor({ id: 'a1', name: 'Tinker', type: 'character', system: {} });
 
     const result = await da.setActorSpellcasting({
@@ -1209,7 +1209,7 @@ function addSpellPack(
   });
 }
 
-describe('FoundryDataAccess — addSpellsToActor', () => {
+describe('FoundryDataAccess: addSpellsToActor', () => {
   it('throws under a non-dnd5e system', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -1309,7 +1309,7 @@ describe('FoundryDataAccess — addSpellsToActor', () => {
 
   it('warns and skips a pack of the wrong metadata type', async () => {
     world.addActor({ id: 'a1', name: 'Mage', type: 'character', items: [] });
-    // Actor-typed pack — rejected by the Item type guard.
+    // Actor-typed pack, rejected by the Item type guard.
     world.addPack({
       id: 'world.actors',
       label: 'Actors',
@@ -1360,7 +1360,7 @@ function addFeaturePack(
   });
 }
 
-describe('FoundryDataAccess — addFeaturesFromCompendium', () => {
+describe('FoundryDataAccess: addFeaturesFromCompendium', () => {
   it('throws under a non-dnd5e system', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -1411,7 +1411,7 @@ describe('FoundryDataAccess — addFeaturesFromCompendium', () => {
   });
 
   it('skips a feature already on the actor (name-only dup check, any item type)', async () => {
-    // The on-actor item is a weapon, not a feat — yet the name-only check skips it.
+    // The on-actor item is a weapon, not a feat, yet the name-only check skips it.
     const existing = makeItem({ id: 'have1', name: 'Multiattack', type: 'weapon' });
     world.addActor({ id: 'a1', name: 'Ogre', type: 'npc', items: [existing] });
     addFeaturePack('world.feats', 'Monster Features', [{ id: 'ma1', name: 'Multiattack' }]);

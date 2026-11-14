@@ -10,7 +10,7 @@ import { at as earlier } from './common';
 const at = (hour: number, minute = 0): number => Date.UTC(2026, 9, 10, hour, minute);
 
 /** A log from events listed oldest first, as the server sends them. */
-export function feedLog(events: readonly FeedEvent[]): FeedLog {
+function feedLog(events: readonly FeedEvent[]): FeedLog {
   return addFeedEvents(EMPTY_FEED, events);
 }
 

@@ -1,6 +1,6 @@
 ---
 source: gm/glossary.md
-sourceHash: e0675847da8c
+sourceHash: 0fc0b50aeaf8
 title: Ordliste
 description: Foundry-ordene og værktøjsordene i guiderne på almindeligt dansk, samlet ét sted.
 ---
@@ -51,4 +51,4 @@ Værktøjsord:
 - **Play session:** én aften med spil. Du markerer dens start og slutning i dashboardet.
 - **The Veil:** kampagnens udseende: slottet i tågen og en lampelyst linje. Det er ét valg i Theme-indstillingen
   (Neutral, The Veil eller Off), det kan klæde Foundrys join-side på, og det er også navnet på et
-  Dice So Nice-tema for terninger, "AI Tool: The Veil".
+  Dice So Nice-tema for terninger, "AI Tool: The Veil (campaign look)".

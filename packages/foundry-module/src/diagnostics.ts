@@ -2,7 +2,7 @@ import { MODULE_ID } from './constants.js';
 import { logInfo } from './log.js';
 
 /**
- * Diagnostics — captures runtime errors/warnings from the Foundry client so the
+ * Diagnostics: captures runtime errors/warnings from the Foundry client so the
  * MCP server can surface them on demand for troubleshooting other modules.
  *
  * It hooks console.error / console.warn, window 'error', and 'unhandledrejection',
@@ -10,7 +10,7 @@ import { logInfo } from './log.js';
  * parsing the stack), and persists the buffer to localStorage so it survives the
  * page reloads that typically follow a load-time module error.
  *
- * Filename is deliberately NOT "*tracking*" — ad blockers block such filenames
+ * Filename is deliberately NOT "*tracking*", ad blockers block such filenames
  * and would break the module for players.
  *
  * Everything here is defensive: capturing a diagnostic must never throw or break
@@ -276,7 +276,7 @@ export class Diagnostics {
     return entries.slice(-limit);
   }
 
-  /** Counts by attributed module + level — a quick triage summary. */
+  /** Counts by attributed module + level, a quick triage summary. */
   summary(): { total: number; byModule: Record<string, number>; byLevel: Record<string, number> } {
     const byModule: Record<string, number> = {};
     const byLevel: Record<string, number> = {};

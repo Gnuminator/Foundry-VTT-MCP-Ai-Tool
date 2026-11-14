@@ -42,7 +42,7 @@ interface PartySheets {
 }
 
 /** Under GAME_STATE_KEY: an applied sync or an undo reloads the sheets while the drawer is open. */
-export const PAPER_SHEETS_KEY = [...GAME_STATE_KEY, 'paper-sheets'] as const;
+const PAPER_SHEETS_KEY = [...GAME_STATE_KEY, 'paper-sheets'] as const;
 
 /** The item picker: a compendium item to add to the character (the tool's own picker, kept). */
 const ITEM_REF: ToolRef = {

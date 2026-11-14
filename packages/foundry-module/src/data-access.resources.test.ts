@@ -77,13 +77,13 @@ function richActor(): ReturnType<typeof makeActor> {
         type: 'class',
         system: { levels: 5, hd: { denomination: 'd8', spent: 2 } },
       }),
-      // Item charge — dnd5e 6 (uses.spent; uses.value derived)
+      // Item charge, dnd5e 6 (uses.spent; uses.value derived)
       makeItem({
         name: 'Healing Word',
         type: 'feat',
         system: { uses: { max: 3, spent: 1, value: 2, recovery: [{ period: 'sr' }] } },
       }),
-      // Item charge — no spent (falls back to uses.value)
+      // Item charge, no spent (falls back to uses.value)
       makeItem({
         name: 'Action Surge',
         type: 'feat',
@@ -104,7 +104,7 @@ function richActor(): ReturnType<typeof makeActor> {
 // Error path
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCharacterResources', () => {
+describe('FoundryDataAccess: getCharacterResources', () => {
   it('throws CHARACTER_NOT_FOUND for an unknown identifier', async () => {
     await expect(da.getCharacterResources({ identifier: 'Nobody' })).rejects.toThrow(
       ERROR_MESSAGES.CHARACTER_NOT_FOUND
@@ -326,8 +326,8 @@ describe('FoundryDataAccess — getCharacterResources', () => {
 
   it('detects concentration via statuses Set containing "concentrating"', async () => {
     // dnd5e's `Actor5e.createConcentrationEffectData` (verified `dnd5e.mjs:8259-8290`)
-    // never writes `flags.dnd5e.item.name` — only `.item.{type,id,uuid}` and
-    // `origin` — so the spell name here comes from the "Concentrating: X" name
+    // never writes `flags.dnd5e.item.name`, only `.item.{type,id,uuid}` and
+    // `origin`, so the spell name here comes from the "Concentrating: X" name
     // fallback (the uuid-resolution path is covered separately in
     // `data-access.effects.test.ts`).
     world.actors.add(

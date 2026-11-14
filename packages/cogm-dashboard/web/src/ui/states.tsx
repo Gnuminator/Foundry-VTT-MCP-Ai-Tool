@@ -101,7 +101,7 @@ export function LoadingState({
 }
 
 /** How long a lazy piece may take before "Loading..." shows in its place. */
-export const LOADING_AFTER_MS = 200;
+const LOADING_AFTER_MS = 200;
 
 /**
  * A Suspense fallback: nothing for the first 200 ms (a chunk that is already cached never

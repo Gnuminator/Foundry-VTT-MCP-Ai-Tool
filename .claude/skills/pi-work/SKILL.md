@@ -6,7 +6,7 @@ description: Rules and steps for any work on the Orange Pi (or any Linux host) t
 # Pi work
 
 Hardware: Orange Pi 5 Pro 16 GB, DietPi, Node 24, reached as `ssh foundry-pi`. Setup and stages:
-`docs/dev/PI-SETUP.md`; remote access (Tailscale, Part C tunnel): `docs/dev/REMOTE-ACCESS.md`;
+`docs/dev/PI-SETUP.md` (index to the pages in `docs/dev/pi/`); remote access (Tailscale, Part C tunnel): `docs/dev/REMOTE-ACCESS.md`;
 Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 
 ## The rule (the user, 2026-10-04)
@@ -42,8 +42,8 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 ## Current state and holds
 
 - Holds in CLAUDE.md "Holds now" apply. The Pi moves to the newest Foundry, dnd5e and tool release
-  (D-128, the user, 2026-10-24), in the order written in `docs/dev/PI-SETUP.md`, "System trial
-  (stage 14)" (trial, stage 3, stage 5, test kit, switch).
+  (D-128, the user, 2026-10-24), in the order written in `docs/dev/pi/worlds-and-trials.md`,
+  "System trial (stage 14)" (trial, stage 3, stage 5, test kit, switch).
 - Updates (D-098, D-110, D-128): newest Foundry, dnd5e and module versions, tested first on the PC test
   server (CI, `live:roundtrip`, `live:sweep`, full kit), then the kit on the Pi's `strahd-kit`
   world, then the real world; never on a game-night day; never a beta on the real world.

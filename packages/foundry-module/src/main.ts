@@ -13,6 +13,7 @@ import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
 import { installCombatCreateGuard } from './combat-create-guard.js';
 import { applySelectionColor } from './token-selection-color.js';
+import { installBloodiedRing, refreshRingsOfEffect } from './token-ring-bloodied.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
@@ -533,6 +534,22 @@ Hooks.once('ready', () => {
     applySelectionColor();
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not set the token selection colour:`, error);
+  }
+});
+
+// A bloodied token shows a red ring (I-093), on every client. Own hook and try block: a ring
+// colour must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    if (!installBloodiedRing()) console.warn(`[${MODULE_ID}] No token document class for rings`);
+    Hooks.on('createActiveEffect', (effect: unknown) =>
+      refreshRingsOfEffect(effect as Parameters<typeof refreshRingsOfEffect>[0])
+    );
+    Hooks.on('deleteActiveEffect', (effect: unknown) =>
+      refreshRingsOfEffect(effect as Parameters<typeof refreshRingsOfEffect>[0])
+    );
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set up bloodied token rings:`, error);
   }
 });
 

@@ -4,9 +4,9 @@
  * Pins the current (upstream-derived) behavior across every search branch:
  *   1. character look-up by id
  *   2. character look-up by name (case-insensitive)
- *   3. entity found in items — by id, by name (case-insensitive)
+ *   3. entity found in items, by id, by name (case-insensitive)
  *   4. no system.actions lookup (dnd5e 6 has none)
- *   5. entity found in effects — by id, by name (case-insensitive)
+ *   5. entity found in effects, by id, by name (case-insensitive)
  *   6. character-not-found error
  *   7. entity-not-found error
  *
@@ -48,7 +48,7 @@ afterEach(() => {
 /** A well-rounded character used across multiple tests. */
 function makeHero(): ReturnType<typeof makeActor> {
   return makeActor({
-    id: 'hero000000000000', // 16 chars — exercises the id-lookup branch
+    id: 'hero000000000000', // 16 chars, exercises the id-lookup branch
     name: 'Aldric',
     type: 'character',
     items: [
@@ -66,7 +66,7 @@ function makeHero(): ReturnType<typeof makeActor> {
         id: 'shield0000000000',
         name: 'Shield',
         type: 'equipment',
-        // no img — exercises the missing-img branch (img: undefined → harness omits it)
+        // no img, exercises the missing-img branch (img: undefined → harness omits it)
         system: {
           description: 'Plain text description',
         },
@@ -89,7 +89,7 @@ function makeHero(): ReturnType<typeof makeActor> {
 // Character look-up
 // ---------------------------------------------------------------------------
 
-describe('getCharacterEntity — character look-up', () => {
+describe('getCharacterEntity: character look-up', () => {
   it('finds a character by exact id', async () => {
     world.actors.add(makeHero());
     const result = await da.getCharacterEntity({
@@ -138,7 +138,7 @@ describe('getCharacterEntity — character look-up', () => {
 // Item branch
 // ---------------------------------------------------------------------------
 
-describe('getCharacterEntity — item branch', () => {
+describe('getCharacterEntity: item branch', () => {
   it('returns the item shape when found by id', async () => {
     world.actors.add(makeHero());
     const result = await da.getCharacterEntity({
@@ -275,7 +275,7 @@ describe('getCharacterEntity: no system.actions lookup', () => {
 // Effects branch
 // ---------------------------------------------------------------------------
 
-describe('getCharacterEntity — effects branch', () => {
+describe('getCharacterEntity: effects branch', () => {
   it('returns the effect shape when found by id', async () => {
     world.actors.add(makeHero());
     const result = await da.getCharacterEntity({
@@ -348,12 +348,12 @@ describe('getCharacterEntity — effects branch', () => {
     // The method does: name: entity.name || entity.label
     // Harness gap: makeEffect always defaults `name` to 'Effect'; it cannot be set
     // to undefined through the builder. Bypass makeEffect and supply a raw plain
-    // object directly — makeActor wraps the array in MockCollection which accepts
+    // object directly, makeActor wraps the array in MockCollection which accepts
     // any object with .id. The id-lookup branch finds it; the name-lookup branch
     // skips it safely (undefined?.toLowerCase() === undefined).
     const rawEffect = {
       id: 'curse00000000000',
-      // name intentionally absent — only label is set
+      // name intentionally absent, only label is set
       label: 'Curse of Weakness',
       icon: 'icons/curse.webp',
       disabled: true,
@@ -413,7 +413,7 @@ describe('getCharacterEntity: items with the same name', () => {
   });
 });
 
-describe('getCharacterEntity — entity not-found error', () => {
+describe('getCharacterEntity: entity not-found error', () => {
   it('throws "Entity not found" when no branch matches', async () => {
     world.actors.add(makeHero());
     await expect(

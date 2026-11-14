@@ -71,10 +71,10 @@ async function addJournalWithPages(
 }
 
 // ---------------------------------------------------------------------------
-// createJournalEntry — permission gate
+// createJournalEntry: permission gate
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — createJournalEntry — permission gate', () => {
+describe('FoundryDataAccess: createJournalEntry: permission gate', () => {
   it('throws "Journal creation denied" when writes are not enabled', async () => {
     // Do NOT call world.enableWrites() → permissionCheck.allowed === false
     await expect(
@@ -93,10 +93,10 @@ describe('FoundryDataAccess — createJournalEntry — permission gate', () => {
 });
 
 // ---------------------------------------------------------------------------
-// createJournalEntry — return shape & registration
+// createJournalEntry: return shape & registration
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — createJournalEntry — return shape', () => {
+describe('FoundryDataAccess: createJournalEntry: return shape', () => {
   beforeEach(() => {
     world.enableWrites();
   });
@@ -171,7 +171,7 @@ describe('FoundryDataAccess — createJournalEntry — return shape', () => {
     // Characterize the shape of each page passed to JournalEntry.create by
     // inspecting a single-additional-page journal. The page created by the mock
     // (MockCollection keyed by '' since the page has no id) holds the last
-    // written page — here the additional page — with the correct shape.
+    // written page, here the additional page, with the correct shape.
     const result = await da.createJournalEntry({
       name: 'Two Page Quest',
       content: 'Intro.',
@@ -201,7 +201,7 @@ describe('FoundryDataAccess — createJournalEntry — return shape', () => {
 
   it('falls back to request.name as folder when folderName is omitted', async () => {
     // getOrCreateFolder is called with (request.name, 'JournalEntry') when
-    // folderName is absent — this just exercises the code path without error.
+    // folderName is absent, this just exercises the code path without error.
     const result = await da.createJournalEntry({
       name: 'Nameless Quest',
       content: 'Contents.',
@@ -211,10 +211,10 @@ describe('FoundryDataAccess — createJournalEntry — return shape', () => {
 });
 
 // ---------------------------------------------------------------------------
-// updateJournalContent — permission gate
+// updateJournalContent: permission gate
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — updateJournalContent — permission gate', () => {
+describe('FoundryDataAccess: updateJournalContent: permission gate', () => {
   it('throws "Journal update denied" when writes are not enabled', async () => {
     const journal = await addJournalWithPages('j-perm', 'Perm Test', [
       { name: 'Quest Details', content: 'Old.' },
@@ -227,10 +227,10 @@ describe('FoundryDataAccess — updateJournalContent — permission gate', () =>
 });
 
 // ---------------------------------------------------------------------------
-// updateJournalContent — not-found
+// updateJournalContent: not-found
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — updateJournalContent — journal not found', () => {
+describe('FoundryDataAccess: updateJournalContent: journal not found', () => {
   it('throws "Journal entry not found" for an unknown journalId', async () => {
     world.enableWrites();
     await expect(
@@ -240,10 +240,10 @@ describe('FoundryDataAccess — updateJournalContent — journal not found', () 
 });
 
 // ---------------------------------------------------------------------------
-// updateJournalContent — Mode 3: no pageId / no newPageName (first text page)
+// updateJournalContent: Mode 3: no pageId / no newPageName (first text page)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — updateJournalContent — Mode 3: update first text page', () => {
+describe('FoundryDataAccess: updateJournalContent: Mode 3: update first text page', () => {
   beforeEach(() => {
     world.enableWrites();
   });
@@ -300,10 +300,10 @@ describe('FoundryDataAccess — updateJournalContent — Mode 3: update first te
 });
 
 // ---------------------------------------------------------------------------
-// updateJournalContent — Mode 2: pageId supplied
+// updateJournalContent: Mode 2: pageId supplied
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — updateJournalContent — Mode 2: update by pageId', () => {
+describe('FoundryDataAccess: updateJournalContent: Mode 2: update by pageId', () => {
   beforeEach(() => {
     world.enableWrites();
   });
@@ -359,10 +359,10 @@ describe('FoundryDataAccess — updateJournalContent — Mode 2: update by pageI
 });
 
 // ---------------------------------------------------------------------------
-// updateJournalContent — Mode 1: newPageName supplied
+// updateJournalContent: Mode 1: newPageName supplied
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — updateJournalContent — Mode 1: create new page', () => {
+describe('FoundryDataAccess: updateJournalContent: Mode 1: create new page', () => {
   beforeEach(() => {
     world.enableWrites();
   });
@@ -403,7 +403,7 @@ describe('FoundryDataAccess — updateJournalContent — Mode 1: create new page
     expect(newPage.id).toBe(result.pageId);
   });
 
-  it('newPageName takes precedence over pageId — creates rather than updates', async () => {
+  it('newPageName takes precedence over pageId: creates rather than updates', async () => {
     // When both newPageName and pageId are supplied, Mode 1 (newPageName) wins
     // because the if-chain checks newPageName first (line 2596).
     await addJournalWithPages('j-both', 'Both Journal', [

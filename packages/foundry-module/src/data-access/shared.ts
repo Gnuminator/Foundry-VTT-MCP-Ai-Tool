@@ -6,7 +6,7 @@ import { viewedScene } from '../viewed-scene.js';
 /**
  * Cross-cutting data-access helpers, as stateless free functions.
  *
- * These were private methods on `FoundryDataAccess` but hold no instance state —
+ * These were private methods on `FoundryDataAccess` but hold no instance state -
  * they read Foundry globals + their arguments and return values. Lifting them to
  * free functions lets every domain module import them directly instead of
  * reaching back through the facade. (`FoundryDataAccess` keeps thin wrappers that

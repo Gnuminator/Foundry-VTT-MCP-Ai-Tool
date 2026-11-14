@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ExportStatBlock, LibraryDocument, LibraryIndexRow } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   fid,
@@ -25,6 +25,7 @@ import type { GitRunner } from './licensed-guard.js';
 import { ObsidianMirrorPump } from './mirror-pump.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 const WORLD = 'test-world';
 const PACK = 'world.test-bestiary';
@@ -162,7 +163,7 @@ function newPump(git?: GitRunner, now?: () => number): ObsidianMirrorPump {
     worldIds: { current: () => Promise.resolve(WORLD) },
     store,
     vaultDir: vault,
-    logger: { info: vi.fn(), warn: vi.fn() },
+    logger: makeLogger(),
     pollMs: 10_000,
     openBase: 'http://localhost:3000',
     ...(git ? { git } : {}),

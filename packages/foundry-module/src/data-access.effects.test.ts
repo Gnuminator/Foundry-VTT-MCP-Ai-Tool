@@ -38,7 +38,7 @@ afterEach(() => {
 // getActiveEffects
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getActiveEffects', () => {
+describe('FoundryDataAccess: getActiveEffects', () => {
   it('throws CHARACTER_NOT_FOUND when the actor does not exist', async () => {
     await expect(da.getActiveEffects({ identifier: 'Nobody' })).rejects.toThrow(
       `${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: Nobody`
@@ -86,7 +86,7 @@ describe('FoundryDataAccess — getActiveEffects', () => {
   });
 
   it('classifies an effect as "buff/debuff" when its status is NOT in CONFIG.statusEffects', async () => {
-    // CONFIG.statusEffects stays empty (harness default) — 'custom-status' is not registered
+    // CONFIG.statusEffects stays empty (harness default), 'custom-status' is not registered
     world.actors.add(
       makeActor({
         id: 'actor1actor1xxxx',
@@ -115,7 +115,7 @@ describe('FoundryDataAccess — getActiveEffects', () => {
         name: 'Fighter',
         effects: [
           makeEffect({ id: 'eff1', name: 'Real Name' }),
-          // label only — name omitted via spread override
+          // label only, name omitted via spread override
           { id: 'eff2', label: 'Label Only', disabled: false },
           // neither name nor label
           { id: 'eff3', disabled: false },
@@ -398,7 +398,7 @@ describe('FoundryDataAccess — getActiveEffects', () => {
 // getAvailableConditions
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getAvailableConditions', () => {
+describe('FoundryDataAccess: getAvailableConditions', () => {
   it('returns success shape with gameSystem matching game.system.id', async () => {
     const result = await da.getAvailableConditions();
 
@@ -501,14 +501,14 @@ describe('FoundryDataAccess — getAvailableConditions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getCharacterResources — concentration spell name (pre-existing bug fix)
+// getCharacterResources: concentration spell name (pre-existing bug fix)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCharacterResources concentration spell name', () => {
+describe('FoundryDataAccess: getCharacterResources concentration spell name', () => {
   it('resolves the spell name via fromUuidSync on flags.dnd5e.item.uuid (dnd5e never sets .item.name)', async () => {
     // Verified `dnd5e.mjs:8259-8290` `Actor5e.createConcentrationEffectData`:
     // the concentration effect carries `flags.dnd5e.item = {type, id, uuid}` and
-    // `origin` (both the concentrated item's UUID) — never `.item.name`.
+    // `origin` (both the concentrated item's UUID), never `.item.name`.
     const spell = makeActor({ id: 'spell0000000000', name: 'Fireball', type: 'npc' });
     spell.uuid = 'Actor.actor1actor1xxxx.Item.spell0000000000';
     (globalThis as any).fromUuidSync = (uuid: string): unknown =>

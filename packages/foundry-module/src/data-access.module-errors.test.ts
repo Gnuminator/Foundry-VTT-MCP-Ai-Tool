@@ -4,7 +4,7 @@
  *
  * These pin the *current* behavior so a from-scratch reimplementation in
  * Phase 9 can be verified to parity.  The `diagnostics` singleton is spied
- * upon so only the data-access layer's own logic is exercised — no real
+ * upon so only the data-access layer's own logic is exercised, no real
  * buffer manipulation required.
  *
  * Harness: Phase 9 Foundry-mock (`src/test-support/foundry-mock/index.ts`).
@@ -61,10 +61,10 @@ const STUB_SUMMARY = {
 };
 
 // =============================================================================
-// getModuleErrors — filters object construction
+// getModuleErrors: filters object construction
 // =============================================================================
 
-describe('FoundryDataAccess — getModuleErrors: filters passed to diagnostics.getErrors', () => {
+describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getErrors', () => {
   it('passes an empty filters object when no data keys are provided', async () => {
     const getErrorsSpy = vi.spyOn(diagnostics, 'getErrors').mockReturnValue([makeEntry()]);
     vi.spyOn(diagnostics, 'summary').mockReturnValue(STUB_SUMMARY);
@@ -156,10 +156,10 @@ describe('FoundryDataAccess — getModuleErrors: filters passed to diagnostics.g
 });
 
 // =============================================================================
-// getModuleErrors — return shape
+// getModuleErrors: return shape
 // =============================================================================
 
-describe('FoundryDataAccess — getModuleErrors: return shape', () => {
+describe('FoundryDataAccess: getModuleErrors: return shape', () => {
   it('returns { success:true, count, summary, errors } where errors is exactly what getErrors returned', async () => {
     const entries = [makeEntry(), makeEntry({ id: 'diag-abc-2', message: 'Another error' })];
     vi.spyOn(diagnostics, 'getErrors').mockReturnValue(entries);
@@ -168,7 +168,7 @@ describe('FoundryDataAccess — getModuleErrors: return shape', () => {
     const result = await da.getModuleErrors({});
 
     expect(result.success).toBe(true);
-    expect(result.errors).toBe(entries); // same reference — not a copy
+    expect(result.errors).toBe(entries); // same reference, not a copy
     expect(result.count).toBe(2);
     expect(result.summary).toBe(STUB_SUMMARY); // same reference
   });
@@ -212,7 +212,7 @@ describe('FoundryDataAccess — getModuleErrors: return shape', () => {
 // clearModuleErrors
 // =============================================================================
 
-describe('FoundryDataAccess — clearModuleErrors: delegates to diagnostics.clear()', () => {
+describe('FoundryDataAccess: clearModuleErrors: delegates to diagnostics.clear()', () => {
   it('returns { success:true, cleared:N } where N is what diagnostics.clear() returned', async () => {
     // diagnostics.clear() returns number (count of entries cleared)
     vi.spyOn(diagnostics, 'clear').mockReturnValue(42);

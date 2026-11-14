@@ -214,7 +214,7 @@ export function ghJson(args) {
 
 /**
  * Lows ledgers over `LEDGER_LIMIT` lines: count and how many lines are older than a month. A
- * ledger line is a `- YYYY-MM-DD ...` bullet. Sweeping stays a planner call (the user, 2026-11-13).
+ * ledger line is a `- YYYY-MM-DD ...` bullet. Sweeping a ledger stays a planner call (CLAUDE.md, Review).
  * @param {string} lowsDir @param {string} today YYYY-MM-DD
  */
 export function ledgerLines(lowsDir, today) {

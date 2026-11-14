@@ -8,6 +8,8 @@
  * (raw/events.jsonl was the only trace); these messages are what #gm-bot shows instead.
  */
 
+import { bi } from '../i18n.js';
+
 /** A member in the channel with no packet for this long is reported once. */
 export const SILENCE_MS = 5 * 60_000;
 /** The same kind of problem is reported at most this often. */
@@ -125,12 +127,19 @@ export class RecorderHealth {
       const since = Math.max(m.lastPacket ?? m.joinedAt, m.joinedAt);
       if (now - since < SILENCE_MS) continue;
       m.silenceReported = true;
-      const what =
+      const daWhat =
+        m.lastPacket === null
+          ? 'er slet ikke blevet optaget'
+          : `er ikke blevet optaget i ${formatAge(now - m.lastPacket)}`;
+      const enWhat =
         m.lastPacket === null
           ? 'has not been recorded at all'
           : `has not been recorded for ${formatAge(now - m.lastPacket)}`;
       out.push(
-        `Recorder: ${m.name} ${what}. If they have been speaking, their track may have stopped.`
+        bi(
+          `Recorder: ${m.name} ${daWhat}. Hvis vedkommende har talt, er sporet måske stoppet.`,
+          `Recorder: ${m.name} ${enWhat}. If they have been speaking, their track may have stopped.`
+        )
       );
     }
     return out;
@@ -148,14 +157,20 @@ export class RecorderHealth {
   streamError(userId: string, name: string, message: string, now: number): string | null {
     this.streamErrors.set(userId, name);
     return this.due(`stream:${userId}`, now)
-      ? `Recorder: the audio stream for ${name} had an error (${message}). It is subscribed again, but check that their track keeps growing.`
+      ? bi(
+          `Recorder: lydstrømmen for ${name} fik en fejl (${message}). Den er tilmeldt igen, men tjek, at sporet bliver ved med at vokse.`,
+          `Recorder: the audio stream for ${name} had an error (${message}). It is subscribed again, but check that their track keeps growing.`
+        )
       : null;
   }
 
   /** The voice connection reported an error. */
   connectionError(message: string, now: number): string | null {
     return this.due('connection', now)
-      ? `Recorder: the voice connection reported an error (${message}).`
+      ? bi(
+          `Recorder: voice-forbindelsen meldte en fejl (${message}).`,
+          `Recorder: the voice connection reported an error (${message}).`
+        )
       : null;
   }
 
@@ -163,7 +178,10 @@ export class RecorderHealth {
   rejoinFailed(attempt: number, now: number): string | null {
     this.rejoinAttempt = attempt;
     if (attempt < REJOIN_ALERT_FROM || !this.due('rejoin', now)) return null;
-    return `Recorder: still cannot rejoin the voice channel (attempt ${attempt}). Nothing is being recorded until it is back.`;
+    return bi(
+      `Recorder: kan stadig ikke komme ind i voice channel igen (forsøg ${attempt}). Der optages ikke, før forbindelsen er tilbage.`,
+      `Recorder: still cannot rejoin the voice channel (attempt ${attempt}). Nothing is being recorded until it is back.`
+    );
   }
 
   /** A successful rejoin ends the repeat window, so the next outage reports at once. */
@@ -211,8 +229,8 @@ export class RecorderHealth {
       .map(m => {
         const age =
           m.lastPacket === null
-            ? 'nothing recorded yet'
-            : `last packet ${formatAge(now - m.lastPacket)} ago`;
+            ? 'intet optaget endnu / nothing recorded yet'
+            : `sidste pakke for ${formatAge(now - m.lastPacket)} siden / last packet ${formatAge(now - m.lastPacket)} ago`;
         return `${m.name}: ${age}${m.muted ? ' (muted)' : ''}`;
       });
   }

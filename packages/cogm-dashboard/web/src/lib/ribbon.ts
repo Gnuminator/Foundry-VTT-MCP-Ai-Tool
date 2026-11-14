@@ -42,7 +42,7 @@ export interface RibbonLair {
 export type RibbonItem = RibbonCreature | RibbonRoundBreak | RibbonLair;
 
 /** How many creatures after the current one read clearly before the rest fade. */
-export const NEXT_COUNT = 2;
+const NEXT_COUNT = 2;
 
 /** Up to two letters: the first letters of the first two words, or the first two of one word. */
 export function initialsOf(name: string): string {

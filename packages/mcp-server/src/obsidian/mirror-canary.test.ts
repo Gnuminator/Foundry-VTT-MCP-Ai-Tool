@@ -11,7 +11,7 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
 import { TAROKKA_POSITIONS } from '../tarokka/deck.js';
@@ -31,6 +31,7 @@ import { VaultStore } from '../vault/store.js';
 import { ObsidianMirrorPump } from './mirror-pump.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 const WORLD = 'canary-world';
 
@@ -175,7 +176,7 @@ beforeEach(async () => {
   store = new VaultStore({ dataDir: path.join(tmp, 'bridge') });
   fake = new FakeExportIndex();
   clock = { t: 1_000_000 };
-  logger = { info: vi.fn(), warn: vi.fn() };
+  logger = makeLogger();
   await seedBridgeVault();
   seedWorld();
 });

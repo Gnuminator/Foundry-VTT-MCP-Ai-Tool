@@ -34,10 +34,10 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Destination = 'E:\PiBackup',
+  [string]$Destination = '',
   [string]$SourceRepo = 'sftp:foundry-pi:/var/lib/foundry-backup/restic',
-  [string]$PiPasswordFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pi.pass'),
-  [string]$PcPasswordFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pc.pass'),
+  [string]$PiPasswordFile = '',
+  [string]$PcPasswordFile = '',
   # Where the Pi keeps the password, for the one-time fetch.
   [string]$PiHost = 'foundry-pi',
   [string]$PiPasswordPath = '/etc/foundry-ai-tool/restic-pi.pass',
@@ -58,6 +58,12 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'space-check.ps1')
 . (Join-Path $PSScriptRoot 'record-pull.ps1')
 . (Join-Path $PSScriptRoot 'pull-destination.ps1')
+
+# Machine paths: one file for the drive and the secrets folder (explicit parameters win).
+$machinePaths = Get-Content (Join-Path $PSScriptRoot '..\machine-paths.json') -Raw | ConvertFrom-Json
+if (-not $Destination) { $Destination = $machinePaths.backupDestination }
+if (-not $PiPasswordFile) { $PiPasswordFile = Join-Path $env:APPDATA "$($machinePaths.secretsFolderUnderAppData)\restic-pi.pass" }
+if (-not $PcPasswordFile) { $PcPasswordFile = Join-Path $env:APPDATA "$($machinePaths.secretsFolderUnderAppData)\restic-pc.pass" }
 
 # An unplugged drive is logged on this PC's own disk (the log below lives on the drive) and ends the run.
 if (-not (Test-PullDestination -Destination $Destination -Job 'pull-restic')) { exit 1 }

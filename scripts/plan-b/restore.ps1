@@ -59,8 +59,8 @@ $L = Get-PlanBLayout $Root
 
 function Write-Step([string]$Text) { Write-Host "==> $Text" -ForegroundColor Cyan }
 
-if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository (is drive E: connected?)" }
-if (-not (Test-Path -LiteralPath $PassFile -PathType Leaf)) { throw "no restic password file at $PassFile (Waiting item 11: it is also in your password manager)" }
+if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository (is the backup drive connected?)" }
+if (-not (Test-Path -LiteralPath $PassFile -PathType Leaf)) { throw "no restic password file at $PassFile (a copy is in your password manager)" }
 $resticExe = Find-PlanBRestic $Restic
 $resticBase = @('--repo', $Repo, '--password-file', $PassFile, '--no-lock')
 

@@ -24,8 +24,9 @@ set "REPO_ROOT=%CD%"
 
 set "NODE_SCRIPT=%REPO_ROOT%\packages\mcp-server\dist\standalone.js"
 if not exist "%NODE_SCRIPT%" (
-  echo [start-bridge] Build artifacts not found at:
-  echo     %NODE_SCRIPT%
+  echo [start-bridge] build artifacts not found at:
+  echo     "%NODE_SCRIPT%"
+  echo.
   echo [start-bridge] Run "npm run build:server" first, then re-run this script.
   goto :error
 )
@@ -40,7 +41,8 @@ endlocal
 goto :eof
 
 :error
-echo [start-bridge] Failed to launch. See messages above.
+echo.
+echo [start-bridge] FAILED: could not launch. See the messages above.
 popd 2>nul
 endlocal
 exit /b 1

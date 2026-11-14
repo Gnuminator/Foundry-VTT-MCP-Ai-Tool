@@ -720,7 +720,9 @@ const NOT_CONTRACT = [
   'tool-refs',
   'usage-catalog.generated',
   'usage',
+  'util/async',
   'util/errors',
+  'util/record',
 ].map(n => `shared/src/${n}.ts`);
 
 function sharedSourceFiles(dir = path.join(REPO_ROOT, 'shared', 'src')) {

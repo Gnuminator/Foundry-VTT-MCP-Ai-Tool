@@ -16,6 +16,8 @@ import { promises as fsp } from 'fs';
 import * as path from 'path';
 import { createInterface } from 'readline';
 
+import { sleep } from '@gnuminator/shared';
+
 import {
   VAULT_AREAS,
   assertWorldId,
@@ -82,10 +84,6 @@ export interface KeepLastLinesHooks {
   onDropped?: (value: unknown) => void;
   onKept?: (value: unknown) => void;
   beforeRename?: () => Promise<void>;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function isEnvelope(value: unknown): value is VaultEnvelope {

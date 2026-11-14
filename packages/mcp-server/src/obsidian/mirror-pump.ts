@@ -75,6 +75,7 @@ import {
   type ExportIndexResponse,
   type ExportJournalEntry,
   type ExportKind,
+  isRecord,
 } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -335,10 +336,6 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function yieldNow(): Promise<void> {

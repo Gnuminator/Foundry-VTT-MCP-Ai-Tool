@@ -72,6 +72,11 @@ function fakes(o) {
     gh: args => {
       calls.gh.push(args);
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
+      if (args[0] === 'workflow') {
+        return o.dispatchFail
+          ? { status: 1, stdout: '', stderr: 'HTTP 403: no' }
+          : { status: 0, stdout: '', stderr: '' };
+      }
       if (args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1])) {
         if (o.tipFail) return { status: 1, stdout: '', stderr: 'HTTP 502' };
         // main's tip: the newest run's sha unless the test says otherwise
@@ -396,7 +401,7 @@ test('main tip with no run yet: the round waits, no gate; an unreadable tip wait
   assert.match(g.calls.log.join('\n'), /main's tip unreadable/);
 });
 
-test('main tip with no run: one Discord line after the waiting rounds, never a second; the count resets', () => {
+test('main tip with no run: after the waiting rounds the runner starts main CI once and posts one line; the count resets', () => {
   const h = fakes({
     text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
     prs: { 5: open() },
@@ -404,14 +409,22 @@ test('main tip with no run: one Discord line after the waiting rounds, never a s
   });
   const tried = new Set();
   const attempts = new Map();
+  const dispatches = () => h.calls.gh.filter(a => a[0] === 'workflow');
   for (let i = 1; i <= TIP_WAIT_ROUNDS + 3; i += 1) {
     round(h.deps, tried, attempts);
     assert.equal(h.calls.post.length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
+    assert.equal(dispatches().length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
   }
-  assert.match(
-    h.calls.post[0],
-    /no CI run for main's tip fffffff yet.*gh workflow run ci\.yml --ref main/
-  );
+  assert.deepEqual(dispatches()[0], [
+    'workflow',
+    'run',
+    'ci.yml',
+    '-R',
+    'Gnuminator/Foundry-VTT-MCP-Ai-Tool',
+    '--ref',
+    'main',
+  ]);
+  assert.match(h.calls.post[0], /no CI run for main's tip fffffff yet.*started it/);
   assert.deepEqual(h.calls.gate, []);
   // main becomes judgeable again: the counter is dropped
   attempts.set('main-tip-wait', 5);
@@ -422,6 +435,21 @@ test('main tip with no run: one Discord line after the waiting rounds, never a s
   });
   round(ok.deps, new Set(), attempts);
   assert.equal(attempts.has('main-tip-wait'), false);
+});
+
+test('main tip with no run: a failed CI start posts one line asking a person to start it', () => {
+  const h = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    tip: 'f'.repeat(40),
+    dispatchFail: true,
+  });
+  const tried = new Set();
+  const attempts = new Map();
+  for (let i = 1; i <= TIP_WAIT_ROUNDS + 2; i += 1) round(h.deps, tried, attempts);
+  assert.equal(h.calls.post.length, 1);
+  assert.match(h.calls.post[0], /starting its CI failed \(HTTP 403: no\).*gh workflow run ci\.yml/);
+  assert.deepEqual(h.calls.gate, []);
 });
 
 test('gateOutcome: no run to judge on main, a list that is not a list, no run for the tip: transient', () => {

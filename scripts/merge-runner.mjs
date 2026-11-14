@@ -23,8 +23,8 @@
  *   - main's newest CI run (push, ci.yml) is red: post one line, exit 3. Nothing is merged and the
  *     ready lines stay. A run still going, or CI that cannot be read, waits for the next round, and
  *     so does a main tip with no usable CI run (none yet, or only a cancelled one: a push run on
- *     main is never cancelled by a newer push); after 16 minutes of that one Discord line says to
- *     start its CI (`gh workflow run ci.yml --ref main`, or `gh run rerun`).
+ *     main is never cancelled by a newer push); after 16 minutes the runner starts its CI once
+ *     (`gh workflow run ci.yml --ref main`) and posts one line (a failed start: asks a person).
  *     A gate end that is not the PR's fault (gh/git blip, a GitHub 5xx, UNKNOWN mergeability) is tried again, up
  *     to 3 times per head. A gate killed at its time limit stops the runner (leftover processes).
  *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below). Open, but the ready
@@ -133,7 +133,7 @@ export function readyItems(backlogText) {
 
 export { GHOST_MINUTES, enqueuedItems, enqueuedLine, findGhosts };
 
-/** Rounds (2 minutes each) a tip without a usable CI run is waited for before one Discord line. */
+/** Rounds (2 minutes each) a tip without a usable CI run waits before the runner starts its CI once. */
 export const TIP_WAIT_ROUNDS = 8;
 const TIP_WAIT_KEY = 'main-tip-wait';
 
@@ -343,11 +343,7 @@ export function round(d, tried, attempts) {
       'done'
     );
   };
-  /**
-   * Is this head already on main? GitHub can land a merge and lose its event (a 502 on `gh pr
-   * merge`, 2026-11-14): the PR still reads OPEN and main's tip gets no CI run.
-   * @param {string} head
-   */
+  /** Is this head on main? A landed merge can lose its event (PR reads OPEN). @param {string} head */
   const headOnMain = head => {
     const v = d.gh(['api', `repos/${REPO}/compare/${head}...main`, '--jq', '.status']);
     return v.status === 0 && ['ahead', 'identical'].includes(v.stdout.trim());
@@ -501,9 +497,18 @@ export function round(d, tried, attempts) {
         const n = (attempts.get(TIP_WAIT_KEY) ?? 0) + 1;
         attempts.set(TIP_WAIT_KEY, n);
         if (n === TIP_WAIT_ROUNDS) {
-          d.post(
-            `merge runner waiting: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; start its CI (gh workflow run ci.yml --ref main, or gh run rerun for a cancelled one), the runner goes on by itself`
-          );
+          // A lost push event (2026-11-14); a dispatched run counts as main's run (mainState).
+          const run = d.gh(['workflow', 'run', 'ci.yml', '-R', REPO, '--ref', 'main']);
+          if (run.status === 0) {
+            d.log(`${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; started main's CI`);
+            d.post(
+              `merge runner: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; started it (gh workflow run ci.yml --ref main), the runner goes on by itself once it is green`
+            );
+          } else {
+            d.post(
+              `merge runner waiting: ${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes and starting its CI failed (${oneLine(run.stderr || run.stdout, 200)}); start it (gh workflow run ci.yml --ref main, or gh run rerun for a cancelled one), the runner goes on by itself`
+            );
+          }
         }
       } else attempts.delete(TIP_WAIT_KEY);
       return { stop: null, merged };

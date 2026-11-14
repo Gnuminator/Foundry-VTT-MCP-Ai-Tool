@@ -88,8 +88,8 @@ redirect to `/`, and the React build's own files still load from
 window. `/player`, `/me` and `/open` are separate pages and did not move.
 
 The React page uses Radix UI primitives (unstyled), TanStack Query for the
-data, and the old stylesheets and themes as they are (it links `styles.css`, `moments.css` and
-`themes/` from `public/`), so it looks the same. It talks to the same routes with the same GM
+data, and the old stylesheets and themes as they are (`web/src/styles/` bundles `styles.css`, `moments.css` and
+the shared `public/themes/`), so it looks the same. It talks to the same routes with the same GM
 token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),
 Prep, Party, Handouts, Tarokka, the Tool Runner, the Advanced menu (its panel, During screen and
 tool entries; Pre-flight stays in the header with its status) and the Before / During / After
@@ -152,7 +152,7 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
   numbers; never write a `z-index` number in a component or in `next.css`.
 - **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
-  built in) and reads the tokens. Only delete rules from `public/styles.css` or `public/moments.css`
+  built in) and reads the tokens. Only delete rules from `web/src/styles/styles.css` or `moments.css`
   when nothing renders them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
   `.empty`, `.btn`, ...), so those files still style them.
 - **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
@@ -175,7 +175,7 @@ production dependencies only) and the bundle budget do not change.
 - `npm run build-storybook -w @gnuminator/cogm-dashboard` writes the static site to
   `storybook-static/` (not committed). The wiki workflow builds it and publishes it under
   `/storybook/` next to the wiki.
-- The preview loads the same stylesheets as the real page, in the same order (`styles.css`,
+- The preview loads the same stylesheets as the real page, in the same order (`web/src/styles/index.css`: `styles.css`,
   `moments.css`, `themes/brand.css`, `themes/veil.css`, `themes/light.css`, `next.css`), so a story looks as the panel
   does in the dashboard. The toolbar's **Theme** sets `data-theme` (neutral or veil) on `<html>`
   and **Mist** sets `data-mist` (calm, drift, clear), as `theme.ts` does.

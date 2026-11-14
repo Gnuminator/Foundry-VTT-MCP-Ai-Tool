@@ -339,8 +339,8 @@ describe('GET /open (the static confirm page)', () => {
     const otherRes = { setHeader: (name: string, value: string): string => (other[name] = value) };
     hook(
       otherRes as never,
-      path.join(PUBLIC_DIR, 'styles.css'),
-      statSync(path.join(PUBLIC_DIR, 'styles.css'))
+      path.join(PUBLIC_DIR, 'me.css'),
+      statSync(path.join(PUBLIC_DIR, 'me.css'))
     );
     expect(other).toEqual({});
   });

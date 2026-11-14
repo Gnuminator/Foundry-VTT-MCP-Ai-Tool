@@ -1,5 +1,5 @@
-/* Only what the React markup needs on top of the shared stylesheets (styles.css, moments.css and the
-   themes, linked by index.html). The look itself stays in those files. */
+/* Only what the React markup needs on top of the old stylesheets (styles.css, moments.css and the
+   themes, imported in order by index.css). The look itself stays in those files. */
 
 /* Radix renders the toast stack as a list. */
 ol.toast-stack {

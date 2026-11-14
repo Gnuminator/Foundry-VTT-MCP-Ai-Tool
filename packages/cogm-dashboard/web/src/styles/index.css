@@ -1,0 +1,9 @@
+/* The dashboard's stylesheets in cascade order; Vite inlines these @imports into one bundled file.
+   The old rules first, then the shared themes (also linked by the player pages from public/, one
+   copy of The Veil), then what only the React markup needs. Keep this order: a later file wins. */
+@import './styles.css';
+@import './moments.css';
+@import '../../../public/themes/brand.css';
+@import '../../../public/themes/veil.css';
+@import '../../../public/themes/light.css';
+@import './next.css';

@@ -95,7 +95,7 @@ export function mountPageRoutes(app: Express, ctx: RouteContext): void {
   // The retired page address (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
   // /next/ above, so a saved link still lands on the dashboard. Its files are not served.
   const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
-  // The pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
+  // The pages' stylesheets (unhashed, 11 KB for me.css) go out gzipped; the page headers
   // still come from the same hook, by file, and revalidation works as for express.static.
   const publicCss = gzipAssets(config.publicDir, {
     extensions: ['.css'],

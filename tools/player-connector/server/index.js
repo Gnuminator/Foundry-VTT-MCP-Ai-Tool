@@ -15,8 +15,10 @@
  */
 
 const readline = require('node:readline');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const VERSION = '0.1.5';
+const VERSION = '0.2.0';
 
 // Protocol versions the local initialize answer offers; the newest is the fallback.
 const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
@@ -273,8 +275,74 @@ function createForwarder(env, fetchImpl) {
   return api;
 }
 
+/**
+ * The helper guide (the D&D helper's instructions) that the build puts next to this file as
+ * guide.json: { instructions, pages: { topic: text } }. Missing or unreadable (the repo checkout, a
+ * hand-made copy): null, and the connector behaves as before. No book text, no secret.
+ */
+function loadGuide(dir = __dirname) {
+  try {
+    const g = JSON.parse(fs.readFileSync(path.join(dir, 'guide.json'), 'utf8'));
+    if (g && typeof g.instructions === 'string' && g.pages && typeof g.pages === 'object') return g;
+  } catch {
+    /* no guide */
+  }
+  return null;
+}
+
+const GUIDE = loadGuide();
+
+/** The extra tool that hands out the guide pages. */
+function guideTool(guide) {
+  return {
+    name: 'get-helper-guide',
+    description:
+      'The D&D helper guide for this table: how to build a character, level up, check a sheet and answer rules questions with the tools here. Call it with no topic for the overview and the list of topics, or with a topic for one flow. Read it before you start a build, a level-up or a sheet check.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          enum: Object.keys(guide.pages),
+          description: 'One flow or guide page',
+        },
+      },
+    },
+    annotations: { readOnlyHint: true },
+  };
+}
+
+function guideResult(guide, topic) {
+  const topics = Object.keys(guide.pages).join(', ');
+  if (!topic || topic === 'overview') {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `${guide.pages.overview ?? guide.instructions}\n\nTopics: ${topics}`,
+        },
+      ],
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(guide.pages, topic)) {
+    return { content: [{ type: 'text', text: guide.pages[topic] }] };
+  }
+  return { isError: true, content: [{ type: 'text', text: `No such topic. Topics: ${topics}` }] };
+}
+
+/** Add the guide to an initialize or tools/list result (forwarded or local). */
+function withGuide(method, result, guide) {
+  if (!guide || !result || typeof result !== 'object') return result;
+  if (method === 'initialize') return { ...result, instructions: guide.instructions };
+  if (method === 'tools/list' && Array.isArray(result.tools)) {
+    if (result.tools.some(t => t && t.name === 'get-helper-guide')) return result;
+    return { ...result, tools: [...result.tools, guideTool(guide)] };
+  }
+  return result;
+}
+
 /** Handle one parsed stdin message. Returns the response object to write, or null for nothing. */
-async function handleMessage(msg, forwarder) {
+async function handleMessage(msg, forwarder, guide = GUIDE) {
   if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
     return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid request' } };
   }
@@ -283,6 +351,15 @@ async function handleMessage(msg, forwarder) {
   if (msg.method === 'ping') return { jsonrpc: '2.0', id: msg.id, result: {} };
   if (typeof msg.method !== 'string') {
     return { jsonrpc: '2.0', id: msg.id, error: { code: -32600, message: 'Invalid request' } };
+  }
+  if (
+    guide &&
+    msg.method === 'tools/call' &&
+    msg.params &&
+    msg.params.name === 'get-helper-guide'
+  ) {
+    const topic = msg.params.arguments && msg.params.arguments.topic;
+    return { jsonrpc: '2.0', id: msg.id, result: guideResult(guide, topic) };
   }
   const statusCall =
     msg.method === 'tools/call' && msg.params && msg.params.name === 'connection-status';
@@ -326,33 +403,42 @@ async function handleMessage(msg, forwarder) {
       return {
         jsonrpc: '2.0',
         id: msg.id,
-        result: {
-          protocolVersion: PROTOCOL_VERSIONS.includes(asked)
-            ? asked
-            : PROTOCOL_VERSIONS[PROTOCOL_VERSIONS.length - 1],
-          capabilities: { tools: { listChanged: true } },
-          serverInfo: { name: 'foundry-player', version: VERSION },
-        },
+        result: withGuide(
+          'initialize',
+          {
+            protocolVersion: PROTOCOL_VERSIONS.includes(asked)
+              ? asked
+              : PROTOCOL_VERSIONS[PROTOCOL_VERSIONS.length - 1],
+            capabilities: { tools: { listChanged: true } },
+            serverInfo: { name: 'foundry-player', version: VERSION },
+          },
+          guide
+        ),
       };
     }
     if (msg.method === 'tools/list') {
       return {
         jsonrpc: '2.0',
         id: msg.id,
-        result: {
-          tools: [
-            {
-              name: 'connection-status',
-              description: `The table connection is not working. ${text}`,
-              inputSchema: { type: 'object', properties: {} },
-            },
-          ],
-        },
+        result: withGuide(
+          'tools/list',
+          {
+            tools: [
+              {
+                name: 'connection-status',
+                description: `The table connection is not working. ${text}`,
+                inputSchema: { type: 'object', properties: {} },
+              },
+            ],
+          },
+          guide
+        ),
       };
     }
     return { jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: text } };
   }
   const reply = { ...out.message, jsonrpc: '2.0', id: msg.id };
+  if (reply.result) reply.result = withGuide(msg.method, reply.result, guide);
   return JSON.parse(scrub(JSON.stringify(reply), forwarder.secrets));
 }
 
@@ -406,6 +492,9 @@ module.exports = {
   fromEventStream,
   createForwarder,
   handleMessage,
+  loadGuide,
+  guideTool,
+  guideResult,
 };
 
 // Claude Desktop starts extension servers through its own launcher, which may load this file with

@@ -385,7 +385,11 @@ test('the .mcpb is a zip with a valid manifest and the server, secrets marked se
       entries.set(name, inflateRawSync(buf.subarray(start, start + packed)).toString('utf8'));
       at = start + packed;
     }
-    assert.deepEqual([...entries.keys()].sort(), ['manifest.json', 'server/index.js']);
+    assert.deepEqual([...entries.keys()].sort(), [
+      'manifest.json',
+      'server/guide.json',
+      'server/index.js',
+    ]);
     const m = JSON.parse(entries.get('manifest.json'));
     assert.equal(m.manifest_version, '0.3');
     assert.equal(m.server.type, 'node');
@@ -428,7 +432,11 @@ const PRESET = {
 
 test('a player preset has literals, no user_config, its own name and display name', () => {
   const entries = unzip(buildPreset(PRESET));
-  assert.deepEqual([...entries.keys()].sort(), ['manifest.json', 'server/index.js']);
+  assert.deepEqual([...entries.keys()].sort(), [
+    'manifest.json',
+    'server/guide.json',
+    'server/index.js',
+  ]);
   const m = JSON.parse(entries.get('manifest.json'));
   assert.equal(m.user_config, undefined);
   assert.deepEqual(m.server.mcp_config.env, {
@@ -894,4 +902,125 @@ test('the VERSION constant equals the manifest version', () => {
   const v = /const VERSION = '([^']+)'/.exec(readFileSync(SERVER, 'utf8'));
   assert.ok(v, 'VERSION constant found');
   assert.equal(v[1], m.version);
+});
+
+// The helper guide (MCP instructions and the get-helper-guide tool).
+
+/** A forwarder that answers like the table: one tool, or a failure text. */
+function fakeForwarder(failure) {
+  return {
+    secrets: [SECRET],
+    forward: async req => {
+      if (failure) return { failure };
+      if (req.method === 'initialize')
+        return {
+          message: { result: { protocolVersion: '2025-06-18', serverInfo: { name: 'x' } } },
+        };
+      if (req.method === 'tools/list')
+        return { message: { result: { tools: [{ name: 'get-my-character' }] } } };
+      return { message: { result: { content: [{ type: 'text', text: 'forwarded' }] } } };
+    },
+  };
+}
+
+test('the guide is built from the player skill: instructions, topics, no skill file paths', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const g = buildGuide();
+  assert.match(g.instructions, /^# D&D helper \(player edition\)/);
+  assert.match(g.instructions, /get-helper-guide/);
+  assert.deepEqual(Object.keys(g.pages).sort(), [
+    'character-creation',
+    'join',
+    'level-up',
+    'make-a-character',
+    'overview',
+    'plan-note',
+    'rules-question',
+    'sheet-check',
+  ]);
+  const all = JSON.stringify(g);
+  assert.ok(!/references\//.test(all), 'no path into the skill zip is left');
+  assert.ok(g.instructions.length < 8000, 'instructions stay short');
+  // Only the player tools: none of the GM set, and nothing that changes the game.
+  assert.ok(!/search-compendium|get-compendium-item|list-characters|get-character\b/.test(all));
+  assert.ok(!/CF-Access|Client Secret:/.test(all), 'no secret-shaped text');
+});
+
+test('with a guide, initialize carries instructions and tools/list the guide tool', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  for (const failure of [undefined, 'HTTP 403']) {
+    const init = await handleMessage(
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+      fakeForwarder(failure),
+      guide
+    );
+    assert.equal(init.result.instructions, guide.instructions);
+    const list = await handleMessage(
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+      fakeForwarder(failure),
+      guide
+    );
+    const names = list.result.tools.map(t => t.name);
+    assert.equal(names.filter(n => n === 'get-helper-guide').length, 1);
+  }
+});
+
+test('get-helper-guide answers locally per topic and refuses an unknown one', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  const forwarder = fakeForwarder();
+  forwarder.forward = async () => assert.fail('the guide tool is not forwarded');
+  const call = args =>
+    handleMessage(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get-helper-guide', arguments: args },
+      },
+      forwarder,
+      guide
+    );
+  assert.match((await call({})).result.content[0].text, /Topics: /);
+  assert.match(
+    (await call({ topic: 'character-creation' })).result.content[0].text,
+    /^# Character creation flow/
+  );
+  assert.equal((await call({ topic: '../../etc/passwd' })).result.isError, true);
+  assert.equal((await call({ topic: 'toString' })).result.isError, true);
+});
+
+test('without guide.json nothing changes: no instructions, no extra tool', async () => {
+  const { handleMessage, loadGuide } = loadServer();
+  assert.equal(loadGuide(tmpdir()), null);
+  const init = await handleMessage(
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+    fakeForwarder(),
+    null
+  );
+  assert.equal(init.result.instructions, undefined);
+  const list = await handleMessage(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    fakeForwarder(),
+    null
+  );
+  assert.deepEqual(
+    list.result.tools.map(t => t.name),
+    ['get-my-character']
+  );
+});
+
+test('the built extension carries a guide.json the server can load', () => {
+  const entries = unzip(buildPreset(PRESET));
+  const dir = mkdtempSync(path.join(tmpdir(), 'player-guide-'));
+  try {
+    writeFileSync(path.join(dir, 'guide.json'), entries.get('server/guide.json'));
+    const g = loadServer().loadGuide(dir);
+    assert.ok(g && g.instructions.length > 1000 && g.pages.overview === g.instructions);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

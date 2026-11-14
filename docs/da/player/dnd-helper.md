@@ -1,8 +1,8 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 047fd84ed592
+sourceHash: e729c40c6e5e
 title: D&D-hjælperen til spillere
-description: Installer Claude Desktop, tilføj Foundry-spillerconnectoren og D&D-hjælper-skillen, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
+description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
 
 # D&D-hjælperen til spillere
@@ -18,15 +18,16 @@ på samme måde uden den.
 ## Hvad det er, på et minut
 
 Claude er en AI-assistent fra Anthropic. Claude Desktop er den app, du chatter med den i. Som
-udgangspunkt ved Claude ikke noget om vores spil. Tre små dele ændrer det:
+udgangspunkt ved Claude ikke noget om vores spil. To små dele ændrer det:
 
 - **Extension** (en fil, der hedder `foundry-player.mcpb`) er et stik, der lader Claude Desktop
-  spørge vores Foundry om et par ting. Det kaldes **spillerconnectoren**.
+  spørge vores Foundry om et par ting. Det kaldes **spillerconnectoren**. Den bærer også
+  hjælperens instrukser, som lærer Claude at hjælpe med D&D ved vores bord: hvordan man planlægger
+  en karakter, hvordan man guider dig gennem et level-up, hvordan man tjekker dit ark, og hvordan
+  man svarer på et regelspørgsmål. Der er ikke noget ekstra at installere eller slå til for det.
 - **Dine to værdier** (et Client ID og en Client Secret) er din personlige nøgle til det stik. De
-  fortæller serveren, hvem du er, så du ser din egen karakter og ingen andres.
-- **Skillen** (en fil, der hedder `foundry-dnd-helper-player.zip`) er et sæt instrukser, der lærer
-  Claude at hjælpe med D&D ved vores bord: hvordan man planlægger en karakter, hvordan man guider dig
-  gennem et level-up, hvordan man tjekker dit ark, og hvordan man svarer på et regelspørgsmål.
+  fortæller serveren, hvem du er, så du ser din egen karakter og ingen andres. I filen, du henter
+  fra din side, ligger de allerede inde i.
 
 Det, den **gør**: læser dine egne karakterer, læser de bøger, som bordet lader spillere læse, og
 snakker valgene igennem med dig.
@@ -46,7 +47,7 @@ Du skal bruge:
   værktøjet, sender dem til dig privat, og du kan også se dem på din egen **My character**-side under
   **Your Claude connector** (der er kopiér-knapper ved hver af dem). Behandl secret'en som en
   adgangskode: læg den ikke i Discord, og put den ikke i et screenshot.
-- To filer, som du henter i trin 2. Du behøver ikke have Claude Desktop installeret endnu: det gør
+- Én fil, som du henter i trin 2. Du behøver ikke have Claude Desktop installeret endnu: det gør
   trin 1.
 
 ## Trin 1: installer Claude Desktop og log ind
@@ -61,17 +62,14 @@ Du skal bruge:
 Anthropic ændrer menuerne en gang imellem. Hvis en knap ikke står, hvor guiden siger, så led efter
 det samme ord i nærheden, eller brug søgefeltet i Settings.
 
-## Trin 2: hent din hjælper og skillen
+## Trin 2: hent din hjælper
 
 1. Åbn din **My character**-side (det private link, du fik), åbn **Your Claude connector** og tryk
    på **Download my helper**. Din browser gemmer `foundry-player.mcpb` i din **Downloads**-mappe.
    Filen er lavet til dig og indeholder dit eget login, så del den ikke, og slet den gerne efter
    trin 3.
-2. Hent skillen:
-   [foundry-dnd-helper-player.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-dnd-helper-player.zip)
 
-Spørger din browser, om den skal beholde en fil, den ikke kender, så vælg **Keep**. Pak ikke skillen
-ud.
+Spørger din browser, om den skal beholde en fil, den ikke kender, så vælg **Keep**.
 
 ## Trin 3: tilføj extension
 
@@ -92,17 +90,11 @@ installér den på samme måde, og når en formular spørger, så indsæt dit **
 felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
 For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
-beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med fem tools. Gør du det,
-sidder stikket i.
+beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med seks tools (de fem
+bordtools og **get-helper-guide**). Gør du det, sidder stikket i. Du behøver ikke tilføje en skill
+eller slå Code execution til: hjælperens instrukser følger med extension.
 
-## Trin 4: tilføj skillen
-
-1. Åbn **Settings** i Claude Desktop, derefter **Customize**, derefter **Skills**.
-2. Vælg at tilføje en skill og peg på `foundry-dnd-helper-player.zip` i din Downloads-mappe. **Pak
-   den ikke ud først.**
-3. Sørg for, at skillen er slået til.
-
-## Trin 5: dit første spørgsmål
+## Trin 4: dit første spørgsmål
 
 Start en ny chat og spørg:
 
@@ -245,9 +237,14 @@ resten som almen viden. Gør den aldrig det, så sig det til den, der kører væ
 Bordet lader måske ikke spillere se den bog, eller indlæggets navn er anderledes. Prøv et andet ord
 ("grapple" og "grappled"), eller bed om en søgning efter, hvad tingen gør.
 
-**Skillen bliver ikke brugt.**
-Åbn Settings, Customize, Skills og tjek, at "foundry-dnd-helper-player" er slået til. Start din
-besked med "Brug D&D-hjælper-skillen til at..." første gang.
+**Den følger ikke hjælperens trin (et build card, et arktjek).**
+Skriv: "Læs Foundry-hjælperguiden først, og svar så." Så åbner Claude guiden gennem tool'et
+**get-helper-guide**. Gør den det stadig ikke, kan din extension være en gammel version: hent din
+hjælper igen fra din **My character**-side og installer den oven på den gamle.
+
+**Jeg installerede den gamle skill-zip tidligere.**
+Den virker stadig, men du har ikke brug for den mere. Du kan fjerne den i Settings, Customize,
+Skills.
 
 **Den påstår, at den har ændret min karakter.**
 Det kan den ikke, og det skal den aldrig sige. Tjek dit ark i Foundry, og sig det så til den, der

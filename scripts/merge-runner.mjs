@@ -27,7 +27,8 @@
  *     start its CI (`gh workflow run ci.yml --ref main`, or `gh run rerun`).
  *     A gate end that is not the PR's fault (gh/git blip, a GitHub 5xx, UNKNOWN mergeability) is tried again, up
  *     to 3 times per head. A gate killed at its time limit stops the runner (leftover processes).
- *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below).
+ *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below). Open, but the ready
+ *     head is already on main (GitHub lost the merge event): `done --sha <main's tip>`, one line.
  *   - the PR head is not the sha of the ready line: a refusal. The gate never judges a head the
  *     ready line did not name.
  *   - else the gate checkout (default: the sibling folder `<main checkout>-gate`, a built worktree
@@ -194,8 +195,9 @@ export function mainState(json, tip = '') {
 /**
  * Gate ends that are not the PR's fault (GitHub or git blipped, GitHub answered a 5xx such as a 502
  * on `gh pr merge`, main moved, mergeability not yet computed, the gate was killed with no reason):
- * tried again, up to MAX_TRANSIENT times per head. A merge that landed despite the 5xx is caught by
- * the check against GitHub that follows every end other than merged.
+ * tried again, up to MAX_TRANSIENT times per head. A merge that landed despite the 5xx is caught after
+ * the gate (any end but merged, enqueued, train full or main red): the PR reads MERGED, or its head is
+ * already on main while the PR still reads OPEN (GitHub lost the merge event).
  */
 const TRANSIENT =
   /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
@@ -309,8 +311,11 @@ export function round(d, tried, attempts) {
     );
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
-  /** @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line */
-  const markDone = (r, fromReady = true) => {
+  /**
+   * @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line
+   * @param {string} [sha] main's commit that holds the head, when GitHub has no merge commit for the PR
+   */
+  const markDone = (r, fromReady = true, sha = '') => {
     // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
     // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
@@ -331,7 +336,27 @@ export function round(d, tried, attempts) {
       return;
     }
     // No --sha: `backlog.mjs done` reads the merge commit from GitHub (the head is not on main).
-    write(r.id, ['done', r.id, String(r.pr), '--by', 'merge-runner'], 'done');
+    // With a sha: GitHub lost the merge event and the PR still reads OPEN, so there is none to read.
+    write(
+      r.id,
+      ['done', r.id, String(r.pr), ...(sha ? ['--sha', sha] : []), '--by', 'merge-runner'],
+      'done'
+    );
+  };
+  /**
+   * Is this head already on main? GitHub can land a merge and lose its event (a 502 on `gh pr
+   * merge`, 2026-11-14): the PR still reads OPEN and main's tip gets no CI run.
+   * @param {string} head
+   */
+  const headOnMain = head => {
+    const v = d.gh(['api', `repos/${REPO}/compare/${head}...main`, '--jq', '.status']);
+    return v.status === 0 && ['ahead', 'identical'].includes(v.stdout.trim());
+  };
+  /** main's tip sha, or '' when unreadable. */
+  const mainTip = () => {
+    const v = d.gh(['api', `repos/${REPO}/git/ref/heads/main`, '--jq', '.object.sha']);
+    const s = v.stdout.trim();
+    return v.status === 0 && /^[0-9a-f]{40}$/.test(s) ? s : '';
   };
   /** Is the PR merged after all (a gate run killed after `gh pr merge`)? @param {number} n */
   const mergedOnGitHub = n => {
@@ -514,6 +539,17 @@ export function round(d, tried, attempts) {
       );
       continue;
     }
+    if (headOnMain(r.head)) {
+      tried.add(key);
+      d.log(
+        `#${r.pr} (${r.id}) reads OPEN, but its head ${r.head.slice(0, 7)} is already on main; marking it done`
+      );
+      d.post(
+        `merge runner: #${r.pr} reads open on GitHub, but its head is already on main (GitHub lost the merge event); marked done, not gated again`
+      );
+      markDone(r, true, tip);
+      continue;
+    }
 
     const problem = d.prepare(r);
     if (problem) {
@@ -552,18 +588,24 @@ export function round(d, tried, attempts) {
         };
       }
     }
-    if (
-      out.kind !== 'merged' &&
-      out.kind !== 'enqueued' &&
-      out.kind !== 'train-full' &&
-      out.kind !== 'main-red' &&
-      mergedOnGitHub(r.pr)
-    ) {
+    const notMergedEnd = !['merged', 'enqueued', 'train-full', 'main-red'].includes(out.kind);
+    if (notMergedEnd && mergedOnGitHub(r.pr)) {
       // The gate ended without its merged line (killed, timed out) after the merge went through.
       tried.add(key);
       merged.push(r.pr);
       d.log(`#${r.pr} (${r.id}) is merged although the gate said: ${oneLine(out.reason, 200)}`);
       markDone(r);
+    } else if (notMergedEnd && headOnMain(r.head)) {
+      // The merge landed but GitHub lost its event (the PR still reads OPEN).
+      tried.add(key);
+      merged.push(r.pr);
+      d.log(
+        `#${r.pr} (${r.id}) reads OPEN, but its head is on main although the gate said: ${oneLine(out.reason, 200)}`
+      );
+      d.post(
+        `merge runner: #${r.pr} landed on main although GitHub answered: ${oneLine(out.reason, 200)}; the PR may still read open and main's tip may get no CI run`
+      );
+      markDone(r, true, mainTip());
     } else if (out.kind === 'merged') {
       tried.add(key);
       merged.push(r.pr);

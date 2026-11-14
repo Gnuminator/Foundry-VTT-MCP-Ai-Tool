@@ -2,4 +2,5 @@
 
 - **Merge runner retries GitHub 5xx:** the merge runner now retries a merge that GitHub answered with a 5xx error (such as a 502 Bad
   Gateway from `gh pr merge`) instead of refusing the PR, so a short GitHub outage no longer needs
-  a lane to write a new ready line.
+  a lane to write a new ready line. A PR whose head is already on main while GitHub still shows it
+  open (the merge landed but GitHub lost the event) is marked done instead of gated again.

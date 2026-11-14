@@ -60,7 +60,9 @@ const backlog = (items, extra = {}) =>
  * `text` may be a function (read again before each PR); `afterGate` runs after each fake gate run.
  * @param {{ text: string | null | (() => string | null), prs?: Record<number, object>,
  *   gates?: Record<number, { status: number, stdout: string }>, main?: string,
- *   prepare?: string | null, afterGate?: (pr: number) => void }} o
+ *   prepare?: string | null, afterGate?: (pr: number) => void,
+ *   compare?: string | (() => string) }} o `compare`: the status of `compare/<head>...main`
+ *   (`ahead` or `identical` = the head is on main); unset = the compare call fails
  */
 function fakes(o) {
   const calls = { gh: [], gate: [], backlog: [], post: [], log: [], prepare: [] };
@@ -80,6 +82,12 @@ function fakes(o) {
           /* keep SHA */
         }
         return { status: 0, stdout: `${o.tip ?? sha}\n`, stderr: '' };
+      }
+      if (args[0] === 'api' && /\/compare\/[0-9a-f]+\.\.\.main$/.test(args[1])) {
+        const st = typeof o.compare === 'function' ? o.compare() : o.compare;
+        return st
+          ? { status: 0, stdout: `${st}\n`, stderr: '' }
+          : { status: 1, stdout: '', stderr: 'x' };
       }
       const n = Number(args[2]);
       const pr = o.prs?.[n];
@@ -134,6 +142,62 @@ test('ready -> gate -> merged -> done; the gate is main copy with --wait-ci only
   assert.deepEqual(f.calls.prepare, [{ id: 'one', pr: 5, head: SHA }]);
   assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
   assert.deepEqual(f.calls.post, [], 'the gate posts the merge line itself');
+});
+
+test('an OPEN PR whose head is already on main (a lost merge event) is marked done with main tip, not gated', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+    compare: 'ahead',
+  });
+  const r = round(f.deps, new Set());
+  assert.deepEqual(f.calls.gate, [], 'not gated again');
+  assert.deepEqual(r, { stop: null, merged: [] });
+  assert.deepEqual(f.calls.backlog, [
+    ['done', 'one', '5', '--sha', 'c'.repeat(40), '--by', 'merge-runner'],
+  ]);
+  assert.match(f.calls.post[0], /head is already on main/);
+});
+
+test('a head that is behind or diverged from main is gated as usual', () => {
+  for (const status of ['behind', 'diverged']) {
+    const f = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: { 5: merged(5) },
+      compare: status,
+    });
+    round(f.deps, new Set());
+    assert.deepEqual(f.calls.gate, [5], status);
+  }
+});
+
+test('a 5xx on gh pr merge whose merge landed (PR still OPEN, head on main) is done, not retried', () => {
+  let landed = false;
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: {
+        status: 1,
+        stdout:
+          'lane:merge: refused because merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "x"',
+      },
+    },
+    compare: () => (landed ? 'ahead' : 'behind'),
+    afterGate: () => {
+      landed = true;
+    },
+  });
+  const tried = new Set();
+  const r = round(f.deps, tried);
+  assert.deepEqual(r.merged, [5]);
+  assert.deepEqual(f.calls.backlog, [
+    ['done', 'one', '5', '--sha', 'c'.repeat(40), '--by', 'merge-runner'],
+  ]);
+  assert.ok(tried.has(`5@${SHA}`), 'not tried again');
+  assert.match(f.calls.post[0], /landed on main/);
 });
 
 test('a refusal writes the reason as a progress line and posts one line; it is not tried again', () => {

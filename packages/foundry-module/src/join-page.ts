@@ -265,7 +265,7 @@ export function joinPageDialogHtml(world: WorldJoinFields): string {
   const tagline = veilTagline(world.description) ?? DEFAULT_TAGLINE;
   return [
     '<p>The join page is the first screen players see: the world title, its description, the next session time and the login.</p>',
-    '<p>The Veil gives it the campaign look: the castle in the mist as the background picture and a lamplit line at the top of the description. Your description text stays as it is.</p>',
+    "<p><strong>The Veil</strong> is this campaign's look (the same one as the dashboard's Veil theme and the Veil dice). On the join page it means the castle in the mist as the background picture and a lamplit line at the top of the description. Your description text stays as it is, and \"Back to Foundry's look\" undoes it.</p>",
     `<p><strong>${now}</strong></p>`,
     '<div class="form-group stacked">',
     '<label for="ai-tool-join-tagline">The lamplit line</label>',

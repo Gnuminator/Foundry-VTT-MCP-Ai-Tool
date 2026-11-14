@@ -67,7 +67,7 @@ describe('client versions', () => {
       expect(n.en).toContain('Update available');
       const line = clientToolNotice(piece, null, '0.28.0');
       expect(line).toContain('an older version');
-      expect(`${n.da}${n.en}${line}`).not.toContain('—');
+      expect(`${n.da}${n.en}${line}`).not.toContain(String.fromCharCode(0x2014));
     }
     expect(clientNoticeText('player-extension', '0.2.0', '0.28.0').en).toContain(
       'Download my helper'

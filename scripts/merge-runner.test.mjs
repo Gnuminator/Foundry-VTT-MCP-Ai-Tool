@@ -655,13 +655,18 @@ test('gateOutcome: every real passing reason is transient, a review refusal is n
     'wait-ci: the gate on aitool/main changed during the wait (or this copy cannot be read); start again',
     'pr: mergeable is UNKNOWN; merge main into the branch and resolve conflicts',
     'unexpected error: boom',
+    'merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "<html>"',
+    'merge: gh pr merge exited 1: HTTP 503: Service Unavailable',
   ]) {
     assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'transient', why);
   }
-  assert.equal(
-    gateOutcome(1, 'lane:merge: refused because review: no note says Merge', 5).kind,
-    'refused'
-  );
+  for (const why of [
+    'review: no note says Merge',
+    'merge: gh pr merge exited 1: non-200 OK status code: 422 Unprocessable Entity',
+    'merge: gh pr merge exited 1: HTTP 405: Pull Request is not mergeable',
+  ]) {
+    assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'refused', why);
+  }
 });
 
 test('parseArgs: the gate checkout defaults to the sibling -gate folder of the main checkout', () => {

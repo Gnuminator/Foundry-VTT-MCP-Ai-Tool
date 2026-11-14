@@ -25,7 +25,7 @@
  *     so does a main tip with no usable CI run (none yet, or only a cancelled one: a push run on
  *     main is never cancelled by a newer push); after 16 minutes of that one Discord line says to
  *     start its CI (`gh workflow run ci.yml --ref main`, or `gh run rerun`).
- *     A gate end that is not the PR's fault (gh/git blip, UNKNOWN mergeability) is tried again, up
+ *     A gate end that is not the PR's fault (gh/git blip, a GitHub 5xx, UNKNOWN mergeability) is tried again, up
  *     to 3 times per head. A gate killed at its time limit stops the runner (leftover processes).
  *   - the PR is already merged: `backlog.mjs done`. Closed: a refusal (below).
  *   - the PR head is not the sha of the ready line: a refusal. The gate never judges a head the
@@ -192,11 +192,13 @@ export function mainState(json, tip = '') {
 }
 
 /**
- * Gate ends that are not the PR's fault (GitHub or git blipped, main moved, mergeability not yet
- * computed, the gate was killed with no reason): tried again, up to MAX_TRANSIENT times per head.
+ * Gate ends that are not the PR's fault (GitHub or git blipped, GitHub answered a 5xx such as a 502
+ * on `gh pr merge`, main moved, mergeability not yet computed, the gate was killed with no reason):
+ * tried again, up to MAX_TRANSIENT times per head. A merge that landed despite the 5xx is caught by
+ * the check against GitHub that follows every end other than merged.
  */
 const TRANSIENT =
-  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
+  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line|non-200 OK status code: 5\d\d|HTTP 5\d\d/;
 const MAX_TRANSIENT = 3;
 
 /**

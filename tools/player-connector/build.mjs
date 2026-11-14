@@ -15,8 +15,63 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { zip } from '../gm-coach/build.mjs';
+import { collectPlayerFiles } from '../dnd-helper/build.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+/** Turn a skill page path (references/player/join.md) into its guide topic (join). */
+const topicOf = name => path.basename(name, '.md');
+
+/**
+ * The helper guide the extension carries (server/guide.json): the player skill's ground rules as
+ * the MCP server `instructions`, and each flow page as a topic of the `get-helper-guide` tool. Built
+ * from tools/dnd-helper so there is one source. Holds no book text and no secret.
+ * @returns {{ instructions: string, pages: Record<string, string> }}
+ */
+export function buildGuide() {
+  const files = collectPlayerFiles();
+  const skill = files
+    .get('SKILL.md')
+    .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
+    .trimStart();
+  const cut = skill.indexOf('## Which page to open');
+  if (cut < 0) throw new Error('guide: the player SKILL.md has no "Which page to open" section');
+  const link = text =>
+    text
+      .replace(
+        /`references\/(?:player\/)?([a-z-]+)\.md`/g,
+        (_m, topic) => `the "${topic}" topic of get-helper-guide`
+      )
+      .replace(/ground rule (\d+) of the skill/g, 'ground rule $1 of this guide')
+      // Relative links between the public guides mean nothing to the model: name the topic instead.
+      .replace(/\[([^\]]+)\]\((join|make-a-character)\.md\)/g, '$1 (the "$2" topic)')
+      .replace(/\[([^\]]+)\]\(README\.md\)/g, '$1');
+  const from = 'These five tools are all of them. Do not look for others,';
+  if (!skill.includes(from)) throw new Error('guide: the tools sentence in SKILL.md changed');
+  const body = skill
+    .slice(0, cut)
+    .replace(
+      from,
+      'These five tools, plus `get-helper-guide` (this guide), are all of them. Do not look for others,'
+    )
+    .trimEnd();
+  const topics = [...files.keys()].filter(n => n.startsWith('references/')).map(topicOf);
+  const instructions =
+    `${body}\n\n## The guide pages\n\n` +
+    `Before you start a character build, a level-up, a sheet check or a rules answer, call the tool ` +
+    `\`get-helper-guide\` with the topic and follow that page in order. Topics: ${topics.join(', ')}. ` +
+    `"make-a-character" and "join" are the player's own click-through guides.`;
+  const pages = { overview: instructions };
+  for (const [name, text] of files) {
+    if (name.startsWith('references/')) pages[topicOf(name)] = link(text);
+  }
+  return { instructions, pages };
+}
+
+/** The guide as a file entry of the archive. */
+function guideEntry() {
+  return Buffer.from(JSON.stringify(buildGuide()) + '\n', 'utf8');
+}
 
 /** Entries of the archive: published path -> Buffer. */
 export function collectFiles(endpoint = process.env.FOUNDRY_PLAYER_ENDPOINT) {
@@ -30,6 +85,7 @@ export function collectFiles(endpoint = process.env.FOUNDRY_PLAYER_ENDPOINT) {
   const files = new Map();
   files.set('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8'));
   files.set('server/index.js', readFileSync(path.join(here, 'server', 'index.js')));
+  files.set('server/guide.json', guideEntry());
   return files;
 }
 
@@ -93,6 +149,7 @@ export function collectPresetFiles(p) {
   const files = new Map();
   files.set('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8'));
   files.set('server/index.js', readFileSync(path.join(here, 'server', 'index.js')));
+  files.set('server/guide.json', guideEntry());
   return files;
 }
 

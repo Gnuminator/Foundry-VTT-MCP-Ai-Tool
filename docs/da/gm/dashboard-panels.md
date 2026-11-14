@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-panels.md
-sourceHash: 40bd51a689ba
+sourceHash: 01fc8de19e3a
 title: 'Dashboardet: panelerne'
 description: "During layouts, Combat Tracker, Tonight's stats, Session notes, Live Feed, Module Diagnostics og Recent Changes."
 ---

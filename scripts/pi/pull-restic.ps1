@@ -34,10 +34,10 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Destination = 'E:\PiBackup',
+  [string]$Destination = (Get-Content (Join-Path $PSScriptRoot '..\machine-paths.json') -Raw | ConvertFrom-Json).backupDestination,
   [string]$SourceRepo = 'sftp:foundry-pi:/var/lib/foundry-backup/restic',
-  [string]$PiPasswordFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pi.pass'),
-  [string]$PcPasswordFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pc.pass'),
+  [string]$PiPasswordFile = (Join-Path $env:APPDATA ((Get-Content (Join-Path $PSScriptRoot '..\machine-paths.json') -Raw | ConvertFrom-Json).secretsFolderUnderAppData + '\restic-pi.pass')),
+  [string]$PcPasswordFile = (Join-Path $env:APPDATA ((Get-Content (Join-Path $PSScriptRoot '..\machine-paths.json') -Raw | ConvertFrom-Json).secretsFolderUnderAppData + '\restic-pc.pass')),
   # Where the Pi keeps the password, for the one-time fetch.
   [string]$PiHost = 'foundry-pi',
   [string]$PiPasswordPath = '/etc/foundry-ai-tool/restic-pi.pass',

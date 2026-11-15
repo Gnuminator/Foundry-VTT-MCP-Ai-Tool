@@ -34,7 +34,7 @@ export interface ConnectorPlayer {
   readonly userId: string;
 }
 
-export interface EmailPlayer {
+interface EmailPlayer {
   readonly email: string;
   readonly userId: string;
 }

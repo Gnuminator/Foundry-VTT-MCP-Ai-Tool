@@ -230,7 +230,7 @@ export class AccessJwtVerifier {
 }
 
 /** The outcome of {@link AccessJwtVerifier.verifyAppToken}. */
-export type AppTokenResult =
+type AppTokenResult =
   | { ok: true; email: string }
   | { ok: false; reason: 'invalid' | 'not-app' | 'no-email' };
 

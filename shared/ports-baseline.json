@@ -4,6 +4,7 @@
   "deploy/pi/deployed-state.sh": 1,
   "deploy/pi/stand-in-foundry.mjs": 2,
   "deploy/windows/start-bridge.cmd": 2,
+  "installer/nsis/client-update.ps1": 1,
   "installer/nsis/configure-claude.ps1": 1,
   "installer/nsis/tunnel-client.ps1": 4,
   "packages/cogm-dashboard/.env.example": 3,

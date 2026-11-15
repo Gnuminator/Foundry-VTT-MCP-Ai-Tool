@@ -79,6 +79,7 @@ const installerFiles = [
   'icon.ico',
   'configure-claude.ps1',
   'tunnel-client.ps1',
+  'client-update.ps1',
 ];
 
 // Helper functions

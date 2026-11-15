@@ -37,7 +37,7 @@ function hasOwnLoggerStub(source: string): boolean {
 }
 
 function hasOwnMakeTools(source: string): boolean {
-  return /\bfunction makeTools\b|\b(?:const|let) makeTools\b/.test(source);
+  return /\bfunction make\w*Tools\b|\b(?:const|let) make\w*Tools\b/.test(source);
 }
 
 function countHarnessCopies(): { loggerStubs: number; makeTools: number } {

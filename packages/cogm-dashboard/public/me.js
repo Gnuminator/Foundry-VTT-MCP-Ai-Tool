@@ -267,7 +267,12 @@ async function loadConnector() {
     $('mc-secret').value = body.clientSecret || '';
     $('mc-hint').hidden = !!body.endpoint;
     $('mc-download-row').hidden = !body.endpoint;
+    // The remote connector (a web address and your own email) comes first; the extension below is
+    // for a player who has a pair and prefers or needs it.
+    $('mc-remote-url').value = body.remoteUrl || '';
+    $('mc-remote').hidden = !body.remoteUrl;
     setConnectorError('');
+    $('mc-fields').hidden = !body.clientId; // after the reset above: no pair, no extension block
     connectorLoaded = true;
     $('me-connector').hidden = false;
   } catch {

@@ -438,6 +438,117 @@ describe('/mcp/player: who gets in', () => {
   });
 });
 
+const APP_AUD = 'player-remote-app-aud';
+const person = (email: string, extra: Record<string, unknown> = {}, aud = APP_AUD): string =>
+  jwt({ type: 'app', email, sub: 'user-sub', ...extra }, aud);
+const remoteFile = (extra: Record<string, unknown> = {}): string =>
+  configFile({
+    appAudience: APP_AUD,
+    emailPlayers: [
+      { email: 'Alice@Example.com', userId: ALICE },
+      { email: 'bob@example.com', userId: BOB },
+      { email: 'gm@example.com', userId: GM_USER },
+      { email: 'ghost@example.com', userId: 'ghost00000000009' },
+    ],
+    ...extra,
+  });
+
+describe('/mcp/player: remote connector (Access Managed OAuth)', () => {
+  const init = { jsonrpc: '2.0', id: 1, method: 'ping' };
+
+  it('maps each verified email to their own Foundry user', async () => {
+    const { base, calls } = await start({ file: remoteFile() });
+    const a = await rpc(base, call('get-my-character'), {
+      'cf-access-jwt-assertion': person('alice@example.com'),
+    });
+    expect(a.status).toBe(200);
+    const b = await rpc(base, call('search-books', { query: 'x' }, 2), {
+      'cf-access-jwt-assertion': person('BOB@example.com'),
+    });
+    expect(b.status).toBe(200);
+    expect(calls.map(c => c.userId)).toEqual([ALICE, BOB]);
+  });
+
+  it('still serves the service-token login next to it', async () => {
+    const { base, calls } = await start({ file: remoteFile() });
+    expect((await rpc(base, call('get-my-character'), asA)).status).toBe(200);
+    expect(calls.map(c => c.userId)).toEqual([ALICE]);
+  });
+
+  it('refuses a GM email and an email that is not listed (403, no body)', async () => {
+    const { base, calls } = await start({ file: remoteFile() });
+    for (const email of ['gm@example.com', 'stranger@example.com', 'ghost@example.com']) {
+      const res = await rpc(base, call('get-my-character'), {
+        'cf-access-jwt-assertion': person(email),
+      });
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe('');
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses a token with no email, a service token and a wrong application (401 or 403)', async () => {
+    const { base, calls } = await start({ file: remoteFile() });
+    const noEmail = jwt({ type: 'app', sub: 's' }, APP_AUD);
+    expect((await rpc(base, init, { 'cf-access-jwt-assertion': noEmail })).status).toBe(403);
+    const notApp = person('alice@example.com', { type: 'service-token' });
+    expect((await rpc(base, init, { 'cf-access-jwt-assertion': notApp })).status).toBe(403);
+    const otherApp = person('alice@example.com', {}, GM_AUD);
+    expect((await rpc(base, init, { 'cf-access-jwt-assertion': otherApp })).status).toBe(401);
+    expect((await rpc(base, init)).status).toBe(401);
+    expect((await rpc(base, init, { 'cf-access-jwt-assertion': 'junk' })).status).toBe(401);
+    // A person token on the service application stays refused: it is not a player token.
+    const personOnService = jwt({ type: 'app', email: 'alice@example.com' }, PLAYER_AUD);
+    expect((await rpc(base, init, { 'cf-access-jwt-assertion': personOnService })).status).toBe(
+      403
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it('is off while the file names no appAudience, and the same five tools only', async () => {
+    const off = await start({
+      file: configFile({ emailPlayers: [{ email: 'alice@example.com', userId: ALICE }] }),
+    });
+    const res = await rpc(off.base, init, {
+      'cf-access-jwt-assertion': person('alice@example.com'),
+    });
+    expect(res.status).toBe(401);
+    const { base } = await start({ file: remoteFile() });
+    const bad = await rpc(base, call('apply-planned-change'), {
+      'cf-access-jwt-assertion': person('alice@example.com'),
+    });
+    expect(((await bad.json()) as { error: { message: string } }).error.message).toBe(
+      'Unknown tool'
+    );
+  });
+
+  it('says try again (503) when the signing keys cannot be fetched', async () => {
+    const { base } = await start({ file: remoteFile(), keyFetchFails: true });
+    const res = await rpc(base, init, { 'cf-access-jwt-assertion': person('alice@example.com') });
+    expect(res.status).toBe(503);
+  });
+
+  it('drops incomplete and duplicate emails when it reads the file', () => {
+    const problems: string[] = [];
+    const parsed = parseConnectorFile(
+      {
+        appAudience: [APP_AUD, ' '],
+        emailPlayers: [
+          { email: 'A@x.com', userId: ALICE },
+          { email: 'dup@x.com', userId: ALICE },
+          { email: 'dup@x.com', userId: BOB },
+          { email: 'noat', userId: BOB },
+          { email: 'c@x.com', userId: 'short' },
+        ],
+      },
+      m => problems.push(m)
+    );
+    expect(parsed.appAudiences).toEqual([APP_AUD]);
+    expect(parsed.emailPlayers).toEqual([{ email: 'a@x.com', userId: ALICE }]);
+    expect(problems.some(m => m.includes('twice'))).toBe(true);
+  });
+});
+
 describe('/mcp/player: what it runs', () => {
   it('speaks initialize, ping and notifications; lists only the player tools', async () => {
     const { base } = await start();
@@ -670,6 +781,24 @@ describe('/me: Your Claude connector', () => {
     const textB = await (await connector(base, keyB)).text();
     expect(textB).toContain(SECRET_B);
     for (const other of [ID_A, SECRET_A]) expect(textB).not.toContain(other);
+  });
+
+  it('shows the remote address only to a player whose email is in the table', async () => {
+    const remote = 'https://remote.example.com/mcp/player';
+    const { base } = await start({
+      file: remoteFile({
+        remoteEndpoint: remote,
+        players: [{ clientId: ID_A, clientSecret: SECRET_A, userId: ALICE }],
+      }),
+    });
+    const a = (await (await connector(base, await linkFor(base, ALICE))).json()) as {
+      remoteUrl: string | null;
+    };
+    expect(a.remoteUrl).toBe(remote);
+    // Bob has an email entry but no pair: the card still shows him the address, never a pair.
+    const bText = await (await connector(base, await linkFor(base, BOB))).text();
+    expect(JSON.parse(bText)).toMatchObject({ enabled: true, remoteUrl: remote, clientId: '' });
+    expect(bText).not.toContain(SECRET_A);
   });
 
   it('gives no pair to a missing, wrong or GM key', async () => {

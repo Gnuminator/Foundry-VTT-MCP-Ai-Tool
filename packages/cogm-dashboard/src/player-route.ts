@@ -7,8 +7,12 @@
  *
  * - Off unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`: nothing is mounted.
  * - Who: only the `Cf-Access-Jwt-Assertion` header (never the cookie), verified against the
- *   player application's own AUD tag from the config file. A token with an email is a person,
- *   not a player token, and gets nothing (so a GM login never reaches this route).
+ *   player application's own AUD tag from the config file. On that application a token with an
+ *   email is a person, not a player token, and gets nothing.
+ * - Remote connector: the 'Player remote' Access application (Managed OAuth) signs an app token
+ *   with the person's email. It is checked against its own AUD tag (`appAudience`) and the
+ *   verified email maps to one Foundry user through `emailPlayers`. An email that is not listed,
+ *   or that maps to a GM (the directory never holds one), gets a bare 403.
  * - The user comes from the config file only. Never from the request body. The user must also be
  *   a non-GM user Foundry lists; anything else gets nothing.
  * - Only `initialize`, `ping`, `tools/list` and `tools/call` of the five player tools. No batches.
@@ -156,15 +160,19 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
   }
 
   // One verifier per set of AUD tags (the file is read per request, so an edit needs no restart).
-  let verifier: { key: string; v: AccessJwtVerifier } | null = null;
-  const verifierFor = (audiences: readonly string[]): AccessJwtVerifier | null => {
+  const verifiers = new Map<string, { key: string; v: AccessJwtVerifier }>();
+  const verifierFor = (
+    slot: 'service' | 'app',
+    audiences: readonly string[]
+  ): AccessJwtVerifier | null => {
     if (!connector.teamDomain || audiences.length === 0) return null;
     const key = audiences.join('\n');
-    if (verifier?.key !== key) {
-      const config: AccessJwtConfig = { teamDomain: connector.teamDomain, audiences };
-      verifier = { key, v: new AccessJwtVerifier(config, options.accessFetch) };
-    }
-    return verifier.v;
+    const have = verifiers.get(slot);
+    if (have?.key === key) return have.v;
+    const config: AccessJwtConfig = { teamDomain: connector.teamDomain, audiences };
+    const v = new AccessJwtVerifier(config, options.accessFetch);
+    verifiers.set(slot, { key, v });
+    return v;
   };
   let warnedClaims = false;
 
@@ -172,14 +180,36 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
   async function identify(req: Request): Promise<{ userId: string } | { status: 401 | 403 | 503 }> {
     // Dev mode is for a bare local server: no login, loopback peer, no proxy or tunnel headers,
     // and no Access application named in the file. Anything else goes through the real check.
-    if (devUser && isBareLocalRequest(req) && connector.store.read().audiences.length === 0) {
-      return { userId: devUser };
+    if (devUser && isBareLocalRequest(req)) {
+      const named = connector.store.read();
+      if (named.audiences.length === 0 && named.appAudiences.length === 0) {
+        return { userId: devUser };
+      }
     }
     const raw = req.headers['cf-access-jwt-assertion'];
     const token = (Array.isArray(raw) ? raw[0] : raw)?.trim();
     if (!token) return { status: devUser ? 403 : 401 };
     const file = connector.store.read();
-    const v = verifierFor(file.audiences);
+    // The remote connector first: its own application and AUD tag. A token that is not a valid
+    // token of that application falls through to the service-token check below.
+    const appV = verifierFor('app', file.appAudiences);
+    if (appV) {
+      let app;
+      try {
+        app = await appV.verifyAppToken(token);
+      } catch {
+        return { status: 503 };
+      }
+      if (app.ok) {
+        const mapped = connector.store.userForEmail(app.email);
+        return mapped ? { userId: mapped } : { status: 403 };
+      }
+      if (app.reason !== 'invalid') return { status: 403 };
+      if (file.audiences.length === 0) {
+        return { status: appV.hasKeys || !looksSigned(token) ? 401 : 503 };
+      }
+    }
+    const v = verifierFor('service', file.audiences);
     // Nothing to check against (no file, audience or team domain): the table's fault, not theirs.
     if (!v) return { status: 503 };
     let result;

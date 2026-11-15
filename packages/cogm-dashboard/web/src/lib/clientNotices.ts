@@ -3,7 +3,7 @@
 // extension is reported to that player on their own page, and listed in the Versions panel.
 import { clientNoticeText, type ClientVersionsView } from '@gnuminator/shared';
 
-export interface ClientBanner {
+interface ClientBanner {
   piece: 'connectors' | 'obsidian';
   da: string;
   en: string;

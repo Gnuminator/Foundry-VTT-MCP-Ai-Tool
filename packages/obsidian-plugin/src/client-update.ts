@@ -12,7 +12,7 @@
 export const CLIENT_HEADER = 'x-foundry-client';
 
 /** How often the plugin asks again after the first check at load (6 hours). */
-export const CLIENT_CHECK_INTERVAL_MS = 6 * 3600 * 1000;
+const CLIENT_CHECK_INTERVAL_MS = 6 * 3600 * 1000;
 
 /** The header value for this plugin build: `obsidian/<manifest version>`. */
 export function clientHeaderValue(version: string): string {
@@ -30,7 +30,59 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export interface UpdateNotice {
+/** The slice of the status bar element the notice uses (an Obsidian HTMLElement satisfies it). */
+interface BarEl {
+  addClass(cls: string): void;
+  hide(): void;
+  show(): void;
+  setText(text: string): void;
+  setAttribute(name: string, value: string): void;
+}
+
+/** The slice of the plugin the notice needs, so this file stays free of the `obsidian` import. */
+interface NoticeHost {
+  manifest: { version: string };
+  addStatusBarItem(): BarEl & EventTarget;
+  registerInterval(id: number): number;
+  registerDomEvent(el: EventTarget, type: 'click', cb: () => void): void;
+  app: { workspace: { onLayoutReady(cb: () => void): void } };
+}
+
+/**
+ * A second status bar item, shown only while the plugin is behind the table: checked once the
+ * layout is ready and every 6 hours. Silent on any failure.
+ */
+export function installUpdateNotice(
+  host: NoticeHost,
+  client: { clientVersions(): Promise<{ current: unknown; obsidianLink: unknown } | null> }
+): void {
+  const el = host.addStatusBarItem();
+  el.addClass('foundry-ai-tool-update');
+  el.hide();
+  let link: string | null = null;
+  host.registerDomEvent(el, 'click', () => {
+    if (link) window.open(link);
+  });
+  const check = async (): Promise<void> => {
+    const answer = await client.clientVersions();
+    const notice = answer
+      ? updateNotice(host.manifest.version, answer.current, answer.obsidianLink)
+      : null;
+    link = notice?.link ?? null;
+    if (!notice) {
+      el.hide();
+      return;
+    }
+    el.setText(notice.text);
+    el.setAttribute('aria-label', notice.title);
+    el.setAttribute('title', notice.title);
+    el.show();
+  };
+  host.registerInterval(window.setInterval(() => void check(), CLIENT_CHECK_INTERVAL_MS));
+  host.app.workspace.onLayoutReady(() => void check());
+}
+
+interface UpdateNotice {
   /** The short status bar text. */
   text: string;
   /** Danish line, then English line (hover text). */

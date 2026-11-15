@@ -19,7 +19,7 @@ import {
 } from '@gnuminator/shared';
 
 /** Most entries kept, so a flood of made-up names cannot grow memory. */
-export const CLIENT_REGISTRY_MAX = 200;
+const CLIENT_REGISTRY_MAX = 200;
 
 interface Entry {
   piece: ClientPiece;
@@ -120,7 +120,7 @@ export function obsidianClientRecorder(
   };
 }
 
-export interface WrapperRow {
+interface WrapperRow {
   version: string | null;
   build: string | null;
   sets: string;
@@ -144,7 +144,7 @@ export function parseWrapperStatus(raw: unknown): { wrappers: WrapperRow[] } | n
   return { wrappers };
 }
 
-export interface ClientVersionsRouteOptions {
+interface ClientVersionsRouteOptions {
   requireGm: (req: Request, res: Response, next: () => void) => void;
   registry: ClientRegistry;
   /** The control client's `wrapperStatus`; absent on fakes. An old backend rejects. */

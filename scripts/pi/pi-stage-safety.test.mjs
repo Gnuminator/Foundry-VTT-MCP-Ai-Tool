@@ -1061,6 +1061,7 @@ case "$1" in
     [ ! -f "$LOG.gone" ] || exit 1
     case "$*" in
       *StartedAt*) if [ "\${STARTEDAT_FAILS_BEFORE:-0}" = 1 ] && [ ! -f "$LOG.copied" ]; then exit 1; fi
+        if [ "\${STARTEDAT_AFTER:-0}" = 1 ] && [ -f "$LOG.copied" ]; then echo 2099-01-01T00:00:00Z; exit 0; fi
         if [ -f "$LOG.restarted" ]; then echo 2026-11-11T04:30:00Z; else echo 2026-11-11T04:00:00Z; fi ;;
       *) if [ -f "$LOG.cstopped" ]; then echo false; else echo true; fi ;;
     esac ;;
@@ -1346,6 +1347,13 @@ exit 0`
       const r = cut({ users: [0], env: { STARTEDAT_FAILS_BEFORE: '1' } });
       assert.equal(r.status, 0, r.out);
       assert.doesNotMatch(r.out, /started again while the worlds/);
+    });
+
+    test('an unreadable StartedAt before the copy and a start after the copy began: torn, the snapshot is dropped', () => {
+      const r = cut({ users: [0], env: { STARTEDAT_FAILS_BEFORE: '1', STARTEDAT_AFTER: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /started again while the worlds/);
+      assert.match(r.calls, /restic forget/);
     });
 
     test('restic\'s summary line reaches the journal (PR 1013 L5)', () => {

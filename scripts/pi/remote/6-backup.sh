@@ -288,6 +288,7 @@ fi
 # holds snapshots of other path sets too, and "restic snapshots --latest 1" is per host and path set and lists oldest first.
 # One status line per minute (RESTIC_PROGRESS_FPS), so the output stays small. Only the summary line is printed (below);
 # a failed backup exits here (set -e).
+copy_began="$(date -u +%s)"
 backup_out="$(
   RESTIC_PROGRESS_FPS=0.0166 restic backup --json --tag nightly \
     --exclude /var/lib/foundry/Logs \
@@ -323,7 +324,16 @@ if [ "$stack" = containers ] && [ "$we_stopped_foundry" = 1 ]; then
     echo "ERROR: backup failed: the Docker daemon did not answer after the copy, so it is unknown whether the foundry container stayed down while the worlds were copied. The snapshot${backup_id:+ ${backup_id:0:8}} was kept: do not restore it until you have looked (systemctl status docker; restic forget it if in doubt). The next night copies again" >&2
     exit 1
   fi
-  if [ "$running_now" != false ] || { [ "$stopped_started_at" != unknown ] && [ "$started_now" != "$stopped_started_at" ]; }; then
+  # With no start time from before the copy, the container counts as started again when its StartedAt is unreadable or not
+  # before the copy began.
+  restarted=0
+  if [ "$stopped_started_at" != unknown ]; then
+    [ "$started_now" = "$stopped_started_at" ] || restarted=1
+  else
+    started_epoch="$(date -d "$started_now" +%s 2>/dev/null || echo 0)"
+    [ "$started_epoch" -gt 0 ] && [ "$started_epoch" -lt "$copy_began" ] || restarted=1
+  fi
+  if [ "$running_now" != false ] || [ "$restarted" = 1 ]; then
     # The snapshot is already in the repository (and may be what "restic restore latest" picks): drop this run's own.
     if [ -n "$backup_id" ] && restic forget "$backup_id" </dev/null >/dev/null 2>&1; then
       torn_note="the torn snapshot ${backup_id:0:8} was removed from the repository"

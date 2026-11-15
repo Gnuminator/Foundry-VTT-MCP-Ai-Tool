@@ -269,7 +269,7 @@ if foundry_running; then
     fi
     # Its start time while stopped: restart: always (compose.yml) brings the container back when dockerd restarts (a
     # package upgrade, say), and that must not go unnoticed while restic copies.
-    stopped_started_at="$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)"
+    stopped_started_at="$(timeout 20 docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)"
   else
     echo "stopping foundry.service for the backup"
     systemctl stop foundry.service </dev/null
@@ -286,7 +286,9 @@ fi
 # and the recordings (this PC pulls them separately and the Pi deletes them after 7 days).
 # The id of the snapshot this run made comes from restic's own summary line (--json), never from a listing: the repository
 # holds snapshots of other path sets too, and "restic snapshots --latest 1" is per host and path set and lists oldest first.
-# One status line per minute (RESTIC_PROGRESS_FPS), so the output stays small. Not printed; a failed backup exits here (set -e).
+# One status line per minute (RESTIC_PROGRESS_FPS), so the output stays small. Only the summary line is printed (below);
+# a failed backup exits here (set -e).
+copy_began="$(date -u +%s)"
 backup_out="$(
   RESTIC_PROGRESS_FPS=0.0166 restic backup --json --tag nightly \
     --exclude /var/lib/foundry/Logs \
@@ -296,6 +298,8 @@ backup_out="$(
     /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
 )"
 backup_id="$(printf '%s\n' "$backup_out" | grep '"message_type": *"summary"' | grep -o '"snapshot_id": *"[0-9a-f]*"' | grep -o '[0-9a-f]\{8,\}' | tail -n 1 || true)"
+# restic's own summary (files, bytes, duration) for the journal: --json replaced its text summary.
+printf '%s\n' "$backup_out" | grep '"message_type": *"summary"' | tail -n 1 || true
 if [ -n "$backup_id" ]; then
   echo "restic made snapshot ${backup_id:0:8}"
 else
@@ -308,13 +312,28 @@ fi
 if [ "$stack" = containers ] && [ "$we_stopped_foundry" = 1 ]; then
   running_now=unknown
   started_now=unknown
-  running_now="$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null)" || running_now=unknown
-  started_now="$(docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null)" || started_now=unknown
+  # A timeout, so a hung daemon cannot hold the night here.
+  running_now="$(timeout 20 docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null)" || running_now=unknown
+  started_now="$(timeout 20 docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null)" || started_now=unknown
   if [ "$running_now" = unknown ] || [ "$started_now" = unknown ] || [ -z "$running_now" ] || [ -z "$started_now" ]; then
+    # inspect fails for a container that is gone too: a daemon that answers docker info means the container was removed.
+    if timeout 20 docker info </dev/null >/dev/null 2>&1; then
+      echo "ERROR: backup failed: the foundry container is gone after the copy (the Docker daemon answers, but inspect finds no container), so it is unknown whether it stayed down while the worlds were copied. The snapshot${backup_id:+ ${backup_id:0:8}} was kept: do not restore it until you have looked (docker ps -a; restic forget it if in doubt). The next night copies again" >&2
+      exit 1
+    fi
     echo "ERROR: backup failed: the Docker daemon did not answer after the copy, so it is unknown whether the foundry container stayed down while the worlds were copied. The snapshot${backup_id:+ ${backup_id:0:8}} was kept: do not restore it until you have looked (systemctl status docker; restic forget it if in doubt). The next night copies again" >&2
     exit 1
   fi
-  if [ "$running_now" != false ] || [ "$started_now" != "$stopped_started_at" ]; then
+  # With no start time from before the copy, the container counts as started again when its StartedAt is unreadable or not
+  # before the copy began.
+  restarted=0
+  if [ "$stopped_started_at" != unknown ]; then
+    [ "$started_now" = "$stopped_started_at" ] || restarted=1
+  else
+    started_epoch="$(date -d "$started_now" +%s 2>/dev/null || echo 0)"
+    [ "$started_epoch" -gt 0 ] && [ "$started_epoch" -lt "$copy_began" ] || restarted=1
+  fi
+  if [ "$running_now" != false ] || [ "$restarted" = 1 ]; then
     # The snapshot is already in the repository (and may be what "restic restore latest" picks): drop this run's own.
     if [ -n "$backup_id" ] && restic forget "$backup_id" </dev/null >/dev/null 2>&1; then
       torn_note="the torn snapshot ${backup_id:0:8} was removed from the repository"

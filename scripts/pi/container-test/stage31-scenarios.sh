@@ -6,6 +6,7 @@
 #   1 the report lists pc1, exits 0 and changes nothing
 #   2 REMOVE of pc1 is refused while no other device holds the vault
 #   3 ADD adds pc2 (not an introducer, no auto-accept); pc2 gets the notes; ADD again is harmless
+#   3b REMOVE of pc1 is refused while pc1 is stopped (the device to remove is not connected)
 #   4 REMOVE of pc1 works once pc2 holds all of it: files stay on the Pi, pc1 is forgotten, pc2 still gets new notes and pc1 none
 #   5 the refusals: a bad ID, ADD and REMOVE together, the Pi's own ID, REMOVE of a device that is not on the vault, ADD of a
 #     device that is on a player folder
@@ -130,9 +131,14 @@ fi
 
 # 2b. A device that was added but never connected or accepted the folder is no safe copy, whatever its percentage reads.
 mkdir -p /tmp/pc3-st
-HOME=/root syncthing generate --home=/tmp/pc3-st >/dev/null 2>&1
-pc3_id="$(HOME=/root syncthing device-id --home=/tmp/pc3-st 2>/dev/null | head -n 1)"
+pc3_gen="$(HOME=/root syncthing generate --home=/tmp/pc3-st 2>&1 || true)"
+idre='[A-Z0-9]\{7\}\(-[A-Z0-9]\{7\}\)\{7\}'
+pc3_id="$(printf '%s\n' "$pc3_gen" | grep -o "$idre" | head -n 1 || true)"
+[ -n "$pc3_id" ] || pc3_id="$(grep -o "$idre" /tmp/pc3-st/config.xml 2>/dev/null | head -n 1 || true)"
+[ -n "$pc3_id" ] || fail "could not read pc3's device ID (generate said: $pc3_gen)"
 out="$(run_stage ADD=1 DEVICE_ID="$pc3_id" DEVICE_NAME=never-connects)"
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'stage 31 done: the PC is added'; then pass "ADD of pc3 (never connects) completes (exit 0)"; else fail "add pc3 (exit $rc): $out"; fi
 out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
 rc=$?
 if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'no other device holds all of the vault' &&
@@ -157,11 +163,30 @@ out="$(run_stage ADD=1 DEVICE_ID="$pc2_id")"
 rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'already'; then pass "ADD twice is harmless"; else fail "second add (exit $rc): $out"; fi
 
-# 4.
 wait_for 60 pc2_complete || fail "pc2 never reached 100 %"
-before="$(vault_sum)"
+
+# 3b. pc2 holds everything, but the device to remove (pc1) is stopped: the Pi cannot know it has all pc1 holds, so REMOVE is refused.
+pc1 operations shutdown >/dev/null 2>&1
+sleep 10 # the Pi notices a closed connection within seconds
 out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
 rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'the device to remove is not connected right now' &&
+  pi config folders foundry-gm-vault devices list | grep -qx "$pc1_id"; then
+  pass "REMOVE is refused while the device to remove is not connected"
+else
+  fail "not connected guard (exit $rc): $out"
+fi
+start_pc pc1 /tmp/pc1-st 8385 || fail "pc1 did not restart"
+
+# 4.
+before="$(vault_sum)"
+# After pc1 restarts the Pi needs a moment to see it connected and to know its index again (remoteState valid): retry while it says so.
+for _ in $(seq 1 24); do
+  out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
+  rc=$?
+  echo "$out" | grep -qE 'does not know the index|not connected right now' || break
+  sleep 5
+done
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'is forgotten'; then pass "REMOVE of pc1 works once pc2 holds everything"; else fail "remove (exit $rc): $out"; fi
 if pi config devices list | grep -qx "$pc1_id"; then fail "pc1 is still a known device"; else pass "pc1 is forgotten"; fi
 [ "$before" = "$(vault_sum)" ] && pass "the vault files stayed" || fail "the vault changed"

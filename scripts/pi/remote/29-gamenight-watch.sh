@@ -13,7 +13,7 @@
 #   3. writes the unit /etc/systemd/system/foundry-ai-tool-gamenight-watch.service (User=foundry, reads discord-bot.env for the
 #      bot token and #gm-bot, and gamenight-watch.env), enables and starts it. It idles until a session is marked.
 # It restarts nothing else: the bridge, the dashboard, Foundry and the recorder are not touched, so it needs no quiet check. The
-# watch itself is restarted when the unit, a script or the settings file changed in this run, or when any of those files is
+# watch itself is restarted when the unit, a script, the settings file or the bot's discord-bot.env changed in this run, or when any of those files is
 # newer than the running service (an upgrade or an env edit nobody restarted for). It re-reads the session at once; a running
 # watch posts one "stopped" line and one "started" line, so a rerun during a marked session shows both in #gm-bot.
 #

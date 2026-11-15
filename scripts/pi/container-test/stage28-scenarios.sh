@@ -100,6 +100,7 @@ if want apply; then
   absent apply 'restart foundry.service' "$(cat /tmp/calls)"
   out="$(run_stage 'APPLY=1')"
   check rerun 'already this one' "$out"
+  check rerun 'read-back: .* joined with the page watchdog armed' "$out"
   check rerun 'exit 0' "$out"
   out="$(run_stage 'UNDO=1')"
   check undo 'putting .*assistant-gm\.mjs\.prev-.* back' "$out"

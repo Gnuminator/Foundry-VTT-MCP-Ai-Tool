@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Stage 28: the Assistant GM hang watchdog (Backlog item assistant-gm-hang-watchdog, G1). The new driver pings its own
-# page every 15 s and restarts the browser when the page has not answered for 120 s, even while the module socket is up
+# page every 15 s (an answer is due within 10 s) and restarts the browser after 120 s of silence, so a freeze is gone in
+# about 2 to 2.5 minutes, even while the module socket is up
 # (a frozen page keeps its socket; the 2 minute no-socket check never sees it). The watchdog is on by default in the driver
 # (GM_PAGE_WATCH=0 turns it off), so this stage only has to put the new driver in place and restart the Assistant GM.
 #
 # What it does: checks the driver you copied ($ASSISTANT_GM_DRIVER, default /root/assistant-gm.mjs) names the feature
 # `page-ping` and passes `node --check`, copies the deployed driver to assistant-gm.mjs.prev-<time> (never deleted), installs
 # the new one, restarts foundry-ai-tool-gm-browser.service and reads back that it joined the world again and, in the same run
-# of the unit, logged "page watchdog armed". A failed read-back puts the old driver back and restarts it (a failed put-back
-# stops with the file to copy by hand). UNDO=1 puts the newest .prev-* back the same way; when that file is the deployed
+# of the unit, logged "page watchdog armed". A failed read-back puts the old driver back and restarts it, warning when that
+# one does not join either (a failed put-back stops with the file to copy by hand). A rerun with the same driver installs
+# nothing and restarts nothing, but still reads back the join and the armed line. UNDO=1 puts the newest .prev-* back the same way; when that file is the deployed
 # driver already it changes and restarts nothing. It touches no world, no
 # Foundry setting and no other service. The bridge link is down for the minute the browser takes to rejoin; players are not
 # dropped (Foundry is not restarted), but run it when no one needs the co-GM dashboard. A snapshot first.
@@ -112,7 +114,15 @@ grep -Eq '^// assistant-gm features:( [a-z0-9-]+)* page-ping( |$)' "$driver_src"
 grep -Eq '^// assistant-gm features:( [a-z0-9-]+)* page-armed-log( |$)' "$driver_src" || die "$driver_src does not name the page-armed-log feature: its page watchdog logs no 'armed' line, so the read-back would fail. Nothing was changed"
 node --check "$driver_src" 2>/dev/null || die "$driver_src does not parse (node --check). Nothing was changed"
 if [ "$(hash_of "$driver_src")" = "$(hash_of "$driver")" ]; then
-  ok "the deployed driver is already this one ($(hash_of "$driver")): nothing to do"
+  ok "the deployed driver is already this one ($(hash_of "$driver")): nothing to install or restart"
+  # A rerun still reads back that the deployed driver runs (joined, watchdog armed); read-only, so a dry run does it too.
+  if [ "$was_active" = 1 ]; then
+    if browser_joined "$GM_UNIT" && page_watch_armed; then
+      ok "read-back: $GM_UNIT is joined with the page watchdog armed"
+    else
+      warn "the deployed driver is the new one, but $GM_UNIT has not joined with the page watchdog armed: journalctl -u foundry-ai-tool-gm-browser -n 30"
+    fi
+  fi
   exit 0
 fi
 if grep -Eq '^// assistant-gm features:( [a-z0-9-]+)* page-ping( |$)' "$driver"; then
@@ -150,5 +160,5 @@ else
   warn "the Assistant GM did not rejoin with the new driver: putting the old one back"
   put_back "$backup" || die "the new driver did not join and the old one could not be put back: copy $backup over $driver by hand, then restart $GM_UNIT"
   restart_and_read_back || warn "the old driver is back but the Assistant GM did not join either: journalctl -u foundry-ai-tool-gm-browser -n 30"
-  die "the new driver did not join the world; the old one is back ($backup)"
+  die "the new driver did not join the world; the old one is back and was restarted (kept as $backup)"
 fi

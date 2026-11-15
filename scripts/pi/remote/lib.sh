@@ -284,7 +284,7 @@ unit_started_epoch() {
 wait_for_watching() {
   local unit="$1" since="$2" secs="${3:-20}" _
   for _ in $(seq 1 "$secs"); do
-    journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -q ' watching ' && return 0
+    [ "$(journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -c ' watching ' || true)" -gt 0 ] && return 0
     systemctl is-active --quiet "$unit" || return 1
     sleep 1
   done
@@ -409,10 +409,13 @@ require_quiet() {
       assistant="$(gm_browsers_joined)"
       [ "$online" != "?" ] || break
       [ "$online" -gt "$assistant" ] || break
+      # A silent Docker daemon makes every read below wait out its timeout: no retry loop then, the refusal comes at once.
+      daemon_known || break
       pending="$(gm_browsers_pending)"
       [ "$((online - assistant))" -le "$pending" ] || break
       [ "$tries" -lt 5 ] || break
       tries=$((tries + 1))
+      say "$((online - assistant)) more user(s) than joined GM browsers online: a GM browser may be joining, reading again ($tries of 5)"
       sleep 2
     done
     if [ "$online" = "?" ]; then

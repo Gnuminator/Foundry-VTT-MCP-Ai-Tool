@@ -229,6 +229,11 @@ case "$1" in
     grep -qx "$1" /tmp/stubs/active
     exit $?
     ;;
+  show)
+    # the start time enable_unit compares file times with (set by a scenario; far in the future = nothing is newer)
+    case "$*" in *ActiveEnterTimestamp*) cat /tmp/stubs/started 2>/dev/null ;; esac
+    exit 0
+    ;;
 esac
 exit 0
 STUB
@@ -254,6 +259,7 @@ sd_state() { # users code401 code421
   printf '%s' "$2" >"$stubs/code401"
   printf '%s' "$3" >"$stubs/code421"
   printf '%s\n' foundry.service "$dash" "$bridge" >"$stubs/active"
+  echo '2099-01-01 00:00:00 UTC' >"$stubs/started"
   : >"$stubs/sc.log"
 }
 sd_fresh() {
@@ -289,6 +295,15 @@ sd_state 0 401 421
 sd_run
 rc=$?
 if [ "$rc" -eq 0 ] && [ "$(restarted "$dash")" = 0 ] && [ "$(restarted "$bridge")" = 0 ]; then pass "a rerun with nothing new restarts nothing"; else fail "rerun: rc=$rc $(cat "$stubs/sc.log") $OUT"; fi
+
+# A run cut off after the files were written (the restart refused): the files are newer than the running services, so a rerun
+# with nothing new to install still restarts both (the mtime path of enable_unit, including the drop-in).
+sd_state 0 401 421
+echo '2000-01-01 00:00:00 UTC' >"$stubs/started"
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(restarted "$dash")" = 1 ] && [ "$(restarted "$bridge")" = 1 ] && echo "$OUT" | grep -q 'is newer than the running service'; then
+  pass "files newer than the running services: a rerun restarts both"; else fail "mtime restart: rc=$rc restarts=$(restarted "$dash")/$(restarted "$bridge") $OUT"; fi
 
 table
 sd_state 0 200 421

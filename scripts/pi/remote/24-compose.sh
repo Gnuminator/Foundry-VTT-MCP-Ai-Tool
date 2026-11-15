@@ -521,7 +521,8 @@ mode_cutover() {
   # would copy the worlds under the running container (or start the unit next to it). Refuse until stage 6 ran again.
   local nightly="$TOOL_DIR/backup/foundry-backup.sh"
   if [ -f "$nightly" ]; then
-    grep -q 'label=com.docker.compose.project' "$nightly" ||
+    # Two marks: it finds the stack by label, and it checks after the copy that the container stayed down (stopped_started_at).
+    { grep -q 'label=com.docker.compose.project' "$nightly" && grep -q 'stopped_started_at' "$nightly"; } ||
       die "the nightly backup script ($nightly) does not know the containers yet: run stage 6 again first. Nothing was changed"
   else
     warn "no nightly backup script at $nightly (stage 6 not run?): the cutover goes on, but nothing backs the worlds up at night"

@@ -2,11 +2,19 @@
 //   node --test scripts/pi/player-connector-cloudflare.test.mjs
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { main, promptHidden, REMOTE_FILE } from './player-connector-cloudflare.mjs';
+import { deliver, main, makeLogger, promptHidden, REMOTE_FILE } from './player-connector-cloudflare.mjs';
 
 const API_TOKEN = 'cfapitoken-SUPERSECRET-123456';
 const HOST = 'player-ai.spennerit.com';
@@ -278,6 +286,62 @@ describe('apply on an empty account', () => {
       2
     );
     assert.deepEqual(cf2.state.calls, []);
+  });
+
+  test('--out in a folder that does not exist is refused before any request or prompt', async () => {
+    const cf = makeCloudflare();
+    const { dir, deps } = setup();
+    let prompted = false;
+    const code = await main(
+      ['--apply', '--users', 'u', '--out', path.join(dir, 'no-such-folder', 'p.json')],
+      {
+        ...deps,
+        env: {},
+        prompt: async () => {
+          prompted = true;
+          return API_TOKEN;
+        },
+        fetch: cf.fetch,
+      }
+    );
+    assert.equal(code, 2);
+    assert.equal(prompted, false);
+    assert.deepEqual(cf.state.calls, []);
+  });
+
+  test('deliver falls back to the 0600 fallback file when the --out write fails for another reason', async () => {
+    const { dir, deps, written } = setup();
+    const log = makeLogger({ stdout: deps.stdout, stderr: deps.stderr });
+    await deliver({
+      content: '{"x":1}\n',
+      opts: { out: path.join(dir, 'gone', 'p.json') },
+      spawn: deps.spawn,
+      log,
+      fallbackDir: deps.fallbackDir,
+    });
+    const target = path.join(deps.fallbackDir, 'player-connector.json.new');
+    assert.equal(readFileSync(target, 'utf8'), '{"x":1}\n');
+    assert.match(written.stderr, /writing .* failed/);
+    assert.match(written.stdout, /fallback file/);
+  });
+
+  test('a path that reaches the repo through a link counts as inside it', async () => {
+    const { dir, deps } = setup();
+    const repo = path.join(dir, 'repo');
+    mkdirSync(repo, { recursive: true });
+    const link = path.join(dir, 'link');
+    try {
+      symlinkSync(repo, link, 'junction');
+    } catch {
+      return; // no link rights here: nothing to check
+    }
+    const cf = makeCloudflare();
+    const code = await main(['--apply', '--users', 'u', '--out', path.join(link, 'p.json')], {
+      ...deps,
+      fetch: cf.fetch,
+    });
+    assert.equal(code, 2);
+    assert.deepEqual(cf.state.calls, []);
   });
 
   test('--host must be a name inside --zone', async () => {

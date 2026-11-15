@@ -48,7 +48,7 @@ describe('stage 29 as text', () => {
     assert.match(stage, /wait_for_watching "\$unit" "\$since"/);
     assert.match(stage, /did not reach its 'watching' line/);
     const lib = readFileSync(path.join(repo, 'scripts/pi/remote/lib.sh'), 'utf8');
-    assert.match(lib, /grep -q ' watching '/);
+    assert.match(lib, /grep -c ' watching '/);
     assert.match(lib, /systemctl is-active --quiet "\$unit" \|\| return 1/);
   });
 
@@ -57,7 +57,7 @@ describe('stage 29 as text', () => {
   });
 
   test('the header names the restart triggers and the real test overrides', () => {
-    assert.match(stage, /settings file changed/);
+    assert.match(stage, /settings file or the bot's discord-bot.env changed/);
     assert.match(stage, /newer than the running service/);
     assert.match(stage, /Tests only: SRC_DIR and UNIT_DIR/);
   });

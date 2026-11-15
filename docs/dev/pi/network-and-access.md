@@ -180,3 +180,20 @@ exit 1 (the install stays; `CHECK=1` repeats the checks). It stops if `dashboard
 `DASHBOARD_ALLOWED_HOSTS` line. `FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER` must not be set on
 the Pi; the stage refuses if it is. Modes: `DRY_RUN=1`, `CHECK=1`, `UNDO=1` (keeps the table). The ordered sitting steps are in
 the vault note `Handoff/Pi sitting 2026-11-08 player connector.md`.
+
+### The remote part (email sign-in as a Claude custom connector)
+
+Players who add the table in Claude as a custom connector sign in with their email through the Access application
+`Player remote` (Managed OAuth, hostname `player-remote.spennerit.com`, route `^/mcp/player$` on the same tunnel). The
+table then also holds `appAudience` (that application's AUD tag, different from `audience`), `emailPlayers`
+(`[{email, userId}]`, lowercase emails, 16-character Foundry user ids, no duplicates) and `remoteEndpoint`. The PC sends only
+this part, so the service-token players and their secrets stay untouched:
+
+```bash
+node scripts/pi/player-connector-cloudflare.mjs --remote --apply --users <names-to-ids.json> --emails <emails.txt> --send-to foundry-pi
+```
+
+`--emails` has one `email - Foundry name` line per person; the file stays outside the repo and the vault. The command only
+reads Cloudflare (the AUD tag) and writes `/root/player-connector.remote.json.new` on the Pi. Stage 30 merges those three
+keys over the installed table, adds `player-remote.spennerit.com` to `DASHBOARD_ALLOWED_HOSTS` next to the player host
+(`UNDO=1` removes both), checks the 401 without a login on that host, and prints counts only, never an email.

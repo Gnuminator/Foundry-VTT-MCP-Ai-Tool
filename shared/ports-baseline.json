@@ -78,7 +78,7 @@
   "scripts/pi/remote/26-discord-game-server.sh": 10,
   "scripts/pi/remote/29-gamenight-watch.sh": 3,
   "scripts/pi/remote/3-foundry.sh": 6,
-  "scripts/pi/remote/30-player-connector.sh": 18,
+  "scripts/pi/remote/30-player-connector.sh": 15,
   "scripts/pi/remote/5-check-world.sh": 3,
   "scripts/pi/remote/5-tool.sh": 25,
   "scripts/pi/remote/6-backup.sh": 3,

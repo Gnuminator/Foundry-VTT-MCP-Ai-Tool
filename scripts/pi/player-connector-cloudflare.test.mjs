@@ -519,3 +519,69 @@ describe('ingress safety', () => {
     assert.ok(!writes(cf).some(c => c.startsWith('PUT /accounts/acc/cfd_tunnel')));
   });
 });
+
+describe('--remote (email sign-in part)', () => {
+  const REMOTE_HOST = 'player-remote.spennerit.com';
+  const AUD = 'fedcba9876543210fedcba9876543210fedcba9876543210';
+  const EMAILS = 'Anna.One@Example.com - anna\nbo@example.org - Bo\n';
+  const remoteSetup = (emailsText = EMAILS) => {
+    const s = setup();
+    const users = JSON.stringify(USERS);
+    s.deps.readFile = file => (file === 'e' ? emailsText : users);
+    return s;
+  };
+  const remoteCf = () =>
+    makeCloudflare({ apps: [{ id: 'app9', name: 'Player remote', domain: REMOTE_HOST, aud: AUD }] });
+  const args = ['--remote', '--users', 'u', '--emails', 'e'];
+
+  test('a plan only reads and prints no email or aud', async () => {
+    const cf = remoteCf();
+    const { written, deps } = remoteSetup();
+    assert.equal(await main(args, { ...deps, fetch: cf.fetch }), 0);
+    assert.deepEqual(writes(cf), []);
+    assert.match(written.stdout, /2 email player/);
+    assert.doesNotMatch(everything(written), /example\.(com|org)|fedcba98/i);
+  });
+
+  test('apply sends appAudience, lowercase emails with user ids and the remote endpoint to the Pi', async () => {
+    const cf = remoteCf();
+    const { written, spawned, deps } = remoteSetup();
+    const code = await main([...args, '--apply', '--send-to', 'foundry-pi'], {
+      ...deps,
+      fetch: cf.fetch,
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(writes(cf), []);
+    assert.match(spawned.calls[0][2], /player-connector\.remote\.json\.new/);
+    assert.deepEqual(JSON.parse(spawned.stdin), {
+      appAudience: AUD,
+      emailPlayers: [
+        { email: 'anna.one@example.com', userId: USERS.Anna },
+        { email: 'bo@example.org', userId: USERS.Bo },
+      ],
+      remoteEndpoint: `https://${REMOTE_HOST}/mcp/player`,
+    });
+    assert.doesNotMatch(everything(written), /example\.(com|org)|fedcba98/i);
+  });
+
+  test('an unknown name, a repeated email or a malformed line is refused without printing the email', async () => {
+    const bad = [
+      'x@example.com - Nobody\n',
+      'a@example.com - Anna\nA@example.com - Bo\n',
+      'no dash here\n',
+    ];
+    for (const text of bad) {
+      const cf = remoteCf();
+      const { written, deps } = remoteSetup(text);
+      assert.equal(await main(args, { ...deps, fetch: cf.fetch }), 2);
+      assert.doesNotMatch(everything(written), /example\.com/);
+    }
+  });
+
+  test('no application on the remote host is an error, --remote needs --emails', async () => {
+    const cf = makeCloudflare();
+    const { deps } = remoteSetup();
+    assert.equal(await main(args, { ...deps, fetch: cf.fetch }), 1);
+    assert.equal(await main(['--remote', '--users', 'u'], { ...deps, fetch: cf.fetch }), 2);
+  });
+});

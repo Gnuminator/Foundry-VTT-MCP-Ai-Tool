@@ -216,9 +216,9 @@ export function mainState(json, tip = '') {
  */
 const TRANSIENT =
   /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
-/** GitHub answered `gh pr merge` with a 5xx (GraphQL `non-200 OK status code: 502 ...` or REST `HTTP 502: ...`). */
+/** A GitHub blip on `gh pr merge`: a 5xx (GraphQL or REST), a bare `EOF`, or GraphQL "Something went wrong". */
 export const GH_MERGE_5XX =
-  /merge: gh pr merge exited \d+: .*?(?:non-200 OK status code: |\bHTTP )5\d\d\b/;
+  /merge: gh pr merge exited \d+: (?:.*?(?:non-200 OK status code: |\bHTTP )5\d\d\b|EOF\s*$|GraphQL: Something went wrong while executing your query)/;
 const MAX_TRANSIENT = 3;
 
 /**

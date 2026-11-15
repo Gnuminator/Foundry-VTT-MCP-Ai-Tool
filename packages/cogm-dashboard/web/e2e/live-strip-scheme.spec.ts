@@ -180,6 +180,10 @@ test('the destructive Undo confirm is readable under Veil with ?scheme=light', a
   await expect(page.locator('#live-undo')).toContainText('End combat');
   await page.locator('#live-undo').click();
   await expect(page.getByRole('dialog')).toContainText('Undo End combat?');
+  await expect(page.locator('#modal-destructive')).toBeVisible();
+  // Tick the check so the confirm button is enabled and counts in the measurement.
+  await page.locator('#modal-destructive-check').check();
+  await expect(page.locator('#modal-confirm')).toBeEnabled();
   const worst = await worstContrast(page);
   expect(worst.measured).toBeGreaterThan(8);
   expect(worst.ratio, worst.where).toBeGreaterThanOrEqual(4.5);

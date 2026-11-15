@@ -6,5 +6,5 @@
   of a silent level 3 without features. Next and Complete ask before they skip an open **Chosen x of
   y** or **Select N more** choice (with a Continue anyway button), Create Character asks when the name
   is still the player's name, and skills the background already gives are marked in the species skill
-  step. Stage 13 pins the new build; the player guide is updated to match (items
-  studio-quiet-start, studio-subclass-guard, studio-choice-guards).
+  step. The player guide is updated to match; stage 13 pins the new build in a follow-up once the
+  .13 release exists (items studio-quiet-start, studio-subclass-guard, studio-choice-guards).

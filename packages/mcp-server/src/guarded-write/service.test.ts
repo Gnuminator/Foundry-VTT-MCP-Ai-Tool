@@ -9,6 +9,7 @@ import { AUDIT_INLINE_DELETED_LIMIT, AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { GuardedWriteService, PLAN_TTL_MS, type PlanView } from './service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 // ---------------------------------------------------------------------------
 
@@ -43,8 +44,7 @@ beforeEach(async () => {
   store = new VaultStore({ dataDir });
   audit = new AuditLog(store);
   now = Date.parse('2026-09-28T10:00:00.000Z');
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   service = makeService();
   foundry.add('Actor.ilvara', 'Actor', {
     name: 'Ilvara',

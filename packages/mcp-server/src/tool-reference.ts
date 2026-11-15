@@ -33,6 +33,11 @@ export function claudeDesktopEntry(set: ToolSetName): string {
   return set === 'core' ? 'foundry-mcp' : `foundry-mcp-${set}`;
 }
 
+/** The entry as shown in a page: code for a real entry name, plain words for the player set. */
+function claudeDesktopEntryText(set: ToolSetName): string {
+  return set === 'player' ? claudeDesktopEntry(set) : `\`${claudeDesktopEntry(set)}\``;
+}
+
 /**
  * Escape `<`, `*` and `\` outside code spans: HTML examples and "**bold**" in descriptions show as
  * text, and a backslash in a description cannot cancel the escape of the `*` after it.
@@ -179,7 +184,7 @@ function renderIndex(count: number): string {
     '| --- | --- | --- | --- |',
     ...ALL_TOOL_SET_NAMES.map(
       set =>
-        `| [${TOOL_SETS[set].title}](tools/${set}.md) | \`${claudeDesktopEntry(set)}\` | ${TOOL_SETS[set].tools.length} | ${TOOL_SETS[set].purpose} |`
+        `| [${TOOL_SETS[set].title}](tools/${set}.md) | ${claudeDesktopEntryText(set)} | ${TOOL_SETS[set].tools.length} | ${TOOL_SETS[set].purpose} |`
     ),
     '',
   ];
@@ -204,7 +209,7 @@ export function renderToolReference(tools: readonly ToolDefinitionLike[]): Recor
       '',
       `# ${spec.title} tools`,
       '',
-      `${spec.purpose} Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: \`${claudeDesktopEntry(set)}\`.`,
+      `${spec.purpose} Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: ${claudeDesktopEntryText(set)}.`,
       '',
     ];
     for (const name of spec.tools) {

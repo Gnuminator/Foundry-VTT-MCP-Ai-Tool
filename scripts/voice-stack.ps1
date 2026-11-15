@@ -29,8 +29,8 @@
   transcribe options: -Model <name|path> (default large-v3), -Force (redo finished tracks),
   -NoPipeline (transcriber only), -NoAutoFix (the pipeline only suggests name fixes), -Hotwords (pass
   <session>/names.txt, or vocab.txt when there is no names file, to Whisper as hotwords, cut to a token
-  budget; off by default because the 2026-10 benchmark found they hurt). -NoHotwords is kept and does
-  nothing now. If <session>/names.txt exists it is passed to the pipeline as the known names for
+  budget; off by default because the 2026-10 benchmark found they hurt). -NoHotwords cancels -Hotwords
+  if both are given. If <session>/names.txt exists it is passed to the pipeline as the known names for
   automatic name fixes.
   The pipeline picks up <session>/speakers.json, vocab.txt, names.txt, rules.json and ordinary-words.txt.
 #>

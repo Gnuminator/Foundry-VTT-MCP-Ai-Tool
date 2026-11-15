@@ -1,10 +1,11 @@
 # Cloudflare Access — Policy Setup Notes
 
-> **Scaffold — not deployed.** This documents how to create the Cloudflare Access
-> application and email allow-list that gate the dashboard, and exactly how those
-> settings pair with the dashboard's `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` env
-> vars.
-> Replace every `<PLACEHOLDER>` with your real values.
+> **Reference notes.** The real setup is live: the steps for the Orange Pi are in
+> [Remote access, Part C](../../docs/dev/REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare).
+> This page explains how to create the Cloudflare Access application and email allow-list that
+> gate the dashboard, and exactly how those settings pair with the dashboard's `GM_EMAILS`,
+> `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` env vars. Every `<PLACEHOLDER>` below stands for
+> your real value.
 
 ---
 

@@ -25,8 +25,8 @@ set this up once. What the vault holds and how to use it is in [Your Obsidian va
 4. The PowerShell window fills with lines of log text and then goes quiet. That is normal: Syncthing
    is running, so leave the window open while you do the rest. Your browser should open the Syncthing
    page. If no browser opens, open one yourself and go to `http://127.0.0.1:8384` (it only works on
-   your own PC). In the first seconds Syncthing may ask your router to open ports; step 5 turns
-   that off. If Syncthing asks about anonymous usage reporting, choose **No**. A warning about
+   your own PC). In the first seconds Syncthing may ask your router to open ports; item 5 below
+   turns that off. If Syncthing asks about anonymous usage reporting, choose **No**. A warning about
    setting a GUI password can wait.
 5. Click **Actions**, **Settings**, **Connections**, untick **Enable NAT traversal** (so Syncthing never
    asks your router to open a port) and click **Save**.

@@ -22,7 +22,7 @@ Fix `KIT` failures in the kit. Report `CONTENT` and `SYSTEM` failures: do not ch
 content or the product to make the kit green. Report `STUDIO` failures to the module's author: do not
 change Actor Studio to make the kit green.
 
-### Known findings
+## Known findings
 
 A `CONTENT` or `SYSTEM` failure that is understood and reported goes on the profile's known list, so
 the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`,

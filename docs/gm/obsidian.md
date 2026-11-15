@@ -91,11 +91,11 @@ the rest of the note.
 
 ## Can I rename things?
 
-- **In Foundry, yes, freely.** Rename scenes, journals, actors and the rest as you like, so a
-  map's name fits Foundry. The tool finds each note by an id inside it (`fvtt_uuid`), never by its
-  name or place, so the vault follows by itself. Seen on the test server: after a scene and a
-  journal were renamed, the notes kept their file names, but the `name` property, the first heading
-  and the alias inside them changed to the new name within a minute. When a document is moved into
+- **In Foundry, yes, freely.** Rename scenes, journals, actors and the rest as you like, for
+  example to give a map a clearer name. The tool finds each note by an id inside it (`fvtt_uuid`),
+  never by its name or place, so the vault follows by itself. After you rename a scene or a
+  journal, its note keeps its file name, but the `name` property, the first heading and the alias
+  inside it change to the new name within a minute. When a document is moved into
   another Foundry folder, its note moves to the matching folder and takes the current name as its
   file name.
 - **In the AI Tool folder, don't rename, move or edit anything.** That folder is the tool's. A note

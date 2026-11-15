@@ -22,7 +22,7 @@ potion). Din skærm ser ud på samme måde, med dine egne items.
 - Spillerne skal have deres **eget token på scenen**, og Foundry skal vide, hvilken karakter hver
   spiller har. En spiller skal stå **lige ved siden af bunken** for at åbne den (se
   [Hvis en spiller ikke kan åbne bunken](#hvis-en-spiller-ikke-kan-åbne-bunken)).
-- Åbn fanen **Items** i sidebaren (ikonet med en dokumentmappe). Det, du vil dele ud, skal være et item der, eller
+- Åbn fanen **Items** i sidebaren (ikonet med en dokumenttaske). Det, du vil dele ud, skal være et item der, eller
   du laver det: **Create Item**, giv det et navn og et billede.
 
 ## 1. Lav bunken

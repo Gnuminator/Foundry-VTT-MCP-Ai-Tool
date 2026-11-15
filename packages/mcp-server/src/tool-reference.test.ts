@@ -7,7 +7,14 @@
  * `npm run docs:tools` rewrites the pages (it runs this file with
  * UPDATE_TOOL_REFERENCE=1).
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,6 +38,10 @@ describe('tool reference pages', () => {
     mkdirSync(join(REFERENCE_DIR, 'tools'), { recursive: true });
     for (const [file, text] of Object.entries(files))
       writeFileSync(join(REFERENCE_DIR, file), text);
+    // A page for a set that no longer exists is removed, so the folder test below passes again.
+    const keep = new Set(setPages.map(([file]) => file.replace('tools/', '')));
+    for (const stray of readdirSync(join(REFERENCE_DIR, 'tools')))
+      if (!keep.has(stray)) unlinkSync(join(REFERENCE_DIR, 'tools', stray));
   }
 
   it.each(Object.keys(files))('docs/reference/%s matches the tool catalog', file => {
@@ -51,7 +62,10 @@ describe('tool reference pages', () => {
 
   it('docs/reference/tools/ holds no page that is not a set page', () => {
     const expected = setPages.map(([file]) => file.replace('tools/', '')).sort();
-    const found = readdirSync(join(REFERENCE_DIR, 'tools')).sort();
+    const folder = join(REFERENCE_DIR, 'tools');
+    if (!existsSync(folder))
+      expect.fail('docs/reference/tools/ is missing. Run `npm run docs:tools`.');
+    const found = readdirSync(folder).sort();
     expect(found).toEqual(expected);
   });
 

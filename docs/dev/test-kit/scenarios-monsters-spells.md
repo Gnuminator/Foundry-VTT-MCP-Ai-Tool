@@ -94,6 +94,8 @@ kind), and in `monsters-odd` all 132 legendary monsters spend their pool (362 of
 resistance feature that has no activity, 23 spellcasters with data problems (a missing spellcasting ability or an innate spell with
 no uses). The `smoke` sample of the `licensed` profile has 31 monsters and takes seconds. These are findings, not kit failures.
 
+## The spells
+
 ### spells-cast-all
 
 One step per spell level. The GM action `listSpells` reads the profile's spell packs (names and numbers

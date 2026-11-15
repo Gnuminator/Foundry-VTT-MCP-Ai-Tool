@@ -723,6 +723,7 @@ const NOT_CONTRACT = [
   'usage',
   'util/async',
   'util/errors',
+  'util/html',
   'util/record',
 ].map(n => `shared/src/${n}.ts`);
 
@@ -3416,6 +3417,8 @@ function releaseFixture() {
     'package-lock.json': lock(v),
     'packages/foundry-module/module.json': manifest(v),
     'packages/obsidian-plugin/manifest.json': manifest(v),
+    'tools/player-connector/manifest.json': manifest(v),
+    'tools/player-connector/server/index.js': `'use strict';\nconst VERSION = '${v}';\nrun();\n`,
     'shared/src/version.ts': ts(v),
     'installer/nsis/foundry-mcp-server.nsi': nsis(v),
   });
@@ -3482,6 +3485,15 @@ test('releasePr: the fold plus version bumps only; anything else is not a releas
       x.head['installer/nsis/foundry-mcp-server.nsi'] += 'Exec "evil"\n';
     }),
     /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  // The player extension's version stamps are version files; nothing else in them may change.
+  assert.match(
+    why(edit('tools/player-connector/server/index.js', 'run();', 'evil();')),
+    /player-connector\/server\/index\.js changes more than its version line/
+  );
+  assert.match(
+    why(edit('tools/player-connector/manifest.json', '"compatibility": {}', '"compatibility": 1')),
+    /player-connector\/manifest\.json changes more than its version/
   );
   // A path that names an Object.prototype member is not a version file.
   assert.match(

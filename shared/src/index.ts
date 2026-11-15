@@ -55,3 +55,4 @@ export * from './ports.js';
 export * from './util/errors.js';
 export * from './util/record.js';
 export * from './util/async.js';
+export * from './util/html.js';

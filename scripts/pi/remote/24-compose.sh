@@ -155,8 +155,13 @@ unit_enabled() { have_systemd && [ "$(systemctl is-enabled "$1" 2>/dev/null || t
 unit_installed() { have_systemd && systemctl cat "$1" >/dev/null 2>&1; }
 # A listener bound to the Pi's own tailscale interface (ss prints 100.x.y.z%tailscale0:PORT and [fd7a:...]%tailscale0:PORT)
 # does not count: tailscaled serves 3000 and 31414 there permanently (Tailscale serve) and never lets go. Same rule as
-# control_port_check in lib.sh (interface scope, not the address range). Any other listener counts.
-port_busy() { ss -ltnH "sport = :$1" 2>/dev/null | awk '$4 !~ /%tailscale[0-9]*:[0-9]+$/ { f = 1 } END { exit !f }'; }
+# control_port_check in lib.sh (interface scope, not the address range): only a specific address counts as exempt. A wildcard
+# (0.0.0.0%tailscale0, [::]%tailscale0, *%tailscale0) is bound to the device but still clashes with the stack's own binds,
+# so it stays busy. Any other listener counts.
+port_busy() {
+  ss -ltnH "sport = :$1" 2>/dev/null |
+    awk '!($4 ~ /^([0-9.]+|\[[0-9a-fA-F:]+\])%tailscale[0-9]*:[0-9]+$/ && $4 !~ /^(0\.0\.0\.0|\[::\])%/) { f = 1 } END { exit !f }'
+}
 live_ports() { # prints the live ports this setup would use
   local p
   for p in "$http_port:30000" "$control_port:31414" "$link_port:31415" "$dash_port:3000"; do
@@ -233,6 +238,7 @@ require_quiet_stack() { # $1 what
 preflight_stack() {
   local img missing=""
   command -v docker >/dev/null 2>&1 || die "docker is not installed: run stage 23 first. Nothing was changed"
+  command -v ss >/dev/null 2>&1 || die "ss (iproute2) is missing, so the port checks cannot run. Nothing was changed"
   timeout 20 docker info >/dev/null 2>&1 || die "the Docker daemon does not answer (systemctl status docker). Nothing was changed"
   [ -f "$compose_file" ] || die "$compose_file is missing: run stage 23 (it needs a tool build that has deploy/pi). Nothing was changed"
   grep -q '^FOUNDRY_UID=[0-9]' "$env_file" 2>/dev/null || die "$env_file has no FOUNDRY_UID: run stage 23 again (a new stage 5 build replaces the checkout and its .env). Nothing was changed"
@@ -257,7 +263,7 @@ check_env_values() {
       bad="$bad $f.env:$key"
     done < <(env_unsafe_keys "$TOOL_ETC/$f.env")
   done
-  [ -z "$bad" ] || die "env value(s) with a \$, #, backslash or quote that compose reads differently from systemd:$bad. Change the value (letters, digits, spaces and - _ . / : + = are safe). Nothing was changed"
+  [ -z "$bad" ] || die "env value(s) with a \$, #, backslash, backtick or quote that compose reads differently from systemd:$bad. Change the value (letters, digits, spaces and - _ . / : + = are safe). Nothing was changed"
 }
 # Keys of a file whose value compose and systemd would read differently. A value wholly wrapped in double quotes with a
 # safe inside (stages 5-check-world and 7 write them so the file can be sourced) reads the same in both: they strip the

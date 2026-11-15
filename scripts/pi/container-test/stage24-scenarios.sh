@@ -77,6 +77,8 @@ if grep -qx "$p" "$F/busy-tailscale" 2>/dev/null; then
   echo "LISTEN 0 4096 100.110.82.102%tailscale0:$p 0.0.0.0:*"
   echo "LISTEN 0 4096 [fd7a:115c:a1e0::8b01:52fb]%tailscale0:$p [::]:*"
 fi
+# busy-tailscale-wild: a wildcard bound to the tailscale device still clashes with the stack's binds
+if grep -qx "$p" "$F/busy-tailscale-wild" 2>/dev/null; then echo "LISTEN 0 4096 0.0.0.0%tailscale0:$p 0.0.0.0:*"; fi
 exit 0
 EOF
   cat >"$BIN/docker" <<EOF
@@ -361,6 +363,10 @@ printf '3000\n' >"$FAKE/busy-tailscale"
 printf '3000\n' >"$FAKE/busy"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a loopback listener next to the tailscale ones still counts as busy"; else fail "mixed busy (rc $RC): $OUT"; fi
+new_pi
+printf '3000\n' >"$FAKE/busy-tailscale-wild"
+run_stage MODE=cutover
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a wildcard listener on the tailscale device still counts as busy"; else fail "wild busy (rc $RC): $OUT"; fi
 new_pi
 touch "$FAKE/stuck-foundry.service"
 run_stage MODE=cutover

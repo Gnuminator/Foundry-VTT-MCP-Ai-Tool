@@ -1,6 +1,6 @@
 ---
 source: gm/setup-dashboard.md
-sourceHash: 4a4ebb1be74c
+sourceHash: 18e34ecca030
 title: 'Engangsopsætning: dashboardet'
 description: Åbn dashboardet på din anden skærm for første gang, log ind gennem Cloudflare, sæt et bogmærke og vælg dit During-layout. Cirka 10 minutter, én gang.
 ---
@@ -10,6 +10,8 @@ description: Åbn dashboardet på din anden skærm for første gang, log ind gen
 Dashboardet er dit kontrolpanel på en anden skærm. Serveren kører det hele tiden, så der er intet at
 installere. Du åbner det, logger ind, sætter et bogmærke og vælger, hvordan During-skærmen ser ud. Alle
 paneler er forklaret i [Dashboardet](dashboard.md). Cirka 10 minutter, én gang.
+
+Går du i stå? Spørg først Claude: åbn en chat med GM coach slået til og skriv, hvor du er.
 
 **Du skal bruge:** dashboardets adresse fra den, der byggede værktøjet, og den e-mailadresse, de har givet
 Cloudflare til dig.

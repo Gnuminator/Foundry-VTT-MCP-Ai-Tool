@@ -14,7 +14,7 @@
  *   node tools/dnd-helper/build.mjs              build into tools/dnd-helper/dist/
  *   node tools/dnd-helper/build.mjs --out <dir>  build somewhere else (tests)
  */
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { write } from '../gm-coach/build.mjs';

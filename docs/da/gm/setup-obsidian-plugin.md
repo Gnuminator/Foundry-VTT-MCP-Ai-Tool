@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: 1a633c93ea14
+sourceHash: d1fc28a8feb4
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -10,6 +10,8 @@ description: Installer Foundry AI Tool-pluginet i din vault og forbind det til d
 Pluginet lægger **Open in Foundry** på dine noter og viser, om et handout er afsløret. Du skal kun bruge
 det, hvis du vil have det. Gør først [din vault på din pc](setup-obsidian-sync.md). Cirka 10 minutter,
 én gang.
+
+Går du i stå? Spørg først Claude: åbn en chat med GM coach slået til og skriv, hvor du er.
 
 **Du skal bruge:** vaulten åben i Obsidian, dashboardets adresse og tre værdier fra den, der byggede
 værktøjet (GM-token, Cloudflare Client ID og Cloudflare Client Secret). De giver dig dem privat; indsæt

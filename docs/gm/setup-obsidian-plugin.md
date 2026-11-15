@@ -9,6 +9,8 @@ The plugin adds **Open in Foundry** to your notes and shows whether a handout is
 it only if you want those. First do [your vault on your PC](setup-obsidian-sync.md). About 10
 minutes, once.
 
+Stuck on a step? Ask Claude first: open a chat with the GM coach on and say where you are.
+
 **You need:** the vault open in Obsidian, the dashboard address, and three values from the person
 who built the tool (the GM token, the Cloudflare Client ID and the Cloudflare Client Secret). They
 give you those privately; never paste them in a chat or a note.

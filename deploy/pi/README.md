@@ -49,6 +49,10 @@ folders); `down` and `rollback` ignore that rule so the way out is never blocked
 On the Pi use stage 24, never a raw `docker compose up`: it asks for the snapshot, refuses a clash with the units, runs the
 rehearsal as its own project (`foundry-ai-tool-pi-rehearsal`) and checks the result. Same variables as in `test.env`:
 
+No stage creates the two rehearsal data folders and `up` refuses without them. Make them once first, owned by the
+Foundry user: `ssh foundry-pi 'install -d -m 0750 -o foundry /var/lib/foundry-rehearsal /var/lib/foundry-ai-tool-rehearsal'`
+(a change on the Pi: ask for the OK like any other).
+
 ```bash
 ssh foundry-pi 'MODE=up FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614 BRIDGE_LINK_PORT=31615 DASHBOARD_PORT=3300 \
   FOUNDRY_DATA_DIR=/var/lib/foundry-rehearsal TOOL_DATA_DIR=/var/lib/foundry-ai-tool-rehearsal bash -s' < stage24-with-lib.sh

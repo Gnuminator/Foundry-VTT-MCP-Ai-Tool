@@ -72,6 +72,13 @@ EOF
   cat >>"$BIN/ss" <<'EOF'
 p="${@: -1}"; p="${p##*:}"
 if grep -qx "$p" "$F/busy" 2>/dev/null; then echo "LISTEN 0 511 127.0.0.1:$p 0.0.0.0:*"; fi
+# busy-tailscale: tailscaled's Tailscale serve listeners, which never go away (ss prints the interface scope)
+if grep -qx "$p" "$F/busy-tailscale" 2>/dev/null; then
+  echo "LISTEN 0 4096 100.110.82.102%tailscale0:$p 0.0.0.0:*"
+  echo "LISTEN 0 4096 [fd7a:115c:a1e0::8b01:52fb]%tailscale0:$p [::]:*"
+fi
+# busy-tailscale-wild: a wildcard bound to the tailscale device still clashes with the stack's binds
+if grep -qx "$p" "$F/busy-tailscale-wild" 2>/dev/null; then echo "LISTEN 0 4096 0.0.0.0%tailscale0:$p 0.0.0.0:*"; fi
 exit 0
 EOF
   cat >"$BIN/docker" <<EOF
@@ -281,9 +288,10 @@ run_stage MODE=up
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up' && echo "$OUT" | grep -q 'the stack runs and is healthy'; then pass "up on the live ports works while the units are off"; else fail "up off (rc $RC): $OUT"; fi
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
-echo 3000 >"$FAKE/busy"
+DASH=3000 CTL=31414 # the live dashboard and bridge control ports (one place, so the port-literal ratchet stays down)
+echo "$DASH" >"$FAKE/busy"
 run_stage MODE=up
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'port 3000 is already in use' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up refuses a port something else holds"; else fail "up busy (rc $RC): $OUT"; fi
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q "port $DASH is already in use" && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up refuses a port something else holds"; else fail "up busy (rc $RC): $OUT"; fi
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 touch "$FAKE/up-unhealthy"
@@ -339,9 +347,27 @@ echo 2 >"$FAKE/ctl_rc"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'ROLLED BACK' && all_on $all_units; then pass "a control port beyond loopback counts as unhealthy"; else fail "ctl (rc $RC): $OUT"; fi
 new_pi
-echo 3000 >"$FAKE/busy"
+echo "$DASH" >"$FAKE/busy"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a port that stays busy rolls back before the stack starts"; else fail "busy (rc $RC): $OUT"; fi
+new_pi
+printf '%s\n%s\n' "$DASH" "$CTL" >"$FAKE/busy-tailscale"
+run_stage MODE=cutover
+if [ "$RC" -eq 0 ] && all_off $all_units && ! stack_gone && ! echo "$OUT" | grep -q 'still in use'; then pass "Tailscale serve listeners (%tailscale0) on the dashboard and control ports do not hold up the cutover"; else fail "tailscale busy (rc $RC): $OUT"; fi
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+echo "$DASH" >"$FAKE/busy-tailscale"
+run_stage MODE=up
+if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up'; then pass "up ignores a %tailscale0 listener on a live port"; else fail "up tailscale (rc $RC): $OUT"; fi
+new_pi
+echo "$DASH" >"$FAKE/busy-tailscale"
+echo "$DASH" >"$FAKE/busy"
+run_stage MODE=cutover
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a loopback listener next to the tailscale ones still counts as busy"; else fail "mixed busy (rc $RC): $OUT"; fi
+new_pi
+echo "$DASH" >"$FAKE/busy-tailscale-wild"
+run_stage MODE=cutover
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a wildcard listener on the tailscale device still counts as busy"; else fail "wild busy (rc $RC): $OUT"; fi
 new_pi
 touch "$FAKE/stuck-foundry.service"
 run_stage MODE=cutover
@@ -487,6 +513,20 @@ for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 printf 'GOOD=abc\nASSISTANT_PASSWORD=pa$$sw0rd-s3cret\n' >"$SB/etc/assistant-gm.env"
 run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'assistant-gm.env:ASSISTANT_PASSWORD' && ! echo "$OUT" | grep -q 's3cret' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "an env value with a dollar sign is refused by key, the value is never printed"; else fail "env values (rc $RC): $OUT"; fi
+
+# 18b. a value wholly wrapped in double quotes with a safe inside (what stages 5-check-world and 7 write) passes; a quote
+# with a $ inside, or a quote that is not wrapping the whole value, is still refused
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+printf 'ASSISTANT_GM_USER="Assistant GM"\nASSISTANT_GM_PASSWORD="abc123-_.:/+="\n' >"$SB/etc/assistant-gm.env"
+printf 'OBSIDIAN_VAULT_NAME="Strahd Vault"\n' >"$SB/etc/dashboard.env"
+run_stage MODE=up
+if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up' && ! echo "$OUT" | grep -q 'env value'; then pass "values wholly wrapped in double quotes with a safe inside are accepted"; else fail "quoted env (rc $RC): $OUT"; fi
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+printf 'A_ONE="pa$$sw0rd"\nB_TWO="abc"def\nC_THREE=abc"\nD_FOUR="a b"\n' >"$SB/etc/assistant-gm.env"
+run_stage MODE=up
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'assistant-gm.env:A_ONE' && echo "$OUT" | grep -q 'assistant-gm.env:B_TWO' && echo "$OUT" | grep -q 'assistant-gm.env:C_THREE' && ! echo "$OUT" | grep -q 'D_FOUR' && ! echo "$OUT" | grep -q 'sw0rd'; then pass "a quoted value with a dollar, a partial wrap or a stray quote is still refused, by key"; else fail "bad quoted env (rc $RC): $OUT"; fi
 
 # 19. an SSH drop (stdout closed) mid-run does not stop the switch half way, and the run is logged on the Pi
 new_pi

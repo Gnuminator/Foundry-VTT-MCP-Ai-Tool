@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 67f072770328
+sourceHash: 5251d6ee93cb
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -264,6 +264,11 @@ Bordet lader måske ikke spillere se den bog, eller indlæggets navn er anderled
 Skriv: "Læs Foundry-hjælperguiden først, og svar så." Så åbner Claude guiden gennem tool'et
 **get-helper-guide**. Gør den det stadig ikke, kan din extension være en gammel version: hent din
 hjælper igen fra din **My character**-side og installer den oven på den gamle.
+
+**Kan jeg også tilføje hjælperen som plugin? (Pro og Max)**
+Det behøver du ikke: extensionen har allerede hjælperens instruktioner med. Vil du have skill-formen
+alligevel, så åbn Settings, Customize, tilføj marketplace `Gnuminator/foundry-ai-tool-plugins` og
+installer **foundry-player-helper**. Den henter sin guide fra bordet, så den holder sig opdateret.
 
 **Jeg installerede den gamle skill-zip tidligere.**
 Den virker stadig, men du har ikke brug for den mere. Du kan fjerne den i Settings, Customize,

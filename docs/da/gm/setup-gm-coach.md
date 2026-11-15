@@ -1,6 +1,6 @@
 ---
 source: gm/setup-gm-coach.md
-sourceHash: d11e99e2ac9d
+sourceHash: 7350ca9fd7f7
 title: 'Engangsopsætning: GM-coachen'
 description: Læg Foundry GM coach-skillen ind på din egen Claude-konto, med et Claude Project som nødplan. Cirka 5 minutter, én gang.
 ---
@@ -11,12 +11,20 @@ GM-coachen er en skill på din egen Claude-konto, der svarer på spørgsmål om 
 Den virker på den gratis Claude-plan. Hvad den kan, og hvordan du spørger den, står i
 [Din GM-coach i Claude](gm-coach.md). Cirka 5 minutter, én gang.
 
-**Du skal bruge:** en Claude-konto (desktop-appen eller claude.ai) og filen `foundry-gm-coach.zip` fra den,
-der byggede værktøjet.
+**Du skal bruge:** en Claude-konto (desktop-appen eller claude.ai) med Foundry-connectoren slået til
+i dine chats. På en Pro- eller Max-plan tilføjer du coachen som plugin (første afsnit nedenfor). På
+en gratis plan bruger du filen `foundry-gm-coach.zip` fra den, der byggede værktøjet.
 
 <!-- wiki:coach-download -->
 
-## Læg den ind
+## Læg den ind som plugin (Pro og Max)
+
+1. Åbn **Settings**, derefter **Customize** og plugin-siden i Claude Desktop.
+2. Tilføj en marketplace og skriv `Gnuminator/foundry-ai-tool-plugins`.
+3. Installer **foundry-gm-coach** fra den marketplace.
+4. Start en ny chat. Senere ændringer af coachen når nye chats af sig selv; du opdaterer ingenting.
+
+## Læg den ind fra zip-filen (gratis plan)
 
 1. Åbn **Settings**, **Capabilities** i Claude, og slå **Code execution and file creation** til. Skills
    kræver det.

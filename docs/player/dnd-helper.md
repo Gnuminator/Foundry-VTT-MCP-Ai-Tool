@@ -262,6 +262,12 @@ Ask: "Read the Foundry helper guide first, then answer." Claude then opens the g
 **get-helper-guide** tool. If it still does not, the extension may be an old version: download your
 helper again from your **My character** page and install it over the old one.
 
+**Can I add the helper as a plugin too? (Pro and Max)**
+You do not need to: the extension already carries the helper's instructions. If you want the
+skill form anyway, open Settings, Customize, add the marketplace
+`Gnuminator/foundry-ai-tool-plugins` and install **foundry-player-helper**. It reads its guide
+from the table, so it stays current.
+
 **I installed the old skill zip earlier.**
 It still works, but you no longer need it. You can remove it in Settings, Customize, Skills.
 

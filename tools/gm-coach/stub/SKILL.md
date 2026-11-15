@@ -1,6 +1,6 @@
 ---
 name: foundry-gm-coach
-description: Coach for a GM new to Foundry VTT 14 with D&D 5e and Foundry AI Tool. Buttons, how-tos, game-night fixes, session prep and session 0 planning. Reads its guide from the table.
+description: Use when a GM asks how to do something in Foundry VTT or the AI Tool: a button, setup, a game-night problem, session prep or session 0. Loads its guide from the table.
 ---
 
 # Foundry GM coach

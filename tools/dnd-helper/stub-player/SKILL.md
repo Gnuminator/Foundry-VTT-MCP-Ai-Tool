@@ -1,6 +1,6 @@
 ---
 name: foundry-dnd-helper-player
-description: D&D 5e (2024) helper for a player at a Foundry VTT table. Builds characters, advises level-ups, checks sheets and answers rules questions from the table's books. Reads its guide from the table.
+description: Use when a player asks about their D&D 5e character in Foundry: building it, leveling up, checking the sheet, or a rules question from the table's books. Loads its guide from the table.
 ---
 
 # D&D helper (player edition)

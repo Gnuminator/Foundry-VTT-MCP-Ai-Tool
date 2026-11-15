@@ -9,12 +9,21 @@ The GM coach is a skill in your own Claude account that answers questions about 
 tool. It works on the free Claude plan. What it can do and how to ask it is in
 [Your GM coach in Claude](gm-coach.md). About 5 minutes, once.
 
-**You need:** a Claude account (the desktop app or claude.ai) and the file `foundry-gm-coach.zip`
-from the person who built the tool.
+**You need:** a Claude account (the desktop app or claude.ai) with the Foundry connector switched
+on in your chats. On a Pro or Max plan you add the coach as a plugin (first section below). On a
+free plan you use the file `foundry-gm-coach.zip` from the person who built the tool.
 
 <!-- wiki:coach-download -->
 
-## Add it
+## Add it as a plugin (Pro and Max)
+
+1. In Claude Desktop open **Settings**, then **Customize**, then the plugins page.
+2. Add a marketplace and enter `Gnuminator/foundry-ai-tool-plugins`.
+3. Install **foundry-gm-coach** from that marketplace.
+4. Start a new chat. Later changes to the coach reach new chats by themselves; you do not update
+   anything.
+
+## Add it from the zip (free plan)
 
 1. In Claude open **Settings**, **Capabilities**, and switch on **Code execution and file creation**.
    Skills need it.

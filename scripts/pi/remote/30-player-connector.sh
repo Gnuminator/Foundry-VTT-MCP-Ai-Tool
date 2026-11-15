@@ -16,6 +16,12 @@
 #      (the table is 0600 foundry), the ports 31414 to 31416 listen exactly as before the run and the bridge control port answers
 #      on loopback. A failed check makes the run end with exit 1 (the install stays in place; CHECK=1 repeats the checks).
 #      CHECK=1 has no "before" to compare the ports with: it prints them and fails on the control port check.
+# The remote part (backlog remote-player-connector-pi): players who add the table as a Claude custom connector sign in with their email
+# through Cloudflare Access Managed OAuth (hostname player-remote). The PC script sends only that part, as
+# /root/player-connector.remote.json.new ({appAudience, emailPlayers [{email, userId}], remoteEndpoint}; no secrets); this stage merges
+# the three keys into the installed table and leaves the service-token players, endpoint and audience as they are. The table check then
+# also needs appAudience (different from audience), lowercase emails and 16-character user ids without duplicates (counts only), and the
+# remote host is added to DASHBOARD_ALLOWED_HOSTS next to the player host.
 # It changes no port, no firewall, no tunnel setting and no GM connector. The tunnel route lives in Cloudflare (remotely managed).
 #
 # Modes (environment, before bash):
@@ -26,13 +32,14 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/30-player-connector.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/30-player-connector.sh | ssh foundry-pi 'bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/30-player-connector.sh | ssh foundry-pi 'CHECK=1 bash -s'
-# Tests only: SRC_FILE and UNIT_DIR (TOOL_ETC and NODE_DIR are set by lib.sh, so they are not overrides).
+# Tests only: SRC_FILE, REMOTE_SRC_FILE and UNIT_DIR (TOOL_ETC and NODE_DIR are set by lib.sh, so they are not overrides).
 
 dry="${DRY_RUN:-0}"
 check="${CHECK:-0}"
 undo="${UNDO:-0}"
 src="${SRC_FILE:-/root/player-connector.json.new}"
 unit_dir="${UNIT_DIR:-/etc/systemd/system}"
+remote_src="${REMOTE_SRC_FILE:-/root/player-connector.remote.json.new}"
 cfg="$TOOL_ETC/player-connector.json"
 envf="$TOOL_ETC/player-connector.env"
 access="$TOOL_ETC/dashboard-access.env"
@@ -57,7 +64,8 @@ for u in "$dash_unit" "$bridge_unit"; do
   grep -q "^User=$FOUNDRY_USER\$" "$unit_dir/$u" || die "$u does not run as $FOUNDRY_USER: the table is readable by $FOUNDRY_USER only, so stop here. Nothing was changed"
 done
 
-# Prints "<endpoint host> <player count>" for a table, or exits 1 with the reason on stderr (never a value from the file).
+# Prints "<endpoint host> <player count> <remote host or -> <email player count>" for a table, or exits 1 with the reason on stderr
+# (never a value from the file).
 table_summary() {
   "$node" -e '
     const fs = require("fs");
@@ -81,9 +89,55 @@ table_summary() {
       if (users.has(x)) bad("a userId appears twice");
       ids.add(c); users.add(x);
     }
-    process.stdout.write(u.hostname + " " + t.players.length);
+    const hasRemote = ["appAudience", "emailPlayers", "remoteEndpoint"].some(k => t[k] !== undefined && t[k] !== null);
+    let remoteHost = "-", emailCount = 0;
+    if (hasRemote) {
+      let r;
+      try { r = new URL(String(t.remoteEndpoint)); } catch { bad("remoteEndpoint is not a URL"); }
+      if (r.protocol !== "https:") bad("remoteEndpoint must be https");
+      if (r.pathname !== "/mcp/player") bad("remoteEndpoint path must be /mcp/player");
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(r.hostname)) bad("remoteEndpoint host is not a plain name");
+      const app = (Array.isArray(t.appAudience) ? t.appAudience : [t.appAudience]).map(a => String(a ?? "").trim()).filter(Boolean);
+      if (app.length === 0 || app.some(a => !/^[A-Za-z0-9]{32,128}$/.test(a))) bad("appAudience must be the Access application AUD tag(s)");
+      if (app.some(a => aud.includes(a))) bad("appAudience must differ from audience");
+      if (!Array.isArray(t.emailPlayers) || t.emailPlayers.length === 0) bad("no emailPlayers");
+      const emails = new Set(), eusers = new Set();
+      for (const p of t.emailPlayers) {
+        const e = String(p?.email ?? ""), x = String(p?.userId ?? "").trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) || e !== e.trim().toLowerCase()) bad("an emailPlayers entry has no lowercase email");
+        if (!/^[A-Za-z0-9]{16}$/.test(x)) bad("an emailPlayers entry has no 16-character Foundry userId");
+        if (emails.has(e)) bad("an email appears twice");
+        if (eusers.has(x)) bad("an emailPlayers userId appears twice");
+        emails.add(e); eusers.add(x);
+      }
+      remoteHost = r.hostname;
+      emailCount = t.emailPlayers.length;
+    }
+    process.stdout.write(u.hostname + " " + t.players.length + " " + remoteHost + " " + emailCount);
   ' "$1"
 }
+
+# Prints the remote file merged over the table "$1" (or over {} when it has no table) as JSON: only the three remote keys are taken from
+# the remote file; everything else of the table stays. Exits 1 with a reason on stderr (never a value).
+merge_remote() {
+  "$node" -e '
+    const fs = require("fs");
+    const read = f => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { console.error("not valid JSON: " + f); process.exit(1); } };
+    const base = process.argv[1] ? read(process.argv[1]) : {};
+    const rem = read(process.argv[2]);
+    if (!rem || typeof rem !== "object" || Array.isArray(rem)) { console.error("remote file is not an object"); process.exit(1); }
+    for (const k of ["appAudience", "emailPlayers", "remoteEndpoint"]) {
+      if (rem[k] === undefined) { console.error("remote file lacks " + k); process.exit(1); }
+      base[k] = rem[k];
+    }
+    process.stdout.write(JSON.stringify(base, null, 2) + "\n");
+  ' "$1" "$2"
+}
+
+# Field N (1 host, 2 players, 3 remote host or -, 4 email players) of a table_summary line.
+sum_field() { printf '%s' "$1" | cut -d' ' -f"$2"; }
+# The hosts a table needs in DASHBOARD_ALLOWED_HOSTS, one per line: the player host and the remote host when there is one.
+table_hosts() { sum_field "$1" 1; echo; [ "$(sum_field "$1" 3)" = "-" ] || { sum_field "$1" 3; echo; }; }
 
 # A key with a value in an env file, by name only.
 has_key() { grep -qE "^[[:space:]]*$2=[^[:space:]]" "$1" 2>/dev/null; }
@@ -91,11 +145,12 @@ has_key() { grep -qE "^[[:space:]]*$2=[^[:space:]]" "$1" 2>/dev/null; }
 # The ports of the GM connectors, as the listening sockets show them (sorted, one line).
 ports_line() { ss -ltnH 2>/dev/null | awk '{print $4}' | grep -E ':3141[456]$' | sort | tr '\n' ' ' || true; }
 
-# The player host: from the installed table, else from the source.
-player_host() {
-  local f="$cfg"
+# The hosts of the installed table (else of the source), one per line: the player host and the remote host.
+player_hosts() {
+  local f="$cfg" s
   [ -f "$f" ] || f="$src"
-  table_summary "$f" | cut -d' ' -f1
+  s="$(table_summary "$f")" || return 1
+  table_hosts "$s"
 }
 
 # No DEV_USER anywhere the services read (env files, units, drop-ins): it would let any loopback call act as a player.
@@ -134,8 +189,10 @@ if [ "$check" = 1 ]; then
   refuse_dev_user
   [ -f "$cfg" ] || die "$cfg is missing: run this stage first"
   summary="$(table_summary "$cfg")" || die "the installed table is not valid (see above)"
-  host="${summary% *}"
-  ok "table: host $host, ${summary#* } players (names, ids and secrets are not shown)"
+  host="$(sum_field "$summary" 1)"
+  rhost="$(sum_field "$summary" 3)"
+  ok "table: host $host, $(sum_field "$summary" 2) players (names, ids and secrets are not shown)"
+  if [ "$rhost" = "-" ]; then warn "no remote part in the table (appAudience, emailPlayers, remoteEndpoint): the email sign-in is off"; else ok "remote part: host $rhost, $(sum_field "$summary" 4) email players (emails are not shown)"; fi
   mode="$(stat -c '%a %U' "$cfg")"
   [ "$mode" = "600 $FOUNDRY_USER" ] && ok "$cfg is 0600 $FOUNDRY_USER" || die "$cfg is '$mode', expected '600 $FOUNDRY_USER'"
   [ "$(cat "$envf" 2>/dev/null)" = "$env_body" ] && ok "$envf as expected" || die "$envf is missing or differs"
@@ -143,11 +200,17 @@ if [ "$check" = 1 ]; then
     [ "$(cat "$unit_dir/$u.d/$dropin_name" 2>/dev/null)" = "$dropin_body" ] && ok "$u drop-in as expected" || die "$u has no player-connector drop-in"
   done
   hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" 2>/dev/null | tail -n 1)"
-  host_in_list "$hosts" "$host" && ok "$host is in DASHBOARD_ALLOWED_HOSTS" || die "$host is not in DASHBOARD_ALLOWED_HOSTS ($access)"
+  for h in $(table_hosts "$summary"); do
+    host_in_list "$hosts" "$h" && ok "$h is in DASHBOARD_ALLOWED_HOSTS" || die "$h is not in DASHBOARD_ALLOWED_HOSTS ($access)"
+  done
   if have_systemd; then
     for u in "$dash_unit" "$bridge_unit"; do systemctl is-active --quiet "$u" && ok "$u is running" || die "$u is not running"; done
     code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $host" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
     [ "$code" = 401 ] && ok "/mcp/player with no token: 401" || die "/mcp/player with no token gave '$code', expected 401"
+    if [ "$rhost" != "-" ]; then
+      code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $rhost" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
+      [ "$code" = 401 ] && ok "/mcp/player on $rhost with no login: 401" || die "/mcp/player on $rhost with no login gave '$code', expected 401"
+    fi
     code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' http://127.0.0.1:3000/ || true)"
     [ "$code" = 421 ] && ok "an unlisted name: 421" || die "an unlisted name gave '$code', expected 421"
     ok "ports 31414 to 31416 listening: $(ports_line)"
@@ -164,8 +227,8 @@ fi
 # ---- UNDO --------------------------------------------------------------------------------------------------
 if [ "$undo" = 1 ]; then
   say "undo: the player connector off"
-  host=""
-  [ ! -f "$cfg" ] || host="$(player_host 2>/dev/null || true)"
+  tohosts=""
+  [ ! -f "$cfg" ] || tohosts="$(player_hosts 2>/dev/null || true)"
   hosts=""
   [ ! -f "$access" ] || hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
   # Only what is really there is undone, and only a service whose own input changes is restarted (a restart drops the GM link).
@@ -177,7 +240,9 @@ if [ "$undo" = 1 ]; then
   if unit_runs_old_settings "$dash_unit"; then restart_dash=1; fi
   if unit_runs_old_settings "$bridge_unit"; then restart_bridge=1; fi
   undo_host=0
-  if [ -n "$host" ] && host_in_list "$hosts" "$host"; then undo_host=1 restart_dash=1; fi
+  for h in $tohosts; do
+    if host_in_list "$hosts" "$h"; then undo_host=1 restart_dash=1; fi
+  done
   if [ "$restart_dash" = 1 ]; then require_quiet_if_active "$dash_unit" "undoing the player connector (restarting the dashboard)"; fi
   if [ "$restart_bridge" = 1 ]; then require_quiet_if_active "$bridge_unit" "undoing the player connector (restarting the bridge)"; fi
   for u in "$dash_unit" "$bridge_unit"; do
@@ -190,7 +255,9 @@ if [ "$undo" = 1 ]; then
   if [ "$undo_host" = 1 ]; then
     # Plain string work (no sed pattern), so the dots of the host are not wildcards.
     new=",$hosts,"
-    while [ "${new#*",$host,"}" != "$new" ]; do new="${new%%",$host,"*},${new#*",$host,"}"; done
+    for h in $tohosts; do
+      while [ "${new#*",$h,"}" != "$new" ]; do new="${new%%",$h,"*},${new#*",$h,"}"; done
+    done
     new="${new#,}"
     new="${new%,}"
     tmp="$(mktemp "$TOOL_ETC/.dashboard-access.env.XXXXXX")"
@@ -201,7 +268,7 @@ if [ "$undo" = 1 ]; then
     mv "$tmp" "$access"
     trap - EXIT
     mark_changed "$access"
-    ok "$host taken out of DASHBOARD_ALLOWED_HOSTS"
+    ok "the player hosts taken out of DASHBOARD_ALLOWED_HOSTS"
   fi
   warn "$cfg is kept (it holds the players' secrets); delete it by hand when the connector is retired"
   enable_unit "$bridge_unit"
@@ -214,8 +281,22 @@ fi
 say "the login table"
 refuse_dev_user
 use_src=0
-if [ -f "$src" ]; then
+newtab="$cfg"
+cand="$(mktemp)"
+trap 'rm -f "${cand:?}"' EXIT
+if [ -f "$remote_src" ]; then
+  # The remote part is merged over the new table when one was sent, else over the installed one; the players stay as they are.
+  base=""
+  if [ -f "$src" ]; then base="$src"; elif [ -f "$cfg" ]; then base="$cfg"; fi
+  [ -n "$base" ] || die "no table to add the remote part to: neither $src nor $cfg exists. Run scripts/pi/player-connector-cloudflare.mjs for the players first. Nothing was changed"
+  merge_remote "$base" "$remote_src" >"$cand" || die "$remote_src could not be merged (see above). Nothing was changed"
+  summary="$(table_summary "$cand")" || die "the table with the remote part is not valid (see above). Nothing was changed"
   use_src=1
+  newtab="$cand"
+  ok "the remote part of $remote_src is merged over ${base}"
+elif [ -f "$src" ]; then
+  use_src=1
+  newtab="$src"
   summary="$(table_summary "$src")" || die "$src is not a valid table (see above). Nothing was changed"
 elif [ -f "$cfg" ]; then
   summary="$(table_summary "$cfg")" || die "$cfg is not a valid table (see above). Nothing was changed"
@@ -223,8 +304,10 @@ elif [ -f "$cfg" ]; then
 else
   die "no table: neither $src nor $cfg exists. Run scripts/pi/player-connector-cloudflare.mjs on the PC first (it sends the table here). Nothing was changed"
 fi
-host="${summary% *}"
-ok "table: host $host, ${summary#* } players (names, ids and secrets are not shown)"
+host="$(sum_field "$summary" 1)"
+rhost="$(sum_field "$summary" 3)"
+ok "table: host $host, $(sum_field "$summary" 2) players (names, ids and secrets are not shown)"
+if [ "$rhost" = "-" ]; then ok "no remote part (email sign-in off)"; else ok "remote part: host $rhost, $(sum_field "$summary" 4) email players (emails are not shown)"; fi
 if [ -f "$access" ]; then
   has_key "$access" CF_ACCESS_TEAM_DOMAIN || die "$access has no CF_ACCESS_TEAM_DOMAIN: run set-dashboard-access.sh first (the player login is checked against the same team). Nothing was changed"
 else
@@ -235,11 +318,14 @@ fi
 grep -q '^DASHBOARD_ALLOWED_HOSTS=[^[:space:]]' "$access" || die "$access has no DASHBOARD_ALLOWED_HOSTS line with a value: run set-dashboard-access.sh (it writes the GM hosts) and then this stage. Nothing was changed"
 cur_hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
 [ -n "$cur_hosts" ] || die "$access: the last DASHBOARD_ALLOWED_HOSTS line is empty: run set-dashboard-access.sh. Nothing was changed"
-if host_in_list "$cur_hosts" "$host"; then new_hosts="$cur_hosts"; else new_hosts="${cur_hosts:+$cur_hosts,}$host"; fi
+new_hosts="$cur_hosts"
+for h in $(table_hosts "$summary"); do
+  host_in_list "$new_hosts" "$h" || new_hosts="${new_hosts:+$new_hosts,}$h"
+done
 
 if [ "$dry" = 1 ]; then
   say "dry run: nothing is changed. A real run would:"
-  if [ "$use_src" = 1 ]; then ok "install $src as $cfg (foundry, 0600) and remove $src"; else ok "keep the installed $cfg"; fi
+  if [ "$use_src" = 1 ]; then ok "install the new table as $cfg (foundry, 0600) and remove $src and $remote_src"; else ok "keep the installed $cfg"; fi
   ok "write $envf (root:$FOUNDRY_USER 0640): the switch on, the table path"
   ok "write a drop-in $dropin_name on $dash_unit and on $bridge_unit"
   ok "DASHBOARD_ALLOWED_HOSTS: $cur_hosts -> $new_hosts"
@@ -252,7 +338,7 @@ fi
 # was (a rerun after it then installs the table again).
 will_change=0
 if [ "$use_src" = 1 ]; then
-  if [ -f "$cfg" ] && cmp -s "$src" "$cfg"; then :; else will_change=1; fi
+  if [ -f "$cfg" ] && cmp -s "$newtab" "$cfg"; then :; else will_change=1; fi
 fi
 [ "$(cat "$envf" 2>/dev/null)" = "$env_body" ] || will_change=1
 for u in "$dash_unit" "$bridge_unit"; do
@@ -268,8 +354,8 @@ ports_before="$(ports_line)"
 
 if [ "$use_src" = 1 ]; then
   tmp="$(mktemp "$TOOL_ETC/.player-connector.json.XXXXXX")"
-  trap 'rm -f "${tmp:?}"' EXIT
-  cat "$src" >"$tmp"
+  trap 'rm -f "${tmp:?}" "${cand:?}"' EXIT
+  cat "$newtab" >"$tmp"
   chown "$FOUNDRY_USER:$FOUNDRY_USER" "$tmp"
   chmod 0600 "$tmp"
   if [ -f "$cfg" ] && cmp -s "$tmp" "$cfg"; then
@@ -281,9 +367,10 @@ if [ "$use_src" = 1 ]; then
     ok "$cfg installed (foundry, 0600)"
   fi
   trap - EXIT
-  rm -f "${src:?}"
-  ok "$src removed"
+  rm -f "${src:?}" "${remote_src:?}"
+  ok "$src and $remote_src removed"
 fi
+rm -f "${cand:?}"
 chown "$FOUNDRY_USER:$FOUNDRY_USER" "$cfg"
 chmod 0600 "$cfg"
 
@@ -305,9 +392,9 @@ if [ "$new_hosts" != "$cur_hosts" ]; then
   mv "$tmp" "$access"
   trap - EXIT
   mark_changed "$access"
-  ok "DASHBOARD_ALLOWED_HOSTS now has $host (old file: $access.before-player-connector)"
+  ok "DASHBOARD_ALLOWED_HOSTS now has the player hosts (old file: $access.before-player-connector)"
 else
-  ok "$host is already in DASHBOARD_ALLOWED_HOSTS"
+  ok "the player hosts are already in DASHBOARD_ALLOWED_HOSTS"
 fi
 
 say "the services"
@@ -326,6 +413,10 @@ else
     sleep 1
   done
   [ "$code" = 401 ] && ok "/mcp/player with no token: 401" || bad "/mcp/player with no token gave '$code', expected 401 (journalctl -u $dash_unit -n 30)"
+  if [ "$rhost" != "-" ]; then
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $rhost" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
+    [ "$code" = 401 ] && ok "/mcp/player on $rhost with no login: 401" || bad "/mcp/player on $rhost with no login gave '$code', expected 401"
+  fi
   code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' http://127.0.0.1:3000/ || true)"
   [ "$code" = 421 ] && ok "an unlisted name: 421" || bad "an unlisted name gave '$code', expected 421"
   ports_after="$(ports_line)"

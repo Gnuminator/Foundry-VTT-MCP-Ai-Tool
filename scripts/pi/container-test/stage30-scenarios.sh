@@ -340,6 +340,83 @@ sd_run
 rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'no DASHBOARD_ALLOWED_HOSTS line' && [ ! -e "$cfg" ] && [ -f "$src" ]; then pass "no allowed hosts line: refused, nothing changed"; else fail "no hosts line: rc=$rc $OUT"; fi
 
+# 9. The remote part (email sign-in through Access Managed OAuth): merged over the installed table, the players untouched.
+rsrc=/root/player-connector.remote.json.new
+rhost=player-remote.example.org
+appaud=fedcba9876543210fedcba9876543210fedcba9876543210
+emails=(first.player@example.com second.player@example.com)
+# remote_file [appAudience] [email2] [uid2]
+remote_file() {
+  local app="${1:-$appaud}" email2="${2:-${emails[1]}}" uid2="${3:-bbbbbbbbbbbbbbb2}"
+  cat >"$rsrc" <<EOF
+{ "appAudience": "$app", "remoteEndpoint": "https://$rhost/mcp/player", "emailPlayers": [
+  { "email": "${emails[0]}", "userId": "bbbbbbbbbbbbbbb1" },
+  { "email": "$email2", "userId": "$uid2" } ] }
+EOF
+  chmod 0600 "$rsrc"
+}
+no_email() { # $1 label
+  local e
+  for e in "${emails[@]}" "$appaud"; do
+    if echo "$OUT" | grep -q "$e"; then
+      fail "$1: an email or audience was printed"
+      return 1
+    fi
+  done
+  return 0
+}
+
+sd_fresh
+sd_state 0 401 421
+sd_run
+sd_state 0 401 421
+before="$(sha256sum "$cfg")"
+remote_file "$aud"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'appAudience must differ' && [ "$before" = "$(sha256sum "$cfg")" ] && [ -f "$rsrc" ]; then pass "an appAudience equal to the audience is refused, nothing changed"; else fail "same aud: rc=$rc $OUT"; fi
+remote_file "$appaud" "${emails[0]}"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'email appears twice' && [ "$before" = "$(sha256sum "$cfg")" ]; then pass "a duplicate email is refused"; else fail "dup email: rc=$rc $OUT"; fi
+remote_file "$appaud" "Upper.Case@example.com"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'lowercase email' && ! echo "$OUT" | grep -qi 'Upper.Case' && [ "$before" = "$(sha256sum "$cfg")" ]; then pass "an uppercase email is refused and not printed"; else fail "upper email: rc=$rc $OUT"; fi
+remote_file "$appaud" "${emails[1]}" "short"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q '16-character' && [ "$before" = "$(sha256sum "$cfg")" ]; then pass "a bad email user id is refused"; else fail "bad email uid: rc=$rc $OUT"; fi
+remote_file "$appaud" "${emails[1]}" "bbbbbbbbbbbbbbb1"
+sd_run
+rc=$?
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'userId appears twice' && [ "$before" = "$(sha256sum "$cfg")" ]; then pass "a duplicate email user id is refused"; else fail "dup email uid: rc=$rc $OUT"; fi
+
+remote_file
+sd_run DRY_RUN=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "$rhost" && [ "$before" = "$(sha256sum "$cfg")" ] && [ -f "$rsrc" ] && no_email "dry run"; then pass "DRY_RUN with the remote part changes nothing and prints counts only"; else fail "remote dry run: rc=$rc $OUT"; fi
+sd_state 0 401 421
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && no_email "remote run" && no_secret "remote run" && [ ! -e "$rsrc" ] &&
+  grep -q "${cids[0]}" "$cfg" && grep -q "${cids[3]}" "$cfg" && grep -q "${uids[2]}" "$cfg" && grep -q '"remoteEndpoint"' "$cfg" && grep -q "${emails[1]}" "$cfg" &&
+  grep -qx "DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,cogm.example.org,$host,$rhost" "$access" && [ "$(stat -c '%a %U' "$cfg")" = "600 $FOUNDRY_USER" ]; then
+  pass "the remote part is merged: players kept, both hosts allowed, source removed, counts only"; else fail "remote run: rc=$rc $(grep ALLOWED "$access") $OUT"; fi
+sd_state 0 401 421
+sd_run CHECK=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'email players' && no_email "remote check"; then pass "CHECK passes with the remote part"; else fail "remote check: rc=$rc $OUT"; fi
+sd_state 0 401 421
+before="$(sha256sum "$cfg" "$access" | sha256sum)"
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$before" = "$(sha256sum "$cfg" "$access" | sha256sum)" ] && [ "$(restarted "$dash")" = 0 ]; then pass "a rerun with no new file changes nothing"; else fail "remote rerun: rc=$rc $OUT"; fi
+sd_state 0 401 421
+sd_run UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && grep -qx 'DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,cogm.example.org' "$access"; then pass "UNDO takes out both player hosts"; else fail "remote undo: rc=$rc $(grep ALLOWED "$access") $OUT"; fi
+
 kill "$fake_bridge" 2>/dev/null
 rm -rf /run/systemd/system "$sdunits/$dash" "$sdunits/$bridge" "$sdunits/$dash.d" "$sdunits/$bridge.d"
 

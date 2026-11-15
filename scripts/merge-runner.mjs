@@ -86,6 +86,7 @@ import {
   makeQueueDeps,
 } from './merge-runner/queue.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
+import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 const MAIN = 'aitool/main';
@@ -117,20 +118,7 @@ export const oneLine = (s, max = 400) => {
   return t.length > max ? `${t.slice(0, max - 3)}...` : t;
 };
 
-/**
- * Does the PR body name the item on a `Backlog-part: <id>` line (a PR that is one part of an item
- * that stays open)? `Backlog: <id>` closes the item; the part line wins only when both name it.
- * @param {string} body
- * @param {string} id
- */
-export function isPartOnly(body, id) {
-  /** @param {string} key */
-  const ids = key =>
-    [...String(body).matchAll(new RegExp(`^\\s*${key}:[ \\t]*(.+)$`, 'gim'))].flatMap(m =>
-      m[1].split(/[\s,]+/).map(s => s.replace(/`/g, ''))
-    );
-  return ids('Backlog-part').includes(id) && !ids('Backlog').includes(id);
-}
+export { isPartOnly };
 
 /**
  * Ready items in Backlog order.
@@ -278,6 +266,9 @@ const norm = p => {
  *   trainRemove?: (pr: number) => void,
  *   trainAdd?: (pr: number, head: string) => void,
  *   selfCheck?: () => import('./merge-runner/self-check.mjs').SelfCheckResult | null,
+ *   unready?: (backlogText: string) => import('./merge-runner/unready.mjs').Unready[],
+ *   noticeSeen?: (key: string) => boolean,
+ *   noticeMark?: (key: string) => void,
  * }} Deps
  * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
  * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
@@ -483,6 +474,8 @@ export function round(d, tried, attempts) {
       `merge runner: CI run ${g.run} had a check stuck in progress (${g.names.join(', ')}); ${r.status === 0 ? 'rerun started' : 'rerun failed, rerun it by hand'}`
     );
   }
+  // A PR done in every way but the ready line: one #pr-log line per head (never a ready line).
+  announceUnready(d, text, tried);
   if (!ready.length) return { stop: null, merged };
 
   /** @type {boolean | undefined} */
@@ -965,6 +958,7 @@ function realDeps(o) {
       }
     },
     log: stamp,
+    ...makeUnreadyDeps({ sh, repo: REPO, vault: o.vault }),
     ...makeQueueDeps({ sh, stamp, repo: REPO }),
     selfCheck:
       makeSelfCheck({

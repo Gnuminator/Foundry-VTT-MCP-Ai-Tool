@@ -219,6 +219,6 @@ When you change a tool's result shape, change the fake with it.
 - The full matrix of spells is done (slice 3b: see "spells-cast-all" and "spells-deep").
 - Dashboard checks in a real browser (Playwright), not only the JSON the dashboard serves.
 - Actor Studio at other levels (1, 11, 17, 20), with equipment and its biography tab on, and a multiclass
-  level-up (the plain route is covered by `heroes-multiclass`); the Actor Studio findings (see [Known findings](findings.md#known-findings)) sent to its author.
+  level-up (the plain route is covered by `heroes-multiclass`); the Actor Studio findings above sent to its author.
 - The Pi target beyond tools only: the scenarios that click (needs the kit's own GM browser to join the Pi as `Kit GM` with its password; the plumbing is in `lib/gm.mjs`), and a build on the Pi.
 - The licensed layer: the Curse of Strahd scenarios, kept on this PC only.

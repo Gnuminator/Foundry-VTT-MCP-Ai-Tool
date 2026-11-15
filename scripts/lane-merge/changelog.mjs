@@ -22,6 +22,7 @@ export const VERSION_JSON = [
   'packages/obsidian-plugin/package.json',
   'packages/foundry-module/module.json',
   'packages/obsidian-plugin/manifest.json',
+  'tools/player-connector/manifest.json',
 ];
 
 export const SEMVER_RE = '\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?';
@@ -30,6 +31,9 @@ export const SEMVER_RE = '\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?';
 export const VERSION_TEXT = {
   // Group 1 is the version; the rest of the line must be identical at the base and the head.
   'shared/src/version.ts': [new RegExp(`^export const TOOL_VERSION = '(${SEMVER_RE})';$`, 'd')],
+  'tools/player-connector/server/index.js': [
+    new RegExp(`^const VERSION = '(${SEMVER_RE})';$`, 'd'),
+  ],
   'installer/nsis/foundry-mcp-server.nsi': [
     new RegExp(`^\\s*!define VERSION "v(${SEMVER_RE})"$`, 'd'),
     new RegExp(`^\\s*WriteRegStr HKCU "[^"]+" "DisplayVersion" "(${SEMVER_RE})"$`, 'd'),

@@ -10,6 +10,7 @@
 import { CLIENT_NOTICE_INTERVAL_MS, TOOL_VERSION, clientToolNotice } from '@gnuminator/shared';
 
 import { BUILD_ID } from './build-id.js';
+import { TOOL_RESULT_MAX_CHARS } from './tool-router.js';
 
 export {
   isOlderVersion,
@@ -86,14 +87,18 @@ export class WrapperRegistry {
    * whose version is older than the backend's (or unknown) gets it; the same version from another
    * build does not. At most once per connection per CLIENT_NOTICE_INTERVAL_MS.
    */
-  noticeFor(connection: number, now: number): string | null {
+  noticeFor(connection: number, now: number, answerChars = 0): string | null {
     const w = this.byConnection.get(connection);
     if (!w) return null;
     if (w.version !== null && !isOlderVersion(w.version, this.current)) return null;
     const last = this.lastNotice.get(connection);
     if (last !== undefined && now - last < CLIENT_NOTICE_INTERVAL_MS) return null;
+    const line = clientToolNotice('connectors', w.version, this.current);
+    // The wrapper cuts an answer at TOOL_RESULT_MAX_CHARS (capToolResult): a line that does not fit
+    // would be dropped or would turn a complete answer into a "cut" one. Keep the slot for later.
+    if (answerChars + line.length > TOOL_RESULT_MAX_CHARS) return null;
     this.lastNotice.set(connection, now);
-    return clientToolNotice('connectors', w.version, this.current);
+    return line;
   }
 
   status(): WrapperStatus {

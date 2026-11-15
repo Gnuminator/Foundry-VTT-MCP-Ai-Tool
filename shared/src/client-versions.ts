@@ -44,7 +44,11 @@ export function compareClientVersions(a: string, b: string): number {
   return 0;
 }
 
-/** True when `version` is older than the Pi's `current`. A missing version is never "behind". */
+/**
+ * True when `version` is older than the Pi's `current`. A missing version is never "behind" here
+ * (the player extension and the Obsidian plugin show "not reported"); a connector that never said
+ * hello is old by definition and is judged by the backend's wrapper registry instead.
+ */
 export function isClientBehind(version: string | null, current: string): boolean {
   return version !== null && compareClientVersions(version, current) < 0;
 }
@@ -104,7 +108,7 @@ export function clientNoticeText(
     };
   }
   return {
-    da: `Opdatering klar: din spiller-udvidelse er ${old}, bordet kører ${current}. Tryk på Hent min hjælper på Min karakter og installer filen igen.`,
+    da: `Opdatering klar: din spiller-udvidelse er ${old}, bordet kører ${current}. Tryk på "Download my helper" på siden My character og installer filen igen.`,
     en: `Update available: your player extension is ${old}, the table runs ${current}. Press Download my helper on My character and install the file again.`,
   };
 }
@@ -140,6 +144,6 @@ export interface ClientVersionsView {
   /** The version the Pi runs: what every piece is compared with. */
   current: string;
   downloads: { connectors: string | null; obsidian: string | null };
-  /** GM: every piece seen; a player: only their own. */
+  /** Every piece seen (GM only route; a player's own notice comes through `/api/me`). */
   seen: ClientSeen[];
 }

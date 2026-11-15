@@ -118,10 +118,10 @@ function ClientsSection({
             </tr>
           </thead>
           <tbody>
-            {clients.seen.map(s => (
+            {clients.seen.map((s, i) => (
               <tr
                 className={`ver-row st-${s.behind ? 'behind' : 'ok'}`}
-                key={`${s.piece}:${s.who}`}
+                key={`${s.piece}:${s.who}:${i}`}
               >
                 <th scope="row">{PIECE_NAME[s.piece]}</th>
                 <td>{s.who}</td>

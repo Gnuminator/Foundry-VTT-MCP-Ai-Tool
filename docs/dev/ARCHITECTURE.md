@@ -225,8 +225,9 @@ health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `
 switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
 `live_sweep` and the player connector's `list_player_tools` and `player_tool`; see `backend.ts`.
 
-A `call_tool` result always wraps the tool's output as MCP content: a single text block whose
-`text` is either a plain string or a JSON-serialized object. Errors are returned **in-band** as
+A `call_tool` result always wraps the tool's output as MCP content: the first text block holds the
+tool's output, either a plain string or a JSON-serialized object; the backend may append one
+outdated-version line as a later block (section 3a). Errors are returned **in-band** as
 a successful frame with `isError: true` and the message in the text block — not as a transport
 `error`. (A transport-level `error` is reserved for malformed requests / unknown methods.)
 Callers unwrap `content[0].text` and `JSON.parse` it opportunistically.

@@ -39,7 +39,6 @@ import {
   type DrawerDockName,
   type Moment,
 } from './components/Moments';
-import { ClientNotice } from './components/ClientNotice';
 import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
 import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
@@ -145,6 +144,11 @@ const loadCombatStrip = (): Promise<{
   default: typeof import('./components/CombatStrip').CombatStrip;
 }> => import('./components/CombatStrip').then(m => ({ default: m.CombatStrip }));
 const CombatStrip = lazy(loadCombatStrip);
+
+// The outdated-client banner pulls in the shared texts, so it stays out of the first load.
+const ClientNotice = lazy(() =>
+  import('./components/ClientNotice').then(m => ({ default: m.ClientNotice }))
+);
 
 // The opt-in screens (live screen A, the strip page, the GM page) share one chunk, picked by name.
 const OptInScreen = lazy(() =>
@@ -474,7 +478,9 @@ function Dashboard(): JSX.Element {
       <PlanLink />
       <RoleNotice />
       <VersionBanner />
-      <ClientNotice />
+      <Suspense fallback={null}>
+        <ClientNotice />
+      </Suspense>
       <MomentViews
         moment={moment}
         slotRefs={slotRefs}

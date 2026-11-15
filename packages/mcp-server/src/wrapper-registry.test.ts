@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { TOOL_RESULT_MAX_CHARS } from './tool-router.js';
 import { WrapperRegistry, isOlderVersion } from './wrapper-registry.js';
 
 describe('isOlderVersion', () => {
@@ -83,6 +84,14 @@ describe('WrapperRegistry', () => {
       expect(n).toContain('0.24.0');
       expect(n).toContain('0.25.0');
       expect(n).toContain('Update available');
+    });
+
+    it('keeps the slot when the line would not fit under the wrapper result cap', () => {
+      const reg = new WrapperRegistry('0.25.0');
+      reg.hello(1, { version: '0.24.0', sets: 'all' });
+      expect(reg.noticeFor(1, 1000, TOOL_RESULT_MAX_CHARS)).toBeNull();
+      expect(reg.noticeFor(1, 2000, TOOL_RESULT_MAX_CHARS - 1)).toBeNull();
+      expect(reg.noticeFor(1, 3000, 100)).toContain('Update available');
     });
 
     it('says nothing for an equal or newer wrapper', () => {

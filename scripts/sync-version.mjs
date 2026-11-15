@@ -44,7 +44,7 @@ const MODULE_JSON = 'packages/foundry-module/module.json';
 const PLUGIN_MANIFEST = 'packages/obsidian-plugin/manifest.json';
 const PLAYER_MANIFEST = 'tools/player-connector/manifest.json';
 const PLAYER_SERVER = 'tools/player-connector/server/index.js';
-const VERSION_TS ='shared/src/version.ts';
+const VERSION_TS = 'shared/src/version.ts';
 const NSIS = 'installer/nsis/foundry-mcp-server.nsi';
 
 const argv = process.argv.slice(2);

@@ -126,6 +126,7 @@ export const CHECKS = [
   npmRun('docs-ui', 'docs', 'docs:ui'),
   npmRun('docs-kit', 'docs', 'docs:kit:check'),
   nodeTest('docs-ui-test', 'docs', 'scripts/docs-ui-check.test.mjs'),
+  nodeTest('sync-version', 'scripts', 'scripts/sync-version.test.mjs'),
   nodeTest('hook-remote-guard', 'hooks', '.claude/hooks/guard-remote-commands.test.mjs'),
   nodeTest('hook-start-alerts', 'hooks', '.claude/hooks/start-alerts.test.mjs'),
   nodeTest('drift-check-test', 'gate', 'scripts/drift-check.test.mjs'),

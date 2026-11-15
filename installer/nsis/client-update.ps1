@@ -181,9 +181,21 @@ try {
 
     # Silent upgrade with the same tunnel and port; no token argument, so the installer keeps the stored one.
     $installerArgs = @('/S', "/TUNNEL=$tunnelHost", "/PORT=$port", "/D=$InstallDir")
+    # The installer writes its registry values before it sets up the tunnel, so keep a copy to put back.
+    $regKeys = @('HKCU\Software\FoundryMCPServer', 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer')
+    $regFiles = @()
+    for ($k = 0; $k -lt $regKeys.Count; $k++) {
+      $rf = Join-Path $work "reg$k.reg"
+      & reg.exe export $regKeys[$k] $rf /y 2>&1 | Out-Null
+      if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $rf)) { $regFiles += $rf }
+    }
     $p = Start-Process -FilePath $exe -ArgumentList $installerArgs -Wait -PassThru
-    if ($p.ExitCode -ne 0) {
+    # Exit 4 means installed, but the bridge did not answer through the tunnel just then (for example the
+    # table was restarting). The files are in place, so it counts as updated and is not rolled back.
+    if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 4) {
       Get-ChildItem -LiteralPath $backup -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $InstallDir -Recurse -Force }
+      foreach ($rf in $regFiles) { & reg.exe import $rf 2>&1 | Out-Null }
+      try { Start-ScheduledTask -TaskName 'Foundry AI Tool tunnel' -ErrorAction Stop } catch { }
       Set-Status 'failed' "the installer exited with code $($p.ExitCode); the old files were put back" $installed $pi
       exit 1
     }

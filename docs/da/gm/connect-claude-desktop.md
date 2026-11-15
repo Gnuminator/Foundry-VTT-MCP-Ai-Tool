@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 0a909e8c2cc8
+sourceHash: 6a37d0d96116
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -60,8 +60,8 @@ Claude Desktop ikke forbundet til serveren endnu; det er ikke et opdateringsprob
 Med Cloudflare-tunnelen kan klienten opdatere sig selv, men først når det er slået til på din PC.
 Når det er til, spørger den hver gang du logger ind i Windows, hvilken version bordet kører. Er din
 klient ældre, og Claude Desktop er lukket, henter den præcis den udgave fra GitHub, tjekker den mod
-udgavens `SHA256SUMS.txt` og installerer den lydløst med din nøgle bevaret. Går noget galt, ændres
-intet, og den gamle klient bliver. Er Claude Desktop åben, venter den til næste login. Resultatet er
+udgavens `SHA256SUMS.txt` og installerer den lydløst med din nøgle bevaret. Fejler hentningen
+eller tjekket, installeres intet; fejler selve installationen, lægger den de gamle filer tilbage. Er Claude Desktop åben, venter den til næste login. Resultatet er
 én linje i `%LOCALAPPDATA%\FoundryMCPServer\tunnel\update.log`; genstart Claude Desktop bagefter for
 at indlæse den nye klient. Beskeden "opdatering klar" på dashboardet forsvinder, når din klient
 svarer til bordet.

@@ -57,8 +57,8 @@ problem.
 With the Cloudflare tunnel the client can update itself, but only after it is switched on for your
 PC. Once on, each time you sign in to Windows it asks the table which version it runs. If your
 client is older and Claude Desktop is closed, it downloads that exact release from GitHub, checks it
-against the release's `SHA256SUMS.txt`, and installs it silently with your key kept. If anything
-fails, nothing changes and the old client stays. If Claude Desktop is open, it waits until the next
+against the release's `SHA256SUMS.txt`, and installs it silently with your key kept. If the download
+or the check fails, nothing is installed; if the installer itself fails, it puts the old files back. If Claude Desktop is open, it waits until the next
 sign-in. The result is one line in `%LOCALAPPDATA%\FoundryMCPServer\tunnel\update.log`; restart
 Claude Desktop afterwards to load the new client. The "update available" notice on the dashboard
 goes away once your client matches the table.

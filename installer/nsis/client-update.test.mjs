@@ -164,4 +164,12 @@ class P { static int Main(string[] a) {
     assert.equal(readFileSync(path.join(d.inst, 'sentinel.txt'), 'utf8'), 'old');
     assert.equal(readFileSync(path.join(d.state, 'token.dpapi'), 'utf8'), 'TOKEN-BYTES');
   });
+
+  test('installer exit 4 (bridge did not answer yet) counts as updated, not rolled back', async () => {
+    const d = fresh('exit4');
+    sumsLine = goodSums();
+    const r = await run(d, ['-ClaudeProcess', 'NoSuchProcessXyz'], { FAKE_EXIT: '4' });
+    assert.equal(r.code, 0, r.out);
+    assert.equal(status(d).result, 'updated');
+  });
 });

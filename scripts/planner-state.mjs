@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { itemRefs, parseBacklog } from './backlog-items.mjs';
+import { UNREADY_PR_FIELDS, unreadySection } from './merge-runner/unready.mjs';
 
 /** The repo gh must ask: never whatever remote the current folder happens to have. */
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -84,9 +85,8 @@ export function newestNote(notes, pr, head) {
   const forHead = head
     ? mine.find(
         n =>
-          [...n.text.matchAll(/^Head reviewed:\s*([0-9a-f]{40})/gim)]
-            .at(-1)?.[1]
-            .toLowerCase() === head.toLowerCase()
+          [...n.text.matchAll(/^Head reviewed:\s*([0-9a-f]{40})/gim)].at(-1)?.[1].toLowerCase() ===
+          head.toLowerCase()
       )
     : undefined;
   return forHead ?? mine[0];
@@ -265,14 +265,7 @@ export function plannerSections(o) {
       return null;
     }
   };
-  const prs = gh([
-    'pr',
-    'list',
-    '-R',
-    REPO,
-    '--json',
-    'number,title,headRefOid,isDraft,statusCheckRollup',
-  ]);
+  const prs = gh(['pr', 'list', '-R', REPO, '--json', UNREADY_PR_FIELDS]);
   const runs = gh([
     'run',
     'list',
@@ -299,6 +292,7 @@ export function plannerSections(o) {
         (prs ?? []).map((/** @type {any} */ p) => p.number)
       )
     ).join('\n'),
+    unreadySection(prs, o.backlog, path.resolve(o.devDir, '..', '..')),
     trainLine(read('Merge train.md') ?? ''),
     mainLine(runs?.[0] ?? null),
     ledgerLines(path.join(o.devDir, 'Lows'), o.today),

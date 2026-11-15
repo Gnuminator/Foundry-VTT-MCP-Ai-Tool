@@ -3,9 +3,9 @@
  *
  * Runs the MCP backend as a long-lived, self-supervised process that does NOT
  * depend on Claude Desktop spawning it. The co-GM dashboard connects to its
- * control channel identically to the Claude-Desktop-spawned backend — this just
+ * control channel identically to the Claude-Desktop-spawned backend, this just
  * removes the hard dependency so the dashboard works with Claude Desktop closed.
- * (See DETACH-PLAN.md Phase 6 — A.)
+ * (See DETACH-PLAN.md Phase 6: A.)
  *
  * Design note: the backend (`backend.ts`) self-starts on import and reads its
  * bind config from env at module-load. So this entrypoint must (1) parse CLI
@@ -46,13 +46,13 @@ async function main(): Promise<void> {
   const mode = controlOnly ? 'control-only (no Foundry link)' : 'full (control + Foundry link)';
 
   console.error('─'.repeat(64));
-  console.error(' foundry-mcp-bridge — standalone backend');
+  console.error(' foundry-mcp-bridge, standalone backend');
   console.error(`   control channel : ${host}:${port}`);
   console.error(`   mode            : ${mode}`);
   console.error('─'.repeat(64));
 
   // A light shutdown banner; backend.ts owns the actual lock release + exit.
-  const onSignal = (sig: string): void => console.error(`\n${sig} received — shutting down…`);
+  const onSignal = (sig: string): void => console.error(`\n${sig} received, shutting down…`);
   process.on('SIGINT', () => onSignal('SIGINT'));
   process.on('SIGTERM', () => onSignal('SIGTERM'));
 
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   } else {
     console.error(
       `✗ control channel did not come up on ${host}:${port} within 15s ` +
-        `(another backend may already hold this port, or startup failed — check the backend log)`
+        `(another backend may already hold this port, or startup failed; check the backend log)`
     );
   }
 }

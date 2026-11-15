@@ -102,7 +102,7 @@ describe('gzip in the real app', () => {
     );
   });
 
-  it('gzips the old stylesheets and keeps the /open page headers on open.css', async () => {
+  it('gzips the page stylesheets and keeps the /open page headers on open.css', async () => {
     const port = await start();
     const identity = await rawGet(port, '/open.css', { 'Accept-Encoding': 'identity' });
     const zipped = await rawGet(port, '/open.css', { 'Accept-Encoding': 'gzip' });
@@ -110,7 +110,7 @@ describe('gzip in the real app', () => {
       expect(identity.headers[name]).toBeTruthy();
       expect(zipped.headers[name]).toBe(identity.headers[name]);
     }
-    const big = await rawGet(port, '/styles.css', { 'Accept-Encoding': 'gzip' });
+    const big = await rawGet(port, '/me.css', { 'Accept-Encoding': 'gzip' });
     expect(big.headers['content-encoding']).toBe('gzip');
     expect(gunzipSync(big.body).length).toBeGreaterThan(big.body.length * 2);
   });

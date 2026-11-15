@@ -507,7 +507,7 @@ export class DnD5eAddFeatureTool {
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Feature:** ${result.item.name} (id: \`${result.item.id}\`)`,
       `**Type:** passive / descriptive (no activity)`,
-      `**Rules:** ${params.sourceRules}${params.sourceBook ? ` — ${params.sourceBook}` : ''}`,
+      `**Rules:** ${params.sourceRules}${params.sourceBook ? `, ${params.sourceBook}` : ''}`,
     ].join('\n');
     return {
       summary,
@@ -601,7 +601,7 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Feature:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Save:** ${saveDesc} — ${onSaveDesc}`,
+      `**Save:** ${saveDesc}, ${onSaveDesc}`,
       `**Damage:** ${damageDesc}${areaDesc}`,
       `**Activation:** ${params.activationType}`,
     ].join('\n');
@@ -673,14 +673,14 @@ export class DnD5eAddFeatureTool {
     const warnings: string[] = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
-        const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${part.type}", verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value: part.type });
       }
     }
     for (const prop of parsed.properties) {
       if (!ATTACK_PROPERTY_CANONICAL.has(prop)) {
-        const msg = `Unknown weapon property "${prop}" — verify it matches dnd5e system values`;
+        const msg = `Unknown weapon property "${prop}", verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value: prop });
       }
@@ -736,7 +736,7 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Item:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Attack:** ${params.attackType} — ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}`,
+      `**Attack:** ${params.attackType}, ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}`,
       `**Damage:** ${damageDesc}`,
       `**Range/Reach:** ${rangeDesc}`,
       `**Weapon class:** ${params.weaponClass}`,
@@ -818,7 +818,7 @@ export class DnD5eAddFeatureTool {
     const warnings: string[] = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
-        const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${part.type}", verify it matches dnd5e system values`;
         if (!warnings.includes(msg)) warnings.push(msg);
         this.logger.warn(msg, { value: part.type });
       }
@@ -881,9 +881,9 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Item:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Attack:** ${params.attackType} — ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}, ${rangeDesc}`,
+      `**Attack:** ${params.attackType}, ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}, ${rangeDesc}`,
       `**Attack damage:** ${attackDamageDesc}`,
-      `**Save:** DC ${params.saveDC} ${String(params.saveAbility).toUpperCase()} — ${saveDamageDesc} (${params.saveOnSave === 'half' ? 'half on save' : 'no damage on save'})`,
+      `**Save:** DC ${params.saveDC} ${String(params.saveAbility).toUpperCase()}, ${saveDamageDesc} (${params.saveOnSave === 'half' ? 'half on save' : 'no damage on save'})`,
     ].join('\n');
     const warningSection =
       warnings.length > 0
@@ -927,7 +927,7 @@ export class DnD5eAddFeatureTool {
     const warnings: string[] = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
-        const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${part.type}", verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value: part.type });
       }
@@ -979,7 +979,7 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Feature:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Damage:** ${damageDesc} (automatic — no attack roll, no saving throw)`,
+      `**Damage:** ${damageDesc} (automatic, no attack roll, no saving throw)`,
       `**Area:** ${areaDesc}, affects: ${params.affectsType || 'any'}`,
       `**Activation:** ${params.activationType}`,
     ].join('\n');
@@ -1065,10 +1065,10 @@ export class DnD5eAddFeatureTool {
           .filter(([, n]) => n > 0)
           .map(([k, n]) => `L${k.replace('spell', '')}: ${n}`)
           .join(', ') || 'no slots';
-    const summary = `✅ Spellcasting configured on "${result.actor.name}" — ${params.spellcastingClass} level ${params.spellcastingLevel}`;
+    const summary = `✅ Spellcasting configured on "${result.actor.name}", ${params.spellcastingClass} level ${params.spellcastingLevel}`;
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
-      `**Class:** ${params.spellcastingClass} — level ${params.spellcastingLevel}`,
+      `**Class:** ${params.spellcastingClass}, level ${params.spellcastingLevel}`,
       `**Ability:** ${String(params.effectiveAbility).toUpperCase()}`,
       `**Slots:** ${slotsDesc}`,
     ].join('\n');
@@ -1148,11 +1148,11 @@ export class DnD5eAddFeatureTool {
     if (failed.length > 0) parts.push(`${failed.length} failed`);
 
     const icon = failed.length > 0 ? '⚠️' : notFound.length > 0 ? '🔍' : '✅';
-    const summary = `${icon} Spells imported to "${result.actor.name}" — ${parts.length > 0 ? parts.join(', ') : 'nothing changed'}`;
+    const summary = `${icon} Spells imported to "${result.actor.name}", ${parts.length > 0 ? parts.join(', ') : 'nothing changed'}`;
 
     const lines: string[] = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
-      `**Requested:** ${total} — Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
+      `**Requested:** ${total}, Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
     ];
     if (added.length > 0) {
       lines.push('\n✅ **Added:**');
@@ -1160,7 +1160,7 @@ export class DnD5eAddFeatureTool {
     }
     if (skipped.length > 0) {
       lines.push('\n⏭️ **Skipped:**');
-      for (const s of skipped) lines.push(`  - ${s.name} — *${s.reason}*`);
+      for (const s of skipped) lines.push(`  - ${s.name}, *${s.reason}*`);
     }
     if (notFound.length > 0) {
       lines.push('\n❌ **Not found in compendium:**');
@@ -1168,7 +1168,7 @@ export class DnD5eAddFeatureTool {
     }
     if (failed.length > 0) {
       lines.push('\n⚠️ **Failed during import:**');
-      for (const f of failed) lines.push(`  - ${f.name} — *${f.error}*`);
+      for (const f of failed) lines.push(`  - ${f.name}, *${f.error}*`);
     }
     if (warnings.length > 0) {
       lines.push('\n⚠️ **Warnings:**');

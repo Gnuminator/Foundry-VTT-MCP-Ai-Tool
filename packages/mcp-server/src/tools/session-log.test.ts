@@ -3,8 +3,8 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { SessionLogTools } from './session-log.js';
 
 /**
- * SessionLogTools — thin dispatch layer over FoundryClient.query.
- * Validation is done via Zod (parse throws on bad input — there is no
+ * SessionLogTools: thin dispatch layer over FoundryClient.query.
+ * Validation is done via Zod (parse throws on bad input, there is no
  * "return a string" path here, unlike MovementTools.handleMeasureDistance).
  * Foundry-side failures ({success:false}) are surfaced as thrown Errors.
  */
@@ -93,7 +93,7 @@ describe('SessionLogTools.handleGetSessionLog', () => {
 
   it('throws (not returns string) when Zod validation fails, and does not call query', async () => {
     const { tools, query } = makeTools();
-    // limit must be an integer — pass a non-number to trigger Zod error
+    // limit must be an integer, pass a non-number to trigger Zod error
     await expect(tools.handleGetSessionLog({ limit: 'bad' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
@@ -142,7 +142,7 @@ describe('SessionLogTools.handleGetRecentEvents', () => {
 
   it('throws (not returns string) when Zod validation fails, and does not call query', async () => {
     const { tools, query } = makeTools();
-    // limit must be integer >= 1 — pass 0 to trigger Zod min error
+    // limit must be integer >= 1, pass 0 to trigger Zod min error
     await expect(tools.handleGetRecentEvents({ limit: 0 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });

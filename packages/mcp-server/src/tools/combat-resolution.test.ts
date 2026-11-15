@@ -3,7 +3,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { CombatResolutionTools } from './combat-resolution.js';
 
 /**
- * Tests for CombatResolutionTools — a thin, deterministic layer over
+ * Tests for CombatResolutionTools: a thin, deterministic layer over
  * FoundryClient.query. Pattern per handler:
  *   validate args (zod) -> dispatch the matching `foundry-mcp-bridge.*` method
  *   with the PARSED args -> on Foundry `{ success: false }` throw

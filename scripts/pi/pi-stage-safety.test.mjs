@@ -178,6 +178,63 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(r.out, /PASSED/);
   });
 
+  // The race: the Assistant GM browser is running and Foundry already counts it, but its "joined world" line is not in
+  // the journal yet. Only that shape is retried; a player beyond the GM browsers refuses on the first reading.
+  // The counter file lives in a folder the test removes; sleep is stubbed, so the retries are instant.
+  const raceActive = 'foundry.service foundry-ai-tool-gm-browser.service';
+  const counted = (body, users, env = {}) => {
+    const c = join(tmp(), 'reads');
+    writeFileSync(c, '');
+    const r = run(
+      `c="${posix(c)}"; users_online() { echo x >>"$c"; printf '%s' "${users}"; }
+${body}`,
+      { active: raceActive },
+      { INVOCATION: 'run-2', JOURNAL_ID: 'run-2', ...env }
+    );
+    return { ...r, reads: readFileSync(c, 'utf8').split('\n').filter(Boolean).length };
+  };
+
+  test('a GM browser whose joined line shows up late passes after a retry (the race)', () => {
+    // The journal gets the joined line on the third look; before that the browser is active but not joined.
+    const r = counted(
+      'j=$(mktemp); journalctl() { echo x >>"$j"; if [ "$(wc -l <"$j")" -ge 3 ]; then echo "$JOINED"; fi; }\n' +
+        'require_quiet "the test"; echo PASSED',
+      1,
+      { JOINED: joinedLine }
+    );
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /PASSED/);
+    assert.ok(r.reads > 1 && r.reads <= 6, `reads=${r.reads}`);
+  });
+
+  test('a GM browser that never joins still refuses after the retries', () => {
+    const r = counted('require_quiet "the test"; echo PASSED', 1);
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /1 player\(s\) are online/);
+    assert.equal(r.reads, 6);
+  });
+
+  test('a real player beyond the GM browsers refuses on the first reading', () => {
+    // 2 users, the GM browser is active but not joined: the excess (2) is more than the one browser that could explain it.
+    const r = counted('require_quiet "the test"; echo PASSED', 2);
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /2 player\(s\) are online/);
+    assert.equal(r.reads, 1);
+  });
+
+  test('an unreadable count refuses at once, without retries', () => {
+    const r = counted('require_quiet "the test"; echo PASSED', '?');
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /cannot read who is online/);
+    assert.equal(r.reads, 1);
+  });
+
+  test('FORCE=1 on the retry path still goes on after the retries', () => {
+    const r = counted('require_quiet "the test"; echo PASSED', 1, { FORCE: '1' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /PASSED/);
+  });
+
   test('players online refuse, and the message names the count', () => {
     const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 2 });
     assert.notEqual(r.status, 0);

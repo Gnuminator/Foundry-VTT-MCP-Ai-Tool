@@ -43,7 +43,7 @@ export class CharacterTools {
   /**
    * Resolve the active SystemAdapter, if any. Looks up by the raw
    * Foundry system id first (so adapters whose id isn't part of the
-   * narrow `GameSystem` enum — e.g. 'dsa5', 'cosmere-rpg' — still
+   * narrow `GameSystem` enum: e.g. 'dsa5', 'cosmere-rpg', still
    * resolve), then falls back to the normalised GameSystem.
    */
   private async getAdapter(): Promise<SystemAdapter | null> {

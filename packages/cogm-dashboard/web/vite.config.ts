@@ -1,6 +1,6 @@
 // The React dashboard (D-109): built into dist/web and served by the dashboard at / (the page), with its files under /next/ (Vite's base).
-// The page links the shared stylesheets, themes, fonts and usage.js from public/ at run time
-// (one copy of The Veil), so the build leaves
+// The page bundles the old stylesheets and themes (src/styles/index.css); fonts, usage.js and favicons come from public/ at run time
+// (the themes are one file, also linked by the player pages), so the build leaves
 // those URLs alone.
 //
 //   npm run build -w @gnuminator/cogm-dashboard     tsc, the help pages, then this build
@@ -22,8 +22,6 @@ const target = process.env.COGM_DEV_TARGET ?? 'http://127.0.0.1:3100';
 // Served by the dashboard from public/; the React page reuses them as they are.
 const SERVER_PATHS = [
   '/api',
-  '/styles.css',
-  '/moments.css',
   '/themes',
   '/fonts',
   '/usage.js',
@@ -42,6 +40,17 @@ export default defineConfig({
   build: {
     outDir: fileURLToPath(new URL('../dist/web', import.meta.url)),
     emptyOutDir: true,
+    // One stylesheet in import order: main.tsx imports styles/index.css first, so the old rules
+    // stay ahead of every CSS Module as before (split CSS puts a shared chunk's modules first).
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        // The old stylesheets share a chunk with the ui/ CSS Modules, where main.tsx's import
+        // order (styles first) decides: a shared chunk's CSS otherwise goes ahead of the entry's.
+        manualChunks: id =>
+          id.includes('/web/src/styles/') || id.includes('/web/src/ui/') ? 'ui' : undefined,
+      },
+    },
     // Kept on purpose: the repo is public, and readable stack traces in a GM's browser are worth
     // the few hundred KB on Docker and the Pi.
     sourcemap: true,

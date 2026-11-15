@@ -1,13 +1,13 @@
 /**
- * Tests for the D&D 5e filters module — pure functions, no FoundryClient, no bridge.
+ * Tests for the D&D 5e filters module, pure functions, no FoundryClient, no bridge.
  *
  * Exports under test:
- *   DnD5eCreatureTypes  — const array of creature-type strings
- *   CreatureSizes       — const array of size strings
- *   DnD5eFiltersSchema  — zod schema (no coercions / no defaults in the schema itself)
- *   matchesDnD5eFilters — core predicate (reads creature.systemData.*)
- *   describeDnD5eFilters — human-readable summary
- *   isValidDnD5eCreatureType — simple inclusion check
+ *   DnD5eCreatureTypes: const array of creature-type strings
+ *   CreatureSizes      , const array of size strings
+ *   DnD5eFiltersSchema: zod schema (no coercions / no defaults in the schema itself)
+ *   matchesDnD5eFilters: core predicate (reads creature.systemData.*)
+ *   describeDnD5eFilters: human-readable summary
+ *   isValidDnD5eCreatureType: simple inclusion check
  */
 
 import { describe, expect, it } from 'vitest';
@@ -125,10 +125,10 @@ describe('normalizeDnD5eSizeKey', () => {
 });
 
 // ---------------------------------------------------------------------------
-// DnD5eFiltersSchema — valid parse
+// DnD5eFiltersSchema: valid parse
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFiltersSchema — valid inputs', () => {
+describe('DnD5eFiltersSchema: valid inputs', () => {
   it('accepts an empty object (all fields optional)', () => {
     const result = DnD5eFiltersSchema.safeParse({});
     expect(result.success).toBe(true);
@@ -219,10 +219,10 @@ describe('DnD5eFiltersSchema — valid inputs', () => {
 });
 
 // ---------------------------------------------------------------------------
-// DnD5eFiltersSchema — rejection of invalid inputs
+// DnD5eFiltersSchema: rejection of invalid inputs
 // ---------------------------------------------------------------------------
 
-describe('DnD5eFiltersSchema — invalid inputs', () => {
+describe('DnD5eFiltersSchema: invalid inputs', () => {
   it('rejects an invalid creatureType string', () => {
     const result = DnD5eFiltersSchema.safeParse({ creatureType: 'dragon-turtle' });
     expect(result.success).toBe(false);
@@ -260,10 +260,10 @@ describe('DnD5eFiltersSchema — invalid inputs', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — empty filters
+// matchesDnD5eFilters: empty filters
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — empty filters', () => {
+describe('matchesDnD5eFilters: empty filters', () => {
   it('matches any creature when filters are empty', () => {
     const creature = makeCreature({ challengeRating: 10, creatureType: 'dragon' });
     expect(matchesDnD5eFilters(creature, {})).toBe(true);
@@ -275,10 +275,10 @@ describe('matchesDnD5eFilters — empty filters', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — challengeRating (exact number)
+// matchesDnD5eFilters: challengeRating (exact number)
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — challengeRating exact', () => {
+describe('matchesDnD5eFilters: challengeRating exact', () => {
   it('matches when CR equals the exact filter value', () => {
     const creature = makeCreature({ challengeRating: 5 });
     expect(matchesDnD5eFilters(creature, { challengeRating: 5 })).toBe(true);
@@ -306,10 +306,10 @@ describe('matchesDnD5eFilters — challengeRating exact', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — challengeRating (range {min, max})
+// matchesDnD5eFilters: challengeRating (range {min, max})
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — challengeRating range', () => {
+describe('matchesDnD5eFilters: challengeRating range', () => {
   it('matches when CR is within [min, max]', () => {
     const creature = makeCreature({ challengeRating: 8 });
     expect(matchesDnD5eFilters(creature, { challengeRating: { min: 5, max: 10 } })).toBe(true);
@@ -335,12 +335,12 @@ describe('matchesDnD5eFilters — challengeRating range', () => {
     expect(matchesDnD5eFilters(creature, { challengeRating: { min: 5, max: 10 } })).toBe(false);
   });
 
-  it('defaults min to 0 when omitted — CR 0 still matches', () => {
+  it('defaults min to 0 when omitted: CR 0 still matches', () => {
     const creature = makeCreature({ challengeRating: 0 });
     expect(matchesDnD5eFilters(creature, { challengeRating: { max: 5 } })).toBe(true);
   });
 
-  it('defaults max to 30 when omitted — CR 30 still matches', () => {
+  it('defaults max to 30 when omitted: CR 30 still matches', () => {
     const creature = makeCreature({ challengeRating: 30 });
     expect(matchesDnD5eFilters(creature, { challengeRating: { min: 1 } })).toBe(true);
   });
@@ -357,10 +357,10 @@ describe('matchesDnD5eFilters — challengeRating range', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — creatureType
+// matchesDnD5eFilters: creatureType
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — creatureType', () => {
+describe('matchesDnD5eFilters: creatureType', () => {
   it('matches when creatureType matches exactly (case-insensitive in source)', () => {
     const creature = makeCreature({ creatureType: 'dragon' });
     expect(matchesDnD5eFilters(creature, { creatureType: 'dragon' })).toBe(true);
@@ -384,10 +384,10 @@ describe('matchesDnD5eFilters — creatureType', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — size
+// matchesDnD5eFilters: size
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — size', () => {
+describe('matchesDnD5eFilters: size', () => {
   it('matches when size equals the filter (case-insensitive)', () => {
     const creature = makeCreature({ size: 'large' });
     expect(matchesDnD5eFilters(creature, { size: 'large' })).toBe(true);
@@ -444,10 +444,10 @@ describe('matchesDnD5eFilters — size', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — alignment
+// matchesDnD5eFilters: alignment
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — alignment', () => {
+describe('matchesDnD5eFilters: alignment', () => {
   it('matches when alignment contains the filter string (substring, case-insensitive)', () => {
     const creature = makeCreature({ alignment: 'chaotic evil' });
     expect(matchesDnD5eFilters(creature, { alignment: 'evil' })).toBe(true);
@@ -475,10 +475,10 @@ describe('matchesDnD5eFilters — alignment', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — hasLegendaryActions
+// matchesDnD5eFilters: hasLegendaryActions
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — hasLegendaryActions', () => {
+describe('matchesDnD5eFilters: hasLegendaryActions', () => {
   it('matches when creature has legendary actions and filter is true', () => {
     const creature = makeCreature({ hasLegendaryActions: true });
     expect(matchesDnD5eFilters(creature, { hasLegendaryActions: true })).toBe(true);
@@ -499,22 +499,22 @@ describe('matchesDnD5eFilters — hasLegendaryActions', () => {
     expect(matchesDnD5eFilters(creature, { hasLegendaryActions: true })).toBe(false);
   });
 
-  it('defaults to false when creature has no hasLegendaryActions field — matches filter false', () => {
+  it('defaults to false when creature has no hasLegendaryActions field: matches filter false', () => {
     const creature = makeCreature(); // field absent → code defaults to false
     expect(matchesDnD5eFilters(creature, { hasLegendaryActions: false })).toBe(true);
   });
 
-  it('defaults to false when field absent — does not match filter true', () => {
+  it('defaults to false when field absent: does not match filter true', () => {
     const creature = makeCreature();
     expect(matchesDnD5eFilters(creature, { hasLegendaryActions: true })).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — spellcaster (reads systemData.hasSpellcasting)
+// matchesDnD5eFilters: spellcaster (reads systemData.hasSpellcasting)
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — spellcaster', () => {
+describe('matchesDnD5eFilters: spellcaster', () => {
   it('matches when creature has spellcasting and filter is true', () => {
     const creature = makeCreature({ hasSpellcasting: true });
     expect(matchesDnD5eFilters(creature, { spellcaster: true })).toBe(true);
@@ -535,22 +535,22 @@ describe('matchesDnD5eFilters — spellcaster', () => {
     expect(matchesDnD5eFilters(creature, { spellcaster: true })).toBe(false);
   });
 
-  it('defaults to false when hasSpellcasting field is absent — matches filter false', () => {
+  it('defaults to false when hasSpellcasting field is absent: matches filter false', () => {
     const creature = makeCreature();
     expect(matchesDnD5eFilters(creature, { spellcaster: false })).toBe(true);
   });
 
-  it('defaults to false when field absent — does not match filter true', () => {
+  it('defaults to false when field absent: does not match filter true', () => {
     const creature = makeCreature();
     expect(matchesDnD5eFilters(creature, { spellcaster: true })).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// matchesDnD5eFilters — combined filters (AND semantics)
+// matchesDnD5eFilters: combined filters (AND semantics)
 // ---------------------------------------------------------------------------
 
-describe('matchesDnD5eFilters — combined filters', () => {
+describe('matchesDnD5eFilters: combined filters', () => {
   const fullCreature = makeCreature({
     challengeRating: 8,
     creatureType: 'fiend',
@@ -605,7 +605,7 @@ describe('matchesDnD5eFilters — combined filters', () => {
       matchesDnD5eFilters(fullCreature, {
         challengeRating: 8,
         creatureType: 'fiend',
-        spellcaster: false, // mismatch — creature has spellcasting
+        spellcaster: false, // mismatch, creature has spellcasting
       })
     ).toBe(false);
   });

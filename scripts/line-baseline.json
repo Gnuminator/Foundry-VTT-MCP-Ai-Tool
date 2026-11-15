@@ -2,7 +2,7 @@
   "limit": 1000,
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1020,
-    "packages/cogm-dashboard/public/styles.css": 2400,
+    "packages/cogm-dashboard/web/src/styles/styles.css": 2400,
     "packages/foundry-module/src/data-access/actor-builder.ts": 2274,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1640,
@@ -25,6 +25,7 @@
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1210,
     "scripts/live-write-sweep.mjs": 1690,
+    "scripts/merge-runner.mjs": 1050,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
     "scripts/test-kit/lib/fake/origins.mjs": 1057,
     "scripts/test-kit/lib/features.mjs": 1387,
@@ -33,5 +34,12 @@
     "scripts/test-kit/lib/origins.mjs": 1038,
     "scripts/test-kit/lib/spells-deep.mjs": 1020
   },
-  "exceptions": []
+  "exceptions": [
+    {
+      "file": "scripts/merge-runner.mjs",
+      "lines": 1050,
+      "reason": "5xx retry on merge adds 56 lines to a file that was 994; a split of the runner is its own item",
+      "pr": "1026"
+    }
+  ]
 }

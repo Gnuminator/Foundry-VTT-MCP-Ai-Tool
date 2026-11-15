@@ -8,6 +8,10 @@
     { "name": "Projects", "reason": "Claude app menu" },
     { "name": "Installed plugins", "reason": "Obsidian Community plugins settings heading" },
     { "name": "Turn on community plugins", "reason": "Obsidian Community plugins settings button" },
+    {
+      "name": "Add ignore patterns",
+      "reason": "Syncthing Add Folder window, Ignore Patterns tab checkbox"
+    },
     { "name": "Enable NAT traversal", "reason": "Syncthing Connections setting" },
     { "name": "Ignore Patterns", "reason": "Syncthing folder dialog tab" },
     { "name": "Browse vault in Restricted Mode", "reason": "Obsidian trust prompt button" },

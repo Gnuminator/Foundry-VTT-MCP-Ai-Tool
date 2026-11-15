@@ -43,7 +43,7 @@ RequestExecutionLevel user
 ; Version information
 ; Strip 'v' prefix and any suffix (like '-pre', '-alpha', etc.) from VERSION
 !ifndef VERSION
-  !define VERSION "v0.29.0"
+  !define VERSION "v0.29.1"
 !endif
 
 ; Process VERSION: remove 'v' prefix and everything after '-'
@@ -448,6 +448,7 @@ Function SetupTunnel
       Pop $1
       DetailPrint "$1"
       Delete "$INSTDIR\tunnel-client.ps1"
+      Delete "$INSTDIR\client-update.ps1"
       Delete "$INSTDIR\cloudflared.exe"
     tunnel_none:
     Return
@@ -463,6 +464,7 @@ Function SetupTunnel
   SetOutPath $INSTDIR
   File "cloudflared.exe"
   File "tunnel-client.ps1"
+  File "client-update.ps1"
 
   StrCpy $2 '-Action Install -TunnelHost "$TunnelHost" -Port "$BridgePort" -CloudflaredPath "$INSTDIR\cloudflared.exe"'
   ${If} ${Silent}
@@ -562,7 +564,7 @@ Section "Foundry AI Tool Client" SecMain
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "UninstallString" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayIcon" "$INSTDIR\icon.ico"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "Publisher" "Foundry MCP Bridge"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayVersion" "0.29.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayVersion" "0.29.1"
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "NoRepair" 1
 
@@ -623,6 +625,7 @@ Section "Uninstall"
   DetailPrint "Removing files..."
   Delete "$INSTDIR\cloudflared.exe"
   Delete "$INSTDIR\tunnel-client.ps1"
+  Delete "$INSTDIR\client-update.ps1"
   Delete "$INSTDIR\node.exe"
   Delete "$INSTDIR\node-LICENSE.txt"
   RMDir /r "$INSTDIR\foundry-mcp-client"

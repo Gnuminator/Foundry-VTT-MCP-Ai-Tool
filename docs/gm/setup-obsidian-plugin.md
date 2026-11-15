@@ -55,8 +55,16 @@ them.
 
 ## Done when it looks like this
 
-Open an NPC note and click **Open in Foundry** in the status bar at the bottom. The sheet opens on
-your Foundry screen. (The first time, a small dashboard page may ask you to click **Open**.)
+Open an NPC note, then use any one of these. The sheet opens on your Foundry screen. (The first
+time, a small dashboard page may ask you to click **Open**.)
+
+- Right-click the note in the file list, then click **Open in Foundry**.
+- Or press Ctrl+P, type **Open in Foundry** and press Enter.
+- Or click the small text at the bottom right of the Obsidian window. It reads **Foundry: npc** (the
+  note's type), or **Players: ...** on a journal page. It only shows while a Foundry note is open.
+
+The **Open in Foundry** link inside the note text uses the server's address, which may not work on
+your PC yet. If it does nothing, use one of the three ways above.
 
 ## If it does not work
 

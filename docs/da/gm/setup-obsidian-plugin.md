@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: 5a4ec6032503
+sourceHash: e34b6efddb11
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -56,8 +56,16 @@ De tre værdier bliver i Obsidian på din pc. De ligger ikke i vaulten, så Sync
 
 ## Færdig, når det ser sådan ud
 
-Åbn en NPC-note og klik på **Open in Foundry** i statuslinjen nederst. Arket åbner på din Foundry-skærm.
-(Første gang kan en lille dashboard-side bede dig klikke **Open**.)
+Åbn en NPC-note og brug så en af disse. Arket åbner på din Foundry-skærm. (Første gang kan en lille
+dashboard-side bede dig klikke **Open**.)
+
+- Højreklik på noten i fillisten og klik på **Open in Foundry**.
+- Eller tryk Ctrl+P, skriv **Open in Foundry** og tryk Enter.
+- Eller klik på den lille tekst nederst til højre i Obsidian-vinduet. Der står **Foundry: npc**
+  (notens type), eller **Players: ...** på en journalside. Den vises kun, mens en Foundry-note er åben.
+
+Linket **Open in Foundry** inde i selve notens tekst bruger serverens adresse, og den virker måske ikke
+på din pc endnu. Hvis det ikke gør noget, så brug en af de tre måder ovenfor.
 
 ## Hvis det ikke virker
 

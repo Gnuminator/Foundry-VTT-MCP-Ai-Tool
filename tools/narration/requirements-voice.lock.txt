@@ -1,12 +1,13 @@
 # Frozen from the working voice venv (Python 3.12) by pip freeze, minus dev tooling (pre-commit and its chain).
 # Install: pip install --no-deps -r requirements-voice.lock.txt --extra-index-url https://download.pytorch.org/whl/cu128
-# (--no-deps: chatterbox-tts pins torch 2.6, which has no Blackwell support; everything it needs is listed here.)
+# setuptools stays below 82: 82 and later drop pkg_resources, and then perth (the chatterbox watermarker) fails to load.
+# (--no-deps:chatterbox-tts pins torch 2.6, which has no Blackwell support; everything it needs is listed here.)
 annotated-doc==0.0.5
 antlr4-python3-runtime==4.9.3
 anyio==4.15.1
 audioread==3.1.0
 catalogue==2.0.10
-certifi==2026.7.22
+certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
 chatterbox-tts==0.1.7
@@ -16,9 +17,9 @@ colorama==0.4.6
 conformer==0.3.2
 decorator==5.3.1
 Deprecated==3.0.0
-diffusers==0.29.0
+diffusers==0.38.0
 einops==0.8.2
-filelock==3.32.3
+filelock==4.2.1
 fsspec==2026.7.0
 h11==0.16.0
 hf-xet==1.6.0
@@ -46,7 +47,7 @@ numpy==1.26.4
 omegaconf==2.3.1
 onnx==1.23.1
 packaging==26.3
-pillow==12.3.0
+pillow==13.0.0
 platformdirs==4.12.2
 pooch==1.9.0
 protobuf==7.36.2
@@ -60,10 +61,10 @@ requests==2.34.2
 resemble-perth==1.0.1
 rich==15.0.0
 s3tokenizer==0.3.0
-safetensors==0.5.3
+safetensors==0.8.0
 scikit-learn==1.9.1
 scipy==1.17.1
-setuptools==78.1.0
+setuptools==81.0.0
 shellingham==1.5.4
 soundfile==0.14.0
 soxr==1.1.0
@@ -75,7 +76,7 @@ tokenizers==0.22.2
 torch==2.11.0+cu128
 torchaudio==2.11.0+cu128
 tqdm==4.70.1
-transformers==5.2.0
+transformers==5.10.0
 typer==0.27.2
 typer-slim==0.24.0
 typing_extensions==4.16.0

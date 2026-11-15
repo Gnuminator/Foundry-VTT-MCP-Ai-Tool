@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## v0.29.1 (released 2026-11-15): patch for the Pi image build, security alerts and the Actor Studio session 0 guards
+
+**Wire contracts:** unchanged. No tool, bridge handler, module id or socket channel changed.
+
+### Fixes
+
+- **Security alerts, npm side:** lockfile bumps for hono, @hono/node-server, undici, fast-uri,
+  ip-address, body-parser, qs, esbuild, markdown-it, sanitize-html, smol-toml, moment and the wiki's
+  astro. The zod 3 memory alert stays open until a separate zod 4 move. The test mock's
+  `setProperty` now refuses `__proto__` paths.
+- **Security alerts, narration voice lock:** pillow 13, transformers 5.10, diffusers 0.38, filelock 4.2.1,
+  certifi, safetensors 0.8 and setuptools 81 in `requirements-voice.lock.txt`. Checked with a fresh
+  environment, the narration tests and a real GPU render of the welcome script.
+
+### Orange Pi
+
+- **Stage 23 and the Pi images build on a real Pi:** the first real run (2026-11-15) failed twice. On Debian 13 `docker.io` only recommends `docker-cli`, so there was no `docker` command; stage 23 now installs `docker-cli` too. The image build then failed with "Cannot find module '@gnuminator/shared'": the Pi checkout holds a `tsbuildinfo` from the host build while `dist` is left out of the image context, so TypeScript called `shared` up to date and wrote nothing. `deploy/pi/Dockerfile.dockerignore` now leaves `tsbuildinfo` files out and the Dockerfile fails early if `shared/dist` is missing. The container test now models Debian 13's split package, so it catches a missing `docker-cli`.
+- **Stage 13 pinned to Actor Studio `2.10.5-aitool.13`:** adds the subclass guard (a subclass picked for a queued level-up is remembered, with a banner on the sheet to add it), the choice guards (a question before Next or Complete with an open counter, a warning when the character name is the player name, one box at a time) and the level-up hit point fixes. The stage's downgrade-guard tests now use `aitool.14` as the "newer installed build".
+
+### Module
+
+- **Actor Studio 2.10.5-aitool.13 (fork):** three guards for session 0. Create Character now makes
+  the new character the player's own, so the User Configuration step is no longer needed. A level-up
+  that is closed before the subclass is added leaves a bar on the sheet ("Add the subclass"), instead
+  of a silent level 3 without features. Next and Complete ask before they skip an open **Chosen x of
+  y** or **Select N more** choice (with a Continue anyway button), Create Character asks when the name
+  is still the player's name, and skills the background already gives are marked in the species skill
+  step. The player guide is updated to match; stage 13 pins the new build in a follow-up once the
+  .13 release exists (items studio-quiet-start, studio-subclass-guard, studio-choice-guards).
+
 ## v0.29.0 (released 2026-11-15): sign-in by email through a web address, one shared port table, actor pictures, Pi and CI gate fixes
 
 **Wire contracts:** additive only. The module id, socket channel (`foundry-mcp-bridge`) and settings namespace are unchanged, and no existing tool or bridge handler was renamed. New: the bridge handlers `uploadActorImage` and `planPcCreation` (both in the write gate), new tools such as `plan-actor-image` (the bridge now serves 107 tools in six sets), and for the remote player connector a new auth path: `/mcp/player` on the dashboard also accepts the Cloudflare Access app token of the new "Player remote" application (checked against its own `appAudience`, the verified email mapped to one non-GM Foundry user through `emailPlayers`; a GM or unlisted email gets a bare 403). The player config file gains `appAudience`, `emailPlayers` and `remoteEndpoint`; the existing service-token path and the five read-only player tools are unchanged.

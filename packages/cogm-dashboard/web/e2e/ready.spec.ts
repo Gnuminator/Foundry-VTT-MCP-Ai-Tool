@@ -4,7 +4,7 @@
 // session open the page shows Before, where Pre-flight (and Ready inside it) sits in the page.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import type { ApiBodies } from '../../src/api-bodies';
+import type { ApiBodies, SessionSwitchesPostBody } from '../../src/api-bodies';
 import type { SessionSwitches } from '../../src/session-switches';
 import { GM_TOKEN, fakeCommonRoutes, fakeStream, preflightBody, toast } from './support';
 
@@ -32,7 +32,7 @@ const READY_ROW: ApiBodies['/api/preflight']['checks'][number] = {
 
 interface FakeAnswer {
   status?: number;
-  json: unknown;
+  json: SessionSwitchesPostBody;
 }
 
 interface Fakes {
@@ -281,7 +281,7 @@ test('while a change is out both buttons wait, and a double click sends once', a
         switches: switches(ON, { changed: ['writes', 'handouts'] }),
         gmActionsEnabled: true,
         gmActionsChanged: false,
-      },
+      } satisfies SessionSwitchesPostBody,
     });
   });
   const block = await openReady(page);

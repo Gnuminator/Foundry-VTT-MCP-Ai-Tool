@@ -15,6 +15,7 @@ export interface FeatureRow {
   id: string;
   name: string;
   enabled: boolean;
+  autoApply?: boolean;
 }
 
 export interface FeaturesBody {
@@ -28,6 +29,15 @@ export interface SessionSwitchesBody {
   switches: SessionSwitches | null;
   gmActionsEnabled: boolean;
   error: string | null;
+}
+
+/** The POST /api/session/switches answer (200 with ok, 502 with ok false and an error). */
+export interface SessionSwitchesPostBody {
+  ok?: boolean;
+  switches?: SessionSwitches | null;
+  error?: string;
+  gmActionsEnabled?: boolean;
+  gmActionsChanged?: boolean;
 }
 
 /** GET /api/theme (and the stream's `theme` event). */

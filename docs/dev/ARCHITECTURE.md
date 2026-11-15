@@ -712,7 +712,7 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
   Foundry tab is just a browser tab.
 - **Naming.** "co-GM" in prose (docs, UI text, comments); `cogm` in ids, paths, packages and
   environment variables (`packages/cogm-dashboard`, `COGM_*`); `CoGM` only inside a camelCase
-  identifier. "Legacy" in the dashboard server means one thing, the retired `/legacy/` page
+  identifier and in the `X-CoGM-Token` request header. "Legacy" in the dashboard server means one thing, the retired `/legacy/` page
   address that redirects to `/`; the no-split mode is called single-user mode.
 
 ---

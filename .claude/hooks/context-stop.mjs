@@ -261,7 +261,7 @@ export function run(input, env = process.env) {
 }
 
 function main() {
-  let input = null;
+  let input;
   try {
     input = JSON.parse(readFileSync(0, 'utf8'));
   } catch {

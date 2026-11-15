@@ -17,7 +17,7 @@
     "start": "node dist/cli.js run",
     "convert": "node dist/cli.js convert",
     "test": "vitest run",
-    "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit --customConditions development",
     "lint": "eslint src"
   },
   "dependencies": {

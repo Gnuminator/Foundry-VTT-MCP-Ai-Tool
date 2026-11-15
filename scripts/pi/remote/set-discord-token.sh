@@ -64,8 +64,5 @@ else
 fi
 # The game-night watch (stage 29) reads the same token from this file: restart it (also when it stopped on exit 2 for the
 # old token) so a token change reaches it. It holds no recording and no player, so no quiet check.
-watch_unit=foundry-ai-tool-gamenight-watch.service
-if have_systemd && [ -f "/etc/systemd/system/$watch_unit" ]; then
-  systemctl restart "$watch_unit" && ok "restarted $watch_unit for the new token" || warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
-fi
+restart_gamenight_watch "the new token"
 say "done: the bot answers /record in Discord"

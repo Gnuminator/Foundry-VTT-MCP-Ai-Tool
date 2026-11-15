@@ -42,7 +42,7 @@ afterEach(() => {
 // listJournals
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — listJournals', () => {
+describe('FoundryDataAccess: listJournals', () => {
   it('returns an empty array when there are no journals', async () => {
     expect(await da.listJournals()).toEqual([]);
   });
@@ -127,7 +127,7 @@ describe('FoundryDataAccess — listJournals', () => {
 // getJournalContent
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getJournalContent', () => {
+describe('FoundryDataAccess: getJournalContent', () => {
   it('returns null for an unknown journal id', async () => {
     expect(await da.getJournalContent('no-such-journal')).toBeNull();
   });
@@ -271,7 +271,7 @@ describe('FoundryDataAccess — getJournalContent', () => {
 // getJournalPageContent
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getJournalPageContent', () => {
+describe('FoundryDataAccess: getJournalPageContent', () => {
   it('returns null when the journal does not exist', async () => {
     expect(await da.getJournalPageContent('no-journal', 'p1')).toBeNull();
   });

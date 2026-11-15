@@ -87,7 +87,8 @@ class FakeClaude:
     ) -> dict[str, Any]:
         n = len(self.calls) + 1
         self.efforts.append(effort)
-        kind = "scene" if "lines" in schema["properties"] else "session"
+        props = schema["properties"]
+        kind = "scene" if "lines" in props else "depth" if "beats" in props else "session"
         self.calls.append((kind, prompt))
         if self.fail.get(n) == "limit":
             raise UsageLimitError("Claude usage limit reached")
@@ -97,6 +98,13 @@ class FakeClaude:
             raise ClaudeError("boom")
         if kind == "session":
             return dict(SESSION_ANSWER)
+        if kind == "depth":
+            ids = re.findall(r"^(u\d{6}) \[", prompt, re.M)
+            return {
+                "beats": [
+                    {"heading": "Første del", "text": "De går videre.", "cites": [ids[0], "u999999"]}
+                ]
+            }
         answer = scene_answer(prompt)
         if n in self.bad_lines:
             answer["lines"] = answer["lines"][:-1]  # drop a line: fails the hard check

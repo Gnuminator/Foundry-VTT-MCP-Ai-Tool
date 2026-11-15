@@ -9,7 +9,7 @@ import { LIVE_PLAN_QUERY, LIVE_PLAY_FEATURE_ID, planLiveChange } from './live-pl
 import {
   LIVE_PLAN_QUERY as SHARED_QUERY,
   LIVE_PLAY_FEATURE_ID as SHARED_FEATURE,
-} from '../../../shared/src/live-play.js';
+} from '@gnuminator/shared';
 import {
   createTestWorld,
   makeEffect,

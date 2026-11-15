@@ -33,6 +33,7 @@
 # Tests only: OPTIONS_FILE, WORLDS_DIR and FOUNDRY_URL point at stand-ins; KIT_STATE_FILE at the kit session's state file.
 
 require_root
+refuse_when_cut_over "switch-world"
 
 dry="${DRY_RUN:-0}"
 world="${WORLD:-}"

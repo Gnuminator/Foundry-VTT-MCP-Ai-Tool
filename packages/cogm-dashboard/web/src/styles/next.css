@@ -1,0 +1,430 @@
+/* Only what the React markup needs on top of the old stylesheets (styles.css, moments.css and the
+   themes, imported in order by index.css). The look itself stays in those files. */
+
+/* Radix renders the toast stack as a list. */
+ol.toast-stack {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The full-dashboard link sits with the header buttons. */
+a.btn {
+  text-decoration: none;
+}
+
+/* A pane's title and its help "?" stay together on the left of the head. */
+.pane-title {
+  display: flex;
+  align-items: center;
+}
+
+/* The Tool Runner: the list and the form scroll on their own under the gate bar, as in the old
+   drawer (the shared drawer body scrolls as a whole). */
+.tarokka-body.tool-runner-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* A Pre-flight row's own button (Hide cards) sits at the right end of the row. */
+.preflight-item > .pf-action {
+  flex: none;
+  margin-left: auto;
+  align-self: center;
+}
+
+/* The drawer opened last covers the others (Drawer.tsx); still under the confirm window. The
+   layer values are tokens (brand.css): --z-drawer 50, --z-drawer-top 51, --z-confirm 60. */
+.drawer.drawer-top {
+  z-index: var(--z-drawer-top);
+}
+
+/* The Advanced menu (AdvancedMenu.tsx): Radix places it under the button, so the placement in moments.css
+   (.advanced-menu: absolute, right 0, below the button) is undone. */
+.advanced-menu[data-radix-menu-content] {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+/* The entry under the pointer or the arrow keys looks like a hovered button. */
+.advanced-menu [role='menuitem'][data-highlighted] {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  color: var(--on-strong);
+}
+
+/* The page is a column (styles.css body): the header, the banners, then the views, which scroll
+   on their own (moments.css .moment-views). React's root must not break that column. */
+#root {
+  display: contents;
+}
+
+/* The moment tabs are a tablist here (Moments.tsx), not pressed buttons: the selected tab looks
+   like the old pressed one. */
+.moment-tab[aria-selected='true'] {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+/* A docked drawer sits in its slot through a wrapper that moves between slots (Drawer.tsx). */
+.dock-host {
+  display: contents;
+}
+/* The header and menu buttons focus a docked drawer to show where it is. */
+.drawer.docked:focus {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* A During view shown without its bar (MomentViews without `duringBar`, as the Moments stories do):
+   the bar and strip rows would leave empty gaps above the cards. The page itself always has the
+   bar, and then moments.css places everything per layout. */
+main.moment-views #moment-during.during-no-bar {
+  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas:
+    'feed changes'
+    'feed handouts'
+    'feed party'
+    'feed .';
+}
+@media (max-width: 899px) {
+  main.moment-views #moment-during.during-no-bar {
+    grid-template-rows: none;
+    grid-template-areas: 'changes' 'feed' 'handouts' 'party';
+  }
+}
+
+/* The fold button first in a During card's head (Folds.tsx): the title stays on the left, next to
+   the button, and the head's other items (the count, the actions) stay at the right. */
+#moment-during .pane-head > .fold-btn + * {
+  margin-right: auto;
+}
+
+/* Text for screen readers only: in the page, not on screen. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- The combat strip (CombatStrip.tsx) ---- */
+
+/* Conditions show in every layout. moments.css hides them in the strip except in Auto during a
+   fight; a GM in Cards or Full could not see a condition. Same specificity, and
+   this file loads after, so it wins on this page only. */
+.slot-strip #pane-combat .conditions {
+  display: flex;
+}
+
+/* The name of a row you can pick is a real button, so the keyboard can reach it; it looks like the
+   plain name. The whole row takes the click, and shows the focus ring when the button has it. */
+.combatant-text,
+.combatant-pick {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.combatant-pick {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.combatant-pick:focus-visible {
+  outline: none;
+}
+.combatant:has(.combatant-pick:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* The bridge is away: the fight stays, marked as the last one seen. */
+.strip-away {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: var(--fs-sm);
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.strip-away:empty {
+  padding: 0;
+  border: 0;
+}
+/* Greyed with a filter, not opacity: opacity would drop the text under the contrast it needs. Only
+   grayscale, no brightness: axe does not see a filter, so the text must keep the contrast axe
+   measured, and a grayscale keeps the lightness of the colours (checked on the bridge-away baseline). */
+#pane-combat.is-stale .pane-body {
+  filter: grayscale(0.9);
+}
+#pane-combat.is-stale .combatant {
+  border-style: dashed;
+}
+/* The Enemy tag: the danger red on its own tint is 3.4:1, so the text takes a lighter red (the old
+   page keeps its tag). */
+.side-enemy {
+  color: color-mix(in srgb, var(--enemy) 62%, var(--text));
+}
+.reaction-btn[aria-disabled='true'],
+.combat-actions .ca-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.combat-actions .ca-btn[aria-disabled='true']:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* During controls that wait for the world are aria-disabled (still focusable, so the reason is
+   read), and look like the disabled buttons of styles.css. */
+.layout-switch button[aria-disabled='true'],
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+/* A busy button's label is the status: keep it readable. */
+.btn[aria-busy='true'] {
+  opacity: 1;
+  cursor: progress;
+  filter: none;
+}
+
+/* The wiki link in the help pane's head (it exists only in this markup). */
+.help-pane .help-wiki-link {
+  color: var(--accent-bright);
+  font-size: var(--fs-xs);
+}
+
+/* On a phone the wiki link would squeeze a long guide title into five lines: it takes a line of
+   its own under the title and the close button. */
+@media (max-width: 600px) {
+  .help-pane .pane-head {
+    flex-wrap: wrap;
+  }
+  .help-pane .pane-head > .pane-meta {
+    order: 3;
+  }
+}
+
+/* The stream mark in the header: the status element takes no box of its own, so with nothing to
+   say it adds no gap between the header controls. */
+.stream-state {
+  display: contents;
+}
+.stream-state .status-pill {
+  align-self: center;
+  white-space: normal;
+}
+
+/* The GM health line (components/HealthLine.tsx): four dots with words, wrapping on a narrow screen. */
+.health-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+.health-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  flex-wrap: wrap;
+}
+/* The Recorder and Play log words can be a sentence: they wrap instead of running off a phone. */
+.health-part[data-part='recorder'],
+.health-part[data-part='playlog'] {
+  white-space: normal;
+  min-width: 0;
+  max-width: 100%;
+}
+.health-label {
+  font-weight: 600;
+}
+.health-text {
+  font-variant-numeric: tabular-nums;
+}
+.health-more {
+  all: unset;
+  cursor: pointer;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  text-align: center;
+  border-radius: 50%;
+  color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+  line-height: 1.4rem;
+  font-size: var(--fs-xs);
+}
+/* The drawn circle stays 1.5rem; the hit area reaches 2.25rem (the house target size). */
+.health-more {
+  position: relative;
+}
+.health-more::before {
+  content: '';
+  position: absolute;
+  inset: -0.375rem;
+}
+.health-more:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 2px;
+}
+.health-detail {
+  flex-basis: 100%;
+  white-space: normal;
+  color: var(--text-dim);
+}
+.health-part[data-tone='bad'] .health-text {
+  color: var(--bad-text);
+  font-weight: 600;
+}
+
+/* Version tracker pane (I-127, panels/Versions.tsx). */
+.ver-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.ver-table th,
+.ver-table td {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ver-row.inactive {
+  opacity: 0.65;
+}
+.ver-row.st-behind .ver-status {
+  color: var(--warn);
+  font-weight: 700;
+}
+.ver-row.st-ok .ver-status {
+  color: var(--ok-text, var(--text));
+}
+.ver-kit,
+.ver-foot {
+  font-size: var(--fs-sm);
+  margin: 0.4rem 0.6rem;
+}
+.ver-kit.kit-failed {
+  color: var(--bad-text);
+}
+.ver-off {
+  font-weight: 400;
+  color: var(--text-dim, inherit);
+}
+
+/* Start combat (David's GM test): the token picker shown while no fight runs. */
+.combat-start {
+  padding: 0.5rem 0.9rem;
+}
+.combat-start .ca-row {
+  padding: 0;
+}
+/* The picker opened from the During bar takes its own row under the layout switch. */
+.during-start {
+  flex-basis: 100%;
+}
+.cs-hint {
+  margin: 0 0 0.4rem;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.cs-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.cs-name {
+  font-weight: 600;
+}
+.cs-note {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+/* Tool Runner form (design pass, I-149 trial): parameter names read as identifiers, the helper
+   text is readable, and Run stays in view under a long form. Tokens only. */
+.tool-runner-body .tool-detail {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+}
+.tool-runner-body .tool-detail-desc {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.tool-runner-body .tool-form {
+  gap: var(--space-4);
+  margin-top: 0;
+}
+.tool-runner-body .field {
+  gap: var(--space-1);
+}
+.tool-runner-body .field > label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text);
+}
+.tool-runner-body .field-hint {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+.tool-runner-body .field-control,
+.tool-runner-body .tool-form select,
+.tool-runner-body .tool-form input:not([type='checkbox']) {
+  min-height: 2.25rem;
+}
+/* The textarea keeps its taller floor: the rule above would lower it to 2.25rem. */
+.tool-runner-body .tool-form textarea.field-control {
+  min-height: 3.2rem;
+}
+.tool-runner-body .form-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+}
+/* The message slot: the footer is always two lines of message tall (plus its padding), and the
+   error and waiting text take the width beside Run and wrap inside it, so a message arriving
+   never moves Run or the form above. */
+.tool-runner-body .form-actions {
+  min-height: calc(2 * 1.4 * var(--text-xs) + 2 * var(--space-3));
+}
+.tool-runner-body .form-actions .form-error,
+.tool-runner-body .form-actions .field-hint {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+/* An empty message takes no width, so the other one (never both at once) gets the full row. */
+.tool-runner-body .form-actions .form-error:empty,
+.tool-runner-body .form-actions .field-hint:empty {
+  flex: 0;
+}

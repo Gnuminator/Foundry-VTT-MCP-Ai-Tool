@@ -170,7 +170,7 @@ export function run(input, now = Date.now()) {
 }
 
 function main() {
-  let input = null;
+  let input;
   try {
     input = JSON.parse(readFileSync(0, 'utf8'));
   } catch {

@@ -9,15 +9,13 @@
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
+import { sleep } from '@gnuminator/shared';
+
 const RETRYABLE = new Set(['EPERM', 'EBUSY', 'EACCES']);
 const DEFAULT_RETRY_DELAYS_MS = [10, 25, 50, 100, 200, 400];
 
 function errorCode(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | undefined)?.code;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export interface AtomicWriteOptions {

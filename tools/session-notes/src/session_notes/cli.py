@@ -91,6 +91,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--scene-gap", type=float, default=90.0, help="seconds of silence per cut")
     run.add_argument("--only-scene", type=int, help="process one scene (for testing prompts)")
     run.add_argument("--workers", type=int, default=3, help="scenes written at the same time")
+    run.add_argument(
+        "--layers",
+        action="store_true",
+        help="also write the raw and in-depth Danish layers and an index (I-066)",
+    )
+    run.add_argument("--depth-model", default="sonnet")
+    run.add_argument("--depth-effort", default="medium")
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
@@ -188,6 +195,9 @@ def main(argv: list[str] | None = None) -> int:
         scene_gap=args.scene_gap,
         only_scene=args.only_scene,
         workers=args.workers,
+        layers=args.layers,
+        depth_model=args.depth_model,
+        depth_effort=args.depth_effort,
     )
     try:
         result = Writer(session, runner, opts).run()
@@ -200,14 +210,23 @@ def main(argv: list[str] | None = None) -> int:
         f"{result.scenes} scene(s) written to {session / 'notes'}, {result.fallbacks} kept raw; "
         f"{len(runner.records)} Claude call(s), {tokens_in} tokens in, {tokens_out} out."
     )
-    counts = {"scenes": result.scenes, "fallbacks": result.fallbacks, "pending": result.pending}
+    counts = {
+        "scenes": result.scenes,
+        "fallbacks": result.fallbacks,
+        "pending": result.pending + result.depth_missing,
+    }
     if result.paused:
         why = "" if result.login_needed else "Paused by a usage limit: "
         print(f"{why}{result.paused}\nRun the same command again later.")
         write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
-    if result.pending:
-        msg = f"{result.pending} scene(s) could not be written and are kept raw for now."
+    if result.pending or result.depth_missing:
+        parts = []
+        if result.pending:
+            parts.append(f"{result.pending} scene(s) could not be written and are kept raw for now")
+        if result.depth_missing:
+            parts.append(f"{result.depth_missing} scene(s) have no in-depth notes yet")
+        msg = "; ".join(parts) + "."
         print(f"{msg} Run the same command again to try them again.")
         write_status(session, "incomplete", msg, **counts)
         return EXIT_INCOMPLETE

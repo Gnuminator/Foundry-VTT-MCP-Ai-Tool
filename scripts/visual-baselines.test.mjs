@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import {
   artifactProblem,
   collectProblem,
+  entryDecision,
+  isEntryModule,
   logPathFor,
   pickRun,
   renderProblem,
@@ -15,6 +18,17 @@ import {
   SCREENSHOTS,
   validBranch
 } from './visual-baselines.mjs';
+
+test('entryDecision: run for this file, mismatch for a same-named other file, import otherwise', () => {
+  const self = fileURLToPath(new URL('./visual-baselines.mjs', import.meta.url));
+  assert.equal(entryDecision(self, self), 'run');
+  assert.ok(!isEntryModule(undefined, self));
+  if (process.platform === 'win32') assert.equal(entryDecision(self.toUpperCase(), self), 'run');
+  assert.equal(entryDecision(path.join(os.tmpdir(), 'nope', 'visual-baselines.mjs'), self), 'mismatch');
+  assert.equal(entryDecision(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
+  assert.equal(entryDecision(undefined, self), 'import');
+  assert.equal(entryDecision(pathToFileURL(self).href, self), 'import');
+});
 
 test('validBranch accepts normal branches only', () => {
   assert.ok(validBranch('claude/dnd-levelup'));

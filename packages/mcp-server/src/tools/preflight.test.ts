@@ -5,7 +5,7 @@ import type {
   PreflightScanResult,
   PreflightSettingFinding,
 } from '@gnuminator/shared';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
 import { BUILD_ID } from '../build-id.js';
@@ -45,7 +45,7 @@ interface Setup {
   pumps?: PumpHealthSnapshot[];
 }
 
-function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
+function tools(setup: Setup = {}): { tools: PreflightTools; query: Mock } {
   const query = vi.fn((method: string): Promise<unknown> => {
     if (method === 'foundry-mcp-bridge.getPreflightScan') {
       if (setup.scan instanceof Error) return Promise.reject(setup.scan);

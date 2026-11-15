@@ -166,12 +166,12 @@ GM Actions. **End session** turns off again what it turned on. See
 ## Themed dice
 
 - **What it does:** with the module **Dice So Nice** installed and enabled, two dice colour sets
-  match the dashboard's themes: **AI Tool: The Veil** (smoky grey-green glass with drifting mist, the
+  match the dashboard's themes: **AI Tool: The Veil (campaign look)** (smoky grey-green glass with drifting mist, the
   numbers in lamp gold) and **AI Tool: Neutral** (deep navy with blue-white numbers). Only the
   look of the 3D dice changes; rolls and the play log stay the same.
 - **Starts:** the sets are there as soon as Dice So Nice is; nobody uses them until they pick them.
 - **Turn it on when:** before session 1. Open **Game Settings**, category **Dice So Nice!**, click
-  **3D Dice Settings**, stay on the **Appearance** tab, pick **AI Tool: The Veil** (or **AI Tool:
+  **3D Dice Settings**, stay on the **Appearance** tab, pick **AI Tool: The Veil (campaign look)** (or **AI Tool:
   Neutral**) in the **Theme** list and click **Save**. Dice So Nice has no table-wide default (its
   **Configure Dice Roles** window only sets the look of damage types such as Fire), so every player
   picks their own dice the same way.
@@ -206,6 +206,11 @@ only after you confirm a plan, and it shows in Recent Changes with Undo.
 - **Table viewer** ("AI Tool: Table viewer (writes)"): lets Claude create the **Table** player that
   the TV at the table signs in as. Starts on. You use it once; see
   [The TV at the table](tv-table-viewer.md).
+- **Player portraits** ("AI Tool: Player portraits (writes)"): lets a player change the picture of
+  their own character from the player page (**Upload my portrait**). The file goes into their own
+  folder under `assets/players`, and a second change updates the tokens already placed on
+  scenes when the player chose "Portrait and token". Both show in Recent Changes with Undo. Starts
+  on. Turn it off and the button disappears from the player page.
 - **Undo for everything** ("AI Tool: Undo for everything"): lets the tool undo and redo anyone's
   changes (players', yours and Claude's) from the Changes list, one change or everything since on
   the same thing. Starts on.
@@ -222,6 +227,9 @@ only after you confirm a plan, and it shows in Recent Changes with Undo.
 - **Paper sync** ("AI Tool: Paper sync (writes)"): writes the numbers from a paper sheet back into
   a character after a night played on paper. XP, level and class are never changed. Starts off.
   Turn it on after a paper night.
+- **Character creation** ("AI Tool: Character creation (writes)"): lets Claude make a new player
+  character and copy items from the packs onto it. Class features are added by hand, because level-up
+  advancement does not run. Starts off. Turn it on when you build characters with Claude.
 - **Rules check** ("AI Tool: Rules check"): lets Claude say whether an attack, spell or item looks
   legal right now and why. It only reads and changes nothing. Starts on. Turn it off
   if you would rather Claude did not add its advice to attacks, spells and token moves.

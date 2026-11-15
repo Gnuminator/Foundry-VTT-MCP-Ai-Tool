@@ -2,7 +2,7 @@
  * `plan-combat-change`: Foundry and the guarded-write service are stubs; the tests check the
  * request the module gets, the plan the service gets and what the result carries.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   COMBAT_CHANGE_ACTIONS,
@@ -26,9 +26,9 @@ const BUILT: CombatChangePlan = {
   warning: 'Undo does not bring back effects.',
 };
 
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
-let autoApplyEnabled: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
+let autoApplyEnabled: Mock;
 let tools: CombatChangeTools;
 
 beforeEach(() => {

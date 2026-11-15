@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { AccessJwtVerifier, accessTokenFrom, parseTeamDomain } from './access-jwt.js';
 import { resolveAccessConfig } from './config.js';
@@ -42,7 +42,7 @@ function claims(extra: Record<string, unknown> = {}): Record<string, unknown> {
 
 function verifier(keys: Record<string, unknown>[] = [jwk(publicKey, 'k1')]): {
   v: AccessJwtVerifier;
-  fetch: ReturnType<typeof vi.fn>;
+  fetch: Mock;
   clock: { now: number };
 } {
   const clock = { now: NOW };

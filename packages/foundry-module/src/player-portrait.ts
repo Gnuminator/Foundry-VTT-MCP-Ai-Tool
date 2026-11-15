@@ -4,17 +4,25 @@
  * the bytes; this GM-client query checks them again, checks the player OWNS the character, and
  * stores the picture through Foundry's FilePicker.upload, as the GM, in one fixed folder:
  *
- *   assets/players/<player slug>/
+ *   assets/players/<player slug>-<user id>/
  *
- * Nothing from the client names the folder or the file: the slug comes from the Foundry user's
- * name, the file name is made here (`portrait-<time>-<random>.<ext>`, never an existing name).
+ * Nothing from the client names the folder or the file: the folder is made from the Foundry user's
+ * name plus the user id (two users never share one), the file name is made here (`portrait-<time>-<random>.<ext>`, never an existing name).
  * The query only stores the file; the actor change itself is a guarded write the backend plans
  * and applies (Recent Changes, Undo). A write (write-gate.ts); never an MCP tool. GM client only.
  */
 import type { UploadPlayerPortraitReply, UploadPlayerPortraitRequest } from '@gnuminator/shared';
 
+import { isFeatureEnabled } from './guarded-features.js';
+
 /** Query name (shared's UPLOAD_PLAYER_PORTRAIT_QUERY; a module file imports types only). */
 export const UPLOAD_PLAYER_PORTRAIT_QUERY = 'uploadPlayerPortrait';
+
+/** The feature switch (shared's PLAYER_PORTRAIT_FEATURE_ID; a module file imports types only). */
+const PLAYER_PORTRAIT_FEATURE_ID = 'player-portrait';
+
+/** Most placed tokens one picture change reaches, so a plan stays readable. */
+export const MAX_PLACED_TOKENS = 100;
 
 /** The same cap as shared's PORTRAIT_MAX_BYTES. */
 export const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024;
@@ -70,6 +78,12 @@ export function playerSlug(name: string, userId: string): string {
   return slug || `player-${userId.toLowerCase()}`;
 }
 
+/** The player's folder name: the slug plus the user id, so two users never share a folder. */
+export function playerFolder(name: string, userId: string): string {
+  const slug = playerSlug(name, userId);
+  return slug === `player-${userId.toLowerCase()}` ? slug : `${slug}-${userId.toLowerCase()}`;
+}
+
 /** The file name: made here, with the time and a random part so no name repeats. */
 export function portraitFileName(type: PortraitType, now: Date, random: string): string {
   const stamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 14);
@@ -102,6 +116,10 @@ export interface PortraitEnv {
   user(id: string): PortraitUser | undefined;
   actor(id: string): PortraitActor | undefined;
   picker(): PortraitPicker;
+  /** Is the `player-portrait` switch on? */
+  featureEnabled(): boolean;
+  /** Uuids (`Scene.<id>.Token.<id>`) of the tokens already placed on scenes for this actor. */
+  placedTokens(actorId: string): string[];
   now(): Date;
   random(): string;
 }
@@ -111,6 +129,10 @@ function liveEnv(): PortraitEnv {
     game?: {
       users?: { get?: (id: string) => PortraitUser | undefined };
       actors?: { get?: (id: string) => PortraitActor | undefined };
+      scenes?: Iterable<{
+        id?: string;
+        tokens?: Iterable<{ id?: string; actorId?: string | null }>;
+      }>;
     };
     foundry?: { applications?: { apps?: { FilePicker?: { implementation?: PortraitPicker } } } };
   };
@@ -121,6 +143,18 @@ function liveEnv(): PortraitEnv {
       const picker = g.foundry?.applications?.apps?.FilePicker?.implementation;
       if (!picker) throw new Error('Foundry file upload is not available');
       return picker;
+    },
+    featureEnabled: () => isFeatureEnabled(PLAYER_PORTRAIT_FEATURE_ID),
+    placedTokens: (actorId): string[] => {
+      const out: string[] = [];
+      for (const scene of g.game?.scenes ?? []) {
+        for (const token of scene.tokens ?? []) {
+          if (token.actorId === actorId && scene.id && token.id) {
+            out.push(`Scene.${scene.id}.Token.${token.id}`);
+          }
+        }
+      }
+      return out.slice(0, MAX_PLACED_TOKENS);
     },
     now: () => new Date(),
     random: () => Math.random().toString(36).slice(2, 10).padEnd(8, '0'),
@@ -161,6 +195,11 @@ export async function uploadPlayerPortrait(
   data: unknown,
   env: PortraitEnv = liveEnv()
 ): Promise<UploadPlayerPortraitReply> {
+  // The switch is checked here too, not only by the backend: a direct bridge query must not store
+  // a file while "Player portraits" is off.
+  if (!env.featureEnabled()) {
+    return refuse('Changing your picture from this page is switched off. Ask your GM.');
+  }
   const body = (data ?? {}) as Partial<UploadPlayerPortraitRequest>;
   const { userId, actorId, data: base64 } = body;
   if (typeof userId !== 'string' || !ID.test(userId)) return refuse('A player is required.');
@@ -192,7 +231,7 @@ export async function uploadPlayerPortrait(
   if (!type) return refuse('Only PNG, JPG or WebP pictures work.');
 
   const picker = env.picker();
-  const folder = await ensureFolder(picker, playerSlug(String(user.name ?? ''), userId));
+  const folder = await ensureFolder(picker, playerFolder(String(user.name ?? ''), userId));
   const name = portraitFileName(type, env.now(), env.random());
   const file = new File([bytes as BlobPart], name, { type: TYPES[type] });
   const stored = (await picker.upload('data', folder, file, {}, { notify: false })) as
@@ -218,5 +257,6 @@ export async function uploadPlayerPortrait(
     actorUuid: actor.uuid ?? `Actor.${actorId}`,
     actorName: String(actor.name ?? ''),
     userName: String(user.name ?? ''),
+    placedTokens: env.placedTokens(actorId),
   };
 }

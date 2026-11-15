@@ -103,9 +103,12 @@ This is the only component with direct access to Foundry's live API (`game`, `ca
 is to be a **disciplined gateway**: expose exactly the operations the tools need, enforce
 who's allowed to call them, and make writes safe and reversible.
 
-### Lifecycle (`main.ts`)
+### Lifecycle (`main.ts` and `bridge-link-lifecycle.ts`)
 
-The module hooks Foundry's lifecycle:
+The module hooks Foundry's lifecycle in `main.ts`. The link itself (starting and stopping the
+socket bridge, its state, the heartbeat, the "server not found" notice and the GM link toasts with
+their `linkState` relay) lives in `bridge-link-lifecycle.ts`; `main.ts` hands over to it, and a
+test keeps it that way.
 
 - **`init`** — register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
@@ -154,8 +157,13 @@ fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
 
 ### Safety (`permissions.ts`, `transaction-manager.ts`)
 
-See §6. Briefly: writes are classified by risk and gated by settings; multi-step writes can
-be wrapped in a transaction that knows how to roll itself back.
+See §6. These two files are the older safety layer. Today they guard actor creation and journals
+only (actor creation includes placing the new actors on a scene; the `validateWritePermissions`
+query is an advisory check on the same two operations): `permissions.ts` classifies those writes
+by risk and checks quantity limits, and
+`transaction-manager.ts` wraps the multi-step actor creation in a transaction that rolls itself
+back. Every other write is guarded by the write gate and by guarded writes (§4). Retiring the
+older layer is a parked backlog item (`permission-path-retirement`).
 
 ---
 
@@ -320,7 +328,7 @@ stdio** and does almost nothing itself:
 - It registers two relaying MCP handlers: `ListTools` relays to control-channel `list_tools`;
   `CallTool` relays to control-channel `call_tool`. The wrapper is a thin MCP↔TCP shim. The one
   thing it answers itself is the static prompt list (`prompts/list`, `prompts/get`, §4e).
-- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`:
+- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`, derived from the modules:
   core, play, prep, build, admin; unset means all). Claude Desktop runs one wrapper per set, each
   its own config entry with its own on/off switch, so a chat carries only the definitions it
   needs. The filter lives in the wrapper only: the backend's `list_tools` still returns every tool,
@@ -360,8 +368,14 @@ The long-lived workhorse. Responsibilities:
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
-   class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
-   belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
+   class's `getToolDefinitions()`; that union is what `list_tools` returns. Each class is
+   wired in by a small tool module (`tools/modules/<family>.ts`: how to build it, its
+   definitions, its routes), and `tools/index.ts` lists every module once, in `list_tools`
+   order. The backend, the router, the tool list and the test stub are all built from that
+   list, so a new tool family is one module file plus one line in the index. Every tool also
+   belongs to exactly one tool set, named by the `set` field of its entry in the module's `tools`
+   map next to its title and read/write kind (`tool-sets.ts` and `tool-hints.ts` derive their
+   lists from the modules; the tool catalog test checks both); a new
    feature gets one tool with an `action` parameter rather than several small tools.
 4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts`).
    The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`,
@@ -397,9 +411,9 @@ refuses to write while a bridge backend holds its lock.
 (it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
 unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
 operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
-calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` adds
-the older per-operation checks (quantity limits, and `requiresGM` for deletes and world
-structure).
+calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` is the
+older per-operation layer (quantity limits, and `requiresGM` for deletes and world structure); it
+checks actor creation and journals only.
 
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
 New features change game state through one flow: a read-only `plan-*` tool builds a plan →
@@ -436,7 +450,7 @@ control method `record_usage` (handled in `backend.ts`, never a tool, never forw
 wrapper); the usage pump polls the module's `getUsageRecords`. `UsageLog` de-duplicates by `key` and
 appends to `sessions/<local-date>.usage.jsonl`. The Obsidian note `AI Tool/Usage/Dashboard usage.md`
 (GM vault only) is built from it. `FOUNDRY_AI_USAGE_LOG=off` disables it. The control catalogue
-(`shared/src/usage-catalog.generated.ts`) comes from `npm run usage:catalog`; CI checks it.
+(`shared/src/usage-catalog.generated.ts`) comes from `npm run usage:catalog` (generated by `npm ci` and the shared scripts, not committed); CI checks that the sources produce a valid one.
 
 ### 4e. MCP prompts (`prompts/`)
 
@@ -561,7 +575,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 3. **Socket-message GM checks (module).** The game-socket listener that syncs player roll
    state only performs world-writing actions (`ChatMessage.update`, settings writes) when
    `game.user.isGM` — so a player client receiving the broadcast can't be tricked into writing.
-4. **Risk-classified write permissions (`permissions.ts`).** Write operations are catalogued
+4. **Risk-classified write permissions (`permissions.ts`, older layer: actor creation and journals only).** Write operations are catalogued
    with a risk level — **low** (auto-allowed, e.g. create actor), **medium** (confirmation
    suggested, e.g. modify scene / bulk ops), **high** (confirmation + GM required, e.g. delete
    data, modify world). A master `allowWriteOperations` setting can disable writes entirely;
@@ -569,7 +583,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    threshold. Parameters are validated/sanitized per operation.
 5. **Guarded writes (new features).** Off per feature by default, confirmed with a diff,
    audited off-Foundry, conflict-checked and undoable (§4d).
-6. **Reversible writes (`transaction-manager.ts`).** Multi-step mutations can run inside a
+6. **Reversible writes (`transaction-manager.ts`, older layer: actor creation only).** Multi-step mutations can run inside a
    transaction that records each create/update/delete with enough information to undo it
    (delete what was created, restore originals, recreate what was deleted). On failure the
    transaction rolls back in reverse order; a bounded history is kept for after-the-fact undo.
@@ -696,6 +710,10 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 - **Built to survive a flaky backend.** Half-open detection, heartbeats, request timeouts that
   reconnect, cursor re-seeding, and reachability hysteresis — because the backend cycles and the
   Foundry tab is just a browser tab.
+- **Naming.** "co-GM" in prose (docs, UI text, comments); `cogm` in ids, paths, packages and
+  environment variables (`packages/cogm-dashboard`, `COGM_*`); `CoGM` only inside a camelCase
+  identifier and in the `X-CoGM-Token` request header. "Legacy" in the dashboard server means one thing, the retired `/legacy/` page
+  address that redirects to `/`; the no-split mode is called single-user mode.
 
 ---
 

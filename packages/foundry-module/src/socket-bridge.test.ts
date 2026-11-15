@@ -1,11 +1,11 @@
 /**
- * Tests for {@link SocketBridge} — the browser-side wire contract between the
+ * Tests for {@link SocketBridge}, the browser-side wire contract between the
  * Foundry module and the MCP backend.
  *
  * This is a live contract with zero prior coverage, so the focus is the parts a
  * regression would break silently: inbound message routing, the MCP-query
  * dispatch into `CONFIG.queries`, the send gate, and
- * reconnect backoff. The transport itself (the real WebSocket) is stubbed —
+ * reconnect backoff. The transport itself (the real WebSocket) is stubbed -
  * we drive the bridge's own handlers and assert what it sends / how its state
  * moves. Globals come from the Foundry-mock harness (for `ui`/`CONFIG`/`Scene`/
  * `Folder`/`game`); `window` and `WebSocket` are installed per-test.
@@ -84,10 +84,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// handleMCPQuery — dispatch from the private handler table
+// handleMCPQuery: dispatch from the private handler table
 // ---------------------------------------------------------------------------
 
-describe('SocketBridge — MCP query dispatch', () => {
+describe('SocketBridge: MCP query dispatch', () => {
   it('routes to the registered bridge handler and wraps a success envelope', async () => {
     const handler = vi.fn().mockResolvedValue({ ok: 1 });
     bridgeHandlers.set('foundry-mcp-bridge.listActors', handler);
@@ -138,7 +138,7 @@ describe('SocketBridge — MCP query dispatch', () => {
   });
 });
 
-describe('SocketBridge — query lockdown', () => {
+describe('SocketBridge: query lockdown', () => {
   it('never dispatches a handler that only exists in CONFIG.queries', async () => {
     const handler = vi.fn().mockResolvedValue({ leaked: true });
     (globalThis as any).CONFIG.queries['foundry-mcp-bridge.listActors'] = handler;
@@ -165,10 +165,10 @@ describe('SocketBridge — query lockdown', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleMessage — inbound routing
+// handleMessage: inbound routing
 // ---------------------------------------------------------------------------
 
-describe('SocketBridge — inbound message routing', () => {
+describe('SocketBridge: inbound message routing', () => {
   it('mcp-query → sends an mcp-response carrying the query result', async () => {
     bridgeHandlers.set('foundry-mcp-bridge.listActors', async () => ['a']);
     const { bridge, ws } = connectedBridge();
@@ -205,10 +205,10 @@ describe('SocketBridge — inbound message routing', () => {
 });
 
 // ---------------------------------------------------------------------------
-// sendMessage — the connection gate + transport routing
+// sendMessage: the connection gate + transport routing
 // ---------------------------------------------------------------------------
 
-describe('SocketBridge — send gate', () => {
+describe('SocketBridge: send gate', () => {
   it('drops the message when not connected', () => {
     const bridge = new SocketBridge(makeConfig()) as any;
     const ws = { send: vi.fn() };
@@ -239,7 +239,7 @@ describe('SocketBridge — send gate', () => {
 // connect / disconnect lifecycle
 // ---------------------------------------------------------------------------
 
-describe('SocketBridge — connect lifecycle', () => {
+describe('SocketBridge: connect lifecycle', () => {
   it('returns immediately when already connected', async () => {
     const bridge = new SocketBridge(makeConfig()) as any;
     bridge.connectionState = CONNECTION_STATES.CONNECTED;
@@ -323,10 +323,10 @@ describe('SocketBridge — connect lifecycle', () => {
 });
 
 // ---------------------------------------------------------------------------
-// scheduleReconnect — backoff + cap
+// scheduleReconnect: backoff + cap
 // ---------------------------------------------------------------------------
 
-describe('SocketBridge — reconnect backoff', () => {
+describe('SocketBridge: reconnect backoff', () => {
   it('increments the attempt counter and enters RECONNECTING', () => {
     vi.useFakeTimers();
     const bridge = new SocketBridge(makeConfig()) as any;
@@ -356,7 +356,7 @@ describe('SocketBridge — reconnect backoff', () => {
 // state getters
 // ---------------------------------------------------------------------------
 
-describe('SocketBridge — state accessors', () => {
+describe('SocketBridge: state accessors', () => {
   it('starts disconnected', () => {
     const bridge = new SocketBridge(makeConfig());
     expect(bridge.isConnected()).toBe(false);

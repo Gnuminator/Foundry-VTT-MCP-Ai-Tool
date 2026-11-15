@@ -1,8 +1,8 @@
-/** scripts/planner-wake.mjs: progress parsing, change detection, cold rule, brief, args. No vault, no waiting. */
+/** scripts/planner-wake.mjs: progress parsing, change detection, args. No vault, no waiting. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +11,6 @@ import {
   formatChanges,
   changedProgress,
   readUpstreamBacklog,
-  isCold,
-  freshBrief,
   parseArgs,
   DEFAULTS,
 } from './planner-wake.mjs';
@@ -78,22 +76,24 @@ test('readUpstreamBacklog fetches, then shows the upstream file; null when unrea
   );
 });
 
-test('isCold flips at the threshold', () => {
-  assert.equal(isCold(3599, 3600), false);
-  assert.equal(isCold(3600, 3600), true);
-});
-
-test('freshBrief names each changed item', () => {
-  const b = freshBrief([{ id: 'first', progress: 'PR #1 ready' }]);
-  assert.match(b, /- first: PR #1 ready/);
-  assert.match(b, /planner-wake\.mjs/);
-});
-
-test('parseArgs takes seconds and rejects junk', () => {
-  assert.equal(parseArgs([]).coldAfter, DEFAULTS.coldAfter);
-  assert.equal(parseArgs(['--cold-after', '10', '--vault', 'x']).coldAfter, 10);
+test('parseArgs takes seconds and rejects junk; there is no cold rule any more (D-141)', () => {
+  assert.equal(parseArgs([]).maxWait, DEFAULTS.maxWait);
+  assert.equal(parseArgs(['--max-wait', '10', '--vault', 'x']).maxWait, 10);
   assert.throws(() => parseArgs(['--interval', '0']));
+  assert.throws(() => parseArgs(['--cold-after', '10']), /unknown argument/);
   assert.throws(() => parseArgs(['--nope']));
+});
+
+/* D-141 stick: no standing planner. The planner skill neither starts a successor nor arms a wake
+ * watcher, and the wake script has no "start a fresh planner" exit. */
+test('no standing planner: the planner skill has no successor or planner-wake text; no exit 3', () => {
+  const skill = readFileSync(path.join(here, '..', '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /start (the|a) (next|fresh) planner/i);
+  assert.doesNotMatch(skill, /planner-wake/);
+  assert.doesNotMatch(skill, /gh pr list/, 'the planner reads PRs through status --planner');
+  assert.match(skill, /backlog\.mjs status --planner/);
+  const src = readFileSync(path.join(here, 'planner-wake.mjs'), 'utf8');
+  assert.doesNotMatch(src, /exitCode = 3|fresh planner|freshBrief|isCold/);
 });
 
 test('readUpstreamBacklog warns on a failed fetch and on an unreadable file', () => {
@@ -132,7 +132,6 @@ test('formatChanges prefixes every line of a multi-line progress value', () => {
     ]),
     ['x: one', 'x: two', 'y: solo']
   );
-  assert.match(freshBrief([{ id: 'x', progress: 'one\ntwo' }]), /- x: one\n- x: two/);
 });
 
 test('exit 4 says fetches failed (upstream unreachable after start)', () => {
@@ -195,4 +194,55 @@ test('exit 1 with a stderr line when the first read fails', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/* The Done list lives in vault `Backlog done.md`, not in `Backlog.md` (Backlog chain, step 1). This keeps it true: no skill,
+ * hook or script may tell a writer to put a line under `## Done` of Backlog.md, and the planner skill names the new file. */
+const repoRoot = path.resolve(here, '..');
+const walk = (dir, out = []) => {
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules') continue;
+    const p = path.join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else out.push(p);
+  }
+  return out;
+};
+
+// Any mention of a "## Done" heading or "the Done section/heading" (not "## Done when it looks like this" in the GM guides),
+// in any wording, case or quoting.
+const DONE_MENTION = /##\s*Done\b(?!\s+when\b)|\bDone\s+(?:section|heading)\b/i;
+
+test('Done list: no skill, hook or script (outside tests) names a `## Done` section of Backlog.md', () => {
+  const files = [
+    ...walk(path.join(repoRoot, '.claude', 'skills')),
+    ...walk(path.join(repoRoot, '.claude', 'hooks')),
+    ...walk(path.join(repoRoot, '.claude', 'agents')),
+    ...walk(path.join(repoRoot, 'scripts')),
+    path.join(repoRoot, 'CLAUDE.md'),
+  ].filter((f) => /\.(md|mjs)$/.test(f) && !/\.test\.mjs$/.test(f));
+  const bad = [];
+  for (const f of files) {
+    let text;
+    try {
+      text = readFileSync(f, 'utf8');
+    } catch {
+      continue;
+    }
+    if (DONE_MENTION.test(text)) bad.push(path.relative(repoRoot, f));
+  }
+  assert.deepEqual(bad, [], 'a writer is told to put Done lines in Backlog.md; use vault Backlog done.md');
+});
+
+test('Done list: the planner skill says Done lines go to Backlog done.md', () => {
+  const text = readFileSync(path.join(repoRoot, '.claude', 'skills', 'planner', 'SKILL.md'), 'utf8');
+  assert.match(text, /Backlog done\.md/);
+});
+
+test('Done list: the matcher catches the old wording', () => {
+  for (const s of ['add a line to `## Done`, and', 'x\n## Done\n- a', 'put it in the ## done list', 'under the `## Done` heading', 'the Done section of Backlog.md']) {
+    assert.ok(DONE_MENTION.test(s), s);
+  }
+  assert.ok(!DONE_MENTION.test('## Done when it looks like this'));
 });

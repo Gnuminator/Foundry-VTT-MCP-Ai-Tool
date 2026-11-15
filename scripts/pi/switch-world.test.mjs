@@ -92,11 +92,11 @@ systemctl() {
     "is-enabled foundry-ai-tool-gm-browser.service") [ "\${GM_ACTIVE-1}" = 1 ] ;;
     "stop foundry.service") rm -f "${dd}/running" ;;
     "start foundry.service")
-      if [ -n "\${FOUNDRY_RUNS_INSTEAD:-}" ] && [ "\$("$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE")" = curse-of-strahd ]; then
-        printf '%s' "\$FOUNDRY_RUNS_INSTEAD" >"${dd}/running"
+      if [ -n "\${FOUNDRY_RUNS_INSTEAD:-}" ] && [ "$("$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE")" = curse-of-strahd ]; then
+        printf '%s' "$FOUNDRY_RUNS_INSTEAD" >"${dd}/running"
         return 0
       fi
-      [ -z "\${FOUNDRY_FAIL_FOR:-}" ] || [ "\$("$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE")" != "\$FOUNDRY_FAIL_FOR" ] ||
+      [ -z "\${FOUNDRY_FAIL_FOR:-}" ] || [ "$("$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE")" != "$FOUNDRY_FAIL_FOR" ] ||
         return 0
       "$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE" >"${dd}/running" ;;
     "show foundry-ai-tool-gm-browser.service") echo inv1 ;;
@@ -104,14 +104,14 @@ systemctl() {
 }
 journalctl() {
   case "$*" in
-    *_SYSTEMD_INVOCATION_ID=*) [ -n "\${GM_NOJOIN:-}" ] || echo "[assistant-gm] joined world \$(running_world) as Assistant GM (GM: true)" ;;
+    *_SYSTEMD_INVOCATION_ID=*) [ -n "\${GM_NOJOIN:-}" ] || echo "[assistant-gm] joined world $(running_world) as Assistant GM (GM: true)" ;;
   esac
   return 0
 }
 ss() { echo "ESTAB 0 0 127.0.0.1:31415 127.0.0.1:50000"; }
 curl() {
   case "$*" in
-    *api/status*) [ -e "${dd}/running" ] || return 22; echo "{\\"active\\":true,\\"world\\":\\"\$(running_world)\\",\\"users\\":0}" ;;
+    *api/status*) [ -e "${dd}/running" ] || return 22; echo "{\\"active\\":true,\\"world\\":\\"$(running_world)\\",\\"users\\":0}" ;;
     *) [ -e "${dd}/running" ] || return 22; [ -z "\${JOIN_DOWN:-}" ] || return 22; echo '<template id="join-game"></template>' ;;
   esac
 }

@@ -14,22 +14,17 @@
 #     the running service restarts it; nothing newer does not; a unit that never reaches its watching line fails the stage
 # The stand-in Node refuses --env-file anywhere on its command line, as real Node does (CHECK must use --env-files).
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage29-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage29-scenarios.sh
 # (scripts/pi/gamenight-watch-stage.test.mjs runs it with PI_STAGE29_CONTAINER=1.) STAGE=<file> runs another copy of the script.
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/29-gamenight-watch.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
 FOUNDRY_USER=foundry
 TOOL_ETC=/etc/foundry-ai-tool
@@ -206,7 +201,9 @@ esac
 EOF
 cat >/tmp/fakebin/journalctl <<'EOF'
 #!/usr/bin/env bash
-[ -f /tmp/fake-acted ] && [ ! -f /tmp/fake-nowatch ] && echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
+# A unit that dies on its first journal read (a settings problem: exit 2 before any watching line).
+[ -f /tmp/fake-diesoon ] && touch /tmp/fake-dead
+[ -f /tmp/fake-acted ] && [ ! -f /tmp/fake-nowatch ] && [ ! -f /tmp/fake-diesoon ] && echo "2026-11-08 09:00:00 watching 127.0.0.1:30000 every 60s (posting to Discord); checks: foundry"
 EOF
 chmod 0755 /tmp/fakebin/systemctl /tmp/fakebin/journalctl
 rm -f /tmp/systemctl.log /tmp/fake-active /tmp/fake-dead /tmp/fake-nowatch /tmp/fake-started
@@ -229,6 +226,11 @@ rm -f /tmp/fake-acted; run PATH="/tmp/fakebin:$PATH"
 rc=$?
 rm -f /tmp/fake-nowatch
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that never reaches its watching line fails the stage"; else fail "no watching line: rc=$rc $OUT"; fi
+touch /tmp/fake-diesoon; echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
+rm -f /tmp/fake-acted /tmp/fake-dead; run PATH="/tmp/fakebin:$PATH"
+rc=$?
+rm -f /tmp/fake-diesoon /tmp/fake-dead
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that stops before its watching line fails the stage at once"; else fail "unit stops first: rc=$rc $OUT"; fi
 rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/fake-acted /tmp/systemctl.log
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

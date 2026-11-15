@@ -19,7 +19,7 @@ import { viewedScene } from '../viewed-scene.js';
 const CREATURES_FOLDER = 'Foundry MCP Creatures';
 
 /**
- * Actor-creation domain — spawning actors from compendium content (by
+ * Actor-creation domain, spawning actors from compendium content (by
  * creature-type search or by explicit pack/item id), authoring embedded items
  * onto an existing actor, and dropping actor prototype tokens onto the scene.
  *
@@ -157,7 +157,7 @@ export class ActorCreationDataAccess {
 
   /**
    * Create actors from a specific compendium document (explicit pack + item id),
-   * copying its system/items/effects/prototype-token. No compendium search —
+   * copying its system/items/effects/prototype-token. No compendium search -
    * the caller already knows exactly which document to clone. No rollback
    * transaction; per-actor failures are reported non-fatally.
    */
@@ -303,7 +303,7 @@ export class ActorCreationDataAccess {
    * Add one or more freshly-authored Item documents to an existing Actor.
    *
    * Unlike the `createActorFromCompendium*` paths, the items here are built from
-   * caller-supplied data — no compendium lookup. This is how planner-authored
+   * caller-supplied data, no compendium lookup. This is how planner-authored
    * content (talents, actions, powers, custom gear) is pushed onto a sheet.
    *
    * Validation is intentionally light: name + type are required, and the type is
@@ -393,14 +393,14 @@ export class ActorCreationDataAccess {
     }
 
     // v14 Scene Levels: a Token's `level` field is required + non-nullable and
-    // defaults to the scene's *initial* level when omitted — not necessarily the
-    // level the GM is currently viewing — so a token dropped while looking at a
+    // defaults to the scene's *initial* level when omitted, not necessarily the
+    // level the GM is currently viewing, so a token dropped while looking at a
     // different level would silently land on the wrong one. `currentLevelId`
     // returns `undefined` on a v13 scene (no `levels`), which is a no-op spread
     // below (matches dnd5e 6's own token-placement code, which also sets it
     // explicitly). verified: common/documents/token.mjs:180 (`level: new
     // DocumentIdField({required: true, nullable: false, ...})`), :234
-    // (`data.level ??= this.parent?.initialLevel?.id` — the fallback this avoids).
+    // (`data.level ??= this.parent?.initialLevel?.id`, the fallback this avoids).
     const level = currentLevelId(scene);
 
     const tokenData: Record<string, unknown>[] = [];

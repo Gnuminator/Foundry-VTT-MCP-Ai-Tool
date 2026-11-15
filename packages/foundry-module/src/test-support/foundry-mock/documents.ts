@@ -243,16 +243,41 @@ export interface MakeItemOptions {
   [extra: string]: any;
 }
 
+/**
+ * An empty activities map as dnd5e has it: a plain object keyed by id, with the Collection reads
+ * the module code calls (find, filter, some, map) as non-enumerable methods so it still compares
+ * equal to `{}` and stays out of JSON.
+ */
+function makeActivities(): Record<string, any> {
+  const map: Record<string, any> = {};
+  const list = (): any[] => Object.values(map);
+  const methods: Record<string, (...args: any[]) => unknown> = {
+    find: fn => list().find(fn),
+    filter: fn => list().filter(fn),
+    some: fn => list().some(fn),
+    map: fn => list().map(fn),
+  };
+  for (const [name, value] of Object.entries(methods)) {
+    Object.defineProperty(map, name, { value, enumerable: false });
+  }
+  return map;
+}
+
 export function makeItem(opts: MakeItemOptions = {}): AnyDoc {
   const {
     id = randomId('item'),
     name = 'Item',
     type = 'loot',
     img,
-    system = {},
+    system: givenSystem = {},
     _source,
     ...rest
   } = opts;
+  // dnd5e keeps activities as an object keyed by id (never an array); a weapon always has the map.
+  const system =
+    type === 'weapon' && givenSystem.activities === undefined
+      ? { ...givenSystem, activities: makeActivities() }
+      : givenSystem;
   return withDocumentMethods({
     id,
     name,
@@ -419,7 +444,7 @@ export function makeToken(opts: MakeTokenOptions = {}): AnyDoc {
     texture = { src: '' },
     ...rest
   } = opts;
-  // A token is a document — it needs `update()` (moveToken/updateToken) and the
+  // A token is a document, it needs `update()` (moveToken/updateToken) and the
   // embedded surface; `delete()` is bound when it lands in a scene collection.
   return withDocumentMethods({
     id,
@@ -490,7 +515,7 @@ export function makePack(opts: MakePackOptions = {}): AnyDoc {
   } = opts;
   const docs = new MockCollection(documents);
   // Foundry compendium index entries carry `_id` (the canonical id field), plus
-  // name/type/img and any configured index fields — NOT a bare `id`. Mirror that
+  // name/type/img and any configured index fields, NOT a bare `id`. Mirror that
   // so consumers that read `entry._id` / `entry.img` behave as they do live.
   const buildIndex = (): MockCollection<Identified> =>
     new MockCollection(
@@ -651,7 +676,7 @@ export function makeModule(opts: MakeModuleOptions = {}): AnyDoc {
 // --- Generic document --------------------------------------------------------
 
 /**
- * A generic Foundry document with the standard instance methods — for the
+ * A generic Foundry document with the standard instance methods, for the
  * world-level collections that don't need a specialized builder (world items,
  * folders, chat messages). Honors a provided `id`/`_id`, else generates one.
  */

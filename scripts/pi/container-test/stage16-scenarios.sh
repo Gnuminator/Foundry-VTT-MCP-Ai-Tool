@@ -2,30 +2,21 @@
 # Stage 16 (scripts/pi/remote/16-board-status.sh) in a Debian 13 ARM64 container with no systemd: stand-ins for
 # systemctl, curl and restic make it take its systemd path and "send" its first report. Each scenario starts from a
 # fresh fake Pi and checks its own result; the last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage16-scenarios.sh [name ...]
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage16-scenarios.sh [name ...]
 # (scripts/pi/board-status.test.mjs runs it with PI_STAGE16_CONTAINER=1.) With names, only those scenarios run.
 # The stage's node snippets run on Debian 13's own nodejs linked as /opt/node24/bin/node, not Node 24 as on the Pi.
 #
 # DESTRUCTIVE: each scenario wipes the tool's folders, and the fakes go into /usr/local/sbin. It refuses to run
-# anywhere but a container. Nothing here reaches the network after apt-get.
+# anywhere but a container. Nothing here reaches the network.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE=/repo/scripts/pi/remote/16-board-status.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 only="$*"
 
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs curl ca-certificates; }
-# One retry: a Debian mirror hiccup should not fail a required CI check.
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin /run/systemd/system
 ln -sf "$(command -v node)" /opt/node24/bin/node
 real_curl="$(command -v curl)"

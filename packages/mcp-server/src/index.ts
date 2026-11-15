@@ -289,7 +289,7 @@ class BackendClient {
           hasResult: !!msg.result,
         });
 
-        // An id-less frame is an uncorrelated protocol error — nothing to resolve.
+        // An id-less frame is an uncorrelated protocol error, nothing to resolve.
         if (msg.id === undefined) {
           this.log('onData(): protocol message without id, ignoring', {
             hasError: !!msg.error,

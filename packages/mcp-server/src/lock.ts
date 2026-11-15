@@ -53,7 +53,7 @@ export function getProcessName(pid: number): string | null {
     }
 
     if (process.platform === 'linux') {
-      // /proc/<pid>/comm is the fastest path — no subprocess required
+      // /proc/<pid>/comm is the fastest path, no subprocess required
       const commPath = `/proc/${pid}/comm`;
       if (fs.existsSync(commPath)) {
         return fs.readFileSync(commPath, 'utf8').trim().toLowerCase();
@@ -113,7 +113,7 @@ export function isLockStale(lockFilePath: string, maxAgeMs: number = LOCK_MAX_AG
 }
 
 // ---------------------------------------------------------------------------
-// evaluateLockFile — pure, testable decision function
+// evaluateLockFile: pure, testable decision function
 // ---------------------------------------------------------------------------
 
 /**
@@ -129,7 +129,7 @@ export function isLockStale(lockFilePath: string, maxAgeMs: number = LOCK_MAX_AG
  *  3. Otherwise → **valid** (the backend is genuinely running)
  *
  * The `checkProcessName` and `checkStaleness` parameters exist solely for
- * dependency injection in unit tests — callers should omit them in production.
+ * dependency injection in unit tests, callers should omit them in production.
  */
 export function evaluateLockFile(
   lockPid: number,

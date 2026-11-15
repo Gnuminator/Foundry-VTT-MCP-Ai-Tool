@@ -339,8 +339,8 @@ describe('GET /open (the static confirm page)', () => {
     const otherRes = { setHeader: (name: string, value: string): string => (other[name] = value) };
     hook(
       otherRes as never,
-      path.join(PUBLIC_DIR, 'styles.css'),
-      statSync(path.join(PUBLIC_DIR, 'styles.css'))
+      path.join(PUBLIC_DIR, 'me.css'),
+      statSync(path.join(PUBLIC_DIR, 'me.css'))
     );
     expect(other).toEqual({});
   });
@@ -636,7 +636,7 @@ describe('POST /api/open with the player/GM split on', () => {
   });
 });
 
-describe('POST /api/open with the split off (legacy)', () => {
+describe('POST /api/open with the split off (single-user mode)', () => {
   it('acts for any caller, but the cross-site and header guards still refuse', async () => {
     const h = await start(SPLIT_OFF);
     expect((await postOpen(h, { uuid: ACTOR })).status).toBe(200);

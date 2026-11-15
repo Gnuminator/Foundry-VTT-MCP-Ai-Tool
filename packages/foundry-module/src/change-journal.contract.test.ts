@@ -2,7 +2,7 @@
  * The module mirrors the change journal contract (I-109) because the browser
  * cannot resolve `@gnuminator/shared`. This pins the copies to the shared file
  * so the two cannot drift: every constant, the ignored-path rule, and (at
- * type-check time) the record, stash and response shapes.
+ * type-check time) the stash and response shapes. `ChangeRecord` is the shared type itself.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -38,7 +38,7 @@ import {
   type ChangeJournalOptions as SharedOptions,
   type ChangeJournalResponse as SharedResponse,
   type ChangeRecord as SharedRecord,
-} from '../../../shared/src/change-journal.js';
+} from '@gnuminator/shared';
 
 // Compile-time drift check: each pair must be assignable both ways.
 export function assertSameShapes(

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { emptyTable, parsePublicTable, type PublicTable } from './tarokka-table-model.js';
 import { restorePendingLines, TableController, type TableDeps } from './tarokka-table-window.js';
 
@@ -35,7 +35,7 @@ function readingResult(revealed: string[] = [], readingId = 'roll-1', tome = 'sw
 function makeController(options: { flipText?: string | null; picked?: string | null } = {}): {
   controller: TableController;
   deps: TableDeps;
-  request: ReturnType<typeof vi.fn>;
+  request: Mock;
   backend: { readingId: string; tome: string; failApply: boolean };
   revealed: string[];
   get: () => PublicTable;
@@ -172,7 +172,7 @@ describe('TableController', () => {
     await controller.flip(0);
     expect(controller.view.actionError).toBe('apply refused');
     backend.failApply = false;
-    (deps.confirmFlip as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => '');
+    (deps.confirmFlip as Mock).mockImplementationOnce(async () => '');
     await controller.flip(0);
     expect(get().slots[0]).toMatchObject({ stage: 'revealed' });
     expect(get().slots[0]?.line).toBeUndefined();
@@ -427,7 +427,7 @@ describe('TableController', () => {
     const { controller, backend, request, deps } = makeController();
     await controller.load();
     await controller.place();
-    (deps.confirmFlip as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+    (deps.confirmFlip as Mock).mockImplementationOnce(async () => {
       backend.readingId = 'roll-2';
       backend.tome = 'stars-4';
       return '';
@@ -492,9 +492,7 @@ describe('TableController', () => {
   it('does not lock the table while a picture picker is open or was closed without a pick', async () => {
     const { controller, deps, get } = makeController();
     await controller.load();
-    (deps.pickImage as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      () => new Promise(() => {})
-    );
+    (deps.pickImage as Mock).mockImplementationOnce(() => new Promise(() => {}));
     void controller.pickPicture(3);
     expect(controller.view.busy).toBe(false);
     await controller.place();

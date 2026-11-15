@@ -10,6 +10,9 @@ import {
   LIVE_HELLO_MESSAGE,
   LIVE_PICK_MESSAGE,
   LIVE_READY_MESSAGE,
+  LIVE_SCHEME_MESSAGE,
+  pickScheme,
+  postSchemeTo,
   postHelloToTargets,
   LIVE_WINDOW_SETTING,
   LIVE_WINDOW_URL_SETTING,
@@ -44,6 +47,49 @@ function install(isGM: boolean, on: boolean): void {
   restore = world.install();
   if (on) world.settings.set(`${MODULE_ID}.${LIVE_WINDOW_SETTING}`, true);
 }
+
+describe('light or dark', () => {
+  it('uses the message type the dashboard listens for', () => {
+    expect(LIVE_SCHEME_MESSAGE).toBe('fmb-live-scheme');
+  });
+
+  it("follows Foundry's window rule: the windows scheme, else the browser, never the interface", () => {
+    expect(pickScheme({ colorScheme: { applications: 'light', interface: 'dark' } }, false)).toBe(
+      'light'
+    );
+    // The interface scheme does not touch windows: an empty windows scheme follows the browser.
+    expect(pickScheme({ colorScheme: { applications: '', interface: 'light' } }, false)).toBe(
+      'dark'
+    );
+    expect(pickScheme({ colorScheme: { applications: 'default' } }, true)).toBe('light');
+    expect(pickScheme({ colorScheme: {} }, false)).toBe('dark');
+    expect(pickScheme(null, false)).toBe('dark');
+    expect(pickScheme(undefined, true)).toBe('light');
+  });
+
+  it('puts the scheme in the frame address and keeps the rest', () => {
+    const here = { protocol: 'http:', hostname: 'localhost' };
+    expect(liveFrameUrl('', here, 'light')).toBe('http://localhost:3100/?strip=1&scheme=light');
+    expect(liveFrameUrl('https://d.example.com/x?a=1', here, 'dark')).toBe(
+      'https://d.example.com/x?strip=1&scheme=dark'
+    );
+  });
+
+  it('posts the scheme to the frame own origin only', () => {
+    const postMessage = vi.fn();
+    postSchemeTo(
+      { src: 'http://localhost:3100/?strip=1', contentWindow: { postMessage } },
+      'light'
+    );
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: LIVE_SCHEME_MESSAGE, scheme: 'light' },
+      'http://localhost:3100'
+    );
+    postMessage.mockClear();
+    postSchemeTo({ src: '', contentWindow: { postMessage } }, 'light');
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+});
 
 describe('the live frame address', () => {
   const here = { protocol: 'http:', hostname: 'localhost' };
@@ -314,6 +360,22 @@ describe('the live window open state', () => {
     const mod = await openWindow();
     await mod.toggleLiveWindow();
     expect(openFlag()).toBe(false);
+  });
+
+  it('watches the core uiConfig setting for the scheme and lets go when it closes', async () => {
+    vi.resetModules();
+    install(true, true);
+    g.foundry.applications = { api: { ApplicationV2: FakeApp } };
+    const on = vi.spyOn(g.Hooks, 'on');
+    const off = vi.spyOn(g.Hooks, 'off');
+    const mod = await import('./live-window.js');
+    await mod.openLiveWindow();
+    const call = on.mock.calls.find(c => c[0] === 'clientSettingChanged');
+    expect(call).toBeDefined();
+    expect(() => (call![1] as (key: string) => void)('core.uiConfig')).not.toThrow();
+    expect(() => (call![1] as (key: string) => void)('core.other')).not.toThrow();
+    await mod.toggleLiveWindow();
+    expect(off).toHaveBeenCalledWith('clientSettingChanged', expect.anything());
   });
 
   it('keeps open as it was when the switch closes it, so a reload brings it back', async () => {

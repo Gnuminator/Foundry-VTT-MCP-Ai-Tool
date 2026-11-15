@@ -13,7 +13,7 @@
  *   4. Return `{ success: true, count: messages.length, messages }`.
  *
  * `eventTracker` is the singleton exported from `./session-events.js`.  We spy
- * on it so that we exercise only the data-access layer's own logic — the
+ * on it so that we exercise only the data-access layer's own logic, the
  * EventTracker's filter implementation is tested separately.
  *
  * Harness: Phase 9 Foundry-mock (`src/test-support/foundry-mock/index.ts`).
@@ -21,7 +21,7 @@
  * `validateFoundryState()` passes.
  *
  * Harness gaps worked around locally (shared harness files never touched):
- *   - `eventTracker.getChatLog` is mocked via `vi.spyOn` — the EventTracker's
+ *   - `eventTracker.getChatLog` is mocked via `vi.spyOn`, the EventTracker's
  *     real implementation would need a populated chat buffer; we bypass that
  *     entirely and return controlled fixture data from the mock.
  */
@@ -53,7 +53,7 @@ afterEach(() => {
 // Return-shape tests
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getChatLog: return shape', () => {
+describe('FoundryDataAccess: getChatLog: return shape', () => {
   it('returns success:true, count:0, and messages:[] when the tracker returns an empty array', async () => {
     vi.spyOn(eventTracker, 'getChatLog').mockReturnValue([]);
 
@@ -102,7 +102,7 @@ describe('FoundryDataAccess — getChatLog: return shape', () => {
 
     expect(result.success).toBe(true);
     expect(result.count).toBe(2);
-    expect(result.messages).toBe(fixture); // exact reference — no copy made
+    expect(result.messages).toBe(fixture); // exact reference, no copy made
   });
 
   it('count matches messages.length for a single-element return', async () => {
@@ -134,11 +134,11 @@ describe('FoundryDataAccess — getChatLog: return shape', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Filter-omission tests — the data-access layer must NOT forward `undefined`
+// Filter-omission tests, the data-access layer must NOT forward `undefined`
 // keys to eventTracker.getChatLog.
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getChatLog: filter key omission', () => {
+describe('FoundryDataAccess: getChatLog: filter key omission', () => {
   it('passes an empty object to eventTracker when called with {}', async () => {
     const spy = vi.spyOn(eventTracker, 'getChatLog').mockReturnValue([]);
 

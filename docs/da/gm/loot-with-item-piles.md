@@ -1,6 +1,6 @@
 ---
 source: gm/loot-with-item-piles.md
-sourceHash: 4f53bc9a7758
+sourceHash: 3d002258f7ef
 title: Del loot ud med Item Piles
 description: Sådan laver du en bunke loot på kortet, lægger items og mønter i den, lader spillerne tage det, de vil have, deler mønterne og hvad du gør, når en spiller ikke kan åbne den.
 ---
@@ -22,7 +22,7 @@ potion). Din skærm ser ud på samme måde, med dine egne items.
 - Spillerne skal have deres **eget token på scenen**, og Foundry skal vide, hvilken karakter hver
   spiller har. En spiller skal stå **lige ved siden af bunken** for at åbne den (se
   [Hvis en spiller ikke kan åbne bunken](#hvis-en-spiller-ikke-kan-åbne-bunken)).
-- Åbn fanen **Items** i sidebaren (kuffert-ikonet). Det, du vil dele ud, skal være et item der, eller
+- Åbn fanen **Items** i sidebaren (ikonet med en dokumentmappe). Det, du vil dele ud, skal være et item der, eller
   du laver det: **Create Item**, giv det et navn og et billede.
 
 ## 1. Lav bunken
@@ -62,12 +62,12 @@ og så videre) og klik **Submit**.
 
 ![Vinduet Editing Currencies med 30 Gold og 40 Silver skrevet ind](../../images/guides/loot-4-coins.png)
 
+![Bunken, som GM'en ser den: items med antal, mønter og knapperne Open Sheet, Show To Players og Configure Pile](../../images/guides/loot-5-gm-window.png)
+
 **Færdig, når det ser sådan ud:** bunke-vinduet har en liste **Currencies** med dine beløb.
 
 **Hvis det fejler:** et beløb viser 0, eller den forkerte mønt har det. Klik **Add currency** igen, tjek, at du
 skrev i det rigtige felt (Gold, ikke Platinum), og klik **Submit**.
-
-![Bunken, som GM'en ser den: items med antal, mønter og knapperne Open Sheet, Show To Players og Configure Pile](../../images/guides/loot-5-gm-window.png)
 
 Tallene ved siden af items er, hvor mange der ligger i bunken, og du kan rette dem lige dér. Bunken er
 din at redigere. Spillerne ser en udgave med **Take**-knapper.
@@ -88,7 +88,8 @@ i listen. Bed dem dobbeltklikke på bunken på kortet i stedet.
 
 Spilleren ser items og mønter med en **Take**-knap ved hver. Ved flere af det samme siger det lille
 felt, hvor mange der tages. Klik **Take**. Itemet lander på karakterarket, og et kort i chatten
-fortæller, hvem der tog hvad, så alle kan se det.
+fortæller, hvem der tog hvad, så alle kan se det. Vinduet har også knapperne **Config Update** og
+**Leave** nederst ved siden af **Split currency**; spillerne kan lade dem være.
 
 ![En spillers udsyn til bunken: Take-knapper, og chatkortet efter Test Hero tog dolken](../../images/guides/loot-9-took.png)
 
@@ -104,8 +105,8 @@ bunken](#hvis-en-spiller-ikke-kan-åbne-bunken).
 ## 6. Del mønterne
 
 Nederst i bunke-vinduet står **Split currency 2 ways** (tallet er, hvor mange spillere der er online
-med en karakter). Alle kan trykke på den, også dig. Hver mønt deles ligeligt, og et chatkort siger
-det.
+med en karakter). Du trykker på den; spillernes vindue viser den samme knap, så aftal, hvem der gør
+det. Hver mønt deles ligeligt, og et chatkort siger det.
 
 ![Efter delingen: hver spiller fik 15 Gold og 20 Silver, og items ligger stadig i bunken](../../images/guides/loot-10-split.png)
 
@@ -122,7 +123,8 @@ partiet vender tilbage til), åbn **Configure Pile**, ret **Delete when empty** 
 when empty**, og klik **Config Update**. Indstillingsvinduet er vist under
 [Hvis en spiller ikke kan åbne bunken](#hvis-en-spiller-ikke-kan-åbne-bunken).
 
-**Færdig, når det ser sådan ud:** tokenet ligger stadig på kortet, efter at sidste item og sidste mønt er taget.
+**Færdig, når det ser sådan ud:** efter **Config Update** står **Delete when empty** på **No, don't
+delete when empty**. Tokenet ligger så stadig på kortet, efter at sidste item og sidste mønt er taget.
 
 **Hvis det fejler:** bunken forsvandt, og du ville have, at den blev. Den slettede sig selv, da den var tom. Lav
 en ny bunke (trin 1), og ret **Delete when empty**, før spillerne begynder at tage.
@@ -157,7 +159,7 @@ Claude åbner eller fylder ikke bunker; til en bunke bruger du trinnene ovenfor.
 
 ## Godt at vide
 
-- Item Piles sender et velkomstkort i chatten, første gang du indlæser det, og spillerne kan se det.
-  Slet det, før spillerne kommer på.
+- Item Piles kan sende et velkomstkort i chatten, første gang det indlæses, og spillerne kan se det.
+  Ser du et, så slet det, før spillerne kommer på.
 - Mønter og items i en bunke er ikke i Loot-vinduet, før nogen tager dem: vinduet viser karakterer,
   ikke bunker.

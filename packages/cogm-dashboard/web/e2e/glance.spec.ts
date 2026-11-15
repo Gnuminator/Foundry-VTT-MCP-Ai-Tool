@@ -92,6 +92,47 @@ test('shows party, fight and scene, each with how fresh it is', async ({ page })
   expect(names.filter(n => /^(plan|apply|undo)-/.test(n))).toEqual([]);
 });
 
+for (const width of [390, 1440]) {
+  test(`Party rows put the name left and the HP at the right edge at ${width} px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fakeCommonRoutes(page);
+    const fight = [combatant('g', 'Goblin', { isCurrentTurn: true })];
+    await fakeStream(page, [
+      STATUS,
+      {
+        event: 'combat',
+        data: { combat: { active: true, round: 1, turn: 0, current: fight[0], combatants: fight } },
+      },
+    ]);
+    await fakeTools(page, call =>
+      call.name === 'get-party' ? ok(PARTY) : ok({ id: 's1', name: 'Castle gate' })
+    );
+    await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+    const row = page.locator('#glance-party li').first();
+    await expect(row).toContainText('Aldric');
+
+    const tracks = (locator: typeof row): Promise<number> =>
+      locator.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    expect(await tracks(row)).toBe(2);
+    // The Fight rows keep their three columns (initiative, name, HP).
+    expect(await tracks(page.locator('#glance-combat li').first())).toBe(3);
+
+    const rowBox = await row.boundingBox();
+    const nameBox = await row.locator('span').nth(0).boundingBox();
+    const hpBox = await row.locator('span').nth(1).boundingBox();
+    if (!rowBox || !nameBox || !hpBox) throw new Error('row not laid out');
+    // HP ends at the row's inner right edge (row padding is var(--space-2)); same line as the name.
+    const rowStyle = await row.evaluate(el => parseFloat(getComputedStyle(el).paddingRight));
+    expect(Math.abs(hpBox.x + hpBox.width - (rowBox.x + rowBox.width - rowStyle))).toBeLessThan(
+      1.5
+    );
+    expect(Math.abs(hpBox.y - nameBox.y)).toBeLessThan(2);
+    expect(hpBox.x).toBeGreaterThan(nameBox.x);
+  });
+}
+
 test('says there is no fight, and what could not be read', async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, [
@@ -125,4 +166,72 @@ test('does not say "no fight" before the live stream has spoken', async ({ page 
   await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
   await expect(page.locator('#glance-combat')).toContainText('Waiting for the live stream.');
   await expect(page.locator('#glance-combat')).not.toContainText('No fight right now.');
+});
+
+const STATUS = {
+  event: 'status',
+  data: {
+    controlChannel: 'connected',
+    foundry: 'reachable',
+    lastError: null,
+    lastPollAt: null,
+    foundryDownSince: null,
+  },
+};
+
+test('marks an answer Old after 45 s, and keeps the last answer when a re-read fails', async ({
+  page,
+}) => {
+  await fakeCommonRoutes(page);
+  await fakeStream(page, [STATUS, { event: 'combat', data: { combat: null } }]);
+  let partyFails = false;
+  await fakeTools(page, call => {
+    if (call.name === 'get-party') {
+      return partyFails ? { status: 502, json: { ok: false, error: 'down' } } : ok(PARTY);
+    }
+    return ok({ id: 's1', name: 'Castle gate' });
+  });
+  await page.clock.install();
+  await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+  const party = page.locator('#glance-party');
+  await expect(party).toContainText('Aldric');
+  const stamp = party.locator('[data-old]');
+  await expect(stamp).toHaveAttribute('data-old', 'false');
+  await expect(stamp).not.toContainText('Old');
+
+  // The next re-read fails: the old rows stay, with the text saying so.
+  partyFails = true;
+  await page.clock.runFor(16_000);
+  await expect(party.locator('[role="alert"]')).toContainText(
+    'Could not read the party, showing the last answer'
+  );
+  await expect(party).toContainText('Aldric');
+
+  // Nothing newer than the first answer for more than 45 s: the marker says Old.
+  await page.clock.runFor(35_000);
+  await expect(stamp).toHaveAttribute('data-old', 'true');
+  await expect(stamp).toContainText('Old:');
+});
+
+test('reads Party and Scene again every 15 s', async ({ page }) => {
+  await fakeCommonRoutes(page);
+  await fakeStream(page, [STATUS, { event: 'combat', data: { combat: null } }]);
+  const calls = await fakeTools(page, call =>
+    call.name === 'get-party' ? ok(PARTY) : ok({ id: 's1', name: 'Castle gate' })
+  );
+  await page.clock.install();
+  await page.goto(`/next/?glance=1&token=${GM_TOKEN}`);
+  await expect(page.locator('#glance-party')).toContainText('Aldric');
+  await expect(page.locator('#glance-scene-name')).toHaveText('Castle gate');
+  const count = (name: string): number => calls.filter(c => c.name === name).length;
+  const party0 = count('get-party');
+  const scene0 = count('get-current-scene');
+
+  await page.clock.runFor(14_000);
+  expect(count('get-party')).toBe(party0);
+  expect(count('get-current-scene')).toBe(scene0);
+
+  await page.clock.runFor(2_000);
+  await expect.poll(() => count('get-party')).toBeGreaterThan(party0);
+  await expect.poll(() => count('get-current-scene')).toBeGreaterThan(scene0);
 });

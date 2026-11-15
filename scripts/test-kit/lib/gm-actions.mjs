@@ -171,7 +171,7 @@ async function describeClass(args) {
     const full =
       owner?.pack && /^Item\.[^.]+$/.test(String(uuid)) ? `Compendium.${owner.pack}.${uuid}` : uuid;
     if (!found.has(full)) {
-      let doc = null;
+      let doc;
       try {
         doc = (await fromUuid(full)) ?? null;
       } catch {

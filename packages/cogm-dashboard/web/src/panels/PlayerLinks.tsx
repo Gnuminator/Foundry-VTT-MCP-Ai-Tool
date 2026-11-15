@@ -14,7 +14,7 @@ export interface PlayerLink {
   name: string;
   /** `/me?k=<key>`, or null while the player has no link. */
   link: string | null;
-  createdAt: number | null;
+  createdAt: string | null;
 }
 
 const LINKS_KEY = ['player-links'] as const;

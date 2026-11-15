@@ -170,7 +170,7 @@ export function addFeedEvents(log: FeedLog, batch: readonly FeedEvent[]): FeedLo
 }
 
 /** The event kind a guarded change made in Foundry leaves (Recent Changes reloads on it). */
-export const GM_CHANGE_EVENT = 'gm-change';
+const GM_CHANGE_EVENT = 'gm-change';
 
 /** Whether a batch has a gm-change event the log has not seen: a replay after a reconnect has none. */
 export function hasNewGmChange(log: FeedLog, batch: readonly FeedEvent[]): boolean {

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildToolRouter, collectToolDefinitions } from '../tool-router.js';
 import { stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
@@ -22,6 +22,7 @@ import {
 } from '../tool-sets.js';
 import {
   PLAYER_ENTRY_CHARS,
+  PLAYER_TOOL_NAMES,
   PLAYER_EXCERPT_CHARS,
   PlayerTools,
   handlePlayerTool,
@@ -38,7 +39,7 @@ logger.child = (): unknown => logger;
 function make(
   reply: unknown,
   opts: { secret?: string[]; extra?: string[] } = {}
-): { tools: PlayerTools; query: ReturnType<typeof vi.fn> } {
+): { tools: PlayerTools; query: Mock } {
   const query = vi.fn(() => Promise.resolve(reply));
   const tools = new PlayerTools({
     foundryClient: { query } as any,
@@ -63,6 +64,10 @@ function make(
 describe('the player set is never served on stdio and has no call_tool route', () => {
   const deps = stubToolRouterDeps();
   const names = TOOL_SETS[PLAYER_TOOL_SET].tools;
+
+  it('tags exactly the runtime allowlist as the player set', () => {
+    expect([...names].sort()).toEqual([...PLAYER_TOOL_NAMES].sort());
+  });
 
   it('resolveToolSets drops "player" and "all" excludes it', () => {
     const named = resolveToolSets('player');

@@ -59,10 +59,10 @@ const sortedCurrent = Object.fromEntries(
 );
 
 const hasBaseline = existsSync(baselinePath);
-const baseline = hasBaseline
-  ? JSON.parse(readFileSync(baselinePath, 'utf8'))
-  : { total: 0, files: {} };
+const baseline = hasBaseline ? JSON.parse(readFileSync(baselinePath, 'utf8')) : { files: {} };
 const baseFiles = baseline.files ?? {};
+// The total is computed, not stored: a stored sum made every em-dash PR conflict on one line.
+const baselineTotal = Object.values(baseFiles).reduce((sum, count) => sum + count, 0);
 
 const increases = [];
 const decreases = [];
@@ -80,7 +80,7 @@ if (update) {
     console.error('Replace the new em dashes, or pass --allow-increase for a reviewed exception.');
     process.exit(1);
   }
-  writeFileSync(baselinePath, `${JSON.stringify({ total, files: sortedCurrent }, null, 2)}\n`);
+  writeFileSync(baselinePath, `${JSON.stringify({ files: sortedCurrent }, null, 2)}\n`);
   console.log(
     `em-dash-guard: baseline written (${total} em dashes in ${Object.keys(sortedCurrent).length} files).`
   );
@@ -88,7 +88,7 @@ if (update) {
 }
 
 if (increases.length > 0) {
-  console.error(`em-dash-guard: em dashes went up (baseline ${baseline.total}, now ${total}):`);
+  console.error(`em-dash-guard: em dashes went up (baseline ${baselineTotal}, now ${total}):`);
   console.error(increases.join('\n'));
   console.error(
     'Use a colon, comma, parentheses or a full stop instead. The baseline only goes down.'
@@ -96,7 +96,7 @@ if (increases.length > 0) {
   process.exit(1);
 }
 
-console.log(`em-dash-guard: OK, ${total} em dashes (baseline ${baseline.total}).`);
+console.log(`em-dash-guard: OK, ${total} em dashes (baseline ${baselineTotal}).`);
 if (decreases.length > 0) {
   console.log('Counts went down; lock them in with `npm run emdash:ratchet -- --update`:');
   console.log(decreases.join('\n'));

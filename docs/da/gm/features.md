@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 0f7070d16b70
+sourceHash: ab14fe9c3764
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -174,12 +174,12 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 ## Themed dice
 
 - **Hvad den gør:** når modulet **Dice So Nice** er installeret og slået til, passer to terningesæt
-  til dashboardets temaer: **AI Tool: The Veil** (røgfarvet gråt-grønt glas med drivende tåge,
+  til dashboardets temaer: **AI Tool: The Veil (campaign look)** (røgfarvet gråt-grønt glas med drivende tåge,
   tallene i lampeguld) og **AI Tool: Neutral** (dyb marineblå med blå-hvide tal). Kun de 3D-terningers
   udseende ændrer sig. Roll og play log forbliver de samme.
 - **Starter:** sættene findes, så snart Dice So Nice gør, men ingen bruger dem, før de vælger dem.
 - **Slå den til, når:** før session 1. Åbn **Game Settings**, kategorien **Dice So Nice!**, klik på
-  **3D Dice Settings**, bliv på fanen **Appearance**, vælg **AI Tool: The Veil** (eller **AI Tool:
+  **3D Dice Settings**, bliv på fanen **Appearance**, vælg **AI Tool: The Veil (campaign look)** (eller **AI Tool:
   Neutral**) i listen **Theme** og klik på **Save**. Dice So Nice har ingen standard for hele
   bordet (vinduet **Configure Dice Roles** sætter kun udseendet for skadestyper som Fire), så hver
   spiller vælger sine egne terninger på samme måde.
@@ -215,6 +215,11 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
 - **Table viewer** ("AI Tool: Table viewer (writes)"): lader Claude oprette den **Table**-spiller,
   som tv'et ved bordet logger ind som. Starter slået til. Du bruger den én gang, se
   [TV'et ved bordet](tv-table-viewer.md).
+- **Player portraits** ("AI Tool: Player portraits (writes)"): lader en spiller skifte billedet på
+  sin egen karakter fra spillersiden (**Upload my portrait**). Filen lægges i spillerens egen mappe
+  under `assets/players`, og en ekstra ændring opdaterer de tokens, der allerede står på scener,
+  når spilleren valgte "Portrait and token". Begge vises i Recent Changes med Undo. Starter slået
+  til. Slår du den fra, forsvinder knappen fra spillersiden.
 - **Undo for everything** ("AI Tool: Undo for everything"): lader værktøjet fortryde og gentage
   alles ændringer (spillernes, dine og Claudes) fra Changes-listen, én ændring ad gangen eller alt
   siden på det samme. Starter slået til.
@@ -232,6 +237,9 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
 - **Paper sync** ("AI Tool: Paper sync (writes)"): skriver tallene fra et papirark tilbage på en
   karakter efter en aften spillet på papir. XP, level og klasse bliver aldrig ændret. Starter
   slået fra. Slå den til efter en papiraften.
+- **Character creation** ("AI Tool: Character creation (writes)"): lader Claude lave en ny
+  spillerkarakter og kopiere items fra packs over på den. Class features lægges på i hånden, fordi
+  level-up advancement ikke kører. Starter slået fra. Slå den til, når du bygger karakterer med Claude.
 - **Rules check** ("AI Tool: Rules check"): lader Claude sige, om en attack, en spell eller et item
   ser lovligt ud lige nu, og hvorfor. Den læser kun og ændrer intet. Starter slået til. Slå
   den fra, hvis du hellere vil have, at Claude ikke giver sit råd til attacks, spells og token-flytninger.

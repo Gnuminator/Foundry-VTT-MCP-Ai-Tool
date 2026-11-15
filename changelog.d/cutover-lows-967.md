@@ -1,0 +1,3 @@
+### Orange Pi
+
+- **Cutover guards tightened:** the Docker cutover now refuses while a dnd5e system trial or a kit session is open. A missing or failing `pgrep` no longer reads as "no container process" in the rollback, the stack guard and the nightly backup (they refuse instead). The nightly backup fails the night when Foundry's container came back during the copy (`restart: always` after a Docker restart), and `require_quiet` counts players when Foundry answers although the Docker daemon is silent. Tests cover the Docker start failure, the `docker_off` pass-through and the new refusals (backlog `cutover-lows-967`).

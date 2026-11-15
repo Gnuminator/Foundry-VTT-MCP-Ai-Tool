@@ -6,21 +6,13 @@
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage28-scenarios.sh [name ...]
 # DESTRUCTIVE: it wipes the tool folders and installs the fakes into /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 H=/repo/scripts/pi/container-test
 R=/repo/scripts/pi/remote
 only=" $* "
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs curl ca-certificates; }
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin /run/systemd/system
 ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep logger; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
@@ -48,10 +40,10 @@ want() { [ -z "${only// /}" ] || [[ "$only" == *" $1 "* ]]; }
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" /var/lib/foundry-import
-  rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/gm-nojoin /tmp/gmbroken "$NEW"
+  rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/gm-nojoin /tmp/gm-stale /tmp/gm-noarmed /tmp/gmbroken "$NEW"
   mkdir -p "$FOUNDRY_DATA" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA"
   echo '// old driver' >"$DRIVER"
-  printf '%s\n' '// assistant-gm features: extra-gm link-check page-ping' 'console.log("new driver");' >"$NEW"
+  printf '%s\n' '// assistant-gm features: extra-gm link-check page-ping page-armed-log' 'console.log("new driver");' >"$NEW"
   echo fake-invocation-1 >/tmp/gm-invocation
   printf '{"active":true,"world":"curse-of-strahd","users":0}' >/tmp/status
   echo 0 >/tmp/status_rc
@@ -112,8 +104,57 @@ if want apply; then
   out="$(run_stage 'UNDO=1')"
   check undo 'putting .*assistant-gm\.mjs\.prev-.* back' "$out"
   check undo 'the old driver is back' "$out"
+  check undo 'it has no page watchdog' "$out"
   grep -q 'old driver' "$DRIVER" && echo "PASS undo: old driver back" || {
     echo "FAIL undo: not restored"
+    fail=1
+  }
+  # the newest .prev-* is now the deployed driver: a second UNDO changes and restarts nothing
+  : >/tmp/calls
+  out="$(run_stage 'UNDO=1')"
+  check undo-twice 'is the deployed driver already' "$out"
+  check undo-twice 'exit 0' "$out"
+  absent undo-twice 'restart' "$(cat /tmp/calls)"
+fi
+
+if want undo-older-build; then
+  # the .prev-* put back already has the page watchdog: the message must not say it is off
+  fresh_pi
+  printf '%s\n' '// assistant-gm features: page-ping' 'console.log("older watch driver");' >"$DRIVER"
+  out="$(run_stage 'APPLY=1')"
+  check undo-older-build-setup 'exit 0' "$out"
+  out="$(run_stage 'UNDO=1')"
+  check undo-older-build 'it has the page watchdog too' "$out"
+  absent undo-older-build 'has no page watchdog' "$out"
+  check undo-older-build 'exit 0' "$out"
+fi
+
+if want not-armed; then
+  # the browser joins but the journal has no "page watchdog armed" line (GM_PAGE_WATCH=0): not a pass, the old driver goes back
+  fresh_pi
+  touch /tmp/gm-noarmed
+  out="$(run_stage 'APPLY=1')"
+  check not-armed "no 'page watchdog armed' line" "$out"
+  check not-armed 'did not rejoin with the new driver: putting the old one back' "$out"
+  absent not-armed 'joined the world again' "$out"
+  check not-armed 'exit 1' "$out"
+  grep -q 'old driver' "$DRIVER" && echo "PASS not-armed: old driver back" || {
+    echo "FAIL not-armed: old driver not restored"
+    fail=1
+  }
+fi
+
+if want stale-invocation; then
+  # only the run before the restart has the join line; the new run has none: the read-back must roll back
+  fresh_pi
+  touch /tmp/gm-stale
+  out="$(run_stage 'APPLY=1')"
+  check stale 'did not rejoin with the new driver: putting the old one back' "$out"
+  check stale 'the old one is back' "$out"
+  absent stale 'joined the world again' "$out"
+  check stale 'exit 1' "$out"
+  grep -q 'old driver' "$DRIVER" && echo "PASS stale: old driver back" || {
+    echo "FAIL stale: old driver not restored"
     fail=1
   }
 fi
@@ -170,7 +211,11 @@ if want refusals; then
   out="$(run_stage 'APPLY=1')"
   check old-source 'does not name the page-ping feature' "$out"
   check old-source 'exit 1' "$out"
-  printf '%s\n' '// assistant-gm features: page-ping' 'let (' >"$NEW"
+  printf '%s\n' '// assistant-gm features: page-ping' 'console.log("page-ping driver from before the armed line");' >"$NEW"
+  out="$(run_stage 'APPLY=1')"
+  check no-armed-feature 'does not name the page-armed-log feature' "$out"
+  check no-armed-feature 'exit 1' "$out"
+  printf '%s\n' '// assistant-gm features: page-ping page-armed-log' 'let (' >"$NEW"
   out="$(run_stage 'APPLY=1')"
   check syntax 'does not parse' "$out"
   rm -f "$NEW"

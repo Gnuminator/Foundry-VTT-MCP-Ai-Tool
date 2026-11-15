@@ -86,7 +86,7 @@ async function describeOrigin(args) {
   const found = new Map();
   const resolve = async uuid => {
     if (!found.has(uuid)) {
-      let d = null;
+      let d;
       try {
         d = (await fromUuid(uuid)) ?? null;
       } catch {

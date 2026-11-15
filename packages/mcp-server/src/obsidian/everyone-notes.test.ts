@@ -2,7 +2,7 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { ChangeRecord } from '@gnuminator/shared';
 
@@ -26,6 +26,7 @@ import {
 } from './everyone-notes.js';
 import { checkMarkdownOwnership } from './ownership.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 const AT = new Date(2026, 9, 7, 19, 42).toISOString();
 const LATER = new Date(2026, 9, 7, 19, 50).toISOString();
@@ -222,7 +223,7 @@ describe('renderEveryoneNote', () => {
 describe('EveryoneNotes', () => {
   let vaultDir: string;
   let days: ChangeDay[];
-  let logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+  let logger: { info: Mock; warn: Mock };
 
   function make(
     extra: { debounceMs?: number; maxWaitMs?: number; now?: () => number } = {}
@@ -244,7 +245,7 @@ describe('EveryoneNotes', () => {
 
   beforeEach(async () => {
     vaultDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'everyone-notes-'));
-    logger = { info: vi.fn(), warn: vi.fn() };
+    logger = makeLogger();
     days = [
       {
         date: '2026-10-06',
@@ -468,8 +469,7 @@ describe('EveryoneNotes with the real history', () => {
 
   it('leaves the note of a day that left the kept span byte-identical (the cutoff moved past it)', async () => {
     const store = new VaultStore({ dataDir });
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    const logger = makeLogger();
     let now = new Date(2026, 9, 6, 23, 0).getTime();
     const history = new ChangeHistory({
       store,

@@ -33,6 +33,7 @@ npm run build          # composite build of all workspaces
 npm run typecheck      # strict TS, all workspaces
 npm run lint:ratchet   # any ESLint error fails (baseline 0)
 npm run emdash:ratchet # em dashes may only go down
+npm run line:ratchet   # source files over 1,000 lines may not grow (--update lowers, --except <file> "<reason>" for a named exception)
 CI=true npm test       # every workspace
 npm run docs:lint      # markdownlint (.markdownlint-cli2.jsonc)
 npm run docs:links     # every relative link and #anchor in the tracked Markdown
@@ -52,7 +53,8 @@ from a tool's folder: `python -m pytest` (on Windows `python`, never `python3`, 
 the Store stub).
 
 After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
-[docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.
+the index [docs/reference/tools.md](../reference/tools.md) and one page per set in
+`docs/reference/tools/`, and the mcp-server tests fail while a page is stale.
 
 To see whether a tool description change helps or hurts Claude's tool picking, run the tool eval:
 `npm run tool-eval -- --models sonnet,haiku` (build `shared` first). It asks 22 questions through
@@ -61,7 +63,9 @@ list, and prints the share of good tool paths per model plus the hard gates (no 
 yes, no stand-in when a connector is off, Danish replies stay Danish). A full run of both models
 costs a couple of million tokens (mostly cache reads); `--cases 1,2` or `--dry-run` keeps it
 small. It uses Claude Code, not Claude Desktop, so compare runs with each other. The cases are in
-`scripts/tool-eval/cases.mjs`; the stub binds no port.
+`scripts/tool-eval/cases.mjs`; the stub binds no port. Each `claude -p` call keeps its session
+transcript under `~/.claude/projects` like any other run; delete the folders it makes there if
+you do not want them.
 
 A pull request adds its CHANGELOG entry as its own file in [changelog.d/](../../changelog.d/README.md),
 never by editing `CHANGELOG.md`, and lowers the lint and em-dash baselines itself when its counts

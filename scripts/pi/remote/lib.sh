@@ -66,6 +66,106 @@ have_systemd() {
   [ -d /run/systemd/system ]
 }
 
+# ---- The Docker stack (stage 24) ------------------------------------------------------------------------------
+# After the cutover (stage 24 MODE=cutover) Foundry, the bridge, the dashboard and the Assistant GM browser run as the
+# containers of compose project foundry-ai-tool-pi and their systemd units are disabled. A stage that starts, restarts or
+# enables one of those units would start a second copy next to the container, so it calls refuse_when_cut_over first.
+# Containers are found by label: that needs neither the compose file nor deploy/pi/.env.
+COMPOSE_LIVE_PROJECT=foundry-ai-tool-pi
+
+# containers_of PROJECT [SERVICE] [-a]: the container ids of a compose project (-a: stopped ones too). Prints nothing and
+# returns 0 when docker is not installed; returns 1 (nothing printed) when docker is installed but its daemon does not
+# answer: the state is then unknown and every caller treats that as "containers may exist".
+containers_of() {
+  command -v docker >/dev/null 2>&1 || return 0
+  timeout 20 docker info >/dev/null 2>&1 || return 1
+  local args=(ps -q)
+  [ "${3:-}" != -a ] || args=(ps -aq)
+  args+=(--filter "label=com.docker.compose.project=$1")
+  [ -z "${2:-}" ] || args+=(--filter "label=com.docker.compose.service=$2")
+  docker "${args[@]}" 2>/dev/null
+}
+# True when docker is not installed or its daemon answers.
+daemon_known() { ! command -v docker >/dev/null 2>&1 || timeout 20 docker info >/dev/null 2>&1; }
+
+# shim_state: a containerd-shim process (a container under live-restore, stage 23, left running when dockerd is stopped)
+# is there or not. Returns 0 when one runs, 1 when none does, 2 when it cannot tell (pgrep missing or failing: exit 127
+# must never read as "no container", so every caller treats 2 like 0). 6-backup.sh keeps its own copy of this (the
+# nightly script is a stand-alone file); keep the two in step.
+shim_state() {
+  local rc=0
+  command -v pgrep >/dev/null 2>&1 || return 2
+  pgrep -f containerd-shim >/dev/null 2>&1 || rc=$?
+  case "$rc" in 0) return 0 ;; 1) return 1 ;; *) return 2 ;; esac
+}
+
+# docker_cannot_return: 0 when docker is installed, its daemon is down AND systemd will not bring it back (docker.service
+# and docker.socket are neither enabled nor active: stage 24's FORCE=1 rollback does that on purpose), so no container can
+# be there. Anything else about a silent daemon stays "unknown".
+docker_cannot_return() {
+  local u
+  have_systemd || return 1
+  # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped: a container process left
+  # means "unknown", whatever systemd says about the docker units.
+  local shim=0
+  shim_state || shim=$?
+  [ "$shim" = 1 ] || return 1
+  for u in docker.service docker.socket; do
+    if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
+    [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
+  done
+  return 0
+}
+
+# refuse_when_cut_over WHAT: die when a container of the live project exists (also a stopped one: the backup stops the
+# Foundry container each night, and a container that its restart policy brings back is still a second copy). Docker not
+# installed = never cut over. Docker installed but silent = unknown, and unknown refuses (fail closed), unless
+# docker_cannot_return. Never overridden by FORCE=1. Call it right after require_root (and the snapshot check), before the
+# first change, in every stage that starts, restarts or enables Foundry, the bridge, the dashboard or the Assistant GM
+# (scripts/pi/cutover-guard.test.mjs fails for a stage that touches a unit without it).
+refuse_when_cut_over() {
+  local what="$1" ids
+  command -v docker >/dev/null 2>&1 || return 0
+  if ! ids="$(containers_of "$COMPOSE_LIVE_PROJECT" "" -a)"; then
+    docker_cannot_return && return 0
+    die "the Docker daemon does not answer, so whether the stack runs as containers is unknown: $what is refused (it would start a systemd unit next to a container). Look at: systemctl status docker. Nothing was changed"
+  fi
+  [ -z "$ids" ] || die "the stack runs as containers (compose project $COMPOSE_LIVE_PROJECT): $what would start a second copy of a systemd unit next to them. Go back first: stage 24 with MODE=rollback (deploy/pi/README.md, Cutover and rollback). Nothing was changed"
+}
+
+# env_file_value FILE NAME: the value a compose .env FILE gives NAME, read the way compose reads it ("" when the file or the
+# name is absent): the last assignment wins, whitespace around the name and the value is dropped, an unquoted value ends at a
+# whitespace-then-# comment, one pair of matching quotes is removed (what is inside them is kept as it is). The one reader
+# for deploy/pi/.env (stage 24); scripts/pi/cutover-guard.test.mjs tests it.
+env_file_value() {
+  local v=""
+  if [ -f "$1" ]; then
+    v="$(sed -n "s/^[[:space:]]*$2[[:space:]]*=//p" "$1" | tail -n 1)"
+    v="${v#"${v%%[![:space:]]*}"}"
+    case "$v" in
+      \"*) v="${v#\"}" v="${v%%\"*}" ;;
+      \'*) v="${v#\'}" v="${v%%\'*}" ;;
+      *) v="$(printf '%s' "$v" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')" ;;
+    esac
+  fi
+  printf '%s' "$v"
+}
+
+# live_container SERVICE: the id of the RUNNING container of a service of the live project (empty when none or unknown).
+live_container() {
+  containers_of "$COMPOSE_LIVE_PROJECT" "$1" 2>/dev/null | head -n 1 || true
+}
+
+# gm_container_joined: 0 when the Assistant GM container joined the world in its current run (its logs since its last start).
+gm_container_joined() {
+  local cid started
+  cid="$(live_container gm-browser)"
+  [ -n "$cid" ] || return 1
+  started="$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)"
+  [ -n "$started" ] || return 1
+  [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # Install Debian packages that are missing.
 apt_install() {
   local missing=()
@@ -177,6 +277,41 @@ unit_started_epoch() {
   date -d "$ts" +%s 2>/dev/null || true
 }
 
+# wait_for_watching UNIT SINCE [SECONDS]: 0 when the game-night watch logged its "watching" line since SINCE (a
+# "YYYY-MM-DD HH:MM:SS" time), 1 when the unit stopped first or the time ran out (default 20 s). "Running" is not
+# "watching": a settings problem exits 2 within seconds and the unit stays down. The journal holds log lines (the
+# Foundry host name, never a token or a full address). Read-only.
+wait_for_watching() {
+  local unit="$1" since="$2" secs="${3:-20}" _
+  for _ in $(seq 1 "$secs"); do
+    journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -q ' watching ' && return 0
+    systemctl is-active --quiet "$unit" || return 1
+    sleep 1
+  done
+  return 1
+}
+
+# restart_gamenight_watch REASON [FILE]: restarts the game-night watch (stage 29) so a changed bot env file reaches it,
+# then waits for its "watching" line (a restart that stopped on exit 2 is a warning, not a success). With FILE, only
+# when FILE is newer than the running watch (a rerun after a cut-off run still repairs it). It holds no recording and
+# no player, so no quiet check. Does nothing without systemd or without the unit installed.
+restart_gamenight_watch() {
+  local reason="$1" file="${2:-}" watch_unit=foundry-ai-tool-gamenight-watch.service started since
+  have_systemd && [ -f "/etc/systemd/system/$watch_unit" ] || return 0
+  if [ -n "$file" ]; then
+    started="$(unit_started_epoch "$watch_unit")"
+    if [ -n "$started" ] && [ -f "$file" ] && [ "$(stat -c %Y "$file")" -le "$started" ]; then return 0; fi
+  fi
+  since="$(date '+%Y-%m-%d %H:%M:%S')"
+  if ! systemctl restart "$watch_unit"; then
+    warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
+  elif wait_for_watching "$watch_unit" "$since"; then
+    ok "restarted $watch_unit for $reason; it is watching"
+  else
+    warn "restarted $watch_unit for $reason but it did not reach its 'watching' line: journalctl -u $watch_unit -n 20"
+  fi
+}
+
 # recording_active [DIR]: 0 when a Discord recording seems to run: a session folder under DIR (default
 # $TOOL_DATA/recordings) whose raw/ has no session.json yet (the bot writes it when the recording stops) and either
 # has a file changed in the last 10 minutes or, while the bot service runs, was last changed after the bot last
@@ -230,7 +365,28 @@ gm_browsers_joined() {
   for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
     if browser_joined "$unit"; then n=$((n + 1)); fi
   done
+  # The Assistant GM as a container (after the cutover) holds a Foundry user the same way.
+  if gm_container_joined; then n=$((n + 1)); fi
   printf '%s' "$n"
+}
+
+# gm_browsers_pending: prints how many GM browsers (the two units, the Assistant GM container) are running but have not
+# joined the world in their current run: users Foundry may count that browser_joined does not (yet). Read-only.
+gm_browsers_pending() {
+  local n=0 unit
+  for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
+    if systemctl is-active --quiet "$unit" && ! browser_joined "$unit"; then n=$((n + 1)); fi
+  done
+  if [ -n "$(live_container gm-browser)" ] && ! gm_container_joined; then n=$((n + 1)); fi
+  printf '%s' "$n"
+}
+
+# foundry_answers_without_docker: 0 when Docker is installed but its daemon is silent AND something answers /api/status on
+# port 30000. After the cutover a silent daemon hides the Foundry container from live_container, but with live-restore it
+# may still run and hold players, so require_quiet counts them anyway.
+foundry_answers_without_docker() {
+  ! daemon_known || return 1
+  [ "$(users_online)" != "?" ]
 }
 
 # require_quiet WHAT: call before a stage stops or restarts Foundry (WHAT names the action). Refuses while players are
@@ -239,9 +395,26 @@ gm_browsers_joined() {
 require_quiet() {
   local what="$1" online assistant=0
   have_systemd || return 0
-  if systemctl is-active --quiet foundry.service; then
-    online="$(users_online)"
-    assistant="$(gm_browsers_joined)"
+  # Foundry runs as the unit, or (after the cutover) as the container of the live project.
+  if systemctl is-active --quiet foundry.service || [ -n "$(live_container foundry)" ] || foundry_answers_without_docker; then
+    # The two counts come from different places (Foundry's /api/status and the GM browser's journal) and change at
+    # slightly different moments when a GM browser joins or leaves (Pi sitting 2026-11-10: two refusals with only the
+    # Assistant GM online, the third run passed). Read them again for up to 10 s, but only while the excess users could
+    # be a GM browser that is running and has not logged "joined world" yet: a count with a real player beyond that
+    # refuses on the first reading. (Each read can take longer when Docker does not answer.)
+    local tries=0 pending=0
+    while :; do
+      online="$(users_online)"
+      case "$online" in '' | *[!0-9]*) online="?" ;; esac
+      assistant="$(gm_browsers_joined)"
+      [ "$online" != "?" ] || break
+      [ "$online" -gt "$assistant" ] || break
+      pending="$(gm_browsers_pending)"
+      [ "$((online - assistant))" -le "$pending" ] || break
+      [ "$tries" -lt 5 ] || break
+      tries=$((tries + 1))
+      sleep 2
+    done
     if [ "$online" = "?" ]; then
       refuse "cannot read who is online in Foundry (/api/status on port 30000), so $what is not safe"
     elif [ "$online" -gt "$assistant" ]; then

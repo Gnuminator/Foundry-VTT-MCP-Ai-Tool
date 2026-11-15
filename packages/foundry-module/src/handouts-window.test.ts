@@ -5,7 +5,7 @@
  * window class on a fake `ApplicationV2` (escaped HTML, singleton, live refresh,
  * the "Show it now" box read per click, real deps for the names and the confirm).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   HandoutsController,
@@ -39,10 +39,10 @@ const plan = {
 };
 
 function makeDeps(over: Partial<HandoutsDeps> = {}): HandoutsDeps & {
-  request: ReturnType<typeof vi.fn>;
-  confirmReveal: ReturnType<typeof vi.fn>;
-  notifyInfo: ReturnType<typeof vi.fn>;
-  notifyError: ReturnType<typeof vi.fn>;
+  request: Mock;
+  confirmReveal: Mock;
+  notifyInfo: Mock;
+  notifyError: Mock;
 } {
   return {
     request: vi.fn(async (tool: string) => {
@@ -278,8 +278,8 @@ describe('the window class on a fake ApplicationV2', () => {
   let world: TestWorld;
   let restore: () => void;
   let rendered: any[];
-  let link: { request: ReturnType<typeof vi.fn> };
-  let confirm: ReturnType<typeof vi.fn>;
+  let link: { request: Mock };
+  let confirm: Mock;
 
   beforeEach(() => {
     vi.useFakeTimers();

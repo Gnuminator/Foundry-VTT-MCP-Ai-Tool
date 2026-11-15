@@ -171,7 +171,7 @@ export function readState({ moduleId, pack, methods, targets }) {
 }
 
 // Runs in the browser: changes only what differs; returns what it changed.
-export async function applyState({ moduleId, pack, roles, methods, targets }) {
+export async function applyState({ moduleId, pack: _pack, roles, methods, targets }) {
   const changed = [];
   if (roles.join() !== [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED].join()) {
     throw new Error(`the player roles are ${JSON.stringify(CONST.USER_ROLES)} in this Foundry`);

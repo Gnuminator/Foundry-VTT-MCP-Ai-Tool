@@ -8,7 +8,7 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "test": "vitest run",
-    "typecheck": "node ../../scripts/tsc7.mjs --noEmit",
+    "typecheck": "node ../../scripts/tsc7.mjs --noEmit --customConditions development",
     "lint": "eslint src"
   },
   "devDependencies": {

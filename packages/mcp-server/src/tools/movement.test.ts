@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { MovementTools } from './movement.js';
 
 /**
  * Template for chunk-4 tool tests: a tool class is a thin, deterministic layer
- * over `FoundryClient.query` — validate args → dispatch the right
+ * over `FoundryClient.query`: validate args → dispatch the right
  * `foundry-mcp-bridge.*` method → propagate a foundry-side failure → shape the
  * result. We mock the client so the layer is tested in isolation (no bridge),
  * which is the whole reason the Node-side tool layer is the safe rewrite target.
@@ -12,7 +12,7 @@ import { MovementTools } from './movement.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: MovementTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

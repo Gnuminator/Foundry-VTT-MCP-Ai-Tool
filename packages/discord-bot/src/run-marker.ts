@@ -7,6 +7,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { bi } from './i18n.js';
+
 export function markerPath(sessionsDir: string): string {
   return join(sessionsDir, '.bot-running');
 }
@@ -67,5 +69,8 @@ export async function destroyThenClear(
 
 /** The #gm-bot line for a start that found the previous run's marker. */
 export function restartAfterCrashMessage(previousStart: string): string {
-  return `Recorder bot restarted after an unclean stop (the previous run started ${previousStart} and never shut down cleanly). If a recording was running, it was not resumed: check the session folder and start /record again.`;
+  return bi(
+    `Recorder bot genstartede efter et urent stop (den forrige kørsel startede ${previousStart} og blev aldrig lukket rigtigt ned). Hvis en optagelse kørte, blev den ikke genoptaget: tjek session-mappen og start /record igen.`,
+    `Recorder bot restarted after an unclean stop (the previous run started ${previousStart} and never shut down cleanly). If a recording was running, it was not resumed: check the session folder and start /record again.`
+  );
 }

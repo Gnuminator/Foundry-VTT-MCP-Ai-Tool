@@ -1,0 +1,28 @@
+import { GuardedChangeTools } from '../guarded-changes.js';
+import { defineToolModule } from '../tool-module.js';
+
+export const guardedChangesModule = defineToolModule({
+  id: 'guarded-changes',
+  create: ({ services }) =>
+    new GuardedChangeTools({
+      foundryClient: services.foundryClient,
+      guardedWrites: services.guardedWrites,
+      logger: services.logger,
+    }),
+  definitions: tools => tools.getToolDefinitions(),
+  routes: {
+    'get-planned-change': (tools, args) => tools.handleGetPlannedChange(args),
+    'apply-planned-change': (tools, args, context) =>
+      tools.handleApplyPlannedChange(args, context?.requestedBy),
+    'list-recent-changes': (tools, args) => tools.handleListRecentChanges(args),
+    'undo-change': (tools, args, context) => tools.handleUndoChange(args, context?.requestedBy),
+    'open-in-foundry': (tools, args) => tools.handleOpenInFoundry(args),
+  },
+  tools: {
+    'get-planned-change': { set: 'core', title: 'Show planned change', kind: 'read' },
+    'apply-planned-change': { set: 'core', title: 'Apply planned change', kind: 'destructive' },
+    'list-recent-changes': { set: 'core', title: 'List applied plans', kind: 'read' },
+    'undo-change': { set: 'core', title: 'Undo change', kind: 'destructive' },
+    'open-in-foundry': { set: 'core', title: 'Open in Foundry', kind: 'read' },
+  },
+});

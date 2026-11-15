@@ -1,7 +1,7 @@
 // node --test tools/player-connector/build.test.mjs
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { after, before, mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
-import { build } from './build.mjs';
+import { build, buildPreset } from './build.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(here, 'server', 'index.js');
@@ -385,7 +385,11 @@ test('the .mcpb is a zip with a valid manifest and the server, secrets marked se
       entries.set(name, inflateRawSync(buf.subarray(start, start + packed)).toString('utf8'));
       at = start + packed;
     }
-    assert.deepEqual([...entries.keys()].sort(), ['manifest.json', 'server/index.js']);
+    assert.deepEqual([...entries.keys()].sort(), [
+      'manifest.json',
+      'server/guide.json',
+      'server/index.js',
+    ]);
     const m = JSON.parse(entries.get('manifest.json'));
     assert.equal(m.manifest_version, '0.3');
     assert.equal(m.server.type, 'node');
@@ -398,6 +402,118 @@ test('the .mcpb is a zip with a valid manifest and the server, secrets marked se
     }
     assert.equal(entries.get('server/index.js'), readFileSync(SERVER, 'utf8'));
     assert.throws(() => build(dir, 'http://plain.example.org/'), /https/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function unzip(buf) {
+  const entries = new Map();
+  let at = 0;
+  while (buf.readUInt32LE(at) === 0x04034b50) {
+    const packed = buf.readUInt32LE(at + 18);
+    const nameLen = buf.readUInt16LE(at + 26);
+    const extraLen = buf.readUInt16LE(at + 28);
+    const name = buf.toString('utf8', at + 30, at + 30 + nameLen);
+    const start = at + 30 + nameLen + extraLen;
+    entries.set(name, inflateRawSync(buf.subarray(start, start + packed)).toString('utf8'));
+    at = start + packed;
+  }
+  return entries;
+}
+
+const PRESET = {
+  endpoint: 'https://player.example.org/mcp/player',
+  clientId: 'preset-id-0001.access',
+  clientSecret: 'preset-secret-0123456789abcdef',
+  playerName: 'Ebbe Thistle',
+  userId: 'AbCdEf0123456789',
+};
+
+test('a player preset has literals, no user_config, its own name and display name', () => {
+  const entries = unzip(buildPreset(PRESET));
+  assert.deepEqual([...entries.keys()].sort(), [
+    'manifest.json',
+    'server/guide.json',
+    'server/index.js',
+  ]);
+  const m = JSON.parse(entries.get('manifest.json'));
+  assert.equal(m.user_config, undefined);
+  assert.deepEqual(m.server.mcp_config.env, {
+    FOUNDRY_PLAYER_ENDPOINT: PRESET.endpoint,
+    FOUNDRY_PLAYER_CLIENT_ID: PRESET.clientId,
+    FOUNDRY_PLAYER_CLIENT_SECRET: PRESET.clientSecret,
+  });
+  assert.equal(m.name, 'foundry-player-abcdef0123456789');
+  assert.equal(m.display_name, 'Foundry (Ebbe Thistle)');
+  assert.ok(!JSON.stringify(m).includes('${user_config'));
+  // The name follows the user id: a renamed user still replaces the old install, two users differ.
+  const renamed = JSON.parse(
+    unzip(buildPreset({ ...PRESET, playerName: 'Ebbe!' })).get('manifest.json')
+  );
+  assert.equal(renamed.name, m.name);
+  const other = JSON.parse(
+    unzip(buildPreset({ ...PRESET, playerName: 'Tamsin', userId: 'ZzYyXx9876543210' })).get(
+      'manifest.json'
+    )
+  );
+  assert.notEqual(other.name, m.name);
+  // Without a usable id the name falls back to the player's name, then to "player".
+  const noId = JSON.parse(
+    unzip(buildPreset({ ...PRESET, userId: undefined, playerName: 'Ebbe Thistle' })).get(
+      'manifest.json'
+    )
+  );
+  assert.equal(noId.name, 'foundry-player-ebbe-thistle');
+  const odd = JSON.parse(
+    unzip(buildPreset({ ...PRESET, userId: undefined, playerName: '***' })).get('manifest.json')
+  );
+  assert.equal(odd.name, 'foundry-player-player');
+});
+
+test('a player preset refuses a plain-http endpoint and missing values', () => {
+  assert.throws(() => buildPreset({ ...PRESET, endpoint: 'http://plain.example.org/' }), /https/);
+  assert.throws(() => buildPreset({ ...PRESET, endpoint: 'not a url' }), /address/);
+  assert.throws(() => buildPreset({ ...PRESET, clientSecret: ' ' }), /Secret/);
+  assert.doesNotThrow(() => buildPreset({ ...PRESET, endpoint: 'http://127.0.0.1:3100/mcp' }));
+});
+
+test('npm run player-preset writes the file and prints no secret', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'player-preset-'));
+  try {
+    const cfg = path.join(dir, 'connector.json');
+    writeFileSync(
+      cfg,
+      JSON.stringify({
+        endpoint: PRESET.endpoint,
+        players: [
+          {
+            clientId: PRESET.clientId,
+            clientSecret: PRESET.clientSecret,
+            userId: PRESET.userId,
+            name: 'Ebbe',
+          },
+        ],
+      })
+    );
+    const script = path.join(here, '..', '..', 'scripts', 'player-preset.mjs');
+    const out = path.join(dir, 'out');
+    const run = player =>
+      spawnSync(process.execPath, [script, '--player', player, '--config', cfg, '--out', out], {
+        encoding: 'utf8',
+      });
+    const ok = run('ebbe');
+    assert.equal(ok.status, 0, ok.stderr);
+    for (const value of [PRESET.clientSecret, PRESET.clientId]) {
+      assert.ok(!(ok.stdout + ok.stderr).includes(value));
+    }
+    const m = JSON.parse(
+      unzip(readFileSync(path.join(out, 'foundry-player-ebbe.mcpb'))).get('manifest.json')
+    );
+    assert.equal(m.server.mcp_config.env.FOUNDRY_PLAYER_CLIENT_SECRET, PRESET.clientSecret);
+    const bad = run('nobody');
+    assert.equal(bad.status, 1);
+    assert.ok(!(bad.stdout + bad.stderr).includes(PRESET.clientSecret));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -786,4 +902,144 @@ test('the VERSION constant equals the manifest version', () => {
   const v = /const VERSION = '([^']+)'/.exec(readFileSync(SERVER, 'utf8'));
   assert.ok(v, 'VERSION constant found');
   assert.equal(v[1], m.version);
+});
+
+// The helper guide (MCP instructions and the get-helper-guide tool).
+
+/** A forwarder that answers like the table: one tool, or a failure text. */
+function fakeForwarder(failure) {
+  return {
+    secrets: [SECRET],
+    forward: async req => {
+      if (failure) return { failure };
+      if (req.method === 'initialize')
+        return {
+          message: { result: { protocolVersion: '2025-06-18', serverInfo: { name: 'x' } } },
+        };
+      if (req.method === 'tools/list')
+        return { message: { result: { tools: [{ name: 'get-my-character' }] } } };
+      return { message: { result: { content: [{ type: 'text', text: 'forwarded' }] } } };
+    },
+  };
+}
+
+test('the guide is built from the player skill: instructions, topics, no skill file paths', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const g = buildGuide();
+  assert.match(g.instructions, /^# D&D helper \(player edition\)/);
+  assert.match(g.instructions, /get-helper-guide/);
+  assert.deepEqual(Object.keys(g.pages).sort(), [
+    'character-creation',
+    'join',
+    'level-up',
+    'make-a-character',
+    'overview',
+    'plan-note',
+    'rules-question',
+    'sheet-check',
+  ]);
+  const all = JSON.stringify(g);
+  assert.ok(!/references\//.test(all), 'no path into the skill zip is left');
+  assert.ok(!/of the skill|\]\([\w-]+\.md\)/.test(all), 'no skill wording or .md link is left');
+  assert.ok(g.instructions.length < 8000, 'instructions stay short');
+  // Only the player tools: none of the GM set, and nothing that changes the game.
+  assert.ok(!/search-compendium|get-compendium-item|list-characters|get-character\b/.test(all));
+  assert.ok(!/CF-Access|Client Secret:/.test(all), 'no secret-shaped text');
+});
+
+test('with a guide, initialize carries instructions and tools/list the guide tool', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  for (const failure of [undefined, 'HTTP 403']) {
+    const init = await handleMessage(
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+      fakeForwarder(failure),
+      guide
+    );
+    assert.equal(init.result.instructions, guide.instructions);
+    const list = await handleMessage(
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+      fakeForwarder(failure),
+      guide
+    );
+    const names = list.result.tools.map(t => t.name);
+    assert.equal(names.filter(n => n === 'get-helper-guide').length, 1);
+  }
+});
+
+test('get-helper-guide answers locally per topic and refuses an unknown one', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  const forwarder = fakeForwarder();
+  forwarder.forward = async () => assert.fail('the guide tool is not forwarded');
+  const call = args =>
+    handleMessage(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get-helper-guide', arguments: args },
+      },
+      forwarder,
+      guide
+    );
+  assert.match((await call({})).result.content[0].text, /Topics: /);
+  assert.match(
+    (await call({ topic: 'character-creation' })).result.content[0].text,
+    /^# Character creation flow/
+  );
+  assert.equal((await call({ topic: '../../etc/passwd' })).result.isError, true);
+  assert.equal((await call({ topic: 'toString' })).result.isError, true);
+});
+
+test('a forwarded reply is still scrubbed after the guide is added', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const { handleMessage } = loadServer();
+  const f = fakeForwarder();
+  f.forward = async () => ({
+    message: { result: { protocolVersion: '2025-06-18', serverInfo: { name: SECRET } } },
+  });
+  const init = await handleMessage(
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+    f,
+    buildGuide()
+  );
+  assert.ok(!JSON.stringify(init).includes(SECRET));
+  assert.ok(init.result.instructions);
+});
+
+test('without guide.json nothing changes: no instructions, no extra tool', async () => {
+  const { handleMessage, loadGuide } = loadServer();
+  assert.equal(loadGuide(tmpdir()), null);
+  const init = await handleMessage(
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+    fakeForwarder(),
+    null
+  );
+  assert.equal(init.result.instructions, undefined);
+  const list = await handleMessage(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    fakeForwarder(),
+    null
+  );
+  assert.deepEqual(
+    list.result.tools.map(t => t.name),
+    ['get-my-character']
+  );
+});
+
+test('the built extension carries a guide.json the server can load', () => {
+  const entries = unzip(buildPreset(PRESET));
+  const dir = mkdtempSync(path.join(tmpdir(), 'player-guide-'));
+  try {
+    assert.ok(!entries.get('server/guide.json').includes(PRESET.clientSecret));
+    assert.ok(!entries.get('server/guide.json').includes(PRESET.clientId));
+    writeFileSync(path.join(dir, 'guide.json'), entries.get('server/guide.json'));
+    const g = loadServer().loadGuide(dir);
+    assert.ok(g && g.instructions.length > 1000 && g.pages.overview === g.instructions);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -3,7 +3,7 @@
  * and actors no player owns stay out, only the active GM's client writes, a deleted party is made
  * again, and the setting turns it off.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { changeJournal } from './change-journal.js';
 import {
   PARTY_AUTO_DONE_SETTING,
@@ -230,7 +230,7 @@ describe('party auto', () => {
   it('writes the list only when it changed', async () => {
     install([hero], true);
     await syncParty();
-    const set = g.game.settings.set as ReturnType<typeof vi.fn>;
+    const set = g.game.settings.set as Mock;
     set.mockClear();
     await syncParty();
     expect(set).not.toHaveBeenCalled();

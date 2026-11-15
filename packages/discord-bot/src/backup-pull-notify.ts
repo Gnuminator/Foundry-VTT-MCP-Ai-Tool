@@ -22,6 +22,7 @@
 
 import type { BackupPullKind, BackupPullReading, BackupPullStatus } from './backup-pull-status.js';
 import { BACKUP_PULL_KINDS } from './backup-pull-status.js';
+import { bi } from './i18n.js';
 
 export const BACKUP_PULL_REMINDER_MS = 24 * 60 * 60 * 1000;
 
@@ -36,19 +37,32 @@ export interface BackupPullSent {
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-/** A short, plain length of time: "less than an hour", "5 hours", "4 days". */
-export function spanText(ageMs: number): string {
-  if (ageMs < HOUR_MS) return 'less than an hour';
+type Lang = 'da' | 'en';
+
+function spanIn(ageMs: number, lang: Lang): string {
+  const da = lang === 'da';
+  if (ageMs < HOUR_MS) return da ? 'under en time' : 'less than an hour';
   if (ageMs < 2 * DAY_MS) {
     const hours = Math.floor(ageMs / HOUR_MS);
+    if (da) return `${hours} ${hours === 1 ? 'time' : 'timer'}`;
     return `${hours} hour${hours === 1 ? '' : 's'}`;
   }
-  return `${Math.floor(ageMs / DAY_MS)} days`;
+  const days = Math.floor(ageMs / DAY_MS);
+  return da ? `${days} dage` : `${days} days`;
+}
+
+/** A short, plain length of time: "less than an hour", "5 hours", "4 days". */
+export function spanText(ageMs: number): string {
+  return spanIn(ageMs, 'en');
+}
+
+function agoIn(ageMs: number, lang: Lang): string {
+  return lang === 'da' ? `${spanIn(ageMs, 'da')} siden` : `${spanIn(ageMs, 'en')} ago`;
 }
 
 /** A short, plain "how long ago". */
 export function agoText(ageMs: number): string {
-  return `${spanText(ageMs)} ago`;
+  return agoIn(ageMs, 'en');
 }
 
 type AvailableReading = Extract<BackupPullReading, { state: 'available' }>;
@@ -64,84 +78,139 @@ const TASK_NAME: Record<BackupPullKind, string> = {
   snapshot: 'Foundry Pi snapshot pull',
 };
 
-/** "restic", "snapshot" or "restic and snapshot". */
-function kindsText(kinds: readonly BackupPullKind[]): string {
-  return kinds.map(k => KIND_LABEL[k]).join(' and ');
+/** "restic", "snapshot" or "restic and snapshot" ("restic og snapshot" in Danish). */
+function kindsText(kinds: readonly BackupPullKind[], lang: Lang): string {
+  return kinds.map(k => KIND_LABEL[k]).join(lang === 'da' ? ' og ' : ' and ');
 }
 
-function kindLine(kind: BackupPullKind, pull: BackupPullStatus | undefined): string {
-  const label = `Last ${KIND_LABEL[kind]} copy`;
-  if (!pull || pull.problem?.reason === 'missing') return `${label}: not recorded yet.`;
-  if (pull.problem) return `${label}: record unreadable.`;
-  return `${label}: ${agoText(pull.ageMs)}.`;
+function kindLine(kind: BackupPullKind, pull: BackupPullStatus | undefined, lang: Lang): string {
+  const da = lang === 'da';
+  const label = da ? `Seneste ${KIND_LABEL[kind]}-kopi` : `Last ${KIND_LABEL[kind]} copy`;
+  if (!pull || pull.problem?.reason === 'missing') {
+    return da ? `${label}: ikke registreret endnu.` : `${label}: not recorded yet.`;
+  }
+  if (pull.problem) return da ? `${label}: posten er ulæselig.` : `${label}: record unreadable.`;
+  return `${label}: ${agoIn(pull.ageMs, lang)}.`;
 }
 
 function pullOf(reading: AvailableReading, kind: BackupPullKind): BackupPullStatus | undefined {
   return reading.pulls.find(p => p.kind === kind);
 }
 
+function buildBackupPullMessage(
+  lang: Lang,
+  notice: BackupPullNoticeKind,
+  reading: AvailableReading,
+  kinds: readonly BackupPullKind[]
+): string {
+  const da = lang === 'da';
+  const and = da ? ' og ' : ' and ';
+  const stillStale = reading.pulls.filter(p => p.stale).map(p => p.kind);
+  if (notice === 'recovered') {
+    const ages = kinds
+      .map(k => pullOf(reading, k))
+      .filter((p): p is BackupPullStatus => p !== undefined)
+      .map(p => agoIn(p.ageMs, lang));
+    const head = da
+      ? `PC'en har kopieret Pi'ens ${kindsText(kinds, lang)}-backups igen (${ages.join(and)}).`
+      : `The PC has copied the Pi's ${kindsText(kinds, lang)} backups again (${ages.join(and)}).`;
+    let tail: string;
+    if (stillStale.length === 0) {
+      tail = da
+        ? 'Backups er i sikkerhed begge steder igen.'
+        : 'Backups are safe on both sides again.';
+    } else {
+      tail = da
+        ? `Kopien af ${kindsText(stillStale, lang)} er stadig forældet.`
+        : `The ${kindsText(stillStale, lang)} copy is still out of date.`;
+    }
+    return `${head} ${tail}`;
+  }
+  const again = notice === 'reminder' ? (da ? ' (påmindelse)' : ' (reminder)') : '';
+  const pulls = kinds
+    .map(k => pullOf(reading, k))
+    .filter((p): p is BackupPullStatus => p !== undefined);
+  let headline: string;
+  if (pulls.every(p => p.problem === null)) {
+    const spans = pulls.map(p => {
+      const span = spanIn(p.ageMs, lang);
+      if (pulls.length <= 1) return span;
+      return da ? `${KIND_LABEL[p.kind]} i ${span}` : `${KIND_LABEL[p.kind]} for ${span}`;
+    });
+    if (kinds.length > 1) {
+      headline = da
+        ? `Pi'ens ${kindsText(kinds, lang)}-backups er ikke kopieret til din PC: ${spans.join(and)}`
+        : `The Pi's ${kindsText(kinds, lang)} backups have not been copied to your PC: ${spans.join(and)}`;
+    } else {
+      headline = da
+        ? `Pi'ens ${kindsText(kinds, lang)}-backup er ikke kopieret til din PC i ${spans.join(and)}`
+        : `The Pi's ${kindsText(kinds, lang)} backup has not been copied to your PC for ${spans.join(and)}`;
+    }
+  } else {
+    // At least one kind has no usable record: say which, so the cause is clear.
+    headline = pulls
+      .map(p => {
+        const k = KIND_LABEL[p.kind];
+        const span = spanIn(p.ageMs, lang);
+        if (p.problem === null) {
+          return da
+            ? `Pi'ens ${k}-backup er ikke kopieret til din PC i ${span}`
+            : `The Pi's ${k} backup has not been copied to your PC for ${span}`;
+        }
+        if (p.problem.reason === 'missing') {
+          return da
+            ? `Ingen ${k}-kopi er registreret i ${span}`
+            : `No ${k} copy has been recorded for ${span}`;
+        }
+        return da
+          ? `Pi'ens post om ${k}-kopien har været ulæselig i ${span}, så kopien kan ikke tjekkes`
+          : `The Pi's record of the ${k} copy has been unreadable for ${span}, so the copy cannot be checked`;
+      })
+      .join('; ');
+  }
+  const limit = da
+    ? `${reading.limitDays} ${reading.limitDays === 1 ? 'dag' : 'dage'}`
+    : `${reading.limitDays} ${reading.limitDays === 1 ? 'day' : 'days'}`;
+  // A record that cannot be read is only fixed by a successful pull: it writes the file again.
+  const unreadable = pulls.filter(p => p.problem !== null && p.problem.reason !== 'missing');
+  const tasks = unreadable.map(p => `"${TASK_NAME[p.kind]}"`).join(and);
+  let rewrite = '';
+  if (unreadable.length > 0) {
+    rewrite = da
+      ? `For at rette den ulæselige post: kør ${tasks} én gang i Task Scheduler. En vellykket kørsel skriver posten igen.\n`
+      : `To fix the unreadable record, run ${tasks} once in Task Scheduler: a successful run writes the record again.\n`;
+  }
+  const lines =
+    `${kindLine('restic', pullOf(reading, 'restic'), lang)}\n` +
+    `${kindLine('snapshot', pullOf(reading, 'snapshot'), lang)}\n${rewrite}`;
+  if (da) {
+    return (
+      `${headline}${again} (grænsen er ${limit}).\n${lines}` +
+      "Årsagen er enten, at PC'en ikke har kopieret dem, eller at Pi'en ikke har lavet nye backups (Pi'ens egen backuprapport på boardet viser hvilket). " +
+      'Tænd PC\'en, eller kør de to opgaver "Foundry Pi restic copy" og "Foundry Pi snapshot pull" i Task Scheduler. ' +
+      "Indtil da findes de eneste kopier på Pi'en."
+    );
+  }
+  return (
+    `${headline}${again} (the limit is ${limit}).\n${lines}` +
+    "The cause is either that the PC has not copied them, or that the Pi has made no new backup (the Pi's own backup report on the board tells which). " +
+    'Turn the PC on, or run the two tasks "Foundry Pi restic copy" and "Foundry Pi snapshot pull" in Task Scheduler. ' +
+    'Until then the only copies are on the Pi.'
+  );
+}
+
 /**
- * The DM text. Plain English. For "stale" and "reminder", `kinds` are the stale kinds the DM is
- * about; for "recovered", the kinds that were copied again. Both kinds' last copy times are shown.
+ * The DM text, Danish then English. For "stale" and "reminder", `kinds` are the stale kinds the DM
+ * is about; for "recovered", the kinds that were copied again. Both kinds' last copy times are shown.
  */
 export function backupPullMessage(
   notice: BackupPullNoticeKind,
   reading: AvailableReading,
   kinds: readonly BackupPullKind[] = reading.pulls.filter(p => p.stale).map(p => p.kind)
 ): string {
-  const stillStale = reading.pulls.filter(p => p.stale).map(p => p.kind);
-  if (notice === 'recovered') {
-    const ages = kinds
-      .map(k => pullOf(reading, k))
-      .filter((p): p is BackupPullStatus => p !== undefined)
-      .map(p => agoText(p.ageMs));
-    const head = `The PC has copied the Pi's ${kindsText(kinds)} backups again (${ages.join(' and ')}).`;
-    const tail =
-      stillStale.length === 0
-        ? 'Backups are safe on both sides again.'
-        : `The ${kindsText(stillStale)} copy is still out of date.`;
-    return `${head} ${tail}`;
-  }
-  const again = notice === 'reminder' ? ' (reminder)' : '';
-  const pulls = kinds
-    .map(k => pullOf(reading, k))
-    .filter((p): p is BackupPullStatus => p !== undefined);
-  let headline: string;
-  if (pulls.every(p => p.problem === null)) {
-    const spans = pulls.map(p =>
-      pulls.length > 1 ? `${KIND_LABEL[p.kind]} for ${spanText(p.ageMs)}` : spanText(p.ageMs)
-    );
-    headline =
-      kinds.length > 1
-        ? `The Pi's ${kindsText(kinds)} backups have not been copied to your PC: ${spans.join(' and ')}`
-        : `The Pi's ${kindsText(kinds)} backup has not been copied to your PC for ${spans.join(' and ')}`;
-  } else {
-    // At least one kind has no usable record: say which, so the cause is clear.
-    headline = pulls
-      .map(p => {
-        if (p.problem === null) {
-          return `The Pi's ${KIND_LABEL[p.kind]} backup has not been copied to your PC for ${spanText(p.ageMs)}`;
-        }
-        if (p.problem.reason === 'missing') {
-          return `No ${KIND_LABEL[p.kind]} copy has been recorded for ${spanText(p.ageMs)}`;
-        }
-        return `The Pi's record of the ${KIND_LABEL[p.kind]} copy has been unreadable for ${spanText(p.ageMs)}, so the copy cannot be checked`;
-      })
-      .join('; ');
-  }
-  const limit = `${reading.limitDays} ${reading.limitDays === 1 ? 'day' : 'days'}`;
-  // A record that cannot be read is only fixed by a successful pull: it writes the file again.
-  const unreadable = pulls.filter(p => p.problem !== null && p.problem.reason !== 'missing');
-  const rewrite =
-    unreadable.length > 0
-      ? `To fix the unreadable record, run ${unreadable.map(p => `"${TASK_NAME[p.kind]}"`).join(' and ')} once in Task Scheduler: a successful run writes the record again.\n`
-      : '';
-  return (
-    `${headline}${again} (the limit is ${limit}).\n` +
-    `${kindLine('restic', pullOf(reading, 'restic'))}\n${kindLine('snapshot', pullOf(reading, 'snapshot'))}\n${rewrite}` +
-    "The cause is either that the PC has not copied them, or that the Pi has made no new backup (the Pi's own backup report on the board tells which). " +
-    'Turn the PC on, or run the two tasks "Foundry Pi restic copy" and "Foundry Pi snapshot pull" in Task Scheduler. ' +
-    'Until then the only copies are on the Pi.'
+  return bi(
+    buildBackupPullMessage('da', notice, reading, kinds),
+    buildBackupPullMessage('en', notice, reading, kinds)
   );
 }
 

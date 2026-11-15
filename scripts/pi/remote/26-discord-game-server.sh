@@ -201,6 +201,8 @@ if [ "$undo" != 1 ] && lines_right; then
         warn "the bot was restarted but has not registered /record in server $guild_id after ${wait_seconds} s; ask Claude to check: journalctl -u $unit -n 20"
     fi
   fi
+  # A cut-off earlier run may have written the file but never restarted the watch (stage 29): repair it on the rerun.
+  restart_gamenight_watch "the settings file, newer than the watch" "$env_file"
   post_note
   exit 0
 fi
@@ -289,10 +291,7 @@ else
 fi
 # The game-night watch (stage 29) posts to the channel this file names: restart it (also when it stopped on exit 2 for an
 # old channel) so a changed #gm-bot line reaches it. It holds no recording and no player, so no quiet check.
-watch_unit=foundry-ai-tool-gamenight-watch.service
-if have_systemd && [ -f "/etc/systemd/system/$watch_unit" ]; then
-  systemctl restart "$watch_unit" && ok "restarted $watch_unit for the changed settings" || warn "could not restart $watch_unit: journalctl -u $watch_unit -n 20"
-fi
+restart_gamenight_watch "the changed settings"
 if [ "$undo" = 1 ]; then
   say "done: the bot is back on the earlier server"
 else

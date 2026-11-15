@@ -102,7 +102,7 @@ function Dashboard({
   return (
     <QueryClientProvider client={client}>
       <TooltipProvider>
-        <ToastProvider>
+        <ToastProvider persistent>
           <HelpProvider>
             <ConfirmProvider>{children}</ConfirmProvider>
           </HelpProvider>

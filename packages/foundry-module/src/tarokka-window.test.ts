@@ -5,7 +5,7 @@
  * fake `ApplicationV2` (veiled cards, singleton, live refresh, ticks and typed text kept
  * across redraws and cleared on close). The card names and texts are made up.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   TarokkaController,
@@ -58,12 +58,12 @@ const plan = {
 };
 
 function makeDeps(over: Partial<TarokkaDeps> = {}): TarokkaDeps & {
-  request: ReturnType<typeof vi.fn>;
-  confirmReveal: ReturnType<typeof vi.fn>;
-  openDocument: ReturnType<typeof vi.fn>;
-  notifyInfo: ReturnType<typeof vi.fn>;
-  notifyError: ReturnType<typeof vi.fn>;
-  notifyWarn: ReturnType<typeof vi.fn>;
+  request: Mock;
+  confirmReveal: Mock;
+  openDocument: Mock;
+  notifyInfo: Mock;
+  notifyError: Mock;
+  notifyWarn: Mock;
 } {
   return {
     request: vi.fn(async (tool: string) => {
@@ -371,8 +371,8 @@ describe('the window class on a fake ApplicationV2', () => {
   let world: TestWorld;
   let restore: () => void;
   let rendered: any[];
-  let link: { request: ReturnType<typeof vi.fn> };
-  let confirm: ReturnType<typeof vi.fn>;
+  let link: { request: Mock };
+  let confirm: Mock;
 
   beforeEach(() => {
     vi.useFakeTimers();

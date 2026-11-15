@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   NPC_TURN_FEATURE_ID as SHARED_FEATURE,
   NPC_TURN_QUERY as SHARED_QUERY,
-} from '../../../shared/src/npc-turn.js';
+} from '@gnuminator/shared';
 import { NPC_TURN_FEATURE_ID, NPC_TURN_QUERY, planNpcTurn } from './npc-turn.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { NON_WRITE_METHODS } from './write-gate.js';

@@ -8,7 +8,7 @@ import {
   TOKEN_RINGS_BATCH as SHARED_BATCH,
   TOKEN_RINGS_FEATURE_ID as SHARED_FEATURE,
   TOKEN_RINGS_PLAN_QUERY as SHARED_QUERY,
-} from '../../../shared/src/token-rings.js';
+} from '@gnuminator/shared';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   planTokenRings,

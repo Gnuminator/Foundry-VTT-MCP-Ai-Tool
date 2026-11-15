@@ -145,6 +145,7 @@ const elMineAlerts = $('mine-alerts');
 const elMineChars = $('mine-chars');
 const elMineRolls = $('mine-rolls');
 let mySheetList = [];
+let portraitOn = true;
 let myRolls = [];
 const rollNotes = new Map();
 let lastCombat = null;
@@ -171,6 +172,8 @@ function loadMe() {
       if (!res.ok) throw new Error(String(res.status));
       const me = await res.json();
       mySheetList = mySheets(me);
+      // false only when the GM switched "Player portraits" off; null (unknown) keeps the control.
+      portraitOn = me.portraitEnabled !== false;
       myRolls = myRollRequests(me);
       meMissed = false;
     } catch {
@@ -235,10 +238,12 @@ const elPortraitPick = $('portrait-pick');
 const elPortraitToken = $('portrait-token');
 const elPortraitFile = $('portrait-file');
 const elPortraitNote = $('portrait-note');
+const elPortraitBox = $('mine-portrait');
 let portraitIds = '';
 let portraitBusy = false;
 
 function renderPortraitControl() {
+  elPortraitBox.hidden = !portraitOn;
   const ids = mySheetList.map(s => s.id).join(',');
   if (ids === portraitIds) return;
   portraitIds = ids;
@@ -247,7 +252,7 @@ function renderPortraitControl() {
     .map(s => `<option value="${escape(s.id)}">${escape(s.name)}</option>`)
     .join('');
   if (mySheetList.some(s => s.id === previous)) elPortraitActor.value = previous;
-  elPortraitActor.hidden = mySheetList.length < 2;
+  $('portrait-actor-field').hidden = mySheetList.length < 2;
 }
 
 elPortraitPick.addEventListener('click', () => {

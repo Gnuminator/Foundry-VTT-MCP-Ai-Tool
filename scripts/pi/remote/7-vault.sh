@@ -17,6 +17,7 @@
 
 require_root
 require_recent_snapshot
+refuse_when_cut_over "stage 7 (vault)"
 [ -d "$TOOL_DIR/app" ] || die "the tool is missing: run stage 5 first"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
 

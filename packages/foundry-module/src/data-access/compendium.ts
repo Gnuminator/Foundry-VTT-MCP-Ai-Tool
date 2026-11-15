@@ -14,11 +14,11 @@ import type {
  * Compendium search + document-lookup domain for `FoundryDataAccess`.
  *
  * Three surfaces:
- *   - {@link searchCompendium} — name search across packs, with an optional
+ *   - {@link searchCompendium}, name search across packs, with an optional
  *     enhanced creature-index fast path for filtered Actor searches.
- *   - {@link listCreaturesByCriteria} — structured creature filtering, backed by
+ *   - {@link listCreaturesByCriteria}, structured creature filtering, backed by
  *     the persistent enhanced index (or a text-search fallback when it's off).
- *   - {@link getCompendiumDocumentFull} — one document hydrated with its system
+ *   - {@link getCompendiumDocumentFull}, one document hydrated with its system
  *     data, items, and effects.
  *
  * The enhanced creature index is opt-in via the `enableEnhancedCreatureIndex`
@@ -768,7 +768,7 @@ export class CompendiumDataAccess {
 
       const enhancedResult = await this.listCreaturesByCriteria(criteria);
 
-      // The enhanced index is already filtered — no extra name filtering needed.
+      // The enhanced index is already filtered, no extra name filtering needed.
       return enhancedResult.creatures.map(creature => ({
         id: creature.id || creature.name,
         name: creature.name,

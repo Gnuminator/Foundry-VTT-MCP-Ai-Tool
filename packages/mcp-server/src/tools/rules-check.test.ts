@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { LiveTargetPreview } from '@gnuminator/shared';
 
 import { RulesCheckTools, findActivityData, itemRangeLabel } from './rules-check.js';
@@ -46,7 +46,7 @@ function tools(opts: {
   combat?: unknown;
   distance?: unknown;
   spent?: unknown;
-}): { t: RulesCheckTools; query: ReturnType<typeof vi.fn> } {
+}): { t: RulesCheckTools; query: Mock } {
   const query = vi.fn(async (method: string) => {
     switch (method) {
       case 'foundry-mcp-bridge.listGuardedFeatures':

@@ -11,28 +11,20 @@
 #     systemd stops with a message and changes nothing
 #   5 a missing folder (an unknown folder id config) stops with "run stage 7 first"
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13-slim bash /repo/scripts/pi/container-test/stage20-scenarios.sh
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage20-scenarios.sh
 # (scripts/pi/vault-sync.test.mjs runs it with PI_STAGE20_CONTAINER=1.) STAGE=<file> runs the scenarios against another copy
 # of the script.
 #
 # DESTRUCTIVE: it adds a user, installs packages and writes /var/lib/foundry-ai-tool and /etc/timezone. It refuses to run
 # anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/20-vault-sync.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
-fails=0
-pass() { echo "ok: $*"; }
-fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 
-export DEBIAN_FRONTEND=noninteractive
-{ apt-get update && apt-get install -y --no-install-recommends syncthing tzdata procps ca-certificates; } >/dev/null 2>&1 ||
-  { echo "SETUP FAILED: apt-get"; exit 99; }
 
 . "$LIB"
 set +e # lib.sh turns -e on; the scenarios count their own failures

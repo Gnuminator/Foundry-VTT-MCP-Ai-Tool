@@ -122,7 +122,8 @@ in the repo tree.
    `module.json`, `package-lock.json`, `shared/src/version.ts` (`TOOL_VERSION`) and the installer script (`installer/nsis/foundry-mcp-server.nsi`).
    `npm run version:check` (and the release workflow) fail if any place disagrees.
 2. Commit, then tag `vX.Y.Z` (the tag must equal the root version) and push the tag. The workflow
-   verifies, builds and publishes one GitHub release with these assets, all under that tag's own links:
+   verifies and builds, then publishes one GitHub release once the user approves the run (the publish job
+   is in the GitHub environment `release`, see [RELEASING](RELEASING.md)), with these assets, all under that tag's own links:
    - `module.json` (manifest and download URLs point at this tag)
    - `foundry-mcp-bridge.zip` (the module with its built code)
    - `foundry-mcp-server-vX.Y.Z.zip` (standalone bridge)

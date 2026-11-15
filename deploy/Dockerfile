@@ -59,6 +59,11 @@ COPY docs/foundry/            ./docs/foundry/
 COPY docs/da/gm/              ./docs/da/gm/
 COPY scripts/check-links.mjs  ./scripts/
 COPY scripts/tsc7.mjs         ./scripts/
+# The shared build writes the usage catalogue (shared/src/usage-catalog.generated.ts, not committed)
+# by scanning the dashboard and the Foundry module sources; the module sources are copied for that
+# scan only (they are not built here).
+COPY scripts/usage-catalog.mjs ./scripts/
+COPY packages/foundry-module/src/ ./packages/foundry-module/src/
 
 # Build all workspaces. Produces dist/ under each package.
 # The cogm-dashboard build also puts the React dashboard (web/, Vite) in its dist/web.

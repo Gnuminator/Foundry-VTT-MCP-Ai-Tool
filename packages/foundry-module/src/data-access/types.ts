@@ -1,12 +1,11 @@
 /**
  * Shared data-access type definitions.
  *
- * Local (not re-exported from `@gnuminator/shared`) to avoid the shared-package
- * import friction the monolith documented; these describe the shapes the
- * `FoundryDataAccess` facade and its domain modules pass around.
+ * Mostly local; `SceneInfo` and `WorldInfo` are the shared types, imported type-only. These describe
+ * the shapes the `FoundryDataAccess` facade and its domain modules pass around.
  */
 
-import type { CharacterItem } from '@gnuminator/shared';
+import type { CharacterItem, SceneInfo, WorldInfo } from '@gnuminator/shared';
 
 export type { CharacterEntityResult, CharacterItem } from '@gnuminator/shared';
 
@@ -131,22 +130,7 @@ export interface PersistentEnhancedIndex {
   creatures: EnhancedCreatureIndex[];
 }
 
-export interface SceneInfo {
-  id: string;
-  name: string;
-  img?: string;
-  background?: string;
-  width: number;
-  height: number;
-  padding: number;
-  active: boolean;
-  navigation: boolean;
-  tokens: SceneToken[];
-  walls: number;
-  lights: number;
-  sounds: number;
-  notes: SceneNote[];
-}
+export type { SceneInfo };
 
 export interface SceneToken {
   id: string;
@@ -168,14 +152,7 @@ export interface SceneNote {
   y: number;
 }
 
-export interface WorldInfo {
-  id: string;
-  title: string;
-  system: string;
-  systemVersion: string;
-  foundryVersion: string;
-  users: WorldUser[];
-}
+export type { WorldInfo };
 
 export interface WorldUser {
   id: string;

@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { COMBAT_PLAN_QUERY, planCombatChange, startedOnCreate } from './combat-plan.js';
-import { COMBAT_PLAN_QUERY as SHARED_QUERY } from '../../../shared/src/combat-change.js';
+import { COMBAT_PLAN_QUERY as SHARED_QUERY } from '@gnuminator/shared';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 
 let world: TestWorld;

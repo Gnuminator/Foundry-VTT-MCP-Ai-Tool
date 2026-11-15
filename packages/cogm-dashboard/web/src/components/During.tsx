@@ -53,7 +53,7 @@ const SceneMoodPanel = lazy(() =>
 );
 
 /** What the layout buttons say while the world (and so the saved choice) is not known yet. */
-export const NOT_READY_TIP =
+const NOT_READY_TIP =
   'Your choice is saved for the world, which Foundry has not told the dashboard yet.';
 
 const NOT_READY_BAR_ID = 'during-not-ready';

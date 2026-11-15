@@ -2,7 +2,7 @@
  * Minimal JSON-lines control-channel probe.
  *
  * A tiny, dependency-free client for the backend's control channel (the same
- * protocol the stdio wrapper and dashboard speak — see ARCHITECTURE.md §3a). It
+ * protocol the stdio wrapper and dashboard speak, see ARCHITECTURE.md §3a). It
  * exists so the standalone entrypoint can print an honest "control channel ready"
  * banner, and so the standalone smoke test can assert `ping` / `list_tools` over
  * the wire without pulling in the dashboard's full reconnecting client.

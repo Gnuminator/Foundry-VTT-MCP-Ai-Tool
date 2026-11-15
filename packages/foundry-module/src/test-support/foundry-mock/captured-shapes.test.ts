@@ -222,14 +222,12 @@ describe('captured shapes', () => {
     it('keeps activities an object keyed by id, not an array', () => {
       expect(typeAt('Actor.Item.weapon', 'system.activities')).toBe('object');
       expect(typeAt('Actor.Item.weapon', 'system.activities.<id>')).toBe('object');
-      // The fake holds to it as soon as it makes activities at all.
-      const activities = (
-        makeItem({ type: 'weapon' }).system as Record<string, unknown> | undefined
-      )?.activities;
-      if (activities !== undefined) {
-        expect(Array.isArray(activities)).toBe(false);
-        expect(typeof activities).toBe('object');
-      }
+      // The fake's weapon always has the map.
+      const activities = (makeItem({ type: 'weapon' }).system as Record<string, unknown>)
+        .activities;
+      expect(activities).toBeDefined();
+      expect(Array.isArray(activities)).toBe(false);
+      expect(typeof activities).toBe('object');
     });
 
     it('moves a token with x, y and rotation as numbers', () => {

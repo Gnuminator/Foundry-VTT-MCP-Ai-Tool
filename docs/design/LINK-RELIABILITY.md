@@ -81,7 +81,11 @@ empty list as today. Documented in `docs/dev/` and in `.env.example` when lane 2
 
 ## PB-07: CI on every branch
 
-`.github/workflows/ci.yml`: `push` on all branches (`branches: ['**']`), `pull_request` to main, plus a
+**Superseded on purpose:** the all-branches push trigger below was removed, because a push to a PR
+branch started a second, identical run next to the `pull_request` one. `ci.yml` now runs on `pull_request`
+to main and on pushes to main only. Do not restore the trigger. The rest of this section still holds.
+
+`.github/workflows/ci.yml` (as first designed): `push` on all branches (`branches: ['**']`), `pull_request` to main, plus a
 job `build-test-arm` on `ubuntu-24.04-arm` with Node 24 (free for public repos). Concurrency group
 per ref so a new push cancels the old run.
 

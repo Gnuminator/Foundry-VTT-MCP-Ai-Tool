@@ -108,7 +108,7 @@ function contentsOf(collection: unknown): unknown[] {
   return [];
 }
 
-interface SceneInfo {
+interface LivePlanScene {
   id: string;
   name: string;
   size: number;
@@ -118,7 +118,7 @@ interface SceneInfo {
   raw: Rec;
 }
 
-function currentScene(): SceneInfo {
+function currentScene(): LivePlanScene {
   const scenes = rec(rec(game)?.scenes);
   const scene = rec(viewedScene(scenes));
   if (!scene) throw new Error('No current scene: open the scene with the tokens first');
@@ -144,7 +144,7 @@ interface TokenRef {
 }
 
 /** Tokens on the current scene by id or name; a name used by several tokens needs the id. */
-function resolveTokens(scene: SceneInfo, identifiers: string[]): TokenRef[] {
+function resolveTokens(scene: LivePlanScene, identifiers: string[]): TokenRef[] {
   if (identifiers.length === 0) throw new Error('Name at least one token');
   const out: TokenRef[] = [];
   const missing: string[] = [];
@@ -175,7 +175,7 @@ function resolveTokens(scene: SceneInfo, identifiers: string[]): TokenRef[] {
   return out;
 }
 
-function square(scene: SceneInfo, x: number, y: number): string {
+function square(scene: LivePlanScene, x: number, y: number): string {
   return `(${Math.round(x / scene.size)},${Math.round(y / scene.size)})`;
 }
 
@@ -194,7 +194,7 @@ function speedOf(doc: Rec): { speed: number | null; speedUnits: string | null } 
 }
 
 function planMove(
-  scene: SceneInfo,
+  scene: LivePlanScene,
   tokens: TokenRef[],
   request: LiveTokenRequest
 ): { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string } {
@@ -359,7 +359,7 @@ function planUpdate(
 // ---------------------------------------------------------------------------
 
 /** Combatants of any encounter that stand for this token. */
-function combatantsOf(scene: SceneInfo, token: TokenRef): Rec[] {
+function combatantsOf(scene: LivePlanScene, token: TokenRef): Rec[] {
   const combats = contentsOf(rec(game)?.combats);
   return combats.flatMap(combat =>
     contentsOf(rec(combat)?.combatants)
@@ -374,7 +374,7 @@ function combatantsOf(scene: SceneInfo, token: TokenRef): Rec[] {
 }
 
 function planDelete(
-  scene: SceneInfo,
+  scene: LivePlanScene,
   tokens: TokenRef[]
 ): { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string } {
   const ops: GuardedOp[] = [];
@@ -441,7 +441,7 @@ export function fitSquares(feet: number, distance: number, gridSize: number): nu
 }
 
 function planFitScale(
-  scene: SceneInfo,
+  scene: LivePlanScene,
   tokens: TokenRef[],
   wholeScene: boolean
 ): { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string } {

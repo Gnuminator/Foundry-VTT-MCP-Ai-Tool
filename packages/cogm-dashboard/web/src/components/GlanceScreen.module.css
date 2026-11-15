@@ -58,6 +58,11 @@
   border-radius: var(--radius-sm, 4px);
 }
 
+/* Party rows have no initiative column: name and HP only. */
+.party-row {
+  grid-template-columns: 1fr auto;
+}
+
 .row[data-current='true'] {
   outline: 2px solid var(--accent, currentColor);
   font-weight: 600;

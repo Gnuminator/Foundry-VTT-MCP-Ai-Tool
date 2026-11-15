@@ -21,8 +21,9 @@ Do not invent line numbers. Return the finished review note as your answer.
 2. **New bridge handler** is classified in `packages/foundry-module/src/write-gate.ts` (write or
    read list); a test fails otherwise, but check the classification is right (a read that changes
    the world, or a write listed as read, is a High).
-3. **New tool** is in exactly one set in `packages/mcp-server/src/tool-sets.ts` (core, play, prep,
-   build, admin). Prep is near its size budget: check the size figures in
+3. **New tool** has an entry in its module's `tools` map (`packages/mcp-server/src/tools/modules/*.ts`)
+   with exactly one `set` (core, play, prep, build, admin); `tool-sets.ts` derives its lists from the
+   modules, and a new family is one module plus one line in `tools/index.ts`. Prep is near its size budget: check the size figures in
    `docs/reference/TOOL-SETS.md` and the tool catalog test were updated and the description text
    is trimmed (`npm run docs:tools`). One feature gets one tool with an `action` parameter.
 4. **Shared types** in `shared/src/` are wire contracts: a changed field name, type or optional to
@@ -40,6 +41,10 @@ Do not invent line numbers. Return the finished review note as your answer.
    sockets get their own error handler.
 10. **Public repo hygiene.** No book or campaign text, secrets or personal data in the diff.
 
+## Severity rule (D-101, amended 2026-11-12)
+
+A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.
+
 ## Output (the merge gate reads this)
 
 ```
@@ -56,4 +61,4 @@ file:line, what is wrong, a concrete failure, the fix.
 ```
 
 `Head reviewed:` is one line directly above `## Verdict`. The first bold text under Verdict is
-exactly one of the three phrases. A delta round (the caller sends you a new head sha) returns a full note again, with the new `Head reviewed:` line and its own `## Verdict`. Say "None" for an empty severity. Do not write em dashes.
+exactly one of the three phrases. A delta round (the caller sends you a new head sha) returns a full note again, with the new `Head reviewed:` line and its own `## Verdict`. Say "None" for an empty severity. Lows rule: if the PR itself only files lows (a lows or sweep PR), report mediums and highs but file no new lows. Do not write em dashes.

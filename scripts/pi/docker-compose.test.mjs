@@ -10,10 +10,13 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { runStageContainer } from './container-test/run-stage-container.mjs';
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = rel => readFileSync(path.join(repo, rel), 'utf8');
 const s22 = read('scripts/pi/remote/23-docker.sh');
 const s23 = read('scripts/pi/remote/24-compose.sh');
+const lib = read('scripts/pi/remote/lib.sh');
 
 describe('23-docker.sh as text', () => {
   test('is valid bash', t => {
@@ -94,7 +97,7 @@ describe('24-compose.sh as text', () => {
     assert.ok(record < mv && mv < stop);
     // The mode_up refusals (live project without the test switch, rehearsal on live data) come before the daemon check.
     const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
-    const liveRefusal = up.indexOf('is the cutover, which is not supported yet');
+    const liveRefusal = up.indexOf('would start the live stack next to the units');
     const dataRefusal = up.indexOf('would use a live data folder');
     assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
     // The first start does not build (stage 23 does) and comes before the --wait start.
@@ -111,17 +114,17 @@ describe('24-compose.sh as text', () => {
     assert.doesNotMatch(s23, /down -v|--volumes|--rmi|system prune|volume rm/);
   });
 
-  test('cutover is refused unless a test switch is set, before anything else runs', () => {
-    const refuse = s23.indexOf('MODE=cutover is not supported');
-    assert.ok(refuse > 0);
-    assert.match(s23, /\[ "\$mode" = cutover \] && \[ "\$\{TEST_ALLOW_CUTOVER:-0\}" != 1 \]/);
-    assert.ok(refuse < s23.indexOf('mode_up() {'));
-    assert.ok(refuse < s23.indexOf("trap '' HUP PIPE"));
+  test('cutover needs no test switch; only MODE=up on the live ports keeps one (a test hook)', () => {
+    assert.doesNotMatch(s23, /MODE=cutover is not supported/);
+    assert.doesNotMatch(s23, /\[ "\$mode" = cutover \] && \[ "\$\{TEST_ALLOW_CUTOVER/);
+    const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
+    assert.match(up, /TEST_ALLOW_CUTOVER:-0\}" != 1/);
+    assert.match(up, /use MODE=cutover for that/);
   });
 
-  test('containers are found by label, a dead daemon fails closed, and HUP and PIPE are ignored', () => {
-    assert.match(s23, /label=com\.docker\.compose\.project=\$1/);
-    assert.match(s23, /docker info >\/dev\/null 2>&1 \|\| return 1/);
+  test('containers are found by label (lib.sh), a dead daemon fails closed, and HUP and PIPE are ignored', () => {
+    assert.match(lib, /label=com\.docker\.compose\.project=\$1/);
+    assert.match(lib, /docker info >\/dev\/null 2>&1 \|\| return 1/);
     assert.match(s23, /trap '' HUP PIPE/);
     assert.match(s23, /docker update --restart=no/);
     assert.match(s23, /FORCE:-0/);
@@ -176,21 +179,7 @@ for (const [n, script] of [
     { skip: process.env.PI_STAGE23_CONTAINER !== '1' },
     () => {
       test('scenarios', () => {
-        const r = spawnSync(
-          'docker',
-          [
-            'run',
-            '--rm',
-            '--platform',
-            'linux/arm64',
-            '-v',
-            `${repo}:/repo:ro`,
-            'debian:13-slim',
-            'bash',
-            `/repo/scripts/pi/container-test/${script}`,
-          ],
-          { encoding: 'utf8', timeout: 900000, env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
-        );
+        const r = runStageContainer(script, { timeout: 900000 });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
       });

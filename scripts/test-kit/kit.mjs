@@ -678,7 +678,7 @@ export async function piRun(
   mkdirSync(dir, { recursive: true });
   say(`running ${list.length} tools-only scenarios (${o.size}) in ${target.world} on the Pi`);
   /** @type {any[]} */
-  let results = [];
+  let results;
   /** @type {EnvError | null} */
   let envProblem = null;
   try {

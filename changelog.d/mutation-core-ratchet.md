@@ -1,0 +1,4 @@
+### Tests
+
+- **Safety-core mutation survivors killed:** eight new tests cover the six top survivors of the 2026-11-11 mutation run on guarded writes: the feature switch of the asked feature, the redo refusal when a change left the history, the delete conflict check, the Foundry rollback after a failed vault write, the rollback order after a partial apply, and the vault re-check inside the file lock (Backlog `mutation-core-ratchet`).
+- **Weekly mutation ratchet for the safety core:** `npm run mutation:core` runs Stryker (Vitest runner, shared read from source, `ignoreStatic`) over the guarded-write code and fails when the score drops below `scripts/mutation-baseline.json` (77.87% from the first run). `--update` only raises the floor. It runs weekly in `.github/workflows/mutation-core.yml`, not in `ci.yml`.

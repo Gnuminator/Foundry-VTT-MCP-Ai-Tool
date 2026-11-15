@@ -52,6 +52,7 @@ export function serverInfo(name) {
 /** The Foundry app folder of a server: the machine-wide <A Root>/appdir.txt (as config.ps1), else its local file's AppDir, else (B, C) server A's, else <Root>/app. */
 export function appDirOf(name, all) {
   try {
+    // eslint-disable-next-line no-irregular-whitespace -- the regex strips a literal BOM (U+FEFF)
     const shared = readFileSync(path.join(all.A.Root, 'appdir.txt'), 'utf8').split(/\r?\n/)[0].replace(/^﻿/, '').trim();
     if (shared) return path.resolve(shared);
   } catch {
@@ -60,6 +61,7 @@ export function appDirOf(name, all) {
   const local = n => {
     const file = path.join(REPO_ROOT, 'scripts', 'test-env', n === 'A' ? 'local.json' : `local.${n}.json`);
     try {
+      // eslint-disable-next-line no-irregular-whitespace -- the regex strips a literal BOM (U+FEFF)
       return JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')).AppDir ?? null;
     } catch {
       return null;
@@ -87,6 +89,7 @@ export function lockHolder(srv) {
   const file = path.join(srv.Root, 'lock.json');
   if (!existsSync(file)) return null;
   try {
+    // eslint-disable-next-line no-irregular-whitespace -- the regex strips a literal BOM (U+FEFF)
     const l = JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, ''));
     return l?.holder ? { holder: String(l.holder), session: l.session ? String(l.session) : '' } : null;
   } catch {

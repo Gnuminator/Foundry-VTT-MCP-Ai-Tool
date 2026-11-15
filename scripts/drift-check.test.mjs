@@ -350,7 +350,7 @@ test('main changed shared/ (the #397 then #399 case): the merged tree gets its o
       sharedBuild: buildShared,
     });
     assert.equal(code, 0, out);
-    assert.match(out, /merge changed shared\/; building shared/);
+    assert.match(out, /building shared in the worktree/);
     assert.equal(git(lane, 'rev-parse', 'HEAD'), head);
     assert.equal(
       fs.readFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'utf8'),
@@ -368,17 +368,17 @@ test('main changed shared/ (the #397 then #399 case): the merged tree gets its o
   }
 });
 
-test('main left shared/ alone: no build runs and the borrowed workspace is used', () => {
+test('main left shared/ alone: the worktree still gets its own shared build (generated catalogue, own links)', () => {
   const { tmp, lane, other } = lanesShared();
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
     const { code, out } = runWith(lane, {
       checks: [readsSharedDist('v1')],
-      sharedBuild: 'node -e "process.exit(9)"',
+      sharedBuild: buildShared,
     });
     assert.equal(code, 0, out);
-    assert.doesNotMatch(out, /building shared/);
+    assert.match(out, /building shared in the worktree/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -588,5 +588,35 @@ test('a guard that needs a failed guard is skipped, not counted as a second fail
     assert.match(out, /1 guard\(s\) fail/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ---- the shared unit tests guard ----
+
+test('the real shared unit tests guard: runs when shared/ changed, a failing run refuses, skipped otherwise', async () => {
+  const { CHECKS } = await import('./drift-check.mjs');
+  const real = CHECKS.find(c => c.name === 'shared unit tests');
+  assert.ok(real, 'drift-check holds a shared unit tests guard');
+  assert.deepEqual(real.when, ['shared/']);
+  assert.equal(real.command, 'npm test -w @gnuminator/shared');
+  // same name and `when`, with a stand-in command that fails like a broken shared test would
+  const failing = { name: real.name, when: real.when, command: 'node -e "process.exit(1)"' };
+  const touched = repos();
+  try {
+    fs.mkdirSync(path.join(touched.lane, 'shared'));
+    commit(touched.lane, 'shared/x.txt', 'changed\n', 'lane changes shared');
+    const { code, out } = run(touched.lane, [failing]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL shared unit tests/);
+  } finally {
+    fs.rmSync(touched.tmp, { recursive: true, force: true });
+  }
+  const untouched = repos();
+  try {
+    const { code, out } = run(untouched.lane, [failing]);
+    assert.equal(code, 0, out);
+    assert.match(out, /skip shared unit tests \(nothing under shared\/ changed\)/);
+  } finally {
+    fs.rmSync(untouched.tmp, { recursive: true, force: true });
   }
 });

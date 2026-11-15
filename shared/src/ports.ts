@@ -42,11 +42,12 @@ export const DEFAULT_DASHBOARD_LISTEN_PORT = PORTS.live.dashboard;
 /** Every port a helper container or tool must refuse to take (live, test, reserved). */
 export function forbiddenPorts(): number[] {
   const set = new Set<number>();
-  for (const key of ['live', 'testA', 'testB', 'testC'] as const) {
+  for (const key of ['live', 'testA', 'testB', 'testC', 'rehearsal'] as const) {
     for (const port of Object.values(PORTS[key])) set.add(port);
   }
   set.add(EXTRA_PORTS.liveReserved);
   set.add(EXTRA_PORTS.testReserved);
+  set.add(EXTRA_PORTS.controlCenter);
   return [...set].sort((a, b) => a - b);
 }
 

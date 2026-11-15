@@ -1,5 +1,5 @@
 /**
- * Characterization tests for `useNpcActivity` in the `actor-builder` domain —
+ * Characterization tests for `useNpcActivity` in the `actor-builder` domain -
  * the one method the two parallel actor-builder nets each ceded to the other
  * (a blind-split gap). This file closes it.
  *
@@ -11,7 +11,7 @@
  * Driven through the Phase 9 Foundry-mock harness (in-memory, no browser).
  *
  * Harness gaps worked around locally (never editing shared harness files):
- *   - `makeItem` carries no dnd5e `system.activities`; an attack activity with
+ *   - `makeItem` gives a weapon an empty `system.activities` map; an attack activity with
  *     `rollAttack`/`rollDamage` `vi.fn()` stubs is attached per-test (and the
  *     item's own `use` stub for the no-activity path).
  *   - `game.user.targets` is set locally to exercise targeted-token AC resolution.
@@ -80,7 +80,7 @@ function npcWith(name: string, items: any[]): any {
 
 // ===========================================================================
 
-describe('FoundryDataAccess — useNpcActivity', () => {
+describe('FoundryDataAccess: useNpcActivity', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' })).rejects.toThrow(

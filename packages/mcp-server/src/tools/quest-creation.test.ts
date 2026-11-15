@@ -161,7 +161,7 @@ describe('QuestCreationTools.getToolDefinitions', () => {
 // handleCreateQuestJournal
 // ---------------------------------------------------------------------------
 
-describe('QuestCreationTools.handleCreateQuestJournal — dispatch', () => {
+describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   it('dispatches foundry-mcp-bridge.createJournalEntry with questTitle as name', async () => {
     const { tools, query } = makeTools(() => ({
       success: true,
@@ -254,7 +254,7 @@ describe('QuestCreationTools.handleCreateQuestJournal — dispatch', () => {
   });
 });
 
-describe('QuestCreationTools.handleCreateQuestJournal — result shaping (HTML generation)', () => {
+describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML generation)', () => {
   it('generated content contains the quest title in an h1 tag', async () => {
     const { tools } = makeTools(() => ({
       id: 'j3',
@@ -351,7 +351,7 @@ describe('QuestCreationTools.handleCreateQuestJournal — result shaping (HTML g
   });
 });
 
-describe('QuestCreationTools.handleCreateQuestJournal — failure handling', () => {
+describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -392,21 +392,21 @@ describe('QuestCreationTools.handleCreateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on missing questTitle — query not called', async () => {
+  it('throws (not returns string) on missing questTitle: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(tools.handleCreateQuestJournal({ questDescription: 'Desc.' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on missing questDescription — query not called', async () => {
+  it('throws (not returns string) on missing questDescription: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(tools.handleCreateQuestJournal({ questTitle: 'Quest' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('throws on empty questTitle — query not called', async () => {
+  it('throws on empty questTitle: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateQuestJournal({ questTitle: '', questDescription: 'Desc.' })
@@ -415,7 +415,7 @@ describe('QuestCreationTools.handleCreateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws on invalid questType enum — query not called', async () => {
+  it('throws on invalid questType enum: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateQuestJournal({
@@ -428,7 +428,7 @@ describe('QuestCreationTools.handleCreateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws on invalid difficulty enum — query not called', async () => {
+  it('throws on invalid difficulty enum: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateQuestJournal({
@@ -446,7 +446,7 @@ describe('QuestCreationTools.handleCreateQuestJournal — failure handling', () 
 // handleLinkQuestToNPC
 // ---------------------------------------------------------------------------
 
-describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
+describe('QuestCreationTools.handleLinkQuestToNPC: dispatch', () => {
   const JOURNAL_CONTENT =
     '<section class="mcp-journal"><div class="wrap"><h1>Test Quest</h1>' +
     '<div class="grid-2"><div><h3>Quest Details</h3><ul></ul></div>' +
@@ -561,7 +561,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
   });
 });
 
-describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
+describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -620,7 +620,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
     consoleErr.mockRestore();
   });
 
-  it('throws on missing journalId — query not called', async () => {
+  it('throws on missing journalId: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleLinkQuestToNPC({ npcName: 'NPC', relationship: 'ally' })
@@ -629,7 +629,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
     consoleErr.mockRestore();
   });
 
-  it('throws on missing npcName — query not called', async () => {
+  it('throws on missing npcName: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleLinkQuestToNPC({ journalId: 'j1', relationship: 'ally' })
@@ -638,14 +638,14 @@ describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
     consoleErr.mockRestore();
   });
 
-  it('throws on missing relationship — query not called', async () => {
+  it('throws on missing relationship: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(tools.handleLinkQuestToNPC({ journalId: 'j1', npcName: 'NPC' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('throws on invalid relationship enum — query not called', async () => {
+  it('throws on invalid relationship enum: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleLinkQuestToNPC({ journalId: 'j1', npcName: 'NPC', relationship: 'sidekick' })
@@ -659,7 +659,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
 // handleUpdateQuestJournal
 // ---------------------------------------------------------------------------
 
-describe('QuestCreationTools.handleUpdateQuestJournal — newPageName path (no read cycle)', () => {
+describe('QuestCreationTools.handleUpdateQuestJournal: newPageName path (no read cycle)', () => {
   it('dispatches only one updateJournalContent call with newPageName', async () => {
     const { tools, query } = makeTools(() => ({
       success: true,
@@ -715,7 +715,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — newPageName path (no r
   });
 });
 
-describe('QuestCreationTools.handleUpdateQuestJournal — pageId path (targeted page update)', () => {
+describe('QuestCreationTools.handleUpdateQuestJournal: pageId path (targeted page update)', () => {
   const ORIGINAL_CONTENT = '<p>Original page content.</p>';
   const VERIFY_CONTENT = '<p>Original page content.</p><p>New info here.</p>';
 
@@ -789,7 +789,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — pageId path (targeted 
   });
 });
 
-describe('QuestCreationTools.handleUpdateQuestJournal — no-pageId path (first page update)', () => {
+describe('QuestCreationTools.handleUpdateQuestJournal: no-pageId path (first page update)', () => {
   const EXISTING_CONTENT = `<section class="mcp-journal"><div class="wrap"><h1>Quest</h1><li><strong>Status:</strong> Active</li></div>\n    </section>`;
   const VERIFY_CONTENT = `<section class="mcp-journal"><div class="wrap"><h1>Quest</h1><li><strong>Status:</strong> Completed</li></div>\n    </section><h2 class="spaced">Quest Completed`;
 
@@ -888,7 +888,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — no-pageId path (first 
   });
 });
 
-describe('QuestCreationTools.handleUpdateQuestJournal — failure handling', () => {
+describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -968,7 +968,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws on missing journalId — query not called', async () => {
+  it('throws on missing journalId: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleUpdateQuestJournal({ newContent: 'Content.', updateType: 'progress' })
@@ -977,7 +977,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws on missing newContent — query not called', async () => {
+  it('throws on missing newContent: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleUpdateQuestJournal({ journalId: 'j1', updateType: 'progress' })
@@ -986,7 +986,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws on missing updateType — query not called', async () => {
+  it('throws on missing updateType: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleUpdateQuestJournal({ journalId: 'j1', newContent: 'Content.' })
@@ -995,7 +995,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — failure handling', () 
     consoleErr.mockRestore();
   });
 
-  it('throws on invalid updateType enum — query not called', async () => {
+  it('throws on invalid updateType enum: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleUpdateQuestJournal({
@@ -1013,7 +1013,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — failure handling', () 
 // handleListJournals
 // ---------------------------------------------------------------------------
 
-describe('QuestCreationTools.handleListJournals — page mode (journalId + pageId)', () => {
+describe('QuestCreationTools.handleListJournals: page mode (journalId + pageId)', () => {
   it('dispatches getJournalPageContent with journalId and pageId', async () => {
     const pagePayload = { id: 'page-1', name: 'Quest Overview', content: '<p>Content</p>' };
     const { tools, query } = makeTools(() => pagePayload);
@@ -1036,7 +1036,7 @@ describe('QuestCreationTools.handleListJournals — page mode (journalId + pageI
   });
 });
 
-describe('QuestCreationTools.handleListJournals — journal mode (journalId only)', () => {
+describe('QuestCreationTools.handleListJournals: journal mode (journalId only)', () => {
   it('dispatches getJournalContent with journalId', async () => {
     const journalPayload = {
       content: '<p>Quest content</p>',
@@ -1070,7 +1070,7 @@ describe('QuestCreationTools.handleListJournals — journal mode (journalId only
   });
 });
 
-describe('QuestCreationTools.handleListJournals — list mode (no journalId)', () => {
+describe('QuestCreationTools.handleListJournals: list mode (no journalId)', () => {
   const JOURNALS = [
     { id: 'j1', name: 'The Main Quest', pages: [] },
     { id: 'j2', name: 'Side Mission: Find the Key', pages: [] },
@@ -1124,7 +1124,7 @@ describe('QuestCreationTools.handleListJournals — list mode (no journalId)', (
   });
 });
 
-describe('QuestCreationTools.handleListJournals — failure handling', () => {
+describe('QuestCreationTools.handleListJournals: failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -1161,7 +1161,7 @@ describe('QuestCreationTools.handleListJournals — failure handling', () => {
 // handleSearchJournals
 // ---------------------------------------------------------------------------
 
-describe('QuestCreationTools.handleSearchJournals — dispatch and result shaping', () => {
+describe('QuestCreationTools.handleSearchJournals: dispatch and result shaping', () => {
   const JOURNALS_WITH_PAGES = [
     {
       id: 'j1',
@@ -1297,7 +1297,7 @@ describe('QuestCreationTools.handleSearchJournals — dispatch and result shapin
     expect(pageCalls).toHaveLength(1);
   });
 
-  it('both mode matches title and content — result has both matchTypes', async () => {
+  it('both mode matches title and content: result has both matchTypes', async () => {
     const { tools } = makeSearcher('The party fought the dragon.');
     const result = await tools.handleSearchJournals({ searchQuery: 'dragon', searchType: 'both' });
     // j1 "The Dragon Quest" matches title AND content
@@ -1325,7 +1325,7 @@ describe('QuestCreationTools.handleSearchJournals — dispatch and result shapin
   });
 });
 
-describe('QuestCreationTools.handleSearchJournals — failure handling', () => {
+describe('QuestCreationTools.handleSearchJournals: failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -1343,21 +1343,21 @@ describe('QuestCreationTools.handleSearchJournals — failure handling', () => {
     consoleErr.mockRestore();
   });
 
-  it('throws on missing searchQuery — query not called', async () => {
+  it('throws on missing searchQuery: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(tools.handleSearchJournals({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('throws on empty searchQuery string — query not called', async () => {
+  it('throws on empty searchQuery string: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(tools.handleSearchJournals({ searchQuery: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('throws on invalid searchType enum — query not called', async () => {
+  it('throws on invalid searchType enum: query not called', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleSearchJournals({ searchQuery: 'dragon', searchType: 'everywhere' })
@@ -1383,7 +1383,7 @@ describe('QuestCreationTools.handleSearchJournals — failure handling', () => {
       }
       return { success: true };
     });
-    // Should not throw — bad page is silently skipped
+    // Should not throw: bad page is silently skipped
     const result = await tools.handleSearchJournals({ searchQuery: 'anything' });
     expect(result.success).toBe(true);
     expect(result.totalMatches).toBe(0);

@@ -23,6 +23,7 @@ import {
   readState,
   SOURCE_TARGETS,
 } from './remote/player-creation-settings.mjs';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MODULE_ID = 'foundryvtt-actor-studio';
@@ -358,27 +359,10 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
-// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
 // About 30 minutes under QEMU emulation on a PC, a few minutes on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/stage13-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('stage13-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 

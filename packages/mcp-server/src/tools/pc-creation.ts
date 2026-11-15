@@ -31,6 +31,9 @@ const planParams = z.object({
       })
     )
     .max(200)
+    .refine(list => new Set(list.map(i => i.uuid)).size === list.length, {
+      message: 'Each uuid may appear only once: use quantity for more than one copy.',
+    })
     .optional(),
 });
 
@@ -67,7 +70,7 @@ export class PcCreationTools {
       {
         name: 'plan-pc-creation',
         description:
-          'Plan a new player character: a character actor with items copied from compendium packs by uuid (a container brings its contents). Advancement does not run: add class features by uuid. Apply with apply-planned-change, undo with undo-change.',
+          'Plan a new player character: a character actor with items copied from compendium packs by uuid (a container brings its contents). Advancement does not run: add class features by uuid. Apply with apply-planned-change, undo with undo-change. Needs the switch "AI Tool: Character creation (writes)" on.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -127,6 +130,7 @@ export class PcCreationTools {
       feature: PC_CREATION_FEATURE_ID,
       summary: built.summary,
       ops: built.ops,
+      notes: built.warnings,
     });
     return {
       ...plan,

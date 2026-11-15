@@ -40,6 +40,7 @@ import {
   LIBRARY_LIMITS,
   MODULE_ID,
   isFoundryUuid,
+  isRecord,
   type LibraryDocument,
   type LibraryIndexResponse,
   type LibraryIndexRow,
@@ -191,10 +192,6 @@ function newWorld(worldId: string): WorldLibrary {
     errors: new Map(),
     byName: null,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function cmp(a: string, b: string): number {

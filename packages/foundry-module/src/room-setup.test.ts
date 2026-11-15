@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ROOM_SETUP_FEATURE_ID as SHARED_FEATURE,
   ROOM_SETUP_QUERY as SHARED_QUERY,
-} from '../../../shared/src/room-setup.js';
+} from '@gnuminator/shared';
 import { planRoomSetup, ROOM_SETUP_FEATURE_ID, ROOM_SETUP_QUERY } from './room-setup.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { NON_WRITE_METHODS } from './write-gate.js';

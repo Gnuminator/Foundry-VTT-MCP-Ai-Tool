@@ -4,7 +4,7 @@
  *
  * 1. The bytes are checked here (type by content, size cap), whatever the dashboard did.
  * 2. The module query `uploadPlayerPortrait` checks the player owns the character and stores the
- *    file in `assets/players/<slug>/` under a name it makes (a write behind the write gate).
+ *    file in `assets/players/<slug>-<user id>/` under a name it makes (a write behind the write gate).
  * 3. The actor change (`img`, and the prototype token's picture when the player picked it) is a
  *    guarded write under the `player-portrait` feature: it shows in Recent Changes and Undo puts
  *    the old picture path back. The file stays in the player's folder.
@@ -25,6 +25,9 @@ import type { GuardedWriteService } from './guarded-write/service.js';
 export interface PortraitFoundry {
   query(method: string, data?: unknown, options?: { timeoutMs?: number }): Promise<unknown>;
 }
+
+/** Most placed tokens one picture change reaches (the module caps its list the same way). */
+const MAX_PLACED_TOKENS = 100;
 
 const ID = /^[A-Za-z0-9]{16}$/;
 const UPLOAD_TIMEOUT_MS = 60_000;
@@ -94,6 +97,15 @@ export async function handlePlayerPortrait(
     pathLabels['prototypeToken.texture.src'] = 'token picture';
   }
   const ops: GuardedOp[] = [{ kind: 'update', uuid, changes }];
+  // Tokens already on a scene keep their own picture unless they are changed too. They are a
+  // second change, so a token the GM deleted later never blocks the Undo of the character's own
+  // picture (an Undo refuses when any of its documents is gone).
+  const placed =
+    target === 'both' && Array.isArray(stored.placedTokens)
+      ? stored.placedTokens
+          .filter((t): t is string => typeof t === 'string' && /^Scene\.\w+\.Token\.\w+$/.test(t))
+          .slice(0, MAX_PLACED_TOKENS)
+      : [];
   const who = typeof stored.userName === 'string' && stored.userName ? stored.userName : 'A player';
   const name = stored.actorName || 'a character';
   const plan = await guardedWrites.createPlan({
@@ -107,5 +119,25 @@ export async function handlePlayerPortrait(
     { confirm: true },
     `${who} (player page)`
   );
+  if (placed.length > 0) {
+    try {
+      const tokenPlan = await guardedWrites.createPlan({
+        feature: PLAYER_PORTRAIT_FEATURE_ID,
+        summary: `${who} set the new picture on ${placed.length} placed token${placed.length === 1 ? '' : 's'} of ${name} (${stored.path})`,
+        ops: placed.map(
+          (tokenUuid): GuardedOp => ({
+            kind: 'update',
+            uuid: tokenUuid,
+            changes: { 'texture.src': stored.path },
+          })
+        ),
+        pathLabels: { 'texture.src': 'placed token picture' },
+      });
+      await guardedWrites.applyPlan(tokenPlan.planId, { confirm: true }, `${who} (player page)`);
+    } catch {
+      // The character already has its picture; a token that moved or went away is not an error
+      // the player can act on. The GM sees the first change in Recent Changes either way.
+    }
+  }
   return { ok: true, path: stored.path, actorName: name, changeId: applied.changeId };
 }

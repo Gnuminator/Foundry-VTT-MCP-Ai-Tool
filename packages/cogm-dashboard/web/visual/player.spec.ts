@@ -1,10 +1,11 @@
 // Screenshot and axe tests for the player pages (/player and /me): the screens of
 // player-screens.ts. Screenshots run at the laptop and phone widths (the widths players use; the
-// 1440 project only runs the axe check), baselines in visual/__screenshots__/<project>/ like the
-// dashboard's (Linux only, see the README, "Screenshot tests").
+// 1440 project only runs the axe check). The shots are page shots: rendered and uploaded as an
+// artifact, not compared (see page-shot.ts and the README, "Screenshot tests").
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+import { pageShot } from './page-shot';
 import { PLAYER_SCREENS, showPlayerScreen } from './player-screens';
 
 const FAILING = new Set(['serious', 'critical']);
@@ -14,7 +15,7 @@ for (const screen of PLAYER_SCREENS) {
     test.skip(info.project.name === 'desktop-1440', 'the 1440 project only runs the axe check');
     await showPlayerScreen(page, screen);
     // The status pill reads "Reconnecting" once the faked one-shot stream ends: not what is photographed.
-    await expect(page).toHaveScreenshot(`${screen.name}.png`, {
+    await pageShot(page, info, `${screen.name}.png`, {
       fullPage: true,
       mask: [page.locator('#status')],
     });

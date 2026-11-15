@@ -63,6 +63,7 @@
 
 require_root
 require_recent_snapshot
+refuse_when_cut_over "stage 11 (worlds)"
 require_arm64
 BUNDLE="${BUNDLE:-}"
 WORLD="${WORLD:-curse-of-strahd}"

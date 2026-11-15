@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ChatLogTools } from './chat-log.js';
 
 /**
- * Tests for ChatLogTools — a thin, deterministic layer over FoundryClient.query.
+ * Tests for ChatLogTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures → return validation errors as strings
  * (handleSendChatMessage only; the other two handlers throw on any error).

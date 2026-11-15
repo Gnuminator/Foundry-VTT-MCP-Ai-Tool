@@ -45,6 +45,7 @@ fails=0
 bad() { warn "$*"; fails=$((fails + 1)); }
 
 require_root
+refuse_when_cut_over "stage 30 (player connector; it restarts the bridge and the dashboard)"
 modes=0
 for m in "$dry" "$check" "$undo"; do [ "$m" = 1 ] && modes=$((modes + 1)); done
 [ "$modes" -le 1 ] || die "use one of DRY_RUN=1, CHECK=1 and UNDO=1, not several"

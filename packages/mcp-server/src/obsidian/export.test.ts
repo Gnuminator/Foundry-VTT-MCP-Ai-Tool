@@ -745,6 +745,85 @@ describe('session notes in Foundry (D-087)', () => {
   });
 });
 
+describe('a month with more than 400 changes is split into -pN notes', () => {
+  const exists = (p: string): Promise<boolean> =>
+    fsp.stat(p).then(
+      () => true,
+      () => false
+    );
+
+  async function seedHistory(count: number): Promise<void> {
+    // The history file is append-only: rewrite it whole for the shorter second run.
+    await fsp.rm(path.join(dataDir, WORLD, 'gm', 'audit-log.jsonl'), { force: true });
+    await store.appendLines(
+      WORLD,
+      'gm',
+      'audit-log.jsonl',
+      Array.from({ length: count }, (_, i) => ({
+        v: 1,
+        changeId: `big-${i}`,
+        planId: null,
+        feature: 'actor',
+        summary: `Change ${i}`,
+        risk: 'low',
+        target: 'Actor.abc',
+        mode: 'apply',
+        appliedAt: new Date(Date.UTC(2026, 8, 28, 8, 0, i)).toISOString(),
+        diff: ['hp: 1 -> 2'],
+      }))
+    );
+  }
+
+  it('links a session note to the -p2 part, writes a part property, and prunes a part that is gone', async () => {
+    await store.appendLines(WORLD, 'sessions', '2026-09-28.jsonl', [
+      {
+        id: 'a',
+        timestamp: '2026-09-28T09:00:00.000Z',
+        eventType: 'session-start',
+        actorName: null,
+        description: 'Play session started',
+        details: { source: 'mark-play-session' },
+      },
+      {
+        id: 'b',
+        timestamp: '2026-09-28T09:10:00.000Z',
+        eventType: 'gm-change',
+        actorName: null,
+        description: 'Applied: Change 400',
+        details: { changeId: 'big-400' },
+      },
+      {
+        id: 'c',
+        timestamp: '2026-09-28T09:20:00.000Z',
+        eventType: 'session-end',
+        actorName: null,
+        description: 'Play session ended',
+        details: { source: 'mark-play-session' },
+      },
+    ]);
+    await seedHistory(401);
+    await run();
+
+    const changesDir = path.join(campaignDir(vaultDir, WORLD), 'AI Tool/Changes');
+    const p2 = await fsp.readFile(path.join(changesDir, '2026-09-p2.md'), 'utf8');
+    expect(p2).toContain('^big-400');
+    expect(p2).toMatch(/^part: 2$/m);
+    expect(await fsp.readFile(path.join(changesDir, '2026-09.md'), 'utf8')).toMatch(/^part: 1$/m);
+    const sessions = await listFilesRecursive(
+      path.join(campaignDir(vaultDir, WORLD), 'AI Tool/Sessions')
+    );
+    const sessionNote = await fsp.readFile(sessions.find(f => f.endsWith('.md')) ?? '', 'utf8');
+    expect(sessionNote).toContain('[big-400](../Changes/2026-09-p2.md#^big-400)');
+
+    // Fewer changes now: the part is no longer produced, so it goes to .trash/ and is gone.
+    await seedHistory(400);
+    const again = await run();
+    expect(again.trashed).toContain('AI Tool/Changes/2026-09-p2.md');
+    expect(await exists(path.join(changesDir, '2026-09-p2.md'))).toBe(false);
+    expect(await exists(path.join(changesDir, '2026-09.md'))).toBe(true);
+  });
+});
+
 describe('render helpers', () => {
   it('quotes text properties and writes lists', () => {
     expect(

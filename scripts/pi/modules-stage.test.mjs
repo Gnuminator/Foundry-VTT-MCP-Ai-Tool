@@ -8,11 +8,11 @@
 //   failed move and a version mismatch putting the old folders back, a crashed run refusing a new one, and the
 //   refusals (a wrong sha256, a "../" entry, a link, a wrong id or version in the zip, an unsafe pin, players online).
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const stage = readFileSync(path.join(repo, 'scripts/pi/remote/25-modules.sh'), 'utf8');
@@ -68,23 +68,7 @@ describe(
   { skip: process.env.PI_STAGE25_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const image =
-        'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
-      const res = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          image,
-          'bash',
-          '/repo/scripts/pi/container-test/stage25-scenarios.sh',
-        ],
-        { encoding: 'utf8' }
-      );
+      const res = runStageContainer('stage25-scenarios.sh');
       assert.equal(res.status, 0, res.stdout + res.stderr);
       assert.doesNotMatch(res.stdout, /FAIL/);
     });

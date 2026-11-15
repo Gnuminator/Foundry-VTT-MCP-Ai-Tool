@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ExportFolderRef, ExportIndexRequest } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { REVEALS_FILE } from '../tarokka/service.js';
 import {
@@ -33,6 +33,7 @@ import {
 import { shortSuffix } from './mirror-paths.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 const converter = vi.hoisted(() => ({
   html: vi.fn<(html: string, ctx: LinkContext) => string>(),
@@ -76,7 +77,7 @@ let store: VaultStore;
 let fake: FakeExportIndex;
 let clock: { t: number };
 let currentWorld: string;
-let logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+let logger: { info: Mock; warn: Mock };
 
 beforeEach(async () => {
   tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'mirror-pump-'));
@@ -88,7 +89,7 @@ beforeEach(async () => {
   for (const entry of [HERO, WOLF, ARENA, LORE, SWORD, CLOCK]) fake.put(entry);
   clock = { t: T0 };
   currentWorld = WORLD;
-  logger = { info: vi.fn(), warn: vi.fn() };
+  logger = makeLogger();
   converter.html.mockReset();
   converter.markdown.mockReset();
   converter.html.mockImplementation(html => {

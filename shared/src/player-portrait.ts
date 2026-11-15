@@ -3,7 +3,7 @@
  * player page. The dashboard maps the player's private link key to a Foundry user id, checks the
  * bytes, and asks the bridge's control method `player_portrait`; the module query
  * `uploadPlayerPortrait` (a write behind the write gate) checks the player owns the character and
- * stores the file under `assets/players/<user slug>/` with a name it makes itself. The backend
+ * stores the file under `assets/players/<user slug>-<user id>/` with a name it makes itself. The backend
  * then records the actor change as a guarded write, so it shows in Recent Changes with an Undo.
  */
 
@@ -74,6 +74,8 @@ export interface UploadPlayerPortraitReply {
   actorUuid?: string;
   actorName?: string;
   userName?: string;
+  /** Tokens already placed on scenes for the actor (`Scene.<id>.Token.<id>`), at most 100. */
+  placedTokens?: string[];
 }
 
 export interface PlayerPortraitResult {

@@ -10,6 +10,8 @@ case "$*" in
     # /tmp/gm-stale: only the first invocation (fake-invocation-1, the run before the restart) has the line.
     if [ -f /tmp/gm-stale ] && [ "$*" != "_SYSTEMD_INVOCATION_ID=fake-invocation-1 --no-pager -o cat" ]; then exit 0; fi
     [ -f /tmp/gm-nojoin ] || echo "[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)"
+    # Stage 28: the new driver logs that the page watchdog is armed after the join; /tmp/gm-noarmed leaves it out (GM_PAGE_WATCH=0).
+    [ -f /tmp/gm-nojoin ] || [ -f /tmp/gm-noarmed ] || echo "[assistant-gm] page watchdog armed (ping every 15 s, restart after 120 s of silence)"
     ;;
   *foundry-ai-tool-kit-gm-browser*)
     if [ -f /tmp/started-kit ] && [ ! -f /tmp/kitnojoin ]; then

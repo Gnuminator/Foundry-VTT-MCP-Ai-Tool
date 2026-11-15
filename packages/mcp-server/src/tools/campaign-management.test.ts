@@ -1,21 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { CampaignManagementTools } from './campaign-management.js';
 
 /**
- * Tests for CampaignManagementTools — a thin layer over FoundryClient.query that:
+ * Tests for CampaignManagementTools: a thin layer over FoundryClient.query that:
  *   1. Validates args with inline zod schema (uses CampaignPartTypeSchema from @gnuminator/shared)
  *   2. Builds campaign structure from a template (or custom parts)
  *   3. Dispatches `foundry-mcp-bridge.createJournalEntry`
  *   4. On any failure routes through ErrorHandler.handleToolError → always throws
  *
- * NOTE: Constructor is POSITIONAL — new CampaignManagementTools(foundryClient, logger)
+ * NOTE: Constructor is POSITIONAL, new CampaignManagementTools(foundryClient, logger)
  * (not an options object like CombatTools / MovementTools).
  */
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: CampaignManagementTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(
     queryImpl ??
@@ -88,10 +88,10 @@ describe('CampaignManagementTools.getToolDefinitions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateCampaignDashboard — happy-path dispatch
+// handleCreateCampaignDashboard: happy-path dispatch
 // ---------------------------------------------------------------------------
 
-describe('CampaignManagementTools.handleCreateCampaignDashboard — dispatch', () => {
+describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () => {
   it('dispatches foundry-mcp-bridge.createJournalEntry with the correct name and folderName', async () => {
     const { tools, query } = makeTools();
     await tools.handleCreateCampaignDashboard(VALID_ARGS);
@@ -101,7 +101,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — dispatch', (
     expect(method).toBe('foundry-mcp-bridge.createJournalEntry');
     expect(params.name).toBe('The Whisperstone Conspiracy - Campaign Dashboard');
     expect(params.folderName).toBe('The Whisperstone Conspiracy');
-    // content is generated HTML — just confirm it is a non-empty string
+    // content is generated HTML: just confirm it is a non-empty string
     expect(typeof params.content).toBe('string');
     expect(params.content.length).toBeGreaterThan(0);
   });
@@ -209,10 +209,10 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — dispatch', (
 });
 
 // ---------------------------------------------------------------------------
-// handleCreateCampaignDashboard — failure handling (always throws, never returns string)
+// handleCreateCampaignDashboard: failure handling (always throws, never returns string)
 // ---------------------------------------------------------------------------
 
-describe('CampaignManagementTools.handleCreateCampaignDashboard — failure handling', () => {
+describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -240,7 +240,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — failure hand
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on zod validation failure — missing campaignTitle', async () => {
+  it('throws (not returns string) on zod validation failure: missing campaignTitle', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateCampaignDashboard({
@@ -252,7 +252,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — failure hand
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on zod validation failure — missing template', async () => {
+  it('throws (not returns string) on zod validation failure: missing template', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateCampaignDashboard({
@@ -264,7 +264,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — failure hand
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on zod validation failure — invalid template enum', async () => {
+  it('throws (not returns string) on zod validation failure: invalid template enum', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateCampaignDashboard({
@@ -277,7 +277,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — failure hand
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on zod validation failure — empty campaignTitle string', async () => {
+  it('throws (not returns string) on zod validation failure: empty campaignTitle string', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateCampaignDashboard({
@@ -290,7 +290,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard — failure hand
     consoleErr.mockRestore();
   });
 
-  it('throws (not returns string) on zod validation failure — invalid customParts type field', async () => {
+  it('throws (not returns string) on zod validation failure: invalid customParts type field', async () => {
     const { tools, query } = makeTools();
     await expect(
       tools.handleCreateCampaignDashboard({

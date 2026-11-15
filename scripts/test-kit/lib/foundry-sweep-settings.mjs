@@ -284,7 +284,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
       };
     });
     /** @type {Array<Array<string | null>>} */
-    let calls = [];
+    let calls;
     try {
       await gm.locator(`${CONFIG} button[data-key="${MODULE}.helpMenu"]`).click();
       await gm.waitForFunction(() => /** @type {any} */ (window).__fmbOpened?.length > 0, null, {

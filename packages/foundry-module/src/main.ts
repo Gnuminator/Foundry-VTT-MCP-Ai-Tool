@@ -2,22 +2,9 @@ import { MODULE_ID } from './constants.js';
 import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
 import { registerAiToolControls } from './ai-tool-controls.js';
 import { registerLatestRecapButton } from './latest-recap.js';
-import { setBridgeLink } from './bridge-link.js';
-import { GM_GUIDE_URL } from './help-menu.js';
-import {
-  createLinkNotifier,
-  createLinkRelayReceiver,
-  parseLinkRelayState,
-  type LinkRelayStateName,
-} from './link-notice.js';
-import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
+import { BridgeLinkLifecycle, type BridgeLinkStatus } from './bridge-link-lifecycle.js';
 import { QueryHandlers } from './queries.js';
-import {
-  LINK_STATE_CHANGED_HOOK,
-  ModuleSettings,
-  isBridgeUser,
-  registerSettingsUsageHooks,
-} from './settings.js';
+import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { eventTracker } from './session-events.js';
 import { spentLedger } from './spent-actions.js';
@@ -26,6 +13,7 @@ import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
 import { installCombatCreateGuard } from './combat-create-guard.js';
 import { applySelectionColor } from './token-selection-color.js';
+import { installBloodiedRing, refreshRingsOfEffect } from './token-ring-bloodied.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
@@ -33,6 +21,7 @@ import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
+import { ACTOR_IMAGE_FEATURE_ID } from './actor-image.js';
 import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
@@ -57,9 +46,6 @@ import { warmPlayerIndexes } from './player-read.js';
 import { toGmMessage } from './gm-message.js';
 // Connection control now handled through settings menu
 
-/** How long the "MCP server not found" notice stays quiet after it was shown (per browser). */
-const SERVER_NOTICE_THROTTLE_MS = 10 * 60 * 1000;
-
 // Install diagnostic error capture as early as possible (module evaluation),
 // so the earliest console/uncaught errors from other modules are caught.
 diagnostics.install();
@@ -70,7 +56,7 @@ interface BridgeStatus {
   enabled: boolean;
   connected: boolean;
   connectionState: string;
-  connectionInfo: BridgeConnectionInfo | undefined;
+  connectionInfo: BridgeLinkStatus['connectionInfo'];
   settings: Record<string, unknown>;
   registeredMethods: string[];
   lastConnectionState: string;
@@ -100,99 +86,28 @@ class FoundryMCPBridge {
   private settings: ModuleSettings;
   private queryHandlers: QueryHandlers;
   private campaignHooks: CampaignHooks;
-  private socketBridge: SocketBridge | null = null;
   private isInitialized = false;
-  private heartbeatInterval: number | null = null;
-  private lastActivity: Date = new Date();
-  private isConnecting = false;
-  /** In memory only: writing these to world settings on every reconnect wrote to the world. */
-  private lastConnectionState = 'disconnected';
-  private lastServerNoticeAt = 0;
-  private heartbeatWarned = false;
-  /** GM-only toasts when an open link is lost and when it is back. */
-  private linkNotifier = createLinkNotifier({
-    notify: (message, level) => {
-      if (level === 'warn') ui.notifications?.warn(message);
-      else ui.notifications?.info(message);
-    },
-    isGM: () => this.isGMUser(),
-    enabled: () => this.settings.getSetting('enableNotifications') !== false,
-    publish: state => this.publishLinkState(state),
-  });
-  /** The other GMs' side: shows the holder's notices in a browser that does not hold the link. */
-  private linkRelay = createLinkRelayReceiver({
-    notify: (message, level) => {
-      if (level === 'warn') ui.notifications?.warn(message);
-      else ui.notifications?.info(message);
-    },
-    isGM: () => this.isGMUser(),
-    enabled: () => this.settings.getSetting('enableNotifications') !== false,
-    holdsLink: () => this.socketBridge !== null,
-  });
+  /** The bridge link (bridge-link-lifecycle.ts): start, stop, its state and the GM link toasts. */
+  private link: BridgeLinkLifecycle;
 
-  /** In memory only: what this browser last wrote to `linkState` (set once the write succeeded). */
-  private lastPublishedLinkState: LinkRelayStateName | null = null;
-  /** The state whose write is under way, so a repeat before it finishes writes nothing. */
-  private publishingLinkState: LinkRelayStateName | null = null;
-  /** Counts writes so a late settle of an older write cannot overwrite the record of a newer one. */
-  private linkStateWriteSeq = 0;
-
-  /**
-   * Only a browser that is the chosen bridge user may write the notice: with "Any GM" (no user
-   * chosen) every GM browser holds a link and each would write, and a user without the right to
-   * change world settings cannot write at all.
-   */
-  private canPublishLinkState(): boolean {
-    const bridgeUserId = this.settings.getSetting('bridgeUserId');
-    if (typeof bridgeUserId !== 'string' || bridgeUserId === '') return false;
-    if (!isBridgeUser(bridgeUserId, game.user?.id)) return false;
-    const user = game.user as unknown as { can?: (permission: string) => boolean } | undefined;
-    return user?.can?.('SETTINGS_MODIFY') === true;
-  }
-
-  /** Writes the holder's notice state to the world so every other GM browser can show it. */
-  private publishLinkState(state: LinkRelayStateName): void {
-    // One write per change of notice: a repeated "lost" (a failed start() while the outage lasts) writes nothing.
-    if (state === this.lastPublishedLinkState || state === this.publishingLinkState) return;
-    if (!this.canPublishLinkState()) return;
-    this.publishingLinkState = state;
-    const seq = ++this.linkStateWriteSeq;
-    const done = (error?: unknown): void => {
-      if (this.publishingLinkState === state) this.publishingLinkState = null;
-      if (error === undefined && seq === this.linkStateWriteSeq)
-        this.lastPublishedLinkState = state;
-      else console.warn(`[${MODULE_ID}] Could not share the link state with other GMs:`, error);
-    };
-    try {
-      const result = game.settings.set(MODULE_ID, 'linkState', { state, at: Date.now() });
-      void Promise.resolve(result).then(
-        () => done(),
-        error => done(error ?? new Error('write failed'))
-      );
-    } catch (error) {
-      done(error ?? new Error('write failed'));
-    }
-  }
-
-  /** Shows the holder's notices in this GM browser: on every stored change, and once for the value present now. */
+  /** Shows the holder's link notices in this GM browser (the link lifecycle owns them). */
   watchLinkState(): void {
-    Hooks.on(LINK_STATE_CHANGED_HOOK, () => this.applyStoredLinkState());
-    this.applyStoredLinkState();
+    this.link.watchLinkState();
   }
 
-  /** The stored link state changed (or was read when this GM joined): show it unless this browser holds the link. */
+  /** The stored link state changed (or was read when this GM joined). */
   applyStoredLinkState(): void {
-    try {
-      this.linkRelay.apply(parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')));
-    } catch (error) {
-      console.warn(`[${MODULE_ID}] Could not read the shared link state:`, error);
-    }
+    this.link.applyStoredLinkState();
   }
 
   constructor() {
     this.settings = new ModuleSettings();
     this.queryHandlers = new QueryHandlers();
     this.campaignHooks = new CampaignHooks(this);
+    this.link = new BridgeLinkLifecycle({
+      settings: this.settings,
+      isInitialized: (): boolean => this.isInitialized,
+    });
   }
 
   /**
@@ -209,7 +124,7 @@ class FoundryMCPBridge {
    * browser into an AI control surface.
    */
   private isBridgeAllowedForUser(): boolean {
-    return this.isGMUser() || this.settings.getSetting('allowNonGmAccess') === true;
+    return this.link.isBridgeAllowedForUser();
   }
 
   /**
@@ -288,7 +203,13 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: 'player-portrait',
         name: 'AI Tool: Player portraits (writes)',
-        hint: "Lets a player change the picture of their own character from the dashboard's player page (the file goes into their own folder under assets/players).",
+        hint: "Lets a player change the picture of their own character from the dashboard's player page, and the tokens of that character already placed on scenes when they pick the token picture too (the file goes into their own folder under assets/players).",
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: ACTOR_IMAGE_FEATURE_ID,
+        name: 'AI Tool: Actor images (writes)',
+        hint: "Lets the AI set an actor's portrait and token picture from a file in an allowed folder on the GM's PC, after you confirm (the file goes into assets/ai-art).",
         defaultEnabled: true,
       });
       registerGuardedFeature({
@@ -498,274 +419,48 @@ class FoundryMCPBridge {
   /**
    * Start the MCP bridge connection
    */
-  async start(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Module not initialized');
-    }
-
-    // SECURITY: double-check access (safety measure). GM-only unless allowNonGmAccess is on.
-    if (!this.isBridgeAllowedForUser()) {
-      console.warn(`[${MODULE_ID}] Attempted to start bridge without access`);
-      return;
-    }
-
-    // One bridge user holds the link (PB-02). Other GMs skip it quietly.
-    const bridgeUserId = this.settings.getSetting('bridgeUserId');
-    if (!isBridgeUser(bridgeUserId, game.user?.id)) {
-      logInfo(`[${MODULE_ID}] Not the bridge user; this browser does not start the link`);
-      return;
-    }
-
-    if (this.socketBridge?.isConnected() || this.isConnecting) {
-      logInfo(`[${MODULE_ID}] Bridge already running or connecting`);
-      return;
-    }
-
-    // Never leave an old bridge (and its reconnect timer) running beside a new one.
-    if (this.socketBridge) {
-      this.socketBridge.disconnect();
-      this.socketBridge = null;
-      setBridgeLink(null);
-    }
-
-    // A new bridge starts with a clean notifier: a "lost" left by the old one must not turn the
-    // first link of this one (which already shows "AI Tool connected") into "link is back".
-    // Silent: a start() during an outage must not tell the other GMs the outage ended.
-    this.linkNotifier.reset({ silent: true });
-    // A "lost" left in the world by an earlier holder (browser killed mid-outage) must not stay on other GMs' screens.
-    if (
-      this.isGMUser() &&
-      this.settings.getSetting('enableNotifications') !== false &&
-      this.lastPublishedLinkState !== 'lost' &&
-      this.publishingLinkState !== 'lost' &&
-      parseLinkRelayState(game.settings.get(MODULE_ID, 'linkState')).state === 'lost'
-    ) {
-      this.publishLinkState('quiet');
-    }
-
-    this.isConnecting = true;
-    let dialled = false;
-    let bridge: SocketBridge | undefined;
-
-    try {
-      logInfo(`[${MODULE_ID}] Starting MCP bridge...`);
-
-      const config = this.settings.getBridgeConfig();
-      config.onLinkChange = (up): void => {
-        if (up) {
-          this.linkNotifier.up();
-          // A reconnect after a failed first connect: start() threw, so its own heartbeat
-          // start never ran. Only for the bridge that is still current, and not while start()
-          // is still connecting (it sets the state and starts the heartbeat itself).
-          if (this.socketBridge === bridge && !this.isConnecting) {
-            this.lastConnectionState = 'connected';
-            this.updateLastActivity();
-            if (this.heartbeatInterval === null) this.startHeartbeat();
-          }
-        } else this.linkNotifier.down();
-      };
-
-      // Validate configuration
-      const validation = this.settings.validateSettings();
-      if (!validation.valid) {
-        throw new Error(`Invalid configuration: ${validation.errors.join(', ')}`);
-      }
-
-      // Create and connect socket bridge
-      bridge = new SocketBridge(config);
-      this.socketBridge = bridge;
-      setBridgeLink(bridge);
-      dialled = true;
-      await bridge.connect();
-
-      // stop() ran while the connect was pending: this bridge is gone, so leave the state alone.
-      if (this.socketBridge !== bridge) {
-        logInfo(`[${MODULE_ID}] Bridge was stopped while connecting`);
-        return;
-      }
-
-      // Log connection details for debugging
-      const connectionInfo = this.socketBridge.getConnectionInfo();
-      logInfo(
-        `[${MODULE_ID}] Bridge started successfully - Type: ${connectionInfo.type}, State: ${connectionInfo.state}`
-      );
-
-      this.lastConnectionState = 'connected';
-      // A start() during an outage that connects: the other GMs were told "lost", so tell them it is back.
-      if (this.lastPublishedLinkState === 'lost' || this.publishingLinkState === 'lost') {
-        this.publishLinkState('up');
-      }
-      this.updateLastActivity();
-
-      // Start heartbeat monitoring if enabled
-      this.startHeartbeat();
-
-      // Show connection notification based on user preference
-      if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('AI Tool connected');
-      }
-      logInfo(
-        `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
-      );
-    } catch (error) {
-      // stop() ran while the connect was pending and cancelled it: not a failure, nothing to report.
-      if (bridge && this.socketBridge !== bridge) {
-        logInfo(`[${MODULE_ID}] Bridge was stopped while connecting`);
-        return;
-      }
-      // Log as warning instead of error for initial connection failures
-      console.warn(`[${MODULE_ID}] Failed to start bridge:`, error);
-
-      // Show helpful message for GM users when MCP server isn't available
-      if (dialled && this.isGMUser()) {
-        // The retries go on in the background: if a retry opens the link, owe the "back" toast.
-        this.linkNotifier.markLost();
-        // A browser WebSocket error never says why (no ECONNREFUSED), so the first
-        // failed start is the signal. Throttled in memory so a long outage does not spam.
-        const now = Date.now();
-        if (now - this.lastServerNoticeAt >= SERVER_NOTICE_THROTTLE_MS) {
-          this.lastServerNoticeAt = now;
-          ui.notifications?.warn(
-            `Cannot reach the AI Tool server. Is it started? Troubleshooting: ${GM_GUIDE_URL}troubleshooting/`
-          );
-        }
-      }
-
-      this.lastConnectionState = 'error';
-      throw error;
-    } finally {
-      // A stop() already cleared the flag, and a newer start() may own it now.
-      if (!bridge || this.socketBridge === bridge) this.isConnecting = false;
-    }
+  start(): Promise<void> {
+    return this.link.start();
   }
 
   /**
    * Stop the MCP bridge connection
    */
   stop(): Promise<void> {
-    this.stopNow();
-    return Promise.resolve();
-  }
-
-  private stopNow(): void {
-    if (!this.socketBridge) {
-      logInfo(`[${MODULE_ID}] Bridge not running`);
-      return;
-    }
-
-    try {
-      logInfo(`[${MODULE_ID}] Stopping MCP bridge...`);
-
-      // Stop heartbeat monitoring
-      this.stopHeartbeat();
-      // A connect still pending on this bridge must not keep start() locked out.
-      this.isConnecting = false;
-
-      this.socketBridge.disconnect();
-      this.socketBridge = null;
-      setBridgeLink(null);
-
-      this.lastConnectionState = 'disconnected';
-
-      // Stopped on purpose: no "lost" or "back" toast for this.
-      this.linkNotifier.reset();
-
-      logInfo(`[${MODULE_ID}] Bridge stopped`);
-
-      // Show disconnection notification based on user preference
-      if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('AI Tool disconnected');
-      }
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error stopping bridge:`, error);
-    }
+    return this.link.stop();
   }
 
   /**
    * Restart the bridge with current settings
    */
-  async restart(): Promise<void> {
-    logInfo(`[${MODULE_ID}] Restarting bridge...`);
-
-    await this.stop();
-
-    // Small delay to ensure clean disconnect
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (this.settings.getSetting('enabled')) {
-      await this.start();
-    }
+  restart(): Promise<void> {
+    return this.link.restart();
   }
 
   /**
    * Get current bridge status
    */
   getStatus(): BridgeStatus {
+    const link = this.link.getStatus();
     return {
       initialized: this.isInitialized,
       enabled: this.settings.getSetting('enabled'),
-      connected: this.socketBridge?.isConnected() ?? false,
-      connectionState: this.socketBridge?.getConnectionState() ?? 'disconnected',
-      connectionInfo: this.socketBridge?.getConnectionInfo(),
+      connected: link.connected,
+      connectionState: link.connectionState,
+      connectionInfo: link.connectionInfo,
       settings: this.settings.getAllSettings(),
       registeredMethods: this.queryHandlers.getRegisteredMethods(),
-      lastConnectionState: this.lastConnectionState,
-      lastActivity: this.lastActivity.toISOString(),
-      heartbeatActive: this.heartbeatInterval !== null,
+      lastConnectionState: link.lastConnectionState,
+      lastActivity: link.lastActivity,
+      heartbeatActive: link.heartbeatActive,
     };
-  }
-
-  /**
-   * Start heartbeat monitoring
-   */
-  private startHeartbeat(): void {
-    this.stopHeartbeat(); // Ensure no duplicate intervals
-
-    const interval = this.settings.getSetting('heartbeatInterval') * 1000; // Convert to milliseconds
-
-    this.heartbeatInterval = window.setInterval(() => {
-      this.performHeartbeat();
-    }, interval);
-
-    logInfo(`[${MODULE_ID}] Heartbeat monitoring started (${interval}ms interval)`);
-  }
-
-  /**
-   * Stop heartbeat monitoring
-   */
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-      logInfo(`[${MODULE_ID}] Heartbeat monitoring stopped`);
-    }
-  }
-
-  /**
-   * Perform heartbeat check. Light on purpose: the socket bridge owns
-   * reconnecting (forever, with backoff), so this only notes the state. It never
-   * restarts the bridge and never switches `autoReconnectEnabled` off.
-   */
-  private performHeartbeat(): void {
-    if (this.socketBridge?.isConnected()) {
-      this.lastConnectionState = 'connected';
-      this.heartbeatWarned = false;
-      this.updateLastActivity();
-      return;
-    }
-    this.lastConnectionState = 'disconnected';
-    // Log once per disconnection to avoid spam
-    if (!this.heartbeatWarned && new Date().getTime() - this.lastActivity.getTime() > 60000) {
-      this.heartbeatWarned = true;
-      console.warn(`[${MODULE_ID}] Heartbeat: connection is down, the bridge keeps retrying`);
-    }
   }
 
   /**
    * Update last activity timestamp
    */
   updateLastActivity(): void {
-    this.lastActivity = new Date();
+    this.link.updateLastActivity();
   }
 
   /**
@@ -815,6 +510,7 @@ Hooks.once('ready', () => {
   try {
     const worldId = (game as { world?: { id?: string } }).world?.id;
     if (worldId) diagnostics.bindWorld(worldId);
+    else console.warn(`[${MODULE_ID}] No world id at ready: the error buffer is not saved.`);
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
   }
@@ -838,6 +534,22 @@ Hooks.once('ready', () => {
     applySelectionColor();
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not set the token selection colour:`, error);
+  }
+});
+
+// A bloodied token shows a red ring (I-093), on every client. Own hook and try block: a ring
+// colour must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    if (!installBloodiedRing()) console.warn(`[${MODULE_ID}] No token document class for rings`);
+    Hooks.on('createActiveEffect', (effect: unknown) =>
+      refreshRingsOfEffect(effect as Parameters<typeof refreshRingsOfEffect>[0])
+    );
+    Hooks.on('deleteActiveEffect', (effect: unknown) =>
+      refreshRingsOfEffect(effect as Parameters<typeof refreshRingsOfEffect>[0])
+    );
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set up bloodied token rings:`, error);
   }
 });
 

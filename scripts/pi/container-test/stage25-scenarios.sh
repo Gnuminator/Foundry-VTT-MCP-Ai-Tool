@@ -6,21 +6,13 @@
 # DESTRUCTIVE: it wipes the Foundry data folder, the import folder and the module mirror and installs the fakes into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 H=/repo/scripts/pi/container-test
 R=/repo/scripts/pi/remote
 only=" $* "
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs curl ca-certificates unzip; }
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin /run/systemd/system
 ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep logger mv; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
@@ -213,6 +205,7 @@ if want join-fails; then
   out="$(run_stage 'APPLY=1')"
   check join-fails "Foundry's world did not come back" "$out"
   check join-fails 'the run did not finish' "$out"
+  check join-fails 'the run did not finish: the old folders are back, Foundry and the Assistant GM browser are as they were' "$out"
   check join-fails 'alpha: 1.0.0 is back' "$out"
   check join-fails 'exit 1' "$out"
   same join-fails 'the module folders (old ones restored)' "$before" "$(tree_hash)"
@@ -383,6 +376,7 @@ if want undo-restore-fails; then
   absent undo-restore-fails 'alpha: 1.0.0 is back' "$out"
   check undo-restore-fails 'NOT every old folder is back' "$out"
   absent undo-restore-fails 'are as they were' "$out"
+  absent undo-restore-fails 'the old folders are back' "$out"
   check undo-restore-fails 'exit 1' "$out"
   absent undo-restore-fails 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
   check undo-restore-fails 'phase=installing' "$(cat "$IMPORT/modules-stage.state")"

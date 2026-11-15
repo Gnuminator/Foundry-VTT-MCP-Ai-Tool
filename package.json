@@ -25,19 +25,24 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "mutation:core": "node scripts/mutation-ratchet.mjs",
     "studio:pin-check": "node scripts/pi/check-studio-pin.mjs",
     "kit": "node scripts/test-kit/kit.mjs",
     "kit:run": "node scripts/test-kit/kit-run.mjs",
     "kit:test": "node --test \"scripts/test-kit/test/*.test.mjs\"",
     "emdash:ratchet": "node scripts/em-dash-guard.mjs",
+    "unused:ratchet": "node scripts/unused-ratchet.mjs",
+    "line:ratchet": "node scripts/line-ratchet.mjs",
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/sync-version.mjs --check",
     "changelog:check": "node scripts/changelog-fold.mjs --check",
     "changelog:fold": "node scripts/changelog-fold.mjs",
+    "deps:check": "node scripts/dep-ranges-check.mjs && node --test scripts/dep-ranges-check.test.mjs",
     "drift:check": "node scripts/drift-check.mjs",
     "green": "node scripts/green.mjs",
     "lane:merge": "node scripts/lane-merge.mjs",
+    "lane:risky": "node scripts/lane-merge.mjs --risky-list",
     "visual:baselines": "node scripts/visual-baselines.mjs",
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs && node scripts/wiki/da.mjs check && node scripts/docs-quest-check.mjs && node --test scripts/docs-quest-check.test.mjs",
@@ -49,6 +54,7 @@
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
     "player-connector": "node tools/player-connector/build.mjs",
+    "player-preset": "node scripts/player-preset.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
     "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
     "dev:test": "node --test \"scripts/dev/*.test.mjs\" \"scripts/tool-eval/*.test.mjs\"",
@@ -66,7 +72,7 @@
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run usage:catalog && npm run typecheck --workspaces --if-present && tsc -p scripts/tsconfig.json",
     "vault": "node packages/mcp-server/dist/vault-cli.js",
     "obsidian": "node packages/mcp-server/dist/obsidian-cli.js",
     "test:mcp:schema": "node scripts/mcp-schema-smoke-test.mjs",
@@ -74,15 +80,18 @@
     "audit:unused": "npx knip",
     "audit:circular": "npx madge --circular --extensions ts packages/mcp-server/src packages/foundry-module/src shared/src",
     "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
-    "prepare": "husky"
+    "prepare": "husky && node -e \"const f='scripts/usage-catalog.mjs';if(require('fs').existsSync(f))try{require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})}catch{}\""
   },
   "dependencies": {
     "playwright-core": "^1.63.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^24.0.0",
     "@vitest/eslint-plugin": "^1.6.27",
+    "acorn": "8.19.0",
     "esbuild-analyzer": "^0.2.0",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
@@ -99,7 +108,8 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.1",
     "typescript7": "npm:typescript@7.0.2",
-    "vitest": "^3.2.6"
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
   },
   "overrides": {
     "madge": {

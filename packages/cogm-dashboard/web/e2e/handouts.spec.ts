@@ -16,15 +16,19 @@ import {
   toast,
   type ToolCall,
   fromMenu,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  apiBody,
+  switchesBody,
 } from './support';
 
 // The seen ticks show the time in the browser's zone.
 test.use({ timezoneId: 'UTC' });
 
-const PLAYERS = [
+const PLAYERS = apiBody('/api/player/names', [
   { userId: 'u1', name: 'Anna' },
   { userId: 'u2', name: 'Bo' },
-];
+]);
 
 const SCENES = [
   { id: 's1', name: 'Maravia', active: true },
@@ -233,7 +237,7 @@ test('shows the empty states, and a failed load says why and keeps the last rows
   };
   let fail = false;
   await page.unroute('**/api/player/names');
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await fakeTools(page, call => {
     if (call.name !== 'list-revealed-pages') return bridge(call);
     return fail ? { status: 502, json: { ok: false, error: 'Bridge not connected' } } : ok(view);
@@ -322,11 +326,9 @@ test('Remove takes a page off the queue with GM Actions off; Reveal next stays g
   page,
 }) => {
   await fakeStream(page, gmActions(false));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: false } })
+    route.fulfill({ json: switchesBody(false) })
   );
   let unqueueFails = false;
   const calls = await fakeTools(page, call =>
@@ -467,15 +469,10 @@ async function refusedReveal(page: Page, message: string, posts: unknown[] = [])
       });
     }
     return route.fulfill({
-      json: {
-        switches: {
-          switches: [
-            { id: 'writes', name: 'Allow Write Operations', on: true },
-            { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
-          ],
-        },
-        gmActionsEnabled: true,
-      },
+      json: switchesBody(true, [
+        { id: 'writes', name: 'Allow Write Operations', on: true },
+        { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
+      ]),
     });
   });
   await fakeTools(page, call =>

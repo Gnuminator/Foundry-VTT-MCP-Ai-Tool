@@ -6,7 +6,7 @@ import {
   WRITES_OFF_MESSAGE as sharedWritesOff,
   featureOffMessage as sharedFeatureOff,
 } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   WRITES_OFF_MESSAGE,
@@ -27,7 +27,7 @@ const g = globalThis as any;
 
 let world: TestWorld;
 let restore: () => void;
-let register: ReturnType<typeof vi.fn>;
+let register: Mock;
 
 const ATTITUDES = {
   id: 'npc-attitudes',

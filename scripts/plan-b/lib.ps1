@@ -26,22 +26,28 @@ $ErrorActionPreference = 'Stop'
 $PlanBRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $PlanBModuleId = 'foundry-mcp-bridge'
 
+# Machine paths (drives and folders) for Plan B, pull-restic.ps1 and the module archive live in
+# scripts/machine-paths.json. The scheduled-task registrars and the other pull scripts under
+# scripts/pi still carry the backup drive letter themselves.
+$MachinePaths = Get-Content (Join-Path $PlanBRepoRoot 'scripts/machine-paths.json') -Raw | ConvertFrom-Json
+
 $PlanBDefaults = [ordered]@{
-  Root     = if ($IsWindows) { 'C:\FoundryPlanB' } else { Join-Path $HOME 'foundry-plan-b' }
+  Root     = if ($IsWindows) { $MachinePaths.planBRoot } else { Join-Path $HOME 'foundry-plan-b' }
   World    = 'curse-of-strahd'
-  Repo     = 'E:\PiBackup\restic'
-  PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'restic-pc.pass' } else { '' }
+  # String concatenation, not Join-Path: Join-Path throws when the drive (an unplugged E:) is absent.
+  Repo     = ($MachinePaths.backupDestination.TrimEnd('\') + '\restic')
+  PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA $MachinePaths.secretsFolderUnderAppData 'restic-pc.pass' } else { '' }
   # Where the Pi answers when it is up (Tailscale name and address, and its home network address
   # from the SSH config; scripts/pi/find-pi.ps1 finds it if it moves). start.ps1 -GameNight refuses
   # while Foundry answers on one of them, so two copies of the world never run at once.
   PiAddresses = @('foundry-pi.tailf949aa.ts.net', '100.110.82.102', '192.168.1.191')
   # Folders Plan B's root must stay out of: the test server (Test-PlanBRoot adds the home folder
   # and the repo).
-  ForbiddenRoots = @(if ($IsWindows) { 'C:\FoundryTest' })
+  ForbiddenRoots = @(if ($IsWindows) { $MachinePaths.testServerRoot })
   # The test server's licence: bound to this PC's host name, so it works for Plan B too (the
   # Pi's own licence is bound to the Pi). Only read, never changed.
-  LicenseFrom = if ($IsWindows) { 'C:\FoundryTest\data\Config\license.json' } else { '' }
-  TunnelTokenFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'plan-b-tunnel.token' } else { '' }
+  LicenseFrom = if ($IsWindows) { Join-Path $MachinePaths.testServerRoot 'data\Config\license.json' } else { '' }
+  TunnelTokenFile = if ($env:APPDATA) { Join-Path $env:APPDATA $MachinePaths.secretsFolderUnderAppData 'plan-b-tunnel.token' } else { '' }
 }
 
 # The ports per mode. Game night = the Pi's (stage 3 and 5): Foundry 30000, bridge control 31414,
@@ -55,24 +61,26 @@ function Get-PlanBPorts([switch]$GameNight) {
 
 # Ports other parts of this PC own. The live bridge ports belong to Plan B only on game night.
 # A plain hashtable: an ordered one reads an int index as a position.
-$PlanBReservedPorts = @{
-  30001 = 'the test server''s Foundry'
-  31514 = 'the test bridge'
-  31515 = 'the test bridge''s Foundry link'
-  31516 = 'the test bridge'
-  3100  = 'the test dashboard'
-  30002 = 'test server B''s Foundry'
-  31524 = 'test server B''s bridge'
-  31525 = 'test server B''s Foundry link'
-  3101  = 'test server B''s dashboard'
-  30003 = 'test server C''s Foundry'
-  31534 = 'test server C''s bridge'
-  31535 = 'test server C''s Foundry link'
-  3102  = 'test server C''s dashboard'
-  3200  = 'the Control Center'
-  31414 = 'the live bridge (Plan B uses it only with -GameNight)'
-  31415 = 'the live bridge (Plan B uses it only with -GameNight)'
-  31416 = 'the live bridge (Plan B uses it only with -GameNight)'
+$PlanBPortTable = Get-Content (Join-Path $PlanBRepoRoot 'shared/ports.json') -Raw | ConvertFrom-Json  # generated from shared/src/ports.ts
+$PlanBReservedPorts = @{}
+foreach ($server in 'A', 'B', 'C') {
+  $row = $PlanBPortTable.ports."test$server"
+  if ($server -eq 'A') {
+    $PlanBReservedPorts[[int]$row.foundry] = "the test server's Foundry"
+    $PlanBReservedPorts[[int]$row.control] = 'the test bridge'
+    $PlanBReservedPorts[[int]$row.link] = "the test bridge's Foundry link"
+    $PlanBReservedPorts[[int]$row.dashboard] = 'the test dashboard'
+  } else {
+    $PlanBReservedPorts[[int]$row.foundry] = "test server $server's Foundry"
+    $PlanBReservedPorts[[int]$row.control] = "test server $server's bridge"
+    $PlanBReservedPorts[[int]$row.link] = "test server $server's Foundry link"
+    $PlanBReservedPorts[[int]$row.dashboard] = "test server $server's dashboard"
+  }
+}
+$PlanBReservedPorts[[int]$PlanBPortTable.extra.testReserved] = 'the test bridge'
+$PlanBReservedPorts[[int]$PlanBPortTable.extra.controlCenter] = 'the Control Center'
+foreach ($livePort in $PlanBPortTable.ports.live.control, $PlanBPortTable.ports.live.link, $PlanBPortTable.extra.liveReserved) {
+  $PlanBReservedPorts[[int]$livePort] = 'the live bridge (Plan B uses it only with -GameNight)'
 }
 
 # Why these ports cannot be used, as one line each; empty when they can. IsOpen is a scriptblock
@@ -222,12 +230,6 @@ function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
   return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)"; Warning = $null }
 }
 
-# Runs the unpack with native stderr captured and neither the error preference nor
-# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
-# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
-# Test-FoundryUnpack.
-# $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
-# this run's; a run that leaves none (the program did not start) is a failure.
 function Move-WithRetry([string]$From, [string]$To, [int]$Tries = 3, [int]$PauseSeconds = 2) {
   # Move-Item that tries again after a pause (antivirus or an indexer can hold a folder right after a big unpack).
   # Returns $null on success, else the last error message.
@@ -258,6 +260,12 @@ function Install-AppFolder([string]$NewApp, [string]$AppDir, [string]$Old, [int]
   throw "could not move the new app folder into place ($e); $state; the unpacked new one is in $NewApp"
 }
 
+# Runs the unpack with native stderr captured and neither the error preference nor
+# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
+# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
+# Test-FoundryUnpack.
+# $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
+# this run's; a run that leaves none (the program did not start) is a failure.
 function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
   $run = & {
     $ErrorActionPreference = 'Continue'

@@ -577,7 +577,7 @@ export class FoundryDataAccess {
 
   // ---------------------------------------------------------------------------
   // Add passive/descriptive feature to an existing actor (dnd5e-add-passive-feature)
-  // No activities, no mechanics — pure description displayed on the sheet.
+  // No activities, no mechanics, pure description displayed on the sheet.
   // ---------------------------------------------------------------------------
 
   async addPassiveFeatureToActor(
@@ -588,7 +588,7 @@ export class FoundryDataAccess {
 
   // ---------------------------------------------------------------------------
   // Add weapon attack + save effect to an existing actor
-  // (dnd5e-add-attack-with-save) — Tipo B
+  // (dnd5e-add-attack-with-save), Tipo B
   // Two activities: attack (sort:0) + save (sort:1)
   // ---------------------------------------------------------------------------
 

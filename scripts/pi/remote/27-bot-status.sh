@@ -42,6 +42,7 @@ bot_build="$TOOL_DIR/discord-bot/dist"
 dash_build="$TOOL_DIR/app/packages/cogm-dashboard/dist"
 
 require_root
+refuse_when_cut_over "stage 27 (bot status; it restarts the dashboard)"
 case "$port" in '' | *[!0-9]*) die "PORT must be a number, got '$port'" ;; esac
 [ "$port" -ge 1024 ] && [ "$port" -le 65535 ] || die "PORT must be between 1024 and 65535, got $port"
 [ "$dry" = 1 ] || require_recent_snapshot

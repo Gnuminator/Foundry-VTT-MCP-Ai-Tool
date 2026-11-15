@@ -2,7 +2,7 @@ import * as shared from './shared.js';
 
 /**
  * Item summary as surfaced to list consumers.
- * `img` is omitted entirely when the document has no image (falsy) — a test
+ * `img` is omitted entirely when the document has no image (falsy), a test
  * asserts `not.toHaveProperty('img')` for items with an empty img string.
  */
 interface ItemSummary {
@@ -15,7 +15,7 @@ interface ItemSummary {
 }
 
 /**
- * World-level Item document domain — list, create, and update items in the
+ * World-level Item document domain, list, create, and update items in the
  * Foundry Items sidebar (not embedded actor items).
  *
  * All three public methods delegate cross-cutting plumbing to `./shared.js`.
@@ -29,10 +29,10 @@ export class WorldItemsDataAccess {
    * List world-level Item documents from the Items sidebar.
    *
    * All three filter params are optional and stack (AND logic):
-   * - `type` — exact match on `item.type`
-   * - `folder` — resolved to a folder id by name-or-id; returns `[]` when the
+   * - `type`: exact match on `item.type`
+   * - `folder`: resolved to a folder id by name-or-id; returns `[]` when the
    *   folder string is supplied but no matching folder exists
-   * - `nameFilter` — case-insensitive substring match on `item.name`
+   * - `nameFilter`: case-insensitive substring match on `item.name`
    */
   async listWorldItems(params: {
     type?: string;
@@ -74,7 +74,7 @@ export class WorldItemsDataAccess {
    * Update one or more existing world-level Item documents in a single batched
    * `Item.updateDocuments()` call.
    *
-   * Validates every entry before issuing any write — the entire batch is
+   * Validates every entry before issuing any write, the entire batch is
    * aborted if any entry has a missing/blank `id` or refers to an unknown item.
    * Folder lookup is cached per-call; a folder name that doesn't exist is
    * created automatically (same as {@link createWorldItems}).
@@ -144,8 +144,8 @@ export class WorldItemsDataAccess {
    * Create one or more world-level Item documents (Items sidebar, not embedded
    * on an actor). Items are batched into a single `Item.createDocuments()` call.
    *
-   * Validates every item's `name`/`type` — and checks the system's declared
-   * valid types when `game.system.documentTypes.Item` is populated — before
+   * Validates every item's `name`/`type`, and checks the system's declared
+   * valid types when `game.system.documentTypes.Item` is populated, before
    * issuing any write. The optional `folder` is resolved or created once and
    * applied to all items in the batch.
    */
@@ -223,7 +223,7 @@ export class WorldItemsDataAccess {
 
   /**
    * Build a lightweight {@link ItemSummary} from a live Foundry Item document.
-   * `img` is only included in the output object when the field is truthy — a
+   * `img` is only included in the output object when the field is truthy, a
    * test asserts `not.toHaveProperty('img')` for items with an empty/null img.
    */
   private summarizeItem(item: Item): ItemSummary {

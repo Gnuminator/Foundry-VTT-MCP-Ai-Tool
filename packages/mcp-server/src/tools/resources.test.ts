@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ResourceTools } from './resources.js';
 
 /**
- * Tests for ResourceTools — the thin deterministic layer over FoundryClient.query
+ * Tests for ResourceTools: the thin deterministic layer over FoundryClient.query
  * for limited-use resource tracking (spell slots, class resources, item charges, etc.).
  *
  * Pattern: mock FoundryClient + Logger stub, test each handler in isolation.
@@ -11,8 +11,8 @@ import { ResourceTools } from './resources.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: ResourceTools;
-  query: ReturnType<typeof vi.fn>;
-  logger: Record<string, ReturnType<typeof vi.fn>>;
+  query: Mock;
+  logger: Record<string, Mock>;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

@@ -45,4 +45,6 @@ Settings**, category **Foundry AI Tool**, **AI Tool: Live window**. A **Live** b
 group. If the window is empty, it says why and what to change; the usual cause is the setting **AI
 Tool: Live window address**.
 
+The Live window follows Foundry's light or dark setting.
+
 The dashboard has no switch for it yet; turn it on in Foundry.

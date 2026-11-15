@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   ObsidianQuestImportTools,
@@ -16,7 +16,7 @@ let vaultDir: string;
 
 function tools(dir: string | null): {
   instance: ObsidianQuestImportTools;
-  createPlan: ReturnType<typeof vi.fn>;
+  createPlan: Mock;
 } {
   const createPlan = vi.fn(async (input: unknown): Promise<unknown> => ({ planId: 'p1', input }));
   const instance = new ObsidianQuestImportTools({

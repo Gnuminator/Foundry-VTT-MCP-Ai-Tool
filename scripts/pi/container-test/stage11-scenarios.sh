@@ -4,32 +4,23 @@
 # (stage11-provision.mjs) replaces the Chromium driver and records each provisioning call in /tmp/provision.
 # Each scenario starts from a fresh fake Pi and prints one block that scripts/pi/stage11-world.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage11-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in stage11-world.test.mjs.) With names, only those scenarios run.
-# Nothing here reaches the network after apt-get. The stage's node snippets run on Debian 13's own nodejs (20.x)
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network. The stage's node snippets run on Debian 13's own nodejs (20.x)
 # linked as /opt/node24/bin/node, not Node 24 as on the Pi. Passwords are never printed: the blocks show env file
 # key names, modes and short hashes only.
 #
 # DESTRUCTIVE: each scenario wipes the Foundry data folder and the tool's folders, and the fakes go into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/11-world.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 LIBGM=/repo/scripts/pi/remote/lib-gm-passwords.sh
 
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs tar ca-certificates; }
-# One retry: a Debian mirror hiccup should not fail a required CI check.
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin
 ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done

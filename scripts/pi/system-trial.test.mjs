@@ -19,11 +19,13 @@
 // PI_SYSTEM_TRIAL_OUTPUT=<file> checks a saved system-trial-scenarios.sh output instead of starting Docker.
 // The scenarios run in PI_SYSTEM_TRIAL_SHARDS (default 4) containers side by side; each prints its blocks into one output.
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+import { runStageContainerAsync } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -35,9 +37,6 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
-// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 const PIN_URL =
   'https://github.com/foundryvtt/dnd5e/releases/download/release-6.0.6/dnd5e-release-6.0.6.zip';
 
@@ -57,33 +56,7 @@ function scenarioNames() {
 
 /** One container that runs the named scenarios; resolves with its stdout and stderr. */
 function runContainer(names) {
-  return new Promise(resolve => {
-    const child = spawn(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--platform',
-        'linux/arm64',
-        '-v',
-        `${repo}:/repo:ro`,
-        IMAGE,
-        'bash',
-        '/repo/scripts/pi/container-test/system-trial-scenarios.sh',
-        ...names,
-      ],
-      { stdio: ['ignore', 'pipe', 'pipe'] }
-    );
-    let text = '';
-    child.stdout.on('data', d => (text += d));
-    child.stderr.on('data', d => (text += d));
-    const timer = setTimeout(() => child.kill(), 45 * 60_000);
-    child.on('error', error => resolve(`${text}\n${error.message}`));
-    child.on('close', () => {
-      clearTimeout(timer);
-      resolve(text);
-    });
-  });
+  return runStageContainerAsync('system-trial-scenarios.sh', { args: names, timeout: 45 * 60_000 });
 }
 
 async function runContainers() {

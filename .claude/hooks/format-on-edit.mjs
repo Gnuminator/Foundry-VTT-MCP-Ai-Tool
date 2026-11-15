@@ -95,7 +95,7 @@ export function formatEdited(input, repoRoot = REPO_ROOT, prettierRoot = repoRoo
 }
 
 function main() {
-  let input = null;
+  let input;
   try {
     input = JSON.parse(readFileSync(0, 'utf8'));
   } catch {

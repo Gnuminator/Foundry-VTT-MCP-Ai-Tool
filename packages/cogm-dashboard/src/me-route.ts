@@ -20,9 +20,13 @@
  * The key maps to a Foundry user id on this side only; the bridge's control method
  * `character_sheet` then returns only the character actors that user OWNS.
  */
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+
 import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
+import type { PlayerLinksBody } from './api-bodies.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
 import type { PlayerLinkStore } from './player-links.js';
@@ -38,6 +42,8 @@ export interface MeClient {
     target: 'portrait' | 'both',
     data: string
   ): Promise<unknown>;
+  /** The feature cards; read here only for the `player-portrait` switch. */
+  featureSwitches?(): Promise<unknown>;
 }
 
 export interface MeRouteOptions {
@@ -49,6 +55,8 @@ export interface MeRouteOptions {
   logger?: Pick<Logger, 'warn'>;
   /** The player connector's login table (D-136), or null when the connector is off. */
   connector?: Pick<import('./player-connector.js').ConnectorStore, 'credentialsFor'> | null;
+  /** Builds one player's extension file; the real one loads tools/player-connector. For tests. */
+  buildPreset?: (p: PresetInput) => Buffer | Promise<Buffer>;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
@@ -59,6 +67,31 @@ export interface MeRouteOptions {
   theme: () => string;
   publicDir: string;
   pageHeaders: (res: Response) => void;
+}
+
+export interface PresetInput {
+  endpoint: string;
+  clientId: string;
+  clientSecret: string;
+  playerName: string;
+  userId: string;
+}
+
+/** The real builder: tools/player-connector/build.mjs, three folders above dist/ (or src/). */
+async function loadPresetBuilder(p: PresetInput): Promise<Buffer> {
+  const file = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '..',
+    'tools',
+    'player-connector',
+    'build.mjs'
+  );
+  const mod = (await import(pathToFileURL(file).href)) as {
+    buildPreset: (input: PresetInput) => Buffer;
+  };
+  return mod.buildPreset(p);
 }
 
 const ME_KEY_HEADER = 'x-cogm-me';
@@ -82,6 +115,33 @@ function openRollRequests(result: unknown): Array<{ buttonId: string; label: str
 export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   const { client, links, directory, requireGm, worldId } = options;
 
+  // The flag is read from the bridge at most every 20 s (the page asks on every refresh).
+  const FLAG_TTL_MS = 20_000;
+  let flagCache: { at: number; value: boolean | null } | null = null;
+  function portraitFlag(): Promise<boolean | null> {
+    if (typeof client.featureSwitches !== 'function') return Promise.resolve(null);
+    if (flagCache && Date.now() - flagCache.at < FLAG_TTL_MS) {
+      return Promise.resolve(flagCache.value);
+    }
+    return client
+      .featureSwitches()
+      .then(raw => {
+        const r = raw as { features?: unknown; writesAllowed?: unknown } | null;
+        const entry = Array.isArray(r?.features)
+          ? (r.features as Array<{ id?: unknown; enabled?: unknown }>).find(
+              f => f.id === 'player-portrait'
+            )
+          : undefined;
+        const value =
+          entry && typeof entry.enabled === 'boolean'
+            ? entry.enabled && r?.writesAllowed !== false
+            : null;
+        flagCache = { at: Date.now(), value };
+        return value;
+      })
+      .catch(() => null);
+  }
+
   app.get('/me', (_req: Request, res: Response) => {
     options.pageHeaders(res);
     res.sendFile('me.html', { root: options.publicDir });
@@ -102,14 +162,18 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       res.status(501).json({ error: 'Your sheet is not available here. Ask your GM.' });
       return;
     }
-    client
-      .characterSheet(userId)
-      .then(result =>
+    // Is "Player portraits" on, and are writes allowed at all? The page hides the upload control
+    // when either is off. null when the bridge cannot say (an old backend): the page keeps the
+    // control and the refusal explains.
+    const portraitEnabled = portraitFlag();
+    Promise.all([client.characterSheet(userId), portraitEnabled])
+      .then(([result, portraitOn]) =>
         res.json({
           ...(result as object),
           rollRequests: openRollRequests(result),
           theme: options.theme(),
           privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
+          portraitEnabled: portraitOn,
         })
       )
       .catch(() => {
@@ -144,6 +208,64 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       clientId: own.clientId,
       clientSecret: own.clientSecret,
     });
+  });
+
+  // "Download my helper": the player's own extension file, built for this request from the generic
+  // template with their pair as literals (tools/player-connector). The key goes in a header like
+  // every /me call, so the page fetches it and saves the bytes; nothing is stored or logged here.
+  app.get('/api/me/helper.mcpb', (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return;
+    }
+    const own = options.connector?.credentialsFor(userId) ?? null;
+    if (!own) {
+      res.status(404).json({ error: 'There is no helper set up for you yet. Ask your GM.' });
+      return;
+    }
+    if (!own.endpoint) {
+      res.status(503).json({ error: 'The helper address is not set yet. Ask your GM.' });
+      return;
+    }
+    const build = options.buildPreset ?? loadPresetBuilder;
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
+      .then(() =>
+        build({
+          endpoint: own.endpoint as string,
+          clientId: own.clientId,
+          clientSecret: own.clientSecret,
+          playerName: directory.get(userId)?.name ?? '',
+          userId,
+        })
+      )
+      .then(bytes => {
+        res.set({
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': 'attachment; filename="foundry-player.mcpb"',
+          'Content-Length': String(bytes.length),
+          'X-Content-Type-Options': 'nosniff',
+        });
+        res.end(bytes);
+      })
+      .catch((error: unknown) => {
+        // Log the code or name only, never the message: it could carry a value.
+        const code = (error as { code?: unknown } | null)?.code;
+        options.logger?.warn('Player helper build failed', {
+          userId,
+          error: typeof code === 'string' ? code : error instanceof Error ? error.name : 'unknown',
+        });
+        // A fixed sentence only.
+        res.status(503).json({ error: 'Could not make your helper file. Ask your GM.' });
+      });
   });
 
   // One roll at a time per player: a second press while the first is rolling is refused.
@@ -296,7 +418,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .catch(() => undefined)
       .then(() => {
         const byUser = new Map((world ? links.list(world) : []).map(l => [l.userId, l]));
-        res.json({
+        const body: PlayerLinksBody = {
           players: directory.list().map(p => {
             const link = byUser.get(p.userId);
             return {
@@ -306,7 +428,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
               createdAt: link?.createdAt ?? null,
             };
           }),
-        });
+        };
+        res.json(body);
       });
   });
 

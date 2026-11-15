@@ -72,10 +72,10 @@ function makeEvent(
 }
 
 // ---------------------------------------------------------------------------
-// getSessionLog — filters forwarded to eventTracker
+// getSessionLog: filters forwarded to eventTracker
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getSessionLog: filters forwarded', () => {
+describe('FoundryDataAccess: getSessionLog: filters forwarded', () => {
   it('passes an empty filters object when called with no fields', async () => {
     const spy = vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue([]);
 
@@ -130,10 +130,10 @@ describe('FoundryDataAccess — getSessionLog: filters forwarded', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getSessionLog — return shape
+// getSessionLog: return shape
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getSessionLog: return shape', () => {
+describe('FoundryDataAccess: getSessionLog: return shape', () => {
   it('returns { success: true, count, events } where events is the spy return value', async () => {
     const events = [makeEvent('2026-01-01T10:00:00.000Z'), makeEvent('2026-01-01T10:01:00.000Z')];
     vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
@@ -167,10 +167,10 @@ describe('FoundryDataAccess — getSessionLog: return shape', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getRecentEvents — filters forwarded to eventTracker
+// getRecentEvents: filters forwarded to eventTracker
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getRecentEvents: filters forwarded', () => {
+describe('FoundryDataAccess: getRecentEvents: filters forwarded', () => {
   it('passes an empty filters object when called with no fields', async () => {
     const spy = vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue([]);
 
@@ -225,10 +225,10 @@ describe('FoundryDataAccess — getRecentEvents: filters forwarded', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getRecentEvents — return shape and latestTimestamp logic
+// getRecentEvents: return shape and latestTimestamp logic
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getRecentEvents: return shape', () => {
+describe('FoundryDataAccess: getRecentEvents: return shape', () => {
   it('returns the standard envelope fields: success, count, events, latestTimestamp, serverTime', async () => {
     const events = [makeEvent('2026-01-01T10:00:00.000Z')];
     vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
@@ -259,7 +259,7 @@ describe('FoundryDataAccess — getRecentEvents: return shape', () => {
   });
 });
 
-describe('FoundryDataAccess — getRecentEvents: latestTimestamp', () => {
+describe('FoundryDataAccess: getRecentEvents: latestTimestamp', () => {
   it('returns the timestamp of the LAST event when events are non-empty', async () => {
     const events = [
       makeEvent('2026-01-01T10:00:00.000Z'),

@@ -8,7 +8,7 @@ import {
   MODULE_CONFIG_SETTING as SHARED_MODULE_CONFIG,
   PACK_UUID_PREFIX as SHARED_PACK_PREFIX,
   SETTING_UUID_PREFIX as SHARED_SETTING_PREFIX,
-} from '../../../../shared/src/foundry-setup.js';
+} from '@gnuminator/shared';
 import {
   MODULE_CONFIG_SETTING,
   PACK_UUID_PREFIX,

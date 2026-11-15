@@ -12,7 +12,7 @@ let raw = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => (raw += chunk));
 process.stdin.on('end', () => {
-  let command = '';
+  let command;
   try {
     const payload = JSON.parse(raw);
     command = String(payload?.tool_input?.command ?? '');

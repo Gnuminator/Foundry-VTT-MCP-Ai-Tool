@@ -43,6 +43,10 @@ x-healthcheck: &health
 services:
   foundry:
     <<: *defaults
+    # always, not unless-stopped: the nightly backup stops this container with docker stop; after a reboot or a daemon
+    # restart in that window, unless-stopped would leave Foundry down until someone starts it, always brings it back.
+    # (A docker stop alone is not undone by either policy while the daemon runs.)
+    restart: always
     build:
       context: ../..
       dockerfile: deploy/pi/Dockerfile

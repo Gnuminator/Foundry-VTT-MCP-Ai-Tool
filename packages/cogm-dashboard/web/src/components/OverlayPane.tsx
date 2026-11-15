@@ -12,7 +12,7 @@ interface OverlayPaneProps {
   meta?: ReactNode;
   /** The close button's accessible name, e.g. "Close player links". */
   closeLabel: string;
-  /** The element id, where the shared public/styles.css styles the pane by it (e.g. pane-diagnostics). */
+  /** The element id, where the shared web/src/styles/styles.css styles the pane by it (e.g. pane-diagnostics). */
   id?: string;
   /** Extra classes on the pane and on its body (e.g. help-pane, help-body). */
   className?: string;

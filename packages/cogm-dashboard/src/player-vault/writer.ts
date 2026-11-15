@@ -15,6 +15,8 @@ import crypto from 'crypto';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
+import { sleep } from '@gnuminator/shared';
+
 import type { Logger } from '../logger.js';
 import { safeFileName } from './names.js';
 import type { PlayerVaultFiles, VaultPlayer } from './types.js';
@@ -27,10 +29,6 @@ const MARKER_SCHEMA = 2;
 
 const RETRY_DELAYS_MS = [50, 100, 200, 400, 800];
 const RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 /** A rename that retries when Windows says a file is in use (EPERM, EBUSY). */
 async function renameWithRetry(from: string, to: string): Promise<void> {

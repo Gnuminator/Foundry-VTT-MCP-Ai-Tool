@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+// @ts-check
 /**
- * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the same
- * order (except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
+ * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the order
+ * of the CHECKS list (CI runs them in group order; except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
  * minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
  * stdout and stderr to a log file under the temp folder, and the run prints one line at the end:
  *
@@ -20,19 +21,17 @@
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is older than Node 24.22 (Node 24.15 crashes natively
  * in the socket tests), every step runs with the portable Node 24 first on PATH (see
- * portableNodeDir). The steps come from scripts/checks.mjs, the one list of checks.
- * scripts/green.test.mjs compares that list with ci.yml: a CI command that is
- * neither covered by a step nor in CI_ONLY (with a reason) fails the test, which keeps green and CI
- * in step.
+ * portableNodeDir). The steps come from scripts/checks.mjs, which CI runs in groups (--run).
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SHARED_STEPS } from './check-shared-link.mjs';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
-
+import { lineRatchetQuickSteps } from './line-ratchet.mjs';
 export { STEPS, HEAVY_STEPS, CI_ONLY };
 
 /**
@@ -55,10 +54,10 @@ export function parseArgs(argv) {
     all: false,
     cloud: false,
     quick: false,
-    only: [],
-    skip: [],
-    from: null,
-    error: null,
+    only: /** @type {string[]} */ ([]),
+    skip: /** @type {string[]} */ ([]),
+    from: /** @type {string | null} */ (null),
+    error: /** @type {string | null} */ (null),
   };
   const csv = (/** @type {string} */ v) =>
     v
@@ -108,7 +107,7 @@ export function parseArgs(argv) {
 
 /**
  * The steps a run executes: from `--from`, then `--only`, then without `--skip`, in CI order except
- * that the light steps move ahead of the first heavy one (see lightFirst).
+ * that the light steps move ahead of the first heavy one (see lightFirst); "CI order" is checks.mjs order.
  * @param {Step[]} steps @param {ReturnType<typeof parseArgs>} opts
  * @returns {{ steps: Step[], error: string | null }}
  */
@@ -448,7 +447,10 @@ function spawnStep(step, fd, cwd) {
   if (step.name === 'livekit-recorder-install' && !process.env.CI) {
     const dir = path.join(cwd, 'tools', 'livekit', 'recorder');
     if (installIsFresh(dir)) {
-      fs.writeSync(fd, 'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n');
+      fs.writeSync(
+        fd,
+        'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n'
+      );
       return 0;
     }
   }
@@ -705,7 +707,7 @@ export function cloudGreen(o) {
       '--json',
       'number',
     ]);
-    let hasPr = false;
+    let hasPr;
     try {
       hasPr = pr.status === 0 && JSON.parse(pr.stdout).length > 0;
     } catch {
@@ -794,10 +796,10 @@ export function cloudGreen(o) {
 }
 
 /** Scripts whose tests live in another file. */
-const QUICK_TEST_OF = {
+const QUICK_TEST_OF = /** @type {Record<string, string>} */ ({
   'scripts/pre-push.mjs': 'scripts/green.test.mjs',
   'scripts/docs-kit.mjs': 'scripts/docs-ui-check.test.mjs',
-};
+});
 
 /**
  * Quick-mode inputs of `docs:ui` (the pages) and `docs:kit` (the kit page): a quick run executes
@@ -806,7 +808,7 @@ const QUICK_TEST_OF = {
 const DOCS_UI_INPUT =
   /^(?:docs\/(?:gm|da\/gm|player|da\/player)\/|docs\/dev\/SMOKE-TEST\.md$|scripts\/docs-ui-|packages\/(?:cogm-dashboard\/(?:web\/src|public|src)|foundry-module\/(?:src|templates)|obsidian-plugin\/src)\/)/;
 const DOCS_KIT_INPUT =
-  /^(?:docs\/dev\/TEST-KIT\.md$|scripts\/docs-kit\.mjs$|scripts\/test-kit\/(?:scenarios|lib)\/)/;
+  /^(?:docs\/dev\/(?:TEST-KIT\.md|test-kit\/)|scripts\/docs-kit\.mjs$|scripts\/test-kit\/(?:scenarios|lib)\/)/;
 
 /** What `scripts/usage-catalog.mjs` scans (plus the script and its output): a change here can stale the catalogue. */
 const USAGE_CATALOG_INPUT =
@@ -821,8 +823,7 @@ export function touchesDashboardWeb(files) {
 }
 
 /** Printed at the end of a quick run that touched dashboard web files. */
-export const QUICK_SCREENSHOT_NOTE =
-  'Screenshots are not checked locally; CI dashboard-visual will run them.';
+export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI runs them.';
 
 /**
  * Changed file names longer than this, joined, lint the whole repo instead: the step runs through
@@ -917,8 +918,7 @@ export function quickSteps(files, cwd = process.cwd()) {
     if (m) pkgs.add(m[1]);
   }
   const sharedTouched = files.some(f => f.startsWith('shared/'));
-  if (sharedTouched || pkgs.size > 0)
-    steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
+  if (sharedTouched || pkgs.size > 0) steps.push(...SHARED_STEPS);
   if (sharedTouched) {
     steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
   } else {
@@ -948,7 +948,7 @@ export function quickSteps(files, cwd = process.cwd()) {
     });
   }
   const nodeTests = new Set();
-  for (const f of files) {
+  for (const f of files.map(x => x.replace(/^scripts\/lane-merge\/.+/, 'scripts/lane-merge.mjs'))) {
     if (/^(?:scripts|\.claude\/hooks)\/.*\.mjs$/.test(f) && isShellSafe(f)) {
       nodeTests.add(
         f.endsWith('.test.mjs') ? f : (QUICK_TEST_OF[f] ?? f.replace(/\.mjs$/, '.test.mjs'))
@@ -958,9 +958,9 @@ export function quickSteps(files, cwd = process.cwd()) {
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0)
     steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  steps.push(...lineRatchetQuickSteps(files));
   const webTouched = touchesDashboardWeb(files);
-  // CI order: usage catalogue after typecheck, bundle budget after the build. The dashboard `typecheck`
-  // script already covers web/tsconfig.json (tsc --noEmit && tsc -p web --noEmit).
+  // Same order as the checks list: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).
   if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {
     steps.push({ name: 'catalog-check', cmd: 'npm', args: ['run', 'usage:catalog:check'] });
   }
@@ -1152,7 +1152,7 @@ export function main(options = {}) {
       lock.before(i, step);
       const fd = fs.openSync(logFile, 'w');
       const stepStart = performance.now();
-      let status = 1;
+      let status;
       try {
         status = runStep(step, fd, cwd);
       } finally {

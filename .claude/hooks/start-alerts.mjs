@@ -2,6 +2,9 @@
 // SessionStart hook: alerts only (D-102 line 3). Silent when all is fine; otherwise at most ten
 // short lines, one per alert:
 //   - the main checkout's CLAUDE.md differs from the vault master (repo-docs/CLAUDE.md),
+//   - the main checkout's (or this worktree's) .claude/settings.local.json allows a connector
+//     `execute` tool without a prompt (an `__execute` or whole-connector entry in
+//     permissions.allow; the Cloudflare connector),
 //   - the due "Waiting on the user" items (vault Waiting.md, D-122),
 //   - somebody holds the test server lock (or it cannot be read, or a queue waits on a free lock),
 //   - a session-notes run was missed or paused on the usage limit (the watchdog),
@@ -138,6 +141,50 @@ export function claudeMdAlert({ repoRoot, vaultDir }) {
   if (normalizeDoc(repoText) === normalizeDoc(vaultText)) return null;
   const newer = (mtime(master) ?? 0) > (mtime(copy) ?? 0) ? 'the vault master' : 'the repo copy';
   return `CLAUDE.md differs from the vault master (newer: ${newer}); the planner syncs them (vault repo-docs/CLAUDE.md, pull first).`;
+}
+
+// --- the Cloudflare allow entry ---------------------------------------------------------------
+
+// The Cloudflare connector's `execute` tool can change the live Cloudflare setup. An entry for it
+// in `permissions.allow` lets writes run without a prompt; one came back through an "always allow"
+// click on 2026-11-13. Reads the main checkout's .claude/settings.local.json and, in a lane, the
+// worktree's own (an "always allow" click in a lane lands there); the files are the user's and are
+// never written here. It flags an entry ending in `__execute`, and a server-wide allow of a
+// claude.ai connector (`mcp__<uuid>` or `mcp__<uuid>__*`, the form the Cloudflare connector has).
+// It prints at most the entry's tool name, and only when it has the plain
+// `mcp__<server>[__execute|__*]` shape: other entries (Bash lines can hold secrets) are never
+// printed. Silent when a file is missing, unreadable, not JSON or has no such entry.
+const SAFE_ENTRY = /^mcp__[A-Za-z0-9_-]+(__execute|__\*)?$/;
+const CONNECTOR_WIDE =
+  /^mcp__[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(__\*)?$/i;
+
+function allowHit(dir) {
+  const text = readText(path.join(dir, '.claude', 'settings.local.json'));
+  if (text === null) return null;
+  let allow;
+  try {
+    allow = JSON.parse(text)?.permissions?.allow;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(allow)) return null;
+  const entries = allow.filter(e => typeof e === 'string').map(e => e.trim());
+  const hits = entries.filter(e => e.endsWith('__execute') || CONNECTOR_WIDE.test(e));
+  if (!hits.length) return null;
+  return { name: hits.find(e => SAFE_ENTRY.test(e)) ?? null };
+}
+
+export function cloudflareAllowAlert({ repoRoot, projectDir = repoRoot }) {
+  const found = [['the main checkout', repoRoot]];
+  if (path.resolve(projectDir) !== path.resolve(repoRoot))
+    found.push(['this worktree', projectDir]);
+  const hits = found
+    .map(([where, dir]) => ({ where, hit: allowHit(dir) }))
+    .filter(h => h.hit !== null);
+  if (!hits.length) return null;
+  const name = hits.find(h => h.hit.name)?.hit.name;
+  const where = hits.map(h => h.where).join(' and ');
+  return `A connector execute tool may run without a prompt${name ? ` (${name})` : ''}: permissions.allow in ${where}'s .claude/settings.local.json has an entry ending in __execute or allowing the whole connector, so its writes (Cloudflare) could run unasked. Remove that entry (cloudflare-work skill).`;
 }
 
 // --- the Waiting list (vault Waiting.md) ----------------------------------------------------
@@ -284,8 +331,11 @@ export function watchdogAlert(w) {
 export function runGh(args) {
   return new Promise(resolve => {
     try {
-      execFile('gh', args, { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true }, (err, stdout) =>
-        resolve(err ? null : stdout)
+      execFile(
+        'gh',
+        args,
+        { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true },
+        (err, stdout) => resolve(err ? null : stdout)
       );
     } catch {
       resolve(null);
@@ -296,7 +346,9 @@ export function runGh(args) {
 // The name of the first failing step of a run (gh run view --json jobs), else its failing job, else null.
 async function failedStep(gh, id) {
   try {
-    const jobs = JSON.parse((await gh(['run', 'view', String(id), '-R', CI_REPO, '--json', 'jobs'])) ?? '');
+    const jobs = JSON.parse(
+      (await gh(['run', 'view', String(id), '-R', CI_REPO, '--json', 'jobs'])) ?? ''
+    );
     for (const job of jobs.jobs ?? []) {
       const step = (job.steps ?? []).find(s => String(s.conclusion).toLowerCase() === 'failure');
       if (step) return step.name;
@@ -389,6 +441,7 @@ export async function collectAlerts({
   now = new Date(),
   fetchImpl = fetch,
   mainCi = null,
+  projectDir = repoRoot,
 }) {
   const lines = [];
   const add = line => {
@@ -397,6 +450,7 @@ export async function collectAlerts({
   // started first, awaited last: the gh calls run while the local checks and the snapshot fetch do
   const mainRed = mainCi ? mainRedAlert({ gh: mainCi }) : null;
   add(claudeMdAlert({ repoRoot, vaultDir }));
+  add(cloudflareAllowAlert({ repoRoot, projectDir }));
   add(waitingAlert({ vaultDir, now }));
   add(lockAlert(readLockFile(testEnvRoot), now));
   // Test servers B (kit runs) and C (scripts/test-env/servers.json) have a lock of their own.
@@ -441,6 +495,7 @@ export function optionsFrom(env = process.env) {
   const url = env.START_ALERTS_SNAPSHOT_URL ?? 'http://127.0.0.1:3200/snapshot.json';
   return {
     repoRoot,
+    projectDir,
     vaultDir: vaultDirFor(env),
     testEnvRoot: testEnvRootFor(repoRoot, env),
     testEnvRootB: testEnvRootBFor(repoRoot, env),

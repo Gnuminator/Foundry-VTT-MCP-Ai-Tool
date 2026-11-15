@@ -261,7 +261,42 @@ async function main() {
   return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0 (as changelog-fold.mjs; each script stands alone).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && /^file:/i.test(argv1)) return 'import';
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const selfPath = fileURLToPath(import.meta.url);
+const decision = entryDecision(process.argv[1], selfPath);
+if (decision === 'run') {
   main().then(
     code => process.exit(code),
     err => {
@@ -269,4 +304,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       process.exit(1);
     }
   );
+} else if (decision === 'mismatch') {
+  console.error(`visual:baselines: started as ${process.argv[1]}, which is not ${selfPath}.`);
+  process.exit(1);
 }

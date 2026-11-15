@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { jsonErrorHandler, publicError } from './error-handler.js';
 
@@ -22,7 +22,7 @@ describe('publicError', () => {
 });
 
 describe('jsonErrorHandler', () => {
-  type Spy = ReturnType<typeof vi.fn>;
+  type Spy = Mock;
   function run(
     error: unknown,
     headersSent = false

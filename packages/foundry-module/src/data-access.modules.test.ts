@@ -30,10 +30,10 @@ afterEach(() => {
 });
 
 // =============================================================================
-// getModules — envelope + basic shape
+// getModules: envelope + basic shape
 // =============================================================================
 
-describe('FoundryDataAccess — getModules basic envelope', () => {
+describe('FoundryDataAccess: getModules basic envelope', () => {
   it('returns success envelope with foundryVersion, system, counts, and modules array', async () => {
     world.addModule({ id: 'mod-a', title: 'Mod A', version: '1.0.0', active: true });
 
@@ -131,10 +131,10 @@ describe('FoundryDataAccess — getModules basic envelope', () => {
 });
 
 // =============================================================================
-// getModules — dependency resolution
+// getModules: dependency resolution
 // =============================================================================
 
-describe('FoundryDataAccess — getModules dependency resolution', () => {
+describe('FoundryDataAccess: getModules dependency resolution', () => {
   it('marks an installed and active dependency as installed+active with its version', async () => {
     world.addModule({ id: 'dep-lib', title: 'Dep Lib', version: '3.1.0', active: true });
     world.addModule({
@@ -210,10 +210,10 @@ describe('FoundryDataAccess — getModules dependency resolution', () => {
 });
 
 // =============================================================================
-// getModules — compatibility issues (isNewerVersion branch)
+// getModules: compatibility issues (isNewerVersion branch)
 // =============================================================================
 
-describe('FoundryDataAccess — getModules compatibility issues', () => {
+describe('FoundryDataAccess: getModules compatibility issues', () => {
   it('flags "may be incompatible: declares max core X, running Y" when core exceeds max', async () => {
     world.addModule({
       id: 'old-mod',
@@ -302,10 +302,10 @@ describe('FoundryDataAccess — getModules compatibility issues', () => {
 });
 
 // =============================================================================
-// getModules — activeOnly / withIssuesOnly filters + count invariants
+// getModules: activeOnly / withIssuesOnly filters + count invariants
 // =============================================================================
 
-describe('FoundryDataAccess — getModules filters and count invariants', () => {
+describe('FoundryDataAccess: getModules filters and count invariants', () => {
   beforeEach(() => {
     // active module, no issues
     world.addModule({ id: 'active-clean', title: 'Active Clean', version: '1.0.0', active: true });
@@ -366,7 +366,7 @@ describe('FoundryDataAccess — getModules filters and count invariants', () => 
 // getModuleManifest
 // =============================================================================
 
-describe('FoundryDataAccess — getModuleManifest', () => {
+describe('FoundryDataAccess: getModuleManifest', () => {
   it('throws "Module not found: <id>" when the module does not exist', async () => {
     await expect(da.getModuleManifest({ moduleId: 'no-such-module' })).rejects.toThrow(
       'Module not found: no-such-module'

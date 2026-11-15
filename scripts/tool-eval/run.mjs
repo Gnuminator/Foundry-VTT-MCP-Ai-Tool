@@ -112,14 +112,26 @@ function tokenTotal(usage) {
   );
 }
 
+/** Subscription only (D-066): drop the API key and any Bedrock/Vertex/Foundry switch, any case. */
+export function scrubEnv(env) {
+  const out = { ...env };
+  for (const k of Object.keys(out)) if (/^(ANTHROPIC_|CLAUDE_CODE_USE_)/i.test(k)) delete out[k];
+  return out;
+}
+
 function runClaude(args, env, cwd, timeoutS) {
-  return new Promise(resolvePromise => {
+  return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(CLAUDE, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     let err = '';
     const timer = setTimeout(() => child.kill(), timeoutS * 1000);
     child.stdout.on('data', d => (out += d));
     child.stderr.on('data', d => (err += d));
+    child.on('error', e => {
+      // No claude binary on PATH (or not runnable): a usage-style failure, exit 2 from main().
+      clearTimeout(timer);
+      rejectPromise(new Error(`Could not start "${CLAUDE}" (${e.code ?? e.message}). Is Claude Code installed and on PATH?`));
+    });
     child.on('close', code => {
       clearTimeout(timer);
       resolvePromise({ code, out, err });
@@ -194,8 +206,7 @@ async function runChat(chain, model, sample, ctx) {
       SYSTEM_PROMPT,
     ];
     if (sessionId) args.push('--resume', sessionId);
-    const env = { ...process.env, ENABLE_TOOL_SEARCH: 'false' };
-    delete env.ANTHROPIC_API_KEY; // subscription only (D-066)
+    const env = scrubEnv({ ...process.env, ENABLE_TOOL_SEARCH: 'false' });
     const run = await runClaude(args, env, ctx.cwd, ctx.timeout);
     const parsed = parseStream(run.out);
     sessionId = parsed.sessionId ?? sessionId;
@@ -204,6 +215,8 @@ async function runChat(chain, model, sample, ctx) {
     if (run.code !== 0 || parsed.isError) {
       score.why.push(`run: claude exited ${run.code}${parsed.isError ? ' with an error result' : ''} ${run.err.slice(0, 200)}`);
       score.path = false;
+      // A crashed or timed-out run made no calls, which would pass no-write; fail its gates instead.
+      for (const g of c.gates ?? []) score.gates[g] = false;
     }
     rows.push({
       case: c.id,

@@ -35,7 +35,7 @@ afterEach(() => {
 // sendChatMessage
 // =============================================================================
 
-describe('FoundryDataAccess — sendChatMessage', () => {
+describe('FoundryDataAccess: sendChatMessage', () => {
   it('posts an IC message and returns success with messageId and speaker alias', async () => {
     const actor = world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
     world.actors.add(actor);

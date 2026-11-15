@@ -2,14 +2,14 @@
 // paths, against a fake of the /api/player-links routes (me-route.ts) in the browser.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, toast, fromMenu } from './support';
+import type { PlayerLinkRow } from '../../src/api-bodies';
+import { GM_TOKEN, apiBody, fakeCommonRoutes, fakeStream, toast, fromMenu } from './support';
 
-interface FakePlayer {
-  userId: string;
-  name: string;
-  link: string | null;
-  createdAt: number | null;
-}
+/** A row as GET /api/player-links sends it: `createdAt` is an ISO date string. */
+type FakePlayer = PlayerLinkRow;
+
+const iso = (year: number, month: number, day: number): string =>
+  new Date(Date.UTC(year, month, day)).toISOString();
 
 /** An in-memory /api/player-links; records every request it answers. */
 async function fakePlayerLinks(
@@ -28,7 +28,7 @@ async function fakePlayerLinks(
         await route.fulfill({ status: 502, json: { error: options.failList } });
         return;
       }
-      await route.fulfill({ json: { players } });
+      await route.fulfill({ json: apiBody('/api/player-links', { players }) });
       return;
     }
     if (options.failWrite) {
@@ -42,7 +42,7 @@ async function fakePlayerLinks(
     }
     if (req.method() === 'POST') {
       player.link = `/me?k=key${nextKey++}`;
-      player.createdAt = Date.UTC(2026, 9, 8);
+      player.createdAt = iso(2026, 9, 8);
       await route.fulfill({ json: { userId, link: player.link, createdAt: player.createdAt } });
     } else {
       const removed = player.link !== null;
@@ -59,7 +59,7 @@ const twoPlayers = (): FakePlayer[] => [
     userId: 'aaaaaaaaaaaaaaaa',
     name: 'Ilvara',
     link: '/me?k=old',
-    createdAt: Date.UTC(2026, 9, 1),
+    createdAt: iso(2026, 9, 1),
   },
   { userId: 'bbbbbbbbbbbbbbbb', name: 'Ivarro', link: null, createdAt: null },
 ];
@@ -87,13 +87,13 @@ test('the page loads on / with the old look and keeps the token out of the addre
   // The real stream would send its own theme on connect and replace the faked world theme.
   await fakeCommonRoutes(page, 'veil');
   await fakeStream(page, []);
-  const styles = page.waitForResponse(res => res.url().endsWith('/styles.css'));
+  const styles = page.waitForResponse(res => /\/assets\/.*\.css$/.test(res.url()));
   await page.goto(`/?token=${GM_TOKEN}`);
   expect((await styles).status()).toBe(200);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Foundry AI Tool');
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'veil');
-  // The topbar is styled by the old styles.css (a flex row), not left as plain blocks.
+  // The topbar is styled by the bundled old styles.css (a flex row), not left as plain blocks.
   await expect(page.locator('header.topbar')).toHaveCSS('display', 'flex');
 });
 

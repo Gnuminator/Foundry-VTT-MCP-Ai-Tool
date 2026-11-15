@@ -1,0 +1,3 @@
+### Tests
+
+- **Small repairs to earlier guards:** `green --quick` now runs the line-count ratchet when a counted source file changed, and `--except` on a file at or under the limit refuses instead of dropping its entry. A test fails when a file under `scripts/lane-merge/` lacks `// @ts-check`, when a Pi container scenario script is in neither the CI matrix nor the named list of those that run elsewhere, and when the e2e shard command drifts from the `e2e` check. The e2e and visual shard lists come from `node scripts/checks.mjs --matrix e2e|visual`. The reviewer notes now describe tool modules instead of "one set in `tool-sets.ts`", and the command hook says why `TEST_ALLOW_CUTOVER` stays on its ask list (Backlog `followup-stick-repairs`).

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Drift check: run before posting "PR ready". Lanes merge in parallel, and some guards only fail
  * once another lane's PR is on main: tool counts and sizes in the docs, the generated tool
@@ -17,9 +18,9 @@
  * again. The worktree borrows this checkout's node_modules (junctions); when main changed
  * package-lock.json those would not match, so it asks for the real merge and `npm ci` first (a
  * lockfile change made by the branch itself does not count). The workspace links (`@gnuminator/*`)
- * point at this checkout's own packages, and `@gnuminator/shared` is consumed through its build
- * (`shared/dist`): when the merge changed `shared/`, the worktree gets its own workspace links and
- * builds its own `shared`, so the guards test the merged tree against a shared built from it. Before
+ * point at this checkout's own packages, and `@gnuminator/shared` is read from source and its build
+ * (`shared/src`, `shared/dist`): the worktree always gets its own workspace links and builds its own
+ * `shared` (which also writes the gitignored usage catalogue), so the guards test the merged tree. Before
  * any of that, a checkout whose `shared/dist` is missing or older than `shared/src` gets `shared`
  * built (ensureSharedBuilt), so a lane that never built it does not fail the mcp-server tests. A worktree left by a killed run is removed by the next run; one whose run is still
  * alive (another lane's, same repository) and younger than an hour is left alone.
@@ -44,8 +45,10 @@ export const CHECKS = [
   { name: 'changelog fragments', command: 'npm run changelog:check' },
   { name: 'usage catalog', command: 'npm run usage:catalog:check' },
   { name: 'version sync', command: 'npm run version:check' },
+  { name: 'dependency ranges', command: 'npm run deps:check' },
   { name: 'docs lint', command: 'npm run docs:lint' },
   { name: 'docs links', command: 'npm run docs:links' },
+  { name: 'line baseline', command: 'npm run line:ratchet' },
   {
     name: 'mcp-server tests (tool counts, tool reference, tool sets)',
     // The probe test runs the built dist/index.js, which the merged worktree never builds;
@@ -75,6 +78,15 @@ export const CHECKS = [
     when: DASHBOARD_PATH,
     needs: 'dashboard build',
   },
+  // A shared change can break shared's own unit tests together with another PR's change to shared.
+  {
+    name: 'shared unit tests',
+    command: 'npm test -w @gnuminator/shared',
+    heavy: true,
+    when: ['shared/'],
+  },
+  // Two PRs can each stay under the unused-code baseline, or one lowers it under the other.
+  { name: 'unused baseline', command: 'npm run unused:ratchet', heavy: true },
 ];
 
 const REPO_URL = /github\.com[/:]Gnuminator\/Foundry-VTT-MCP-Ai-Tool(\.git)?$/i;
@@ -226,17 +238,17 @@ function linkOwnWorkspace(cwd, dir) {
 }
 
 /**
- * The guards read `@gnuminator/shared` through its build. When the merge changed `shared/`, the
- * borrowed build is out of date (a PR that added an export, merged under one that did not), so the
- * worktree gets its own workspace links and builds its own shared. Returns an error text, or null.
+ * The guards read `@gnuminator/shared` from source (the `development` condition) and its build. The
+ * worktree has no gitignored files, so it always gets its own workspace links (the package must resolve
+ * inside the worktree, not to the lane's checkout) and builds its own shared, which also writes the
+ * generated usage catalogue. Returns an error text, or null.
  * @param {string} cwd @param {string} dir @param {string} buildCommand
  * @param {(line: string) => void} log
  */
 function buildMergedShared(cwd, dir, buildCommand, log) {
-  if (git(dir, ['diff', '--quiet', 'HEAD', '--', 'shared']).ok) return null;
   if (!fs.existsSync(path.join(cwd, 'node_modules', '@gnuminator'))) return null;
   linkOwnWorkspace(cwd, dir);
-  log('drift-check: the merge changed shared/; building shared in the worktree.');
+  log('drift-check: building shared in the worktree (own workspace links, generated catalogue).');
   const r = spawnSync(buildCommand, {
     cwd: path.join(dir, 'shared'),
     shell: true,
@@ -474,6 +486,7 @@ export function lockedCommand(check, dir) {
  * @param {string[] | null} [changed] files changed since the merge base; null runs every guard
  */
 export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
+  /** @type {string[]} */
   const failed = [];
   for (const check of checks) {
     const when = check.when ? [check.when].flat() : null;

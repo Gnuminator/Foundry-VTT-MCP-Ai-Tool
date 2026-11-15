@@ -37,7 +37,7 @@ export interface PumpSnapshot {
 }
 
 /** A gap older than this no longer keeps the dot on (the same 3 h as the pre-flight check). */
-export const RECENT_GAP_MS = 3 * 60 * 60 * 1000;
+const RECENT_GAP_MS = 3 * 60 * 60 * 1000;
 
 /**
  * A time in a detail text goes out as `[[time:<ISO>]]`; the page turns it into the GM's own clock

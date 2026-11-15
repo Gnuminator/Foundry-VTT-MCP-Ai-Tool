@@ -52,7 +52,7 @@ once). Real players never join the test server, and they join Plan B only on a g
 ## Ready in advance (once, and after each Pi update)
 
 - [ ] The daily backup copy runs: `E:\PiBackup\restic-last-success.txt` shows today or yesterday
-      (task "Foundry Pi restic copy", [Orange Pi setup](PI-SETUP.md#restic-copies-on-this-pc)).
+      (task "Foundry Pi restic copy", [Orange Pi setup](pi/backups-and-storage.md#restic-copies-on-this-pc)).
 - [ ] The restic password is in your password manager (Waiting item 11).
 - [ ] Node.js 24.22.1 or newer is installed (Foundry 14.370 needs it) and restic (`winget install restic.restic`).
 - [ ] The repo's main checkout is built (`npm ci`, `npm run build`): Plan B runs the bridge and the

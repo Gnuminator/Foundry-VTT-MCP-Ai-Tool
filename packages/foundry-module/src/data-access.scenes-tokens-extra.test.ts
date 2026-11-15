@@ -14,19 +14,19 @@
  * Driven through the Phase 9 Foundry-mock harness (in-memory, no browser).
  *
  * Harness gaps worked around locally (never editing shared harness files):
- *   - `makeScene` does not attach `activate()` — switchScene needs it, so it is
+ *   - `makeScene` does not attach `activate()`, switchScene needs it, so it is
  *     patched inline with a `vi.fn()`.
- *   - `makeScene` does not set `scene.grid` — supplied via rest-spread where a
+ *   - `makeScene` does not set `scene.grid`, supplied via rest-spread where a
  *     test needs a non-default grid; omitted, the methods use their own
  *     fallbacks (gridSize 100; getTokenPositions gridDistance null / measure-
  *     Distance gridDistance 5; gridUnits 'ft').
- *   - `makeToken` does not include `actor`, `elevation`, or `actorId` — supplied
+ *   - `makeToken` does not include `actor`, `elevation`, or `actorId`, supplied
  *     via rest-spread.
  *   - `game.user` has no `targets`; getTargets reads it, so the target Set is set
  *     on `game.user` after `world.install()`.
  *   - The browser `canvas` global is absent in the harness, so the canvas-gated
  *     branches (switchScene's `optimize_view` pan, measureDistance's
- *     `grid.measurePath` fast path) are not exercised here — these tests pin the
+ *     `grid.measurePath` fast path) are not exercised here, these tests pin the
  *     non-canvas paths, and the rewrite preserves the canvas branches verbatim
  *     (covered live, not in the mock).
  */
@@ -64,7 +64,7 @@ afterEach(() => {
 // switchScene
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — switchScene', () => {
+describe('FoundryDataAccess: switchScene', () => {
   it('throws a wrapped error when the scene is not found', async () => {
     world.addScene({ id: 's1', name: 'Throne Room', active: false });
 
@@ -165,7 +165,7 @@ describe('FoundryDataAccess — switchScene', () => {
 // getTokenPositions
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getTokenPositions', () => {
+describe('FoundryDataAccess: getTokenPositions', () => {
   it('throws SCENE_NOT_FOUND (unwrapped) when there is no active scene', async () => {
     await expect(da.getTokenPositions({})).rejects.toThrow(ERROR_MESSAGES.SCENE_NOT_FOUND);
   });
@@ -344,7 +344,7 @@ describe('FoundryDataAccess — getTokenPositions', () => {
 // measureDistance
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — measureDistance', () => {
+describe('FoundryDataAccess: measureDistance', () => {
   it('throws SCENE_NOT_FOUND when there is no active scene', async () => {
     await expect(da.measureDistance({ fromTokenName: 'A', toTokenName: 'B' })).rejects.toThrow(
       ERROR_MESSAGES.SCENE_NOT_FOUND
@@ -465,7 +465,7 @@ describe('FoundryDataAccess — measureDistance', () => {
 // getTargets
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getTargets', () => {
+describe('FoundryDataAccess: getTargets', () => {
   it('returns count 0 and an empty array when the user has no targets', async () => {
     const result = await da.getTargets();
 

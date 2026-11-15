@@ -8,6 +8,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import path from 'path';
+import { inflateRawSync } from 'zlib';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -672,6 +673,69 @@ describe('/me: Your Claude connector', () => {
     expect((await connector(base, 'x'.repeat(24))).status).toBe(401);
     const asGm = await fetch(`${base}/api/me/connector`, { headers: { 'X-CoGM-Token': GM_TOKEN } });
     expect(asGm.status).toBe(401);
+  });
+
+  const helper = (base: string, key?: string): Promise<Response> =>
+    fetch(`${base}/api/me/helper.mcpb`, { headers: key ? { 'X-CoGM-Me': key } : {} });
+  const manifestOf = (zip: Buffer): Record<string, unknown> => {
+    let at = 0;
+    while (zip.readUInt32LE(at) === 0x04034b50) {
+      const packed = zip.readUInt32LE(at + 18);
+      const nameLen = zip.readUInt16LE(at + 26);
+      const start = at + 30 + nameLen + zip.readUInt16LE(at + 28);
+      if (zip.toString('utf8', at + 30, at + 30 + nameLen) === 'manifest.json') {
+        return JSON.parse(inflateRawSync(zip.subarray(start, start + packed)).toString('utf8'));
+      }
+      at = start + packed;
+    }
+    throw new Error('no manifest');
+  };
+
+  it('hands a player a file with only their own pair, never stored or cached', async () => {
+    const { base } = await start();
+    const keyA = await linkFor(base, ALICE);
+    const keyB = await linkFor(base, BOB);
+    const res = await helper(base, keyA);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('content-disposition')).toContain('foundry-player.mcpb');
+    const zip = Buffer.from(await res.arrayBuffer());
+    const m = manifestOf(zip) as {
+      name: string;
+      display_name: string;
+      user_config?: unknown;
+      server: { mcp_config: { env: Record<string, string> } };
+    };
+    expect(m.user_config).toBeUndefined();
+    expect(m.display_name).toBe('Foundry (Alice)');
+    expect(m.name).toBe('foundry-player-alice00000000001');
+    expect(m.server.mcp_config.env).toEqual({
+      FOUNDRY_PLAYER_ENDPOINT: 'https://player-ai.example.com/mcp/player',
+      FOUNDRY_PLAYER_CLIENT_ID: ID_A,
+      FOUNDRY_PLAYER_CLIENT_SECRET: SECRET_A,
+    });
+    const textB = JSON.stringify(
+      manifestOf(Buffer.from(await (await helper(base, keyB)).arrayBuffer()))
+    );
+    expect(textB).toContain(SECRET_B);
+    for (const other of [ID_A, SECRET_A]) expect(textB).not.toContain(other);
+  });
+
+  it('gives no file to a missing, wrong or GM key and 404 to a player with no pair', async () => {
+    const { base } = await start();
+    expect((await helper(base)).status).toBe(401);
+    expect((await helper(base, 'x'.repeat(24))).status).toBe(401);
+    const asGm = await fetch(`${base}/api/me/helper.mcpb`, {
+      headers: { 'X-CoGM-Token': GM_TOKEN },
+    });
+    expect(asGm.status).toBe(401);
+    const none = await start({ file: null });
+    const key = await linkFor(none.base, ALICE);
+    const res = await helper(none.base, key);
+    expect(res.status).toBe(404);
+    expect(await res.text()).not.toContain(SECRET_A);
+    const off = await start({ enabled: false });
+    expect((await helper(off.base, await linkFor(off.base, ALICE))).status).toBe(404);
   });
 
   it('says not enabled for a player with no entry or when the connector is off', async () => {

@@ -2,6 +2,8 @@ import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { logInfo } from '../log.js';
 import { isDnd5eV6 } from '../systems/dnd5e/version.js';
+import { findAttackActivity } from './attack-activity.js';
+import { slotLevelFor } from './spell-slots.js';
 import {
   slugify,
   NPC_DAMAGE_CANONICAL,
@@ -26,30 +28,6 @@ interface UsableItemMethods {
   toChat?: () => Promise<unknown>;
   toMessage?: (...args: unknown[]) => Promise<unknown>;
   roll?: () => Promise<unknown>;
-}
-
-/** A dnd5e attack activity: the roll the dashboard's Attack asks for. */
-interface AttackActivity {
-  type?: string;
-  /** Activity#use: the card and its consumption belong to this activity, not the item's first. */
-  use: (...args: unknown[]) => Promise<unknown>;
-  rollAttack: (config: object, dialog: object, message: object) => Promise<unknown>;
-  /** dnd5e 6: the item can be used and is not hidden (`item.canUse && !isHidden`); false is not only "no uses left". */
-  canUse?: boolean;
-}
-
-/** The first usable attack activity of a dnd5e item, if it has one. */
-function findAttackActivity(item: Item): AttackActivity | undefined {
-  const activities = (item.system as { activities?: Iterable<AttackActivity> } | undefined)
-    ?.activities;
-  if (!activities) return undefined;
-  return Array.from(activities).find(
-    a =>
-      a.type === 'attack' &&
-      a.canUse !== false &&
-      typeof a.rollAttack === 'function' &&
-      typeof a.use === 'function'
-  );
 }
 
 /** One damage dice part as the attack, aura and save-feature builders take it. */
@@ -205,7 +183,7 @@ export interface AddAuraToActorInput {
  * stat blocks, weapon/feat activities (attack, attack+save, aura, save, passive),
  * spellcasting slot tables, and compendium spell/feature imports, plus using an
  * item or an NPC activity. Most builders emit large dnd5e item-schema literals
- * verified field-for-field against real dnd5e output — those literals are the
+ * verified field-for-field against real dnd5e output, those literals are the
  * spec and are kept verbatim; the shared boilerplate (system guard, dup check,
  * compendium import, error formatting) is factored into the helpers below.
  */
@@ -257,6 +235,35 @@ export class ActorBuilderDataAccess {
       // The roll has no dialog to pick a target, so it needs named ones (not the GM's live set).
       if (!targets || targets.length === 0) {
         throw new Error('rollAttack needs at least one target; nothing was used or rolled');
+      }
+    }
+
+    // A slot spell with no slot at its level: upcast into the lowest higher slot, or refuse before
+    // anything is targeted. dnd5e itself only warns and casts nothing, which would read as "initiated".
+    let upcastSlot = options.spellLevel !== undefined ? `spell${options.spellLevel}` : undefined;
+    let autoUpcast: number | undefined;
+    if (systemId === 'dnd5e' && options.consume !== false) {
+      const slotLevel = slotLevelFor(
+        actor,
+        item,
+        options.spellLevel,
+        attackActivity,
+        this.clientHasNoCanvas()
+      );
+      if (slotLevel === 'below') {
+        throw new Error(
+          `${item.name} is a level ${String((item.system as { level?: unknown }).level)} spell; spellLevel ${String(options.spellLevel)} is below that. Nothing was used or rolled`
+        );
+      }
+      if (slotLevel === 'none') {
+        throw new Error(
+          `${actor.name} has no spell slot left to cast ${item.name}; nothing was used or rolled`
+        );
+      }
+      if (slotLevel !== undefined) {
+        const level = typeof slotLevel === 'object' ? slotLevel.pact : slotLevel;
+        upcastSlot = typeof slotLevel === 'object' ? 'pact' : `spell${level}`;
+        autoUpcast = level;
       }
     }
 
@@ -382,15 +389,15 @@ export class ActorBuilderDataAccess {
       if (typeof itemAny.use === 'function') {
         let useArgs: unknown[];
         if (systemId === 'dnd5e') {
-          // dnd5e 4+ (5.3.3 and 6.0.5 both): Item5e#use(usage, dialog, message) —
+          // dnd5e 4+ (5.3.3 and 6.0.5 both): Item5e#use(usage, dialog, message) -
           // three config objects, not the old flat options bag. The old keys
           // (createMessage/consumeResource/consumeSpellSlot/consumeUsage/
           // configureDialog/slotLevel/level) are not read anywhere on this
-          // signature, so they were silently ignored — a "use" that always ran
+          // signature, so they were silently ignored, a "use" that always ran
           // with dnd5e's own defaults regardless of what was passed.
           // verified: dnd5e.mjs:35504 (Item5e#use(config, dialog, message) delegates
           // to activity.use(usageConfig, dialogConfig, messageConfig)), :17856
-          // (Activity#_prepareUsageConfig — `consume` must be `false` or left
+          // (Activity#_prepareUsageConfig, `consume` must be `false` or left
           // unset; `config.consume ??= {}` then assigns properties onto it, which
           // throws in strict mode if `consume` is the boolean `true`).
           const usage: Record<string, unknown> = {};
@@ -400,8 +407,8 @@ export class ActorBuilderDataAccess {
           // Upcast slot for spells. Best-effort: assumes a leveled slot key
           // (`spellN`); pact-caster slot ids aren't derivable without the
           // item's casting method, same limitation the old `slotLevel` had.
-          if (options.spellLevel !== undefined) {
-            usage.spell = { slot: `spell${options.spellLevel}` };
+          if (upcastSlot !== undefined) {
+            usage.spell = { slot: upcastSlot };
           }
           // Show the dialog so the GM can make choices, except in a headless browser (the Pi's
           // Assistant GM): nobody can click it, the card would never be made, so dnd5e's defaults apply.
@@ -472,11 +479,11 @@ export class ActorBuilderDataAccess {
       const result: UseItemResult = {
         success: true,
         status: 'initiated',
-        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. ${
+        message: `Item use initiated for ${actor.name} using ${item.name}${autoUpcast ? ` at level ${autoUpcast} (no slot left at its own level)` : ''}${targetInfo}. ${
           attackActivity
             ? 'The attack is rolled without a dialog; the roll appears in chat.'
             : headless && systemId === 'dnd5e'
-              ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.'
+              ? `This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, ${autoUpcast ? `cast at level ${autoUpcast}` : 'no upcasting unless a spell level was given'}) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.`
               : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
         } The result will appear in chat.`,
         itemName: item.name,
@@ -539,7 +546,7 @@ export class ActorBuilderDataAccess {
       // 5a. Map emanation → radius (Foundry uses "radius" for radial emanations)
       const mappedAreaType: string = data.areaType === 'emanation' ? 'radius' : data.areaType;
 
-      // 6. Build item data — schema verified against dnd5e 5.1.8 real output
+      // 6. Build item data, schema verified against dnd5e 5.1.8 real output
       const itemData = {
         name: data.featureName,
         type: 'feat',
@@ -645,7 +652,7 @@ export class ActorBuilderDataAccess {
         );
       }
 
-      // 2. Duplicate check by name — only against other NPCs, so a player
+      // 2. Duplicate check by name, only against other NPCs, so a player
       //    character sharing the name does not block NPC creation.
       const existingActor = game.actors?.find(a => a.name === data.name && a.type === 'npc');
       if (existingActor) {
@@ -655,7 +662,7 @@ export class ActorBuilderDataAccess {
         );
       }
 
-      // 3. Soft validation — collect warnings, do NOT block creation
+      // 3. Soft validation, collect warnings, do NOT block creation
       const warnings: string[] = [];
       const allDamageValues: Array<{ field: string; value: string }> = [
         ...data.damageImmunities.map(v => ({ field: 'damageImmunities', value: v })),
@@ -716,8 +723,8 @@ export class ActorBuilderDataAccess {
       // `speeds` map; the old keys remain as a shimmed getter/setter on the
       // *prepared* actor (assigning through the setter logs a compatibility
       // warning), so write `speeds` directly on 6.0 instead of relying on it.
-      // verified: dnd5e.mjs:5471 (`MovementField` — `speeds: new MappingField(...)`),
-      // :5478 (`_migrate`: old keys → `speeds.*`), :5521 (`_shim` — the setter
+      // verified: dnd5e.mjs:5471 (`MovementField`, `speeds: new MappingField(...)`),
+      // :5478 (`_migrate`: old keys → `speeds.*`), :5521 (`_shim`, the setter
       // warns "movement.<key> has moved to movement.speeds.<key>", since 6.0 until
       // 7.0).
       const movementBlock = dnd5eV6
@@ -747,12 +754,12 @@ export class ActorBuilderDataAccess {
       // dnd5e 6.0 moved `details.source` to a top-level `system.source` (NPCData no
       // longer has a `source` subfield under `details`). dnd5e's own migration
       // (`NPCData.#migrateSource`) folds an object at `details.source` back into
-      // `system.source` for us, so the old shape is not silently dropped — but,
+      // `system.source` for us, so the old shape is not silently dropped, but,
       // as with AC/movement, write the version-native location directly rather
       // than depend on that migration shim.
       // verified: dnd5e.mjs:85285 (`NPCData.defineSchema`: `source: new SourceField()`
       // at top level, `details: {...DetailsField.common, ...DetailsField.creature,
-      // type, habitat, cr, treasure}` — no `source` key), :85472
+      // type, habitat, cr, treasure}`, no `source` key), :85472
       // (`NPCData.#migrateSource`).
       const sourceBlock = {
         revision: 1,
@@ -865,7 +872,7 @@ export class ActorBuilderDataAccess {
       // 2. Duplicate check
       this.requireNoExistingItem(actor, data.featureName);
 
-      // 3. Soft validation — collect warnings, never block
+      // 3. Soft validation, collect warnings, never block
       const warnings: string[] = [];
 
       for (const part of data.damageParts) {
@@ -886,7 +893,7 @@ export class ActorBuilderDataAccess {
       // 4. Generate activity ID
       const activityId: string = foundry.utils.randomID(16);
 
-      // 5. Damage parts for the activity (all except the first — which is system.damage.base)
+      // 5. Damage parts for the activity (all except the first, which is system.damage.base)
       const activityDamageParts = data.damageParts.slice(1).map(p => ({
         types: [p.type],
         number: p.number,
@@ -896,7 +903,7 @@ export class ActorBuilderDataAccess {
         custom: { enabled: false },
       }));
 
-      // 6. Range object (system-level — holds the real range/reach)
+      // 6. Range object (system-level, holds the real range/reach)
       const rangeObj =
         data.attackType === 'melee'
           ? { value: data.reachFt ?? 5, long: null, units: 'ft' }
@@ -1073,7 +1080,7 @@ export class ActorBuilderDataAccess {
       // 2. Duplicate check (case-insensitive name match)
       this.requireNoExistingItem(actor, data.featureName);
 
-      // 3. Soft validation — collect warnings, never block
+      // 3. Soft validation, collect warnings, never block
       const warnings: string[] = [];
 
       for (const part of data.damageParts) {
@@ -1085,7 +1092,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 4. Map areaType: Foundry uses "radius" internally for what 5e 2024 calls "emanation"
-      //    <option value="radius">Emanation</option> — no "emanation" value exists in the dropdown
+      //    <option value="radius">Emanation</option>, no "emanation" value exists in the dropdown
       const mappedAreaType: string = data.areaType === 'emanation' ? 'radius' : data.areaType;
 
       // 5. Generate activity ID
@@ -1094,7 +1101,7 @@ export class ActorBuilderDataAccess {
       // 6. Slug identifier
       const identifier = slugify(data.featureName);
 
-      // 7. Build item data — schema verified against dnd5e 5.1.8 Banshee Wail
+      // 7. Build item data, schema verified against dnd5e 5.1.8 Banshee Wail
       const itemData = {
         name: data.featureName,
         type: 'feat',
@@ -1121,21 +1128,21 @@ export class ActorBuilderDataAccess {
           activities: {
             [activityId]: {
               _id: activityId,
-              type: 'damage', // activity type: damage — no attack roll, no save
+              type: 'damage', // activity type: damage, no attack roll, no save
               name: '',
               sort: 0,
               activation: {
                 type: data.activationType ?? 'action',
                 value: 1,
                 override: false,
-                // NO condition — not present in real dnd5e 5.1.8 schema
+                // NO condition, not present in real dnd5e 5.1.8 schema
               },
               consumption: {
                 scaling: { allowed: false },
                 spellSlot: true, // confirmed: true in real Banshee Wail schema
                 targets: [], // no uses management in V1
               },
-              description: {}, // empty object — confirmed from real schema
+              description: {}, // empty object, confirmed from real schema
               duration: {
                 units: 'inst',
                 concentration: false,
@@ -1164,16 +1171,16 @@ export class ActorBuilderDataAccess {
                 prompt: true,
               },
               damage: {
-                critical: { allow: false }, // only this key — no bonus, no dice
+                critical: { allow: false }, // only this key, no bonus, no dice
                 parts: data.damageParts.map(p => ({
                   types: [p.type],
                   number: p.number,
                   denomination: p.denomination,
                   bonus: '',
-                  scaling: { mode: '', number: 1 }, // mode: '' required — from real schema
+                  scaling: { mode: '', number: 1 }, // mode: '' required, from real schema
                   custom: { enabled: false }, // NO formula field
                 })),
-                // NO onSave — damage activity has no save concept
+                // NO onSave, damage activity has no save concept
               },
               // NO save block
               // NO attack block
@@ -1205,7 +1212,7 @@ export class ActorBuilderDataAccess {
 
   // ---------------------------------------------------------------------------
   // Add passive/descriptive feature to an existing actor (dnd5e-add-passive-feature)
-  // No activities, no mechanics — pure description displayed on the sheet.
+  // No activities, no mechanics, pure description displayed on the sheet.
   // ---------------------------------------------------------------------------
 
   async addPassiveFeatureToActor(
@@ -1228,7 +1235,7 @@ export class ActorBuilderDataAccess {
       // 3. Slug identifier
       const identifier = slugify(data.featureName);
 
-      // 4. Build item data — no activities, no activityId needed
+      // 4. Build item data, no activities, no activityId needed
       const itemData = {
         name: data.featureName,
         type: 'feat',
@@ -1252,7 +1259,7 @@ export class ActorBuilderDataAccess {
           prerequisites: { items: [], repeatable: false, level: null },
           properties: [],
           requirements: '',
-          activities: {}, // empty — passive feature has no mechanical activity
+          activities: {}, // empty, passive feature has no mechanical activity
         },
         effects: [],
       };
@@ -1278,7 +1285,7 @@ export class ActorBuilderDataAccess {
 
   // ---------------------------------------------------------------------------
   // Add weapon attack + save effect to an existing actor
-  // (dnd5e-add-attack-with-save) — Tipo B
+  // (dnd5e-add-attack-with-save), Tipo B
   // Two activities: attack (sort:0) + save (sort:1)
   // ---------------------------------------------------------------------------
 
@@ -1299,7 +1306,7 @@ export class ActorBuilderDataAccess {
       // 2. Duplicate check
       this.requireNoExistingItem(actor, data.featureName);
 
-      // 3. Soft validation — both damage groups unified
+      // 3. Soft validation, both damage groups unified
       const warnings: string[] = [];
       const allParts = [...data.damageParts, ...data.saveDamageParts];
       for (const part of allParts) {
@@ -1324,7 +1331,7 @@ export class ActorBuilderDataAccess {
         custom: { enabled: false },
       }));
 
-      // 6. Save activity damage parts: ALL saveDamageParts (no base — independent)
+      // 6. Save activity damage parts: ALL saveDamageParts (no base, independent)
       const saveActivityDamageParts = data.saveDamageParts.map(p => ({
         types: [p.type],
         number: p.number,
@@ -1334,7 +1341,7 @@ export class ActorBuilderDataAccess {
         custom: { enabled: false },
       }));
 
-      // 7. System-level range (real reach/range — activity range is always 'self')
+      // 7. System-level range (real reach/range, activity range is always 'self')
       const rangeObj =
         data.attackType === 'melee'
           ? { value: data.reachFt ?? 5, long: null, units: 'ft' }
@@ -1465,12 +1472,12 @@ export class ActorBuilderDataAccess {
               type: 'save',
               name: '',
               sort: 1,
-              description: {}, // {} — not { chatFlavor: '' } (real schema confirmed)
+              description: {}, // {}, not { chatFlavor: '' } (real schema confirmed)
               activation: {
                 type: data.activationType ?? 'action',
                 value: 1,
                 override: false,
-                // NO condition — per real schema
+                // NO condition, per real schema
               },
               duration: { units: 'inst', concentration: false, override: false },
               effects: [],
@@ -1494,7 +1501,7 @@ export class ActorBuilderDataAccess {
               damage: {
                 onSave: data.saveOnSave ?? 'none',
                 parts: saveActivityDamageParts,
-                // NO includeBase — save damage is independent from weapon base damage
+                // NO includeBase, save damage is independent from weapon base damage
               },
               save: {
                 ability: [data.saveAbility],
@@ -1757,11 +1764,11 @@ export class ActorBuilderDataAccess {
         damageTotal = sum.total;
         damageByType = sum.byType;
       } else {
-        // No attack activity — just use the item (posts its card).
+        // No attack activity, just use the item (posts its card).
         await item.use({}, { configure: false }, message);
       }
     } else {
-      // dnd5e v3 — Item-level rolls
+      // dnd5e v3, Item-level rolls
       const atkOpts: Record<string, unknown> = { fastForward: true };
       if (data.targetAC != null) atkOpts.targetValue = data.targetAC;
       const atk = await item.rollAttack(atkOpts);

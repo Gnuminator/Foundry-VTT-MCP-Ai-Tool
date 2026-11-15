@@ -66,7 +66,6 @@ describe('lazyLimitKb', () => {
 
 describe('firstLoadFiles', () => {
   const html = `<!doctype html><html><head>
-    <link rel="stylesheet" href="/styles.css" />
     <link rel="modulepreload" crossorigin href="/next/assets/vendor-AbCd1234.js">
     <link rel="stylesheet" crossorigin href="/next/assets/index-BibpnUhL.css">
     <script src="/usage.js" data-usage-endpoint="/api/usage"></script>

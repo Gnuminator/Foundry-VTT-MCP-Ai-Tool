@@ -155,6 +155,18 @@ describe('announce', () => {
     expect(f.mock.calls.map(c => JSON.parse(c[1].body).flags)).toEqual([4096, undefined, undefined]);
   });
 
+  it('posts a pr-note line to #pr-log as given, silent and mention-free', async () => {
+    const f = fakeFetch();
+    const log = vi.fn();
+    expect(await runCli(['pr-note', 'merge runner:', '#7 refused <@&444>'], { env, fetchImpl: f, log })).toBe(0);
+    expect(f.mock.calls[0][0]).toContain('/channels/222/messages');
+    const body = JSON.parse(f.mock.calls[0][1].body);
+    expect(body.content).toBe('merge runner: #7 refused <@&444>');
+    expect(body.flags).toBe(4096);
+    expect(body.allowed_mentions).toEqual({ parse: [] });
+    expect(await runCli(['pr-note'], { env, fetchImpl: f, log })).toBe(2);
+  });
+
   it('posts dashboard text to the GM channel and may mention only the GM role', async () => {
     const f = fakeFetch();
     const log = vi.fn();

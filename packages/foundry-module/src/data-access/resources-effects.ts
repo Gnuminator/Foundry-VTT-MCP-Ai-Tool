@@ -140,8 +140,8 @@ export class ResourcesEffectsDataAccess {
   /**
    * List every game condition defined in `CONFIG.statusEffects`, normalizing the
    * field names across Foundry versions (icon vs img, name vs label) and the
-   * storage shape (array in core/dnd5e 5.x, an object keyed by id in dnd5e 6.0
-   * — verified `dnd5e.mjs:96370` `_configureStatusEffects`; read only through
+   * storage shape (array in core/dnd5e 5.x, an object keyed by id in dnd5e 6.0;
+   * verified `dnd5e.mjs:96370` `_configureStatusEffects`; read only through
    * {@link statusEffectList}).
    */
   async getAvailableConditions(): Promise<AvailableConditionsResult> {
@@ -349,7 +349,7 @@ export class ResourcesEffectsDataAccess {
    *
    * Spell name: dnd5e's `Actor5e.createConcentrationEffectData` (verified
    * `dnd5e.mjs:8259-8290`, unchanged in shape since well before 6.0) never
-   * writes `flags.dnd5e.item.name` — the pre-existing bug this replaces — it
+   * writes `flags.dnd5e.item.name`, the pre-existing bug this replaces, it
    * writes `flags.dnd5e.item.{type,id,uuid}` and `origin` (both the item's
    * UUID). Resolve the linked item by UUID via `fromUuidSync` (present on both
    * versions) and read its live `.name`; fall back to stripping the
@@ -375,7 +375,7 @@ export class ResourcesEffectsDataAccess {
           const linkedItem = fromUuidSync(itemUuid) as { name?: unknown } | null;
           if (typeof linkedItem?.name === 'string' && linkedItem.name) spellName = linkedItem.name;
         } catch {
-          // Deleted/unresolvable item — fall through to the name-strip fallback.
+          // Deleted/unresolvable item, fall through to the name-strip fallback.
         }
       }
       spellName ??= (conc.name || '').replace(/concentrating:?\s*/i, '').trim() || null;
@@ -452,7 +452,7 @@ export class ResourcesEffectsDataAccess {
   /**
    * Build a normalized descriptor for one `ActiveEffect` document.
    * `isCondition` is true only when one of the effect's status ids is registered
-   * in `CONFIG.statusEffects` — a spell that happens to apply 'concentrating' is
+   * in `CONFIG.statusEffects`, a spell that happens to apply 'concentrating' is
    * not a game condition.
    *
    * `changes`/`duration`/`icon` are read through the version adapter
@@ -461,7 +461,7 @@ export class ResourcesEffectsDataAccess {
    * (`effect.system.changes` + string `type`, `duration.value/units/expiry`,
    * `effect.img` only) both resolve correctly. The tool's existing field names
    * are kept: `changes[].mode` is now filled from the normalized `type` string
-   * (numeric v13 modes map to the same vocabulary — see
+   * (numeric v13 modes map to the same vocabulary, see
    * `core.ts` `LEGACY_CHANGE_MODES`) and `type` is added alongside it for
    * callers that want the v14 vocabulary directly; `duration` keeps
    * `rounds`/`turns`/`seconds`/`remaining`, with the first three sourced from

@@ -90,7 +90,7 @@ export class Logger {
           ? `; the log file ${config.filePath} may hold them`
           : '';
       this.logger.warn(
-        `LOG_LEVEL=debug: debug lines keep up to ${DEBUG_PAYLOAD_MAX_CHARS} characters of each query payload (chat, journals, GM notes)${where}. Use info outside a debugging session.`
+        `Log level ${config.level}: debug lines keep up to ${DEBUG_PAYLOAD_MAX_CHARS} characters of each query payload (chat, journals, GM notes)${where}. Use info outside a debugging session.`
       );
     }
   }

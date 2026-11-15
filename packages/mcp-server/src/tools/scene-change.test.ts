@@ -3,7 +3,7 @@
  * stubs; the tests check the request the module gets, the plan the service gets, what the result
  * carries and when it says `autoApply`.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   LIVE_PLAY_FEATURE_ID,
@@ -40,9 +40,9 @@ function built(extra: Partial<SceneChangePlan> = {}): SceneChangePlan {
   };
 }
 
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
-let autoApplyEnabled: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
+let autoApplyEnabled: Mock;
 let tools: SceneChangeTools;
 
 beforeEach(() => {

@@ -30,14 +30,14 @@
  *     `updateRollButtonMessage`; the harness already provides a no-op socket.
  *
  * NOT characterized here (and why):
- *   - `attachRollButtonHandlers` — operates purely on a live jQuery object and the
+ *   - `attachRollButtonHandlers`: operates purely on a live jQuery object and the
  *     DOM (`html.find(...).on('click', ...)`, `button.css/show/hide/prop`). The
  *     `rollButtonProcessingStates` map is private and only mutated inside those DOM
  *     click handlers, so it is not observable without a DOM/jQuery harness, which
  *     would require editing shared test support. Skipped.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ERROR_MESSAGES, MODULE_ID } from './constants.js';
 import {
   createTestWorld,
@@ -92,8 +92,8 @@ function addPlayerCharacter(opts: {
 
 /** Override `globalThis.Roll` with a spy-able mock that records `toMessage`. */
 function installRollSpy(total = 14): {
-  toMessage: ReturnType<typeof vi.fn>;
-  evaluate: ReturnType<typeof vi.fn>;
+  toMessage: Mock;
+  evaluate: Mock;
   ctorArgs: any[];
 } {
   const toMessage = vi.fn(() => Promise.resolve({}));
@@ -119,7 +119,7 @@ function installRollSpy(total = 14): {
 // requestPlayerRolls
 // ===========================================================================
 
-describe('FoundryDataAccess — requestPlayerRolls', () => {
+describe('FoundryDataAccess: requestPlayerRolls', () => {
   it('creates a public roll-button chat message for an online player and returns success', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
@@ -408,7 +408,7 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 
 describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => {
   function installFight(combatants: Array<{ id: string; actorId: string }>): {
-    rollInitiative: ReturnType<typeof vi.fn>;
+    rollInitiative: Mock;
   } {
     const rollInitiative = vi.fn(() => Promise.resolve());
     world.setCombat({ combatants: { contents: combatants }, rollInitiative });
@@ -616,7 +616,7 @@ describe('FoundryDataAccess: roll request event', () => {
   });
 });
 
-describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
+describe('FoundryDataAccess: requestAbilityCheck (wrapper)', () => {
   it('builds an ability roll request and folds reason + DC into the flavor', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
@@ -668,7 +668,7 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
   });
 });
 
-describe('FoundryDataAccess — requestAttackRoll (wrapper)', () => {
+describe('FoundryDataAccess: requestAttackRoll (wrapper)', () => {
   it('builds an attack roll request with a "<weapon> attack" flavor and attack label', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
@@ -690,7 +690,7 @@ describe('FoundryDataAccess — requestAttackRoll (wrapper)', () => {
 // rollNpcCheck
 // ===========================================================================
 
-describe('FoundryDataAccess — rollNpcCheck', () => {
+describe('FoundryDataAccess: rollNpcCheck', () => {
   it('throws CHARACTER_NOT_FOUND for an unknown actor', async () => {
     await expect(
       da.rollNpcCheck({
@@ -926,7 +926,7 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
 // saveRollButtonMessageId / getRollButtonMessageId
 // ===========================================================================
 
-describe('FoundryDataAccess — roll button↔message id mapping', () => {
+describe('FoundryDataAccess: roll button↔message id mapping', () => {
   it('round-trips a buttonId→messageId mapping through settings', async () => {
     await da.saveRollButtonMessageId('btn-1', 'msg-1');
     expect(da.getRollButtonMessageId('btn-1')).toBe('msg-1');
@@ -970,7 +970,7 @@ describe('FoundryDataAccess — roll button↔message id mapping', () => {
 // getRollState
 // ===========================================================================
 
-describe('FoundryDataAccess — getRollState', () => {
+describe('FoundryDataAccess: getRollState', () => {
   it('returns the persisted roll state for a button id', () => {
     world.setSetting(MODULE_ID, 'rollStates', {
       'btn-1': { rolled: true, rolledBy: 'u1', rolledByName: 'Alice', timestamp: 123 },
@@ -993,7 +993,7 @@ describe('FoundryDataAccess — getRollState', () => {
 // getRollStateFromMessage
 // ===========================================================================
 
-describe('FoundryDataAccess — getRollStateFromMessage', () => {
+describe('FoundryDataAccess: getRollStateFromMessage', () => {
   it('reads the rollButtons[buttonId] entry from a message flag', () => {
     const chatMessage = {
       getFlag: (scope: string, key: string): Record<string, { rolled: boolean }> | undefined =>
@@ -1022,7 +1022,7 @@ describe('FoundryDataAccess — getRollStateFromMessage', () => {
 // updateRollButtonMessage
 // ===========================================================================
 
-describe('FoundryDataAccess — updateRollButtonMessage', () => {
+describe('FoundryDataAccess: updateRollButtonMessage', () => {
   it('throws when no message id is mapped for the button', async () => {
     await expect(da.updateRollButtonMessage('unknown-btn', 'gm', 'Roll')).rejects.toThrow(
       'No message ID found for button unknown-btn'
@@ -1173,7 +1173,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
 // saveRollState / requestRollStateSave (legacy redirects)
 // ===========================================================================
 
-describe('FoundryDataAccess — legacy roll-state redirects', () => {
+describe('FoundryDataAccess: legacy roll-state redirects', () => {
   it('saveRollState redirects to updateRollButtonMessage and rewrites the message', async () => {
     const msg = world.addMessage({
       id: 'm5',
@@ -1211,7 +1211,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
 // broadcastRollState (legacy no-op)
 // ===========================================================================
 
-describe('FoundryDataAccess — broadcastRollState', () => {
+describe('FoundryDataAccess: broadcastRollState', () => {
   it('is a no-op that returns undefined', () => {
     expect(da.broadcastRollState('btn-1', { rolled: true })).toBeUndefined();
   });
@@ -1221,7 +1221,7 @@ describe('FoundryDataAccess — broadcastRollState', () => {
 // cleanOldRollStates
 // ===========================================================================
 
-describe('FoundryDataAccess — cleanOldRollStates', () => {
+describe('FoundryDataAccess: cleanOldRollStates', () => {
   it('removes roll states older than 30 days and persists the pruned set', async () => {
     const now = Date.now();
     const old = now - 31 * 24 * 60 * 60 * 1000;
@@ -1523,7 +1523,7 @@ describe('FoundryDataAccess: player page roll buttons', () => {
 });
 
 describe('FoundryDataAccess: a failed roll button click', () => {
-  function clickWith(isGM: boolean): { error: ReturnType<typeof vi.fn> } {
+  function clickWith(isGM: boolean): { error: Mock } {
     const g2 = globalThis as any;
     const error = vi.fn();
     g2.ui = { notifications: { error, warn: vi.fn(), info: vi.fn() } };

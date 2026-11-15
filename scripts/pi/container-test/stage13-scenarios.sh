@@ -4,32 +4,23 @@
 # in-browser part replaces the Chromium driver. Each scenario starts from a fresh fake Pi and prints one block
 # that scripts/pi/player-creation.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage13-scenarios.sh [name ...]
-# (<IMAGE> is the pinned Debian 13 image in player-creation.test.mjs.) With names, only those scenarios run.
-# Nothing here reaches the network after apt-get: the Actor Studio build comes from a local zip (STUDIO_ZIP),
+# (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network: the Actor Studio build comes from a local zip (STUDIO_ZIP),
 # never from GitHub. The stage's node snippets run on Debian 13's own nodejs (20.x) linked as
 # /opt/node24/bin/node, not Node 24 as on the Pi; they use nothing newer than Node 20.
 #
 # DESTRUCTIVE: each scenario wipes the Foundry data folder and the tool's folders, and the fakes go into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
+require_test_container
 
-[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
-  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
-  exit 98
-}
 
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/13-player-creation.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 LIBGM=/repo/scripts/pi/remote/lib-gm-passwords.sh
 
-export DEBIAN_FRONTEND=noninteractive
-apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs zip unzip curl ca-certificates; }
-# One retry: a Debian mirror hiccup should not fail a required CI check.
-{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
-  echo "SETUP FAILED: apt-get"
-  exit 99
-}
 mkdir -p /opt/node24/bin
 ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done

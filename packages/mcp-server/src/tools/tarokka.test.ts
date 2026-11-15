@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { TarokkaTools } from './tarokka.js';
 
-function makeTools(): { tools: TarokkaTools; tarokka: Record<string, ReturnType<typeof vi.fn>> } {
+function makeTools(): { tools: TarokkaTools; tarokka: Record<string, Mock> } {
   const tarokka = {
     getReading: vi.fn(() => Promise.resolve({ available: false })),
     planImport: vi.fn(() => Promise.resolve({ planId: 'p1' })),

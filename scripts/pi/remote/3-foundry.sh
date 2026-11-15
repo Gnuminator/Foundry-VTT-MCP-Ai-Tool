@@ -7,6 +7,7 @@
 
 require_root
 require_recent_snapshot
+refuse_when_cut_over "stage 3 (Foundry)"
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 

@@ -3,7 +3,7 @@
  *
  * Module-level constants (canonical damage/condition/property/size/skill sets,
  * spell-slot progression tables) and stateless string/number helpers used by the
- * dnd5e actor-building domain. No Foundry globals, no state — pure data + pure fns.
+ * dnd5e actor-building domain. No Foundry globals, no state, pure data + pure fns.
  */
 
 export function slugify(name: string, fallback = 'feature'): string {
@@ -18,7 +18,7 @@ export function slugify(name: string, fallback = 'feature'): string {
 }
 
 // =============================================================================
-// NPC creation helpers — module-level, used exclusively by createNpcActor
+// NPC creation helpers, module-level, used exclusively by createNpcActor
 // =============================================================================
 
 export const NPC_DAMAGE_CANONICAL = new Set([
@@ -116,7 +116,7 @@ export function npcBuildSkillsBlock(
 }
 
 // =============================================================================
-// Attack feature helpers — module-level, used exclusively by addAttackToActor
+// Attack feature helpers, module-level, used exclusively by addAttackToActor
 // =============================================================================
 
 export const ATTACK_DAMAGE_CANONICAL = new Set([
@@ -156,7 +156,7 @@ export const ATTACK_PROPERTY_CANONICAL = new Set([
 ]);
 
 // =============================================================================
-// Aura feature helpers — module-level, used exclusively by addAuraToActor
+// Aura feature helpers, module-level, used exclusively by addAuraToActor
 // =============================================================================
 
 export const AURA_DAMAGE_CANONICAL = new Set([
@@ -176,7 +176,7 @@ export const AURA_DAMAGE_CANONICAL = new Set([
 ]);
 
 // =============================================================================
-// Attack+save helpers — module-level, used exclusively by addAttackWithSaveToActor
+// Attack+save helpers, module-level, used exclusively by addAttackWithSaveToActor
 // =============================================================================
 
 export const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
@@ -196,7 +196,7 @@ export const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
 ]);
 
 // =============================================================================
-// Spellcasting slot tables — module-level, used by setActorSpellcasting
+// Spellcasting slot tables, module-level, used by setActorSpellcasting
 //
 // Each array has 20 entries (index 0 = level 1 … index 19 = level 20).
 // Each entry is a 9-element tuple: [L1, L2, L3, L4, L5, L6, L7, L8, L9].
@@ -229,10 +229,10 @@ export const FULL_CASTER_SLOTS: number[][] = [
 ];
 
 // prettier-ignore
-/** Paladin / Ranger — half-caster (rounds down). Level 1 = no slots. */
+/** Paladin / Ranger, half-caster (rounds down). Level 1 = no slots. */
 export const HALF_CASTER_SLOTS: number[][] = [
   //  L1  L2  L3  L4  L5  L6  L7  L8  L9
-  [   0,   0,   0,   0,   0,   0,   0,   0,   0 ], // level  1 — no slots
+  [   0,   0,   0,   0,   0,   0,   0,   0,   0 ], // level  1, no slots
   [   2,   0,   0,   0,   0,   0,   0,   0,   0 ], // level  2
   [   3,   0,   0,   0,   0,   0,   0,   0,   0 ], // level  3
   [   3,   0,   0,   0,   0,   0,   0,   0,   0 ], // level  4
@@ -255,7 +255,7 @@ export const HALF_CASTER_SLOTS: number[][] = [
 ];
 
 // prettier-ignore
-/** Artificer — half-caster (rounds UP). Starts at level 1. Max 5th-level slots. */
+/** Artificer, half-caster (rounds UP). Starts at level 1. Max 5th-level slots. */
 export const ARTIFICER_SLOTS: number[][] = [
   //  L1  L2  L3  L4  L5  L6  L7  L8  L9
   [   2,   0,   0,   0,   0,   0,   0,   0,   0 ], // level  1
@@ -281,7 +281,7 @@ export const ARTIFICER_SLOTS: number[][] = [
 ];
 
 // prettier-ignore
-/** Warlock Pact Magic — slot count and slot level per warlock level. */
+/** Warlock Pact Magic, slot count and slot level per warlock level. */
 export const WARLOCK_PACT_TABLE: Array<{ max: number; level: number }> = [
   { max: 1, level: 1 }, // level  1
   { max: 2, level: 1 }, // level  2

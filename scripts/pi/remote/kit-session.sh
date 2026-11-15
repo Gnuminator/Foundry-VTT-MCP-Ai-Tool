@@ -60,6 +60,7 @@
 #   Kit GM file and no browser then, and the teardown finds no Kit GM.
 
 require_root
+refuse_when_cut_over "the kit session"
 require_arm64
 
 MODE="${MODE:-}"

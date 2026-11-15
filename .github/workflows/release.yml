@@ -305,6 +305,9 @@ jobs:
     needs: [module, bridge, installer, player-files]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    # Waits for the user's Approve in the Actions run (GitHub environment "release"); a tag alone
+    # builds but never publishes.
+    environment: release
     permissions:
       contents: write
     steps:

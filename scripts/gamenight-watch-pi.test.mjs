@@ -11,6 +11,7 @@ import {
   END_AFTER,
   accessHeaders,
   controlCall,
+  createLifecycle,
   formatCheckAlert,
   gateStep,
   probeBridgeLink,
@@ -374,4 +375,52 @@ test('tick: always mode needs no session, and a start post carries no address', 
   assert.match(rt.pending[0].text, /^Game-night watch started/);
   assert.doesNotMatch(rt.pending[0].text, /https?:\/\//);
   assert.equal(rt.states.foundry.mode, initialState().mode);
+});
+
+test('tick: a quiet night with only the bridge down raises no alarm either', async () => {
+  const { rt, answers, calls } = makeRt({ now: () => 10 * 3600 * 1000, lastEventAt: 0 });
+  answers.open = true;
+  answers.bridge = { ok: false, ms: 5, error: 'no answer' };
+  const quiet = await tick(rt);
+  assert.equal(quiet.failed, 0);
+  assert.equal(rt.pending.length, 0);
+  assert.ok(calls.logs.some(l => /quiet night and bridge is down/.test(l)));
+});
+
+test('stop during a slow round posts "stopping" and the pending text exactly once', async () => {
+  const rt = { gate: { active: true }, pending: [] };
+  const posted = [];
+  let exitCode = null;
+  const life = createLifecycle(
+    rt,
+    { token: 't', channelId: '1' },
+    {
+      exit: c => {
+        exitCode = c;
+      },
+      post: async (_t, text) => {
+        posted.push(text);
+      },
+    }
+  );
+  // a round that finishes after the stop signal and leaves one text behind
+  let finish;
+  const slow = new Promise(r => {
+    finish = r;
+  }).then(() => {
+    rt.pending.push({ text: 'late alert', at: 0 });
+    return { failed: 1 };
+  });
+  const loop = (async () => {
+    await life.track(slow);
+    if (life.stopping()) return 'returned';
+    posted.push('LOOP FLUSH');
+    return 'flushed';
+  })();
+  const stopped = life.stop();
+  finish();
+  assert.equal(await loop, 'returned');
+  await stopped;
+  assert.equal(exitCode, 0);
+  assert.deepEqual(posted, ['late alert', 'Game-night watch stopped: the service is stopping.']);
 });

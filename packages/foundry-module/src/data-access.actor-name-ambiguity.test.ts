@@ -11,7 +11,7 @@ import {
   makeToken,
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
-import { AMBIGUOUS_ACTOR_PREFIX as SHARED_AMBIGUOUS_ACTOR_PREFIX } from '../../../shared/src/ownership.js';
+import { AMBIGUOUS_ACTOR_PREFIX as SHARED_AMBIGUOUS_ACTOR_PREFIX } from '@gnuminator/shared';
 import { AMBIGUOUS_ACTOR_PREFIX } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { findActorByIdentifier, resolveTargetActor } from './data-access/shared.js';

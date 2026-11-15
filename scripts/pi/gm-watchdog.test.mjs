@@ -7,12 +7,13 @@
 // - with PI_GM_WATCHDOG_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the frozen-page runs and the stage
 //   itself in a Debian 13 ARM64 container (scripts/pi/container-test/stage28-scenarios.sh).
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const driver = path.join(repo, 'scripts/pi/remote/assistant-gm.mjs');
@@ -143,6 +144,7 @@ describe('the driver with a frozen page', () => {
     const d = startDriver({});
     try {
       assert.ok(await waitForOutput(d, /joined world w/), d.output());
+      assert.ok(await waitForOutput(d, /\[assistant-gm\] page watchdog armed \(ping every/), d.output());
       assert.equal(await within(d.exited, 1500), 'still running', d.output());
       assert.doesNotMatch(d.output(), /has not answered/);
     } finally {
@@ -156,6 +158,7 @@ describe('the driver with a frozen page', () => {
     try {
       assert.ok(await waitForOutput(d, /joined world w/), d.output());
       assert.equal(await within(d.exited, 2000), 'still running', d.output());
+      assert.doesNotMatch(d.output(), /page watchdog armed/);
     } finally {
       d.child.kill();
       d.cleanup();
@@ -203,6 +206,23 @@ describe('stage 28 as text', () => {
     assert.match(code, /put_back "\$backup"/);
   });
 
+  test('the join only counts with the armed line from the same run; a failed put-back stops loudly', () => {
+    assert.match(code, /restart_and_read_back armed/);
+    assert.match(code, /page watchdog armed/);
+    assert.match(code, /_SYSTEMD_INVOCATION_ID=\$id/);
+    // every put_back of the old driver is checked; none is a bare statement under set -e
+    for (const m of code.matchAll(/^\s*put_back "\$[a-z_]+"(.*)$/gm)) {
+      assert.match(m[1], /\|\|/, `unchecked put_back: ${m[0].trim()}`);
+    }
+  });
+
+  test('UNDO leaves a driver that is already deployed alone and words the result from the feature line', () => {
+    assert.match(code, /hash_of "\$prev"\)" = "\$\(hash_of "\$driver"\)/);
+    assert.match(code, /has_page_ping "\$driver"/);
+    assert.match(code, /it has no page watchdog/);
+    assert.doesNotMatch(code, /the page watchdog is off/);
+  });
+
   test('does not restart Foundry, download anything or touch a world', () => {
     assert.doesNotMatch(code, /foundry\.service|\bwget\b|\bcurl\b|worlds\//);
   });
@@ -213,23 +233,7 @@ describe(
   { skip: process.env.PI_GM_WATCHDOG_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const image =
-        'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
-      const res = spawnSync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '--platform',
-          'linux/arm64',
-          '-v',
-          `${repo}:/repo:ro`,
-          image,
-          'bash',
-          '/repo/scripts/pi/container-test/stage28-scenarios.sh',
-        ],
-        { encoding: 'utf8' }
-      );
+      const res = runStageContainer('stage28-scenarios.sh');
       assert.equal(res.status, 0, res.stdout + res.stderr);
       assert.doesNotMatch(res.stdout, /FAIL/);
       assert.match(res.stdout, /PASS frozen-page/);

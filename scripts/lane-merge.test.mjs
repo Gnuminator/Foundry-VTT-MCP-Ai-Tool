@@ -722,6 +722,7 @@ const NOT_CONTRACT = [
   'usage',
   'util/async',
   'util/errors',
+  'util/html',
   'util/record',
 ].map(n => `shared/src/${n}.ts`);
 

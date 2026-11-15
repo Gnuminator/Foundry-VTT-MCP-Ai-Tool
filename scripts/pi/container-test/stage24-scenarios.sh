@@ -288,9 +288,10 @@ run_stage MODE=up
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up' && echo "$OUT" | grep -q 'the stack runs and is healthy'; then pass "up on the live ports works while the units are off"; else fail "up off (rc $RC): $OUT"; fi
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
-echo 3000 >"$FAKE/busy"
+DASH=3000 CTL=31414 # the live dashboard and bridge control ports (one place, so the port-literal ratchet stays down)
+echo "$DASH" >"$FAKE/busy"
 run_stage MODE=up
-if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'port 3000 is already in use' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up refuses a port something else holds"; else fail "up busy (rc $RC): $OUT"; fi
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q "port $DASH is already in use" && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up refuses a port something else holds"; else fail "up busy (rc $RC): $OUT"; fi
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 touch "$FAKE/up-unhealthy"
@@ -346,25 +347,25 @@ echo 2 >"$FAKE/ctl_rc"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'ROLLED BACK' && all_on $all_units; then pass "a control port beyond loopback counts as unhealthy"; else fail "ctl (rc $RC): $OUT"; fi
 new_pi
-echo 3000 >"$FAKE/busy"
+echo "$DASH" >"$FAKE/busy"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a port that stays busy rolls back before the stack starts"; else fail "busy (rc $RC): $OUT"; fi
 new_pi
-printf '3000\n31414\n' >"$FAKE/busy-tailscale"
+printf '%s\n%s\n' "$DASH" "$CTL" >"$FAKE/busy-tailscale"
 run_stage MODE=cutover
-if [ "$RC" -eq 0 ] && all_off $all_units && ! stack_gone && ! echo "$OUT" | grep -q 'still in use'; then pass "Tailscale serve listeners (%tailscale0) on 3000 and 31414 do not hold up the cutover"; else fail "tailscale busy (rc $RC): $OUT"; fi
+if [ "$RC" -eq 0 ] && all_off $all_units && ! stack_gone && ! echo "$OUT" | grep -q 'still in use'; then pass "Tailscale serve listeners (%tailscale0) on the dashboard and control ports do not hold up the cutover"; else fail "tailscale busy (rc $RC): $OUT"; fi
 new_pi
 for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
-printf '3000\n' >"$FAKE/busy-tailscale"
+echo "$DASH" >"$FAKE/busy-tailscale"
 run_stage MODE=up
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up'; then pass "up ignores a %tailscale0 listener on a live port"; else fail "up tailscale (rc $RC): $OUT"; fi
 new_pi
-printf '3000\n' >"$FAKE/busy-tailscale"
-printf '3000\n' >"$FAKE/busy"
+echo "$DASH" >"$FAKE/busy-tailscale"
+echo "$DASH" >"$FAKE/busy"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a loopback listener next to the tailscale ones still counts as busy"; else fail "mixed busy (rc $RC): $OUT"; fi
 new_pi
-printf '3000\n' >"$FAKE/busy-tailscale-wild"
+echo "$DASH" >"$FAKE/busy-tailscale-wild"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a wildcard listener on the tailscale device still counts as busy"; else fail "wild busy (rc $RC): $OUT"; fi
 new_pi

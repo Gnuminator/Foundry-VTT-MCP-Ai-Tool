@@ -154,7 +154,7 @@ unit_active() { have_systemd && systemctl is-active --quiet "$1"; }
 unit_enabled() { have_systemd && [ "$(systemctl is-enabled "$1" 2>/dev/null || true)" = enabled ]; }
 unit_installed() { have_systemd && systemctl cat "$1" >/dev/null 2>&1; }
 # A listener bound to the Pi's own tailscale interface (ss prints 100.x.y.z%tailscale0:PORT and [fd7a:...]%tailscale0:PORT)
-# does not count: tailscaled serves 3000 and 31414 there permanently (Tailscale serve) and never lets go. Same rule as
+# does not count: tailscaled serves the dashboard and control ports there permanently (Tailscale serve) and never lets go. Same rule as
 # control_port_check in lib.sh (interface scope, not the address range): only a specific address counts as exempt. A wildcard
 # (0.0.0.0%tailscale0, [::]%tailscale0, *%tailscale0) is bound to the device but still clashes with the stack's own binds,
 # so it stays busy. Any other listener counts.

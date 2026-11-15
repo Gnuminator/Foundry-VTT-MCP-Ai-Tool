@@ -54,7 +54,7 @@
   "scripts/modules/rehearse.mjs": 2,
   "scripts/pi/container-test/kit-session-scenarios.sh": 2,
   "scripts/pi/container-test/stage23-scenarios.sh": 2,
-  "scripts/pi/container-test/stage24-scenarios.sh": 15,
+  "scripts/pi/container-test/stage24-scenarios.sh": 14,
   "scripts/pi/container-test/stage25-scenarios.sh": 1,
   "scripts/pi/container-test/stage26-scenarios.sh": 2,
   "scripts/pi/container-test/stage29-scenarios.sh": 1,

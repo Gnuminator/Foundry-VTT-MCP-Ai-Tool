@@ -355,7 +355,8 @@ if have_systemd; then
   ss -ltn | grep -E ':(31414|31415|3000) ' || true
   # Tailscale serve listens on the Pi's tailnet addresses (100.64.0.0/10 and fd7a:115c:a1e0::/48);
   # that is the intended sharing, so only other addresses count as a leak.
-  tailnet='100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]+\.[0-9]+:|\[fd7a:115c:a1e0:'
+  # ss prints the interface scope: 100.x.y.z%tailscale0:PORT and [fd7a:...]%tailscale0:PORT (as control_port_check in lib.sh).
+  tailnet='%tailscale[0-9]*:'
   if ss -ltn | grep -E ':(31414|31415|3000) ' | grep -vE '127\.0\.0\.1:|\[::1\]:' |
     grep -vqE "$tailnet"; then
     warn "a tool port listens beyond loopback and the tailnet; check the units"

@@ -1,7 +1,7 @@
 # Frozen from the working voice venv (Python 3.12) by pip freeze, minus dev tooling (pre-commit and its chain).
 # Install: pip install --no-deps -r requirements-voice.lock.txt --extra-index-url https://download.pytorch.org/whl/cu128
 # setuptools stays below 82: 82 and later drop pkg_resources, and then perth (the chatterbox watermarker) fails to load.
-# (--no-deps:chatterbox-tts pins torch 2.6, which has no Blackwell support; everything it needs is listed here.)
+# (--no-deps: chatterbox-tts pins torch 2.6, which has no Blackwell support; everything it needs is listed here.)
 annotated-doc==0.0.5
 antlr4-python3-runtime==4.9.3
 anyio==4.15.1

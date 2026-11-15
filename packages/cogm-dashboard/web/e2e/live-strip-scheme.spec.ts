@@ -36,11 +36,18 @@ const FIGHT = [
   },
 ];
 
-async function open(page: Page, theme: string, query: string): Promise<void> {
+async function open(
+  page: Page,
+  theme: string,
+  query: string,
+  changes: unknown[] = []
+): Promise<void> {
   await fakeCommonRoutes(page, theme);
   // The strip page shows the theme this browser last saw (the Dashboard applies the world's).
   await page.addInitScript(t => localStorage.setItem('cogm_theme', t), theme);
-  await fakeTools(page, () => ok({}), { playSession: true });
+  await fakeTools(page, call => ok(call.name === 'list-recent-changes' ? { changes } : {}), {
+    playSession: true,
+  });
   await fakeStream(page, [
     { event: 'theme', data: { theme, themes: ['neutral', 'veil'] } },
     { event: 'settings', data: { gmActionsEnabled: true } },
@@ -164,6 +171,19 @@ for (const theme of ['neutral', 'veil']) {
     expect(worst.ratio, worst.where).toBeGreaterThanOrEqual(4.5);
   });
 }
+
+// The destructive Undo confirm has its own warning colours: it must stay readable on the light
+// scheme under The Veil too.
+test('the destructive Undo confirm is readable under Veil with ?scheme=light', async ({ page }) => {
+  const newest = { changeId: 'c1', summary: 'End combat', canUndo: true, risk: 'destructive' };
+  await open(page, 'veil', '&scheme=light', [newest]);
+  await expect(page.locator('#live-undo')).toContainText('End combat');
+  await page.locator('#live-undo').click();
+  await expect(page.getByRole('dialog')).toContainText('Undo End combat?');
+  const worst = await worstContrast(page);
+  expect(worst.measured).toBeGreaterThan(8);
+  expect(worst.ratio, worst.where).toBeGreaterThanOrEqual(4.5);
+});
 
 test('a scheme other than light or dark is ignored', async ({ page }) => {
   await open(page, 'neutral', '&scheme=blue');

@@ -62,3 +62,14 @@ Parameters:
 
 - `packId` (string, required)
 - `entryId` (string, required)
+
+## get-player-skill-guide
+
+The current guide of the uploaded D&D helper skill: its rules and pages, always up to date. Called by the skill itself with stubRevision; again with page for one page. Read-only.
+
+Kind: read-only. Title: Get the helper skill guide.
+
+Parameters:
+
+- `page` (string): A page path the guide lists; omit for the guide.
+- `stubRevision` (integer): The revision number written in the skill.

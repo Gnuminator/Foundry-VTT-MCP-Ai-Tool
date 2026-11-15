@@ -41,6 +41,14 @@ COPY scripts/tsc7.mjs         ./scripts/
 # Foundry module sources; the module sources are copied for that scan only (same as deploy/Dockerfile).
 COPY scripts/usage-catalog.mjs ./scripts/
 COPY packages/foundry-module/src/ ./packages/foundry-module/src/
+# The skill guides (get-skill-guide) are embedded into the bridge at build time from the skills'
+# sources (scripts/skill-guides.mjs); the build fails when one is missing. The .claude folder is
+# in the ignore file except for the Foundry UI reference pages.
+COPY docs/player/             ./docs/player/
+COPY tools/gm-coach/          ./tools/gm-coach/
+COPY tools/dnd-helper/        ./tools/dnd-helper/
+COPY .claude/skills/foundry-core-ui/reference/ ./.claude/skills/foundry-core-ui/reference/
+COPY scripts/skill-guides.mjs ./scripts/
 
 # The shared build must really emit: tsc exits 0 without writing dist when a stale tsbuildinfo says it is up to date.
 RUN npm run build && test -f shared/dist/index.js && test -f shared/dist/index.d.ts

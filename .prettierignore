@@ -11,3 +11,4 @@ docs/reference/tools.md
 docs/reference/tools/
 *.bundle.cjs
 .husky/_
+packages/mcp-server/src/skill-guides.generated.ts

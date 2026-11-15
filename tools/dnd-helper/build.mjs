@@ -14,10 +14,10 @@
  *   node tools/dnd-helper/build.mjs              build into tools/dnd-helper/dist/
  *   node tools/dnd-helper/build.mjs --out <dir>  build somewhere else (tests)
  */
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { zip } from '../gm-coach/build.mjs';
+import { write } from '../gm-coach/build.mjs';
 
 export const SKILL_NAME = 'foundry-dnd-helper';
 export const PLAYER_SKILL_NAME = 'foundry-dnd-helper-player';
@@ -29,6 +29,7 @@ export const PLAYER_TOOLS = [
   'search-books',
   'find-book-entries',
   'get-book-entry',
+  'get-player-skill-guide',
 ];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -126,24 +127,6 @@ export function collectPlayerFiles() {
   return files;
 }
 
-/** Write one skill (folder and zip) under `outDir`. */
-function write(outDir, skillName, files) {
-  const folder = path.join(outDir, skillName);
-  rmSync(folder, { recursive: true, force: true });
-  for (const [name, text] of files) {
-    const target = path.join(folder, ...name.split('/'));
-    mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, text);
-  }
-  const zipFile = path.join(outDir, `${skillName}.zip`);
-  const entries = [...files].map(([name, text]) => ({
-    name: `${skillName}/${name}`,
-    data: Buffer.from(text, 'utf8'),
-  }));
-  writeFileSync(zipFile, zip(entries));
-  return { folder, zipFile, files };
-}
-
 /**
  * Build the skill folder and zip into `outDir`.
  * @param {string} outDir
@@ -158,10 +141,27 @@ export function buildPlayer(outDir) {
   return write(outDir, PLAYER_SKILL_NAME, collectPlayerFiles());
 }
 
+/** The thin stub of the GM edition: SKILL.md only; the guide comes from `get-skill-guide`. */
+export function buildStub(outDir) {
+  const files = new Map([['SKILL.md', readFileSync(path.join(here, 'stub', 'SKILL.md'), 'utf8')]]);
+  return write(outDir, SKILL_NAME, files);
+}
+
+/** The thin stub of the player edition: SKILL.md only; the guide comes from `get-player-skill-guide`. */
+export function buildPlayerStub(outDir) {
+  const files = new Map([
+    ['SKILL.md', readFileSync(path.join(here, 'stub-player', 'SKILL.md'), 'utf8')],
+  ]);
+  return write(outDir, PLAYER_SKILL_NAME, files);
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const i = process.argv.indexOf('--out');
   const outDir = i > -1 ? path.resolve(process.argv[i + 1]) : path.join(here, 'dist');
-  for (const { zipFile, files } of [build(outDir), buildPlayer(outDir)]) {
+  const built = process.argv.includes('--full')
+    ? [build(outDir), buildPlayer(outDir)]
+    : [buildStub(outDir), buildPlayerStub(outDir)];
+  for (const { zipFile, files } of built) {
     const bytes = [...files.values()].reduce((n, t) => n + Buffer.byteLength(t), 0);
     console.log(
       `dnd-helper: ${files.size} files, ${Math.round(bytes / 1024)} KB of text -> ${zipFile}`

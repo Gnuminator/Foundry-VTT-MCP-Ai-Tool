@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: d68e07baf01e
+sourceHash: 03551a4724ac
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -10,6 +10,8 @@ description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulte
 Værktøjet skriver dine kampagnenoter ind i en Obsidian-vault på hjemmeserveren. **Syncthing** holder en
 kopi af vaulten på din pc, i begge retninger, og **Obsidian** er den app, du læser den i. Du sætter det op
 én gang. Hvad vaulten indeholder, og hvordan du bruger den, står i [Din Obsidian-vault](obsidian.md).
+
+Går du i stå? Spørg først Claude: åbn en chat med GM coach slået til og skriv, hvor du er.
 
 **Du skal bruge:** din Windows-pc, cirka 20 minutter og én besked til den, der byggede værktøjet (dit
 Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gøre selv.

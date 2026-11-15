@@ -5,6 +5,7 @@ import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
+import { PLAYER_SKILL, serveSkillGuide } from '../skill-guide.js';
 
 /**
  * The player set (D-136): a player's own Claude reads their character and the books their Foundry
@@ -36,6 +37,7 @@ export const PLAYER_TOOL_NAMES = [
   'search-books',
   'find-book-entries',
   'get-book-entry',
+  'get-player-skill-guide',
 ] as const;
 
 export type PlayerToolName = (typeof PLAYER_TOOL_NAMES)[number];
@@ -82,6 +84,10 @@ export const PLAYER_DASHBOARD_WAIT_MS = 60_000;
 /** The player connector's per-request default (tools/player-connector/server/index.js; same). */
 export const PLAYER_WRAPPER_TIMEOUT_MS = 70_000;
 
+const skillGuideArgs = z.object({
+  page: z.string().max(200).optional(),
+  stubRevision: z.number().int().min(0).max(1000).optional(),
+});
 const characterArgs = z.object({ name: z.string().max(100).optional() });
 const levelUpArgs = z.object({
   name: z.string().max(100).optional(),
@@ -114,7 +120,11 @@ export async function handlePlayerTool(
   const p = (params ?? {}) as { tool?: unknown; args?: unknown; userId?: unknown };
   try {
     const result = await tools.run(p.tool, p.args, p.userId);
-    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    return {
+      content: [
+        { type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) },
+      ],
+    };
   } catch (e: unknown) {
     // A bad argument is the player's to fix: say which one in a sentence, not as a raw schema dump.
     const message =
@@ -248,6 +258,24 @@ export class PlayerTools {
           required: ['packId', 'entryId'],
         },
       },
+      {
+        name: 'get-player-skill-guide',
+        description:
+          'The current guide of the uploaded D&D helper skill: its rules and pages, always up to date. Called by the skill itself with stubRevision; again with page for one page. Read-only.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            page: {
+              type: 'string',
+              description: 'A page path the guide lists; omit for the guide.',
+            },
+            stubRevision: {
+              type: 'integer',
+              description: 'The revision number written in the skill.',
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -275,6 +303,17 @@ export class PlayerTools {
       );
 
     switch (tool as PlayerToolName) {
+      case 'get-player-skill-guide': {
+        // Only the player edition's pages: the skill is fixed here, never an argument.
+        const a = skillGuideArgs.parse(args ?? {});
+        const answer = serveSkillGuide({
+          skill: PLAYER_SKILL,
+          page: a.page,
+          stubRevision: a.stubRevision,
+        });
+        if (answer.isError) throw new Error(answer.text);
+        return answer.text;
+      }
       case 'get-my-character': {
         const a = characterArgs.parse(args ?? {});
         return read({ action: 'character', ...(a.name ? { name: a.name } : {}) });

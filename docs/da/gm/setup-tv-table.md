@@ -1,6 +1,6 @@
 ---
 source: gm/setup-tv-table.md
-sourceHash: 6cb2656805bc
+sourceHash: 2177e689f762
 title: "Engangsopsætning: tv'et ved bordet"
 description: Lav Table-spilleren og log tv'ets computer ind, én gang. Kun til sessioner, hvor I sidder i samme rum.
 ---
@@ -10,6 +10,8 @@ description: Lav Table-spilleren og log tv'ets computer ind, én gang. Kun til s
 Kun hvis I spiller i samme rum og vil have kortet på et tv. Tv'et kommer ind i spillet som sin egen
 spiller ved navn **Table**. Efter opsætningen åbner det på kortet af sig selv. Hvordan det opfører sig under
 spillet, står i [TV'et ved bordet](tv-table-viewer.md). Cirka 15 minutter, én gang.
+
+Går du i stå? Spørg først Claude: åbn en chat med GM coach slået til og skriv, hvor du er.
 
 **Du skal bruge:** en Windows-pc ved tv'et med PowerShell 7 (`pwsh`), Edge eller Chrome og en kopi af
 værktøjets mappe (den indeholder `scripts\tv`), et tastatur på den pc, spillets adresse og den e-mailadresse,

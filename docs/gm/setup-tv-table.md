@@ -9,6 +9,8 @@ Only if you play in the same room and want the map on a TV. The TV joins the gam
 called **Table**. After this setup it opens on the map by itself. How it behaves during play is in
 [The TV at the table](tv-table-viewer.md). About 15 minutes, once.
 
+Stuck on a step? Ask Claude first: open a chat with the GM coach on and say where you are.
+
 **You need:** a Windows PC at the TV with PowerShell 7 (`pwsh`), Edge or Chrome and a copy of the
 tool's folder (it holds `scripts\tv`), a keyboard on that PC, the game's address, and the email
 address Cloudflare uses for the TV. The tool admin sets up the PC and the folder.

@@ -9,6 +9,8 @@ The tool writes your campaign notes into an Obsidian vault on the home server. *
 copy of that vault on your PC, in both directions, and **Obsidian** is the app you read it in. You
 set this up once. What the vault holds and how to use it is in [Your Obsidian vault](obsidian.md).
 
+Stuck on a step? Ask Claude first: open a chat with the GM coach on and say where you are.
+
 **You need:** your Windows PC, about 20 minutes, and one message to the person who built the tool
 (your Syncthing ID, step 3). They add your PC on the server; you cannot do that part yourself.
 

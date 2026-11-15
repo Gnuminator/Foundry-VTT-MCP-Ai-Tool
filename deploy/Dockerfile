@@ -64,6 +64,13 @@ COPY scripts/tsc7.mjs         ./scripts/
 # scan only (they are not built here).
 COPY scripts/usage-catalog.mjs ./scripts/
 COPY packages/foundry-module/src/ ./packages/foundry-module/src/
+# The skill guides (get-skill-guide) are embedded into the bridge at build time from the skills'
+# sources (scripts/skill-guides.mjs); the build fails when one is missing.
+COPY docs/player/             ./docs/player/
+COPY tools/gm-coach/          ./tools/gm-coach/
+COPY tools/dnd-helper/        ./tools/dnd-helper/
+COPY .claude/skills/foundry-core-ui/reference/ ./.claude/skills/foundry-core-ui/reference/
+COPY scripts/skill-guides.mjs ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.
 # The cogm-dashboard build also puts the React dashboard (web/, Vite) in its dist/web.

@@ -52,7 +52,9 @@ you whether that part was checked in a live game.
 
 ## Keeping it current
 
-The tool admin builds a new zip when the pages change (`npm run gm-coach`). The pages inside the
-zip are a copy from the day it was built, so a feature added later is not in them. If the coach
-describes a button that is not there, or doesn't know a new one, ask the tool admin for a fresh zip.
-To update, remove the old skill and upload the new zip.
+The coach itself is a small stub. Its pages and rules come from the table's server every time you
+ask, so they are always the version the server runs, and a server update changes the coach without
+you doing anything. If the coach ends an answer with "Update available", the stub is older than the
+server's: install the plugin again (or upload the new zip if you use the zip), as the setup page
+describes. If the coach says it cannot reach the table, switch on the Foundry connector in the chat
+and ask again.

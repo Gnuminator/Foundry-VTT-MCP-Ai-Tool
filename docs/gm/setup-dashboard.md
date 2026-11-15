@@ -9,6 +9,8 @@ The dashboard is your control panel on a second screen. The server runs it all t
 nothing to install. You open it, sign in, bookmark it and choose how the During screen looks. Every
 panel is explained in [The dashboard](dashboard.md). About 10 minutes, once.
 
+Stuck on a step? Ask Claude first: open a chat with the GM coach on and say where you are.
+
 **You need:** the dashboard address from the person who built the tool, and the email address they
 gave Cloudflare for you.
 

@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: 1a633c93ea14
+sourceHash: e34b6efddb11
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -11,9 +11,18 @@ Pluginet lægger **Open in Foundry** på dine noter og viser, om et handout er a
 det, hvis du vil have det. Gør først [din vault på din pc](setup-obsidian-sync.md). Cirka 10 minutter,
 én gang.
 
+Går du i stå? Spørg først Claude: åbn en chat med GM coach slået til og skriv, hvor du er.
+
 **Du skal bruge:** vaulten åben i Obsidian, dashboardets adresse og tre værdier fra den, der byggede
 værktøjet (GM-token, Cloudflare Client ID og Cloudflare Client Secret). De giver dig dem privat; indsæt
 dem aldrig i en chat eller en note.
+
+- **GM-token:** en adgangskode, værktøjet bruger i stedet for et brugernavn. Den, der byggede værktøjet,
+  sender den til dig privat, og du kan ikke gøre trin 3 nedenfor, før du har den.
+- **Cloudflare Client ID:** den, der slutter på `.access`.
+- **Cloudflare Client Secret:** den, der starter med `cfast_`.
+
+Dette Cloudflare-par er det, der er lavet til Obsidian. Det er ikke det par, du brugte til Claude Desktop.
 
 ## Installer pluginet
 
@@ -33,8 +42,13 @@ dem aldrig i en chat eller en note.
 2. **Dashboard address:** skriv dashboardets https-adresse. Brug https: pluginet sender de to
    Cloudflare-værdier kun til en https-adresse, aldrig til en almindelig http-adresse (så
    `http://localhost` kommer ikke igennem Cloudflare-loginet). GM-token'et følger med hvert kald.
-3. Klik på feltet **GM token**, derefter **Add secret**. I **ID** skriv `foundry-gm-token`, i **Secret**
-   indsæt kun selve token'et, **Save**. Vælg den i listen.
+3. Læg GM-token'et ind:
+   1. Klik på feltet **GM token**.
+   2. Klik på **Add secret**.
+   3. I **ID** skriv `foundry-gm-token`.
+   4. I **Secret** indsæt kun selve token'et.
+   5. Klik på **Save**.
+   6. Vælg `foundry-gm-token` i listen.
 4. Gør det samme for **Cloudflare Access Client ID** (ID `cf-access-client-id`) og **Cloudflare Access
    Client Secret** (ID `cf-access-client-secret`).
 
@@ -42,8 +56,16 @@ De tre værdier bliver i Obsidian på din pc. De ligger ikke i vaulten, så Sync
 
 ## Færdig, når det ser sådan ud
 
-Åbn en NPC-note og klik på **Open in Foundry** i statuslinjen nederst. Arket åbner på din Foundry-skærm.
-(Første gang kan en lille dashboard-side bede dig klikke **Open**.)
+Åbn en NPC-note og brug så en af disse. Arket åbner på din Foundry-skærm. (Første gang kan en lille
+dashboard-side bede dig klikke **Open**.)
+
+- Højreklik på noten i fillisten og klik på **Open in Foundry**.
+- Eller tryk Ctrl+P, skriv **Open in Foundry** og tryk Enter.
+- Eller klik på den lille tekst nederst til højre i Obsidian-vinduet. Der står **Foundry: npc**
+  (notens type), eller **Players: ...** på en journalside. Den vises kun, mens en Foundry-note er åben.
+
+Linket **Open in Foundry** inde i selve notens tekst bruger serverens adresse, og den virker måske ikke
+på din pc endnu. Hvis det ikke gør noget, så brug en af de tre måder ovenfor.
 
 ## Hvis det ikke virker
 

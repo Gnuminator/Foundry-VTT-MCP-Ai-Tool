@@ -9,9 +9,18 @@ The plugin adds **Open in Foundry** to your notes and shows whether a handout is
 it only if you want those. First do [your vault on your PC](setup-obsidian-sync.md). About 10
 minutes, once.
 
+Stuck on a step? Ask Claude first: open a chat with the GM coach on and say where you are.
+
 **You need:** the vault open in Obsidian, the dashboard address, and three values from the person
 who built the tool (the GM token, the Cloudflare Client ID and the Cloudflare Client Secret). They
 give you those privately; never paste them in a chat or a note.
+
+- **GM token:** a password the tool uses instead of a username. The person who built the tool sends
+  it to you privately, and you cannot do step 3 below until you have it.
+- **Cloudflare Client ID:** the one that ends in `.access`.
+- **Cloudflare Client Secret:** the one that starts with `cfast_`.
+
+This Cloudflare pair is the one made for Obsidian. It is not the pair you used for Claude Desktop.
 
 ## Install the plugin
 
@@ -31,8 +40,13 @@ give you those privately; never paste them in a chat or a note.
 2. **Dashboard address:** type the dashboard's https address. Use https: the plugin sends the two
    Cloudflare values only to an https address, never to a plain http one (so `http://localhost`
    will not get through the Cloudflare login). The GM token goes with every request.
-3. Click the **GM token** field, then **Add secret**. In **ID** type `foundry-gm-token`, in **Secret**
-   paste the token only, **Save**. Pick it in the list.
+3. Add the GM token:
+   1. Click the **GM token** field.
+   2. Click **Add secret**.
+   3. In **ID** type `foundry-gm-token`.
+   4. In **Secret** paste the token only.
+   5. Click **Save**.
+   6. Pick `foundry-gm-token` in the list.
 4. Do the same for **Cloudflare Access Client ID** (ID `cf-access-client-id`) and **Cloudflare
    Access Client Secret** (ID `cf-access-client-secret`).
 
@@ -41,8 +55,16 @@ them.
 
 ## Done when it looks like this
 
-Open an NPC note and click **Open in Foundry** in the status bar at the bottom. The sheet opens on
-your Foundry screen. (The first time, a small dashboard page may ask you to click **Open**.)
+Open an NPC note, then use any one of these. The sheet opens on your Foundry screen. (The first
+time, a small dashboard page may ask you to click **Open**.)
+
+- Right-click the note in the file list, then click **Open in Foundry**.
+- Or press Ctrl+P, type **Open in Foundry** and press Enter.
+- Or click the small text at the bottom right of the Obsidian window. It reads **Foundry: npc** (the
+  note's type), or **Players: ...** on a journal page. It only shows while a Foundry note is open.
+
+The **Open in Foundry** link inside the note text uses the server's address, which may not work on
+your PC yet. If it does nothing, use one of the three ways above.
 
 ## If it does not work
 

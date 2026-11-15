@@ -45,6 +45,7 @@ const PLAYER_ENDPOINT_TOOLS: readonly string[] = [
   'search-books',
   'find-book-entries',
   'get-book-entry',
+  'get-player-skill-guide',
 ];
 
 export interface PlayerRouteClient {

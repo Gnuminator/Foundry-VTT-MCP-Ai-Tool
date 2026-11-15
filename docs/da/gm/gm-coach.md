@@ -1,6 +1,6 @@
 ---
 source: gm/gm-coach.md
-sourceHash: b36b7709b623
+sourceHash: 35c79c33d303
 title: Din GM coach i Claude
 description: Læg Foundry GM coach-skillen ind på din egen Claude-konto, hvordan du spørger den, og Claude Project som nødløsning.
 ---
@@ -54,7 +54,9 @@ om den del er blevet tjekket i et rigtigt spil.
 
 ## At holde den opdateret
 
-Værktøjets administrator bygger en ny zip, når siderne ændrer sig (`npm run gm-coach`). Siderne inde i
-zip-filen er en kopi fra den dag, den blev bygget, så en feature, der kom senere, står ikke i dem.
-Hvis coachen beskriver en knap, der ikke findes, eller ikke kender en ny, så bed værktøjets administrator om en frisk zip.
-For at opdatere fjerner du den gamle skill og uploader den nye zip.
+Selve coachen er en lille stub. Dens sider og regler hentes fra bordets server, hver gang du spørger,
+så de altid er den version, serveren kører, og en serveropdatering ændrer coachen uden at du gør
+noget. Hvis coachen slutter et svar med "Update available", er stubben ældre end serverens:
+installer pluginet igen (eller upload den nye zip, hvis du bruger zip-filen), som opsætningssiden
+beskriver. Hvis coachen siger, at den ikke kan nå bordet, så slå Foundry-connectoren til i chatten
+og spørg igen.

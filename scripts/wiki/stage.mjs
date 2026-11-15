@@ -41,7 +41,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build as buildCoach } from '../../tools/gm-coach/build.mjs';
+import { buildStub as buildCoach } from '../../tools/gm-coach/build.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const wikiDir = path.join(repo, 'docs', 'wiki');

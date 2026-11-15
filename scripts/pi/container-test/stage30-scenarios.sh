@@ -412,6 +412,13 @@ before="$(sha256sum "$cfg" "$access" | sha256sum)"
 sd_run
 rc=$?
 if [ "$rc" -eq 0 ] && [ "$before" = "$(sha256sum "$cfg" "$access" | sha256sum)" ] && [ "$(restarted "$dash")" = 0 ]; then pass "a rerun with no new file changes nothing"; else fail "remote rerun: rc=$rc $OUT"; fi
+table
+sd_state 0 401 421
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && no_email "new players table" && grep -q '"emailPlayers"' "$cfg" && grep -q "${emails[1]}" "$cfg" && grep -q '"appAudience"' "$cfg" &&
+  grep -qx "DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,cogm.example.org,$host,$rhost" "$access" && [ ! -e "$src" ] && [ -z "$(ls -A "$TOOL_ETC" | grep '^\.player-connector\.cand')" ]; then
+  pass "a new players table keeps the installed remote part and leaves no temp file"; else fail "new table keeps remote: rc=$rc $OUT"; fi
 sd_state 0 401 421
 sd_run UNDO=1
 rc=$?

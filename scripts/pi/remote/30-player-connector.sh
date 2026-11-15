@@ -22,12 +22,14 @@
 # the three keys into the installed table and leaves the service-token players, endpoint and audience as they are. The table check then
 # also needs appAudience (different from audience), lowercase emails and 16-character user ids without duplicates (counts only), and the
 # remote host is added to DASHBOARD_ALLOWED_HOSTS next to the player host.
+# A new players table sent alone keeps the installed remote part. The check on the remote host (401 with no login) does not prove the
+# email login: an older dashboard build answers 401 there too, so deploy only after the dashboard with the app login is on the Pi.
 # It changes no port, no firewall, no tunnel setting and no GM connector. The tunnel route lives in Cloudflare (remotely managed).
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1  print what a real run would do; changes nothing, needs no snapshot
 #   CHECK=1    read-only: the same checks on what is installed; exit 1 when one fails
-#   UNDO=1     remove the drop-ins and the env file, take the host out of the allowed hosts, restart; the table is kept (secrets)
+#   UNDO=1     remove the drop-ins and the env file, take the player hosts out of the allowed hosts, restart; the table is kept (secrets)
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. The PC script must have sent the table first.
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/30-player-connector.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/30-player-connector.sh | ssh foundry-pi 'bash -s'
@@ -282,7 +284,7 @@ say "the login table"
 refuse_dev_user
 use_src=0
 newtab="$cfg"
-cand="$(mktemp)"
+cand="$(mktemp "$TOOL_ETC/.player-connector.cand.XXXXXX")"
 trap 'rm -f "${cand:?}"' EXIT
 if [ -f "$remote_src" ]; then
   # The remote part is merged over the new table when one was sent, else over the installed one; the players stay as they are.
@@ -298,6 +300,16 @@ elif [ -f "$src" ]; then
   use_src=1
   newtab="$src"
   summary="$(table_summary "$src")" || die "$src is not a valid table (see above). Nothing was changed"
+  # A new players table has no remote part: keep the installed one (the table's three remote keys are read from the installed file).
+  if [ "$(sum_field "$summary" 3)" = "-" ] && [ -f "$cfg" ]; then
+    old_summary="$(table_summary "$cfg" 2>/dev/null || true)"
+    if [ -n "$old_summary" ] && [ "$(sum_field "$old_summary" 3)" != "-" ]; then
+      merge_remote "$src" "$cfg" >"$cand" || die "the installed remote part could not be carried over (see above). Nothing was changed"
+      summary="$(table_summary "$cand")" || die "the table with the installed remote part is not valid (see above). Nothing was changed"
+      newtab="$cand"
+      ok "the installed remote part is kept"
+    fi
+  fi
 elif [ -f "$cfg" ]; then
   summary="$(table_summary "$cfg")" || die "$cfg is not a valid table (see above). Nothing was changed"
   ok "no new table at $src; the installed one is kept"
@@ -366,11 +378,11 @@ if [ "$use_src" = 1 ]; then
     mark_changed "$cfg"
     ok "$cfg installed (foundry, 0600)"
   fi
-  trap - EXIT
   rm -f "${src:?}" "${remote_src:?}"
   ok "$src and $remote_src removed"
 fi
 rm -f "${cand:?}"
+trap - EXIT
 chown "$FOUNDRY_USER:$FOUNDRY_USER" "$cfg"
 chmod 0600 "$cfg"
 

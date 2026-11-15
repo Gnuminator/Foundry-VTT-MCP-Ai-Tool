@@ -169,7 +169,7 @@ export function parseEmails(text, users) {
       const name = m[2].trim();
       const userId = byName.get(name.toLowerCase());
       if (!userId) {
-        throw new UsageError(`emails file line ${i + 1}: "${name}" is not a name in the users file`);
+        throw new UsageError(`emails file line ${i + 1}: the name is not in the users file`);
       }
       if (seenEmail.has(email)) throw new UsageError(`emails file line ${i + 1}: email listed twice`);
       if (seenUser.has(userId)) {
@@ -736,13 +736,13 @@ export async function main(argv, deps = {}) {
       );
     }
     if (opts.out && opts.apply) checkOutFolder(opts.out);
+    const emails = opts.remote ? parseEmails(readFile(opts.emails), users) : [];
     token = env.CLOUDFLARE_API_TOKEN || (await prompt());
     token = String(token ?? '').trim();
     if (!token) throw new UsageError('no API token given');
     log.hide(token);
     const call = createClient({ fetch, token });
     if (opts.remote) {
-      const emails = parseEmails(readFile(opts.emails), users);
       await runRemote({ opts, emails, call, log, spawn, fallbackDir, repoRoot });
     } else {
       await run({ opts, users, call, log, spawn, fallbackDir, repoRoot });

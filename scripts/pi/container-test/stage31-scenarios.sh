@@ -132,7 +132,8 @@ fi
 # 2b. A device that was added but never connected or accepted the folder is no safe copy, whatever its percentage reads.
 mkdir -p /tmp/pc3-st
 HOME=/root syncthing generate --home=/tmp/pc3-st >/dev/null 2>&1
-pc3_id="$(HOME=/root syncthing device-id --home=/tmp/pc3-st 2>/dev/null | head -n 1)"
+pc3_id="$(grep -o '<device id="[A-Z0-9-]*"' /tmp/pc3-st/config.xml 2>/dev/null | head -n 1 | grep -o '[A-Z0-9-]{50,}' || true)"
+[ -n "$pc3_id" ] || fail "could not read pc3's device ID from its generated config"
 out="$(run_stage ADD=1 DEVICE_ID="$pc3_id" DEVICE_NAME=never-connects)"
 rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'stage 31 done: the PC is added'; then pass "ADD of pc3 (never connects) completes (exit 0)"; else fail "add pc3 (exit $rc): $out"; fi
@@ -179,8 +180,13 @@ wait_for 90 pc1_is 'connected, holds 100' || fail "pc1 did not reconnect with 10
 
 # 4.
 before="$(vault_sum)"
-out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
-rc=$?
+# After pc1 reconnects the Pi needs a moment to know its index again (remoteState valid): retry while it says so.
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
+  rc=$?
+  echo "$out" | grep -q 'does not know the index' || break
+  sleep 5
+done
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'is forgotten'; then pass "REMOVE of pc1 works once pc2 holds everything"; else fail "remove (exit $rc): $out"; fi
 if pi config devices list | grep -qx "$pc1_id"; then fail "pc1 is still a known device"; else pass "pc1 is forgotten"; fi
 [ "$before" = "$(vault_sum)" ] && pass "the vault files stayed" || fail "the vault changed"

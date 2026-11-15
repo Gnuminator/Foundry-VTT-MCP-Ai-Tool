@@ -1,7 +1,7 @@
 // The undo window of Recent Changes' Everyone tab (I-109): one modal that shows one stage of the
 // undo choice at a time (just this or everything since, the plan's lines, the rewind and its
 // second question) and answers with the button pressed. Styled by the shared
-// public/styles.css (.modal-wide, .undo-later, .undo-note,
+// web/src/styles/styles.css (.modal-wide, .undo-later, .undo-note,
 // .undo-advanced), as a modal Radix dialog like the confirm window. The stages and what each shows
 // are in lib/changes.ts; the flow that walks them is in panels/RecentChanges.tsx.
 import { Dialog } from 'radix-ui';

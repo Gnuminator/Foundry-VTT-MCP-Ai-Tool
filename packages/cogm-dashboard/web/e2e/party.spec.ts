@@ -6,6 +6,7 @@
 // Escape with a toast up.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
+import type { SessionSwitchesPostBody } from '../../src/api-bodies';
 import {
   GM_TOKEN,
   fakeCommonRoutes,
@@ -664,7 +665,12 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
   await page.route('**/api/session/switches', route =>
     route.fulfill({
-      json: { switches: { switches: [] }, gmActionsEnabled: true, gmActionsChanged: true },
+      json: {
+        ok: true,
+        switches: null,
+        gmActionsEnabled: true,
+        gmActionsChanged: true,
+      } satisfies SessionSwitchesPostBody,
     })
   );
   await preflight.locator('#btn-ready').click();

@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from 'express';
 
-import type { FeaturesBody, SessionSwitchesBody } from '../api-bodies.js';
+import type { FeatureRow, FeaturesBody, SessionSwitchesBody } from '../api-bodies.js';
 import { runDashboardPreflight } from '../preflight.js';
 import {
   isSessionSwitchAction,
@@ -10,6 +10,11 @@ import {
 } from '../session-switches.js';
 import type { RouteContext } from './context.js';
 import { asRecord } from './util.js';
+
+function isFeatureRow(value: unknown): value is FeatureRow {
+  const r = asRecord(value);
+  return typeof r.id === 'string' && typeof r.name === 'string' && typeof r.enabled === 'boolean';
+}
 
 /**
  * The feature cards, Turn on for tonight (D3, PB-17) and the pre-flight check. Moved out of
@@ -49,7 +54,7 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
       .then(raw => {
         const r = asRecord(raw);
         res.json({
-          features: Array.isArray(r.features) ? r.features : null,
+          features: Array.isArray(r.features) ? r.features.filter(isFeatureRow) : null,
           writesAllowed: typeof r.writesAllowed === 'boolean' ? r.writesAllowed : null,
           error: null,
         } satisfies FeaturesBody);

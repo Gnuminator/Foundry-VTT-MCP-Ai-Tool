@@ -45,7 +45,7 @@ const VARIANT_CLASS: Record<ButtonVariant, string | false> = {
 };
 
 /**
- * A button in the shared stylesheet's look (`.btn`, `.btn-primary`, ...), from public/styles.css. The type is
+ * A button in the shared stylesheet's look (`.btn`, `.btn-primary`, ...), from web/src/styles/styles.css. The type is
  * not defaulted: a button in a form submits it, as a plain <button> does. Everything else
  * (data-track, id, disabled, onClick) goes through.
  */

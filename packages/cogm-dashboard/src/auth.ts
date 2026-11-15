@@ -6,7 +6,7 @@ import type { AuthConfig } from './config.js';
  *
  * This is pure plumbing — no Express coupling beyond a tiny structural request
  * shape — so it unit-tests without a server. The split is OPT-IN: when
- * `auth.splitEnabled` is false the dashboard is single-user GM (single-user mode, the default).
+ * `auth.splitEnabled` is false the dashboard runs in single-user mode (one GM, the default).
  *
  * Resolution order when the split is active:
  *   1. Cloudflare Access email ∈ GM allow-list           → 'gm' (only an email from a

@@ -691,6 +691,7 @@ const NOT_CONTRACT = [
   'actor-image',
   'character-entity',
   'character-sheet',
+  'client-versions',
   'combat-change',
   'export-index',
   'foundry-setup',

@@ -60,6 +60,11 @@ export function findUnready(prs, backlogText, notesFor) {
   for (const [, progress] of parseProgress(backlogText)) {
     const r = parseReady(progress);
     if (r) handled.add(r.pr);
+    // The runner's own refusal replaced the ready line: the lane has been told, no second notice.
+    const refused = /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) refused by the merge gate/.exec(
+      (progress.split('\n').at(-1) ?? '').trim()
+    );
+    if (refused) handled.add(Number(refused[1]));
   }
   /** @type {Unready[]} */
   const out = [];
@@ -73,7 +78,7 @@ export function findUnready(prs, backlogText, notesFor) {
     out.push({
       pr: p.number,
       head: p.headRefOid,
-      ids: backlogIds(p.body ?? ''),
+      ids: [...backlogIds(p.body ?? ''), ...backlogIds(p.body ?? '', 'Backlog-part')],
       title: String(p.title ?? '')
         .split(/\s+/)
         .slice(0, 10)
@@ -110,6 +115,12 @@ export function announceUnready(d, backlogText, tried) {
   for (const u of d.unready?.(backlogText) ?? []) {
     const key = unreadyKey(u);
     if (tried.has(key) || d.noticeSeen?.(key)) continue;
+    // The usual handoff (note, then ready line) takes minutes: post only when a second round
+    // still finds the PR in this state.
+    if (!tried.has(`pending-${key}`)) {
+      tried.add(`pending-${key}`);
+      continue;
+    }
     tried.add(key);
     d.log(`#${u.pr}: CI green and a Merge note for the head, but no ready line`);
     d.post(`merge runner: ${unreadyLine(u)}`);

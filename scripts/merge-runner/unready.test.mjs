@@ -126,6 +126,11 @@ test('the runner posts the notice once per head, not every round, and writes not
   const { d, posts } = deps([u]);
   const tried = new Set();
   round(d, tried, new Map());
+  assert.equal(
+    posts.length,
+    0,
+    'the first sighting posts nothing (the usual handoff is under way)'
+  );
   round(d, tried, new Map());
   round(d, tried, new Map());
   assert.equal(posts.length, 1);
@@ -133,6 +138,7 @@ test('the runner posts the notice once per head, not every round, and writes not
   // a new head is a new notice
   const [u2] = findUnready([pr({ headRefOid: H2 })], backlog(''), () => notes(H2));
   const next = deps([u2]);
+  round(next.d, tried, new Map());
   round(next.d, tried, new Map());
   assert.equal(next.posts.length, 1);
   assert.notEqual(unreadyKey(u), unreadyKey(u2));
@@ -142,9 +148,26 @@ test('a notice remembered across restarts is not posted again', () => {
   const [u] = findUnready([pr()], backlog(''), () => notes(H1));
   const seen = new Set([unreadyKey(u)]);
   const { d, posts } = deps([u], { noticeSeen: k => seen.has(k), noticeMark: k => seen.add(k) });
-  round(d, new Set(), new Map());
+  const t1 = new Set();
+  round(d, t1, new Map());
+  round(d, t1, new Map());
   assert.equal(posts.length, 0);
   const fresh = deps([u], { noticeSeen: () => false, noticeMark: k => seen.add(k) });
-  round(fresh.d, new Set(), new Map());
+  const t2 = new Set();
+  round(fresh.d, t2, new Map());
+  round(fresh.d, t2, new Map());
   assert.equal(fresh.posts.length, 1);
+});
+
+test('a PR whose ready line the runner replaced with a refusal gets no notice', () => {
+  const refused = backlog('PR #7 refused by the merge gate: main red');
+  assert.deepEqual(
+    findUnready([pr()], refused, () => notes(H1)),
+    []
+  );
+});
+
+test('a Backlog-part PR names its item', () => {
+  const [u] = findUnready([pr({ body: 'Backlog-part: skip-item' })], backlog(''), () => notes(H1));
+  assert.deepEqual(u.ids, ['skip-item']);
 });

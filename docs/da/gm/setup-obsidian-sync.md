@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 4700aadf5763
+sourceHash: 3a58d1c3a082
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -24,9 +24,12 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 1. Klik på Start, skriv **PowerShell**, tryk Enter.
 2. Skriv `winget install Syncthing.Syncthing` og tryk Enter. Sig ja, hvis den spørger om vilkårene.
 3. Luk PowerShell og åbn den igen, skriv så `syncthing` og tryk Enter.
-4. Din browser åbner Syncthing-siden (adressen er `http://127.0.0.1:8384`; den virker kun på din egen
-   pc). Lad PowerShell-vinduet stå åbent, mens du gør resten. Hvis Syncthing spørger om anonym
-   usage reporting, vælg **No**. En advarsel om at sætte et GUI-password kan vente.
+4. PowerShell-vinduet fyldes med linjer af log-tekst og bliver så stille. Det er normalt: Syncthing
+   kører, så lad vinduet stå åbent, mens du gør resten. Din browser burde åbne Syncthing-siden. Hvis
+   ingen browser åbner, så åbn selv en og gå til `http://127.0.0.1:8384` (den virker kun på din egen
+   pc). I de første sekunder kan Syncthing bede din router om at åbne porte; trin 5 slår det fra.
+   Hvis Syncthing spørger om anonym usage reporting, vælg **No**. En advarsel om at sætte et
+   GUI-password kan vente.
 5. Klik på **Actions**, **Settings**, **Connections**, fjern fluebenet ved **Enable NAT traversal** (så
    Syncthing aldrig beder din router om at åbne en port) og klik på **Save**.
 
@@ -48,7 +51,8 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 2. En ny bjælke tilbyder mappen **Foundry GM vault**. Klik på **Add**.
 3. I vinduet, der åbner, sæt **Folder Path** til
    `C:\Users\<dit navn>\Documents\Obsidian\Foundry GM vault` (Syncthing opretter den).
-4. Åbn fanen **Ignore Patterns** og indsæt disse linjer:
+4. Åbn fanen **Ignore Patterns** og sæt flueben ved **Add ignore patterns**. Klik på **Save**. En ny
+   boks åbner: indsæt disse linjer i den og klik på **Save** igen:
 
    ```text
    .obsidian/workspace*.json
@@ -60,7 +64,7 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 
    De holder hver pcs egne Obsidian-indstillinger ude af synkroniseringen.
 
-5. Klik på **Save**. Mapperækken viser **Syncing** og derefter **Up to Date** i grønt.
+5. Mapperækken viser **Syncing** og derefter **Up to Date** i grønt.
 
 ## 5. Åbn vaulten i Obsidian
 
@@ -71,14 +75,18 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 
 ## 6. Lad Syncthing starte af sig selv ved login
 
-1. Kør `(Get-Command syncthing).Source` i PowerShell og kopiér den sti, den skriver.
+1. Åbn et nyt PowerShell-vindue (det fra trin 2 er optaget af at køre Syncthing). Kør
+   `(Get-Command syncthing).Source` og kopiér den sti, den skriver.
 2. Tryk **Win + R**, skriv `shell:startup`, tryk Enter. En mappe åbner.
 3. Højreklik på et tomt sted, **New**, **Shortcut**. Som placering skriv den kopierede sti i
    anførselstegn, et mellemrum og så `--no-browser`. Kald den **Syncthing**. Afslut.
 4. Højreklik på den nye genvej, **Properties**, sæt **Run** til **Minimized**, **OK**.
 
-Nu kan du lukke PowerShell-vinduet fra trin 2. Næste gang du logger ind i Windows, starter Syncthing af
-sig selv.
+5. Luk PowerShell-vinduet fra trin 2 (det stopper Syncthing), og dobbeltklik så på den nye genvej i
+   startup-mappen. Syncthing kører igen, uden vindue og uden at åbne browseren. Åbn
+   `http://127.0.0.1:8384` for at tjekke, at siden er tilbage.
+
+Næste gang du logger ind i Windows, starter Syncthing af sig selv.
 
 ## Færdig, når det ser sådan ud
 
@@ -102,8 +110,10 @@ sig selv.
 
 ## Hvis det ikke virker
 
-- **Syncthing-siden åbner ikke:** Syncthing kører ikke. Start den fra PowerShell med `syncthing`, og åbn
-  så selv `http://127.0.0.1:8384`.
+- **Syncthing-siden åbner ikke:** enten åbnede ingen browser af sig selv (åbn selv
+  `http://127.0.0.1:8384`), eller også kører Syncthing ikke. Start den fra PowerShell med `syncthing`
+  (vinduet bliver så stille; lad det stå åbent) eller dobbeltklik på genvejen fra trin 6, og åbn så
+  `http://127.0.0.1:8384`.
 - **foundry-pi siger Disconnected:** den, der byggede værktøjet, har ikke tilføjet dit ID endnu, eller
   serveren er slukket. Send ID'et igen og bed dem tjekke serveren.
 - **Ingen gul bjælke for mappen:** vent et minut. Kommer den stadig ikke, så sig det til den, der byggede

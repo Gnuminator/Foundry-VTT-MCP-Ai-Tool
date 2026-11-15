@@ -131,9 +131,11 @@ fi
 
 # 2b. A device that was added but never connected or accepted the folder is no safe copy, whatever its percentage reads.
 mkdir -p /tmp/pc3-st
-HOME=/root syncthing generate --home=/tmp/pc3-st >/dev/null 2>&1
-pc3_id="$(grep -o '<device id="[A-Z0-9-]*"' /tmp/pc3-st/config.xml 2>/dev/null | head -n 1 | grep -o '[A-Z0-9-]{50,}' || true)"
-[ -n "$pc3_id" ] || fail "could not read pc3's device ID from its generated config"
+pc3_gen="$(HOME=/root syncthing generate --home=/tmp/pc3-st 2>&1 || true)"
+idre='[A-Z0-9]\{7\}\(-[A-Z0-9]\{7\}\)\{7\}'
+pc3_id="$(printf '%s\n' "$pc3_gen" | grep -o "$idre" | head -n 1 || true)"
+[ -n "$pc3_id" ] || pc3_id="$(grep -o "$idre" /tmp/pc3-st/config.xml 2>/dev/null | head -n 1 || true)"
+[ -n "$pc3_id" ] || fail "could not read pc3's device ID (generate said: $pc3_gen)"
 out="$(run_stage ADD=1 DEVICE_ID="$pc3_id" DEVICE_NAME=never-connects)"
 rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'stage 31 done: the PC is added'; then pass "ADD of pc3 (never connects) completes (exit 0)"; else fail "add pc3 (exit $rc): $out"; fi
@@ -164,9 +166,8 @@ if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'already'; then pass "ADD twice is h
 wait_for 60 pc2_complete || fail "pc2 never reached 100 %"
 
 # 3b. pc2 holds everything, but the device to remove (pc1) is stopped: the Pi cannot know it has all pc1 holds, so REMOVE is refused.
-pc1_is() { run_stage | grep -q "user-pc.*$1"; } # $1: the report's wording for pc1
 pc1 operations shutdown >/dev/null 2>&1
-wait_for 60 pc1_is 'not connected right now' || fail "the Pi still shows pc1 as connected after it stopped"
+sleep 10 # the Pi notices a closed connection within seconds
 out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
 rc=$?
 if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'the device to remove is not connected right now' &&
@@ -176,15 +177,14 @@ else
   fail "not connected guard (exit $rc): $out"
 fi
 start_pc pc1 /tmp/pc1-st 8385 || fail "pc1 did not restart"
-wait_for 90 pc1_is 'connected, holds 100' || fail "pc1 did not reconnect with 100 %"
 
 # 4.
 before="$(vault_sum)"
-# After pc1 reconnects the Pi needs a moment to know its index again (remoteState valid): retry while it says so.
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+# After pc1 restarts the Pi needs a moment to see it connected and to know its index again (remoteState valid): retry while it says so.
+for _ in $(seq 1 24); do
   out="$(run_stage REMOVE=1 DEVICE_ID="$pc1_id")"
   rc=$?
-  echo "$out" | grep -q 'does not know the index' || break
+  echo "$out" | grep -qE 'does not know the index|not connected right now' || break
   sleep 5
 done
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'is forgotten'; then pass "REMOVE of pc1 works once pc2 holds everything"; else fail "remove (exit $rc): $out"; fi

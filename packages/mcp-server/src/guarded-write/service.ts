@@ -47,6 +47,7 @@ import {
   notFoundMessage,
   PLAN_GONE_TAIL,
   unwrapBridgeReply,
+  sleep,
   WRITES_OFF_MESSAGE,
 } from '@gnuminator/shared';
 
@@ -310,10 +311,6 @@ function isNeverSent(error: unknown): boolean {
   return /^(Query \S+ failed: )?(Foundry VTT module not connected|Not connected to Foundry VTT module)/i.test(
     message
   );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function newId(prefix: string, now: number): string {

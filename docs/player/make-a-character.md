@@ -48,10 +48,9 @@ Two small things that save trouble:
 
 ![The Actors tab with the Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
 
-The first time you log in, two windows open by themselves: the Actor Studio welcome window and
-Foundry's **User Configuration**. Tick **Don't show this message again** in the welcome window and
-close it. Close User Configuration too: you pick your character there in
-[step 11](#11-make-it-your-character), and until you do, it opens again every time you join.
+The first time you log in, Foundry's **User Configuration** may open by itself. Close it: Actor
+Studio makes your new character yours when you click Create Character (see
+[step 11](#11-make-it-your-character)). There is no Actor Studio welcome window to deal with.
 
 The builder window has the tabs **Abilities**, **Species**, **Background** and **Class**, a
 **Character Name** box at the bottom and a bar that says how far you are.
@@ -133,8 +132,9 @@ The steps you will see, roughly in this order:
 - **Size:** the step may be set to **Small** even for a species that is Medium (a human, for
   example). Open the list and choose **Medium** unless your species really is small.
 - **Choices with a counter**, like Divine Order for a cleric: the step shows **Chosen 0 of 1**.
-  Next lets you through at 0, so wait until it reads **Chosen 1 of 1** (or whatever the second
-  number is). If you clicked past one, press **Previous** to go back and choose.
+  Wait until it reads **Chosen 1 of 1** (or whatever the second number is). If you click Next or
+  Complete too early, a box says **Choices still open**: click **Go back** and choose. **Continue
+  anyway** is there only for a step that has nothing left to pick.
 - **Background ability scores:** raise the three listed scores: one by 2 and another by 1, or all
   three by 1. Click **+** next to the scores until it says **0 Points Remaining**.
 
@@ -228,7 +228,9 @@ level at a time, with the same builder.
      click **Next**.
 5. Click **Complete** on the last step. **At level 3 a second window then opens with your
    subclass's features (for example "Champion • Level 2 -> 3, Step 1 of 1"). Click Complete in it
-   too.** If you skip it, the sheet shows the new level but no subclass and no subclass features.
+   too.** If you close Studio before that, your sheet shows a bar **The level-up is not finished:
+   (subclass) was not added** with an **Add the subclass** button. Click it and click Complete in the
+   window that opens.
 6. Do this twice: level 1 to 2 first (no subclass then, so go straight to **Add Character
    Level**), then level 2 to 3.
 
@@ -274,6 +276,9 @@ Knowing what your character can do is your job, so the game doesn't stop to look
 ## 11. Make it your character
 
 Foundry needs to know which character is yours, so it uses it for your rolls and tokens.
+Actor Studio does this for you when you click **Create Character**, and the Players list then
+shows your name with the character's name in brackets. Only if it does not (for example when you
+already had a character picked), do it by hand:
 
 1. In the **Players** list at the bottom left, right-click your own name and choose **User
    Configuration**.
@@ -312,14 +317,14 @@ or is too big, is refused with a short message; send it to the GM on Discord ins
 | You closed the builder halfway, or the page reloaded | Reload the page (F5). A box asks if you want to resume your character: click **Resume** and answer the unfinished choices again. If you missed the box, open the half-made character in the Actors tab and click **Resume in Actor Studio** in the orange bar. A character with no orange bar cannot be resumed: ask the GM to delete it, then start again. |
 | Actor Studio says it is "already open and busy"      | The half-made character is blocking it. Reload the page (F5). Players can't delete characters, so ask the GM to delete the half-made one.                                                                                                                                                                                                                   |
 | AC is lower than it should be                        | Equip your armour and shield on the **Inventory** tab of your sheet.                                                                                                                                                                                                                                                                                        |
-| Next lets you through a step with nothing chosen     | Press **Previous** and choose. Check the **Chosen x of y** counter before every Next.                                                                                                                                                                                                                                                                       |
+| A box says "Choices still open"                      | You clicked Next or Complete with a **Chosen x of y** counter not full. Click **Go back** and choose. **Continue anyway** only when nothing is left to pick.                                                                                                                                                                                                |
 | There is no **Level Up** button on your sheet        | The GM has to switch on Milestone Levelling, or give you XP. Tell them.                                                                                                                                                                                                                                                                                     |
-| Level 3 shows, but no subclass on the sheet          | You skipped the second **Complete** (the subclass's features window). Tell the GM, who can add the subclass.                                                                                                                                                                                                                                                |
-| You skipped a choice with Next                       | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it.                                                                                                                                                                                                                                                    |
+| Level 3 shows, but no subclass on the sheet          | You closed Studio before the subclass window was finished. Open your sheet and click **Add the subclass** in the bar at the top, then Complete.                                                                                                                                                                                                             |
+| You skipped a choice with Continue anyway            | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it.                                                                                                                                                                                                                                                    |
 | Equipment stays below 100%                           | Click the gold amounts, and pick from every **Select focus** list, until everything is green.                                                                                                                                                                                                                                                               |
 | The panel is blank after you click Complete          | Wait about 5 seconds. The next step appears by itself.                                                                                                                                                                                                                                                                                                      |
 | A list is not what the GM described                  | The GM may have changed the settings after you opened the page. Reload the page (F5).                                                                                                                                                                                                                                                                       |
-| Your character is named after you                    | You left Character Name as it was. Tell the GM, who can rename it.                                                                                                                                                                                                                                                                                          |
+| Your character is named after you                    | Studio asks before it creates one: click **Go back** and type the name. If it slipped through, tell the GM, who can rename it.                                                                                                                                                                                                                              |
 | You picked a wrong spell, or the same spell twice    | Tell the GM. They can swap it on your sheet.                                                                                                                                                                                                                                                                                                                |
 
 ## What to ask your GM

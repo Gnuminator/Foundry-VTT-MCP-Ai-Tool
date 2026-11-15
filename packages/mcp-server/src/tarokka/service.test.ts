@@ -10,6 +10,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { GuardedWriteService } from '../guarded-write/service.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
@@ -39,8 +40,7 @@ beforeEach(async () => {
   foundry.features = [{ id: 'tarokka', name: 'Tarokka', hint: '', enabled: true }];
   store = new VaultStore({ dataDir });
   now = Date.parse('2026-09-28T20:00:00.000Z');
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const worldIds = { current: (): Promise<string> => Promise.resolve(WORLD) };
   guarded = new GuardedWriteService({
     foundryClient: foundry,

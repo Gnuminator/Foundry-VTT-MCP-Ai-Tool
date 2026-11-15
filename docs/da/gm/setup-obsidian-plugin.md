@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: d1fc28a8feb4
+sourceHash: 5a4ec6032503
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -16,6 +16,13 @@ Går du i stå? Spørg først Claude: åbn en chat med GM coach slået til og sk
 **Du skal bruge:** vaulten åben i Obsidian, dashboardets adresse og tre værdier fra den, der byggede
 værktøjet (GM-token, Cloudflare Client ID og Cloudflare Client Secret). De giver dig dem privat; indsæt
 dem aldrig i en chat eller en note.
+
+- **GM-token:** en adgangskode, værktøjet bruger i stedet for et brugernavn. Den, der byggede værktøjet,
+  sender den til dig privat, og du kan ikke gøre trin 3 nedenfor, før du har den.
+- **Cloudflare Client ID:** den, der slutter på `.access`.
+- **Cloudflare Client Secret:** den, der starter med `cfast_`.
+
+Dette Cloudflare-par er det, der er lavet til Obsidian. Det er ikke det par, du brugte til Claude Desktop.
 
 ## Installer pluginet
 
@@ -35,8 +42,13 @@ dem aldrig i en chat eller en note.
 2. **Dashboard address:** skriv dashboardets https-adresse. Brug https: pluginet sender de to
    Cloudflare-værdier kun til en https-adresse, aldrig til en almindelig http-adresse (så
    `http://localhost` kommer ikke igennem Cloudflare-loginet). GM-token'et følger med hvert kald.
-3. Klik på feltet **GM token**, derefter **Add secret**. I **ID** skriv `foundry-gm-token`, i **Secret**
-   indsæt kun selve token'et, **Save**. Vælg den i listen.
+3. Læg GM-token'et ind:
+   1. Klik på feltet **GM token**.
+   2. Klik på **Add secret**.
+   3. I **ID** skriv `foundry-gm-token`.
+   4. I **Secret** indsæt kun selve token'et.
+   5. Klik på **Save**.
+   6. Vælg `foundry-gm-token` i listen.
 4. Gør det samme for **Cloudflare Access Client ID** (ID `cf-access-client-id`) og **Cloudflare Access
    Client Secret** (ID `cf-access-client-secret`).
 

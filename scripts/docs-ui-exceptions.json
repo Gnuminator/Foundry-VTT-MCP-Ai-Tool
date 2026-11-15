@@ -6,6 +6,7 @@
     { "name": "Send me a code", "reason": "Cloudflare Access sign-in page button" },
     { "name": "Sign in", "reason": "Cloudflare Access sign-in page button" },
     { "name": "Projects", "reason": "Claude app menu" },
+    { "name": "Add secret", "reason": "Obsidian secret storage button in the plugin settings" },
     { "name": "Installed plugins", "reason": "Obsidian Community plugins settings heading" },
     { "name": "Turn on community plugins", "reason": "Obsidian Community plugins settings button" },
     {

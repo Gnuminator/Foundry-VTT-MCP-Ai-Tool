@@ -1,6 +1,6 @@
 ---
 source: gm/obsidian.md
-sourceHash: 8c51160cbc4d
+sourceHash: c0dc2c63780d
 title: Din Obsidian-vault
 description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, og hvordan du forbinder AI Tool-pluginet til dashboardet på serveren.
 ---
@@ -90,6 +90,19 @@ En linje er `name`, `count: name` eller `name, hit points, armor class` (tallene
 ignoreret). Claude læser op til 3 blokke pr. note, 12 skabninger pr. blok og 5 noter. En note med
 `ai_context` sat til false bliver sprunget over, og kun blokkens navn og skabninger bliver givet
 videre, aldrig resten af noten.
+
+## Må jeg omdøbe ting?
+
+- **I Foundry, ja, frit.** Omdøb scenes, journals, actors og resten, som du vil, så et korts navn
+  passer til Foundry. Værktøjet finder hver note på et id inde i den (`fvtt_uuid`), aldrig på
+  navn eller placering, så vaulten følger med af sig selv. Set på testserveren: efter at en scene og
+  en journal blev omdøbt, beholdt noterne deres filnavne, men egenskaben `name`, den første
+  overskrift og aliaset inde i dem skiftede til det nye navn inden for et minut. Når et dokument
+  flyttes til en anden Foundry-mappe, flytter dens note til den tilsvarende mappe og får det
+  nuværende navn som filnavn.
+- **I AI Tool-mappen skal du ikke omdøbe, flytte eller redigere noget.** Den mappe er værktøjets. En
+  note, du redigerer, holder op med at blive opdateret og står i `_status.md`.
+- **Prep og Home er dine.** Omdøb, flyt og redigér dem, som du vil.
 
 ## Grafen
 

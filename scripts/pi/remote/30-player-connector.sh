@@ -45,6 +45,7 @@ remote_src="${REMOTE_SRC_FILE:-/root/player-connector.remote.json.new}"
 cfg="$TOOL_ETC/player-connector.json"
 envf="$TOOL_ETC/player-connector.env"
 access="$TOOL_ETC/dashboard-access.env"
+dash_base=http://127.0.0.1:3000
 dash_unit=foundry-ai-tool-dashboard.service
 bridge_unit=foundry-ai-tool-bridge.service
 node="$NODE_DIR/bin/node"
@@ -207,13 +208,13 @@ if [ "$check" = 1 ]; then
   done
   if have_systemd; then
     for u in "$dash_unit" "$bridge_unit"; do systemctl is-active --quiet "$u" && ok "$u is running" || die "$u is not running"; done
-    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $host" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $host" -H 'content-type: application/json' -d '{}' $dash_base/mcp/player || true)"
     [ "$code" = 401 ] && ok "/mcp/player with no token: 401" || die "/mcp/player with no token gave '$code', expected 401"
     if [ "$rhost" != "-" ]; then
-      code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $rhost" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
+      code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $rhost" -H 'content-type: application/json' -d '{}' $dash_base/mcp/player || true)"
       [ "$code" = 401 ] && ok "/mcp/player on $rhost with no login: 401" || die "/mcp/player on $rhost with no login gave '$code', expected 401"
     fi
-    code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' http://127.0.0.1:3000/ || true)"
+    code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' $dash_base/ || true)"
     [ "$code" = 421 ] && ok "an unlisted name: 421" || die "an unlisted name gave '$code', expected 421"
     ok "ports 31414 to 31416 listening: $(ports_line)"
     cp_rc=0
@@ -420,16 +421,16 @@ else
   sleep 2
   code=""
   for _ in $(seq 1 30); do
-    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $host" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $host" -H 'content-type: application/json' -d '{}' $dash_base/mcp/player || true)"
     [ "$code" != 000 ] && [ -n "$code" ] && break
     sleep 1
   done
   [ "$code" = 401 ] && ok "/mcp/player with no token: 401" || bad "/mcp/player with no token gave '$code', expected 401 (journalctl -u $dash_unit -n 30)"
   if [ "$rhost" != "-" ]; then
-    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $rhost" -H 'content-type: application/json' -d '{}' http://127.0.0.1:3000/mcp/player || true)"
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Host: $rhost" -H 'content-type: application/json' -d '{}' $dash_base/mcp/player || true)"
     [ "$code" = 401 ] && ok "/mcp/player on $rhost with no login: 401" || bad "/mcp/player on $rhost with no login gave '$code', expected 401"
   fi
-  code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' http://127.0.0.1:3000/ || true)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: not-listed.example' $dash_base/ || true)"
   [ "$code" = 421 ] && ok "an unlisted name: 421" || bad "an unlisted name gave '$code', expected 421"
   ports_after="$(ports_line)"
   if [ "$ports_before" = "$ports_after" ]; then ok "ports 31414 to 31416 as before: $ports_after"; else bad "ports 31414 to 31416 changed: before '$ports_before', after '$ports_after'"; fi

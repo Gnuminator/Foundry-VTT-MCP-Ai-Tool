@@ -42,11 +42,11 @@ require_recent_snapshot
 refuse_when_cut_over "stage 13 (player creation)"
 require_arm64
 
-# The pinned build: the fork's 2.10.5-aitool.12 release (tag on commit 786a383d), sha256sum of its
+# The pinned build: the fork's 2.10.5-aitool.13 release (tag on commit 10593ab0), sha256sum of its
 # module.zip. For a newer build, set PINNED_SHA256=PENDING-RELEASE until its release exists: the stage then
 # refuses to run unless the environment gives it a zip and a checksum (STUDIO_ZIP and STUDIO_SHA256).
-PINNED_VERSION=2.10.5-aitool.12
-PINNED_SHA256=a2f0299423ea03564db0668edca897f2245616eefd49d2f5236b13c3696c6f36
+PINNED_VERSION=2.10.5-aitool.13
+PINNED_SHA256=d78718cb38225e98310baaaff38a53f4d016937c0c1818d545e5288659dc0ab8
 MODULE_ID=foundryvtt-actor-studio
 RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/download
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)

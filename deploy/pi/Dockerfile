@@ -42,7 +42,8 @@ COPY scripts/tsc7.mjs         ./scripts/
 COPY scripts/usage-catalog.mjs ./scripts/
 COPY packages/foundry-module/src/ ./packages/foundry-module/src/
 
-RUN npm run build
+# The shared build must really emit: tsc exits 0 without writing dist when a stale tsbuildinfo says it is up to date.
+RUN npm run build && test -f shared/dist/index.js && test -f shared/dist/index.d.ts
 
 # ---- deps: production dependencies only -----------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS deps

@@ -8,6 +8,9 @@
 #
 # Packages, from Debian 13 (trixie) itself, not Docker's own apt repository, so nothing is added to /etc/apt:
 #   docker.io        the engine (trixie: 26.1.x), pulls in containerd, runc and iptables
+#   docker-cli       the `docker` command. On Debian 13 docker.io only Recommends it, so without it there is no `docker` on PATH
+#                    (found on the Pi 2026-11-15); installed when the archive has the package (Debian 12 has no such package:
+#                    docker.io carries the command there)
 #   docker-compose-v2 or docker-compose
 #                    the compose plugin ("docker compose"). Debian 13 ships the Go rewrite as `docker-compose` (2.26.x, with the
 #                    CLI plugin under /usr/libexec/docker/cli-plugins); Ubuntu calls the same thing `docker-compose-v2`. The stage
@@ -148,7 +151,7 @@ if [ "$dry" = 1 ]; then
   else
     echo "    docker: not installed"
   fi
-  echo "    packages a real run installs when missing: docker.io, $(pick_package docker-compose-v2 docker-compose || echo '(no compose package has a candidate: apt-get update first)'), docker-buildx"
+  echo "    packages a real run installs when missing: docker.io, docker-cli, $(pick_package docker-compose-v2 docker-compose || echo '(no compose package has a candidate: apt-get update first)'), docker-buildx"
   if [ ! -e "$daemon_json" ]; then echo "    would write $daemon_json: live-restore true"; else echo "    $daemon_json exists: checked, not rewritten"; fi
   echo "    would write $env_file:"
   printf '%s\n' "$env_content" | sed 's/^/      /'
@@ -168,10 +171,11 @@ if ! command -v docker >/dev/null 2>&1 || ! dpkg -s docker.io >/dev/null 2>&1 ||
   compose_pkg="$(pick_package docker-compose-v2 docker-compose)" ||
     die "neither docker-compose-v2 nor docker-compose has an install candidate on this Debian: check /etc/apt/sources.list. Nothing was changed"
   pkgs=(docker.io "$compose_pkg")
+  if pick_package docker-cli >/dev/null; then pkgs+=(docker-cli); fi
   if pick_package docker-buildx >/dev/null; then pkgs+=(docker-buildx); fi
   apt_install "${pkgs[@]}"
 fi
-command -v docker >/dev/null 2>&1 || die "docker is not on PATH after the install"
+command -v docker >/dev/null 2>&1 || die "docker is not on PATH after the install (on Debian 13 the command comes from the docker-cli package, not docker.io)"
 version_ok "$(compose_version)" || die "docker compose is '$(compose_version)'; $min_compose or newer is needed (deploy/pi/compose.yml uses env_file required: false)"
 ok "$(docker --version 2>/dev/null), compose $(compose_version)"
 

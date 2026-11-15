@@ -193,6 +193,15 @@ function render() {
           : renderFancy(s);
 }
 
+/** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */
+function showClientUpdate(update) {
+  const box = $('me-update');
+  const ok = update && typeof update.da === 'string' && typeof update.en === 'string';
+  box.hidden = !ok;
+  $('me-update-da').textContent = ok ? update.da : '';
+  $('me-update-en').textContent = ok ? update.en : '';
+}
+
 async function load() {
   if (!key) {
     $('me-main').innerHTML = '<p class="me-empty">Open the link your GM sent you.</p>';
@@ -204,6 +213,7 @@ async function load() {
     if (!res.ok) throw new Error(body.error || 'Could not load your sheet. Ask your GM.');
     data = body;
     applyTheme(body.theme);
+    showClientUpdate(body.clientUpdate);
     render();
     $('me-updated').textContent =
       `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;

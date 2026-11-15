@@ -1,6 +1,12 @@
 import type { Express } from 'express';
 import { createSpaceStatusReader } from '@gnuminator/shared';
 
+import { isGm, resolveRole, type AuthRequest } from '../auth.js';
+import {
+  ClientRegistry,
+  mountClientVersionsRoute,
+  obsidianClientRecorder,
+} from '../client-versions.js';
 import type { DashboardDeps } from '../dashboard-types.js';
 import { mountHandoutSeenRoute } from '../handout-seen-route.js';
 import { mountHelpRoute } from '../help-route.js';
@@ -26,6 +32,14 @@ export interface FeatureRouteDeps {
   links: PlayerLinkStore;
   /** The built help (I-064): deps.helpFile, else the default URLs app.ts builds next to itself. */
   helpFile: string | URL | URL[];
+  /** Client versions seen (item client-updates); made on first use (deps.clients in tests). */
+  clients?: ClientRegistry;
+}
+
+/** The one client registry these routes share. */
+function clientsOf(f: FeatureRouteDeps): ClientRegistry {
+  f.clients ??= f.deps.clients ?? new ClientRegistry();
+  return f.clients;
 }
 
 /**
@@ -39,6 +53,12 @@ export function mountRawBodyRoutes(
 ): PlayerConnectorOptions {
   const { config, client, logger, requireGm, sse } = ctx;
   const { deps, directory } = f;
+  // The Obsidian plugin's version header (item client-updates), recorded for requests that pass
+  // the GM check. Runs after the Access identity (app.ts mounts these routes after it); never
+  // rejects a request.
+  app.use(
+    obsidianClientRecorder(clientsOf(f), req => isGm(resolveRole(req as AuthRequest, config.auth)))
+  );
   // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
   // body after its guards.
   mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });
@@ -68,6 +88,7 @@ export function mountRawBodyRoutes(
     client,
     directory,
     logger,
+    clients: clientsOf(f),
     ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
   });
   return playerConnector;
@@ -90,6 +111,7 @@ export function mountMeSpaceVersionRoutes(
     directory,
     requireGm,
     logger,
+    clients: clientsOf(f),
     worldId: () => ctx.world()?.id ?? null,
     events: () => state.recentEvents,
     onRolled: () => ctx.pollEventsNow(),
@@ -107,6 +129,16 @@ export function mountMeSpaceVersionRoutes(
       ...(deps.spaceNow ? { now: deps.spaceNow } : {}),
       log: message => spaceLogger.info(message),
     }),
+  });
+
+  // Client versions (item client-updates): GM only; the connector rows come from the backend.
+  mountClientVersionsRoute(app, {
+    requireGm,
+    registry: clientsOf(f),
+    wrapperStatus:
+      typeof client.wrapperStatus === 'function'
+        ? (): Promise<unknown> => client.wrapperStatus!()
+        : undefined,
   });
 
   // The version tracker (I-127): GM only, on by default, the GM can switch it off in the Advanced menu.

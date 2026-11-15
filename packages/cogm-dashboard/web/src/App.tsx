@@ -145,6 +145,11 @@ const loadCombatStrip = (): Promise<{
 }> => import('./components/CombatStrip').then(m => ({ default: m.CombatStrip }));
 const CombatStrip = lazy(loadCombatStrip);
 
+// The outdated-client banner pulls in the shared texts, so it stays out of the first load.
+const ClientNotice = lazy(() =>
+  import('./components/ClientNotice').then(m => ({ default: m.ClientNotice }))
+);
+
 // The opt-in screens (live screen A, the strip page, the GM page) share one chunk, picked by name.
 const OptInScreen = lazy(() =>
   import('./components/OptInScreen').then(m => ({ default: m.OptInScreen }))
@@ -473,6 +478,9 @@ function Dashboard(): JSX.Element {
       <PlanLink />
       <RoleNotice />
       <VersionBanner />
+      <Suspense fallback={null}>
+        <ClientNotice />
+      </Suspense>
       <MomentViews
         moment={moment}
         slotRefs={slotRefs}

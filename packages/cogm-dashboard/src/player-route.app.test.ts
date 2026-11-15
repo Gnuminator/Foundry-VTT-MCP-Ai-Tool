@@ -13,6 +13,8 @@ import { inflateRawSync } from 'zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDashboard } from './app.js';
+import { TOOL_VERSION } from '@gnuminator/shared';
+import { ClientRegistry } from './client-versions.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
@@ -92,6 +94,8 @@ async function start(
     client?: Record<string, unknown>;
     /** CF_ACCESS_TEAM_DOMAIN as set, parsed or not. */
     teamDomainRaw?: string;
+    /** The client version registry the dashboard records into. */
+    clients?: ClientRegistry;
   } = {}
 ): Promise<{ base: string; calls: Call[]; warns: string[] }> {
   const calls: Call[] = [];
@@ -148,6 +152,7 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'player-route'),
     client,
+    ...(options.clients ? { clients: options.clients } : {}),
     accessFetch: () =>
       options.keyFetchFails
         ? Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
@@ -745,5 +750,149 @@ describe('/me: Your Claude connector', () => {
     const none = await start({ file: null });
     const key2 = await linkFor(none.base, ALICE);
     expect(await (await connector(none.base, key2)).json()).toEqual({ enabled: false });
+  });
+});
+
+describe('client versions (item client-updates)', () => {
+  const ua = (v: string): Record<string, string> => ({
+    ...asA,
+    'user-agent': `foundry-player-connector/${v}`,
+  });
+  const gmHeaders = { 'X-CoGM-Token': GM_TOKEN };
+  const texts = (body: unknown): string[] =>
+    (body as { result: { content: Array<{ text: string }> } }).result.content.map(c => c.text);
+
+  it('adds one outdated line to a successful call, once per interval', async () => {
+    const clients = new ClientRegistry();
+    const { base } = await start({ clients });
+    const first = texts(await (await rpc(base, call('get-my-character'), ua('0.1.0'))).json());
+    expect(first).toHaveLength(2);
+    expect(first[1]).toContain('Update available');
+    expect(first[1]).toContain('0.1.0');
+    const second = texts(await (await rpc(base, call('get-my-character'), ua('0.1.0'))).json());
+    expect(second).toHaveLength(1);
+    expect(clients.list()).toMatchObject([
+      { piece: 'player-extension', who: 'Alice', version: '0.1.0', behind: true },
+    ]);
+  });
+
+  it('leaves an up to date or unknown user-agent alone', async () => {
+    const clients = new ClientRegistry();
+    const { base } = await start({ clients });
+    const equal = texts(await (await rpc(base, call('get-my-character'), ua(TOOL_VERSION))).json());
+    expect(equal).toHaveLength(1);
+    const other = { ...asA, 'user-agent': 'curl/8' };
+    const unknown = texts(await (await rpc(base, call('get-my-character'), other)).json());
+    expect(unknown).toHaveLength(1);
+    expect(clients.list().every(c => !c.behind)).toBe(true);
+  });
+
+  it('never touches an error result, initialize or tools/list', async () => {
+    const clients = new ClientRegistry();
+    const errorResult = { isError: true, content: [{ type: 'text', text: 'nope' }] };
+    const { base } = await start({
+      clients,
+      client: { playerTool: () => Promise.resolve(errorResult) },
+    });
+    const err = await (await rpc(base, call('get-my-character'), ua('0.1.0'))).json();
+    expect((err as { result: unknown }).result).toEqual(errorResult);
+    const listMsg = { jsonrpc: '2.0', id: 2, method: 'tools/list' };
+    const list = await (await rpc(base, listMsg, ua('0.1.0'))).json();
+    expect(JSON.stringify(list)).not.toContain('Update available');
+  });
+
+  it('records nothing for a request that failed auth', async () => {
+    const clients = new ClientRegistry();
+    const { base } = await start({ clients });
+    const res = await rpc(base, call('get-my-character'), {
+      'user-agent': 'foundry-player-connector/0.1.0',
+    });
+    expect(res.status).toBe(401);
+    expect(clients.list()).toEqual([]);
+  });
+
+  it('records the Obsidian header only for the GM and never rejects', async () => {
+    const clients = new ClientRegistry();
+    const { base } = await start({ clients });
+    const asPlayer = await fetch(`${base}/api/player/names`, {
+      headers: { 'x-foundry-client': 'obsidian/0.1.0' },
+    });
+    expect(asPlayer.status).not.toBe(500);
+    expect(clients.list()).toEqual([]);
+    await fetch(`${base}/api/state`, {
+      headers: { ...gmHeaders, 'x-foundry-client': 'obsidian/0.1.0' },
+    });
+    await fetch(`${base}/api/state`, { headers: { ...gmHeaders, 'x-foundry-client': 'junk' } });
+    expect(clients.list()).toMatchObject([
+      { piece: 'obsidian', who: 'GM', version: '0.1.0', behind: true },
+    ]);
+  });
+
+  it('serves GET /api/client-versions to the GM only, with connector rows', async () => {
+    const clients = new ClientRegistry();
+    clients.record('player-extension', 'Alice', '0.1.0', Date.now());
+    const { base } = await start({
+      clients,
+      client: {
+        wrapperStatus: () =>
+          Promise.resolve({
+            current: TOOL_VERSION,
+            build: 'x',
+            behind: true,
+            wrappers: [
+              { version: '0.1.0', build: 'b', sets: 'play' },
+              { version: null, build: null, sets: 'core' },
+            ],
+          }),
+      },
+    });
+    expect((await fetch(`${base}/api/client-versions`)).status).toBe(403);
+    const res = await fetch(`${base}/api/client-versions`, { headers: gmHeaders });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = (await res.json()) as {
+      current: string;
+      downloads: { connectors: string; obsidian: string };
+      seen: Array<{ piece: string; who: string; version: string | null; behind: boolean }>;
+    };
+    expect(body.current).toBe(TOOL_VERSION);
+    expect(body.downloads.connectors).toContain(`v${TOOL_VERSION}`);
+    expect(body.downloads.obsidian).toContain('obsidian');
+    expect(body.seen.map(s => [s.piece, s.who, s.version, s.behind])).toEqual([
+      ['player-extension', 'Alice', '0.1.0', true],
+      ['connectors', 'GM', '0.1.0', true],
+      ['connectors', 'GM', null, true],
+    ]);
+  });
+
+  it('leaves connector rows out when the backend is old', async () => {
+    const { base } = await start({
+      client: { wrapperStatus: () => Promise.reject(new Error('Unknown method')) },
+    });
+    const res = await fetch(`${base}/api/client-versions`, { headers: gmHeaders });
+    expect(((await res.json()) as { seen: unknown[] }).seen).toEqual([]);
+  });
+
+  it('gives a player with an old extension a clientUpdate on /api/me, others null', async () => {
+    const clients = new ClientRegistry();
+    // Keyed by the Foundry user id; the name is only the label.
+    clients.record('player-extension', ALICE, '0.1.0', Date.now(), 'Alice');
+    clients.record('player-extension', BOB, TOOL_VERSION, Date.now(), 'Bob');
+    const { base } = await start({ clients });
+    type Notice = { da: string; en: string } | null;
+    const me = async (userId: string): Promise<{ clientUpdate: Notice }> => {
+      const made = await fetch(`${base}/api/player-links/${userId}`, {
+        method: 'POST',
+        headers: gmHeaders,
+      });
+      const link = ((await made.json()) as { link: string }).link;
+      const key = new URL(link, 'http://x').searchParams.get('k') as string;
+      const res = await fetch(`${base}/api/me`, { headers: { 'X-CoGM-Me': key } });
+      return (await res.json()) as { clientUpdate: Notice };
+    };
+    const alice = await me(ALICE);
+    expect(alice.clientUpdate?.en).toContain('0.1.0');
+    expect(alice.clientUpdate?.da).toContain('0.1.0');
+    expect((await me(BOB)).clientUpdate).toBeNull();
   });
 });

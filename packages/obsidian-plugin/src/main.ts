@@ -9,7 +9,6 @@
  * - **Reveal / hide** make a `plan-page-reveal` plan and open the dashboard at `/?plan=<id>`, where
  *   the GM confirms it (D-067: Obsidian never applies a change itself). **Queue / unqueue** only
  *   stage the page in the GM's reveal queue; the reveal still happens in the dashboard.
- *
  * - **New prep note for this** (R2, D-094; command and file menu): a prep note in `Prep/` from the
  *   vault's template of the picked kind, with `fvtt_uuid` filled in and a link back (`prep.ts`).
  *   The only note the plugin writes, and only on the GM's click; it never needs the dashboard.
@@ -95,6 +94,7 @@ import {
   prepUuid,
   type PrepKind,
 } from './prep.js';
+import { installUpdateNotice } from './client-update.js';
 import { pickTheme, sameThemeState, syncTheme, type ThemeState } from './theme-sync.js';
 
 /** The plugin settings, plus the theme state (I-099, theme-sync.ts). */
@@ -214,7 +214,8 @@ export default class FoundryAiToolPlugin extends Plugin {
       http,
       () => this.settings.dashboardUrl,
       () => this.token(),
-      () => this.access()
+      () => this.access(),
+      () => this.manifest.version
     );
 
     this.statusEl = this.addStatusBarItem();
@@ -334,6 +335,7 @@ export default class FoundryAiToolPlugin extends Plugin {
     );
     this.addSettingTab(new FoundryAiToolSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => void this.refreshStatus(false));
+    installUpdateNotice(this, this.client);
 
     // The theme (I-099): classes on <body> and on each Markdown view; the CSS does the rest.
     this.applyTheme();

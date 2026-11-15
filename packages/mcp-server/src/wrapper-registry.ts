@@ -7,9 +7,10 @@
  * said hello is an old wrapper (the dashboard sets `requestedBy` on its writes only, so it must
  * say hello).
  */
-import { TOOL_VERSION } from '@gnuminator/shared';
+import { CLIENT_NOTICE_INTERVAL_MS, TOOL_VERSION, clientToolNotice } from '@gnuminator/shared';
 
 import { BUILD_ID } from './build-id.js';
+import { TOOL_RESULT_MAX_CHARS } from './tool-router.js';
 
 export {
   isOlderVersion,
@@ -39,6 +40,9 @@ export class WrapperRegistry {
 
   /** Connections that said they are not a Claude Desktop wrapper (the dashboard). */
   private readonly notWrappers = new Set<number>();
+
+  /** When each connection last got the outdated line (ms). */
+  private readonly lastNotice = new Map<number, number>();
 
   constructor(
     private readonly current: string = TOOL_VERSION,
@@ -75,6 +79,26 @@ export class WrapperRegistry {
   close(connection: number): void {
     this.byConnection.delete(connection);
     this.notWrappers.delete(connection);
+    this.lastNotice.delete(connection);
+  }
+
+  /**
+   * The one outdated line for a tool answer on this connection, or null. Only a connected wrapper
+   * whose version is older than the backend's (or unknown) gets it; the same version from another
+   * build does not. At most once per connection per CLIENT_NOTICE_INTERVAL_MS.
+   */
+  noticeFor(connection: number, now: number, answerChars = 0): string | null {
+    const w = this.byConnection.get(connection);
+    if (!w) return null;
+    if (w.version !== null && !isOlderVersion(w.version, this.current)) return null;
+    const last = this.lastNotice.get(connection);
+    if (last !== undefined && now - last < CLIENT_NOTICE_INTERVAL_MS) return null;
+    const line = clientToolNotice('connectors', w.version, this.current);
+    // The wrapper cuts an answer at TOOL_RESULT_MAX_CHARS (capToolResult): a line that does not fit
+    // would be dropped or would turn a complete answer into a "cut" one. Keep the slot for later.
+    if (answerChars + line.length > TOOL_RESULT_MAX_CHARS) return null;
+    this.lastNotice.set(connection, now);
+    return line;
   }
 
   status(): WrapperStatus {

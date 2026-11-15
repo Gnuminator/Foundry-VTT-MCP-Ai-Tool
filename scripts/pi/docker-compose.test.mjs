@@ -56,6 +56,17 @@ describe('23-docker.sh as text', () => {
     assert.doesNotMatch(rest, /\brm\b|\bmv\b|prune|reboot|shutdown/);
   });
 
+  test('installs docker-cli: on Debian 13 docker.io only Recommends the docker command', () => {
+    const code = s22.replace(/^\s*#.*$/gm, '');
+    assert.match(code, /pick_package docker-cli[^\n]*pkgs\+=\(docker-cli\)/);
+  });
+
+  test('the image build ignores tsbuildinfo files and checks that shared emitted dist', () => {
+    const ignore = read('deploy/pi/Dockerfile.dockerignore');
+    assert.match(ignore, /^\*\*\/\*\.tsbuildinfo$/m);
+    assert.match(read('deploy/pi/Dockerfile'), /RUN npm run build && test -f shared\/dist\/index\.js/);
+  });
+
   test('keeps the .env lines it does not own and writes only the four managed names', () => {
     assert.match(s22, /FOUNDRY_UID=\$uid/);
     assert.match(s22, /FOUNDRY_GID=\$gid/);

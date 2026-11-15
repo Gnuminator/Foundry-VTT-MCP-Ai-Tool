@@ -126,7 +126,7 @@ ended (2 closed readings in a row) or the service stops. A bridge that does not 
 session (watch on stays on, off stays off), but the bridge check itself then reports. Posts hold no address, no
 query string and no token; the log shows host names only.
 
-A session that is still marked open but has had no event for 2 hours, with Foundry or the bridge link down (the 04:30
+A session that is still marked open but has had no event for 2 hours, with Foundry or the bridge's link to Foundry's module down (the 04:30
 backup on a late night), raises no alarm and no start post. A session whose last event came between 02:30 and 04:30 is
 not quiet yet at 04:30, so the backup can still raise an alarm that night. The end post reads "the session has ended or has gone quiet", because
 nobody may have marked the end. A recorder check that cannot read `systemctl` as the `foundry` user counts as "cannot
@@ -154,7 +154,7 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh found
 ```
 
 It needs stage 8 and 26 done (the bot token and `GAMENIGHT_WATCH_CHANNEL_ID` in `discord-bot.env`; it checks the names only).
-It restarts nothing but itself. `UNDO=1` removes the service and the files and keeps the settings file.
+It restarts nothing but itself, and itself also when `discord-bot.env` changed or is newer than the running watch. `UNDO=1` removes the service and the files and keeps the settings file.
 
 The files come from the PC, not from the release build: copy them from a clean checkout of `main` at the merge commit. The stage
 writes `SHA256SUMS` next to them (and `CHECK=1` prints it) so the hashes can be compared with
@@ -186,6 +186,10 @@ Foundry stays failed until someone runs this over ssh (the alert text says so):
 ```bash
 systemctl reset-failed foundry.service && systemctl start foundry.service
 ```
+
+Manual `systemctl restart foundry.service` chains (stages 11, 13, 14 and `kit-session.sh`) count toward Foundry's start
+limit (10 in 300 s): a stage that restarts Foundry several times in a row can trip it, and the unit then stays failed
+until the `reset-failed` line above.
 
 On game night with Foundry down, Plan B (`docs/dev/PLAN-B.md`) is the fallback while that is fixed. Systemd 257 also has
 `RestartSteps=` and `RestartMaxDelaySec=` (a back-off that never gives up) if the user prefers that for Foundry.

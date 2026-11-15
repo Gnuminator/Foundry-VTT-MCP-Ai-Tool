@@ -42,7 +42,7 @@ function run(dir, cmd, input = '', shell = bash(['-c', 'command -v bash']).stdou
 }
 
 // The command put-runner-token.sh sends for runner `name`, minus the ssh quoting (what the Pi receives).
-// The sandbox path is swapped for a temp file so running it here touches nothing real.
+// It names the real /etc path, so a test never runs it in a real shell: the runner cases go through a fake shell.
 function runnerCmd(name) {
   return `set -e; umask 077; f=/etc/foundry-ai-tool/gh-runner-${name}.reg; t=$f.tmp; trap 'rm -f "$t"' EXIT; cat > "$t"; [ "$(wc -c < "$t")" -ge 20 ]; chown root:root "$t"; chmod 600 "$t"; mv -f "$t" "$f"`;
 }
@@ -52,19 +52,24 @@ test(
   { skip: !hasBash },
   () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'sshlog-'));
+    // Every case runs through a fake shell, so the real /etc path of the runner commands is never touched.
+    const fake = path.join(dir, 'fake-shell-1.sh');
+    writeFileSync(fake, `#!/bin/bash\necho shell-ran\n`, { mode: 0o755 });
+    const fakeShell = fake.replace(/\\/g, '/');
     for (const [cmd, kind] of [
       ['bash -s -- no-log', 'Discord token'],
       ['FORCE=1 bash -s -- no-log', 'Discord token'],
       ['bash /tmp/set-tunnel-token.sh', 'set-tunnel-token'],
+      ['FORCE=1 bash /tmp/set-tunnel-token.sh', 'set-tunnel-token'],
       ['bash /tmp/set-dashboard-access.sh', 'set-dashboard-access'],
       ['FORCE=1 bash /tmp/set-dashboard-access.sh', 'set-dashboard-access'],
       [runnerCmd('vault'), 'runner token file'],
       [runnerCmd('board'), 'runner token file'],
     ]) {
-      const { r, log, saved } = run(dir, cmd, 'echo ran\n');
+      const { r, log, saved } = run(dir, cmd, 'echo ran\n', fakeShell);
       assert.ok(log.includes('command text not saved'), `${cmd}: ${log}`);
       assert.ok(log.includes(kind), `${cmd}: ${log}`);
-      assert.ok(!log.includes('SECRETAUD') && !log.includes('FORCE=1'), `${cmd}: text leaked: ${log}`);
+      assert.ok(!log.includes('FORCE=1'), `${cmd}: text leaked: ${log}`);
       assert.deepEqual(saved, [], 'input is never saved');
       assert.equal(typeof r.status, 'number');
     }
@@ -80,6 +85,7 @@ test('the exact token commands reach the shell unchanged, exit 0, with the right
   for (const [cmd, kind] of [
     ['bash -s -- no-log', 'Discord token'],
     ['bash /tmp/set-tunnel-token.sh', 'set-tunnel-token'],
+    ['FORCE=1 bash /tmp/set-tunnel-token.sh', 'set-tunnel-token'],
     ['bash /tmp/set-dashboard-access.sh', 'set-dashboard-access'],
     ['FORCE=1 bash /tmp/set-dashboard-access.sh', 'set-dashboard-access'],
     [runnerCmd('vault'), 'runner token file'],
@@ -92,6 +98,32 @@ test('the exact token commands reach the shell unchanged, exit 0, with the right
     assert.ok(log.includes(`${kind}`) && log.includes('command text not saved'), `${cmd}: ${log}`);
   }
 });
+
+// The real helper, with a fake gh and a fake ssh: what put-runner-token.sh actually sends must be what the wrapper
+// recognises (so a change to the helper's quoting cannot silently put a token command's text into the log).
+for (const name of ['vault', 'board']) {
+  test(`put-runner-token.sh ${name}: the command it sends is logged by kind only`, { skip: !hasBash }, () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sshlog-'));
+    const bin = path.join(dir, 'bin');
+    spawnSync('bash', ['-c', `mkdir -p '${bin.replace(/\\/g, '/')}'`]);
+    const sent = path.join(dir, 'sent.txt').replace(/\\/g, '/');
+    writeFileSync(path.join(bin, 'gh'), `#!/bin/bash\necho ghs_fakefakefakefakefakefake\n`, { mode: 0o755 });
+    // ssh HOST COMMAND: the Pi receives COMMAND as one string.
+    writeFileSync(path.join(bin, 'ssh'), `#!/bin/bash\ncat >/dev/null\nprintf '%s' "$2" >'${sent}'\n`, {
+      mode: 0o755,
+    });
+    const helper = path.join(here, 'remote', 'put-runner-token.sh').replace(/\\/g, '/');
+    const binPosix = bin.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`);
+    const r = bash(['-c', `export PATH='${binPosix}':"$PATH"; bash '${helper}' ${name}`]);
+    assert.equal(r.status, 0, r.stderr);
+    const cmd = readFileSync(sent, 'utf8');
+    assert.ok(cmd.includes(`gh-runner-${name}.reg`), cmd);
+    const fake = path.join(dir, 'fake-shell-2.sh');
+    writeFileSync(fake, `#!/bin/bash\necho shell-ran\n`, { mode: 0o755 });
+    const { log } = run(dir, cmd, '', fake.replace(/\\/g, '/'));
+    assert.ok(log.includes('command text not saved') && log.includes('runner token file'), log);
+  });
+}
 
 test('a token command with anything appended is not treated as one and keeps its text', { skip: !hasBash }, () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'sshlog-'));

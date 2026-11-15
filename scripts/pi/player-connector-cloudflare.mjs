@@ -15,7 +15,17 @@
 //   Account: Account Settings: Read, Zone: Zone: Read, Account: Access: Apps and Policies: Edit,
 //   Account: Access: Service Tokens: Edit, Account: Cloudflare Tunnel: Edit, Zone: DNS: Edit (on the zone).
 import { spawn as nodeSpawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -250,13 +260,40 @@ function ssh(spawn, host, content) {
   });
 }
 
+/** The real path of `file` (links and short names resolved) even when the file or some folders above it do not exist yet. */
+function realPathLoose(file) {
+  let current = path.resolve(file);
+  const tail = [];
+  for (;;) {
+    try {
+      return path.join(realpathSync(current), ...tail.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return path.resolve(file);
+      tail.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+/** The folder of an --out path must exist and be writable; checked before the API token is asked for. */
+function checkOutFolder(out) {
+  const dir = path.dirname(path.resolve(out));
+  try {
+    if (!statSync(dir).isDirectory()) throw new Error('not a folder');
+    accessSync(dir, constants.W_OK);
+  } catch {
+    throw new UsageError(`the folder ${dir} for --out does not exist or is not writable`);
+  }
+}
+
 /**
  * True when `file` sits in this repo or in any folder tree that holds a `.git` (a checkout, a worktree,
  * the Obsidian vault): the login table holds secrets and must never land where git could pick it up.
  */
 function insideRepo(file, repoRoot) {
-  const abs = path.resolve(file);
-  const rel = path.relative(repoRoot, abs);
+  const abs = realPathLoose(file);
+  const rel = path.relative(realPathLoose(repoRoot), abs);
   if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) return true;
   for (let dir = path.dirname(abs); ; dir = path.dirname(dir)) {
     if (existsSync(path.join(dir, '.git'))) return true;
@@ -269,33 +306,37 @@ const MODE_NOTE = process.platform === 'win32' ? '' : ' (mode 600)';
 
 /** Hands the file content to the Pi over ssh, or to a 0600 file as the fallback or on request. */
 export async function deliver({ content, opts, spawn, log, fallbackDir }) {
+  let failure;
   if (opts.out) {
     const target = path.resolve(opts.out);
     try {
       // wx: never overwrite (an existing file keeps its old mode and may be someone else's).
       writeFileSync(target, content, { mode: 0o600, flag: 'wx' });
+      log.out(
+        `ok: wrote ${target}${MODE_NOTE}. Copy it to the Pi as ${REMOTE_FILE}, then delete it here.`
+      );
+      return;
     } catch (error) {
       if (error?.code === 'EEXIST') {
         throw new UsageError(`${target} exists already: delete it or pick another --out path`);
       }
-      throw error;
+      // Any other failure (a full disk, a folder that went read-only): the secrets exist only once, so keep them in the fallback file.
+      failure = `writing ${target} failed (${error?.code ?? 'error'})`;
     }
-    log.out(
-      `ok: wrote ${target}${MODE_NOTE}. Copy it to the Pi as ${REMOTE_FILE}, then delete it here.`
-    );
-    return;
-  }
-  const code = await ssh(spawn, opts.sendTo, content);
-  if (code === 0) {
-    log.out(`ok: sent the player file to ${opts.sendTo}:${REMOTE_FILE}`);
-    return;
+  } else {
+    const code = await ssh(spawn, opts.sendTo, content);
+    if (code === 0) {
+      log.out(`ok: sent the player file to ${opts.sendTo}:${REMOTE_FILE}`);
+      return;
+    }
+    failure = `ssh to ${opts.sendTo} failed (exit ${code})`;
   }
   const target = path.join(fallbackDir, 'player-connector.json.new');
   mkdirSync(fallbackDir, { recursive: true });
   // An old fallback file may carry an older mode; remove it so the new one is created 0600.
   rmSync(target, { force: true });
   writeFileSync(target, content, { mode: 0o600, flag: 'wx' });
-  log.err(`ssh to ${opts.sendTo} failed (exit ${code}).`);
+  log.err(`${failure}.`);
   log.out(`ok: wrote the fallback file ${target}${MODE_NOTE}.`);
   log.out(`Copy it to the Pi as ${REMOTE_FILE} (scp), then delete it from this PC.`);
 }
@@ -586,6 +627,7 @@ export async function main(argv, deps = {}) {
         `${path.resolve(opts.out)} exists already: delete it or pick another --out path`
       );
     }
+    if (opts.out && opts.apply) checkOutFolder(opts.out);
     token = env.CLOUDFLARE_API_TOKEN || (await prompt());
     token = String(token ?? '').trim();
     if (!token) throw new UsageError('no API token given');

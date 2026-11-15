@@ -41,6 +41,13 @@ describe('31-gm-vault-peers.sh as text', () => {
   test('REMOVE needs another complete device unless FORCE=1, and never prints the API key', () => {
     assert.match(stage, /no other device holds all of the vault yet/);
     assert.match(stage, /\[ "\$force" != 1 \]/);
+    // The checks sit inside the force != 1 block of the remove mode, not just somewhere in the file.
+    const block = stage.slice(stage.indexOf('if [ "$force" != 1 ]; then'), stage.indexOf('name="$(dev_name "$device_id")"'));
+    assert.ok(block.length > 0);
+    assert.match(block, /holds_all "\$d"/);
+    assert.match(block, /connected "\$device_id"/);
+    assert.match(block, /index_known "\$device_id"/);
+    assert.match(block, /pi_needs_nothing \|\| die/);
     assert.doesNotMatch(stage, /(echo|say|ok|warn|out) [^\n]*\$api_key/);
   });
 });

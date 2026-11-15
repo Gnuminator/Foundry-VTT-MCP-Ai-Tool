@@ -110,6 +110,18 @@ host_in_list() { # $1 comma list, $2 host
   return 1
 }
 
+# 0 when the running unit still holds the connector settings or has a unit file change it has not loaded (an UNDO cut off after the
+# drop-in was removed: a rerun finds nothing to remove, but the service still runs on the old settings). Read-only.
+unit_runs_old_settings() {
+  local u="$1" pid
+  have_systemd || return 1
+  systemctl is-active --quiet "$u" 2>/dev/null || return 1
+  [ "$(systemctl show -p NeedDaemonReload --value "$u" 2>/dev/null || true)" = yes ] && return 0
+  pid="$(systemctl show -p MainPID --value "$u" 2>/dev/null || true)"
+  case "$pid" in "" | 0 | *[!0-9]*) return 1 ;; esac
+  [ -r "/proc/$pid/environ" ] && tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | grep -q '^FOUNDRY_AI_PLAYER_CONNECTOR='
+}
+
 dropin_body="[Service]
 EnvironmentFile=-$envf"
 env_body="# Written by scripts/pi/remote/30-player-connector.sh (the player connector, D-136). Read by the bridge and the dashboard.
@@ -162,6 +174,8 @@ if [ "$undo" = 1 ]; then
   if [ -f "$envf" ]; then restart_dash=1 restart_bridge=1; fi
   [ ! -f "$unit_dir/$dash_unit.d/$dropin_name" ] || restart_dash=1
   [ ! -f "$unit_dir/$bridge_unit.d/$dropin_name" ] || restart_bridge=1
+  if unit_runs_old_settings "$dash_unit"; then restart_dash=1; fi
+  if unit_runs_old_settings "$bridge_unit"; then restart_bridge=1; fi
   undo_host=0
   if [ -n "$host" ] && host_in_list "$hosts" "$host"; then undo_host=1 restart_dash=1; fi
   if [ "$restart_dash" = 1 ]; then require_quiet_if_active "$dash_unit" "undoing the player connector (restarting the dashboard)"; fi
@@ -297,8 +311,8 @@ else
 fi
 
 say "the services"
-enable_unit "$bridge_unit" "$envf" "$cfg"
-enable_unit "$dash_unit" "$envf" "$cfg" "$access"
+enable_unit "$bridge_unit" "$envf" "$cfg" "$unit_dir/$bridge_unit.d/$dropin_name"
+enable_unit "$dash_unit" "$envf" "$cfg" "$access" "$unit_dir/$dash_unit.d/$dropin_name"
 
 say "the check"
 if ! have_systemd; then

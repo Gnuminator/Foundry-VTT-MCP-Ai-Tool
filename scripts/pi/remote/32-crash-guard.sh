@@ -105,6 +105,7 @@ if printf 'header = "Authorization: Bot %s"\nheader = "Content-Type: application
   echo "alert: posted"
 else
   echo "alert: the post failed (journal only)"
+  exit 1
 fi
 exit 0
 EOF
@@ -117,6 +118,7 @@ set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 state_dir="${STATE_DIRECTORY:-/var/lib/foundry-ai-tool-crash-guard}"
 state="$state_dir/clock-bad-count"
+posted="$state_dir/clock-bad-posted"
 ntp="$(timedatectl show -p NTP --value 2>/dev/null || true)"
 sync="$(timedatectl show -p NTPSynchronized --value 2>/dev/null || true)"
 echo "clock: NTP service=${ntp:-unknown} synchronized=${sync:-unknown}"
@@ -129,14 +131,20 @@ count=0
 [ -f "$state" ] && count="$(cat "$state" 2>/dev/null || echo 0)"
 [[ "$count" =~ ^[0-9]+$ ]] || count=0
 if [ "$ntp" = yes ] && [ "$sync" = yes ]; then
-  if [ "$count" -ge 2 ]; then "$here/alert.sh" clock-ok || true; fi
+  # The recovery is posted only when the "not synchronized" post really went out; a failed one is retried at the next check.
+  if [ -f "$posted" ]; then
+    if "$here/alert.sh" clock-ok; then rm -f "${posted:?}" 2>/dev/null || true; fi
+  fi
   echo 0 >"$state" 2>/dev/null || true
   exit 0
 fi
 count=$((count + 1))
 echo "$count" >"$state" 2>/dev/null || true
 echo "clock: not synchronized ($count in a row)"
-if [ "$count" -eq 2 ]; then "$here/alert.sh" clock-bad || true; fi
+# "posted" is set only on success, so a lost post is retried at every further bad check until it goes out.
+if [ "$count" -ge 2 ] && [ ! -f "$posted" ]; then
+  if "$here/alert.sh" clock-bad; then : >"$posted" 2>/dev/null || true; fi
+fi
 exit 1
 EOF
 
@@ -292,6 +300,10 @@ if [ -f "$bot_env" ] && has_key "$bot_env" DISCORD_TOKEN && has_key "$bot_env" G
   ok "the bot token and #gm-bot are in $bot_env: alerts will be posted"
 else
   warn "no bot token or #gm-bot line in $bot_env (stages 8 and 26): alerts will reach the journal only until they are there"
+fi
+if have_systemd && command -v timedatectl >/dev/null 2>&1; then
+  ntp_now="$(timedatectl show -p NTP --value 2>/dev/null || true)"
+  [ "$ntp_now" = yes ] || warn "NTP is not on here (timedatectl NTP='${ntp_now:-unknown}'): the clock check will report it bad; run stage 18 first"
 fi
 for u in $present; do
   f="$(dropin_file "$u")"

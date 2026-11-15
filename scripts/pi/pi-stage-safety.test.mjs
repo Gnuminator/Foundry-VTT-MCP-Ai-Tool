@@ -187,6 +187,7 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     writeFileSync(c, '');
     const r = run(
       `c="${posix(c)}"; users_online() { echo x >>"$c"; printf '%s' "${users}"; }
+daemon_known() { return 0; }
 ${body}`,
       { active: raceActive },
       { INVOCATION: 'run-2', JOURNAL_ID: 'run-2', ...env }
@@ -198,13 +199,31 @@ ${body}`,
     // The journal gets the joined line on the third look; before that the browser is active but not joined.
     const r = counted(
       'j=$(mktemp); journalctl() { echo x >>"$j"; if [ "$(wc -l <"$j")" -ge 3 ]; then echo "$JOINED"; fi; }\n' +
-        'require_quiet "the test"; echo PASSED',
+        'require_quiet "the test"; rm -f "$j"; echo PASSED',
       1,
       { JOINED: joinedLine }
     );
     assert.equal(r.status, 0, r.out);
     assert.match(r.out, /PASSED/);
+    assert.match(r.out, /reading again/, 'the retry says that it waits');
     assert.ok(r.reads > 1 && r.reads <= 6, `reads=${r.reads}`);
+  });
+
+  test('a silent Docker daemon: no retry loop, the refusal comes on the first reading (PR 1044 L1)', () => {
+    const r = counted('daemon_known() { return 1; }; require_quiet "the test"; echo PASSED', 1);
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /1 player\(s\) are online/);
+    assert.equal(r.reads, 1);
+  });
+
+  test('gm_browsers_pending counts an Assistant GM container that runs but has not joined', () => {
+    const waiting = run('live_container() { echo cid-gm; }; gm_container_joined() { return 1; }; gm_browsers_pending');
+    assert.equal(waiting.status, 0, waiting.out);
+    assert.equal(waiting.out.trim(), '1');
+    const joined = run('live_container() { echo cid-gm; }; gm_container_joined() { return 0; }; gm_browsers_pending');
+    assert.equal(joined.out.trim(), '0');
+    const none = run('live_container() { :; }; gm_container_joined() { return 1; }; gm_browsers_pending');
+    assert.equal(none.out.trim(), '0');
   });
 
   test('a GM browser that never joins still refuses after the retries', () => {
@@ -1004,6 +1023,10 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       'restic',
       `echo "restic $*" >>"$LOG"
 if [ "$1" = backup ]; then
+  # RESTIC_EXIT: restic fails (the repository is full, say). RESTIC_REMOVES=1: the container is gone after the copy.
+  [ "\${RESTIC_EXIT:-0}" = 0 ] || exit "$RESTIC_EXIT"
+  touch "$LOG.copied"
+  [ "\${RESTIC_REMOVES:-0}" != 1 ] || touch "$LOG.gone"
   [ -z "\${RESTIC_RESTARTS:-}" ] || { touch "$LOG.restarted"; [ "$RESTIC_RESTARTS" = 1 ] && rm -f "$LOG.cstopped"; }
   [ "\${RESTIC_DAEMON_DIES:-0}" != 1 ] || touch "$LOG.daemondead"
   case "$*" in *--json*) echo '{"message_type":"status","percent_done":0.5}'
@@ -1035,8 +1058,10 @@ case "$1" in
   start) [ "\${START_EXIT:-0}" != 1 ] || exit 1; touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.cstopped" ;;
   inspect)
     [ ! -f "$LOG.daemondead" ] || exit 1
+    [ ! -f "$LOG.gone" ] || exit 1
     case "$*" in
-      *StartedAt*) if [ -f "$LOG.restarted" ]; then echo 2026-11-11T04:30:00Z; else echo 2026-11-11T04:00:00Z; fi ;;
+      *StartedAt*) if [ "\${STARTEDAT_FAILS_BEFORE:-0}" = 1 ] && [ ! -f "$LOG.copied" ]; then exit 1; fi
+        if [ -f "$LOG.restarted" ]; then echo 2026-11-11T04:30:00Z; else echo 2026-11-11T04:00:00Z; fi ;;
       *) if [ -f "$LOG.cstopped" ]; then echo false; else echo true; fi ;;
     esac ;;
   logs) [ "\${GM_JOINED:-0}" != 1 ] || echo "[assistant-gm] joined world curse-of-strahd" ;;
@@ -1300,6 +1325,32 @@ exit 0`
       assert.match(r.out, /Docker daemon did not answer after the copy/);
       assert.match(r.out, /snapshot abc12345 was kept/);
       assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('restic fails: the night fails, nothing is forgotten and the container is started again (PR 1013 L3)', () => {
+      const r = cut({ users: [0], env: { RESTIC_EXIT: '1' } });
+      assert.notEqual(r.status, 0, r.out);
+      assert.doesNotMatch(r.calls, /restic forget/);
+      assert.match(r.calls, /docker start/);
+    });
+
+    test('the container is gone after the copy while the daemon answers: said so, not called a silent daemon (PR 1013 L1)', () => {
+      const r = cut({ users: [0], env: { RESTIC_REMOVES: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /the foundry container is gone after the copy/);
+      assert.doesNotMatch(r.out, /Docker daemon did not answer after the copy/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('an unreadable StartedAt before the copy does not force the torn branch (PR 1013 L2)', () => {
+      const r = cut({ users: [0], env: { STARTEDAT_FAILS_BEFORE: '1' } });
+      assert.equal(r.status, 0, r.out);
+      assert.doesNotMatch(r.out, /started again while the worlds/);
+    });
+
+    test('restic\'s summary line reaches the journal (PR 1013 L5)', () => {
+      const r = cut({ users: [0] });
+      assert.match(r.out, /"message_type":"summary"/);
     });
 
     test('docker_off: daemon silent, docker disabled, no foundry.service: the backup goes on (nothing can be writing)', () => {

@@ -26,7 +26,8 @@
 #      recording runs (restarting the bot ends a recording; FORCE=1 overrides, with a warning);
 #   4. copies the env file once to discord-bot.env.before-game-server (through a temp file and mv; same owner and mode; it
 #      holds the token, so it stays in /etc/foundry-ai-tool and is never copied elsewhere), writes the new file whole in
-#      one step and restarts the bot;
+#      one step and restarts the bot and, after it, the game-night watch (it reads the same file; no player or recording
+#      is touched by that restart);
 #   5. the check: waits up to 30 s for "Logged in as" and "Registered /record in server <the game server id>" in the
 #      bot's own journal lines (only those two lines are read, never the whole journal).
 # Safe to run again. Nothing else on the Pi is touched.
@@ -174,7 +175,7 @@ if [ "$dry" = 1 ]; then
   if [ "$undo" = 1 ]; then
     say "dry run: would set the stage's six keys in $env_file back to their values in $saved (a key the saved file lacks is removed; every other line, the token included, stays as it is now) and restart $unit; nothing changed"
   elif lines_right; then
-    say "dry run: the lines are already right; a real run changes no setting (it still restarts a bot older than the file)"
+    say "dry run: the lines are already right; a real run changes no setting (it still restarts a bot older than the file, and the game-night watch when it is older than the file)"
   else
     say "dry run: would set (names and ids only):"
     while IFS= read -r pair; do

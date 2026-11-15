@@ -222,6 +222,8 @@ test('--env-files takes a comma list, the old --env-file still works, a later fi
   assert.deepEqual(envFileList({ 'env-files': 'a.env, b.env' }), ['a.env', 'b.env']);
   assert.deepEqual(envFileList({ 'env-file': 'old.env' }), ['old.env']);
   assert.deepEqual(envFileList({ 'env-files': 'new.env', 'env-file': 'old.env' }), ['new.env']);
+  // Only --env-files is split on commas; the old --env-file is one path.
+  assert.deepEqual(envFileList({ 'env-file': 'a,b.env' }), ['a,b.env']);
   const dir = mkdtempSync(join(tmpdir(), 'gnw-'));
   writeFileSync(join(dir, 'a.env'), 'X=1\nY=a\n');
   writeFileSync(join(dir, 'b.env'), 'Y=b\n');

@@ -11,7 +11,7 @@ Part of [PI-SETUP](../PI-SETUP.md).
 
 - The Orange Pi 5 Pro and its official USB-C power supply (5 V, 5 A).
 - A microSD card, 32 GB or larger (A2 class if you have one). An NVMe SSD later is strongly
-  recommended before real play (done 2026-10-30, the card now only boots): see "Moving to NVMe" below.
+  recommended before real play (done 2026-10-30, the card now only boots): see "Moving to NVMe" in [Backups and storage](backups-and-storage.md#moving-to-nvme-done-2026-10-30).
 - An Ethernet cable to the router.
 - A card reader on this PC.
 - Fallback only: a monitor with an HDMI cable and a USB keyboard, if the Pi cannot be found on the
@@ -94,7 +94,7 @@ so `ssh foundry-pi` works. It keeps trying for up to 20 minutes while the first 
 Then tell Claude: **"The Pi is up."**
 
 Then give the Pi a fixed address in your router, so it keeps the same address after restarts: see
-"Your UniFi gateway" below.
+"Your UniFi gateway" in [Network and access](network-and-access.md#your-unifi-gateway).
 
 If the script cannot find the Pi after 20 minutes: plug in the monitor and keyboard, log in as `root`
 with the password from `~\.foundry-pi\root-password.txt`, and run `hostname -I` to see its address.

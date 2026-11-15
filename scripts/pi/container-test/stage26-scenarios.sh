@@ -16,8 +16,9 @@
 #     (no temp file is left behind)
 #  12 (inside scenario 10's fake systemd) players online: a clean rerun is not refused (it restarts nothing); a rerun that
 #     needs the restart is refused with "player(s) are online" and leaves the bot alone
-#  13 UNDO branches on grep's own exit status (0 restore, 1 drop, else stop): a grep stand-in that exits 2 for the saved
-#     copy (an unreadable file cannot be made as root) stops it with the env file unchanged and no temp file left
+#  13 UNDO stops on a grep exit status other than 0 (restore) or 1 (drop): a grep stand-in that exits 2 for every grep
+#     naming the saved copy (an unreadable file cannot be made as root; the stand-in is not per key, so the first key
+#     lookup stops it) leaves the env file unchanged and no temp file behind
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage26-scenarios.sh
 # (scripts/pi/discord-game-server.test.mjs runs it with PI_STAGE26_CONTAINER=1.) STAGE=<file> runs the scenarios against

@@ -23,10 +23,16 @@
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
-import { PORTRAIT_MAX_BYTES, sniffPortraitType } from '@gnuminator/shared';
+import {
+  PORTRAIT_MAX_BYTES,
+  TOOL_VERSION,
+  clientNoticeText,
+  sniffPortraitType,
+} from '@gnuminator/shared';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
 import type { PlayerLinksBody } from './api-bodies.js';
+import type { ClientRegistry } from './client-versions.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
 import type { PlayerLinkStore } from './player-links.js';
@@ -54,9 +60,14 @@ export interface MeRouteOptions {
   /** For a failed link save or removal (the reply to the GM is a fixed sentence). */
   logger?: Pick<Logger, 'warn'>;
   /** The player connector's login table (D-136), or null when the connector is off. */
-  connector?: Pick<import('./player-connector.js').ConnectorStore, 'credentialsFor'> | null;
+  connector?: Pick<
+    import('./player-connector.js').ConnectorStore,
+    'credentialsFor' | 'remoteFor'
+  > | null;
   /** Builds one player's extension file; the real one loads tools/player-connector. For tests. */
   buildPreset?: (p: PresetInput) => Buffer | Promise<Buffer>;
+  /** Client versions seen (item client-updates); absent on fakes. */
+  clients?: ClientRegistry;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
@@ -142,6 +153,13 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .catch(() => null);
   }
 
+  /** The banner for this player's own extension when it is older than the table; else null. */
+  function playerUpdateNotice(userId: string): { da: string; en: string } | null {
+    const seen = options.clients?.get('player-extension', userId);
+    if (!seen?.behind || seen.version === null) return null;
+    return clientNoticeText('player-extension', seen.version, TOOL_VERSION);
+  }
+
   app.get('/me', (_req: Request, res: Response) => {
     options.pageHeaders(res);
     res.sendFile('me.html', { root: options.publicDir });
@@ -174,6 +192,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
           theme: options.theme(),
           privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
           portraitEnabled: portraitOn,
+          clientUpdate: playerUpdateNotice(userId),
         })
       )
       .catch(() => {
@@ -198,15 +217,18 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       return;
     }
     const own = options.connector?.credentialsFor(userId) ?? null;
-    if (!own) {
+    // The remote connector needs no pair: the player's own email is the login.
+    const remoteUrl = options.connector?.remoteFor(userId) ?? null;
+    if (!own && !remoteUrl) {
       res.json({ enabled: false });
       return;
     }
     res.json({
       enabled: true,
-      endpoint: own.endpoint,
-      clientId: own.clientId,
-      clientSecret: own.clientSecret,
+      remoteUrl,
+      endpoint: own?.endpoint ?? null,
+      clientId: own?.clientId ?? '',
+      clientSecret: own?.clientSecret ?? '',
     });
   });
 

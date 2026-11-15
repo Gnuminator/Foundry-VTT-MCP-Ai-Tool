@@ -36,9 +36,9 @@ new_pi() { # opts: nocompose, nosnapshot, nouser, v2
     echo "$(date +%F)_01:25:00  Backup completed" >"$SB/stats"
   fi
   if [[ " $* " == *" v2 "* ]]; then
-    printf '%s\n' docker.io docker-compose-v2 docker-compose docker-buildx >"$FAKE/candidates"
+    printf '%s\n' docker.io docker-cli docker-compose-v2 docker-compose docker-buildx >"$FAKE/candidates"
   else
-    printf '%s\n' docker.io docker-compose docker-buildx >"$FAKE/candidates"
+    printf '%s\n' docker.io docker-cli docker-compose docker-buildx >"$FAKE/candidates"
   fi
   [[ " $* " != *" nouser "* ]] && echo 996 >"$FAKE/uid"
   echo 2.26.1 >"$FAKE/compose_version"
@@ -68,7 +68,8 @@ case "$1" in
       case "$a" in -*|install) continue ;; esac
       touch "$F/pkgs/$a"
     done
-    cp "$F/docker-stub" "$(dirname "$0")/docker"
+    # Debian 13: the `docker` command comes from docker-cli; docker.io only Recommends it (the Pi, 2026-11-15).
+    if [ -f "$F/pkgs/docker-cli" ] || [ -f "$F/cli-bundled" ]; then cp "$F/docker-stub" "$(dirname "$0")/docker"; fi
     touch "$F/active-docker.service"
     ;;
 esac'
@@ -161,8 +162,8 @@ if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'foundry user does not exist' && ! e
 new_pi
 run_stage
 if [ "$RC" -eq 0 ]; then pass "first run exits 0"; else fail "first run (rc $RC): $OUT"; fi
-if [ -f "$FAKE/pkgs/docker.io" ] && [ -f "$FAKE/pkgs/docker-compose" ] && [ -f "$FAKE/pkgs/docker-buildx" ] && [ ! -f "$FAKE/pkgs/docker-compose-v2" ]; then
-  pass "installs docker.io, docker-compose and docker-buildx (trixie names)"
+if [ -f "$FAKE/pkgs/docker.io" ] && [ -f "$FAKE/pkgs/docker-cli" ] && [ -f "$FAKE/pkgs/docker-compose" ] && [ -f "$FAKE/pkgs/docker-buildx" ] && [ ! -f "$FAKE/pkgs/docker-compose-v2" ]; then
+  pass "installs docker.io, docker-cli, docker-compose and docker-buildx (trixie names)"
 else
   fail "packages: $(ls "$FAKE/pkgs")"
 fi
@@ -201,6 +202,18 @@ printf '{"log-level": "warn"}\n' >"$SB/etc/docker-daemon.json"
 run_stage
 if [ "$RC" -eq 0 ] && [ "$(cat "$SB/etc/docker-daemon.json")" = '{"log-level": "warn"}' ] && echo "$OUT" | grep -q 'exists without "live-restore": true'; then pass "an existing daemon.json is kept and the missing live-restore is a warning"; else fail "daemon.json kept (rc $RC): $OUT"; fi
 
+# 3b. Debian 13 splits the command into docker-cli: without that package there is no docker and the stage says so;
+# an archive without docker-cli (Debian 12) gets the command from docker.io
+new_pi
+printf '%s\n' docker.io docker-compose docker-buildx >"$FAKE/candidates"
+run_stage
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'docker is not on PATH after the install' && [ ! -f "$FAKE/pkgs/docker-cli" ]; then pass "no docker-cli candidate and no docker command: the stage stops with the reason"; else fail "nocli (rc $RC): $OUT"; fi
+new_pi
+printf '%s\n' docker.io docker-compose docker-buildx >"$FAKE/candidates"
+touch "$FAKE/cli-bundled"
+run_stage
+if [ "$RC" -eq 0 ] && [ ! -f "$FAKE/pkgs/docker-cli" ]; then pass "an archive without docker-cli (docker.io bundles the command) still works"; else fail "bundled (rc $RC): $OUT"; fi
+
 # 4. second run: nothing to install, .env unchanged
 before="$(cat "$(envf)")"
 : >"$FAKE/calls"
@@ -223,7 +236,7 @@ run_stage
 if [ "$RC" -eq 0 ] && [ -f "$FAKE/pkgs/docker-compose-v2" ] && [ ! -f "$FAKE/pkgs/docker-compose" ]; then pass "docker-compose-v2 is preferred when the archive has it"; else fail "v2 (rc $RC): $OUT"; fi
 new_pi
 : >"$FAKE/candidates"
-printf '%s\n' docker.io docker-compose >"$FAKE/candidates_after_update"
+printf '%s\n' docker.io docker-cli docker-compose >"$FAKE/candidates_after_update"
 run_stage
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'apt-get update' && [ -f "$FAKE/pkgs/docker-compose" ]; then pass "apt-get update runs when no candidate is known"; else fail "update (rc $RC): $OUT"; fi
 new_pi

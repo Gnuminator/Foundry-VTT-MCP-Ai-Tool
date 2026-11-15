@@ -766,6 +766,9 @@ test('gateOutcome: every real passing reason is transient, a review refusal is n
     'unexpected error: boom',
     'merge: gh pr merge exited 1: non-200 OK status code: 502 Bad Gateway body: "<html>"',
     'merge: gh pr merge exited 1: HTTP 503: Service Unavailable',
+    // Exact texts from merge-runner.log, 2026-11-15.
+    'merge: gh pr merge exited 1: EOF',
+    'merge: gh pr merge exited 1: GraphQL: Something went wrong while executing your query on 2026-11-15T10:58:28Z. Please include `CCFD:2AE723:E4AFFDA:15B1450C:6AF9904A` when reporting this issue.',
   ]) {
     assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'transient', why);
   }
@@ -775,6 +778,8 @@ test('gateOutcome: every real passing reason is transient, a review refusal is n
     'merge: gh pr merge exited 1: HTTP 405: Pull Request is not mergeable',
     'ci: failing: deploy HTTP 502 smoke (FAILURE)',
     'merge: gh pr merge exited 1: HTTP 5020: odd',
+    'merge: gh pr merge exited 1: EOF while parsing the body',
+    'merge: gh pr merge exited 1: X Pull request Gnuminator/Foundry-VTT-MCP-Ai-Tool#1055 is not mergeable: the base branch policy prohibits the merge.',
   ]) {
     assert.equal(gateOutcome(1, `lane:merge: refused because ${why}`, 5).kind, 'refused', why);
   }
@@ -878,6 +883,28 @@ test('a gate end that is not the PR fault is retried, then refused after three t
   round(f.deps, tried, attempts);
   assert.equal(f.calls.gate.length, 3);
   assert.match(f.calls.backlog[0][2], /refused by the merge gate/);
+});
+
+test('a GitHub blip (EOF, GraphQL error) gets exactly three gate runs, not two, then is refused', () => {
+  for (const why of [
+    'merge: gh pr merge exited 1: EOF',
+    'merge: gh pr merge exited 1: GraphQL: Something went wrong while executing your query on 2026-11-15T12:42:52Z. Please include `EDB8:17DCB2:F3683EE:17142E01:6AF9A8C2` when reporting this issue.',
+  ]) {
+    const f = fakes({
+      text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+      prs: { 5: open() },
+      gates: { 5: { status: 1, stdout: `lane:merge: refused because ${why}` } },
+    });
+    const tried = new Set();
+    const attempts = new Map();
+    round(f.deps, tried, attempts);
+    round(f.deps, tried, attempts);
+    assert.equal(f.calls.gate.length, 2);
+    assert.deepEqual(f.calls.backlog, [], `${why}: ready line kept after two tries`);
+    round(f.deps, tried, attempts);
+    assert.equal(f.calls.gate.length, 3, why);
+    assert.match(f.calls.backlog[0][2], /refused by the merge gate/);
+  }
 });
 
 test('a gate killed at the time limit stops the runner (leftover processes)', () => {

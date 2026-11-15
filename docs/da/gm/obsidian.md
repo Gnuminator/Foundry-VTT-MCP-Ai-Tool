@@ -1,6 +1,6 @@
 ---
 source: gm/obsidian.md
-sourceHash: c0dc2c63780d
+sourceHash: bc2bcb33866d
 title: Din Obsidian-vault
 description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, og hvordan du forbinder AI Tool-pluginet til dashboardet på serveren.
 ---
@@ -93,11 +93,11 @@ videre, aldrig resten af noten.
 
 ## Må jeg omdøbe ting?
 
-- **I Foundry, ja, frit.** Omdøb scenes, journals, actors og resten, som du vil, så et korts navn
-  passer til Foundry. Værktøjet finder hver note på et id inde i den (`fvtt_uuid`), aldrig på
-  navn eller placering, så vaulten følger med af sig selv. Set på testserveren: efter at en scene og
-  en journal blev omdøbt, beholdt noterne deres filnavne, men egenskaben `name`, den første
-  overskrift og aliaset inde i dem skiftede til det nye navn inden for et minut. Når et dokument
+- **I Foundry, ja, frit.** Omdøb scenes, journals, actors og resten, som du vil, for
+  eksempel for at give et kort et tydeligere navn. Værktøjet finder hver note på et id inde i den
+  (`fvtt_uuid`), aldrig på navn eller placering, så vaulten følger med af sig selv. Når du omdøber
+  en scene eller en journal, beholder dens note sit filnavn, men egenskaben `name`, den første
+  overskrift og aliaset inde i den skifter til det nye navn inden for et minut. Når et dokument
   flyttes til en anden Foundry-mappe, flytter dens note til den tilsvarende mappe og får det
   nuværende navn som filnavn.
 - **I AI Tool-mappen skal du ikke omdøbe, flytte eller redigere noget.** Den mappe er værktøjets. En

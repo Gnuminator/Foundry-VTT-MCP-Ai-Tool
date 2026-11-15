@@ -193,6 +193,15 @@ function render() {
           : renderFancy(s);
 }
 
+/** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */
+function showClientUpdate(update) {
+  const box = $('me-update');
+  const ok = update && typeof update.da === 'string' && typeof update.en === 'string';
+  box.hidden = !ok;
+  $('me-update-da').textContent = ok ? update.da : '';
+  $('me-update-en').textContent = ok ? update.en : '';
+}
+
 async function load() {
   if (!key) {
     $('me-main').innerHTML = '<p class="me-empty">Open the link your GM sent you.</p>';
@@ -204,6 +213,7 @@ async function load() {
     if (!res.ok) throw new Error(body.error || 'Could not load your sheet. Ask your GM.');
     data = body;
     applyTheme(body.theme);
+    showClientUpdate(body.clientUpdate);
     render();
     $('me-updated').textContent =
       `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -257,7 +267,12 @@ async function loadConnector() {
     $('mc-secret').value = body.clientSecret || '';
     $('mc-hint').hidden = !!body.endpoint;
     $('mc-download-row').hidden = !body.endpoint;
+    // The remote connector (a web address and your own email) comes first; the extension below is
+    // for a player who has a pair and prefers or needs it.
+    $('mc-remote-url').value = body.remoteUrl || '';
+    $('mc-remote').hidden = !body.remoteUrl;
     setConnectorError('');
+    $('mc-fields').hidden = !body.clientId; // after the reset above: no pair, no extension block
     connectorLoaded = true;
     $('me-connector').hidden = false;
   } catch {

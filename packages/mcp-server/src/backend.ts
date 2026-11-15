@@ -545,10 +545,18 @@ async function startBackend(): Promise<void> {
           }
 
           // The stdio wrapper says which version and build it is (a wrapper from before this sends
-          // none). get-preflight reads the registry in-process; there is no control call for it.
+          // none). get-preflight reads the registry in-process; `wrapper_status` serves the same view.
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
+
+            continue;
+          }
+
+          // The connected connectors, names and versions only (read-only; the same object
+          // get-preflight reads).
+          if (msg.method === 'wrapper_status') {
+            socket.write(`${JSON.stringify({ id: msg.id, result: wrapperRegistry.status() })}\n`);
 
             continue;
           }
@@ -609,6 +617,16 @@ async function startBackend(): Promise<void> {
                     },
                   ],
                 };
+
+                // An older connector gets one outdated line, appended to a successful answer.
+                if (!socket.destroyed) {
+                  const notice = wrapperRegistry.noticeFor(
+                    connectionId,
+                    Date.now(),
+                    payload.content[0]?.text.length ?? 0
+                  );
+                  if (notice !== null) payload.content.push({ type: 'text', text: notice });
+                }
 
                 if (!socket.destroyed) {
                   socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);

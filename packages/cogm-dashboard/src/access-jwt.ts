@@ -191,6 +191,22 @@ export class AccessJwtVerifier {
   }
 
   /**
+   * A person's identity from the app token of a Managed OAuth login (the remote player connector):
+   * `type: app` and a non-empty email claim. A token without either is refused, so a service
+   * token (no email) never passes as a person. Use a verifier built with the "Player remote"
+   * application's AUD tag only.
+   */
+  async verifyAppToken(token: string): Promise<AppTokenResult> {
+    const payload = await this.verifiedClaims(token);
+    if (!payload) return { ok: false, reason: 'invalid' };
+    if (payload.type !== 'app') return { ok: false, reason: 'not-app' };
+    if (typeof payload.email !== 'string' || !payload.email.includes('@')) {
+      return { ok: false, reason: 'no-email' };
+    }
+    return { ok: true, email: payload.email.trim().toLowerCase() };
+  }
+
+  /**
    * A service token's client id (D-136, the player connector). Cloudflare Access signs a service
    * token's JWT without an email; the token's Client ID is its `common_name` claim (confirmed
    * only by third-party code so far: the first real request settles it, see `claimNames`).
@@ -212,6 +228,11 @@ export class AccessJwtVerifier {
     return { ok: true, clientId: id.trim() };
   }
 }
+
+/** The outcome of {@link AccessJwtVerifier.verifyAppToken}. */
+type AppTokenResult =
+  | { ok: true; email: string }
+  | { ok: false; reason: 'invalid' | 'not-app' | 'no-email' };
 
 /** The outcome of {@link AccessJwtVerifier.verifyServiceToken}. */
 export type ServiceTokenResult =

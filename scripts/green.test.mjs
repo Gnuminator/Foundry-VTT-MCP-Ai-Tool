@@ -1058,6 +1058,9 @@ test('quickSteps: docs:ui and docs:kit also run for the sources and scenarios th
   assert.ok(quickNames(['packages/cogm-dashboard/web/src/App.tsx']).includes('docs-ui-quick'));
   assert.ok(quickNames(['scripts/test-kit/scenarios/a.scenario.mjs']).includes('docs-kit-quick'));
   assert.ok(quickNames(['scripts/test-kit/lib/contract.mjs']).includes('docs-kit-quick'));
+  assert.ok(
+    quickNames(['docs/dev/test-kit/scenarios-monsters-spells.md']).includes('docs-kit-quick')
+  );
   assert.ok(!quickNames(['docs/dev/X.md']).includes('docs-ui-quick'));
 });
 

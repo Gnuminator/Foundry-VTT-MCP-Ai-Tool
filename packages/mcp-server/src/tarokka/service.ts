@@ -24,7 +24,7 @@
 import { randomBytes, randomInt } from 'crypto';
 
 import type { GuardedOp } from '@gnuminator/shared';
-import { unwrapBridgeReply } from '@gnuminator/shared';
+import { escapeHtml, unwrapBridgeReply } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView, VaultOp } from '../guarded-write/service.js';
@@ -133,15 +133,6 @@ export function newDocumentId(): string {
   let id = '';
   for (let i = 0; i < 16; i++) id += alphabet[randomInt(alphabet.length)];
   return id;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /** GM-typed text as journal HTML: blank lines split paragraphs, newlines become breaks. */

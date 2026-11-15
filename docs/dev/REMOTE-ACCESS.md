@@ -248,6 +248,10 @@ the same thing again: a token that carries an email is refused, and the token's 
 hostname ever serves anything but `/mcp/player`, narrow the tunnel's ingress path to
 `^/mcp/player$` (the Pi side of this is in the Pi stage script, not here).
 
+For the Claude custom connector there is a second application, `Player remote`, on `player-remote.spennerit.com` with
+Managed OAuth and the `Foundry players` email policy. Its AUD tag goes into `player-connector.json` as `appAudience`, with
+`emailPlayers` and `remoteEndpoint`; the Pi side is stage 30 (see `docs/dev/pi/network-and-access.md`, "The remote part").
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete

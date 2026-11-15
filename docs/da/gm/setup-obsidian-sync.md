@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 3a58d1c3a082
+sourceHash: d68e07baf01e
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -27,7 +27,7 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
 4. PowerShell-vinduet fyldes med linjer af log-tekst og bliver så stille. Det er normalt: Syncthing
    kører, så lad vinduet stå åbent, mens du gør resten. Din browser burde åbne Syncthing-siden. Hvis
    ingen browser åbner, så åbn selv en og gå til `http://127.0.0.1:8384` (den virker kun på din egen
-   pc). I de første sekunder kan Syncthing bede din router om at åbne porte; trin 5 slår det fra.
+   pc). I de første sekunder kan Syncthing bede din router om at åbne porte; punkt 5 herunder slår det fra.
    Hvis Syncthing spørger om anonym usage reporting, vælg **No**. En advarsel om at sætte et
    GUI-password kan vente.
 5. Klik på **Actions**, **Settings**, **Connections**, fjern fluebenet ved **Enable NAT traversal** (så

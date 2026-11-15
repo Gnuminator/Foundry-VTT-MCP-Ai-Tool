@@ -1,6 +1,6 @@
 {
   "name": "foundry-ai-tool",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "description": "Foundry AI Tool: MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
@@ -103,7 +103,7 @@
     "knip": "^5.64.1",
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
-    "markdownlint-cli2": "^0.23.3",
+    "markdownlint-cli2": "^0.24.1",
     "prettier": "^3.0.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.1",
@@ -114,7 +114,10 @@
   "overrides": {
     "madge": {
       "typescript": "$typescript"
-    }
+    },
+    "esbuild": "^0.28.2",
+    "moment": "^2.31.0",
+    "qs": "^6.17.1"
   },
   "engines": {
     "node": ">=24",

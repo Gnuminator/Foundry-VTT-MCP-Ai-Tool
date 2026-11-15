@@ -41,11 +41,11 @@ fi
 
 # ---- Inputs are checked before anything is touched ----------------------------------------------------------------
 if [ -n "$device_id" ]; then
-  printf '%s' "$device_id" | grep -Eq '^[A-Z0-9]{7}(-[A-Z0-9]{7}){7}$' ||
+  [[ "$device_id" =~ ^[A-Z0-9]{7}(-[A-Z0-9]{7}){7}$ ]] ||
     die "DEVICE_ID is not a Syncthing device ID (eight groups of seven letters and digits)"
 fi
 if [ -n "$device_name" ]; then
-  printf '%s' "$device_name" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$' ||
+  [[ "$device_name" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._-]{0,39}$ ]] ||
     die "DEVICE_NAME may hold letters, digits, space, dot, underscore and hyphen, at most 40 characters"
 fi
 case "$mode" in
@@ -64,7 +64,9 @@ fi
 
 st() { runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" syncthing cli --home="$st_home" "$@" </dev/null; }
 st show system >/dev/null 2>&1 || die "Syncthing does not answer on its GUI address; run stage 7, or see journalctl -u foundry-ai-tool-syncthing -n 50"
-st config folders list | grep -x "$folder_id" >/dev/null || die "the folder $folder_id is missing: run stage 7 first"
+# The folder list is read once; a failed read stops the stage (a swallowed failure would skip the player-device check).
+folders="$(st config folders list)" || die "could not list Syncthing's folders"
+printf '%s\n' "$folders" | grep -x "$folder_id" >/dev/null || die "the folder $folder_id is missing: run stage 7 first"
 my_id="$(st show system | sed -n 's/.*"myID": "\([A-Z0-9-]*\)".*/\1/p')"
 [ -n "$my_id" ] || die "could not read the Pi's device ID"
 [ -z "$device_id" ] || [ "$device_id" != "$my_id" ] || die "DEVICE_ID is this Pi's own ID: give the PC's device ID (Syncthing, Actions, Show ID)"
@@ -89,14 +91,19 @@ completion() {
 # index known to this Pi (remoteState valid, sequence above 0), and connected now. A device that never accepted the folder
 # or never connected shows none of that, however its percentage reads.
 holds_all() {
+  local body
+  body="$(rest "db/completion?folder=$folder_id&device=$1" | flat)"
+  [ "$(completion "$1")" = 100 ] &&
+    printf '%s' "$body" | grep -q '"needItems":0' &&
+    index_known "$1" &&
+    [ "$(connected "$1")" -gt 0 ]
+}
+# index_known DEVICE: this Pi knows that device's index for the vault (remoteState valid, sequence above 0).
+index_known() {
   local body seq
   body="$(rest "db/completion?folder=$folder_id&device=$1" | flat)"
   seq="$(printf '%s' "$body" | sed -n 's/.*"sequence":\([0-9]*\).*/\1/p')"
-  [ "$(completion "$1")" = 100 ] &&
-    printf '%s' "$body" | grep -q '"needItems":0' &&
-    printf '%s' "$body" | grep -q '"remoteState":"valid"' &&
-    [ "${seq:-0}" -gt 0 ] &&
-    [ "$(connected "$1")" -gt 0 ]
+  printf '%s' "$body" | grep -q '"remoteState":"valid"' && [ "${seq:-0}" -gt 0 ]
 }
 # pi_needs_nothing: the Pi has pulled everything its devices announced (no files left to fetch for the vault folder).
 pi_needs_nothing() {
@@ -127,9 +134,10 @@ report)
 
 add)
   say "adding the device"
-  for f in $(st config folders list); do
+  for f in $folders; do
     [ "$f" != "$folder_id" ] || continue
-    if st config folders "$f" devices list | grep -x "$device_id" >/dev/null; then
+    fdevs="$(st config folders "$f" devices list)" || die "could not list the devices on the folder $f"
+    if printf '%s\n' "$fdevs" | grep -x "$device_id" >/dev/null; then
       die "that device is already on the folder $f: a player's device never gets the GM vault (D-067)"
     fi
   done
@@ -165,6 +173,7 @@ remove)
     ok "another device holds all of the vault:$(for d in $safe; do printf ' %s' "$(dev_name "$d")"; done)"
     # The other direction: whatever the device being removed still holds that the Pi has not pulled would be lost with it.
     [ "$(connected "$device_id")" -gt 0 ] || die "the device to remove is not connected right now, so the Pi cannot know it has everything it holds: start that PC's Syncthing and wait for Up to Date, or run again with FORCE=1"
+    index_known "$device_id" || die "the Pi does not know the index of the device to remove yet (remoteState not valid or sequence 0): wait for it to connect and sync, or run again with FORCE=1"
     pi_needs_nothing || die "the Pi still has files to fetch for the vault (or Syncthing did not say): wait until the report is quiet and run again, or use FORCE=1"
     ok "the Pi has pulled everything the device announced"
   fi
@@ -173,8 +182,9 @@ remove)
   st config folders "$folder_id" devices list | grep -x "$device_id" >/dev/null && die "the device is still on the folder after the change"
   ok "$folder_id is no longer shared with $name"
   still=""
-  for f in $(st config folders list); do
-    if st config folders "$f" devices list | grep -x "$device_id" >/dev/null; then still="$f"; fi
+  for f in $folders; do
+    fdevs="$(st config folders "$f" devices list)" || die "could not list the devices on the folder $f (the device is off $folder_id; check the report)"
+    if printf '%s\n' "$fdevs" | grep -x "$device_id" >/dev/null; then still="$f"; fi
   done
   if [ -z "$still" ]; then
     st config devices "$device_id" delete

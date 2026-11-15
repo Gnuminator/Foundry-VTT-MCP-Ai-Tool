@@ -387,6 +387,27 @@ test('tick: a quiet night with only the bridge down raises no alarm either', asy
   assert.ok(calls.logs.some(l => /quiet night and bridge is down/.test(l)));
 });
 
+test('stop after the round that closed the gate still posts the pending end text, without a "stopping" line', async () => {
+  const rt = { gate: { active: false }, pending: [{ text: 'session ended', at: 0 }] };
+  const posted = [];
+  let exitCode = null;
+  const life = createLifecycle(
+    rt,
+    { token: 't', channelId: '1' },
+    {
+      exit: c => {
+        exitCode = c;
+      },
+      post: async (_t, text) => {
+        posted.push(text);
+      },
+    }
+  );
+  await life.stop();
+  assert.equal(exitCode, 0);
+  assert.deepEqual(posted, ['session ended']);
+});
+
 test('stop during a slow round posts "stopping" and the pending text exactly once', async () => {
   const rt = { gate: { active: true }, pending: [] };
   const posted = [];

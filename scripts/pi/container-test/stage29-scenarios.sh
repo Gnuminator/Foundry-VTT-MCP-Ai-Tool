@@ -227,10 +227,12 @@ rc=$?
 rm -f /tmp/fake-nowatch
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that never reaches its watching line fails the stage"; else fail "no watching line: rc=$rc $OUT"; fi
 touch /tmp/fake-diesoon; echo "Tue 2000-01-01 00:00:00 UTC" >/tmp/fake-started
-rm -f /tmp/fake-acted /tmp/fake-dead; run PATH="/tmp/fakebin:$PATH"
+rm -f /tmp/fake-acted /tmp/fake-dead; t0=$SECONDS; run PATH="/tmp/fakebin:$PATH"
 rc=$?
+took=$((SECONDS - t0))
 rm -f /tmp/fake-diesoon /tmp/fake-dead
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that stops before its watching line fails the stage at once"; else fail "unit stops first: rc=$rc $OUT"; fi
+# "At once": the wait gives up after the unit stopped, well before its 20 s run out (the no-watching case takes the full 20).
+if [ "$rc" -ne 0 ] && [ "$took" -lt 12 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that stops before its watching line fails the stage at once"; else fail "unit stops first: rc=$rc $OUT"; fi
 rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/fake-acted /tmp/systemctl.log
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

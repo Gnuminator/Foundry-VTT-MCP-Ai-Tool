@@ -7,8 +7,12 @@
  *
  * - Off unless `FOUNDRY_AI_PLAYER_CONNECTOR=on`: nothing is mounted.
  * - Who: only the `Cf-Access-Jwt-Assertion` header (never the cookie), verified against the
- *   player application's own AUD tag from the config file. A token with an email is a person,
- *   not a player token, and gets nothing (so a GM login never reaches this route).
+ *   player application's own AUD tag from the config file. On that application a token with an
+ *   email is a person, not a player token, and gets nothing.
+ * - Remote connector: the 'Player remote' Access application (Managed OAuth) signs an app token
+ *   with the person's email. It is checked against its own AUD tag (`appAudience`) and the
+ *   verified email maps to one Foundry user through `emailPlayers`. An email that is not listed,
+ *   or that maps to a GM (the directory never holds one), gets a bare 403.
  * - The user comes from the config file only. Never from the request body. The user must also be
  *   a non-GM user Foundry lists; anything else gets nothing.
  * - Only `initialize`, `ping`, `tools/list` and `tools/call` of the five player tools. No batches.
@@ -18,10 +22,17 @@
  */
 import { readFileSync } from 'fs';
 
+import {
+  TOOL_VERSION,
+  clientToolNotice,
+  isClientBehind,
+  playerExtensionVersion,
+} from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
 
 import { AccessJwtVerifier, type AccessJwtConfig } from './access-jwt.js';
 import { isLoopbackHost } from './bind-policy.js';
+import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
 import type { PlayerConnectorOptions } from './player-connector.js';
@@ -48,6 +59,8 @@ export interface PlayerRouteOptions {
   client: PlayerRouteClient;
   directory: PlayerDirectory;
   logger: Logger;
+  /** Client versions seen (item client-updates); absent on fakes. */
+  clients?: ClientRegistry;
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
 }
 
@@ -67,6 +80,19 @@ const SERVER_VERSION = ((): string => {
 const MAX_BODY = '64kb';
 
 type JsonRpcId = string | number | null;
+
+/** A successful tool result with a content array: the only kind that gets the outdated line. */
+function canCarryNotice(result: unknown): result is { content: unknown[] } {
+  if (result === null || typeof result !== 'object') return false;
+  const r = result as { isError?: unknown; content?: unknown };
+  return r.isError !== true && Array.isArray(r.content);
+}
+
+/** One more text item on a successful tool result; an error or odd-shaped result is left alone. */
+function withNotice(result: unknown, text: string): unknown {
+  if (!canCarryNotice(result)) return result;
+  return { ...result, content: [...result.content, { type: 'text', text }] };
+}
 
 function rpcError(id: JsonRpcId, code: number, message: string): object {
   return { jsonrpc: '2.0', id, error: { code, message } };
@@ -134,15 +160,19 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
   }
 
   // One verifier per set of AUD tags (the file is read per request, so an edit needs no restart).
-  let verifier: { key: string; v: AccessJwtVerifier } | null = null;
-  const verifierFor = (audiences: readonly string[]): AccessJwtVerifier | null => {
+  const verifiers = new Map<string, { key: string; v: AccessJwtVerifier }>();
+  const verifierFor = (
+    slot: 'service' | 'app',
+    audiences: readonly string[]
+  ): AccessJwtVerifier | null => {
     if (!connector.teamDomain || audiences.length === 0) return null;
     const key = audiences.join('\n');
-    if (verifier?.key !== key) {
-      const config: AccessJwtConfig = { teamDomain: connector.teamDomain, audiences };
-      verifier = { key, v: new AccessJwtVerifier(config, options.accessFetch) };
-    }
-    return verifier.v;
+    const have = verifiers.get(slot);
+    if (have?.key === key) return have.v;
+    const config: AccessJwtConfig = { teamDomain: connector.teamDomain, audiences };
+    const v = new AccessJwtVerifier(config, options.accessFetch);
+    verifiers.set(slot, { key, v });
+    return v;
   };
   let warnedClaims = false;
 
@@ -150,14 +180,36 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
   async function identify(req: Request): Promise<{ userId: string } | { status: 401 | 403 | 503 }> {
     // Dev mode is for a bare local server: no login, loopback peer, no proxy or tunnel headers,
     // and no Access application named in the file. Anything else goes through the real check.
-    if (devUser && isBareLocalRequest(req) && connector.store.read().audiences.length === 0) {
-      return { userId: devUser };
+    if (devUser && isBareLocalRequest(req)) {
+      const named = connector.store.read();
+      if (named.audiences.length === 0 && named.appAudiences.length === 0) {
+        return { userId: devUser };
+      }
     }
     const raw = req.headers['cf-access-jwt-assertion'];
     const token = (Array.isArray(raw) ? raw[0] : raw)?.trim();
     if (!token) return { status: devUser ? 403 : 401 };
     const file = connector.store.read();
-    const v = verifierFor(file.audiences);
+    // The remote connector first: its own application and AUD tag. A token that is not a valid
+    // token of that application falls through to the service-token check below.
+    const appV = verifierFor('app', file.appAudiences);
+    if (appV) {
+      let app;
+      try {
+        app = await appV.verifyAppToken(token);
+      } catch {
+        return { status: 503 };
+      }
+      if (app.ok) {
+        const mapped = connector.store.userForEmail(app.email);
+        return mapped ? { userId: mapped } : { status: 403 };
+      }
+      if (app.reason !== 'invalid') return { status: 403 };
+      if (file.audiences.length === 0) {
+        return { status: appV.hasKeys || !looksSigned(token) ? 401 : 503 };
+      }
+    }
+    const v = verifierFor('service', file.audiences);
     // Nothing to check against (no file, audience or team domain): the table's fault, not theirs.
     if (!v) return { status: 503 };
     let result;
@@ -232,6 +284,15 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     if (state !== 'ok') {
       res.status(state === 'offline' ? 503 : 403).end();
       return;
+    }
+
+    // Auth has passed: remember which extension version this player runs (the version only).
+    const extVersion = playerExtensionVersion(req.headers['user-agent']);
+    // Keyed by the Foundry user id (stable, unique); the name is only the GM list's label.
+    const playerKey = who.userId;
+    if (extVersion && options.clients) {
+      const label = directory.get(who.userId)?.name ?? who.userId;
+      options.clients.record('player-extension', playerKey, extVersion, Date.now(), label);
     }
 
     const body: unknown = req.body;
@@ -309,7 +370,16 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           : {};
       try {
         const result = await client.playerTool(who.userId, p.name, args);
-        res.json({ jsonrpc: '2.0', id, result });
+        // Only a result that can carry the line spends this player's six-hour slot.
+        const notice =
+          extVersion &&
+          options.clients &&
+          isClientBehind(extVersion, TOOL_VERSION) &&
+          canCarryNotice(result) &&
+          options.clients.shouldNotify(`player-extension:${playerKey}`, Date.now())
+            ? clientToolNotice('player-extension', extVersion, TOOL_VERSION)
+            : null;
+        res.json({ jsonrpc: '2.0', id, result: notice ? withNotice(result, notice) : result });
       } catch {
         res.json({
           jsonrpc: '2.0',

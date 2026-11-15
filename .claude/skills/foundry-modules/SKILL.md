@@ -14,11 +14,13 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 The Strahd list is `scripts/modules/strahd-modules.json` (37 entries with our two own; `tarokka-reading` left it on 2026-10-29, D-130; the final list of 2026-11-04 is Danni's 35 picks plus our four decisions: Monk's Player Settings dropped, Item Piles added with its companion `itempilesdnd5e`, FXMaster and Monk's TokenBar kept, Health Estimate and Racooze Map Library dropped; it carries the same verdict
 word as this table, and a test keeps the all-modules kit profile in step with its ids). Version =
-the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28.
+the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28. It is not the Pi's
+version: the Pi gets the pinned set from stage 25 (`scripts/pi/remote/25-modules.sh`), so read what the Pi runs with
+`get-modules` before quoting a version for it.
 
 | Module id                  | Version          | Page                                     | Verdict  |
 | -------------------------- | ---------------- | ---------------------------------------- | -------- |
-| `foundryvtt-actor-studio`  | 2.10.5-aitool.12 | `references/foundryvtt-actor-studio.md`  | keep     |
+| `foundryvtt-actor-studio`  | 2.10.5-aitool.13 | `references/foundryvtt-actor-studio.md`  | keep     |
 | `ddb-importer`             | 7.5.9            | `references/ddb-importer.md`             | optional |
 | `dnd-players-handbook`     | 2.2.0            | `references/dnd-players-handbook.md`     | keep     |
 | `token-action-hud-core`    | 2.1.2            | `references/token-action-hud-core.md`    | keep     |

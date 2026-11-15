@@ -2,11 +2,19 @@
 //   node --test scripts/pi/player-connector-cloudflare.test.mjs
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { main, promptHidden, REMOTE_FILE } from './player-connector-cloudflare.mjs';
+import { deliver, main, makeLogger, promptHidden, REMOTE_FILE } from './player-connector-cloudflare.mjs';
 
 const API_TOKEN = 'cfapitoken-SUPERSECRET-123456';
 const HOST = 'player-ai.spennerit.com';
@@ -280,6 +288,62 @@ describe('apply on an empty account', () => {
     assert.deepEqual(cf2.state.calls, []);
   });
 
+  test('--out in a folder that does not exist is refused before any request or prompt', async () => {
+    const cf = makeCloudflare();
+    const { dir, deps } = setup();
+    let prompted = false;
+    const code = await main(
+      ['--apply', '--users', 'u', '--out', path.join(dir, 'no-such-folder', 'p.json')],
+      {
+        ...deps,
+        env: {},
+        prompt: async () => {
+          prompted = true;
+          return API_TOKEN;
+        },
+        fetch: cf.fetch,
+      }
+    );
+    assert.equal(code, 2);
+    assert.equal(prompted, false);
+    assert.deepEqual(cf.state.calls, []);
+  });
+
+  test('deliver falls back to the 0600 fallback file when the --out write fails for another reason', async () => {
+    const { dir, deps, written } = setup();
+    const log = makeLogger({ stdout: deps.stdout, stderr: deps.stderr });
+    await deliver({
+      content: '{"x":1}\n',
+      opts: { out: path.join(dir, 'gone', 'p.json') },
+      spawn: deps.spawn,
+      log,
+      fallbackDir: deps.fallbackDir,
+    });
+    const target = path.join(deps.fallbackDir, 'player-connector.json.new');
+    assert.equal(readFileSync(target, 'utf8'), '{"x":1}\n');
+    assert.match(written.stderr, /writing .* failed/);
+    assert.match(written.stdout, /fallback file/);
+  });
+
+  test('a path that reaches the repo through a link counts as inside it', async () => {
+    const { dir, deps } = setup();
+    const repo = path.join(dir, 'repo');
+    mkdirSync(repo, { recursive: true });
+    const link = path.join(dir, 'link');
+    try {
+      symlinkSync(repo, link, 'junction');
+    } catch {
+      return; // no link rights here: nothing to check
+    }
+    const cf = makeCloudflare();
+    const code = await main(['--apply', '--users', 'u', '--out', path.join(link, 'p.json')], {
+      ...deps,
+      fetch: cf.fetch,
+    });
+    assert.equal(code, 2);
+    assert.deepEqual(cf.state.calls, []);
+  });
+
   test('--host must be a name inside --zone', async () => {
     const cf = makeCloudflare();
     const { written, deps } = setup();
@@ -453,5 +517,71 @@ describe('ingress safety', () => {
     assert.equal(code, 1);
     assert.match(written.stderr, /catch-all/);
     assert.ok(!writes(cf).some(c => c.startsWith('PUT /accounts/acc/cfd_tunnel')));
+  });
+});
+
+describe('--remote (email sign-in part)', () => {
+  const REMOTE_HOST = 'player-remote.spennerit.com';
+  const AUD = 'fedcba9876543210fedcba9876543210fedcba9876543210';
+  const EMAILS = 'Anna.One@Example.com - anna\nbo@example.org - Bo\n';
+  const remoteSetup = (emailsText = EMAILS) => {
+    const s = setup();
+    const users = JSON.stringify(USERS);
+    s.deps.readFile = file => (file === 'e' ? emailsText : users);
+    return s;
+  };
+  const remoteCf = () =>
+    makeCloudflare({ apps: [{ id: 'app9', name: 'Player remote', domain: REMOTE_HOST, aud: AUD }] });
+  const args = ['--remote', '--users', 'u', '--emails', 'e'];
+
+  test('a plan only reads and prints no email or aud', async () => {
+    const cf = remoteCf();
+    const { written, deps } = remoteSetup();
+    assert.equal(await main(args, { ...deps, fetch: cf.fetch }), 0);
+    assert.deepEqual(writes(cf), []);
+    assert.match(written.stdout, /2 email player/);
+    assert.doesNotMatch(everything(written), /example\.(com|org)|fedcba98/i);
+  });
+
+  test('apply sends appAudience, lowercase emails with user ids and the remote endpoint to the Pi', async () => {
+    const cf = remoteCf();
+    const { written, spawned, deps } = remoteSetup();
+    const code = await main([...args, '--apply', '--send-to', 'foundry-pi'], {
+      ...deps,
+      fetch: cf.fetch,
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(writes(cf), []);
+    assert.match(spawned.calls[0][2], /player-connector\.remote\.json\.new/);
+    assert.deepEqual(JSON.parse(spawned.stdin), {
+      appAudience: AUD,
+      emailPlayers: [
+        { email: 'anna.one@example.com', userId: USERS.Anna },
+        { email: 'bo@example.org', userId: USERS.Bo },
+      ],
+      remoteEndpoint: `https://${REMOTE_HOST}/mcp/player`,
+    });
+    assert.doesNotMatch(everything(written), /example\.(com|org)|fedcba98/i);
+  });
+
+  test('an unknown name, a repeated email or a malformed line is refused without printing the email', async () => {
+    const bad = [
+      'x@example.com - Nobody\n',
+      'a@example.com - Anna\nA@example.com - Bo\n',
+      'no dash here\n',
+    ];
+    for (const text of bad) {
+      const cf = remoteCf();
+      const { written, deps } = remoteSetup(text);
+      assert.equal(await main(args, { ...deps, fetch: cf.fetch }), 2);
+      assert.doesNotMatch(everything(written), /example\.com/);
+    }
+  });
+
+  test('no application on the remote host is an error, --remote needs --emails', async () => {
+    const cf = makeCloudflare();
+    const { deps } = remoteSetup();
+    assert.equal(await main(args, { ...deps, fetch: cf.fetch }), 1);
+    assert.equal(await main(['--remote', '--users', 'u'], { ...deps, fetch: cf.fetch }), 2);
   });
 });

@@ -144,7 +144,7 @@ touch /tmp/curl-fail
 OUT="$(DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" clock-bad 2>&1)"
 rc=$?
 rm -f /tmp/curl-fail
-if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'post failed'; then pass "a failing post still exits 0"; else fail "failing post: rc=$rc $OUT"; fi
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'post failed'; then pass "a failing post exits 1"; else fail "failing post: rc=$rc $OUT"; fi
 
 grep -q '^RestartMode=direct$' "$unit_dir/foundry-ai-tool-bridge.service.d/10-crash-guard.conf" && grep -q '^RestartMode=direct$' "$d" &&
   pass "every drop-in sets RestartMode=direct" || fail "RestartMode"

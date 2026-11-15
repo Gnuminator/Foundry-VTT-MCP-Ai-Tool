@@ -463,7 +463,8 @@ async function main() {
     lastEventAt: null,
     readOpen: async () => {
       const reading = await readSession(port);
-      rt.lastEventAt = reading.lastEventAt;
+      // A failed read keeps the last known time, so a quiet night with the bridge process down still counts as quiet.
+      if (reading.open !== null) rt.lastEventAt = reading.lastEventAt;
       return reading.open;
     },
     probes,
@@ -511,9 +512,22 @@ export function createLifecycle(rt, target, { exit, post = postToChannel }) {
     stopping = true;
     await round.catch(() => {});
     await flushing.catch(() => {});
-    if (target && rt.gate.active) {
-      rt.pending.push({ text: 'Game-night watch stopped: the service is stopping.', at: Date.now() });
-      await flushPending(rt.pending, a => post(target, a.text), () => {}).catch(() => {});
+    // Texts still pending go out even when the round that ended the session closed the gate (the end post); the
+    // "stopping" line only while the gate is active.
+    if (target && (rt.gate.active || rt.pending.length > 0)) {
+      if (rt.gate.active) {
+        rt.pending.push({ text: 'Game-night watch stopped: the service is stopping.', at: Date.now() });
+      }
+      // One overall deadline (20 s), inside the unit's TimeoutStopSec=30, so a slow Discord cannot outrun systemd.
+      let timer;
+      const deadline = new Promise(resolve => {
+        timer = setTimeout(resolve, 20000);
+      });
+      await Promise.race([
+        flushPending(rt.pending, a => post(target, a.text), () => {}).catch(() => {}),
+        deadline,
+      ]);
+      clearTimeout(timer);
     }
     exit(0);
   };

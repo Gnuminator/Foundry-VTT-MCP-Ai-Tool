@@ -1,0 +1,3 @@
+### Orange Pi
+
+- **Stage 23 and the Pi images build on a real Pi:** the first real run (2026-11-15) failed twice. On Debian 13 `docker.io` only recommends `docker-cli`, so there was no `docker` command; stage 23 now installs `docker-cli` too. The image build then failed with "Cannot find module '@gnuminator/shared'": the Pi checkout holds a `tsbuildinfo` from the host build while `dist` is left out of the image context, so TypeScript called `shared` up to date and wrote nothing. `deploy/pi/Dockerfile.dockerignore` now leaves `tsbuildinfo` files out and the Dockerfile fails early if `shared/dist` is missing. The container test now models Debian 13's split package, so it catches a missing `docker-cli`.

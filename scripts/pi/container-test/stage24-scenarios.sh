@@ -405,7 +405,7 @@ run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'run stage 6 again first' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable|compose.* up'; then pass "a nightly backup script that does not know the containers refuses the cutover"; else fail "stale nightly (rc $RC): $OUT"; fi
 run_stage MODE=cutover TEST_ALLOW_CUTOVER=0 DRY_RUN=1
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'run stage 6 again first'; then pass "the dry run says so too"; else fail "stale nightly dry (rc $RC): $OUT"; fi
-echo 'docker ps -q --filter "label=com.docker.compose.project=foundry-ai-tool-pi"' >"$SB/tool/backup/foundry-backup.sh"
+echo 'docker ps -q --filter "label=com.docker.compose.project=foundry-ai-tool-pi"; stopped_started_at=x' >"$SB/tool/backup/foundry-backup.sh"
 run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
 if [ "$RC" -eq 0 ] && all_off $all_units; then pass "a nightly backup script that knows the containers lets the cutover run"; else fail "current nightly (rc $RC): $OUT"; fi
 

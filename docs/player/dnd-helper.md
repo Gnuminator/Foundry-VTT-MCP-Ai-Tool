@@ -61,7 +61,29 @@ You need:
 Anthropic changes the menus now and then. If a button is not where this guide says, look for the
 same word nearby, or use the search box in Settings.
 
-## Step 2: download your helper
+## The simple way: add the connector by its web address
+
+If your **My character** page shows a connector address under **Your Claude connector**, use this
+and skip steps 2 and 3. There is no file, no Client ID and no secret, and it also works on the
+free Claude plan and in Claude on the web.
+
+1. Open your **My character** page, open **Your Claude connector** and press **Copy** next to the
+   address.
+2. In Claude, open **Settings**, **Connectors**, and choose "Add custom connector". Paste the
+   address. Leave any advanced fields empty. Press **Add**, then **Connect**.
+3. A Cloudflare page asks for your email. Use the same email the person who runs the tool has
+   for you. Cloudflare mails you a code; type it in. Claude then says it is connected.
+4. Open a new chat and go straight to step 4. Claude may ask permission the first time it uses a
+   tool: click **Allow**.
+
+Cloudflare checks your email again every few minutes, so if the person who runs the tool takes you
+off the list, the connector stops working. A free Claude plan allows one custom connector: this is
+the one to use it on.
+
+If the address is missing, the page does not load, or sign-in fails, use the extension below
+instead.
+
+## Step 2: download your helper (the extension way)
 
 1. Open your **My character** page (the private link you were sent), open **Your Claude
    connector** and press **Download my helper**. Your browser saves `foundry-player.mcpb` in

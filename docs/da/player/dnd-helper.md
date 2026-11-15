@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: dc1e806fff39
+sourceHash: 67f072770328
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -62,7 +62,29 @@ Du skal bruge:
 Anthropic ændrer menuerne en gang imellem. Hvis en knap ikke står, hvor guiden siger, så led efter
 det samme ord i nærheden, eller brug søgefeltet i Settings.
 
-## Trin 2: hent din hjælper
+## Den enkle vej: tilføj connectoren med dens webadresse
+
+Viser din **My character**-side en connector-adresse under **Your Claude connector**, så brug
+den og spring trin 2 og 3 over. Der er ingen fil, intet Client ID og ingen secret, og det virker
+også med den gratis Claude-plan og i Claude på nettet.
+
+1. Åbn din **My character**-side, åbn **Your Claude connector** og tryk **Copy** ved adressen.
+2. Åbn **Settings**, **Connectors** i Claude, og vælg "Add custom connector". Indsæt adressen.
+   Lad eventuelle avancerede felter stå tomme. Tryk **Add** og derefter **Connect**.
+3. En Cloudflare-side spørger efter din e-mail. Brug den e-mail, som den, der kører værktøjet,
+   har til dig. Cloudflare sender dig en kode: skriv den ind. Derefter siger Claude, at den er
+   forbundet.
+4. Åbn en ny chat og gå direkte til trin 4. Claude spørger måske om lov første gang, den bruger et
+   værktøj: tryk **Allow**.
+
+Cloudflare tjekker din e-mail igen med få minutters mellemrum, så hvis den, der kører værktøjet,
+tager dig af listen, holder connectoren op med at virke. En gratis Claude-plan tillader én
+custom connector: det er den, du skal bruge den på.
+
+Mangler adressen, loader siden ikke, eller virker login ikke, så brug extension'en nedenfor i
+stedet.
+
+## Trin 2: hent din hjælper (extension-vejen)
 
 1. Åbn din **My character**-side (det private link, du fik), åbn **Your Claude connector** og tryk
    på **Download my helper**. Din browser gemmer `foundry-player.mcpb` i din **Downloads**-mappe.

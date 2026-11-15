@@ -2,6 +2,14 @@
 //
 //   node scripts/pi/player-connector-cloudflare.mjs [--apply] --users <file> [--host <host>]
 //     [--zone <zone>] [--tunnel <name>] [--origin <url>] [--send-to <ssh host> | --out <path>] [--rotate]
+//   node scripts/pi/player-connector-cloudflare.mjs --remote [--apply] --users <file> --emails <file>
+//     [--remote-host <host>] [--zone <zone>] [--send-to <ssh host> | --out <path>]
+//
+// The second form (--remote) is for the email sign-in through Access Managed OAuth ("Player remote" application): it only READS
+// Cloudflare (the application's AUD tag) and sends the remote part of the table (appAudience, emailPlayers, remoteEndpoint) to the Pi
+// as /root/player-connector.remote.json.new, where stage 30 merges it over the installed table. It makes no token, policy, route or
+// DNS change and leaves the service-token players alone. --emails is a text file of "email - Foundry name" lines; --users maps the
+// names to Foundry user ids as below. Emails are never printed, only counts.
 //
 // Claude Desktop players call POST https://<host>/mcp/player, each with a Cloudflare Access service
 // token. This script creates the four tokens, one reusable policy that lets only those tokens in,
@@ -15,7 +23,17 @@
 //   Account: Account Settings: Read, Zone: Zone: Read, Account: Access: Apps and Policies: Edit,
 //   Account: Access: Service Tokens: Edit, Account: Cloudflare Tunnel: Edit, Zone: DNS: Edit (on the zone).
 import { spawn as nodeSpawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +43,9 @@ export const POLICY_NAME = 'Player connector tokens';
 export const APP_NAME = 'Player connector';
 export const TOKEN_DURATION = '43800h';
 export const REMOTE_FILE = '/root/player-connector.json.new';
+export const REMOTE_PART_FILE = '/root/player-connector.remote.json.new';
 export const DEFAULTS = {
+  remoteHost: 'player-remote.spennerit.com',
   host: 'player-ai.spennerit.com',
   zone: 'spennerit.com',
   tunnel: 'foundry-pi',
@@ -45,8 +65,10 @@ export class UsageError extends Error {}
  *   tunnel: string, origin: string, sendTo?: string, out?: string }}
  */
 export function parseArgs(argv) {
-  const opts = { apply: false, rotate: false, ...DEFAULTS };
+  const opts = { apply: false, rotate: false, remote: false, ...DEFAULTS };
   const valued = {
+    '--emails': 'emails',
+    '--remote-host': 'remoteHost',
     '--users': 'users',
     '--host': 'host',
     '--zone': 'zone',
@@ -59,6 +81,7 @@ export function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--apply') opts.apply = true;
     else if (arg === '--rotate') opts.rotate = true;
+    else if (arg === '--remote') opts.remote = true;
     else if (arg in valued) {
       const value = argv[++i];
       if (value === undefined || value.startsWith('--'))
@@ -68,7 +91,15 @@ export function parseArgs(argv) {
   }
   if (!opts.users) throw new UsageError('--users <file> is required');
   // The DNS record and the Access application are made for --host inside --zone; a host outside the zone would fail late.
-  if (!opts.host.toLowerCase().endsWith(`.${opts.zone.toLowerCase()}`)) {
+  if (opts.remote) {
+    if (!opts.emails) throw new UsageError('--remote needs --emails <file>');
+    if (opts.rotate) throw new UsageError('--rotate does not apply to --remote');
+    if (!opts.remoteHost.toLowerCase().endsWith(`.${opts.zone.toLowerCase()}`)) {
+      throw new UsageError(
+        `--remote-host ${opts.remoteHost} must be a name inside --zone ${opts.zone}`
+      );
+    }
+  } else if (!opts.host.toLowerCase().endsWith(`.${opts.zone.toLowerCase()}`)) {
     throw new UsageError(`--host ${opts.host} must be a name inside --zone ${opts.zone}`);
   }
   if (opts.sendTo && opts.out) throw new UsageError('use either --send-to or --out, not both');
@@ -110,6 +141,93 @@ export function parseUsers(text) {
     seen.add(tokenName);
     return { name, tokenName, userId };
   });
+}
+
+/**
+ * The emails file: one "email - Foundry name" line per person (blank lines and # comments are skipped). The name picks the Foundry
+ * user id from the users file (case does not matter). Messages carry line numbers and names, never an email.
+ * @param {string} text
+ * @param {{ name: string, userId: string }[]} users
+ * @returns {{ email: string, userId: string }[]}
+ */
+export function parseEmails(text, users) {
+  const byName = new Map(users.map(u => [u.name.toLowerCase(), u.userId]));
+  const out = [];
+  const seenEmail = new Set();
+  const seenUser = new Set();
+  String(text)
+    .split(/\r?\n/)
+    .forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) return;
+      const m = /^(\S+@\S+)\s+-\s+(.+)$/.exec(line);
+      if (!m) throw new UsageError(`emails file line ${i + 1}: expected "email - Foundry name"`);
+      const email = m[1].toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new UsageError(`emails file line ${i + 1}: not an email address`);
+      }
+      const name = m[2].trim();
+      const userId = byName.get(name.toLowerCase());
+      if (!userId) {
+        throw new UsageError(`emails file line ${i + 1}: the name is not in the users file`);
+      }
+      if (seenEmail.has(email)) throw new UsageError(`emails file line ${i + 1}: email listed twice`);
+      if (seenUser.has(userId)) {
+        throw new UsageError(`emails file line ${i + 1}: "${name}" is listed twice`);
+      }
+      seenEmail.add(email);
+      seenUser.add(userId);
+      out.push({ email, userId });
+    });
+  if (out.length === 0) throw new UsageError('the emails file lists nobody');
+  return out;
+}
+
+/**
+ * --remote: reads the AUD tag of the "Player remote" Access application and sends the remote part of the
+ * table to the Pi. Reads only; Cloudflare is not changed.
+ */
+export async function runRemote({ opts, emails, call, log, spawn, fallbackDir, repoRoot = REPO_ROOT }) {
+  const { apply, remoteHost } = opts;
+  if (apply && opts.out && insideRepo(opts.out, repoRoot)) {
+    throw new UsageError('--out is inside a git folder: pick a path outside it');
+  }
+  log.out(
+    apply
+      ? `Sending the remote part for ${remoteHost}`
+      : `Plan for the remote part of ${remoteHost} (nothing is sent)`
+  );
+  const accounts = await call('GET', '/accounts?per_page=50');
+  if (!Array.isArray(accounts) || accounts.length !== 1) {
+    throw new Error(`expected exactly one Cloudflare account, found ${accounts?.length ?? 0}`);
+  }
+  const apps = (await call('GET', `/accounts/${accounts[0].id}/access/apps?per_page=100`)) ?? [];
+  const matches = apps.filter(a => a.domain === remoteHost);
+  if (matches.length !== 1) {
+    throw new Error(`expected exactly one Access application on ${remoteHost}, found ${matches.length}`);
+  }
+  const aud = matches[0].aud;
+  if (typeof aud !== 'string' || !/^[A-Za-z0-9]{32,128}$/.test(aud)) {
+    throw new Error(`the Access application on ${remoteHost} has no usable aud tag`);
+  }
+  log.out(`ok: Access application on ${remoteHost} found (aud tag read, not shown)`);
+  log.out(`ok: ${emails.length} email player(s) mapped to Foundry users`);
+  if (!apply) {
+    log.out('This was a plan. Re-run with --apply (and --send-to or --out) to send the file.');
+    return;
+  }
+  const content = `${JSON.stringify(
+    {
+      appAudience: aud,
+      emailPlayers: emails,
+      remoteEndpoint: `https://${remoteHost}/mcp/player`,
+    },
+    null,
+    2
+  )}\n`;
+  await deliver({ content, opts, spawn, log, fallbackDir, remoteFile: REMOTE_PART_FILE });
+  log.out('');
+  log.out(`Next: run stage 30 on the Pi (it merges ${REMOTE_PART_FILE} into the installed table).`);
 }
 
 /** Output that cannot carry a known secret: every registered value is masked before it is written. */
@@ -232,11 +350,11 @@ export function buildIngress(existing, { host, origin, aud, routePath = '^/mcp/p
   };
 }
 
-function ssh(spawn, host, content) {
+function ssh(spawn, host, content, remoteFile) {
   return new Promise(resolve => {
     let child;
     try {
-      child = spawn('ssh', [host, `umask 077; cat > ${REMOTE_FILE}`], {
+      child = spawn('ssh', [host, `umask 077; cat > ${remoteFile}`], {
         stdio: ['pipe', 'inherit', 'inherit'],
       });
     } catch {
@@ -250,13 +368,40 @@ function ssh(spawn, host, content) {
   });
 }
 
+/** The real path of `file` (links and short names resolved) even when the file or some folders above it do not exist yet. */
+function realPathLoose(file) {
+  let current = path.resolve(file);
+  const tail = [];
+  for (;;) {
+    try {
+      return path.join(realpathSync(current), ...tail.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return path.resolve(file);
+      tail.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+/** The folder of an --out path must exist and be writable; checked before the API token is asked for. */
+function checkOutFolder(out) {
+  const dir = path.dirname(path.resolve(out));
+  try {
+    if (!statSync(dir).isDirectory()) throw new Error('not a folder');
+    accessSync(dir, constants.W_OK);
+  } catch {
+    throw new UsageError(`the folder ${dir} for --out does not exist or is not writable`);
+  }
+}
+
 /**
  * True when `file` sits in this repo or in any folder tree that holds a `.git` (a checkout, a worktree,
  * the Obsidian vault): the login table holds secrets and must never land where git could pick it up.
  */
 function insideRepo(file, repoRoot) {
-  const abs = path.resolve(file);
-  const rel = path.relative(repoRoot, abs);
+  const abs = realPathLoose(file);
+  const rel = path.relative(realPathLoose(repoRoot), abs);
   if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) return true;
   for (let dir = path.dirname(abs); ; dir = path.dirname(dir)) {
     if (existsSync(path.join(dir, '.git'))) return true;
@@ -268,36 +413,40 @@ function insideRepo(file, repoRoot) {
 const MODE_NOTE = process.platform === 'win32' ? '' : ' (mode 600)';
 
 /** Hands the file content to the Pi over ssh, or to a 0600 file as the fallback or on request. */
-export async function deliver({ content, opts, spawn, log, fallbackDir }) {
+export async function deliver({ content, opts, spawn, log, fallbackDir, remoteFile = REMOTE_FILE }) {
+  let failure;
   if (opts.out) {
     const target = path.resolve(opts.out);
     try {
       // wx: never overwrite (an existing file keeps its old mode and may be someone else's).
       writeFileSync(target, content, { mode: 0o600, flag: 'wx' });
+      log.out(
+        `ok: wrote ${target}${MODE_NOTE}. Copy it to the Pi as ${remoteFile}, then delete it here.`
+      );
+      return;
     } catch (error) {
       if (error?.code === 'EEXIST') {
         throw new UsageError(`${target} exists already: delete it or pick another --out path`);
       }
-      throw error;
+      // Any other failure (a full disk, a folder that went read-only): the secrets exist only once, so keep them in the fallback file.
+      failure = `writing ${target} failed (${error?.code ?? 'error'})`;
     }
-    log.out(
-      `ok: wrote ${target}${MODE_NOTE}. Copy it to the Pi as ${REMOTE_FILE}, then delete it here.`
-    );
-    return;
+  } else {
+    const code = await ssh(spawn, opts.sendTo, content, remoteFile);
+    if (code === 0) {
+      log.out(`ok: sent the player file to ${opts.sendTo}:${remoteFile}`);
+      return;
+    }
+    failure = `ssh to ${opts.sendTo} failed (exit ${code})`;
   }
-  const code = await ssh(spawn, opts.sendTo, content);
-  if (code === 0) {
-    log.out(`ok: sent the player file to ${opts.sendTo}:${REMOTE_FILE}`);
-    return;
-  }
-  const target = path.join(fallbackDir, 'player-connector.json.new');
+  const target = path.join(fallbackDir, path.posix.basename(remoteFile));
   mkdirSync(fallbackDir, { recursive: true });
   // An old fallback file may carry an older mode; remove it so the new one is created 0600.
   rmSync(target, { force: true });
   writeFileSync(target, content, { mode: 0o600, flag: 'wx' });
-  log.err(`ssh to ${opts.sendTo} failed (exit ${code}).`);
+  log.err(`${failure}.`);
   log.out(`ok: wrote the fallback file ${target}${MODE_NOTE}.`);
-  log.out(`Copy it to the Pi as ${REMOTE_FILE} (scp), then delete it from this PC.`);
+  log.out(`Copy it to the Pi as ${remoteFile} (scp), then delete it from this PC.`);
 }
 
 /**
@@ -586,12 +735,18 @@ export async function main(argv, deps = {}) {
         `${path.resolve(opts.out)} exists already: delete it or pick another --out path`
       );
     }
+    if (opts.out && opts.apply) checkOutFolder(opts.out);
+    const emails = opts.remote ? parseEmails(readFile(opts.emails), users) : [];
     token = env.CLOUDFLARE_API_TOKEN || (await prompt());
     token = String(token ?? '').trim();
     if (!token) throw new UsageError('no API token given');
     log.hide(token);
     const call = createClient({ fetch, token });
-    await run({ opts, users, call, log, spawn, fallbackDir, repoRoot });
+    if (opts.remote) {
+      await runRemote({ opts, emails, call, log, spawn, fallbackDir, repoRoot });
+    } else {
+      await run({ opts, users, call, log, spawn, fallbackDir, repoRoot });
+    }
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';

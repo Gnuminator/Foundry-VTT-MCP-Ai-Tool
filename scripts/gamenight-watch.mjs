@@ -238,7 +238,11 @@ export function withLateNote({ text, at }, now = Date.now()) {
 
 /** The env files to read: --env-files (comma separated), else the old --env-file, else the bot's default file. */
 export function envFileList(args) {
-  const raw = typeof args['env-files'] === 'string' ? args['env-files'] : args['env-file'];
+  // Only --env-files is a comma list; --env-file is one path (a comma in it is part of the name).
+  if (typeof args['env-files'] !== 'string' && typeof args['env-file'] === 'string') {
+    return args['env-file'].trim() ? [args['env-file'].trim()] : [defaultEnvFile()];
+  }
+  const raw = args['env-files'];
   if (typeof raw !== 'string') return [defaultEnvFile()];
   const files = raw
     .split(',')

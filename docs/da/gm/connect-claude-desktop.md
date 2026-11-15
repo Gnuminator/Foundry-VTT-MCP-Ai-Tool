@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: a5ef72a8fa69
+sourceHash: 6a37d0d96116
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -41,7 +41,8 @@ klient (for eksempel `FoundryMCPServer-Setup-v0.28.0.exe`) gør du "Opdater klie
 
 ## Opdater klienten
 
-Klienten opdaterer sig ikke selv. Når den, der byggede værktøjet, sender en ny
+Klienten opdaterer sig ikke selv, medmindre den, der byggede værktøjet, har slået det til på din PC
+(se "Automatiske opdateringer" nedenfor). Når den, der byggede værktøjet, sender en ny
 `FoundryMCPServer-Setup-vX.Y.Z.exe`, installerer du den oven på den gamle: samme trin som under
 "Installer" ovenfor. Siden "Bridge address" er allerede udfyldt, men installationsprogrammet spørger igen
 efter Client ID og secret, så hav nøglen klar og indsæt begge.
@@ -53,6 +54,28 @@ connectors are up to date** er grøn, når du er opdateret. En advarsel betyder,
 stadig er forbundet: afslut Claude Desktop fra systembakken (nær uret), kør den nyeste installer,
 start Claude Desktop igen og spørg endnu en gang. Siger rækken, at ingen connector er forbundet, er
 Claude Desktop ikke forbundet til serveren endnu; det er ikke et opdateringsproblem.
+
+### Automatiske opdateringer (slået fra, til de slås til)
+
+Med Cloudflare-tunnelen kan klienten opdatere sig selv, men først når det er slået til på din PC.
+Når det er til, spørger den hver gang du logger ind i Windows, hvilken version bordet kører. Er din
+klient ældre, og Claude Desktop er lukket, henter den præcis den udgave fra GitHub, tjekker den mod
+udgavens `SHA256SUMS.txt` og installerer den lydløst med din nøgle bevaret. Fejler hentningen
+eller tjekket, installeres intet; fejler selve installationen, lægger den de gamle filer tilbage. Er Claude Desktop åben, venter den til næste login. Resultatet er
+én linje i `%LOCALAPPDATA%\FoundryMCPServer\tunnel\update.log`; genstart Claude Desktop bagefter for
+at indlæse den nye klient. Beskeden "opdatering klar" på dashboardet forsvinder, når din klient
+svarer til bordet.
+
+Slå det til eller fra med (PowerShell):
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
+```
+
+Obsidian-pluginet opdateres gennem den synkroniserede GM-vault (se Obsidian-synkroniseringsguiden),
+ikke af dette.
 
 ## Tjek, at det virker
 

@@ -382,6 +382,18 @@ switch ($Action) {
     $mutex = New-Object System.Threading.Mutex($true, 'Local\FoundryAiToolTunnelClient', [ref]$created)
     if (-not $created) { exit 0 }  # already running for this user
     try {
+      # Auto-update (item client-autoupdate): off unless <StateDir>\autoupdate.on exists. Started once per
+      # logon as its own process (the installer stops this launcher while it runs), never blocks the tunnel.
+      $updater = Join-Path (Split-Path -Parent $PSCommandPath) 'client-update.ps1'
+      if ((Test-Path -LiteralPath (Join-Path $StateDir 'autoupdate.on')) -and (Test-Path -LiteralPath $updater)) {
+        try {
+          # Started through WMI so it lives outside this scheduled task's process tree: the installer
+          # stops the task (and everything under it) while it replaces files.
+          $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $cmd = "`"$psExe`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$updater`" -Action Check -StateDir `"$StateDir`""
+          Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd } | Out-Null
+        } catch { }
+      }
       $backoff = 5
       while ($true) {
         foreach ($f in @($logPath, "$logPath.out")) {

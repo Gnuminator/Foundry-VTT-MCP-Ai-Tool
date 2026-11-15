@@ -38,7 +38,8 @@ This is one of the [one-time setups](README.md#one-time-setups). For a new insta
 
 ## Update the client
 
-The client does not update itself. When the person who built the tool sends a new
+The client does not update itself unless the person who built the tool switches that on for your PC
+(see "Automatic updates" below). When the person who built the tool sends a new
 `FoundryMCPServer-Setup-vX.Y.Z.exe`, install it over the old one: the same steps as "Install" above.
 The address page is already filled in, but the installer asks for the Client ID and secret again, so
 keep the key you were given and paste both.
@@ -50,6 +51,28 @@ when you are current. A warning means an old client is still connected: quit Cla
 tray, run the newest installer, start Claude Desktop again and ask once more. If the row says no
 connector is connected, Claude Desktop is not connected to the server yet; that is not an update
 problem.
+
+### Automatic updates (off until switched on)
+
+With the Cloudflare tunnel the client can update itself, but only after it is switched on for your
+PC. Once on, each time you sign in to Windows it asks the table which version it runs. If your
+client is older and Claude Desktop is closed, it downloads that exact release from GitHub, checks it
+against the release's `SHA256SUMS.txt`, and installs it silently with your key kept. If anything
+fails, nothing changes and the old client stays. If Claude Desktop is open, it waits until the next
+sign-in. The result is one line in `%LOCALAPPDATA%\FoundryMCPServer\tunnel\update.log`; restart
+Claude Desktop afterwards to load the new client. The "update available" notice on the dashboard
+goes away once your client matches the table.
+
+Switch it on or off with (PowerShell):
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
+```
+
+The Obsidian plugin is updated through the synced GM vault (see the Obsidian sync guide), not by
+this.
 
 ## Check that it works
 

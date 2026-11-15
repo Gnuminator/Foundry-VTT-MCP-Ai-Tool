@@ -448,6 +448,7 @@ Function SetupTunnel
       Pop $1
       DetailPrint "$1"
       Delete "$INSTDIR\tunnel-client.ps1"
+      Delete "$INSTDIR\client-update.ps1"
       Delete "$INSTDIR\cloudflared.exe"
     tunnel_none:
     Return
@@ -463,6 +464,7 @@ Function SetupTunnel
   SetOutPath $INSTDIR
   File "cloudflared.exe"
   File "tunnel-client.ps1"
+  File "client-update.ps1"
 
   StrCpy $2 '-Action Install -TunnelHost "$TunnelHost" -Port "$BridgePort" -CloudflaredPath "$INSTDIR\cloudflared.exe"'
   ${If} ${Silent}
@@ -623,6 +625,7 @@ Section "Uninstall"
   DetailPrint "Removing files..."
   Delete "$INSTDIR\cloudflared.exe"
   Delete "$INSTDIR\tunnel-client.ps1"
+  Delete "$INSTDIR\client-update.ps1"
   Delete "$INSTDIR\node.exe"
   Delete "$INSTDIR\node-LICENSE.txt"
   RMDir /r "$INSTDIR\foundry-mcp-client"

@@ -12,9 +12,16 @@ import { parseTeamDomain } from './access-jwt.js';
  * {
  *   "endpoint": "https://player-ai.example.com/mcp/player",
  *   "audience": "<AUD tag of the Access application for players>",
- *   "players": [{ "clientId": "...", "clientSecret": "...", "userId": "<Foundry user id>" }]
+ *   "players": [{ "clientId": "...", "clientSecret": "...", "userId": "<Foundry user id>" }],
+ *   "appAudience": "<AUD tag of the 'Player remote' Access application (Managed OAuth)>",
+ *   "emailPlayers": [{ "email": "player@example.com", "userId": "<Foundry user id>" }],
+ *   "remoteEndpoint": "https://<remote hostname>/mcp/player"
  * }
  * ```
+ *
+ * The remote connector (a Claude custom connector behind Access Managed OAuth) needs no secret:
+ * the person signs in with their email; the dashboard checks the app token against `appAudience`
+ * only and maps the verified email to one Foundry user through `emailPlayers`.
  *
  * The backend reads the same file for its optional `denyTerms` list. A player is a Cloudflare
  * Access service token: the dashboard maps the verified token's Client ID to one Foundry user.
@@ -27,11 +34,30 @@ export interface ConnectorPlayer {
   readonly userId: string;
 }
 
+export interface EmailPlayer {
+  readonly email: string;
+  readonly userId: string;
+}
+
 export interface ConnectorFile {
   readonly endpoint: string | null;
   readonly audiences: readonly string[];
   readonly players: readonly ConnectorPlayer[];
+  /** AUD tags of the Managed OAuth application ('Player remote'); empty: no remote login. */
+  readonly appAudiences: readonly string[];
+  readonly emailPlayers: readonly EmailPlayer[];
+  /** The https address a player pastes into Claude (the 'Player remote' hostname), or null. */
+  readonly remoteEndpoint: string | null;
 }
+
+const EMPTY_FILE: ConnectorFile = {
+  remoteEndpoint: null,
+  endpoint: null,
+  audiences: [],
+  players: [],
+  appAudiences: [],
+  emailPlayers: [],
+};
 
 const USER_ID_RE = /^[A-Za-z0-9]{16}$/;
 
@@ -83,7 +109,37 @@ export function parseConnectorFile(
   if (new Set(players.map(p => p.userId)).size < players.length) {
     problem('two entries share one Foundry user id: /me shows only the first pair');
   }
-  return { endpoint, audiences, players };
+  const appAud = rec.appAudience;
+  const appAudiences = (Array.isArray(appAud) ? appAud : [appAud]).map(str).filter(a => a !== '');
+  const emailPlayers: EmailPlayer[] = [];
+  const emailSeen = new Set<string>();
+  const emailList = Array.isArray(rec.emailPlayers) ? (rec.emailPlayers as unknown[]) : [];
+  for (const [index, item] of emailList.entries()) {
+    const p = (item ?? {}) as Record<string, unknown>;
+    const email = str(p.email).toLowerCase();
+    const userId = str(p.userId);
+    if (!email.includes('@') || !USER_ID_RE.test(userId)) {
+      problem(`emailPlayers[${index}] is incomplete or has a bad user id: dropped`);
+      continue;
+    }
+    // One email, one user: a duplicate makes the mapping ambiguous, so neither stays.
+    if (emailSeen.has(email)) {
+      problem('an email appears twice: both entries dropped');
+      const at = emailPlayers.findIndex(x => x.email === email);
+      if (at >= 0) emailPlayers.splice(at, 1);
+      continue;
+    }
+    emailSeen.add(email);
+    emailPlayers.push({ email, userId });
+  }
+  let remoteEndpoint: string | null = null;
+  try {
+    const u = new URL(str(rec.remoteEndpoint));
+    if (u.protocol === 'https:') remoteEndpoint = u.toString();
+  } catch {
+    remoteEndpoint = null;
+  }
+  return { endpoint, audiences, players, appAudiences, emailPlayers, remoteEndpoint };
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -104,7 +160,7 @@ export class ConnectorStore {
   private lastProblems = '';
 
   read(): ConnectorFile {
-    if (!this.file) return { endpoint: null, audiences: [], players: [] };
+    if (!this.file) return EMPTY_FILE;
     let json: unknown;
     try {
       json = JSON.parse(readFileSync(this.file, 'utf8'));
@@ -114,7 +170,7 @@ export class ConnectorStore {
         this.warned = true;
         this.warn('Player connector: the config file cannot be read; every login is refused');
       }
-      return { endpoint: null, audiences: [], players: [] };
+      return EMPTY_FILE;
     }
     this.warned = false; // readable again: a later breakage is worth a new line
     const problems: string[] = [];
@@ -134,6 +190,26 @@ export class ConnectorStore {
       if (safeEqual(p.clientId, clientId)) found = p.userId;
     }
     return found;
+  }
+
+  /** The Foundry user a verified login email belongs to, or null (constant-time over every entry). */
+  userForEmail(email: string): string | null {
+    let found: string | null = null;
+    const wanted = email.trim().toLowerCase();
+    for (const p of this.read().emailPlayers) {
+      if (safeEqual(p.email, wanted)) found = p.userId;
+    }
+    return found;
+  }
+
+  /**
+   * The address a player pastes into Claude when the remote connector is set up for them (an
+   * application tag, an https address and their own email in the table), else null.
+   */
+  remoteFor(userId: string): string | null {
+    const file = this.read();
+    if (!file.remoteEndpoint || file.appAudiences.length === 0) return null;
+    return file.emailPlayers.some(p => p.userId === userId) ? file.remoteEndpoint : null;
   }
 
   /** The pair that belongs to one Foundry user (their own /me page), or null. */

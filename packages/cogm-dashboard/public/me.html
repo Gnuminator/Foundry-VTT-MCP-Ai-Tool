@@ -36,6 +36,17 @@
         <span id="mc-error-text"></span>
         <button type="button" id="mc-retry">Try again</button>
       </div>
+      <div id="mc-remote" hidden>
+        <p>
+          <strong>The simple way:</strong> in Claude (the website or the app) open Settings,
+          Connectors, Add custom connector, paste this address and press Connect. Sign in with your
+          own email: Cloudflare mails you a code. Nothing to download, no password.
+        </p>
+        <p>
+          <input id="mc-remote-url" readonly aria-label="Connector address" />
+          <button type="button" data-copy="mc-remote-url">Copy</button>
+        </p>
+      </div>
       <div id="mc-fields">
         <p id="mc-hint" class="muted" hidden>
           No endpoint address is set yet. Ask whoever runs the table for it.

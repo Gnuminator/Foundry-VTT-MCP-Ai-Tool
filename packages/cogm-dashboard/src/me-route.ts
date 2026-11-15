@@ -54,7 +54,10 @@ export interface MeRouteOptions {
   /** For a failed link save or removal (the reply to the GM is a fixed sentence). */
   logger?: Pick<Logger, 'warn'>;
   /** The player connector's login table (D-136), or null when the connector is off. */
-  connector?: Pick<import('./player-connector.js').ConnectorStore, 'credentialsFor'> | null;
+  connector?: Pick<
+    import('./player-connector.js').ConnectorStore,
+    'credentialsFor' | 'remoteFor'
+  > | null;
   /** Builds one player's extension file; the real one loads tools/player-connector. For tests. */
   buildPreset?: (p: PresetInput) => Buffer | Promise<Buffer>;
   /** The connected world, or null before it is known. */
@@ -198,15 +201,18 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       return;
     }
     const own = options.connector?.credentialsFor(userId) ?? null;
-    if (!own) {
+    // The remote connector needs no pair: the player's own email is the login.
+    const remoteUrl = options.connector?.remoteFor(userId) ?? null;
+    if (!own && !remoteUrl) {
       res.json({ enabled: false });
       return;
     }
     res.json({
       enabled: true,
-      endpoint: own.endpoint,
-      clientId: own.clientId,
-      clientSecret: own.clientSecret,
+      remoteUrl,
+      endpoint: own?.endpoint ?? null,
+      clientId: own?.clientId ?? '',
+      clientSecret: own?.clientSecret ?? '',
     });
   });
 

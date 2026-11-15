@@ -140,6 +140,32 @@ export interface ClientSeen {
   lastSeen: string;
 }
 
+/**
+ * The revision of the thin skill stubs (tools/gm-coach/stub, tools/dnd-helper/stub and
+ * stub-player). It is NOT the release version: a stub changes rarely, so it carries its own number
+ * and bumps it only when the stub text changes (a test pins the stubs to this value). The stub
+ * passes its number as `stubRevision` to the skill guide tools.
+ */
+export const SKILL_STUB_REVISION = 1;
+
+export type SkillName = 'gm-coach' | 'dnd-helper' | 'dnd-helper-player';
+
+/** True when a stub that reports `revision` is older than the served {@link SKILL_STUB_REVISION}. */
+export function isSkillStubBehind(revision: unknown): boolean {
+  return (
+    typeof revision === 'number' && Number.isFinite(revision) && revision < SKILL_STUB_REVISION
+  );
+}
+
+/**
+ * The one line added to a skill guide answer when the uploaded stub is behind (English; Claude
+ * passes it on in the chat's language). The zip is a file of the release the table runs.
+ */
+export function skillStubNotice(skill: SkillName, current: string): string {
+  const file = `foundry-${skill === 'gm-coach' ? 'gm-coach' : skill === 'dnd-helper' ? 'dnd-helper' : 'dnd-helper-player'}.zip`;
+  return `Update available: this uploaded skill is older than the table's, which runs ${current}. Upload ${file} again (Customize, Skills): ${RELEASE_DOWNLOAD_BASE}/v${current}/${file}`;
+}
+
 export interface ClientVersionsView {
   /** The version the Pi runs: what every piece is compared with. */
   current: string;

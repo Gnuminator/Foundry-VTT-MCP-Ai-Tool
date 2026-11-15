@@ -4,11 +4,11 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 107 tools. Their definitions are about 119,900 characters of JSON, about 28,200 to
+The bridge has 109 tools. Their definitions are about 120,900 characters of JSON, about 28,200 to
 37,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
-tools also look alike, which makes Claude pick the wrong one more often. Five of the 107 are the
+tools also look alike, which makes Claude pick the wrong one more often. Six of the 109 are the
 player set (see below), which no Claude Desktop entry carries: the GM's Claude Desktop can load at
-most the other 102, about 118,000 characters.
+most the other 103, about 118,500 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
 configuration, so Claude Desktop shows one switch per set in the **Search and tools** menu. Turn on
@@ -16,12 +16,12 @@ what the conversation needs. The switches are remembered for new chats.
 
 | Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                          |
 | ---------- | ------------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| **core**   | `foundry-mcp`             | 24    | about 18,400      | Looking things up, and reviewing, applying or undoing planned changes. Always on.                            |
+| **core**   | `foundry-mcp`             | 25    | about 19,000      | Looking things up, and reviewing, applying or undoing planned changes. Always on.                            |
 | **play**   | `foundry-mcp-play`        | 37    | about 39,700      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.                         |
 | **prep**   | `foundry-mcp-prep`        | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats.                 |
 | **build**  | `foundry-mcp-build`       | 10    | about 27,600      | Making NPCs, monsters and items, from a compendium or from scratch; room setup; characters; pictures.        |
 | **admin**  | `foundry-mcp-admin`       | 11    | about 10,500      | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.                  |
-| **player** | none (`/mcp/player` only) | 5     | about 1,900       | A player's own read-only view: their character, level-up advice, short passages from the books they can see. |
+| **player** | none (`/mcp/player` only) | 6     | about 2,200       | A player's own read-only view: their character, level-up advice, short passages from the books they can see. |
 
 A prep chat with core and prep on carries about 40,600 characters instead of 116,600. Core alone is
 about 15% of everything.
@@ -48,7 +48,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `get-current-scene`, `get-world-info`, `list-scenes`, `list-journals`, `search-journals`,
   `get-level-up-options`, `get-combat-state`, `get-token-positions`, `get-planned-change`,
   `apply-planned-change`, `list-recent-changes`, `undo-change`, `open-in-foundry`, `list-changes`,
-  `plan-undo-changes`, `check-secret-terms`
+  `plan-undo-changes`, `check-secret-terms`, `get-skill-guide`
 - **play:** `use-item`, `switch-scene`, `request-player-rolls`, `request-ability-check`,
   `request-attack-roll`, `roll-npc-check`, `plan-scene-restore`, `plan-npc-turn`, `plan-paper-sync`,
   `plan-scene-mood`, `list-scene-moods`, `check-action`, `get-token-details`,
@@ -71,7 +71,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `plan-table-viewer`, `plan-foundry-setup`, `get-modules`, `get-module-errors`,
   `clear-module-errors`, `get-module-manifest`, `get-obsidian-mirror`, `plan-obsidian-mirror`
 - **player:** `get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`,
-  `get-book-entry`
+  `get-book-entry`, `get-player-skill-guide`
 
 ## Prompts
 

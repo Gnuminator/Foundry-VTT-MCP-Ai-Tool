@@ -8,7 +8,9 @@ name: Release
 #   - FoundryMCPServer-Setup-vX.Y.Z.exe   the Windows client installer (Node.js + MCP client + Claude Desktop entries)
 #   - foundry-ai-tool-obsidian.zip    the Obsidian companion plugin (a foundry-ai-tool folder)
 #   - foundry-player.mcpb             the player connector extension for Claude Desktop
-#   - foundry-dnd-helper-player.zip   the player D&D helper skill
+#   - foundry-dnd-helper-player.zip   the player D&D helper skill (a thin stub, content from the Pi)
+#   - foundry-dnd-helper.zip          the GM edition of the D&D helper skill (thin stub)
+#   - foundry-gm-coach.zip            the GM coach skill (thin stub)
 #   - SHA256SUMS.txt                  the SHA-256 of every file above
 # The publish job waits for an Approve in the "release" environment. workflow_dispatch runs the same build as a dry run (artifacts only, no release is created).
 #
@@ -231,7 +233,9 @@ jobs:
           mkdir -p player-out
           node tools/player-connector/build.mjs --out player-out
           node tools/dnd-helper/build.mjs --out player-out
-          ls -lh player-out/foundry-player.mcpb player-out/foundry-dnd-helper-player.zip
+          node tools/gm-coach/build.mjs --out player-out
+          ls -lh player-out/foundry-player.mcpb player-out/foundry-dnd-helper-player.zip \
+            player-out/foundry-dnd-helper.zip player-out/foundry-gm-coach.zip
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -239,6 +243,8 @@ jobs:
           path: |
             player-out/foundry-player.mcpb
             player-out/foundry-dnd-helper-player.zip
+            player-out/foundry-dnd-helper.zip
+            player-out/foundry-gm-coach.zip
           retention-days: 30
 
   installer:
@@ -340,7 +346,8 @@ jobs:
           cd release-files
           sha256sum module.json foundry-mcp-bridge.zip foundry-ai-tool-obsidian.zip \
             "foundry-mcp-server-${TAG}.zip" "FoundryMCPServer-Setup-${TAG}.exe" \
-            foundry-player.mcpb foundry-dnd-helper-player.zip > SHA256SUMS.txt
+            foundry-player.mcpb foundry-dnd-helper-player.zip foundry-dnd-helper.zip \
+            foundry-gm-coach.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create the GitHub release
@@ -360,6 +367,8 @@ jobs:
             release-files/FoundryMCPServer-Setup-${{ github.ref_name }}.exe
             release-files/foundry-player.mcpb
             release-files/foundry-dnd-helper-player.zip
+            release-files/foundry-dnd-helper.zip
+            release-files/foundry-gm-coach.zip
             release-files/SHA256SUMS.txt
           body: |
             ## Foundry AI Tool ${{ github.ref_name }}

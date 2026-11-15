@@ -24,6 +24,9 @@ anything on.
 | `find-book-entries`       | find an entry by name or type (class, subclass, species, background, feat, spell) |
 | `get-book-entry`          | read one entry in full (capped in length)                                         |
 
+A sixth tool, `get-player-skill-guide`, only hands out this guide and its pages (with `page` set to a
+page path); it reads nothing of the game.
+
 If a tool answers "not found", or a result says some results were hidden, accept it. Never try to
 get round it with another tool, another name or a repeated search.
 

@@ -24,5 +24,6 @@ export const playerModule = defineToolModule({
     'search-books': { set: 'player', title: 'Search the books', kind: 'read' },
     'find-book-entries': { set: 'player', title: 'Find book entries', kind: 'read' },
     'get-book-entry': { set: 'player', title: 'Get a book entry', kind: 'read' },
+    'get-player-skill-guide': { set: 'player', title: 'Get the helper skill guide', kind: 'read' },
   },
 });

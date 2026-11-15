@@ -281,3 +281,15 @@ Kind: read-only. Title: Check secret terms.
 Parameters:
 
 - `text` (string, required): The text to check (1-5000 characters).
+
+## get-skill-guide
+
+Current guide of an uploaded skill (GM coach or D&D helper) and its pages. Skills call it; omit page for the guide.
+
+Kind: read-only. Title: Get a skill guide.
+
+Parameters:
+
+- `skill` (string, required): One of: `gm-coach`, `dnd-helper`.
+- `page` (string): Page path from the guide.
+- `stubRevision` (integer): Number in the skill stub.

@@ -261,7 +261,7 @@ export const KIT_STALE_HOURS = 36;
  */
 export function kitLine(json, nowMs) {
   /** @type {any} */
-  let doc = null;
+  let doc;
   try {
     doc = json === null ? null : JSON.parse(json);
   } catch {

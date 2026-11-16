@@ -11,7 +11,7 @@ The planner runs on Opus, on demand, for one outcome, then ends (D-141, see Endi
 ## Read the state (measured)
 
 - `node scripts/backlog.mjs status --planner` (claims and progress lines, open PRs with CI and review verdict, the merge train,
-  main's CI, the nightly kit's last-run.json line (a red or STALE one is a planner call), due Waiting), then `Waiting.md` and CLAUDE.md "Holds now". Lanes message nobody and the merge runner merges, so
+  main's CI, due Waiting), then `Waiting.md` and CLAUDE.md "Holds now". Lanes message nobody and the merge runner merges, so
   read every progress line once, inherited lanes included. Message a lane only when it has been idle under 55 minutes. A lane
   that stopped with a handover and no running successor gets one (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`;
   a card if sessions cannot start); archive the stopped lane first (if the folder stays, `git checkout --detach` there once clean).

@@ -90,6 +90,7 @@ import {
   findGhosts,
   makeQueueDeps,
 } from './merge-runner/queue.mjs';
+import { makeBaseDeps, runningInfo, skipMainWait } from './merge-runner/base-current.mjs';
 import { openLeft } from './merge-runner/open-steps.mjs';
 import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
@@ -158,7 +159,7 @@ const TIP_WAIT_KEY = 'main-tip-wait';
  * on main is never cancelled by a newer push, so a cancelled tip run means the tip was not tested.
  * @param {string} json
  * @param {string} [tip]
- * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean }}
+ * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean, running?: boolean, prevGreen?: boolean }}
  */
 export function mainState(json, tip = '') {
   /** @type {{ conclusion?: string | null, status?: string, headSha?: string, event?: string }[]} */
@@ -196,7 +197,8 @@ export function mainState(json, tip = '') {
   if (!run) return { red: false, wait: true, sha: '', why: 'no CI run on main to judge' };
   const sha = String(run.headSha ?? '').slice(0, 7);
   if (!run.conclusion || (run.status && run.status !== 'completed')) {
-    return { red: false, wait: true, sha, why: `main's CI is still running at ${sha}` };
+    const why = `main's CI is still running at ${sha}`;
+    return { red: false, wait: true, sha, why, ...runningInfo(runs, run, tip) };
   }
   if (run.conclusion === 'success') return { red: false, wait: false, sha, why: '' };
   return { red: true, wait: false, sha, why: `main is red at ${sha} (CI ${run.conclusion})` };
@@ -274,6 +276,7 @@ const norm = p => {
  *   trainRemove?: (pr: number) => void,
  *   trainAdd?: (pr: number, head: string) => void,
  *   selfCheck?: () => import('./merge-runner/self-check.mjs').SelfCheckResult | null,
+ *   baseCurrent?: (r: { pr: number, head: string }, tip: string) => boolean,
  *   unready?: (backlogText: string) => import('./merge-runner/unready.mjs').Unready[],
  *   noticeSeen?: (key: string) => boolean,
  *   noticeMark?: (key: string) => void,
@@ -538,7 +541,8 @@ export function round(d, tried, attempts) {
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
     // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
     queueOn ??= d.queueOn?.() ?? false;
-    if (main.wait && !(queueOn && main.sha !== '')) {
+    const onTip = skipMainWait(d, main, queueOn, r, tip);
+    if (main.wait && !onTip && !(queueOn && main.sha !== '')) {
       d.log(`${main.why}; next round`);
       // A tip with no usable run does not clear itself when GitHub never started its CI: say so once.
       if ('tipWait' in main && main.tipWait) {
@@ -975,6 +979,7 @@ function realDeps(o) {
     log: stamp,
     ...makeUnreadyDeps({ sh, repo: REPO, vault: o.vault }),
     ...makeQueueDeps({ sh, stamp, repo: REPO }),
+    ...makeBaseDeps({ sh, repo: REPO }),
     selfCheck:
       makeSelfCheck({
         // backlog.mjs is started as its own process for every Backlog write: its code counts too.

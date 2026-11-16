@@ -1,5 +1,5 @@
 import * as shared from './shared.js';
-import { permissionManager } from '../permissions.js';
+import { requireWriteOperations } from '../write-gate.js';
 
 /** Summary of a journal page as surfaced to tool consumers. */
 interface PageSummary {
@@ -18,8 +18,7 @@ interface PageSummary {
  * embedded Collection), so everything is read defensively with `|| ''`-style
  * fallbacks: Foundry hands us partially-populated docs in the wild.
  *
- * Writes go through {@link permissionManager} at the `createActor` risk level
- * (journals are treated as equivalent to actor creation for the safety gate).
+ * Writes are refused through `requireWriteOperations` while writes are off
  */
 export class JournalDataAccess {
   // ===== READS =====
@@ -276,14 +275,17 @@ export class JournalDataAccess {
   }
 
   /**
-   * Gate a journal write through the permission manager. Journals reuse the
-   * `createActor` risk level (quantity 1). Throws `Journal <action> denied: …`
-   * when the operation isn't allowed.
+   * Refuse a journal write while "Allow Write Operations" is off. Throws
+   * `Journal <action> denied: …` with the write gate's message.
    */
   private requireJournalWrite(action: 'creation' | 'update'): void {
-    const check = permissionManager.checkWritePermission('createActor', { quantity: 1 });
-    if (!check.allowed) {
-      throw new Error(`Journal ${action} denied: ${check.reason}`);
+    try {
+      requireWriteOperations();
+    } catch (error) {
+      throw new Error(
+        `Journal ${action} denied: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
     }
   }
 }

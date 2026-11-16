@@ -1297,5 +1297,5 @@ export class EventTracker {
   }
 }
 
-/** Singleton, mirroring the permissionManager / transactionManager pattern. */
+/** Module-level singleton. */
 export const eventTracker = new EventTracker();

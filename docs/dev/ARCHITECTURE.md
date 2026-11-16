@@ -155,16 +155,6 @@ indexes, creating documents, attaching roll buttons to chat cards, etc.) lives i
 `data-access.ts`. Every handler routes through a `validateGMAccess()` check that **silently
 fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
 
-### Safety (`permissions.ts`, `transaction-manager.ts`)
-
-See §6. These two files are the older safety layer. Today they guard actor creation and journals
-only (actor creation includes placing the new actors on a scene; the `validateWritePermissions`
-query is an advisory check on the same two operations): `permissions.ts` classifies those writes
-by risk and checks quantity limits, and
-`transaction-manager.ts` wraps the multi-step actor creation in a transaction that rolls itself
-back. Every other write is guarded by the write gate and by guarded writes (§4). Retiring the
-older layer is a parked backlog item (`permission-path-retirement`).
-
 ---
 
 ## 3. The two wire contracts
@@ -416,9 +406,9 @@ refuses to write while a bridge backend holds its lock.
 (it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
 unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
 operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
-calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` is the
-older per-operation layer (quantity limits, and `requiresGM` for deletes and world structure); it
-checks actor creation and journals only.
+calls (Claude or the dashboard). Guarded writes keep their own gate below. The data-access write
+functions call `requireWriteOperations()` too, and the actor quantity limit lives in
+`data-access/actor-creation.ts`.
 
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
 New features change game state through one flow: a read-only `plan-*` tool builds a plan →
@@ -580,18 +570,15 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 3. **Socket-message GM checks (module).** The game-socket listener that syncs player roll
    state only performs world-writing actions (`ChatMessage.update`, settings writes) when
    `game.user.isGM` — so a player client receiving the broadcast can't be tricked into writing.
-4. **Risk-classified write permissions (`permissions.ts`, older layer: actor creation and journals only).** Write operations are catalogued
-   with a risk level — **low** (auto-allowed, e.g. create actor), **medium** (confirmation
-   suggested, e.g. modify scene / bulk ops), **high** (confirmation + GM required, e.g. delete
-   data, modify world). A master `allowWriteOperations` setting can disable writes entirely;
-   bulk operations are bounded by `maxActorsPerRequest` and force confirmation past a small
-   threshold. Parameters are validated/sanitized per operation.
+4. **The write gate (`write-gate.ts`).** The master `allowWriteOperations` setting disables every
+   classified write handler at once (§2), and the data-access write functions below the bridge
+   call `requireWriteOperations()` too. Creating actors from a compendium is bounded by the
+   hidden `maxActorsPerRequest` setting (default 10, checked in `data-access/actor-creation.ts`).
 5. **Guarded writes (new features).** Off per feature by default, confirmed with a diff,
    audited off-Foundry, conflict-checked and undoable (§4d).
-6. **Reversible writes (`transaction-manager.ts`, older layer: actor creation only).** Multi-step mutations can run inside a
-   transaction that records each create/update/delete with enough information to undo it
-   (delete what was created, restore originals, recreate what was deleted). On failure the
-   transaction rolls back in reverse order; a bounded history is kept for after-the-fact undo.
+6. **Reversible writes (the change journal).** Created actors, tokens, journals and other
+   journaled documents are recorded while the undo switch is on, so the GM can take a whole batch
+   back with `plan-undo-changes` (7 days). There is no separate rollback ledger.
 
 **Secrets.** No Anthropic API key is used anywhere: the dashboard makes no paid API calls.
 

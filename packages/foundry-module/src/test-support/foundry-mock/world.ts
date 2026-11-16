@@ -157,8 +157,8 @@ export class TestWorld {
   }
 
   /**
-   * Satisfy the write-permission gate (`permissionManager.checkWritePermission`
-   * reads `allowWriteOperations`). Call before exercising a write path; omit it
+   * Satisfy the write gate (`requireWriteOperations` reads `allowWriteOperations`)
+   * and set the actor quantity limit. Call before exercising a write path; omit it
    * to characterize the ACCESS_DENIED branch. Returns `this` for chaining.
    */
   enableWrites(maxActorsPerRequest = 20): this {

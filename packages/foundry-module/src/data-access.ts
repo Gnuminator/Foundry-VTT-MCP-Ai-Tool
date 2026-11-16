@@ -1,5 +1,4 @@
 import { MODULE_ID } from './constants.js';
-import { permissionManager } from './permissions.js';
 import { PersistentCreatureIndex } from './data-access/creature-index.js';
 import * as shared from './data-access/shared.js';
 import { ModulesDataAccess } from './data-access/modules.js';
@@ -49,7 +48,6 @@ import type {
   CompendiumSearchResult,
   SceneInfo,
   WorldInfo,
-  ActorCreationRequest,
   ActorCreationResult,
   CompendiumEntryFull,
   SceneTokenPlacement,
@@ -75,7 +73,7 @@ export class FoundryDataAccess {
   private compendium = new CompendiumDataAccess(this.persistentIndex);
   private rulesSearch = new RulesSearchDataAccess();
   private combat = new CombatDataAccess();
-  private actorCreation = new ActorCreationDataAccess(this.compendium);
+  private actorCreation = new ActorCreationDataAccess();
   private actorBuilder = new ActorBuilderDataAccess();
   private playerRolls = new PlayerRollsDataAccess();
 
@@ -272,10 +270,6 @@ export class FoundryDataAccess {
     return this.journals.updateJournalContent(request);
   }
 
-  async createActorFromCompendium(request: ActorCreationRequest): Promise<ActorCreationResult> {
-    return this.actorCreation.createActorFromCompendium(request);
-  }
-
   async createActorFromCompendiumEntry(request: {
     packId: string;
     itemId: string;
@@ -356,34 +350,8 @@ export class FoundryDataAccess {
     return this.compendium.getCompendiumDocumentFull(packId, documentId);
   }
 
-  async addActorsToScene(
-    placement: SceneTokenPlacement,
-    transactionId?: string
-  ): Promise<TokenPlacementResult> {
-    return this.actorCreation.addActorsToScene(placement, transactionId);
-  }
-
-  /**
-   * Validate write operation permissions
-   */
-  async validateWritePermissions(operation: 'createActor' | 'modifyScene'): Promise<{
-    allowed: boolean;
-    reason?: string;
-    requiresConfirmation?: boolean;
-    warnings?: string[];
-  }> {
-    this.validateFoundryState();
-
-    const permissionCheck = permissionManager.checkWritePermission(operation);
-
-    return {
-      allowed: permissionCheck.allowed,
-      ...(permissionCheck.reason ? { reason: permissionCheck.reason } : {}),
-      ...(permissionCheck.requiresConfirmation
-        ? { requiresConfirmation: permissionCheck.requiresConfirmation }
-        : {}),
-      ...(permissionCheck.warnings ? { warnings: permissionCheck.warnings } : {}),
-    };
+  async addActorsToScene(placement: SceneTokenPlacement): Promise<TokenPlacementResult> {
+    return this.actorCreation.addActorsToScene(placement);
   }
 
   async requestPlayerRolls(data: {

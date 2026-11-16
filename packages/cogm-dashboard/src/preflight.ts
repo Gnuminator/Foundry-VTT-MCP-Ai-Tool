@@ -44,7 +44,7 @@ export interface DashboardPreflightInput {
 }
 
 /** A player vault with no clean pass for this long (Foundry connected) is stale. */
-export const PLAYER_VAULT_STALE_MS = 10 * 60_000;
+const PLAYER_VAULT_STALE_MS = 10 * 60_000;
 
 /**
  * Whether the Pi-side player vault folders are being kept current (D-134). Nobody opens the vault

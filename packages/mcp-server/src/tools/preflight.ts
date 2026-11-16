@@ -20,7 +20,7 @@ import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-ver
 import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
 
 /** A mirror that has not finished a cycle for this long, while Foundry is connected, is stale. */
-export const MIRROR_STALE_MS = 10 * 60_000;
+const MIRROR_STALE_MS = 10 * 60_000;
 
 interface ToolDefinition {
   name: string;

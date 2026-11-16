@@ -532,6 +532,13 @@ test('Cloudflare --apply on another line of the command is not this script (only
   const crlf = 'node scripts/pi/player-connector-cloudflare.mjs \\\r\n  --apply --send-to foundry-pi';
   assert.equal(kind(crlf), 'ask', JSON.stringify(decide(crlf, repo)));
   for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs --users u.json `\n  --apply --send-to foundry-pi',
+    'node scripts/pi/player-connector-cloudflare.mjs "--apply" --send-to foundry-pi',
+    "node scripts/pi/player-connector-cloudflare.mjs '--apply'",
+  ]) {
+    assert.equal(kind(c), 'ask', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  for (const c of [
     'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com\nnode other.mjs --apply',
     'node scripts/pi/player-connector-cloudflare.mjs\n\nnpm run foo -- --apply',
     '# node scripts/pi/player-connector-cloudflare.mjs is the script\nnode scripts/x.mjs --apply',

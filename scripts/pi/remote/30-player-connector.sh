@@ -371,6 +371,26 @@ fi
 
 ports_before="$(ports_line)"
 
+# Remember every host this stage puts into DASHBOARD_ALLOWED_HOSTS: the record before, the hosts of the table installed now
+# (an earlier install made before the record existed), and the hosts of the table coming in. It is written first, so it always
+# covers at least what the files below hold, and through a temp file so a cut-off run leaves the old record whole.
+rec_hosts="$(cat "$hosts_rec" 2>/dev/null || true)"
+rec_old=""
+if [ -f "$cfg" ]; then rec_old="$(table_hosts "$(table_summary "$cfg" 2>/dev/null || true)" 2>/dev/null || true)"; fi
+for h in $rec_old $(table_hosts "$summary"); do
+  case " $(printf '%s' "$rec_hosts" | tr '\n' ' ') " in *" $h "*) ;; *) rec_hosts="${rec_hosts:+$rec_hosts
+}$h" ;; esac
+done
+if [ "$(cat "$hosts_rec" 2>/dev/null || true)" != "$rec_hosts" ]; then
+  tmp="$(mktemp "$TOOL_ETC/.player-connector.hosts.XXXXXX")"
+  trap 'rm -f "${tmp:?}"' EXIT
+  printf '%s\n' "$rec_hosts" >"$tmp"
+  chmod 0644 "$tmp"
+  mv "$tmp" "$hosts_rec"
+  trap - EXIT
+  ok "$hosts_rec: the player hosts this stage has installed"
+fi
+
 if [ "$use_src" = 1 ]; then
   tmp="$(mktemp "$TOOL_ETC/.player-connector.json.XXXXXX")"
   trap 'rm -f "${tmp:?}" "${cand:?}"' EXIT
@@ -415,13 +435,6 @@ if [ "$new_hosts" != "$cur_hosts" ]; then
 else
   ok "the player hosts are already in DASHBOARD_ALLOWED_HOSTS"
 fi
-# Remember every host of a table this stage installed (a later table with another remote host adds to the record).
-rec_hosts="$(cat "$hosts_rec" 2>/dev/null || true)"
-for h in $(table_hosts "$summary"); do
-  case " $(printf '%s' "$rec_hosts" | tr '\n' ' ') " in *" $h "*) ;; *) rec_hosts="${rec_hosts:+$rec_hosts
-}$h" ;; esac
-done
-write_file "$hosts_rec" 0644 "$rec_hosts" || true
 
 say "the services"
 enable_unit "$bridge_unit" "$envf" "$cfg" "$unit_dir/$bridge_unit.d/$dropin_name"

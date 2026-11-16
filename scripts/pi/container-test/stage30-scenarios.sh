@@ -430,6 +430,7 @@ sd_state 0 401 421
 remote_file "$appaud"
 sd_run
 rhost_old="$rhost"
+rm -f "$TOOL_ETC/player-connector.hosts" # an install from before the record existed
 rhost=player-remote2.example.org
 remote_file "$appaud"
 sd_state 0 401 421

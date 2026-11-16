@@ -463,7 +463,7 @@ export class CharacterTools {
       name: z.string().min(1, 'Item name cannot be empty'),
       type: z.string().min(1, 'Item type cannot be empty'),
       img: z.string().optional(),
-      system: z.record(z.unknown()).optional(),
+      system: z.record(z.string(), z.unknown()).optional(),
     });
 
     const schema = z.object({
@@ -505,7 +505,7 @@ export class CharacterTools {
       id: z.string().min(1, 'Item id cannot be empty'),
       name: z.string().optional(),
       img: z.string().optional(),
-      system: z.record(z.unknown()).optional(),
+      system: z.record(z.string(), z.unknown()).optional(),
       folder: z.string().optional(),
     });
 
@@ -581,7 +581,7 @@ export class CharacterTools {
       name: z.string().min(1, 'Item name cannot be empty'),
       type: z.string().min(1, 'Item type cannot be empty'),
       img: z.string().optional(),
-      system: z.record(z.unknown()).optional(),
+      system: z.record(z.string(), z.unknown()).optional(),
     });
 
     const schema = z.object({

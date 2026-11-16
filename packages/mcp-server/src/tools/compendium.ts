@@ -557,7 +557,7 @@ export class CompendiumTools {
     } catch (parseError) {
       this.logger.error('Failed to parse creature criteria parameters', { args, parseError });
       if (parseError instanceof z.ZodError) {
-        const errorDetails = parseError.errors
+        const errorDetails = parseError.issues
           .map(err => `${err.path.join('.')}: ${err.message}`)
           .join('; ');
         throw new Error(`Parameter validation failed: ${errorDetails}`, { cause: parseError });

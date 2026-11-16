@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 
+import { asRecord } from '@gnuminator/shared';
+
 /**
  * Cloudflare Access login check (I-022, closes the rest of P-038; needed before players reach the
  * Pi through Access, D-075).
@@ -54,9 +56,7 @@ export function parseTeamDomain(raw: string): string {
 function b64urlJson(part: string): Record<string, unknown> | null {
   try {
     const value: unknown = JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
+    return asRecord(value);
   } catch {
     return null;
   }

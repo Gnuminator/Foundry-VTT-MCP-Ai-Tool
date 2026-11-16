@@ -24,6 +24,13 @@ export const PLUGINS = [
     description: 'Coach for a GM running D&D 5e on Foundry VTT 14 with Foundry AI Tool.',
   },
   {
+    name: 'foundry-dnd-helper',
+    skill: 'foundry-dnd-helper',
+    stub: 'tools/dnd-helper/stub/SKILL.md',
+    description:
+      'D&D 5e (2024) helper for the GM: builds characters and answers rules questions from the books in Foundry (core connector).',
+  },
+  {
     name: 'foundry-player-helper',
     skill: 'foundry-dnd-helper-player',
     stub: 'tools/dnd-helper/stub-player/SKILL.md',

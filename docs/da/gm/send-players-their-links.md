@@ -1,13 +1,16 @@
 ---
 source: gm/send-players-their-links.md
-sourceHash: d7dbe5d86c0f
+sourceHash: 93b8e0c0354b
 title: Send spillerne deres links
 description: Sådan giver du hver spiller adressen til spillersiden, deres eget private My character-link og adressen til D&D-hjælperen.
 ---
 
 # Send spillerne deres links
 
-Hver spiller skal have to ting af dig: adressen til spillersiden og deres eget private link til
+Gnuminator laver og sender linkene før session 0, så du skal normalt ikke bruge denne side. Brug den,
+når en spiller mister sit link, eller en ny spiller kommer til.
+
+Hver spiller skal have to ting: adressen til spillersiden og deres eget private link til
 **My character**. Adressen til D&D-hjælperen skal du ikke sende: spilleren finder den selv på My
 character. Det tager nogle få minutter for hele bordet.
 

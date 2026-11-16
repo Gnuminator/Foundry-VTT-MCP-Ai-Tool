@@ -5,7 +5,10 @@ description: How to give each player the player page address, their own private 
 
 # Send players their links
 
-Each player needs two things from you: the address of the player page, and their own private link to
+Gnuminator makes and sends the links before session 0, so you normally do not need this page. Use it
+when a player loses their link or a new player joins.
+
+Each player needs two things: the address of the player page, and their own private link to
 **My character**. The D&D helper address needs nothing from you: the player finds it themselves on
 My character. This takes a few minutes for the whole table.
 

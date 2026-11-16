@@ -48,12 +48,17 @@ describe('filterToolsBySets', () => {
     { name: 'not-in-a-set' },
   ];
 
-  it('keeps only the chosen sets, and drops a tool no set lists', () => {
+  it('keeps only the chosen sets, and passes a tool no set lists through with core', () => {
     expect(filterToolsBySets(tools, resolveToolSets('core')).map(t => t.name)).toEqual([
       'get-world-info',
+      'not-in-a-set',
     ]);
     expect(filterToolsBySets(tools, resolveToolSets('core,play')).map(t => t.name)).toEqual([
       'get-world-info',
+      'plan-token-change',
+      'not-in-a-set',
+    ]);
+    expect(filterToolsBySets(tools, resolveToolSets('play')).map(t => t.name)).toEqual([
       'plan-token-change',
     ]);
   });
@@ -125,6 +130,30 @@ describe('toolSetInstructions', () => {
     const text = toolSetInstructions(resolveToolSets('all'));
     expect(text).toContain('every tool set');
     expect(text).not.toContain('switch on');
+  });
+
+  it('tells the plan story and the direct-write marker, not a blanket "writes go through plan"', () => {
+    for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin']) {
+      const text = toolSetInstructions(resolveToolSets(raw));
+      expect(text).toContain('apply-planned-change');
+      expect(text).toContain('Direct write.');
+      expect(text).not.toContain('Writes go through plan, confirm and undo');
+    }
+  });
+
+  it("lists direct writes as the GM's own change", () => {
+    const text = toolSetInstructions(resolveToolSets('core'));
+    expect(text).toContain("listed as the GM's own change");
+  });
+
+  it('names what the journal covers, what it does not, the switches and the 7 days', () => {
+    const text = toolSetInstructions(resolveToolSets('core'));
+    expect(text).toContain('actors, items, effects, tokens, scenes, combat and journals');
+    expect(text).toContain('does not record music (playlists), folders');
+    expect(text).toContain('undo-change needs only the latter');
+    expect(text).toContain('AI Tool: Undo for everything');
+    expect(text).toContain('AI Tool: Allow Write Operations');
+    expect(text).toContain('kept for 7 days');
   });
 
   it('has no em dashes', () => {

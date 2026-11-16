@@ -1,13 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { PlayerViewTools } from './player-view.js';
 
 function makeTools(): {
   tools: PlayerViewTools;
-  handouts: Record<string, ReturnType<typeof vi.fn>>;
-  secretTerms: Record<string, ReturnType<typeof vi.fn>>;
-  foundryClient: { query: ReturnType<typeof vi.fn> };
-  worldIds: { current: ReturnType<typeof vi.fn> };
+  handouts: Record<string, Mock>;
+  secretTerms: Record<string, Mock>;
+  foundryClient: { query: Mock };
+  worldIds: { current: Mock };
 } {
   const handouts = {
     listRevealed: vi.fn(() => Promise.resolve([])),

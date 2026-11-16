@@ -13,7 +13,7 @@
  * the CONTENT and SYSTEM ones on the profile's known list (lib/known.mjs) are counted, not failed.
  */
 import { FAILURE_KINDS, countByKind, problemText } from '../lib/advancement.mjs';
-import { builtHeroes } from '../lib/helpers.mjs';
+import { bridgeProbe, builtHeroes } from '../lib/helpers.mjs';
 import { knownAttachment, loadKnown, splitKnown } from '../lib/known.mjs';
 import { loadProfile } from '../lib/profiles.mjs';
 import {
@@ -32,13 +32,14 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: ['heroes', 'scene'],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: ['listSpells', 'inspectFeatures', 'exerciseSpell'],
   // Late: the casts post chat cards (deleted again) and the log should not starve other scenarios.
   order: 90,
   timeoutMs: 150 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     const profile = loadProfile(t.kit.profile);
     const heroes = builtHeroes(t.kit);
     /** @type {import('../lib/spells.mjs').SpellEntry[]} */

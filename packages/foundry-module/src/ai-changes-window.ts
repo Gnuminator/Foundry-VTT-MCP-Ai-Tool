@@ -312,7 +312,12 @@ export function foundryDeps(): AiChangesDeps {
     users: worldUsers,
     ask: async (spec): Promise<string | null> => {
       const api = (foundry.applications as { api?: { DialogV2?: DialogV2Like } }).api;
-      if (!api?.DialogV2) return null;
+      if (!api?.DialogV2) {
+        ui.notifications?.warn(
+          'Foundry could not show the confirmation window, so nothing was changed. Reload the page and try again.'
+        );
+        return null;
+      }
       // A button inside the content (`data-choice`, the Advanced rewind) answers by closing the dialog.
       let picked: string | null = null;
       const answer = await api.DialogV2.wait({

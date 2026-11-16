@@ -9,6 +9,7 @@ import {
   type PlayerEvent,
   type PlayerHandout,
   type PlayerSceneEnvironment,
+  type PlayerSession,
   type PlayerState,
   type PlayerVisibility,
 } from '@gnuminator/shared';
@@ -18,8 +19,8 @@ import type {
   BridgeStatus,
   Combatant,
   CombatState,
+  FeedWorld,
   SessionEvent,
-  WorldInfo,
 } from '../feed/types.js';
 
 /**
@@ -41,7 +42,7 @@ import type {
  */
 
 /** How many feed lines the player page keeps. */
-export const PLAYER_FEED_LIMIT = 60;
+const PLAYER_FEED_LIMIT = 60;
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -259,13 +260,16 @@ export function playerStatus(status: BridgeStatus): PlayerState['status'] {
 
 export interface PlayerStateInputs {
   status: BridgeStatus;
-  world: WorldInfo | null;
+  world: FeedWorld | null;
   visibility: PlayerVisibility | null;
   combat: CombatState | null;
   events: readonly SessionEvent[];
   handouts: readonly PlayerHandout[];
   /** Handouts revealed after this time (ms) are marked new; null marks none. */
   newSinceMs?: number | null;
+  /** The session marker (I-111): whether a session is open, and when the last one ended (ms). */
+  sessionOpen?: boolean | null;
+  sessionEndedMs?: number | null;
   opts: PlayerViewConfig;
 }
 
@@ -293,6 +297,16 @@ function isNewHandout(revealedAt: string | null, sinceMs: number | null | undefi
   return Number.isFinite(ms) && ms > sinceMs;
 }
 
+/** The session flag players get: open or not, and the last end time. Null when unknown. */
+export function projectSession(
+  open: boolean | null | undefined,
+  endedMs: number | null | undefined
+): PlayerSession | null {
+  if (typeof open !== 'boolean') return null;
+  const ended = typeof endedMs === 'number' && Number.isFinite(endedMs);
+  return { open, endedAt: ended ? new Date(endedMs).toISOString() : null };
+}
+
 /** Everything the player page shows, projected. */
 export function buildPlayerState(input: PlayerStateInputs): PlayerState {
   return {
@@ -302,6 +316,7 @@ export function buildPlayerState(input: PlayerStateInputs): PlayerState {
     sceneEnvironment: projectEnvironment(input.visibility?.scene),
     combat: projectCombat(input.combat, input.visibility, input.opts),
     events: projectEvents(input.events),
+    session: projectSession(input.sessionOpen, input.sessionEndedMs),
     handouts: input.handouts.map(h => ({
       id: h.id,
       title: h.title,

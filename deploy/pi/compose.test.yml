@@ -1,0 +1,40 @@
+# Test override for CI and local rehearsal (.github/workflows/pi-images.yml). Use it with the test environment file:
+#
+#   export FOUNDRY_UID=$(id -u) FOUNDRY_GID=$(id -g) TOOL_DATA_DIR=<temp dir> TOOL_ETC_DIR=<temp dir>
+#   docker compose --env-file deploy/pi/test.env -f deploy/pi/compose.yml -f deploy/pi/compose.test.yml up -d --wait
+#
+# test.env holds the rehearsal ports (30100, 31614, 31615, 3300), so nothing here collides with a live stack on
+# the live ports (D-119). The data folders are the caller's temp folders (TOOL_DATA_DIR needs vault, dashboard and
+# gm-browser inside, owned by FOUNDRY_UID). FOUNDRY_UID / FOUNDRY_GID are the CI runner's, so the bind-mounted
+# folders are writable.
+#
+# What changes against compose.yml:
+#   foundry     a stand-in HTTP server (stand-in-foundry.mjs); the licensed Foundry is not available in CI
+#   gm-browser  behind the "gm-browser" profile, so it is left out unless asked for (--profile gm-browser):
+#               it needs a real Foundry world with an Assistant GM user
+# Needs Docker Compose 2.24 or newer (the !override and !reset tags).
+
+services:
+  foundry:
+    working_dir: /app
+    command: !override ["node", "/app/stand-in-foundry.mjs"]
+    environment:
+      FOUNDRY_HTTP_PORT: "${FOUNDRY_HTTP_PORT:-30100}"
+    volumes: !override
+      - ./stand-in-foundry.mjs:/app/stand-in-foundry.mjs:ro
+    healthcheck:
+      start_period: 5s
+      interval: 5s
+
+  bridge:
+    healthcheck:
+      start_period: 5s
+      interval: 5s
+
+  dashboard:
+    healthcheck:
+      start_period: 5s
+      interval: 5s
+
+  gm-browser:
+    profiles: ["gm-browser"]

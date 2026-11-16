@@ -1,8 +1,8 @@
 /**
- * Small helpers for driving the GM dashboard page (packages/cogm-dashboard/public/index.html and app.js)
- * with Playwright: the Advanced menu, the During screen's cards, the tool runner form, the confirm
+ * Small helpers for driving the GM dashboard page (the React app in packages/cogm-dashboard/web/src, served at /)
+ * with Playwright: the Advanced menu, the During screen's cards, the Tool Runner form, the confirm
  * window, the toasts with their Undo. Used by the write flow scenario (slice 4). Element ids come from
- * index.html and app.js; keep them in step. These helpers only click and read; they never call the
+ * web/src; keep them in step. These helpers only click and read; they never call the
  * dashboard's API themselves.
  */
 
@@ -27,11 +27,16 @@ export function isSwitchedOff(message, managed = []) {
   if (!/switched off|switch\b[^.]*\bon\b|is off|disabled|not enabled|turned off/i.test(message)) {
     return false;
   }
-  return !managed.some(id => new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(message));
+  return !managed.some(id =>
+    new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(message)
+  );
 }
 
 /** Collapses white space. @param {string | null | undefined} text */
-export const squash = text => String(text ?? '').replace(/\s+/g, ' ').trim();
+export const squash = text =>
+  String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /**
  * Waits until the page is connected to the dashboard's stream (and so to the bridge) and has its
@@ -40,19 +45,30 @@ export const squash = text => String(text ?? '').replace(/\s+/g, ' ').trim();
  */
 export async function waitReady(page) {
   await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 20000 });
+  // The stream mark is empty while all is well and names the trouble otherwise (Connection lost...),
+  // but it is also empty with Foundry away, so the bridge itself is asked: /api/state carries its status.
   await page.waitForFunction(
-    () => /Bridge: connected/.test(document.querySelector('#status-bridge')?.textContent ?? ''),
+    async () => {
+      const mark = document.querySelector('#stream-state');
+      const label = document.querySelector('#btn-gm')?.textContent ?? '';
+      if (!mark || mark.textContent?.trim() || label.trim() === '' || label.includes('…'))
+        return false;
+      const res = await fetch('/api/state').catch(() => null);
+      const state = res?.ok ? await res.json().catch(() => null) : null;
+      return state?.status?.controlChannel === 'connected' && state.status.foundry === 'reachable';
+    },
     undefined,
-    { timeout: 30000 }
+    { timeout: 30000, polling: 500 }
   );
 }
 
 /**
- * Whether the header button says GM Actions are on.
+ * Whether the header live play button reports GM Actions on (its data-gm-actions attribute; the
+ * text alone cannot say, other switches can be off).
  * @param {import('playwright-core').Page} page
  */
 export async function gmActionsLabelOn(page) {
-  return /:\s*on/i.test((await page.locator('#btn-gm').textContent()) ?? '');
+  return (await page.locator('#btn-gm').getAttribute('data-gm-actions')) === 'on';
 }
 
 /**
@@ -74,7 +90,7 @@ export async function menuClick(page, selector) {
  * @param {import('playwright-core').Page} page
  */
 export async function showDuring(page) {
-  await page.locator('[data-moment="during"]').click();
+  await page.locator('#tab-during').click();
   await page.locator('#moment-during').waitFor({ state: 'visible', timeout: 10000 });
 }
 
@@ -103,7 +119,9 @@ export async function openCard(page, name) {
  */
 export function markToasts(page) {
   return page.evaluate(() =>
-    document.querySelectorAll('#toast-stack .toast').forEach(el => el.setAttribute('data-seen', '1'))
+    document
+      .querySelectorAll('.toast-stack .toast')
+      .forEach(el => el.setAttribute('data-seen', '1'))
   );
 }
 
@@ -118,7 +136,7 @@ export function markToasts(page) {
 export async function waitToast(page, want, timeout = 30000) {
   const handle = await page.waitForFunction(
     kind => {
-      for (const el of document.querySelectorAll('#toast-stack .toast:not([data-seen])')) {
+      for (const el of document.querySelectorAll('.toast-stack .toast:not([data-seen])')) {
         const cls = el.className;
         const text = el.textContent || '';
         if (/\b(err|warn)\b/.test(cls)) return { refused: true, text };
@@ -143,7 +161,7 @@ export async function waitToast(page, want, timeout = 30000) {
  */
 export async function undoFromToast(page) {
   const button = await page
-    .locator('#toast-stack .toast-undo:not([data-seen]) .toast-action')
+    .locator('.toast-stack .toast-undo:not([data-seen]) .toast-action')
     .last()
     .elementHandle();
   if (!button) throw new Error('no toast with an Undo button is on screen');
@@ -160,8 +178,8 @@ export async function undoFromToast(page) {
 export async function readModal(page) {
   await page.locator('#modal-backdrop').waitFor({ state: 'visible', timeout: 15000 });
   return {
-    title: squash(await page.locator('#modal-title').textContent()),
-    body: squash(await page.locator('#modal-body').innerText()),
+    title: squash(await page.locator('#modal h3').textContent()),
+    body: squash(await page.locator('#modal .modal-body').innerText()),
     destructive: await page.locator('#modal-destructive').isVisible(),
   };
 }
@@ -188,14 +206,18 @@ export async function confirmModal(page) {
 export async function settleWrite(page, { confirm = true } = {}) {
   await page.waitForFunction(
     () =>
-      !document.querySelector('#modal-backdrop')?.hasAttribute('hidden') ||
-      document.querySelector('#toast-stack .toast:not([data-seen])'),
+      document.querySelector('#modal-backdrop') ||
+      document.querySelector('.toast-stack .toast:not([data-seen])'),
     undefined,
     { timeout: 30000 }
   );
   if (!(await page.locator('#modal-backdrop').isVisible())) {
     const refusal = await page.evaluate(() =>
-      [...document.querySelectorAll('#toast-stack .toast.err:not([data-seen]), #toast-stack .toast.warn:not([data-seen])')]
+      [
+        ...document.querySelectorAll(
+          '.toast-stack .toast.err:not([data-seen]), .toast-stack .toast.warn:not([data-seen])'
+        ),
+      ]
         .map(el => el.textContent || '')
         .join(' | ')
     );
@@ -250,16 +272,17 @@ export async function closeTools(page) {
  */
 export async function resetUi(page) {
   try {
-    if (await page.locator('#modal-backdrop').isVisible()) await page.locator('#modal-cancel').click();
+    if (await page.locator('#modal-backdrop').isVisible())
+      await page.locator('#modal-cancel').click();
     for (const selector of ['#drawer-close', '#tarokka-close']) {
       if (await page.locator(selector).isVisible()) await page.locator(selector).click();
     }
-    for (const pane of ['#pane-links', '#pane-help']) {
-      const close = page.locator(`${pane} .overlay-close`);
-      if (await close.isVisible()) await close.click();
-    }
+    // The links and help panes close on Escape (Radix panels).
+    await page.keyboard.press('Escape');
     await page.evaluate(() =>
-      document.querySelectorAll('#toast-stack .toast').forEach(el => el.remove())
+      document
+        .querySelectorAll('.toast-stack .toast')
+        .forEach(el => el.setAttribute('data-seen', '1'))
     );
   } catch {
     /* the page is gone or busy; the next flow reports it */

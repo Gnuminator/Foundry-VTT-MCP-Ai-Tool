@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { jsonErrorHandler, publicError } from './error-handler.js';
 
@@ -15,14 +15,14 @@ describe('publicError', () => {
     });
     expect(publicError(new Error('C:\\secret\\path.ts boom'))).toEqual({
       status: 500,
-      body: { error: 'Internal error' },
+      body: { error: 'Internal error', kind: 'internal' },
     });
     expect(publicError(undefined).status).toBe(500);
   });
 });
 
 describe('jsonErrorHandler', () => {
-  type Spy = ReturnType<typeof vi.fn>;
+  type Spy = Mock;
   function run(
     error: unknown,
     headersSent = false

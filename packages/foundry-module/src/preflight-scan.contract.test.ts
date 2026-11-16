@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PREFLIGHT_QUERY as MODULE_QUERY } from './preflight-scan.js';
-import { PREFLIGHT_QUERY as SHARED_QUERY } from '../../../shared/src/preflight.js';
+import { PREFLIGHT_QUERY as SHARED_QUERY } from '@gnuminator/shared';
 
 describe('pre-flight wire contract', () => {
   it('module and shared agree on the query name', () => {

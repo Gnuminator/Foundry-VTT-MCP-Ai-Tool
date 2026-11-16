@@ -814,6 +814,13 @@ test('the in-browser script of stage 13 parses (node --check)', () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
+test('the in-browser script of the world switches parses (node --check)', () => {
+  const r = spawnSync(process.execPath, ['--check', path.join(remote, 'world-switches.mjs')], {
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, r.stderr);
+});
+
 test('the in-browser script of the kit session parses (node --check)', () => {
   const r = spawnSync(process.execPath, ['--check', path.join(remote, 'kit-session.mjs')], {
     encoding: 'utf8',

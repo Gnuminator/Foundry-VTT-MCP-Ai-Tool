@@ -1,6 +1,6 @@
 // Tests for Pi stage 13 (scripts/pi/remote/13-player-creation.sh, D-112 and D-113):
 //   node --test scripts/pi/player-creation.test.mjs
-// - the in-browser part (player-creation-settings.mjs) against a fake `game`: the three settings, and
+// - the in-browser part (player-creation-settings.mjs) against a fake `game`: the three settings, the ability score methods (standard array and point buy on, manual and rolling off), and
 //   Actor Studio's per-user usage-tracking turned off (D-113), a second run changing nothing;
 // - with PI_STAGE13_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a
 //   Debian 13 ARM64 container with stand-ins for systemd (scripts/pi/container-test/stage13-scenarios.sh):
@@ -14,12 +14,34 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { applyState, blockers, mismatches, readState } from './remote/player-creation-settings.mjs';
+import {
+  ABILITY_METHODS,
+  applyState,
+  BASELINE_TARGETS,
+  blockers,
+  mismatches,
+  readState,
+  SOURCE_TARGETS,
+} from './remote/player-creation-settings.mjs';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MODULE_ID = 'foundryvtt-actor-studio';
 const PACK = 'dnd-players-handbook.equipment';
-const ARGS = { moduleId: MODULE_ID, pack: PACK, roles: [1, 2] };
+const ARGS = {
+  moduleId: MODULE_ID,
+  pack: PACK,
+  roles: [1, 2],
+  methods: ABILITY_METHODS,
+  targets: SOURCE_TARGETS,
+};
+// Actor Studio's defaults before the stage runs: manual entry on, the rest off.
+const DEFAULT_METHODS = {
+  allowStandardArray: false,
+  allowPointBuy: false,
+  allowManualInput: true,
+  allowRolling: false,
+};
 const TRACKING = `${MODULE_ID}.usage-tracking`;
 
 // A Setting document: Foundry keeps `value` as JSON (a JSONField), so an update with the string 'false'
@@ -46,6 +68,15 @@ function fakeGame({
   sources = { equipment: null, races: ['dnd-players-handbook.origins'] },
   isGM = true,
   moduleActive = true,
+  methods = DEFAULT_METHODS,
+  methodsRegistered = true,
+  contentPacks = SOURCE_TARGETS.spells.concat(
+    SOURCE_TARGETS.races,
+    SOURCE_TARGETS.classes,
+    SOURCE_TARGETS.feats,
+    SOURCE_TARGETS.backgrounds,
+    SOURCE_TARGETS.items
+  ),
 } = {}) {
   const values = new Map([
     ['core.permissions', { ACTOR_CREATE: actorCreate, FILES_BROWSE: [2, 3, 4] }],
@@ -53,6 +84,12 @@ function fakeGame({
     [`${MODULE_ID}.compendiumSources`, sources],
   ]);
   const registered = new Map([...values.keys()].map(k => [k, {}]));
+  if (methodsRegistered) {
+    for (const [key, value] of Object.entries(methods)) {
+      values.set(`${MODULE_ID}.${key}`, value);
+      registered.set(`${MODULE_ID}.${key}`, {});
+    }
+  }
   if (tracking) registered.set(TRACKING, {});
   const sets = [];
   return {
@@ -61,7 +98,7 @@ function fakeGame({
     world: { id: 'curse-of-strahd' },
     user: { name: 'Gamemaster', isGM },
     modules: new Map([[MODULE_ID, { active: moduleActive }]]),
-    packs: new Map([[PACK, {}]]),
+    packs: new Map([PACK, ...contentPacks].map(id => [id, {}])),
     settings: {
       settings: registered,
       storage: new Map([['user', { contents: docs }]]),
@@ -85,7 +122,7 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     delete globalThis.CONST;
   });
 
-  test('sets the three settings, keeps the roles and sources that were there, then verifies', async () => {
+  test('sets the settings, keeps the roles and sources that were there, then verifies', async () => {
     globalThis.game = fakeGame();
     const start = readState(ARGS);
     assert.deepEqual(blockers(start, 'curse-of-strahd'), []);
@@ -93,15 +130,24 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     assert.deepEqual(changed, [
       'core.permissions ACTOR_CREATE',
       'enableEquipmentSelection',
-      'compendiumSources.equipment',
+      'compendiumSources (equipment, races, racialFeatures, backgrounds, classes, subclasses, feats, spells, items)',
+      'allowStandardArray',
+      'allowPointBuy',
+      'allowManualInput',
     ]);
     const end = readState(ARGS);
+    assert.deepEqual(end.abilityMethods, ABILITY_METHODS);
     assert.deepEqual(end.actorCreate, [1, 2, 3, 4]);
     assert.equal(end.enableEquipmentSelection, true);
-    assert.deepEqual(end.compendiumSources, {
-      equipment: [PACK],
-      races: ['dnd-players-handbook.origins'],
-    });
+    assert.deepEqual(end.compendiumSources.equipment, [PACK, 'aitool-content.items']);
+    assert.deepEqual(end.compendiumSources.races, [
+      'dnd-players-handbook.origins',
+      'aitool-content.species',
+    ]);
+    assert.deepEqual(end.compendiumSources.spells, [
+      'dnd-players-handbook.spells',
+      'aitool-content.spells',
+    ]);
     assert.deepEqual(mismatches(start, end), []);
   });
 
@@ -145,6 +191,47 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     const changed = await applyState(ARGS);
     assert.ok(!changed.some(c => c.startsWith('usage-tracking')), changed.join(', '));
     assert.equal(docs[0].updates, 0);
+  });
+
+  test('ability methods: standard array and point buy on, manual and rolling off; a rolling-on world is switched off', async () => {
+    assert.deepEqual(ABILITY_METHODS, {
+      allowStandardArray: true,
+      allowPointBuy: true,
+      allowManualInput: false,
+      allowRolling: false,
+    });
+    globalThis.game = fakeGame({
+      methods: { ...DEFAULT_METHODS, allowRolling: true, allowStandardArray: true },
+    });
+    const start = readState(ARGS);
+    assert.match(mismatches(start, start).join('; '), /allowPointBuy is false, expected true/);
+    assert.match(mismatches(start, start).join('; '), /allowRolling is true, expected false/);
+    const changed = await applyState(ARGS);
+    assert.deepEqual(changed.filter(c => c.startsWith('allow')).sort(), [
+      'allowManualInput',
+      'allowPointBuy',
+      'allowRolling',
+    ]);
+    assert.deepEqual(mismatches(start, readState(ARGS)), []);
+    // a rerun, and a world that already has the values, set nothing
+    const sets = globalThis.game.sets.length;
+    assert.deepEqual(await applyState(ARGS), []);
+    assert.equal(globalThis.game.sets.length, sets);
+  });
+
+  test('blockers say so when the module does not register the ability method settings', () => {
+    globalThis.game = fakeGame({ methodsRegistered: false });
+    assert.match(
+      blockers(readState(ARGS), 'curse-of-strahd').join('; '),
+      /did not register enableEquipmentSelection, compendiumSources and the ability method settings/
+    );
+  });
+
+  test('readState and applyState get the methods through their argument (they run in the browser)', () => {
+    // page.evaluate serialises the function alone: it must not reach for the module-level constant.
+    for (const fn of [readState, applyState]) {
+      assert.doesNotMatch(fn.toString(), /ABILITY_METHODS/);
+    }
   });
 
   test('blockers name a non-GM login, an inactive module and the wrong world', () => {
@@ -195,11 +282,70 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
       ...start,
       actorCreate: [1, 2, 4],
       enableEquipmentSelection: true,
-      compendiumSources: { equipment: [PACK], races: [] },
+      compendiumSources: { equipment: [PACK, 'aitool-content.items'], races: [], odd: ['x'] },
     };
     const problems = mismatches(start, end).join('; ');
     assert.match(problems, /ACTOR_CREATE lost role 3/);
+    assert.match(problems, /compendiumSources\.races is \[\]/);
     assert.match(problems, /another compendium source changed/);
+  });
+
+  test('baseline: with the six player packs open, every kind lists its one world pack; hidden packs keep the old lists', async () => {
+    const names = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'];
+    globalThis.game = fakeGame();
+    const addPacks = own => {
+      for (const n of names) globalThis.game.packs.set(`world.player-${n}`, { ownership: own });
+    };
+    addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
+    assert.equal(readState(ARGS).baselineReady, false);
+    addPacks({ PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' });
+    // the world packs are open, but the old kept packs still are too (a baseline that stopped halfway): not ready
+    const modulePacks = [...globalThis.game.packs.keys()].filter(id => !id.startsWith('world.'));
+    for (const id of modulePacks)
+      globalThis.game.packs.set(id, { ownership: { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER' } });
+    assert.equal(readState(ARGS).baselineReady, false);
+    for (const id of modulePacks)
+      globalThis.game.packs.set(id, { ownership: { PLAYER: 'NONE', TRUSTED: 'NONE' } });
+    const start = readState({
+      ...ARGS,
+      targets: { ...SOURCE_TARGETS, extra: names.map(n => `world.player-${n}`) },
+    });
+    assert.equal(start.baselineReady, true);
+    const targets = BASELINE_TARGETS;
+    await applyState({ ...ARGS, targets });
+    const end = readState({ ...ARGS, targets });
+    assert.deepEqual(end.compendiumSources.races, ['world.player-species']);
+    assert.deepEqual(end.compendiumSources.classes, ['world.player-classes']);
+    assert.deepEqual(end.compendiumSources.subclasses, ['world.player-classes']);
+    assert.deepEqual(end.compendiumSources.equipment, ['world.player-items']);
+    assert.deepEqual(mismatches(start, end, targets), []);
+    assert.deepEqual(await applyState({ ...ARGS, targets }), []);
+    // undo hides the packs: the old lists come back on the next run
+    addPacks({ PLAYER: 'NONE', TRUSTED: 'NONE' });
+    assert.equal(readState(ARGS).baselineReady, false);
+    await applyState(ARGS);
+    assert.deepEqual(readState(ARGS).compendiumSources.races, SOURCE_TARGETS.races);
+  });
+
+  test('sources: dnd5e packs come out of every list, kinds that are not ours keep their value, a missing aitool pack is skipped', async () => {
+    globalThis.game = fakeGame({
+      sources: {
+        items: ['dnd5e.items'],
+        equipment: ['dnd-players-handbook.equipment'],
+        foo: ['dnd5e.monsters', 'x.y'],
+      },
+      contentPacks: ['dnd-players-handbook.origins'],
+    });
+    const start = readState(ARGS);
+    assert.match(mismatches(start, start).join('; '), /still lists a dnd5e pack/);
+    await applyState(ARGS);
+    const end = readState(ARGS);
+    assert.deepEqual(end.compendiumSources.items, [PACK]);
+    assert.deepEqual(end.compendiumSources.races, ['dnd-players-handbook.origins']);
+    assert.deepEqual(end.compendiumSources.foo, ['x.y']);
+    assert.equal(end.compendiumSources.spells, undefined);
+    assert.deepEqual(mismatches(start, end), []);
+    assert.deepEqual(await applyState(ARGS), []);
   });
 });
 
@@ -213,27 +359,10 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
-// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
 // About 30 minutes under QEMU emulation on a PC, a few minutes on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/stage13-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('stage13-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 
@@ -275,7 +404,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     return r;
   };
   const count = (calls, call) => calls.filter(c => c === call).length;
-  const PINNED = '2.10.5-aitool.4';
+  const PINNED = '2.10.5-aitool.13';
   const GOOD_CALLS = [
     'is-active --quiet foundry.service',
     'is-active --quiet foundry-ai-tool-gm-browser.service',
@@ -385,12 +514,12 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
   test('a newer installed build is refused before anything stops (the downgrade guard)', () => {
     const r = run('downgrade-refused');
     assert.equal(r.exit, 1, r.output);
-    assert.match(
-      r.output,
-      /2\.10\.5-aitool\.9 is newer than 2\.10\.5-aitool\.4: .*ALLOW_DOWNGRADE=1/
-    );
+    const line = r.output
+      .split('\n')
+      .find(l => l.includes(`2.10.5-aitool.14 is newer than ${PINNED}:`));
+    assert.ok(line && line.includes('ALLOW_DOWNGRADE=1'), r.output);
     assert.deepEqual(r.calls, []);
-    assert.equal(r.version, '2.10.5-aitool.9');
+    assert.equal(r.version, '2.10.5-aitool.14');
   });
 
   test('ALLOW_DOWNGRADE=1 replaces the newer build and keeps it in prev', () => {
@@ -406,6 +535,14 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.equal(r.exit, 0, r.output);
     assert.match(r.output, /sha256 matches/);
     assert.match(r.output, /only files and folders, all inside the module folder/);
+    assert.equal(r.version, PINNED);
+    assert.ok(r.prev.includes('modules/foundryvtt-actor-studio/module.json'), r.prev.join('\n'));
+  });
+
+  test('an installed aitool.9 is upgraded to the pinned build (version sort across one and two digits)', () => {
+    const r = run('upgrade-from-9');
+    assert.equal(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /ALLOW_DOWNGRADE/);
     assert.equal(r.version, PINNED);
     assert.ok(r.prev.includes('modules/foundryvtt-actor-studio/module.json'), r.prev.join('\n'));
   });
@@ -470,7 +607,10 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
   test('options-readonly: the foundry user cannot write the Config folder: refused up front, nothing stopped', () => {
     const r = run('options-readonly');
     assert.equal(r.exit, 1, r.output);
-    assert.match(r.output, /the foundry user cannot write in .*\/Config, where options\.json is changed/);
+    assert.match(
+      r.output,
+      /the foundry user cannot write in .*\/Config, where options\.json is changed/
+    );
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(r.calls, [], r.calls.join('\n')); // no stop, no restart, no is-active
     assert.equal(r.world, 'curse-of-strahd');

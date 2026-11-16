@@ -18,6 +18,9 @@ const STATS: PlayStats = {
     rolls: 142,
     crits: 3,
     fumbles: 1,
+    publicRolls: 120,
+    publicCrits: 2,
+    publicFumbles: 0,
     highestRoll: { total: 27, name: 'Ilvara', label: 'Perception' },
     combats: [
       { damageDealt: { Ilvara: 20, Ivarro: 8, Wolf: 99 }, downs: ['Ivarro'] },
@@ -60,13 +63,27 @@ describe('statsForDiscord', () => {
     expect(text).toBe(
       [
         '**Session 3** (3 h 5 min)',
-        'Rolls: 142 (3 natural 20s, 1 natural 1)',
+        'Rolls: 120 (2 natural 20s, 0 natural 1s)',
         'Most damage: Ilvara, 35 hp over 2 fights',
         'Went down: Ivarro once',
       ].join('\n')
     );
     expect(text).not.toContain('27');
     expect(text).not.toContain('Perception');
+  });
+
+  it('posts the public roll counts, never the unfiltered ones', () => {
+    const text = statsForDiscord(summarizeSession(STATS)!);
+    expect(text).not.toContain('142');
+    expect(text).not.toContain('3 natural 20s');
+  });
+
+  it('leaves the rolls line out when the bridge sends no public counts', () => {
+    const { publicRolls: _r, publicCrits: _c, publicFumbles: _f, ...oldSession } = STATS.session!;
+    const old: PlayStats = { ...STATS, session: oldSession };
+    const text = statsForDiscord(summarizeSession(old)!);
+    expect(text).not.toContain('Rolls');
+    expect(text).not.toContain('142');
   });
 
   it('says nobody went down', () => {

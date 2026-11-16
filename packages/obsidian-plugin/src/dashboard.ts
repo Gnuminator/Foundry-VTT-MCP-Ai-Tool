@@ -20,6 +20,7 @@
  * only to `https://` addresses, never in plain text.
  */
 
+import { CLIENT_HEADER, clientHeaderValue } from './client-update.js';
 import { themeFromPayload, type ThemeId } from './theme.js';
 
 /** GM token header (the dashboard also accepts it on every GM route). */
@@ -144,11 +145,15 @@ export class DashboardClient {
     private readonly http: HttpClient,
     private readonly baseUrl: () => string,
     private readonly token: () => string | null,
-    private readonly access: () => AccessCredentials | null = (): null => null
+    private readonly access: () => AccessCredentials | null = (): null => null,
+    /** The plugin's manifest version, sent as `x-foundry-client: obsidian/<version>`. */
+    private readonly pluginVersion: () => string | null = (): null => null
   ) {}
 
   private headers(base: string, extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
+    const version = this.pluginVersion();
+    if (version) headers[CLIENT_HEADER] = clientHeaderValue(version);
     const token = this.token();
     if (token) headers[TOKEN_HEADER] = token;
     const access = /^https:\/\//i.test(base) ? this.access() : null;
@@ -225,6 +230,21 @@ export class DashboardClient {
     throw new DashboardError(errorText(response), response.status);
   }
 
+  /**
+   * The version the table runs and where the plugin is downloaded, or null when the route is
+   * missing (an older Pi) or the answer is not usable. Never throws: an update check stays silent.
+   */
+  async clientVersions(): Promise<{ current: unknown; obsidianLink: unknown } | null> {
+    try {
+      const response = await this.send('GET', '/api/client-versions');
+      const body = rec(response.json);
+      if (response.status !== 200 || !body) return null;
+      return { current: body.current, obsidianLink: rec(body.downloads)?.obsidian };
+    } catch {
+      return null;
+    }
+  }
+
   /** Sets the world's theme in the dashboard (GM only); resolves to the theme it now has. */
   async setTheme(theme: ThemeId): Promise<ThemeId> {
     const response = await this.post('/api/control', { action: 'set-theme', value: theme });
@@ -265,6 +285,12 @@ export class DashboardClient {
       .filter((q): q is Rec => q !== null && typeof q.uuid === 'string')
       .map(q => ({ uuid: String(q.uuid), title: str(q.title), sceneId: str(q.sceneId) }));
     return { pages, queue };
+  }
+
+  /** `plan-obsidian-quest-import` for one quest prep note: the planId to confirm in the dashboard. */
+  async planQuestImport(notePath: string): Promise<{ planId: string | null; summary: string }> {
+    const result = rec(await this.readTool('plan-obsidian-quest-import', { notePath }));
+    return { planId: str(result?.planId), summary: str(result?.summary) ?? '' };
   }
 
   /**

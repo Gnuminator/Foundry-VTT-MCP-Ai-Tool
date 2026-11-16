@@ -1,14 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { RefChoiceTools } from './ref-choices.js';
 
 function setup(): {
   tools: RefChoiceTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
-  const logger: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  const query = vi.fn();
   const guardedWrites: any = {
     listPlans: vi.fn(() => [
       {
@@ -40,10 +39,9 @@ function setup(): {
       ])
     ),
   };
-  const tools = new RefChoiceTools({
-    foundryClient: { query },
-    guardedWrites,
-    logger,
+  const { tools, query } = makeTools(RefChoiceTools, {
+    queryImpl: () => undefined,
+    extra: { guardedWrites },
   });
   return { tools, query };
 }

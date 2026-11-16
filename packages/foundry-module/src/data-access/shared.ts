@@ -1,11 +1,12 @@
-import { MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
+import { AMBIGUOUS_ACTOR_PREFIX, MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
 import { rec } from '../character-sheet-fields.js';
+import { effectDuration } from '../systems/core.js';
 import { viewedScene } from '../viewed-scene.js';
 
 /**
  * Cross-cutting data-access helpers, as stateless free functions.
  *
- * These were private methods on `FoundryDataAccess` but hold no instance state —
+ * These were private methods on `FoundryDataAccess` but hold no instance state -
  * they read Foundry globals + their arguments and return values. Lifting them to
  * free functions lets every domain module import them directly instead of
  * reaching back through the facade. (`FoundryDataAccess` keeps thin wrappers that
@@ -41,6 +42,9 @@ export function sanitizeData(data: unknown): Record<string, unknown> {
   }
 }
 
+/** Most objects one sanitize call walks; guards against heavily shared reference graphs. */
+const MAX_SANITIZE_NODES = 50000;
+
 /**
  * Remove sensitive fields from a data object with circular-reference protection.
  * Returns a sanitized copy instead of modifying the original.
@@ -48,7 +52,8 @@ export function sanitizeData(data: unknown): Record<string, unknown> {
 export function removeSensitiveFields(
   obj: unknown,
   visited: WeakSet<object> = new WeakSet(),
-  depth: number = 0
+  depth: number = 0,
+  budget: { left: number } = { left: MAX_SANITIZE_NODES }
 ): unknown {
   // Handle primitives
   if (obj === null || typeof obj !== 'object') {
@@ -66,6 +71,11 @@ export function removeSensitiveFields(
     return '[Circular Reference]';
   }
 
+  // Shared references are walked once per path, so cap the total work of one call.
+  if (--budget.left < 0) {
+    return '[Truncated]';
+  }
+
   // Mark this object as visited
   visited.add(obj);
 
@@ -73,7 +83,7 @@ export function removeSensitiveFields(
     // Handle arrays
     if (Array.isArray(obj)) {
       return (obj as unknown[]).map((item): unknown =>
-        removeSensitiveFields(item, visited, depth + 1)
+        removeSensitiveFields(item, visited, depth + 1, budget)
       );
     }
 
@@ -82,12 +92,12 @@ export function removeSensitiveFields(
     // `toJSON()`, so a document's parent links are never walked).
     if (obj instanceof Set) {
       return [...(obj as Set<unknown>)].map((item): unknown =>
-        removeSensitiveFields(item, visited, depth + 1)
+        removeSensitiveFields(item, visited, depth + 1, budget)
       );
     }
     if (obj instanceof Map) {
       return [...(obj as Map<unknown, unknown>).values()].map((item): unknown =>
-        removeSensitiveFields(toJSONOrSelf(item), visited, depth + 1)
+        removeSensitiveFields(toJSONOrSelf(item), visited, depth + 1, budget)
       );
     }
 
@@ -129,13 +139,17 @@ export function removeSensitiveFields(
       }
 
       // Recursively sanitize the value (read only after filter to avoid getter-triggered warnings)
-      sanitized[key] = removeSensitiveFields(source[key], visited, depth + 1);
+      sanitized[key] = removeSensitiveFields(source[key], visited, depth + 1, budget);
     }
 
     return sanitized;
   } catch (error) {
     console.warn(`[${MODULE_ID}] Error during sanitization at depth ${depth}:`, error);
     return '[Sanitization failed]';
+  } finally {
+    // Only the ancestors of the current node count as a cycle. An object reached twice by
+    // different paths (a species item in both `details.race` and `items`) is not circular.
+    visited.delete(obj);
   }
 }
 
@@ -229,15 +243,31 @@ export function validateFoundryState(): void {
   }
 }
 
-/** Resolve an actor by id, exact name, or partial name match. */
+/**
+ * Resolve an actor by id, exact name (case-insensitive, the first wins when names repeat) or a
+ * unique partial name. Several partial matches throw, listing name and id, so a write never
+ * lands on the wrong actor; `undefined` when nothing matches.
+ */
 export function findActorByIdentifier(identifier: string): Actor | undefined {
-  return (
-    game.actors?.get(identifier) ??
-    game.actors?.getName(identifier) ??
-    Array.from(game.actors || []).find(a =>
-      a.name?.toLowerCase().includes(identifier.toLowerCase())
-    )
-  );
+  const byId = game.actors?.get(identifier);
+  if (byId) return byId;
+  const needle = identifier.toLowerCase();
+  const actors = Array.from(game.actors || []);
+  const exact = actors.find(a => a.name?.toLowerCase() === needle);
+  if (exact) return exact;
+  const partial = actors.filter(a => a.name?.toLowerCase().includes(needle));
+  if (partial.length <= 1) return partial[0];
+  throw new Error(ambiguousActorMessage(identifier, partial));
+}
+
+/** "Multiple characters match ...": up to ten candidates with their ids. */
+export function ambiguousActorMessage(identifier: string, actors: Actor[]): string {
+  const shown = actors
+    .slice(0, 10)
+    .map(a => `${a.name} (${a.id})`)
+    .join(', ');
+  const more = actors.length > 10 ? `, ...(+${actors.length - 10} more)` : '';
+  return `${AMBIGUOUS_ACTOR_PREFIX} "${identifier}": ${shown}${more}. Use the exact name or the 16-character id.`;
 }
 
 /**
@@ -247,7 +277,15 @@ export function findActorByIdentifier(identifier: string): Actor | undefined {
  * actor picker sends ids), then falls back to that world actor.
  */
 export function resolveTargetActor(identifier: string): Actor | undefined {
-  const worldActor = findActorByIdentifier(identifier);
+  let worldActor: Actor | undefined;
+  try {
+    worldActor = findActorByIdentifier(identifier);
+  } catch (err) {
+    // Several world actors fit, but a token on the scene named exactly so is unambiguous.
+    const token = findSceneTokenActor(identifier);
+    if (token) return token;
+    throw err;
+  }
   return findSceneTokenActor(identifier, worldActor?.id) ?? worldActor;
 }
 
@@ -294,7 +332,7 @@ export async function getOrCreateFolder(
     let description = '';
     if (type === 'Actor') {
       if (folderName === 'Foundry MCP Creatures') {
-        description = 'Creatures and monsters created via Foundry MCP Bridge';
+        description = 'Creatures and monsters created via Foundry AI Tool';
       } else {
         description = `NPCs and creatures related to: ${folderName}`;
       }
@@ -326,6 +364,24 @@ export async function getOrCreateFolder(
     // Return null so items are created without folders rather than failing
     return null;
   }
+}
+
+/**
+ * The tokens targeted in Foundry. The bridge may run in another GM's browser (`bridgeUserId`,
+ * "Any GM"): Foundry syncs every user's targets to all clients, so when this user has none, take
+ * the active GMs' (the same scene only, as Foundry itself only holds targets for the viewed one).
+ */
+export function currentTargetTokens<T extends { id: string }>(): T[] {
+  let targets = Array.from((game.user as { targets?: Iterable<T> } | undefined)?.targets ?? []);
+  if (targets.length === 0) {
+    const gms = (game.users?.filter(u => u.isGM && u.active && u.id !== game.user?.id) ??
+      []) as Array<{ targets?: Iterable<T> }>;
+    const seen = new Set<string>();
+    targets = gms
+      .flatMap(u => Array.from(u.targets ?? []))
+      .filter(t => !seen.has(t.id) && seen.add(t.id));
+  }
+  return targets;
 }
 
 /** Major version number of the active game system (0 if unparseable). */
@@ -378,6 +434,102 @@ export function actorConditionNames(actor: Actor | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+/** The running combat as the timed-condition rule needs it, for one combatant. */
+export interface TimedCombatContext {
+  combatId: string | null;
+  round: number;
+  /** The index of the current turn. */
+  turn: number;
+  /** This combatant's own index in the turn order (an unlinked token shares its actor's id). */
+  ownerIdx: number;
+  /** The combatant ids in turn order, to find the one an effect was stamped on. */
+  turnIds?: (string | null | undefined)[];
+}
+
+/**
+ * The rounds left on an actor's timed condition effects, by the same name `actorConditionNames`
+ * gives: whole rounds (0 once the time is up). Only effects with a duration in rounds get a key;
+ * a condition without one is not listed.
+ *
+ * With the running combat and the effect's stored start round the count is worked out here
+ * (duration minus rounds gone), so it is right after a reload and does not depend on a browser
+ * having prepared the effect during the fight. Without them it falls back to the values Foundry
+ * prepared (`duration.remaining`, `duration.expired`). An overdue effect is 0, never 1.
+ */
+export function actorTimedConditions(
+  actor: Actor | null | undefined,
+  combat?: TimedCombatContext | null
+): Record<string, number> {
+  const timed: Record<string, number> = {};
+  if (!actor) return timed;
+  try {
+    const effs = actor.effects?.contents ?? actor.effects ?? [];
+    for (const e of effs) {
+      if ((e.statuses?.size ?? 0) === 0 || e.disabled) continue;
+      const name = e.name || rec(e).label;
+      if (typeof name !== 'string') continue;
+      const d = effectDuration(e);
+      if (d.units !== 'rounds' || d.value === null) continue;
+      const left = timedLeft(e, d.value, rec(rec(e).duration).expired === true, combat ?? null);
+      // Two effects of one name: a live one wins over an ended one.
+      timed[name] = Math.max(timed[name] ?? 0, left);
+    }
+  } catch {
+    return {};
+  }
+  return timed;
+}
+
+function timedLeft(
+  e: ActiveEffect,
+  value: number,
+  expired: boolean,
+  combat: TimedCombatContext | null
+): number {
+  const duration = rec(rec(e).duration);
+  // The stored ids, not the live document: `start.combat` and `start.combatant` resolve to
+  // documents (null once the fight is deleted), the source keeps the id strings.
+  const sourceStart = rec(rec(rec(e)._source).start);
+  const docStart = rec(rec(e).start);
+  const idOf = (source: unknown, live: unknown): string | null => {
+    if (typeof source === 'string') return source;
+    const id = rec(live).id ?? live;
+    return typeof id === 'string' ? id : null;
+  };
+  const startRound = sourceStart.round ?? docStart.round;
+  const startCombat = idOf(sourceStart.combat, docStart.combat);
+  const startCombatant = idOf(sourceStart.combatant, docStart.combatant);
+  // Foundry counts from the start stamp only inside the combat that stamped it.
+  const sameCombat = startCombat === null || startCombat === combat?.combatId;
+  let remaining: unknown = duration.remaining;
+  if (combat && sameCombat && typeof startRound === 'number' && Number.isFinite(startRound)) {
+    remaining = value - (combat.round - startRound);
+    if ((remaining as number) < 0) return 0;
+    // At 0 the round has changed but the effect still applies until its expiry point: the
+    // holder's turn start (the default) or end. Foundry's own flag counts when it is set. The
+    // holder is the combatant the effect was stamped on, else this one (Foundry's rule).
+    if (remaining === 0) {
+      if (expired) return 0;
+      const expiry = duration.expiry;
+      // No expiry event at all: the duration alone decides, so it is over at once.
+      if (expiry === null) return 0;
+      const stamped = startCombatant ? (combat.turnIds?.indexOf(startCombatant) ?? -1) : -1;
+      const holderIdx = stamped >= 0 ? stamped : combat.ownerIdx;
+      if (expiry === undefined || expiry === 'turnStart') return combat.turn >= holderIdx ? 0 : 1;
+      if (expiry === 'turnEnd') return combat.turn > holderIdx ? 0 : 1;
+      return 1;
+    }
+    return Math.ceil(remaining as number);
+  }
+  // Foundry's prepared values: "remaining" reaches 0 as the round changes, but the effect still
+  // applies until Foundry flags it expired: 0 only for that flag, or once it is overdue.
+  if (expired) return 0;
+  if (typeof remaining === 'number' && Number.isFinite(remaining)) {
+    return remaining < 0 ? 0 : Math.max(1, Math.ceil(remaining));
+  }
+  return value;
 }
 
 /** A document or data model as its `toJSON()` (plain data, no parent links), else the value. */

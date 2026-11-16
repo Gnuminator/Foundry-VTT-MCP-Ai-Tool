@@ -52,12 +52,12 @@ once). Real players never join the test server, and they join Plan B only on a g
 ## Ready in advance (once, and after each Pi update)
 
 - [ ] The daily backup copy runs: `E:\PiBackup\restic-last-success.txt` shows today or yesterday
-      (task "Foundry Pi restic copy", [Orange Pi setup](PI-SETUP.md#restic-copies-on-this-pc)).
+      (task "Foundry Pi restic copy", [Orange Pi setup](pi/backups-and-storage.md#restic-copies-on-this-pc)).
 - [ ] The restic password is in your password manager (Waiting item 11).
-- [ ] Node.js 24 is installed (Foundry 14 needs it) and restic (`winget install restic.restic`).
+- [ ] Node.js 24.22.1 or newer is installed (Foundry 14.370 needs it) and restic (`winget install restic.restic`).
 - [ ] The repo's main checkout is built (`npm ci`, `npm run build`): Plan B runs the bridge and the
       dashboard from it.
-- [ ] Foundry's zip for the Pi's version is in `Downloads` (today `FoundryVTT-Node-14.368.zip`).
+- [ ] Foundry's zip for the Pi's version is in `Downloads` (`FoundryVTT-Node-14.370.zip` once the Pi runs 14.370, before that `FoundryVTT-Node-14.368.zip`).
       **After every Foundry update on the Pi, download the new version's Node.js zip too.**
       `restore.ps1` installs it when the world needs it, and refuses a mismatch: a newer Foundry
       would migrate the world so the Pi could not open it again.
@@ -78,8 +78,11 @@ Open PowerShell 7 in the repo's main checkout.
    .\scripts\plan-b\restore.ps1
    ```
 
-   It names the backup it uses and its age. Older than a day and a half means the backups had
-   stopped: you continue from an older point, tell the GM.
+   It names the backup it uses and its age. Older than 36 hours means the backups had stopped, and
+   the script refuses. If you still want that older point, run `restore.ps1 -List` to see the
+   snapshots and then `restore.ps1 -AllowOld`; you continue from the older point, tell the GM.
+   Naming a snapshot yourself (`restore.ps1 -Snapshot <id>`) skips this age check: you chose that
+   point on purpose.
 
 3. **Start everything:**
 
@@ -104,8 +107,9 @@ Open PowerShell 7 in the repo's main checkout.
    address; Windows asks once whether Node.js may use private networks: allow it). Same user
    names and passwords as always.
 6. **Claude for you (optional).** Your Claude Desktop connectors point at the Pi. To point them at
-   Plan B: `.\scripts\plan-b\connectors.ps1 -To planb`, then quit Claude Desktop from the tray icon
-   and start it again (this also ends any Claude Code session in the app). The GM's own Claude
+   Plan B: quit Claude Desktop from the tray icon first (it rewrites its settings when it quits),
+   run `.\scripts\plan-b\connectors.ps1 -To planb` in a terminal, then start Claude Desktop again
+   (quitting also ends any Claude Code session in the app). The GM's own Claude
    (D-095) does not reach Plan B; the GM plays by hand.
 
 The dashboard runs at `http://localhost:3000` on your PC only. The GM does not get it on a Plan B
@@ -114,7 +118,8 @@ night; changes made by hand in Foundry need no dashboard.
 ## After the night
 
 1. **Stop:** `.\scripts\plan-b\stop.ps1`. The data stays.
-2. **Claude back to the Pi:** `.\scripts\plan-b\connectors.ps1 -To pi`, then restart Claude Desktop.
+2. **Claude back to the Pi:** quit Claude Desktop, run `.\scripts\plan-b\connectors.ps1 -To pi`,
+   then start Claude Desktop again.
 3. **The world goes back to the Pi before anyone plays there again.** Otherwise the Pi starts from
    its old backup and the Plan B night is lost. Until it is back, tell the players not to use the
    Pi's address. First build and check the bundle on your PC (nothing goes to the Pi):
@@ -155,6 +160,11 @@ night; changes made by hand in Foundry need no dashboard.
    in the output; a push-back never downgrades a module. When either version cannot be read as
    numbers (a missing `version`, `beta`, a broken `module.json`), the Pi's copy is kept too and the
    output says so: install the bundle's copy by hand if it is the right one.
+   For a world other than the campaign whose modules the Pi already has (a drill on the training
+   world, say), build with `-Modules '' -PiModules id1,id2` (the ids of its active modules): the
+   bundle ships none and stage 11 checks that the Pi has each one at the same or a newer version
+   (versions that cannot be compared only warn). The stage 11 command printed for such a world
+   carries `LAUNCH=curse-of-strahd`, the world Foundry keeps launching.
 
 4. **Clean up once the world is back on the Pi:** `.\scripts\plan-b\stop.ps1 -Clean -PushedBack`.
    It keeps Foundry and the licence for next time. Without `-PushedBack` it refuses to delete a
@@ -287,6 +297,8 @@ names, so on the night nothing in Cloudflare has to change: `plan-b` reaches the
 | Problem                                        | What to do                                                                                                                                        |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `restore.ps1`: not a restic repository         | Drive E: is not connected, or the copy task never ran.                                                                                            |
+| `restore.ps1`: REFUSED, backup over 36 hours   | The Pi's nightly backup or the PC's copy task stopped. Check the logs in `E:\PiBackup\logs`; restore the old one anyway with `-AllowOld`.         |
+| `start.ps1`: FAIL, one line                    | The line says what is missing (not restored, not built, no login, no Edge, no tunnel token). Fix that and start again.                            |
 | `restore.ps1`: Foundry x is needed             | Download that version's Node.js zip from foundryvtt.com and give it with `-FoundryZip`.                                                           |
 | `start.ps1`: REFUSED, a port is in use         | The line names the port. Close what holds it, or (rehearsal only) stop the test server.                                                           |
 | `start.ps1`: REFUSED, the Pi's Foundry answers | The Pi is up. If it is up but broken, unplug it and start again.                                                                                  |

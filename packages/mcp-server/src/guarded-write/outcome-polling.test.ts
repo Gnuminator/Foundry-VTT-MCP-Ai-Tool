@@ -4,9 +4,10 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { GuardedApplyOutcome, GuardedOp } from '@gnuminator/shared';
+import { NOT_CONNECTED_TAIL, type GuardedApplyOutcome, type GuardedOp } from '@gnuminator/shared';
 
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { APPLY_TIMEOUT_MS, GuardedWriteService } from './service.js';
@@ -30,8 +31,7 @@ beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'guarded-outcome-'));
   foundry = new FakeFoundry();
   foundry.add('Actor.ilvara', 'Actor', { name: 'Ilvara', system: { hp: 10 } });
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   applyOptions.length = 0;
   applyImpl = (data): Promise<any> => foundry.query(APPLY, data);
   outcomeImpl = (): Promise<any> => Promise.reject(new Error('not configured'));
@@ -102,6 +102,7 @@ describe('apply timeout and outcome polling (PB-04)', () => {
     for (const message of [
       'Foundry VTT module not connected. Please ensure Foundry is running',
       'Not connected to Foundry VTT module',
+      `Query foundry-mcp-bridge.applyGuardedOps failed: Not connected to Foundry VTT module. ${NOT_CONNECTED_TAIL}`,
     ]) {
       applyImpl = (): Promise<any> => Promise.reject(new Error(message));
       const spy = vi.fn();

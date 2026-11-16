@@ -6,6 +6,7 @@
 // Escape with a toast up.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
+import type { SessionSwitchesPostBody } from '../../src/api-bodies';
 import {
   GM_TOKEN,
   fakeCommonRoutes,
@@ -15,6 +16,8 @@ import {
   toast,
   type ToolCall,
   fromMenu,
+  PREFLIGHT_OK,
+  switchesBody,
 } from './support';
 
 const ILVARA = {
@@ -102,11 +105,9 @@ async function openParty(page: Page): Promise<Locator> {
 
 /** Pre-flight's own routes, for the tests where a refusal opens it. */
 async function fakePreflight(page: Page): Promise<void> {
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: false } })
+    route.fulfill({ json: switchesBody(false) })
   );
 }
 
@@ -137,6 +138,10 @@ test('loads the party on open and shows each member and section', async ({ page 
     'Level 3 · AC 15 · Passive Perception 13 · Hit dice 2/3',
     'On Maravia, hidden',
   ]);
+  await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
+  // The same cached data drawn again (a button click sets the drawer busy, no refetch) must not
+  // add a chip: the screenshots flaked on a third Exhaustion chip.
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
   await expect(rows.nth(0).locator('.hp-text')).toHaveText('5/20 +3');
   await expect(rows.nth(0).locator('.hp-fill')).toHaveClass('hp-fill low');
@@ -209,6 +214,116 @@ test('the combat and pace lines follow the encounter, the tokens and a slowed me
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
   await expect(combat).toHaveText('No active scene.');
   await expect(drawer.locator('.party-member .pf-detail')).toHaveText(['Level 3']);
+});
+
+test('Who would notice: a DC gives a tick or cross per PC and skill, and the row needs the switch', async ({
+  page,
+}) => {
+  await fakeStream(page, []);
+  const withPassives = (): unknown => ({
+    ...STATE,
+    groups: [
+      {
+        ...GROUP,
+        members: [
+          { ...ILVARA, passives: { perception: 13, investigation: 9, insight: null } },
+          { ...IVARRO, passives: { perception: 16, investigation: 12, insight: 10 } },
+        ],
+      },
+    ],
+  });
+  // The switch off: the bridge sends passives: null for every member.
+  let state: unknown = {
+    ...STATE,
+    groups: [
+      {
+        ...GROUP,
+        members: [
+          { ...ILVARA, passives: null },
+          { ...IVARRO, passives: null },
+        ],
+      },
+    ],
+  };
+  const calls = await fakeTools(page, () => ok(state));
+  const drawer = await openParty(page);
+  // GM only: the drawer is the GM's, and with the switch off (no passives) there is no row.
+  await expect(drawer.locator('.drawer-sub')).toContainText('GM only');
+  await expect(drawer.locator('.party-member')).toHaveCount(2);
+  await expect(drawer.locator('#party-notice')).toHaveCount(0);
+
+  state = withPassives();
+  await drawer.getByRole('button', { name: '↻ Refresh' }).click();
+  const notice = drawer.locator('#party-notice');
+  await expect(notice).toBeVisible();
+  const rows = notice.getByRole('list', { name: 'Who would notice' }).locator('li');
+  await expect(rows.locator('.pf-label')).toHaveText(['Ilvara', 'Ivarro']);
+
+  // No DC yet: scores only, no verdict marks.
+  await expect(rows.nth(0).locator('.feature-pill')).toHaveText([
+    'Perception 13',
+    'Investigation 9',
+    'Insight -',
+  ]);
+
+  await notice.getByLabel('Notice DC').fill('13');
+  await expect(rows.nth(0).locator('.feature-pill')).toHaveText([
+    'Perception 13 ✓',
+    'Investigation 9 ✗',
+    'Insight -',
+  ]);
+  await expect(rows.nth(1).locator('.feature-pill')).toHaveText([
+    'Perception 16 ✓',
+    'Investigation 12 ✗',
+    'Insight 10 ✗',
+  ]);
+
+  await notice.getByLabel('Notice DC').fill('');
+  await expect(rows.nth(1).locator('.feature-pill')).toHaveText([
+    'Perception 16',
+    'Investigation 12',
+    'Insight 10',
+  ]);
+
+  // One skill picked: a single chip per character, still read only.
+  await notice.getByLabel('Notice DC').fill('11');
+  await notice.getByLabel('Notice skill').selectOption('investigation');
+  await expect(rows.nth(0).locator('.feature-pill')).toHaveText(['Investigation 9 ✗']);
+  await expect(rows.nth(1).locator('.feature-pill')).toHaveText(['Investigation 12 ✓']);
+  // Still read only: picking a skill only ever read the party, nothing else went to the bridge.
+  expect(new Set(names(calls))).toEqual(new Set(['get-party']));
+
+  // The pick is remembered for the next visit in this browser.
+  await page.reload();
+  const again = await openParty(page);
+  await expect(again.getByLabel('Notice skill')).toHaveValue('investigation');
+});
+
+test('a junk remembered notice skill falls back to all three', async ({ page }) => {
+  await fakeStream(page, []);
+  await page.addInitScript(() => localStorage.setItem('cogm_party_notice_skill', 'junk'));
+  await fakeTools(page, () =>
+    ok({
+      ...STATE,
+      groups: [
+        {
+          ...GROUP,
+          members: [{ ...ILVARA, passives: { perception: 13, investigation: 9, insight: 8 } }],
+        },
+      ],
+    })
+  );
+  const drawer = await openParty(page);
+  const skill = drawer.getByLabel('Notice skill');
+  await expect(skill).toHaveValue('all');
+  await expect(
+    drawer
+      .locator('#party-notice')
+      .getByRole('list', { name: 'Who would notice' })
+      .locator('li')
+      .first()
+      .locator('.feature-pill')
+  ).toHaveCount(3);
 });
 
 test('the group picker shows with two groups and switches without a load', async ({ page }) => {
@@ -291,6 +406,44 @@ test('a pace click plans, applies in one click, reloads, and Undo reverts it', a
     ]);
 });
 
+test('Ask for a roll: one member, then the whole party, through request-player-rolls', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'request-player-rolls' ? ok({ success: true, message: 'sent' }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+  const asked = (): unknown[] => calls.filter(c => c.name === 'request-player-rolls');
+
+  await drawer.locator('#party-roll-what').selectOption('save:wis');
+  await drawer.locator('#party-roll-dc').fill('13');
+  await drawer.getByRole('button', { name: 'Ask roll: Ivarro, Wisdom save' }).click();
+  await expect(toast(page, '✓ Sent: Wisdom save DC 13 to Ivarro')).toBeVisible();
+  await drawer.locator('#party-roll-advantage').selectOption('advantage');
+  await drawer.locator('#party-roll-all').click();
+  await expect(toast(page, '✓ Sent: Wisdom save DC 13 to 2 characters')).toBeVisible();
+
+  const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13, flavor: 'DC 13' };
+  expect(asked()).toEqual([
+    {
+      name: 'request-player-rolls',
+      args: { ...base, targetPlayer: 'Ivarro', userConfirmedVisibility: true },
+      confirm: true,
+    },
+    ...['Ilvara', 'Ivarro'].map(targetPlayer => ({
+      name: 'request-player-rolls',
+      args: {
+        ...base,
+        targetPlayer,
+        userConfirmedVisibility: true,
+        advantage: 'advantage',
+      },
+      confirm: true,
+    })),
+  ]);
+});
+
 test('each action sends its own plan, and a double click sends once', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, bridge);
@@ -318,7 +471,7 @@ test('with GM Actions off nothing is planned and Pre-flight opens', async ({ pag
 
   await drawer.getByRole('button', { name: 'Short rest request' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
   // Pre-flight's Ready block reads get-play-session; nothing was planned or applied.
@@ -333,7 +486,7 @@ test('before the stream says GM Actions are on, a click plans nothing', async ({
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   expect(names(calls).filter(n => n !== 'get-play-session')).toEqual(['get-party']);
 });
@@ -361,7 +514,7 @@ test('an apply that times out says it may have applied and reloads the party', a
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
+    toast(page, '✗ The change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   await expect
     .poll(() => names(calls))
@@ -402,21 +555,17 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   const hint = 'It may have applied; check Recent Changes.';
 
   await fast.click();
-  await expect(
-    toast(page, `✗ apply-planned-change: The bridge link closed. ${hint}`)
-  ).toBeVisible();
+  await expect(toast(page, `✗ The change: The bridge link closed. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ apply-planned-change: HTTP 524. ${hint}`)).toBeVisible();
+  await expect(toast(page, `✗ The change: The answer did not come back. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ apply-planned-change: Failed to fetch. ${hint}`)).toBeVisible();
+  await expect(toast(page, `✗ The change: Failed to fetch. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(
-    page
-      .locator('.toast-stack')
-      .getByText('✗ apply-planned-change: Nothing to change', { exact: true })
+    page.locator('.toast-stack').getByText('✗ The change: Nothing to change', { exact: true })
   ).toBeVisible();
   // Each failure past the gate reloads the party, in case it landed.
   await expect.poll(() => names(calls).filter(n => n === 'get-party').length).toBe(5);
@@ -426,12 +575,8 @@ test('Pre-flight reading GM Actions on opens the gate before the stream says so'
   page,
 }) => {
   await fakeStream(page, []);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true, error: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/session/switches', route => route.fulfill({ json: switchesBody(true) }));
   const calls = await fakeTools(page, bridge);
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await page.locator('#btn-preflight').click();
@@ -449,12 +594,8 @@ test('Pre-flight reading GM Actions on opens the gate before the stream says so'
 
 test('the stream saying GM Actions are off wins over the Pre-flight read', async ({ page }) => {
   await fakeStream(page, gmActions(false));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/session/switches', route =>
-    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true, error: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/session/switches', route => route.fulfill({ json: switchesBody(true) }));
   const calls = await fakeTools(page, bridge);
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await page.locator('#btn-preflight').click();
@@ -466,7 +607,7 @@ test('the stream saying GM Actions are off wins over the Pre-flight read', async
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   expect(names(calls)).not.toContain('plan-party-change');
 });
@@ -493,18 +634,19 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
 }) => {
   await fakeStream(page, gmActions(true));
   await fakePreflight(page);
+  const partyOff =
+    '"AI Tool: Party (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Party (writes)".';
   let answer: Answer = call =>
     call.name === 'plan-party-change'
-      ? { status: 422, json: { ok: false, error: 'The "party" feature is switched off' } }
+      ? { status: 422, json: { ok: false, error: partyOff } }
       : bridge(call);
   const calls = await fakeTools(page, call => answer(call));
   const drawer = await openParty(page);
   const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
 
   await fast.click();
-  await expect(
-    toast(page, '✗ plan-party-change: The "party" feature is switched off')
-  ).toBeVisible();
+  // A switch to turn on is said as a hint (no red cross, no tool name).
+  await expect(toast(page, partyOff)).toBeVisible();
   expect(names(calls)).toEqual(['get-party', 'plan-party-change']);
 
   // The server refuses with 403 when GM Actions went off after the page last heard.
@@ -515,7 +657,7 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   await expect(preflight).toBeVisible();
@@ -523,7 +665,12 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
   await page.route('**/api/session/switches', route =>
     route.fulfill({
-      json: { switches: { switches: [] }, gmActionsEnabled: true, gmActionsChanged: true },
+      json: {
+        ok: true,
+        switches: null,
+        gmActionsEnabled: true,
+        gmActionsChanged: true,
+      } satisfies SessionSwitchesPostBody,
     })
   );
   await preflight.locator('#btn-ready').click();
@@ -610,11 +757,78 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
 
   openFails = true;
   await rows.nth(0).getByRole('button', { name: 'Open' }).click();
-  await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
+  await expect(toast(page, '✗ Open in Foundry: No such actor')).toBeVisible();
 
   // The toast is the top Radix layer, but Escape goes to the drawer and the toast stays.
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
-  await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
+  await expect(toast(page, '✗ Open in Foundry: No such actor')).toBeVisible();
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
+});
+
+test('the roll bar says who still owes a roll and who rolled what', async ({ page }) => {
+  const row = (id: string, name: string, sentAt: number, extra: object = {}): object => ({
+    id,
+    sentAt,
+    label: 'Wisdom Saving Throw (Private)',
+    isPublic: false,
+    targetName: name,
+    actorId: id,
+    userId: id,
+    status: 'sent',
+    ...extra,
+  });
+  const now = Date.now();
+  await fakeStream(page, [
+    ...gmActions(true),
+    {
+      event: 'rolls',
+      data: {
+        rows: [
+          row('c', 'Tom', now - 1000),
+          row('b', 'Ivarro', now - 2000, { status: 'rolled', total: 17 }),
+          row('a', 'Ilvara', now - 3000),
+        ],
+      },
+    },
+  ]);
+  await fakeTools(page, bridge);
+  const drawer = await openParty(page);
+  const status = drawer.getByTestId('roll-status');
+  await expect(status).toContainText('Wisdom Saving Throw: waiting for 2 of 3');
+  await expect(status).toContainText('Ivarro rolled 17');
+  await expect(status).toContainText('Tom: waiting');
+});
+
+test('the Party group and the notice DC are remembered for the next visit in this browser', async ({
+  page,
+}) => {
+  await fakeStream(page, []);
+  const other = {
+    ...GROUP,
+    actorId: 'g2',
+    name: 'Second',
+    primary: false,
+    members: [{ ...IVARRO, passives: { perception: 16, investigation: 12, insight: 10 } }],
+  };
+  const state = {
+    ...STATE,
+    groups: [
+      {
+        ...GROUP,
+        members: [{ ...ILVARA, passives: { perception: 13, investigation: 9, insight: null } }],
+      },
+      other,
+    ],
+  };
+  await fakeTools(page, call => (call.name === 'get-party' ? ok(state) : ok({})));
+  let drawer = await openParty(page);
+  await drawer.getByLabel('Party group').selectOption('g2');
+  await drawer.getByLabel('Notice DC').fill('14');
+  await expect(drawer.getByLabel('Notice DC')).toHaveValue('14');
+
+  await page.reload();
+  drawer = await openParty(page);
+  await expect(drawer.getByLabel('Party group')).toHaveValue('g2');
+  await expect(drawer.getByLabel('Notice DC')).toHaveValue('14');
 });

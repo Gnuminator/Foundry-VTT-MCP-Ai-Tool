@@ -337,7 +337,7 @@ export async function waitLoaded(page, id, timeout = WAIT_MS) {
 /**
  * Click a tool of the "AI Tool" scene controls group and wait for its window to load.
  * @param {import('playwright-core').Page} page
- * @param {'aiChanges' | 'handouts' | 'tarokka'} tool
+ * @param {'aiChanges' | 'handouts' | 'tarokka' | 'tarokkaTable'} tool
  * @param {string} windowId
  * @returns {Promise<number>} milliseconds from the click until the window had loaded
  */

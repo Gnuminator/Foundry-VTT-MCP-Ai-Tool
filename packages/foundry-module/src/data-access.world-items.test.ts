@@ -38,7 +38,7 @@ afterEach(() => {
 // listWorldItems
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — listWorldItems', () => {
+describe('FoundryDataAccess: listWorldItems', () => {
   it('returns an empty array when there are no world items', async () => {
     const result = await da.listWorldItems({});
     expect(result).toEqual([]);
@@ -72,7 +72,7 @@ describe('FoundryDataAccess — listWorldItems', () => {
     expect(result[0].id).toBe('i1');
   });
 
-  it('filters by folder name — items in that folder are returned', async () => {
+  it('filters by folder name: items in that folder are returned', async () => {
     world.addFolder({ id: 'f1', name: 'Gear', type: 'Item' });
     world.addItem({
       id: 'i1',
@@ -140,7 +140,7 @@ describe('FoundryDataAccess — listWorldItems', () => {
 // updateWorldItems
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — updateWorldItems', () => {
+describe('FoundryDataAccess: updateWorldItems', () => {
   it('throws when updates is an empty array', async () => {
     await expect(da.updateWorldItems({ updates: [] })).rejects.toThrow(
       'updates array is required and must contain at least one entry'
@@ -237,7 +237,7 @@ describe('FoundryDataAccess — updateWorldItems', () => {
 // createWorldItems
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — createWorldItems', () => {
+describe('FoundryDataAccess: createWorldItems', () => {
   it('throws when items is an empty array', async () => {
     await expect(da.createWorldItems({ items: [] })).rejects.toThrow(
       'items array is required and must contain at least one entry'

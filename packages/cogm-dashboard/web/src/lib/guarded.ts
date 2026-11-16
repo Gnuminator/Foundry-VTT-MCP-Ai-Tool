@@ -1,15 +1,24 @@
 // Guarded changes from the dashboard's own buttons (D-077): a plan-* tool turns one click into a
 // plan, apply-planned-change carries it out, and the toast that says so has an Undo button
-// (undo-change). Recent Changes keeps the full history. Port of the old page's planThenApply,
-// runTool, confirmAction and undoToast (public/app.js): an ordinary write plan applies in the same
+// (undo-change). Recent Changes keeps the full history. An ordinary write plan applies in the same
 // click, any other plan (a reveal, a delete) opens the confirm window first.
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 
 import { focusedElement, useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
-import { ApiError, callTool, errorText, type ToolConfirm } from './api';
-import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
+import { api, ApiError, callTool, errorText, type ToolConfirm } from './api';
+import {
+  applySwitchesWrite,
+  shortName,
+  SWITCHES_KEY,
+  type SwitchesRead,
+  type SwitchesWrite,
+} from './sessionSwitches';
+import { markUndoRefused } from './liveStrip';
+import { toolWords } from './toolWords';
+import { isSwitchOffRefusal, refusedSwitchName } from './switchOff';
+import { CHANGES_KEY, SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
 /**
@@ -21,12 +30,17 @@ export const GAME_STATE_KEY = ['game'] as const;
 /** Opens the place where the GM turns GM Actions on; App provides it. */
 export const GmActionsGateContext = createContext<() => void>(() => undefined);
 
-const GATE_TEXT = 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.';
+const GATE_TEXT = 'GM Actions are off. Start session or the header Turn on button turns them on.';
+
+/** The refusal toast's text; a page without the header (the strip page) says its own. */
+export const GateTextContext = createContext(GATE_TEXT);
 
 /** What a plan-* tool answers (guarded-write/service.ts on the bridge); the fields used here. */
 interface Plan {
   planId?: unknown;
   risk?: string;
+  /** A page-reveal plan's page: what the plan will show, whatever the caller expected. */
+  pageUuid?: string;
   providerNote?: string;
   /** Plans that change nothing in Foundry apply at once and say so here. */
   note?: string;
@@ -37,7 +51,7 @@ interface Plan {
 }
 
 /**
- * What a plan says it will change, one line each, as the old page shows it: a live-play plan's
+ * What a plan says it will change, one line each: a live-play plan's
  * per-target lines, else its diff. Null when the answer lists neither.
  */
 function planLines(plan: Plan): string[] | null {
@@ -52,13 +66,17 @@ function planLines(plan: Plan): string[] | null {
 interface Applied {
   changeId?: string;
   summary?: string;
+  /** The journal a create-quest-journal call made (the tool's answer). */
+  journalName?: string;
   /** "Show it now" on a handout reveal: the popup on the players' screens. */
   shown?: { ok: boolean; error?: string };
   copy?: unknown;
   note?: unknown;
 }
 
-/** The toast text of a change, as the old page's doneText words it. */
+export { toolWords };
+
+/** The toast text of a change. */
 function doneText(name: string, result: Applied | null): string {
   const summary = typeof result?.summary === 'string' ? result.summary : '';
   if (name === 'apply-planned-change' && summary) {
@@ -66,15 +84,30 @@ function doneText(name: string, result: Applied | null): string {
     return `✓ Applied: ${summary}${shown}`;
   }
   if (name === 'undo-change' && summary) return `✓ ${summary}`;
-  return `✓ ${name}`;
+  // A tool that made something answers its name ("Create quest journal done: Rescue the Merchant").
+  const target = typeof result?.journalName === 'string' ? result.journalName : '';
+  return target ? `✓ ${toolWords(name)} done: ${target}` : `✓ ${toolWords(name)} done`;
 }
 
 /**
- * The usage code of a failed call, as the old page logs it: the server's kind (tool, timeout,
+ * The usage code of a failed call: the server's kind (tool, timeout,
  * channel), else the HTTP status, else a network error.
  */
 export const failCode = (err: unknown): string =>
   err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
+
+/**
+ * A failure text with its own "It may have applied; check ..." sentence (the plan-gone tail after
+ * plainText) swapped for this call's hint, so the toast names one place to look, once.
+ */
+export function rewordMayHaveApplied(error: string, checkHint: string): string {
+  const text = error.replace(/\s*It may have applied; check [^.]*\./, '').trim();
+  const stop = /[.!?]$/.test(text) ? '' : '.';
+  return `${text}${stop} ${checkHint}`;
+}
+
+/** The tool's own words when a plan is gone but its change may have gone in (see api.ts). */
+const PLAN_GONE = /It may have been applied already/i;
 
 /**
  * Whether a failed write may still have landed in Foundry: the request went out but the answer
@@ -85,10 +118,11 @@ export const failCode = (err: unknown): string =>
 export function mayHaveApplied(err: unknown): boolean {
   if (!(err instanceof ApiError)) return true;
   if (err.kind === 'timeout' || err.kind === 'channel') return true;
+  // The plan is gone but the change may have gone in (the tool says so): the form must not keep
+  // its draft, or a second press plans and applies the same thing again.
+  if (err.kind === 'tool' && PLAN_GONE.test(err.message)) return true;
   return err.kind === undefined && err.status >= 500;
 }
-
-const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes.';
 
 /** How a guarded change ended; the Tool runner shows done and failed under its form. */
 export type GuardedOutcome =
@@ -98,8 +132,12 @@ export type GuardedOutcome =
   | { status: 'refused' }
   /** The GM said no in the confirm window. */
   | { status: 'cancelled' }
-  /** The plan, the apply or the write failed (the toast says so); error is the reason. */
-  | { status: 'failed'; error: string };
+  /**
+   * The plan, the apply or the write failed (the toast says so); error is the reason.
+   * `mayHaveApplied` is set when the request went out but no answer came back, so it may have
+   * landed in Foundry (a form that would send the same thing again should not keep its draft).
+   */
+  | { status: 'failed'; error: string; mayHaveApplied?: true };
 
 export interface GuardedOptions {
   /**
@@ -109,10 +147,24 @@ export interface GuardedOptions {
   alwaysConfirm?: boolean;
   /** The toast when GM Actions are off; the default points at Pre-flight. */
   gateText?: string;
+  /** What the failure toast calls the action (default: the tool's name in words). */
+  label?: string;
+  /** Where the failure toast sends the GM to see whether it landed (default: Recent Changes). */
+  checkIn?: string;
   /** The confirm window's lines for a write that is not a plan (default: the args as key: value). */
   lines?: string[];
   /** The confirm window's summary for a write that is not a plan (default: "Run <tool> ..."). */
   summary?: string;
+  /**
+   * A plan's confirm as one line (a reveal): the window shows this question and nothing else,
+   * with `confirmLabel` on the button. Implies alwaysConfirm.
+   */
+  confirmLine?: {
+    title: string;
+    question: string;
+    confirmLabel: string;
+    pageUuid?: string | undefined;
+  };
 }
 
 export interface GuardedTools {
@@ -138,6 +190,18 @@ export interface GuardedTools {
    * flow that plans before it applies (Recent Changes' Undo), so it asks before it plans.
    */
   gated: (name: string, options?: GuardedOptions) => boolean;
+  /**
+   * A write tool that is not a plan and needs no confirm window (the click is the confirmation:
+   * Next turn, Undo): the gate, then the call with its confirm flags, with the same refusal (the
+   * 403 `gm-actions-disabled`) and failure toasts as every other guarded write. No success toast:
+   * the caller says what it did.
+   */
+  call: (
+    name: string,
+    args: Record<string, unknown>,
+    confirm: ToolConfirm,
+    options?: GuardedOptions
+  ) => Promise<GuardedOutcome>;
   /**
    * Applies a plan the GM already approved in a window of their own (the undo window: the choice
    * and the tick for a destructive plan were the confirmation). The gate, then apply-planned-change
@@ -171,15 +235,59 @@ export function useGuardedTools(): GuardedTools {
   const queryClient = useQueryClient();
   const settings = useDashboardSettings();
   const openGate = useContext(GmActionsGateContext);
+  const gateText = useContext(GateTextContext);
   const askConfirm = useConfirm();
-  // Off until the stream says otherwise, as on the old page: a click before the first settings
+  // Off until the stream says otherwise: a click before the first settings
   // event would plan and then be refused at apply, leaving the plan behind.
   const gmActionsOff = settings?.gmActionsEnabled !== true;
 
   return useMemo(() => {
+    /** Turn on for tonight from a refusal toast: the same call as the Ready block in Pre-flight. */
+    const turnOnForTonight = (): void => {
+      api<SwitchesWrite>('/api/session/switches', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ready' }),
+      })
+        .then(data => applySwitchesWrite(queryClient, toast, data, 'ready'))
+        .catch((err: unknown) =>
+          toast(`✗ Turn on for tonight: ${errorText(err)}`, 'err', undefined, failCode(err))
+        );
+    };
+
+    /**
+     * Whether the dashboard's Turn on for tonight controls the switch a refusal names. The GM
+     * Actions gate has no button: it opens Pre-flight, which has the real one. Other switches keep
+     * the named pointer to Foundry's settings.
+     */
+    const controlsSwitch = async (switchName: string): Promise<boolean> => {
+      if (switchName === 'Allow Write Operations') return true;
+      try {
+        const read = await queryClient.fetchQuery({
+          queryKey: SWITCHES_KEY,
+          queryFn: () => api<SwitchesRead>('/api/session/switches'),
+          staleTime: 30_000,
+        });
+        return read.switches?.switches.some(s => s.name === switchName) === true;
+      } catch {
+        return false;
+      }
+    };
+
+    /** The warning toast of a refusal, with the Turn on for tonight button where it applies. */
+    const refusalToast = async (text: string, switchName: string | null): Promise<void> => {
+      const turnOn =
+        switchName !== null && (await controlsSwitch(switchName))
+          ? {
+              label: `Turn on ${shortName(switchName)} and the rest for tonight`,
+              onClick: turnOnForTonight,
+            }
+          : undefined;
+      toast(text, 'warn', turnOn);
+    };
+
     const refuse = (name: string, code: string, options: GuardedOptions): GuardedOutcome => {
       usage().trackTool(name, 'error', code);
-      toast(options.gateText ?? GATE_TEXT, 'warn');
+      void refusalToast(options.gateText ?? gateText, null);
       openGate();
       return REFUSED;
     };
@@ -216,24 +324,66 @@ export function useGuardedTools(): GuardedTools {
         }
         usage().trackTool(name, 'error', failCode(err));
         let error = errorText(err);
-        if (err instanceof ApiError && err.kind === 'timeout') {
-          // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
-          toast(`✗ ${name} timed out. ${RECENT_CHANGES_HINT}`, 'err');
-          error = `Timed out. ${RECENT_CHANGES_HINT}`;
-        } else if (mayHaveApplied(err)) {
-          const text = error.trim();
-          const stop = /[.!?]$/.test(text) ? '' : '.';
-          error = `${text}${stop} ${RECENT_CHANGES_HINT}`;
-          toast(`✗ ${name}: ${error}`, 'err');
-        } else {
-          toast(`✗ ${name}: ${error}`, 'err');
+        if (isSwitchOffRefusal(error) && !mayHaveApplied(err)) {
+          // Nothing was written and nothing is wrong: a switch to turn on, said as a hint.
+          const hint = error.replace(/^Error:\s*/, '');
+          void refusalToast(hint, refusedSwitchName(hint));
+          return { outcome: { status: 'failed', error: hint } };
         }
+        if (name === 'undo-change' && /Conflict, nothing was written/.test(error)) {
+          // Someone changed it after the change: nothing was written, so one plain line, and the
+          // strip stops offering this Undo (Recent Changes still lists it).
+          const changeId = args['changeId'];
+          if (typeof changeId === 'string') markUndoRefused(changeId);
+          // A new array, so the strips that read the list draw again at once.
+          queryClient.setQueryData<unknown[]>([...CHANGES_KEY, 'ai'], old =>
+            Array.isArray(old) ? [...old] : old
+          );
+          const changedLater = /changed since|modified since/.test(error);
+          toast(
+            changedLater
+              ? "✗ Couldn't undo it: it was changed after that. Nothing was written."
+              : "✗ Couldn't undo it: Foundry no longer matches that change. Nothing was written.",
+            'err',
+            undefined,
+            failCode(err)
+          );
+          changed();
+          return { outcome: { status: 'failed', error } };
+        }
+        const words = options.label ?? toolWords(name);
+        const checkHint = `It may have applied; check ${options.checkIn ?? 'Recent Changes'}.`;
+        // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
+        const timedOut = err instanceof ApiError && err.kind === 'timeout';
+        if (timedOut) {
+          error = `Timed out. ${checkHint}`;
+        } else if (mayHaveApplied(err)) {
+          // A proxy's 5xx has no message of its own: never "Try again" next to "It may have
+          // applied", or a second click writes twice.
+          if (err instanceof ApiError && err.kind === undefined && err.status >= 500) {
+            error = 'The answer did not come back.';
+          }
+          // The plan-gone sentence already says it; word it with this call's own place to look.
+          error = rewordMayHaveApplied(error, checkHint);
+        }
+        toast(
+          timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`,
+          'err',
+          undefined,
+          failCode(err)
+        );
         changed();
-        return { outcome: { status: 'failed', error } };
+        return {
+          outcome: {
+            status: 'failed',
+            error,
+            ...(mayHaveApplied(err) ? { mayHaveApplied: true as const } : {}),
+          },
+        };
       }
     };
 
-    // The click on Undo is the confirmation, as on the old page. A refusal says what the run
+    // The click on Undo is the confirmation. A refusal says what the run
     // that made the toast would have said (its gate text), and opens the same gate.
     const undo = async (changeId: string, options: GuardedOptions): Promise<void> => {
       const sent = await send(
@@ -250,13 +400,34 @@ export function useGuardedTools(): GuardedTools {
     /**
      * The confirm window for a plan: the flags to apply it with, or how it ended when the GM
      * cancelled or the plan did not load. A plan answer without its summary and lines is read
-     * again with get-planned-change, as the old page's apply path does.
+     * again with get-planned-change.
      */
     const confirmPlan = async (
       plan: Plan,
       planId: string,
-      returnTo: HTMLElement | null
+      returnTo: HTMLElement | null,
+      line?: GuardedOptions['confirmLine']
     ): Promise<{ flags: ToolConfirm } | { outcome: GuardedOutcome }> => {
+      // The drawer's line names the page it last read; when the server planned another page
+      // (the queue moved since), the full window shows the plan's own summary instead.
+      const sameTarget = line?.pageUuid === undefined || plan.pageUuid === line.pageUuid;
+      if (line && sameTarget && (plan.risk === 'write' || plan.risk === undefined)) {
+        // One line, no list and no tick: the plan has a working Undo, the window only asks.
+        const ok = await askConfirm({
+          title: line.title,
+          summary: line.question,
+          diff: [],
+          compact: true,
+          confirmLabel: line.confirmLabel,
+          destructive: false,
+          returnTo,
+        });
+        if (!ok) {
+          usage().trackTool('apply-planned-change', 'cancelled');
+          return { outcome: CANCELLED };
+        }
+        return { flags: { confirm: true } };
+      }
       let shown = plan;
       let lines = planLines(plan);
       if (lines === null || typeof plan.summary !== 'string') {
@@ -264,7 +435,7 @@ export function useGuardedTools(): GuardedTools {
           shown = (await callTool<Plan | null>('get-planned-change', { planId })) ?? {};
         } catch (err) {
           usage().trackTool('apply-planned-change', 'error', failCode(err));
-          toast(`✗ Can't load the plan: ${errorText(err)}`, 'err');
+          toast(`✗ Can't load the plan: ${errorText(err)}`, 'err', undefined, failCode(err));
           return { outcome: { status: 'failed', error: `Can't load the plan: ${errorText(err)}` } };
         }
         lines = planLines(shown) ?? lines ?? [];
@@ -277,7 +448,7 @@ export function useGuardedTools(): GuardedTools {
         returnTo,
       });
       if (!ok) {
-        // The plan stays on the bridge until it expires, as on the old page.
+        // The plan stays on the bridge until it expires.
         usage().trackTool('apply-planned-change', 'cancelled');
         return { outcome: CANCELLED };
       }
@@ -299,7 +470,7 @@ export function useGuardedTools(): GuardedTools {
       if (changeId) {
         toast(doneText('apply-planned-change', applied), 'ok', {
           label: 'Undo',
-          onClick: () => void undo(changeId, options),
+          onClick: () => undo(changeId, options),
         });
       } else {
         toast(doneText('apply-planned-change', applied), 'ok');
@@ -316,8 +487,8 @@ export function useGuardedTools(): GuardedTools {
       // The button clicked, read now: the panel disables it in the same click, and the confirm
       // window gives focus back to it (or to its panel) when it closes.
       const startedFrom = focusedElement();
-      // The old page plans first and is refused at apply, leaving a plan behind; asking first
-      // leaves none. The server still checks (the 403 in send).
+      // With the GM Actions switch off, no plan is made that apply would refuse. The server still
+      // checks (the 403 in send).
       if (gmActionsOff) return refuse('apply-planned-change', 'gm-actions-off', options);
 
       let planned: Plan | null;
@@ -325,20 +496,23 @@ export function useGuardedTools(): GuardedTools {
         planned = await callTool<Plan | null>(planTool, args);
       } catch (err) {
         usage().trackTool(planTool, 'error', failCode(err));
-        toast(`✗ ${planTool}: ${errorText(err)}`, 'err');
+        toast(`✗ ${toolWords(planTool)}: ${errorText(err)}`, 'err', undefined, failCode(err));
         return { status: 'failed', error: errorText(err) };
       }
       usage().trackTool(planTool, 'ok');
       if (planned?.providerNote) toast(planned.providerNote, 'warn');
       if (!planned || typeof planned.planId !== 'string' || !planned.planId) {
-        toast(typeof planned?.note === 'string' ? `✓ ${planned.note}` : `✓ ${planTool}`, 'ok');
+        toast(
+          typeof planned?.note === 'string' ? `✓ ${planned.note}` : `✓ ${toolWords(planTool)} done`,
+          'ok'
+        );
         changed();
         return { status: 'done', result: planned };
       }
       // The click is the confirmation for an ordinary write; anything else asks first.
       let flags: ToolConfirm = { confirm: true };
-      if (planned.risk !== 'write' || options.alwaysConfirm) {
-        const asked = await confirmPlan(planned, planned.planId, startedFrom);
+      if (planned.risk !== 'write' || options.alwaysConfirm || options.confirmLine) {
+        const asked = await confirmPlan(planned, planned.planId, startedFrom, options.confirmLine);
         if ('outcome' in asked) return asked.outcome;
         flags = asked.flags;
       }
@@ -349,7 +523,7 @@ export function useGuardedTools(): GuardedTools {
       const startedFrom = focusedElement();
       if (gmActionsOff) return refuse(name, 'gm-actions-off', options);
       if (name === 'apply-planned-change') {
-        // A plan Claude made: the window shows what it changes, as on the old page.
+        // A plan Claude made: the window shows what it changes.
         const planId = typeof args['planId'] === 'string' ? args['planId'] : '';
         const asked = await confirmPlan({}, planId, startedFrom);
         if ('outcome' in asked) return asked.outcome;
@@ -380,6 +554,14 @@ export function useGuardedTools(): GuardedTools {
       return true;
     };
 
+    const call: GuardedTools['call'] = async (name, args, confirm, options = {}) => {
+      if (gmActionsOff) return refuse(name, 'gm-actions-off', options);
+      const sent = await send(name, args, confirm, options);
+      if ('outcome' in sent) return sent.outcome;
+      changed();
+      return { status: 'done', result: sent.result };
+    };
+
     const applyApproved: GuardedTools['applyApproved'] = async (
       planId,
       destructive,
@@ -390,8 +572,8 @@ export function useGuardedTools(): GuardedTools {
       return apply({ planId }, flags, options);
     };
 
-    return { plan, write, gated, applyApproved };
-  }, [toast, queryClient, openGate, gmActionsOff, askConfirm]);
+    return { plan, write, gated, call, applyApproved };
+  }, [toast, queryClient, openGate, gateText, gmActionsOff, askConfirm]);
 }
 
 /**

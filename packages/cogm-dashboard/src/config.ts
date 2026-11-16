@@ -1,5 +1,6 @@
 import { parseTeamDomain, type AccessJwtConfig } from './access-jwt.js';
 import 'dotenv/config';
+import { DEFAULT_CONTROL_PORT, DEFAULT_DASHBOARD_LISTEN_PORT } from '@gnuminator/shared';
 import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -12,12 +13,10 @@ import { parseAllowedHosts, type AllowedHosts } from './host-allowlist.js';
  * Everything is sourced from environment variables (loaded from a local `.env`
  * via dotenv) with sensible defaults so the dashboard runs out of the box
  * against a bridge on the standard 127.0.0.1:31414 control channel. No secrets
- * are ever hard-coded — the Anthropic key only comes from the environment.
+ * are ever hard-coded.
  */
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-
-export type Tone = 'tactical' | 'narrative';
 
 export interface Config {
   /** HTTP port the dashboard (and its SSE stream) listens on. */
@@ -36,6 +35,12 @@ export interface Config {
    * initiative ribbon load from it. Empty: the ribbon shows initials.
    */
   readonly foundryUrl?: string;
+  /**
+   * The Discord bot's status endpoint (`DASHBOARD_BOT_STATUS_URL`, for example
+   * `http://192.168.1.50:3110/status`, the bot's `FOUNDRY_AI_BOT_STATUS_PORT`). Empty: the health
+   * line shows no Recorder dot at all.
+   */
+  readonly botStatusUrl?: string;
   /** MCP backend control-channel host (JSON-lines TCP). */
   readonly mcpHost: string;
   /** MCP backend control-channel port. */
@@ -44,32 +49,12 @@ export interface Config {
   readonly pollIntervalMs: number;
   /** How often to poll combat state, in ms. */
   readonly combatPollIntervalMs: number;
-  /** Minimum spacing between auto-generated AI comments, in ms. */
-  readonly commentMinIntervalMs: number;
-  /** Debounce window used to batch a burst of events into one comment, in ms. */
-  readonly commentDebounceMs: number;
-  /** Anthropic API key (empty string ⇒ AI features disabled, feed still runs). */
-  readonly anthropicApiKey: string;
-  /** Default Claude model id. */
-  readonly anthropicModel: string;
-  /** Starting commentary tone. */
-  readonly defaultTone: Tone;
   /** Rolling window size for the in-memory event buffer. */
   readonly maxEvents: number;
-  /** Token cap for an auto-generated comment. */
-  readonly commentMaxTokens: number;
-  /** Token cap for an "ask the co-GM" answer. */
-  readonly askMaxTokens: number;
   /** How often to poll module diagnostics (errors/warnings), in ms. */
   readonly errorPollIntervalMs: number;
   /** Rolling window size for the in-memory module-error buffer. */
   readonly maxErrors: number;
-  /** Whether the co-GM auto-comments on new module errors. */
-  readonly commentOnErrors: boolean;
-  /** Minimum spacing between diagnostics comments, in ms. */
-  readonly errorCommentMinIntervalMs: number;
-  /** Token cap for a diagnostics comment. */
-  readonly errorCommentMaxTokens: number;
   /** Control-channel per-request reply timeout, in ms. */
   readonly controlRequestTimeoutMs: number;
   /** Control-channel TCP connect timeout, in ms. */
@@ -111,7 +96,7 @@ export interface Config {
  * Player/GM split + auth configuration.
  *
  * The split is OPT-IN: with no GM token and no GM email allow-list configured,
- * `splitEnabled` is false and the dashboard runs in legacy single-user GM mode
+ * `splitEnabled` is false and the dashboard runs in single-user GM mode
  * (every request is the GM, zero config — today's localhost behavior). Setting
  * `GM_DASHBOARD_TOKEN` and/or `GM_EMAILS` turns the split on, after which a
  * caller must prove GM identity (token or Cloudflare Access email) to reach the
@@ -213,8 +198,6 @@ const auth: AuthConfig = {
 
 const pollIntervalMs = readNumber('POLL_INTERVAL_MS', 4000);
 
-const tone: Tone = readString('COGM_TONE', 'tactical') === 'narrative' ? 'narrative' : 'tactical';
-
 const logLevelRaw = readString('LOG_LEVEL', 'info');
 const logLevel: Config['logLevel'] =
   logLevelRaw === 'debug' || logLevelRaw === 'warn' || logLevelRaw === 'error'
@@ -222,29 +205,20 @@ const logLevel: Config['logLevel'] =
     : 'info';
 
 export const config: Config = {
-  port: readNumber('PORT', 3000),
+  port: readNumber('PORT', DEFAULT_DASHBOARD_LISTEN_PORT),
   /** Listen address; loopback unless set (a non-loopback bind needs GM_DASHBOARD_TOKEN). */
   host: readString('DASHBOARD_HOST', '127.0.0.1'),
   /** DNS rebinding guard: a tunnel's or proxy's public name must be listed here. */
   allowedHosts: parseAllowedHosts(process.env.DASHBOARD_ALLOWED_HOSTS ?? ''),
   foundryUrl: readString('DASHBOARD_FOUNDRY_URL', ''),
+  botStatusUrl: readString('DASHBOARD_BOT_STATUS_URL', ''),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
-  mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
+  mcpPort: readNumber('MCP_CONTROL_PORT', DEFAULT_CONTROL_PORT),
   pollIntervalMs,
   combatPollIntervalMs: readNumber('COMBAT_POLL_INTERVAL_MS', pollIntervalMs),
-  commentMinIntervalMs: readNumber('COMMENT_MIN_INTERVAL_MS', 20000),
-  commentDebounceMs: readNumber('COMMENT_DEBOUNCE_MS', 1500),
-  anthropicApiKey: readString('ANTHROPIC_API_KEY', ''),
-  anthropicModel: readString('ANTHROPIC_MODEL', 'claude-opus-5-5'),
-  defaultTone: tone,
   maxEvents: readNumber('COGM_MAX_EVENTS', 80),
-  commentMaxTokens: readNumber('COGM_COMMENT_MAX_TOKENS', 320),
-  askMaxTokens: readNumber('COGM_ASK_MAX_TOKENS', 700),
   errorPollIntervalMs: readNumber('ERROR_POLL_INTERVAL_MS', 6000),
   maxErrors: readNumber('COGM_MAX_ERRORS', 100),
-  commentOnErrors: readBool('COGM_COMMENT_ON_ERRORS', true),
-  errorCommentMinIntervalMs: readNumber('ERROR_COMMENT_MIN_INTERVAL_MS', 60000),
-  errorCommentMaxTokens: readNumber('COGM_ERROR_COMMENT_MAX_TOKENS', 280),
   controlRequestTimeoutMs: readNumber('MCP_REQUEST_TIMEOUT_MS', 15000),
   controlConnectTimeoutMs: readNumber('MCP_CONNECT_TIMEOUT_MS', 5000),
   controlHeartbeatIntervalMs: readNumber('MCP_HEARTBEAT_INTERVAL_MS', 10000),
@@ -256,7 +230,7 @@ export const config: Config = {
   auth,
   playerView: {
     showEnemyConditions: readBool('PLAYER_SHOW_ENEMY_CONDITIONS', true),
-    showEnemyHpBands: readBool('PLAYER_SHOW_ENEMY_HP_BANDS', true),
+    showEnemyHpBands: readBool('PLAYER_SHOW_ENEMY_HP_BANDS', false),
   },
   obsidianVaultName: resolveObsidianVaultName(
     process.env.OBSIDIAN_VAULT_NAME ?? '',

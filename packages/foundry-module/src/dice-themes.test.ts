@@ -26,7 +26,7 @@ describe('addDiceThemes', () => {
     const addColorset = vi.fn().mockResolvedValue(undefined);
     expect(await addDiceThemes({ addColorset })).toBe(2);
     expect(addColorset.mock.calls.map(c => [c[0].name, c[0].description, c[1]])).toEqual([
-      ['ai-tool-veil', 'AI Tool: The Veil', 'default'],
+      ['ai-tool-veil', 'AI Tool: The Veil (campaign look)', 'default'],
       ['ai-tool-neutral', 'AI Tool: Neutral', 'default'],
     ]);
   });

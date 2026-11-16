@@ -12,7 +12,7 @@
   test    Publish a generated 20 second tone as a fake participant and check the recording.
 
   Refuses to run if .env points any host port at a Foundry or bridge port
-  (Foundry test 30000-30001, test bridge 31514-31516, dashboard 3100, live bridge 31414-31416; test servers B and C: 30002-30003, 3101-3102, 31524-31525, 31534-31535).
+  (Foundry test 30000-30001, test bridge 31514-31516, dashboard 3100, live bridge 31414-31416; test servers B and C: 30002-30003, 3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200).
 #>
 [CmdletBinding()]
 param(
@@ -28,7 +28,8 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $Root '.env'
 $Project = 'fvtt-livekit'
-$ForbiddenPorts = @(30000, 30001, 30002, 30003, 3100, 3101, 3102, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535)
+# The list lives in shared/ports.json (generated from shared/src/ports.ts).
+$ForbiddenPorts = @((Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $Root)) 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden)
 
 function Read-DotEnv {
   $map = @{}

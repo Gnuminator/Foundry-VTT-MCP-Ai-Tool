@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# What Foundry does to a world folder when it opens it (stage 14 scenarios): it writes into it (so its files are newer
+# than a marker made earlier) and migrates world.json to the installed dnd5e version. $1 the world id.
+data=/var/lib/foundry/Data
+ver="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$data/systems/dnd5e/system.json" | head -n1)"
+w="$data/worlds/$1"
+mkdir -p "$w/data"
+echo "opened on dnd5e $ver" >"$w/data/opened-by-foundry.txt"
+sed -i "s/\"systemVersion\": *\"[^\"]*\"/\"systemVersion\":\"$ver\"/" "$w/world.json"

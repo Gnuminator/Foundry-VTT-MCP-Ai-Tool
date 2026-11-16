@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stand-in for logger (the container has no /dev/log): appends the words to /tmp/logger instead of the journal.
+echo "logger $*" >>/tmp/logger
+exit 0

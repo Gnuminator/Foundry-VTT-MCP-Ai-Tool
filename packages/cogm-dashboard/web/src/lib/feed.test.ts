@@ -8,6 +8,7 @@ import {
   MAX_SEEN_IDS,
   addFeedEvents,
   announcement,
+  d20sLabel,
   dayKey,
   eventDate,
   eventIso,
@@ -65,6 +66,58 @@ describe('readFeedEvent', () => {
     expect(readFeedEvent(roll)?.text).toBe('Brannoc attacks the Ogre: 17 vs AC 14, hit');
   });
 
+  it('reads the roll box: who, what, total, verdict and both d20s on advantage', () => {
+    const roll = {
+      ...raw,
+      eventType: 'roll',
+      actorName: 'Mara',
+      details: {
+        rollType: 'skill',
+        total: 17,
+        label: 'Perception check',
+        natural: 14,
+        droppedD20: [6],
+        advantage: 'advantage',
+        dc: 12,
+        outcome: 'success',
+      },
+    };
+    expect(readFeedEvent(roll)?.roll).toEqual({
+      who: 'Mara',
+      label: 'Perception check',
+      total: 17,
+      attack: false,
+      dc: 12,
+      passed: true,
+      natural: 14,
+      dropped: [6],
+      advantage: 'advantage',
+    });
+  });
+
+  it('judges an attack against AC and gives no verdict without a DC', () => {
+    const base = {
+      ...raw,
+      eventType: 'gm-roll',
+      details: { rollType: 'attack', total: 9, label: 'Bite attack' },
+    };
+    expect(readFeedEvent(base)?.roll).toEqual({
+      who: 'Goblin',
+      label: 'Bite attack',
+      total: 9,
+      attack: true,
+    });
+    const miss = { ...base, details: { ...base.details, dc: 14, outcome: 'failure' } };
+    expect(readFeedEvent(miss)?.roll).toMatchObject({ attack: true, dc: 14, passed: false });
+  });
+
+  it('gives a roll box only to roll events that carry the parts', () => {
+    expect(readFeedEvent({ ...raw, details: { total: 5, label: 'x' } })?.roll).toBeUndefined();
+    expect(
+      readFeedEvent({ ...raw, eventType: 'roll', details: { total: 5 } })?.roll
+    ).toBeUndefined();
+  });
+
   it('ignores a breakdown that is empty or not text', () => {
     expect(readFeedEvent({ ...raw, details: { breakdown: '' } })?.text).toBe(raw.description);
     expect(readFeedEvent({ ...raw, details: { breakdown: 5 } })?.text).toBe(raw.description);
@@ -87,6 +140,25 @@ describe('readFeedEvent', () => {
     // A time Date cannot hold would throw in <time dateTime>.
     expect(readFeedEvent({ ...raw, timestampMs: 9e15 })).toBeNull();
     expect(readFeedEvent({ ...raw, eventType: undefined })).toBeNull();
+  });
+});
+
+describe('d20sLabel', () => {
+  const base = { who: 'Mara', label: 'Perception', total: 18, attack: false };
+
+  it('names the d20 that counts and the dropped one', () => {
+    expect(d20sLabel({ ...base, natural: 17, dropped: [4], advantage: 'advantage' })).toBe(
+      'advantage: 17 counts, 4 dropped'
+    );
+    expect(d20sLabel({ ...base, natural: 3, dropped: [12] })).toBe(
+      'two d20s: 3 counts, 12 dropped'
+    );
+  });
+
+  it('draws no marker for an empty or missing dropped list, or no natural d20', () => {
+    expect(d20sLabel({ ...base, natural: 17, dropped: [] })).toBeUndefined();
+    expect(d20sLabel({ ...base, natural: 17 })).toBeUndefined();
+    expect(d20sLabel({ ...base, dropped: [4] })).toBeUndefined();
   });
 });
 
@@ -235,6 +307,10 @@ describe('severityClass', () => {
     expect(eventLabel('roll-request')).toBe('roll request');
     expect(eventLabel('death')).toBe('down');
     expect(eventLabel('damage')).toBe('damage');
+    expect(eventLabel('gm-change', 'actor-change')).toBe('actor change');
+    expect(eventLabel('gm-change', 'page_reveal')).toBe('page reveal');
+    expect(eventLabel('gm-change')).toBe('change');
+    expect(eventLabel('gm-change', '')).toBe('change');
   });
 
   it('keeps an odd kind inside the class attribute', () => {
@@ -351,6 +427,29 @@ describe('what a screen reader hears', () => {
     const after = addFeedEvents(before, [ev('b', 2), ev('c', 3)]);
     expect(freshEntries(before, after).map(e => e.id)).toEqual(['c', 'b']);
     expect(freshEntries(after, after)).toEqual([]);
+  });
+
+  it('drops the "Applied" row of a change that has its own damage line, in either order', () => {
+    const damage = ev('d', 10, { changeId: 'c1', text: 'Wolf 1 took 5 fire damage (HP 11 to 6)' });
+    const applied = ev('g', 11, { eventType: 'gm-change', changeId: 'c1', text: 'Applied: x' });
+    expect(ids(addFeedEvents(EMPTY_FEED, [damage, applied]))).toEqual(['d']);
+    const first = addFeedEvents(EMPTY_FEED, [applied]);
+    expect(ids(first)).toEqual(['g']);
+    expect(ids(addFeedEvents(first, [damage]))).toEqual(['d']);
+    // Another change, or one with no damage line (a token move), stays.
+    const other = ev('o', 12, { eventType: 'gm-change', changeId: 'c2' });
+    expect(ids(addFeedEvents(EMPTY_FEED, [damage, other]))).toEqual(['o', 'd']);
+  });
+
+  it('reads the change id off the details', () => {
+    const event = readFeedEvent({
+      id: 'e1',
+      timestampMs: 1,
+      eventType: 'damage',
+      description: 'x',
+      details: { changeId: 'c9' },
+    });
+    expect(event?.changeId).toBe('c9');
   });
 
   it('finds the first events after a quiet start', () => {

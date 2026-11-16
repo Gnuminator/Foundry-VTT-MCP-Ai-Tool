@@ -7,6 +7,8 @@
  * the GM's Obsidian vault: `--vault`, else `FOUNDRY_AI_OBSIDIAN_DIR`. The
  * bridge vault is `FOUNDRY_AI_DATA_DIR`, else the platform default.
  */
+import { errorMessage } from '@gnuminator/shared';
+
 import { AuditLog } from '../vault/audit.js';
 import { resolveDataDir } from '../vault/paths.js';
 import { VaultStore } from '../vault/store.js';
@@ -75,7 +77,7 @@ export async function runObsidianCli(argv: string[], io: CliIo): Promise<number>
     }
     return hadErrors ? 1 : 0;
   } catch (error) {
-    io.err(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`Export failed: ${errorMessage(error)}`);
     return 1;
   }
 }

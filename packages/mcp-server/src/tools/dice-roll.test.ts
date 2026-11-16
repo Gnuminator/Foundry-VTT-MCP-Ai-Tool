@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DiceRollTools } from './dice-roll.js';
 
 /**
- * Tests for DiceRollTools — a thin, deterministic layer over FoundryClient.query.
+ * Tests for DiceRollTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures → return validation errors as strings
  * (all four handlers; ZodError → return string, foundry failure → throw).
@@ -13,7 +13,7 @@ import { DiceRollTools } from './dice-roll.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: DiceRollTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
@@ -171,6 +171,45 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
 // handleRequestAttackRoll
 // ---------------------------------------------------------------------------
 
+describe('DiceRollTools.handleRequestPlayerRolls', () => {
+  it('forwards dc and flavor to the bridge', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestPlayerRolls({
+      rollType: 'skill',
+      rollTarget: 'prc',
+      targetPlayer: 'Bob',
+      isPublic: true,
+      userConfirmedVisibility: true,
+      flavor: 'DC 14',
+      dc: 14,
+    });
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.request-player-rolls',
+      expect.objectContaining({ dc: 14, flavor: 'DC 14', targetPlayer: 'Bob' })
+    );
+  });
+
+  it('puts the DC on the card through the flavor when the caller sent none', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    const base = {
+      rollType: 'save',
+      rollTarget: 'dex',
+      targetPlayer: 'Bob',
+      isPublic: true,
+      userConfirmedVisibility: true,
+      dc: 15,
+    };
+    await tools.handleRequestPlayerRolls(base);
+    await tools.handleRequestPlayerRolls({ ...base, flavor: 'Fireball' });
+    await tools.handleRequestPlayerRolls({ ...base, dc: 1, flavor: 'DC 15' });
+    expect(query.mock.calls.map(c => (c[1] as { flavor: string }).flavor)).toEqual([
+      'DC 15',
+      'Fireball, DC 15',
+      'DC 15, DC 1',
+    ]);
+  });
+});
+
 describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
     const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));
@@ -287,6 +326,44 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
       isPublic: false,
     });
     expect(result).toBe(payload);
+  });
+
+  it('forwards an advantage choice to the bridge and rejects an unknown one', async () => {
+    const { tools, query } = makeTools(() => ({ success: true }));
+    await tools.handleRollNpcCheck({
+      actorName: 'Goblin',
+      rollType: 'save',
+      rollTarget: 'dex',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(query.mock.calls[0][1]).toMatchObject({ advantage: 'advantage' });
+    const bad = await tools.handleRollNpcCheck({
+      actorName: 'Goblin',
+      rollType: 'save',
+      rollTarget: 'dex',
+      isPublic: true,
+      advantage: 'sideways',
+    });
+    expect(bad).toEqual(expect.stringContaining('Parameter error'));
+  });
+
+  it('forwards advantage on the ability check and attack requests too', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'dex',
+      isPublic: true,
+      advantage: 'disadvantage',
+    });
+    await tools.handleRequestAttackRoll({
+      targetPlayer: 'Alice',
+      weaponOrSpellName: 'Longsword',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(query.mock.calls[0][1]).toMatchObject({ advantage: 'disadvantage' });
+    expect(query.mock.calls[1][1]).toMatchObject({ advantage: 'advantage' });
   });
 
   it('returns the response when success is true (not just a string)', async () => {

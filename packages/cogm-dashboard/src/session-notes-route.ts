@@ -22,6 +22,8 @@ import { join } from 'node:path';
 import { sessionsDirFrom } from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
 
+import type { Logger } from './logger.js';
+
 export type SessionNotesAction = 'list' | 'get' | 'put' | 'approve';
 
 export interface SessionNotesClient {
@@ -35,6 +37,8 @@ export interface SessionNotesRouteOptions {
   gmActionsEnabled: () => boolean;
   /** Where recordings go (default `FVTT_SESSIONS_DIR`, else `Documents/FoundrySessions`). */
   sessionsDir?: string;
+  /** Where the detail of a failed bridge call goes (the GM sees a fixed sentence). */
+  logger?: Logger;
 }
 
 export const PIPELINE_STATES = [
@@ -108,13 +112,25 @@ const STATUS_BY_CODE: Record<string, number> = {
 function refusal(error: unknown): {
   status: number;
   body: { error: { message: string; code: string } };
+  /** What went wrong, for the log only. */
+  detail?: string;
 } {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as { code?: unknown } | null)?.code;
   if (typeof code === 'string' && STATUS_BY_CODE[code]) {
     return { status: STATUS_BY_CODE[code], body: { error: { message, code } } };
   }
-  return { status: 502, body: { error: { message, code: 'bridge-unreachable' } } };
+  // No code of the bridge's own: the detail goes to the log, the GM gets a fixed sentence.
+  return {
+    status: 502,
+    body: {
+      error: {
+        message: 'The dashboard could not reach the session notes. Try again in a moment.',
+        code: 'bridge-unreachable',
+      },
+    },
+    detail: message,
+  };
 }
 
 export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteOptions): void {
@@ -136,7 +152,8 @@ export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteO
       .sessionNotes(action, params)
       .then(result => res.json(result))
       .catch((error: unknown) => {
-        const { status, body } = refusal(error);
+        const { status, body, detail } = refusal(error);
+        if (detail !== undefined) options.logger?.warn('Session notes request failed', { detail });
         res.status(status).json(body);
       });
   }

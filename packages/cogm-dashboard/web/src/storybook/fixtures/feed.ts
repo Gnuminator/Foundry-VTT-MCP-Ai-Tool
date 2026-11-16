@@ -10,15 +10,22 @@ import { at as earlier } from './common';
 const at = (hour: number, minute = 0): number => Date.UTC(2026, 9, 10, hour, minute);
 
 /** A log from events listed oldest first, as the server sends them. */
-export function feedLog(events: readonly FeedEvent[]): FeedLog {
+function feedLog(events: readonly FeedEvent[]): FeedLog {
   return addFeedEvents(EMPTY_FEED, events);
 }
 
-const ev = (id: string, ms: number, eventType: string, text: string): FeedEvent => ({
+const ev = (
+  id: string,
+  ms: number,
+  eventType: string,
+  text: string,
+  feature?: string
+): FeedEvent => ({
   id,
   timestampMs: ms,
   eventType,
   text,
+  ...(feature ? { feature } : {}),
 });
 
 /** The stream said it has no events yet. */
@@ -42,7 +49,37 @@ const KIND_EVENTS: FeedEvent[] = [
   ev('k2', at(20, 1), 'journal-created', 'Journal "Harbor rumors" was created'),
   ev('k3', at(20, 2), 'journal-updated', 'Journal "Harbor rumors" was changed'),
   ev('k4', at(20, 3), 'combat-start', 'Combat begins in Old Mill'),
-  ev('k5', at(20, 4), 'roll', 'Brannoc attacks the Ogre Brute: 17 vs AC 14, hit'),
+  {
+    ...ev('k5', at(20, 4), 'roll', 'Brannoc, Longsword attack: 1d20 (10) +7 = 17 vs AC 14: hit'),
+    roll: {
+      who: 'Brannoc',
+      label: 'Longsword attack',
+      total: 17,
+      attack: true,
+      dc: 14,
+      passed: true,
+      natural: 10,
+    },
+  },
+  {
+    ...ev(
+      'k5b',
+      at(20, 4) + 30_000,
+      'roll',
+      'Mira, Perception check: 2d20adv (4) +1 = 5 (advantage) vs DC 12: failure'
+    ),
+    roll: {
+      who: 'Mira',
+      label: 'Perception check',
+      total: 5,
+      attack: false,
+      dc: 12,
+      passed: false,
+      natural: 4,
+      dropped: [2],
+      advantage: 'advantage',
+    },
+  },
   ev('k6', at(20, 5), 'damage-roll', 'Brannoc rolls damage: 9 slashing'),
   ev('k7', at(20, 6), 'gm-roll', 'GM roll for the Ancient Wyrm: Stealth 22 (secret)'),
   ev('k8', at(20, 7), 'damage', 'Ogre Brute takes 9 slashing damage'),
@@ -52,11 +89,20 @@ const KIND_EVENTS: FeedEvent[] = [
   ev('k12', at(20, 11), 'resource-spent', 'Mira used a level 2 spell slot'),
   ev('k13', at(20, 12), 'death', 'Goblin Archer is down (0 HP)'),
   ev('k14', at(20, 13), 'stabilize', 'Mira is stable'),
-  ev('k15', at(20, 14), 'gm-change', 'Applied: moved the Ogre Brute token'),
+  ev('k15', at(20, 14), 'gm-change', 'Applied: moved the Ogre Brute token', 'token-change'),
   ev('k16', at(20, 15), 'combat-end', 'Combat ended after 4 rounds'),
 ];
 
 export const FEED_KINDS: FeedLog = feedLog(KIND_EVENTS);
+
+/**
+ * Only the roll rows (an attack against AC and an advantage check against a DC) and the plain roll
+ * line, so the shot shows them: in the every-kind log the newest rows push them out of the frame.
+ */
+export const FEED_ROLLS: FeedLog = feedLog([
+  ev('r1', at(20, 3), 'roll', 'Mira rolls Perception: 17'),
+  ...KIND_EVENTS.filter(e => e.roll !== undefined),
+]);
 
 /** A line long enough to wrap on a narrow card. */
 const LONG_EVENTS: FeedEvent[] = [

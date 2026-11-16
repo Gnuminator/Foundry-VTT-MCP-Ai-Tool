@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Drift check: run before posting "PR ready". Lanes merge in parallel, and some guards only fail
  * once another lane's PR is on main: tool counts and sizes in the docs, the generated tool
  * reference, the tool-set budgets, the lint and em-dash baselines, the changelog fragments, the
- * usage catalog, the docs links. This script merges the newest main into a copy of the branch in a
- * throwaway git worktree, runs those guards there, and removes the worktree. The lane's own working
- * tree is never touched, and nothing is committed or pushed.
+ * usage catalog, the docs links, and (when the branch or main touched the dashboard or shared) the
+ * dashboard build and bundle budget. This script merges the newest main into a copy of the branch in a
+ * throwaway git worktree, runs those guards there, and removes the worktree. The lane's tracked
+ * files are never touched (only gitignored build output is rebuilt: a missing or stale `shared/dist`, and `packages/cogm-dashboard/dist` when a branch that already has main runs the dashboard build in place), and nothing is committed or pushed.
  *
  *   npm run drift:check                  fetch main, trial-merge it aside, run the guards
  *   npm run drift:check -- --remote NAME take main from this remote
@@ -16,9 +18,11 @@
  * again. The worktree borrows this checkout's node_modules (junctions); when main changed
  * package-lock.json those would not match, so it asks for the real merge and `npm ci` first (a
  * lockfile change made by the branch itself does not count). The workspace links (`@gnuminator/*`)
- * point at this checkout's own packages, and `@gnuminator/shared` is consumed through its build
- * (`shared/dist`): when the merge changed `shared/`, the worktree gets its own workspace links and
- * builds its own `shared`, so the guards test the merged tree against a shared built from it. A worktree left by a killed run is removed by the next run; one whose run is still
+ * point at this checkout's own packages, and `@gnuminator/shared` is read from source and its build
+ * (`shared/src`, `shared/dist`): the worktree always gets its own workspace links and builds its own
+ * `shared` (which also writes the gitignored usage catalogue), so the guards test the merged tree. Before
+ * any of that, a checkout whose `shared/dist` is missing or older than `shared/src` gets `shared`
+ * built (ensureSharedBuilt), so a lane that never built it does not fail the mcp-server tests. A worktree left by a killed run is removed by the next run; one whose run is still
  * alive (another lane's, same repository) and younger than an hour is left alone.
  */
 import { spawnSync } from 'node:child_process';
@@ -27,15 +31,24 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** The guards that fail when two PRs are each green alone but not together. */
+/** A guard with `when` runs only if the branch or main since the merge base changed a file under it. */
+const DASHBOARD_PATH = ['packages/cogm-dashboard/', 'shared/']; // the web bundle imports shared/src
+
+/**
+ * The guards that fail when two PRs are each green alone but not together. This literal is pinned to
+ * the drift entries of scripts/checks.mjs (the one list of checks) by scripts/green.test.mjs: change
+ * both together. It does not import that file because the merge gate runs this file on its own.
+ */
 export const CHECKS = [
   { name: 'lint baseline', command: 'npm run lint:ratchet', heavy: true },
   { name: 'em-dash baseline', command: 'npm run emdash:ratchet' },
   { name: 'changelog fragments', command: 'npm run changelog:check' },
   { name: 'usage catalog', command: 'npm run usage:catalog:check' },
   { name: 'version sync', command: 'npm run version:check' },
+  { name: 'dependency ranges', command: 'npm run deps:check' },
   { name: 'docs lint', command: 'npm run docs:lint' },
   { name: 'docs links', command: 'npm run docs:links' },
+  { name: 'line baseline', command: 'npm run line:ratchet' },
   {
     name: 'mcp-server tests (tool counts, tool reference, tool sets)',
     // The probe test runs the built dist/index.js, which the merged worktree never builds;
@@ -50,6 +63,30 @@ export const CHECKS = [
     cwd: 'packages/foundry-module',
     heavy: true,
   },
+  // The dashboard first-load budget is a limit two PRs can overflow together while each fits alone
+  // (#642 and #648 turned main red for 11.5 hours on 2026-10-30). The build and the budget run on
+  // the merged tree, and only when the branch or main since the merge base touched the dashboard.
+  {
+    name: 'dashboard build',
+    command: 'npm run build -w @gnuminator/cogm-dashboard',
+    heavy: true,
+    when: DASHBOARD_PATH,
+  },
+  {
+    name: 'dashboard bundle budget',
+    command: 'npm run bundle:budget -w @gnuminator/cogm-dashboard',
+    when: DASHBOARD_PATH,
+    needs: 'dashboard build',
+  },
+  // A shared change can break shared's own unit tests together with another PR's change to shared.
+  {
+    name: 'shared unit tests',
+    command: 'npm test -w @gnuminator/shared',
+    heavy: true,
+    when: ['shared/'],
+  },
+  // Two PRs can each stay under the unused-code baseline, or one lowers it under the other.
+  { name: 'unused baseline', command: 'npm run unused:ratchet', heavy: true },
 ];
 
 const REPO_URL = /github\.com[/:]Gnuminator\/Foundry-VTT-MCP-Ai-Tool(\.git)?$/i;
@@ -201,17 +238,17 @@ function linkOwnWorkspace(cwd, dir) {
 }
 
 /**
- * The guards read `@gnuminator/shared` through its build. When the merge changed `shared/`, the
- * borrowed build is out of date (a PR that added an export, merged under one that did not), so the
- * worktree gets its own workspace links and builds its own shared. Returns an error text, or null.
+ * The guards read `@gnuminator/shared` from source (the `development` condition) and its build. The
+ * worktree has no gitignored files, so it always gets its own workspace links (the package must resolve
+ * inside the worktree, not to the lane's checkout) and builds its own shared, which also writes the
+ * generated usage catalogue. Returns an error text, or null.
  * @param {string} cwd @param {string} dir @param {string} buildCommand
  * @param {(line: string) => void} log
  */
 function buildMergedShared(cwd, dir, buildCommand, log) {
-  if (git(dir, ['diff', '--quiet', 'HEAD', '--', 'shared']).ok) return null;
   if (!fs.existsSync(path.join(cwd, 'node_modules', '@gnuminator'))) return null;
   linkOwnWorkspace(cwd, dir);
-  log('drift-check: the merge changed shared/; building shared in the worktree.');
+  log('drift-check: building shared in the worktree (own workspace links, generated catalogue).');
   const r = spawnSync(buildCommand, {
     cwd: path.join(dir, 'shared'),
     shell: true,
@@ -219,6 +256,81 @@ function buildMergedShared(cwd, dir, buildCommand, log) {
   });
   if (r.status === 0) return null;
   return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
+}
+
+/** Newest mtime of any file under `dir` (0 when there is none). @param {string} dir */
+function newestMtime(dir) {
+  let newest = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const e of entries) {
+    const p = path.join(dir, e.name);
+    newest = Math.max(newest, e.isDirectory() ? newestMtime(p) : fs.statSync(p).mtimeMs);
+  }
+  return newest;
+}
+
+/** The package entry named by `main` in shared/package.json, or null. @param {string} shared */
+function sharedEntry(shared) {
+  try {
+    const main = JSON.parse(fs.readFileSync(path.join(shared, 'package.json'), 'utf8')).main;
+    return typeof main === 'string' ? path.join(shared, main) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The guards read `@gnuminator/shared` through its build (`shared/dist`). A lane checkout whose
+ * dist is missing or older than `shared/src` (a docs-only lane that never built it) would fail the
+ * mcp-server tests with "Failed to resolve entry", so it is built here first. Returns an error
+ * text, or null. @param {string} cwd @param {string} buildCommand @param {(line: string) => void} log
+ */
+export function ensureSharedBuilt(cwd, buildCommand, log) {
+  const shared = path.join(cwd, 'shared');
+  if (!fs.existsSync(path.join(shared, 'package.json')) || !fs.existsSync(path.join(shared, 'src'))) {
+    return null;
+  }
+  const dist = path.join(shared, 'dist');
+  const entry = sharedEntry(shared);
+  const distTime = entry && !fs.existsSync(entry) ? 0 : newestMtime(dist);
+  if (distTime && distTime >= newestMtime(path.join(shared, 'src'))) return null;
+  if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
+    return 'shared/dist is missing or out of date and node_modules is missing: run npm ci, then npm run build -w @gnuminator/shared';
+  }
+  log(`drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`);
+  const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
+  if (r.status === 0) {
+    if (entry && !fs.existsSync(entry)) {
+      return `the build ran but emitted no ${path.relative(cwd, entry).replaceAll('\\', '/')}; delete shared/*.tsbuildinfo and run again`;
+    }
+    // shared is `composite`: tsc skips outputs whose content did not change, so a touched src could
+    // leave dist older than src for good. The stamp records that the build ran after the sources.
+    fs.mkdirSync(dist, { recursive: true });
+    fs.writeFileSync(path.join(dist, '.built-stamp'), new Date().toISOString());
+    return null;
+  }
+  return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
+}
+
+/**
+ * Files changed on the branch, or on main, since their merge base. Null when git cannot tell, which
+ * runs every guard. @param {string} cwd @param {string} main
+ */
+function changedFiles(cwd, main) {
+  const base = git(cwd, ['merge-base', 'HEAD', main]);
+  if (!base.ok) return null;
+  const files = [];
+  for (const tip of ['HEAD', main]) {
+    const d = git(cwd, ['-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', base.out, tip]);
+    if (!d.ok) return null;
+    files.push(...d.out.split('\n').filter(Boolean));
+  }
+  return files;
 }
 
 /** Worktrees a killed run left behind. @param {string} cwd */
@@ -270,9 +382,16 @@ export function runDriftCheck({
   }
   for (const stale of staleWorktrees(cwd)) removeWorktree(cwd, stale);
 
+  const sharedError = ensureSharedBuilt(cwd, sharedBuild, log);
+  if (sharedError !== null) {
+    log('drift-check: shared is not built and building it failed:');
+    log(sharedError);
+    return 2;
+  }
+
   if (git(cwd, ['merge-base', '--is-ancestor', main, 'HEAD']).ok) {
     log(`drift-check: the branch already contains ${main} (${mainSha.out}).`);
-    return runChecks(cwd, checks, log, main, mainSha.out, false);
+    return runChecks(cwd, checks, log, main, mainSha.out, false, changedFiles(cwd, main));
   }
 
   // The worktree borrows this checkout's node_modules, which would not match main's lockfile (a
@@ -334,7 +453,7 @@ export function runDriftCheck({
       return 1;
     }
     log(`drift-check: trial merge of ${main} (${mainSha.out}) in a throwaway worktree.`);
-    return runChecks(dir, checks, log, main, mainSha.out, true);
+    return runChecks(dir, checks, log, main, mainSha.out, true, changedFiles(cwd, main));
   } finally {
     process.off('SIGTERM', onSignal);
     process.off('SIGHUP', onSignal);
@@ -357,16 +476,28 @@ export function lockedCommand(check, dir) {
     return check.command;
   }
   const label = `drift-check ${check.name.split('(')[0].replace(/[^\w -]/g, '').trim()}`;
-  return `node "${script}" run --label "${label}" -- ${check.command}`;
+  // High priority: a merge waits on it, so it goes ahead of queued greens (an older lock ignores the flag).
+  return `node "${script}" run --label "${label}" --priority high -- ${check.command}`;
 }
 
 /**
  * @param {string} dir @param {typeof CHECKS} checks @param {(line: string) => void} log
  * @param {string} main @param {string} sha @param {boolean} merged
+ * @param {string[] | null} [changed] files changed since the merge base; null runs every guard
  */
-function runChecks(dir, checks, log, main, sha, merged) {
+export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
+  /** @type {string[]} */
   const failed = [];
   for (const check of checks) {
+    const when = check.when ? [check.when].flat() : null;
+    if (when && changed && !changed.some(f => when.some(p => f.startsWith(p)))) {
+      log(`  skip ${check.name} (nothing under ${when.join(' or ')} changed)`);
+      continue;
+    }
+    if (check.needs && failed.includes(check.needs)) {
+      log(`  skip ${check.name} (${check.needs} failed)`);
+      continue;
+    }
     const r = spawnSync(lockedCommand(check, dir), {
       cwd: path.join(dir, check.cwd ?? '.'),
       env: { ...process.env, CI: 'true' },
@@ -404,7 +535,45 @@ function runChecks(dir, checks, log, main, sha, merged) {
   return 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides (as lane-merge.mjs;
+ * copied, not imported: lane-merge runs this file from a temp copy).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  // lane-merge's `node -e` fallback passes the file: URL as argv[1]; that is an import, not a start.
+  if (argv1 && /^file:/i.test(argv1)) return 'import';
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const entry = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
+if (entry === 'mismatch') {
+  console.error(`drift-check: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  process.exit(1);
+} else if (entry === 'run') {
   const args = process.argv.slice(2);
   const at = args.indexOf('--remote');
   const remote = at >= 0 ? args[at + 1] : undefined;

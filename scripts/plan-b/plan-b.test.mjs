@@ -6,7 +6,7 @@
 // Needs PowerShell 7 (pwsh); skipped where it is missing.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -174,6 +174,125 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.noApp.Ok, false);
     assert.match(r.noApp.Message, /restore\.ps1/);
     assert.equal(r.noCore, false);
+  });
+
+  test('unpacking Foundry tolerates the node_modules/.bin links tar.exe cannot make, nothing else', () => {
+    const r = ps(`
+      # pwsh 7.4+: a failing native command may throw when this is on; the unpack must not
+      $PSNativeCommandUseErrorActionPreference = $true
+      $bin = @(
+        "tar.exe: node_modules/.bin/semver: Can't create 'node_modules/.bin/semver': Invalid argument",
+        "tar.exe: resources\\\\app\\\\node_modules\\\\.bin\\\\mime: Can't create 'x': Invalid argument",
+        ''
+      )
+      @{
+        clean = (Test-FoundryUnpack 0 @()).Ok
+        bin = Test-FoundryUnpack 1 $bin
+        mixed = Test-FoundryUnpack 1 ($bin + "tar.exe: main.mjs: Can't create 'main.mjs': No space left on device")
+        summary = (Test-FoundryUnpack 1 ($bin + 'tar.exe: Error exit delayed from previous errors.')).Ok
+        summaryAlone = (Test-FoundryUnpack 1 @('tar.exe: Error exit delayed from previous errors.')).Ok
+        fake = Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: node_modules/.bin/x: Cannot create symlink: Invalid argument"); exit 1')
+        fakeOther = (Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: a.txt: Disk full"); exit 1')).Ok
+        noText = (Test-FoundryUnpack 1 @()).Ok
+        lookalike = (Test-FoundryUnpack 1 @("tar.exe: node_modules/.binary/x: Can't create")).Ok
+        binOther = (Test-FoundryUnpack 1 @("tar.exe: node_modules/.bin/x: No space left on device")).Ok
+        summaryOnly = Test-FoundryUnpack 1 @('tar.exe: Error exit delayed from previous errors.')
+        loud = Test-FoundryUnpack 0 @('tar.exe: something odd', '')
+        stale = (Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', 'exit 0')).Ok
+        missing = (Invoke-FoundryUnpack 'no-such-program-planb' @('-x')).Ok
+      }`);
+    assert.equal(r.clean, true);
+    assert.equal(r.bin.Ok, true);
+    assert.equal(r.bin.Skipped, 2);
+    assert.equal(r.mixed.Ok, false);
+    assert.match(r.mixed.Message, /No space left/);
+    assert.equal(r.summary, true);
+    assert.equal(r.summaryAlone, false);
+    assert.equal(r.fake.Ok, true);
+    assert.equal(r.fake.Skipped, 1);
+    assert.equal(r.fakeOther, false);
+    assert.equal(r.noText, false);
+    assert.equal(r.lookalike, false);
+    assert.equal(
+      r.binOther,
+      false,
+      'a .bin line is only tolerated when the link could not be created'
+    );
+    assert.match(r.summaryOnly.Message, /Error exit delayed from previous errors/);
+    assert.equal(r.loud.Ok, true);
+    assert.match(r.loud.Warning, /exited 0.*something odd/);
+    assert.equal(r.stale, true);
+    assert.equal(r.missing, false, 'a program that did not start is a failure');
+  });
+
+  test('restore.ps1 unpacks Foundry into app.new, checks it, then renames', () => {
+    const text = readFileSync(path.join(here, 'restore.ps1'), 'utf8');
+    const unpack = text.indexOf("Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $newApp)");
+    const swap = text.indexOf('Install-AppFolder $newApp $L.AppDir $old');
+    assert.ok(
+      unpack > 0 && swap > unpack,
+      'unpack, then swap (old app aside, then rename) through Install-AppFolder'
+    );
+    assert.doesNotMatch(text, /'-C', \$L\.AppDir/);
+  });
+
+  test('Install-AppFolder: a failing final rename says which folder is where, per case', () => {
+    const root = path.join(tmp, `swap-${++n}`).replace(/\\/g, '/');
+    const r = ps(`
+      $root = '${root}'
+      $script:mode = ''; $script:calls = 0
+      # The real move, except that the second move (new app into place) fails, and in the 'inplace' case something
+      # appears in the app folder meanwhile; in the 'stuck' case the third move (the old app back) fails too.
+      function Move-WithRetry($From, $To, $Tries = 3, $PauseSeconds = 2) {
+        $script:calls++
+        if ($script:mode -eq 'inplace' -and $script:calls -eq 2) { New-Item -ItemType Directory -Force -Path $To | Out-Null; return 'locked' }
+        if ($script:mode -eq 'stuck' -and $script:calls -eq 2) { return 'locked' }
+        if ($script:mode -eq 'stuck' -and $script:calls -eq 3) { return 'denied' }
+        try { Move-Item -LiteralPath $From -Destination $To -ErrorAction Stop; return $null } catch { return $_.Exception.Message }
+      }
+      function Case($name, [bool]$hadApp, [bool]$newExists, [bool]$oldExists, [string]$mode = '') {
+        $script:mode = $mode; $script:calls = 0
+        $d = Join-Path $root $name
+        New-Item -ItemType Directory -Force -Path $d | Out-Null
+        $app = Join-Path $d 'app'; $new = Join-Path $d 'app.new'; $old = Join-Path $d 'app-old'
+        if ($hadApp) { New-Item -ItemType Directory -Force -Path $app | Out-Null }
+        if ($newExists) { New-Item -ItemType Directory -Force -Path $new | Out-Null }
+        if ($oldExists) { New-Item -ItemType Directory -Force -Path $old | Out-Null }
+        $msg = try { Install-AppFolder $new $app $old 0; 'ok' } catch { $_.Exception.Message }
+        @{ msg = $msg; app = (Test-Path -LiteralPath $app); old = (Test-Path -LiteralPath $old); new = (Test-Path -LiteralPath $new) }
+      }
+      @{
+        ok = Case 'ok' $true $true $false
+        nothing_before = Case 'nothing' $false $false $false
+        back = Case 'back' $true $false $false
+        inplace = Case 'inplace' $true $true $false 'inplace'
+        stuck = Case 'stuck' $true $true $false 'stuck'
+      }`);
+    assert.equal(r.ok.msg, 'ok');
+    assert.match(r.nothing_before.msg, /there was no app folder before, so .*app does not exist/);
+    assert.equal(r.nothing_before.app, false);
+    assert.match(
+      r.back.msg,
+      /could not move the new app folder into place.*the old app folder is back/
+    );
+    assert.match(r.back.msg, /the unpacked new one is in .*app\.new/);
+    // the folders really are where the message says: the old app is back, nothing is left at app-old or app.new
+    assert.equal(r.back.app, true);
+    assert.equal(r.back.old, false);
+    assert.equal(r.back.new, false);
+    // something sits in the app folder: the old app stays aside in app-old, the unpacked new one stays in app.new
+    assert.match(r.inplace.msg, /something is in .*app now and the old app folder is in .*app-old/);
+    assert.deepEqual([r.inplace.app, r.inplace.old, r.inplace.new], [true, true, true]);
+    // the old app could not be moved back: it stays in app-old and the message says so
+    assert.match(r.stuck.msg, /the old app folder could not be moved back \(denied\) and is in .*app-old/);
+    assert.deepEqual([r.stuck.app, r.stuck.old, r.stuck.new], [false, true, true]);
+  });
+
+  test('restore.ps1 swaps the app through Install-AppFolder, which retries and names every folder', () => {
+    const lib = readFileSync(path.join(here, 'lib.ps1'), 'utf8');
+    assert.match(lib, /function Move-WithRetry/);
+    assert.match(lib, /something is in \$AppDir now and the old app folder is in \$Old/);
+    assert.match(lib, /the unpacked new one is in \$NewApp/);
   });
 
   test('module port flag: set for a rehearsal, removed for game night, other flags kept', () => {
@@ -346,6 +465,50 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     );
   });
 
+  test('push-back.ps1 passes -PiModules on to push-world (a drill that ships no modules)', () => {
+    const root = mkdtempSync(path.join(tmp, 'push-back-'));
+    mkdirSync(path.join(root, 'data', 'Data'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'state.json'),
+      JSON.stringify({
+        world: 'frostmaiden-training',
+        snapshot: { id: 'abc', short: 'abc', time: '2026-10-09T04:30:00+02:00' },
+        restoredAt: '2026-10-09T18:00:00+02:00',
+        played: true,
+        playedAt: '2026-10-09',
+        services: null,
+      })
+    );
+    const r = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `& '${path.join(here, 'push-back.ps1')}' -Root '${root}' -Modules '' -PiModules 'no-such-module'`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.notEqual(r.status, 0);
+    // push-world reaches its own check of the Pi-side module: the parameter arrived.
+    assert.match(r.stderr + r.stdout, /no module\.json for -PiModules module no-such-module/);
+
+    // -Modules '' really empties the default list: with it lost, aitool-content would be in both lists.
+    const both = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `& '${path.join(here, 'push-back.ps1')}' -Root '${root}' -Modules '' -PiModules 'aitool-content'`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.notEqual(both.status, 0);
+    assert.match(both.stderr + both.stdout, /no module\.json for -PiModules module aitool-content/);
+    assert.doesNotMatch(both.stderr + both.stdout, /in both -Modules and -PiModules/);
+  });
+
   test('clean decision: played data stays until it is back on the Pi; data with no restore is never ours', () => {
     const r = ps(`
       $played = [pscustomobject]@{ restoredAt = 'x'; played = $true; playedAt = '2026-12-06' }
@@ -443,6 +606,132 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.deepEqual(r.some, ['bridge', 'dashboard']);
   });
 
+  test('tunnel state: the current state of each connection, not "was ever registered"', () => {
+    const r = ps(`
+      $reg = { param($i) "2026-11-06T10:00:0$i Z INF Registered tunnel connection connIndex=$i connection=abc event=0 ip=1.2.3.4" }
+      $drop = { param($i) "2026-11-06T11:00:0$i Z ERR Connection terminated error=x connIndex=$i" }
+      @{
+        none = Get-PlanBTunnelState @('2026-11-06 INF Starting tunnel', 'unrelated line')
+        up = Get-PlanBTunnelState @((& $reg 0), (& $reg 1))
+        dropped = Get-PlanBTunnelState @((& $reg 0), (& $reg 1), (& $drop 0), (& $drop 1))
+        partial = Get-PlanBTunnelState @((& $reg 0), (& $reg 1), (& $drop 1))
+        back = Get-PlanBTunnelState @((& $reg 0), (& $drop 0), (& $reg 0))
+        retry = Get-PlanBTunnelState @((& $reg 2), 'Retrying connection in up to 4s connIndex=2')
+        empty = Get-PlanBTunnelState @()
+      }`);
+    assert.equal(r.none.Connected, false);
+    assert.match(r.none.Message, /no connection/);
+    assert.equal(r.up.Connected, true);
+    assert.equal(r.dropped.Connected, false);
+    assert.match(r.dropped.Message, /down/);
+    assert.deepEqual([r.partial.Connected, r.partial.Up, r.partial.Seen], [true, 1, 2]);
+    assert.equal(r.back.Connected, true);
+    assert.equal(r.retry.Connected, false);
+    assert.equal(r.empty.Connected, false);
+  });
+
+  test('start.ps1 fails with one FAIL: line and exit 1, and prints no <domain> placeholder', () => {
+    const root = mkdtempSync(path.join(tmp, 'start-fail-'));
+    const r = spawnSync(
+      'pwsh',
+      ['-NoProfile', '-NonInteractive', '-File', path.join(here, 'start.ps1'), '-Root', root],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const lines = r.stderr.split(/\r?\n/).filter(Boolean);
+    assert.equal(lines.length, 1, r.stderr);
+    assert.match(lines[0], /^FAIL: nothing restored in .* yet: run restore\.ps1 first$/);
+    const source = readFileSync(path.join(here, 'start.ps1'), 'utf8');
+    assert.doesNotMatch(source, /Write-Host[^\n]*<domain>/);
+    assert.doesNotMatch(source, /\bthrow\b/);
+  });
+
+  test('start.ps1 says it waits for Foundry data lock, and for how long', () => {
+    const source = readFileSync(path.join(here, 'start.ps1'), 'utf8');
+    assert.match(source, /waiting for it to go stale \(at most 30 s\)/);
+  });
+
+  test('check.ps1 reports an unreadable module link as unknown and reads the tunnel state from the log tail', () => {
+    const source = readFileSync(path.join(here, 'check.ps1'), 'utf8');
+    assert.match(source, /Line 'module link' \$true '[^']*asks for a login[^']*' -Unknown/);
+    assert.match(source, /Get-PlanBTunnelState \$tail/);
+    assert.doesNotMatch(source, /Select-String[^\n]*Registered tunnel connection/);
+  });
+
+  test('check.ps1 sets its unknown counter before use (lib.ps1 turns on strict mode)', () => {
+    const source = readFileSync(path.join(here, 'check.ps1'), 'utf8');
+    assert.match(
+      readFileSync(path.join(here, 'lib.ps1'), 'utf8'),
+      /Set-StrictMode -Version Latest/
+    );
+    const set = source.indexOf('\n$unknown = 0');
+    assert.ok(
+      set > 0 && set < source.indexOf('function Line'),
+      '$unknown = 0 before the Line function'
+    );
+    assert.match(
+      source,
+      /if \(\$unknown\) \{ Write-Host 'Plan B is up, but the module link is unknown/
+    );
+  });
+
+  test('restore.ps1 refuses a backup over 36 hours old without -AllowOld, and warns with it', () => {
+    const dir = mkdtempSync(path.join(tmp, 'restore-old-'));
+    const repo = path.join(dir, 'repo');
+    mkdirSync(repo);
+    writeFileSync(path.join(repo, 'config'), 'x');
+    const pass = path.join(dir, 'pass');
+    writeFileSync(pass, 'x');
+    const old = new Date(Date.now() - 40 * 3600 * 1000).toISOString();
+    const json = JSON.stringify([
+      { id: 'aaaaaaaabbbbbbbb', short_id: 'aaaaaaaa', time: old, paths: ['/var/lib/foundry'] },
+    ]);
+    const fake = path.join(dir, 'fake-restic.ps1');
+    writeFileSync(fake, `if ($args[0] -eq 'snapshots') { '${json}' }\nexit 0\n`);
+    const run = extra =>
+      spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(here, 'restore.ps1'),
+          '-Root',
+          path.join(dir, 'root'),
+          '-Repo',
+          repo,
+          '-PassFile',
+          pass,
+          '-Restic',
+          fake,
+          ...extra,
+        ],
+        { encoding: 'utf8' }
+      );
+    const refused = run([]);
+    assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+    assert.match(
+      refused.stderr,
+      /REFUSED: the newest backup is 4\d(\.\d)? hours old \(more than 36\)/
+    );
+    assert.match(refused.stderr, /-AllowOld/);
+    // -Force is for the played-data refusal only: it does not waive the age check.
+    const forceOnly = run(['-Force']);
+    assert.equal(forceOnly.status, 1, forceOnly.stdout + forceOnly.stderr);
+    assert.match(forceOnly.stderr, /REFUSED: the newest backup/);
+    // -List still works for an old backup: it only shows.
+    const list = run(['-List']);
+    assert.equal(list.status, 0, list.stdout + list.stderr);
+    assert.match(list.stdout, /aaaaaaaa/);
+    // With -AllowOld it goes past the age check (and fails later, at the restore itself, in this fake setup).
+    const allowed = run(['-AllowOld']);
+    assert.doesNotMatch(allowed.stderr, /REFUSED: the newest backup/);
+    assert.match(allowed.stdout + allowed.stderr, /restoring it anyway because of -AllowOld/);
+    // A snapshot named on purpose is not second-guessed.
+    const named = run(['-Snapshot', 'aaaaaaaa']);
+    assert.doesNotMatch(named.stderr, /REFUSED: the newest backup/);
+  });
+
   test('connector switch: only the two values change, the rest of the file stays byte for byte', () => {
     const config = [
       '{',
@@ -494,6 +783,192 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       'the connector without MCP_NO_SPAWN=1 is named'
     );
     assert.deepEqual(r.spawnTrue, []);
+  });
+
+  test('desktop guard: refuses while a Claude Desktop process exists, passes when none', () => {
+    const guard = path.join(here, '..', 'desktop', 'desktop-guard.ps1').replace(/'/g, "''");
+    const r = ps(`
+      . '${guard}'
+      function Get-ClaudeDesktopProcess { return @([pscustomobject]@{ Id = 4242 }) }
+      $msg = $null
+      try { Assert-ClaudeDesktopClosed } catch { $msg = $_.Exception.Message }
+      function Get-ClaudeDesktopProcess { return @() }
+      $ok = $true
+      try { Assert-ClaudeDesktopClosed } catch { $ok = $false }
+      @{ msg = $msg; ok = $ok }`);
+    assert.match(r.msg, /refused: Claude Desktop is running \(process 4242\)/);
+    assert.equal(r.ok, true);
+  });
+
+  test('desktop guard: the real process check runs under lib.ps1 strict mode without throwing', () => {
+    const guard = path.join(here, '..', 'desktop', 'desktop-guard.ps1').replace(/'/g, "''");
+    // Off Windows the check logs a WARN line; keep it off stdout, which ps() parses as JSON.
+    const r = ps(`
+      function Write-LogMessage { param($Message, $Level) [Console]::Error.WriteLine("[$Level] $Message") }
+      . '${guard}'
+      Import-ClaudeDesktopProcessCheck
+      @{ count = @(Get-ClaudeDesktopProcess).Count; global = [bool](Get-Command Get-ClaudeDesktopProcess) }`);
+    assert.ok(r.count >= 0);
+    assert.equal(r.global, true);
+  });
+
+  test('desktop guard: loads lazily, so a dry run needs no installer file, and a parse error in it throws', () => {
+    const root = mkdtempSync(path.join(tmp, 'guard-'));
+    mkdirSync(path.join(root, 'scripts', 'desktop'), { recursive: true });
+    mkdirSync(path.join(root, 'installer', 'nsis'), { recursive: true });
+    const copy = path.join(root, 'scripts', 'desktop', 'desktop-guard.ps1');
+    writeFileSync(copy, readFileSync(path.join(here, '..', 'desktop', 'desktop-guard.ps1')));
+    const guard = copy.replace(/'/g, "''");
+    const installer = path.join(root, 'installer', 'nsis', 'configure-claude.ps1');
+    const body = `
+      . '${guard}'
+      $msg = $null
+      try { Assert-ClaudeDesktopClosed } catch { $msg = $_.Exception.Message }
+      @{ msg = $msg }`;
+    const missing = ps(body);
+    assert.match(missing.msg, /cannot find .*configure-claude\.ps1.*nothing was changed/);
+    writeFileSync(installer, 'function Get-ClaudeDesktopProcess { @( \n');
+    const broken = ps(body);
+    assert.match(broken.msg, /parse error.*nothing was changed/);
+  });
+
+  test('connectors.ps1 -To planb saves the old values next to the config it changed', () => {
+    const root = mkdtempSync(path.join(tmp, 'planb-'));
+    const dir = path.join(root, 'local', 'Claude-Data', 'claude_x');
+    mkdirSync(dir, { recursive: true });
+    mkdirSync(path.join(root, 'Claude'), { recursive: true });
+    const cfg = path.join(dir, 'claude_desktop_config.json');
+    writeFileSync(
+      cfg,
+      '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"100.1.2.3","MCP_CONTROL_PORT":"31414","MCP_NO_SPAWN":"1"}}}}'
+    );
+    // The wrapper stands in for "Claude Desktop is not running" so the guard passes on any PC.
+    const wrapper = path.join(root, 'wrap.ps1');
+    writeFileSync(
+      wrapper,
+      `function global:Get-ClaudeDesktopProcess { @() }\n& '${path.join(here, 'connectors.ps1').replace(/'/g, "''")}' -To planb -Rehearsal -ConfigFile '${cfg.replace(/'/g, "''")}'\n`
+    );
+    const r = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper], {
+      encoding: 'utf8',
+      env: { ...process.env, APPDATA: root, LOCALAPPDATA: path.join(root, 'local') },
+    });
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    const saved = JSON.parse(
+      readFileSync(path.join(dir, 'claude_desktop_config.plan-b-saved.json'), 'utf8')
+    );
+    assert.equal(saved.host, '100.1.2.3');
+    assert.equal(saved.port, 31414);
+    assert.equal(
+      readdirSync(path.join(root, 'Claude')).length,
+      0,
+      'nothing is saved next to the classic file'
+    );
+    assert.match(readFileSync(cfg, 'utf8'), /"127\.0\.0\.1"/);
+  });
+
+  test('connectors.ps1 -To pi without -ConfigFile finds the values saved next to the classic file', () => {
+    const root = mkdtempSync(path.join(tmp, 'pifallback-'));
+    // The current config lives under Claude-Data, the saved values only next to the classic file.
+    const dir = path.join(root, 'local', 'Claude-Data', 'claude_x');
+    mkdirSync(dir, { recursive: true });
+    mkdirSync(path.join(root, 'Claude'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'Claude', 'claude_desktop_config.plan-b-saved.json'),
+      '{"host":"100.1.2.3","port":31414}'
+    );
+    writeFileSync(
+      path.join(dir, 'claude_desktop_config.json'),
+      '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"127.0.0.1","MCP_CONTROL_PORT":"31614","MCP_NO_SPAWN":"1"}}}}'
+    );
+    const r = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        path.join(here, 'connectors.ps1'),
+        '-To',
+        'pi',
+        '-DryRun',
+      ],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, APPDATA: root, LOCALAPPDATA: path.join(root, 'local') },
+      }
+    );
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /127\.0\.0\.1:31614 -> 100\.1\.2\.3:31414/);
+  });
+
+  test('the two config scripts call the guard before writing, and not on a dry run', () => {
+    const conn = readFileSync(path.join(here, 'connectors.ps1'), 'utf8');
+    const repoint = readFileSync(
+      path.join(here, '..', 'desktop', 'repoint-connectors.ps1'),
+      'utf8'
+    );
+    assert.match(conn, /desktop-guard\.ps1/);
+    const c = conn.replace(/\r\n/g, '\n');
+    assert.ok(
+      c.indexOf("Dry run: nothing written.'; exit 0 }") < c.indexOf('Assert-ClaudeDesktopClosed') &&
+        c.indexOf('Assert-ClaudeDesktopClosed') < c.indexOf('Copy-Item -LiteralPath $ConfigFile'),
+      'connectors.ps1: dry run exits first, then the guard, then the backup and write'
+    );
+    const rp = repoint.replace(/\r\n/g, '\n');
+    assert.match(rp, /desktop-guard\.ps1/);
+    assert.equal(
+      rp.split('Assert-ClaudeDesktopClosed').length - 1,
+      2,
+      'rollback and apply each call the guard'
+    );
+    assert.ok(
+      rp.indexOf('Assert-ClaudeDesktopClosed') < rp.indexOf('Copy-Item $Rollback'),
+      'repoint-connectors.ps1: the rollback calls the guard before it copies the backup over the config'
+    );
+    assert.ok(
+      rp.indexOf('Dry run: $changed entries') < rp.lastIndexOf('Assert-ClaudeDesktopClosed') &&
+        rp.lastIndexOf('Assert-ClaudeDesktopClosed') < rp.indexOf('Copy-Item $Config $backup'),
+      'repoint-connectors.ps1: dry run returns first, then the guard, then the backup'
+    );
+  });
+
+  test('connectors.ps1 -To pi with -ConfigFile never reads the saved values next to the classic file', () => {
+    const root = mkdtempSync(path.join(tmp, 'appdata-'));
+    mkdirSync(path.join(root, 'Claude'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'Claude', 'claude_desktop_config.plan-b-saved.json'),
+      '{"host":"100.1.2.3","port":31414}'
+    );
+    const cfg = path.join(root, 'explicit.json');
+    writeFileSync(
+      cfg,
+      '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"127.0.0.1","MCP_CONTROL_PORT":"31614","MCP_NO_SPAWN":"1"}}}}'
+    );
+    const run = extra =>
+      spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(here, 'connectors.ps1'),
+          '-To',
+          'pi',
+          '-DryRun',
+          ...extra,
+        ],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, APPDATA: root, LOCALAPPDATA: path.join(root, 'local') },
+        }
+      );
+    const withFile = run(['-ConfigFile', cfg]);
+    assert.notEqual(
+      withFile.status,
+      0,
+      'explicit -ConfigFile and no saved values next to it: refused'
+    );
+    assert.match(withFile.stderr + withFile.stdout, /no saved Pi address/);
+    assert.doesNotMatch(withFile.stdout, /100\.1\.2\.3/);
   });
 
   test('the restore never brings back the Pi licence or other secrets', () => {

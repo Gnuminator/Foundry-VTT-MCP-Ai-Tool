@@ -67,18 +67,23 @@ export async function resetDashboard(page) {
       if (shown(el)) /** @type {HTMLElement} */ (el).click();
     };
     if (shown(document.querySelector('#modal-backdrop'))) press('#modal-cancel');
-    // The undo window closes on a click on its backdrop (I-109); Recent Changes goes back to the AI tab.
+    // The undo window closes on a click on its backdrop (I-109); Recent Changes goes back to the Tool tab.
     press('#undo-backdrop');
-    if (document.querySelector('#changes-tab-everyone[aria-pressed="true"]'))
-      press('#changes-tab-ai');
+    if (document.querySelector('#changes-tab-tool[aria-pressed="false"]'))
+      press('#changes-tab-tool');
+    // Forget the remembered choices (lib/remember.ts), so the next page load starts from the defaults.
+    for (const key of ['cogm_fold_choices', 'cogm_moment_pin', 'cogm_changes_person'])
+      localStorage.removeItem(key);
     press('#layout-tour-stop');
-    // Opening a During card folds its side cards (wide screens), and the fold rows' restore click
-    // does not reopen them: open Recent Changes again for the rows that read #changes-body.
+    // A fold row's restore click does not reopen a card it folded: open Recent Changes again for
+    // the rows that read #changes-body.
     press('.fold-btn[data-fold="changes"][aria-expanded="false"]');
     // A selected combatant stays selected: clear it, so the next click selects instead of unselecting.
-    press('#combat-actions .ca-btn.ghost');
+    press('[data-track="dash.combat.selection-clear"]');
     for (const pane of ['#pane-ai', '#pane-diagnostics', '#pane-links', '#pane-help'])
       press(`${pane} .overlay-close`);
+    // The Tool Runner keeps the tool it showed last: go back to the list, so the next row finds the search box.
+    press('#tool-back');
     for (const close of [
       '#drawer-close',
       '#tarokka-close',
@@ -91,6 +96,8 @@ export async function resetDashboard(page) {
     // A click on the page closes the Advanced menu.
     document.body.click();
   });
+  // Radix panels (drawers, the player links, the help pane) close on Escape; nothing open ignores it.
+  await page.keyboard.press('Escape');
   await page.waitForTimeout(60);
 }
 

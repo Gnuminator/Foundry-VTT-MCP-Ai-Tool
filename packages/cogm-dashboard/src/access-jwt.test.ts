@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { AccessJwtVerifier, accessTokenFrom, parseTeamDomain } from './access-jwt.js';
 import { resolveAccessConfig } from './config.js';
@@ -42,7 +42,7 @@ function claims(extra: Record<string, unknown> = {}): Record<string, unknown> {
 
 function verifier(keys: Record<string, unknown>[] = [jwk(publicKey, 'k1')]): {
   v: AccessJwtVerifier;
-  fetch: ReturnType<typeof vi.fn>;
+  fetch: Mock;
   clock: { now: number };
 } {
   const clock = { now: NOW };
@@ -119,6 +119,55 @@ describe('AccessJwtVerifier', () => {
     const fetch = vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({}) }));
     const v = new AccessJwtVerifier({ teamDomain: TEAM, audiences: [AUD] }, fetch, () => NOW);
     await expect(v.verify(sign(claims()))).resolves.toBeNull();
+  });
+});
+
+describe('AccessJwtVerifier.verifyServiceToken (player connector)', () => {
+  const svc = (extra: Record<string, unknown> = {}): Record<string, unknown> => {
+    const { email: _email, ...rest } = claims();
+    return { ...rest, common_name: ' abc123.access ', ...extra };
+  };
+
+  it('returns the Client ID from common_name', async () => {
+    const { v } = verifier();
+    await expect(v.verifyServiceToken(sign(svc()))).resolves.toEqual({
+      ok: true,
+      clientId: 'abc123.access',
+    });
+  });
+
+  it('refuses a token with an email: a person is never a player token', async () => {
+    const { v } = verifier();
+    await expect(v.verifyServiceToken(sign(svc({ email: 'gm@example.com' })))).resolves.toEqual({
+      ok: false,
+      reason: 'has-email',
+    });
+  });
+
+  it('refuses a wrong audience, signature or expiry as invalid', async () => {
+    const { v } = verifier();
+    for (const token of [
+      sign(svc({ aud: ['other'] })),
+      sign(svc(), { key: other.privateKey }),
+      sign(svc({ exp: NOW / 1000 - 600 })),
+    ]) {
+      await expect(v.verifyServiceToken(token)).resolves.toEqual({ ok: false, reason: 'invalid' });
+    }
+  });
+
+  it('names the claims, not their values, when common_name is missing', async () => {
+    const { v } = verifier();
+    const result = await v.verifyServiceToken(
+      sign(svc({ common_name: undefined, sub: 'x-secret' }))
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'no-client-id' });
+    expect(JSON.stringify(result)).not.toContain('x-secret');
+    expect(result).toHaveProperty('claimNames', expect.arrayContaining(['sub', 'aud']));
+  });
+
+  it('keeps verify() email-only: a service token is not an identity there', async () => {
+    const { v } = verifier();
+    await expect(v.verify(sign(svc()))).resolves.toBeNull();
   });
 });
 

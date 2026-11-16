@@ -67,7 +67,7 @@ export class GuardedChangeTools {
       {
         name: 'apply-planned-change',
         description:
-          'Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players\' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back.',
+          'Apply a pending planned change after the GM has seen its diff and agreed. Needs confirm: true, plus confirmDestructive: true for a "destructive" plan (it deletes, reveals Tarokka cards or undoes a whole span). If the plan says autoApply: true, or the GM said "go ahead", apply a "write" plan in the same turn; a "destructive" plan waits for the GM to say yes to that plan. Writes nothing if the documents changed since the plan, or "Allow Write Operations" or the feature is switched off. A showNow popup shows shown: { ok } or { ok: false, error }, and undo does not recall it. A handout reveal also posts a chat notice (noticed: { ok }); undo keeps it.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -91,7 +91,7 @@ export class GuardedChangeTools {
       {
         name: 'list-recent-changes',
         description:
-          'List recently applied guarded changes for the current world (newest first): summary, diff, when, and whether each can still be undone. Read-only.',
+          'Applied plans only, newest first: summary, diff, when, still undoable. Use this to find one for undo-change; for direct writes and changes by players or the GM use list-changes. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -106,7 +106,7 @@ export class GuardedChangeTools {
       {
         name: 'undo-change',
         description:
-          'Undo an applied change (by changeId from list-recent-changes), restoring the previous values. Requires confirm: true. Refuses instead of overwriting if the documents were edited since the change.',
+          'Use this to undo an applied plan (changeId from list-recent-changes), restoring the previous values; for a direct write or a change by a player or the GM use plan-undo-changes. Needs confirm: true. Refuses if the documents were edited since.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -191,7 +191,9 @@ export class GuardedChangeTools {
     const { limit } = z
       .object({ limit: z.number().int().min(1).max(500).optional() })
       .parse(args ?? {});
-    return { changes: await this.guardedWrites.listRecentChanges(limit ?? 20) };
+    return {
+      changes: await this.guardedWrites.listRecentChanges(limit ?? 20, { noteParts: true }),
+    };
   }
 
   /** `requestedBy`: who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard). */

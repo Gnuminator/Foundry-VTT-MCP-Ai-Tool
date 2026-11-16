@@ -1,6 +1,7 @@
 // Campaign Dashboard Interactive Hooks
 // Implements clickable status toggles using Foundry's native hook system
 import { trackUsage } from './usage-recorder.js';
+import { toGmMessage } from './gm-message.js';
 
 /** Part statuses, in the order a GM click cycles through them. */
 export const CAMPAIGN_STATUSES = ['not_started', 'in_progress', 'completed', 'skipped'] as const;
@@ -285,7 +286,7 @@ export class CampaignHooks {
       } catch (error) {
         console.error('[Campaign Status] Failed to save status:', error);
         trackUsage('error', 'module.error.campaign-status', { code: 'save-failed' });
-        ui.notifications?.error('Failed to save campaign progress');
+        ui.notifications?.error(toGmMessage('save the campaign progress', error));
 
         // Revert visual change on error
         this.updateToggleVisual(target, currentStatus);
@@ -293,7 +294,7 @@ export class CampaignHooks {
     } catch (error) {
       console.error('Error handling status toggle click:', error);
       trackUsage('error', 'module.error.campaign-status', { code: 'update-failed' });
-      ui.notifications?.error('Failed to update campaign progress');
+      ui.notifications?.error(toGmMessage('update the campaign progress', error));
     }
   }
 

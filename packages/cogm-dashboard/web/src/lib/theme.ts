@@ -1,6 +1,6 @@
-// The theme (D-085), as public/theme.js does it for the old pages: the GM picks it per world
-// (/api/theme), each viewer keeps a mist choice in this browser. Same storage keys, so both pages
-// agree. The mist picker itself moves here with the settings menu.
+// The theme (D-085); it mirrors public/theme.js, which the player pages use: the GM picks it per
+// world (/api/theme), each viewer keeps a mist choice in this browser. Same storage keys, so all
+// pages agree. The mist picker itself moves here with the settings menu.
 
 const root = document.documentElement;
 const THEME_CACHE = 'cogm_theme';

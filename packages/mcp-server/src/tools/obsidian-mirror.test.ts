@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DEFAULT_STORY_ITEM_TYPES, TOOL_REF_KEY, checkToolRefs } from '@gnuminator/shared';
 
@@ -65,7 +65,7 @@ function planView(input: PlanInput): PlanView {
 
 interface FakeSetup {
   tools: ObsidianMirrorTools;
-  createPlan: ReturnType<typeof vi.fn>;
+  createPlan: Mock;
   logger: any;
 }
 
@@ -86,7 +86,7 @@ function setup(
 }
 
 /** The plan input `plan-obsidian-mirror` passed to `createPlan`. */
-function planned(createPlan: ReturnType<typeof vi.fn>): PlanInput {
+function planned(createPlan: Mock): PlanInput {
   expect(createPlan).toHaveBeenCalledTimes(1);
   return (createPlan.mock.calls[0] as [PlanInput])[0];
 }
@@ -611,7 +611,7 @@ describe('plan-obsidian-mirror end to end (real GuardedWriteService)', () => {
     ];
     const plan = await tools.handlePlanObsidianMirror({ enabled: true });
     await expect(guarded.applyPlan(plan.planId, { confirm: true })).rejects.toThrow(
-      /obsidian-mirror.*switched off/
+      /"AI Tool: Obsidian mirror \(writes\)" is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool/
     );
     expect(await store.read(WORLD, 'gm', MIRROR_SETTINGS_FILE)).toBeNull();
     expect((await tools.handleGetObsidianMirror({})).settings.enabled).toBe(false);

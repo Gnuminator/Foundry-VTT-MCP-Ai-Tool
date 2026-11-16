@@ -53,6 +53,8 @@ export interface Combatant {
   actedThisRound: boolean;
   hp: CombatantHp;
   conditions: string[];
+  /** Rounds left on the timed conditions, by condition name (0 = the time is up); GM only. */
+  timed?: Record<string, number>;
   isPC: boolean;
   category: string; // 'pc' | 'npc' | 'enemy'
   defeated: boolean;
@@ -98,7 +100,7 @@ export interface CombatState {
 }
 
 /** Lightweight world descriptor used to seed the AI's static context. */
-export interface WorldInfo {
+export interface FeedWorld {
   /** Foundry world id (folder-safe slug), e.g. "ai-tool-test". GM-only: also the
    * `Campaigns/<worldId>` key the Obsidian renderer writes under. */
   id: string;

@@ -17,6 +17,8 @@ import {
   type DiscordGatewayAdapterCreator,
   type VoiceConnection,
 } from '@discordjs/voice';
+import { bi } from '../i18n.js';
+import type { RecorderHealth } from './health.js';
 import { installRtpTap, type RtpTap } from './rtp-tap.js';
 import type { RecordingSession, SpeakerInfo } from './session.js';
 
@@ -32,6 +34,10 @@ export interface VoiceRecorderOptions {
   resolveSpeaker(userId: string): SpeakerInfo;
   /** Something the GM should know about (connection lost, rejoin failed). */
   alert?(message: string): void;
+  /** Last-packet times and report de-duplication (rec/health.ts); absent in tests. */
+  health?: RecorderHealth;
+  /** The clock for `health` in ms; default Date.now. */
+  nowMs?: () => number;
 }
 
 const REJOIN_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
@@ -39,13 +45,25 @@ const REJOIN_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 /**
  * Remove secrets from a `@discordjs/voice` debug line: the voice encryption key (op 4
  * `secret_key`, and `secretKey` in state dumps, as an array or an index object), the voice
- * session `token`, and any `nonceBuffer` contents.
+ * session `token`, the `session_id`, the `endpoint`, any `nonceBuffer` contents, and the same
+ * names written as `name=value`.
  */
 export function redactVoiceDebug(message: string): string {
-  return message
-    .replace(/"secret_?[kK]ey"\s*:\s*(\[[^\]]*\]|\{[^}]*\})/g, '"secretKey":"[redacted]"')
-    .replace(/"token"\s*:\s*"[^"]*"/g, '"token":"[redacted]"')
-    .replace(/"nonceBuffer"\s*:\s*\{[^}]*\}/g, '"nonceBuffer":"[redacted]"');
+  return (
+    message
+      .replace(/"secret_?[kK]ey"\s*:\s*(\[[^\]]*\]|\{[^}]*\})/g, '"secretKey":"[redacted]"')
+      .replace(/"token"\s*:\s*"[^"]*"/g, '"token":"[redacted]"')
+      .replace(/"nonceBuffer"\s*:\s*\{[^}]*\}/g, '"nonceBuffer":"[redacted]"')
+      // The voice session id and the server address identify the live session (item recorder-heartbeat).
+      .replace(/"(session_?[iI]d|endpoint)"\s*:\s*"[^"]*"/g, '"$1":"[redacted]"')
+      // Other shapes: key=value in a URL or a plain log line.
+      .replace(/\b(token|session_?id)=[^\s&,;"']+/gi, '$1=[redacted]')
+      // The key written as a list (`secret_key=9,8,7`, `= 9, 8`, `: [9, 8, 7]`) or a quoted string must not stop at the first comma.
+      .replace(
+        /\b(secret_?key)\s*[:=]\s*(?:\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s&,;"'\]]+(?:\s*,\s*[^\s&,;"'\]]+)*)/gi,
+        '$1=[redacted]'
+      )
+  );
 }
 
 export class VoiceRecorder {
@@ -59,6 +77,19 @@ export class VoiceRecorder {
 
   get rtpTapActive(): boolean {
     return this.tap?.active ?? false;
+  }
+
+  /** The voice connection's state for /record status ("ready", "signalling", ...). */
+  get connectionStatus(): string {
+    return this.connection?.state.status ?? 'none';
+  }
+
+  private now(): number {
+    return (this.opts.nowMs ?? Date.now)();
+  }
+
+  private report(message: string | null | undefined): void {
+    if (message) this.opts.alert?.(message);
   }
 
   /** Join and resolve once the connection is ready (or reject after `timeoutMs`). */
@@ -108,7 +139,10 @@ export class VoiceRecorder {
         void this.reconnect();
       }
     });
-    connection.on('error', err => session.log({ type: 'connection_error', message: err.message }));
+    connection.on('error', err => {
+      session.log({ type: 'connection_error', message: err.message });
+      this.report(this.opts.health?.connectionError(err.message, this.now()));
+    });
     connection.on('debug', (message: string) => {
       // The full stream goes to voice-debug.log with keys and tokens removed; the event log
       // only gets the library's own DAVE and decrypt lines, never raw gateway payloads.
@@ -130,10 +164,14 @@ export class VoiceRecorder {
     stream.on('data', (packet: Buffer) => {
       const rtp = this.tap?.current(receiver.ssrcMap.get(userId)?.audioSSRC);
       this.opts.session.packet(speaker, packet, rtp);
+      this.opts.health?.packet(userId, speaker.displayName, this.now());
     });
-    stream.on('error', (err: Error) =>
-      this.opts.session.log({ type: 'stream_error', userId, message: err.message })
-    );
+    stream.on('error', (err: Error) => {
+      this.opts.session.log({ type: 'stream_error', userId, message: err.message });
+      this.report(
+        this.opts.health?.streamError(userId, speaker.displayName, err.message, this.now())
+      );
+    });
     stream.once('close', () => {
       this.subscribed.delete(userId);
       this.opts.session.log({ type: 'stream_closed', userId });
@@ -152,7 +190,12 @@ export class VoiceRecorder {
       ]);
     } catch {
       if (this.stopping || this.connection !== connection) return;
-      this.opts.alert?.('Recording bot lost the voice connection; trying to rejoin.');
+      this.opts.alert?.(
+        bi(
+          'Optagebotten mistede voice-forbindelsen og prøver at komme ind igen.',
+          'Recording bot lost the voice connection; trying to rejoin.'
+        )
+      );
       this.destroyConnection(); // the Destroyed handler rejoins
     }
   }
@@ -166,10 +209,17 @@ export class VoiceRecorder {
     try {
       await this.start();
       this.opts.session.log({ type: 'rejoined', attempt: this.rejoinAttempt });
-      this.opts.alert?.('Recording bot is back in the voice channel.');
+      this.opts.health?.rejoined();
+      this.opts.alert?.(
+        bi(
+          'Optagebotten er tilbage i voice channel.',
+          'Recording bot is back in the voice channel.'
+        )
+      );
     } catch (err) {
       this.opts.session.log({ type: 'rejoin_failed', message: (err as Error).message });
-      if (this.rejoinAttempt === 3) this.opts.alert?.('Recording bot still cannot rejoin voice.');
+      // From attempt 3 on, repeated every 5 minutes (it used to say so once and then go quiet).
+      this.report(this.opts.health?.rejoinFailed(this.rejoinAttempt, this.now()));
       // Destroying the half-open connection schedules the next try through its Destroyed event.
       this.destroyConnection();
     }

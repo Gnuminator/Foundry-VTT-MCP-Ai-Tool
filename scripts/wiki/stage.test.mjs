@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { navOrder, rewriteLinks } from './stage.mjs';
+import { gmLinks } from './check-sides.mjs';
+// The wiki workflow runs only this file: pull in the Danish twin tests with it.
+import './da.test.mjs';
+import {
+  BASE,
+  buildSidebar,
+  insideCodeSpan,
+  navOrder,
+  pageUrl,
+  playerFoundryPath,
+  rewriteLinks,
+  stripOffSideLinks,
+  toSite,
+} from './stage.mjs';
 
 const GH = 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 
@@ -55,6 +69,23 @@ test('web links, anchors and code fences are left alone', () => {
   assert.equal(rewriteLinks(text, 'docs/gm/README.md', new Set()), text);
 });
 
+test('a link shown in inline code is an example and stays as written', () => {
+  const text = 'Write `[x](nowhere.md)` like this, see [dash](dashboard.md).';
+  assert.equal(rewriteLinks(text, 'docs/gm/before-session.md', new Set()), text);
+  assert.equal(
+    toSite(text, 'gm/before-session.md'),
+    'Write `[x](nowhere.md)` like this, see [dash](/Foundry-VTT-MCP-Ai-Tool/gm/dashboard/).'
+  );
+});
+
+test('a time in a heading becomes a chip and the heading text stays', () => {
+  const out = toSite('## 1. The screen (15 minutes)\n## Add it (once, about 5 minutes)', 'gm/x.md');
+  assert.equal(
+    out,
+    '## 1. The screen <span class="chip">(15 minutes)</span>\n## Add it (once, about 5 minutes)'
+  );
+});
+
 test('the nav follows the README links, then the rest A to Z', () => {
   const readme =
     'Start with [b](b.md) then [a](a.md#x), [b again](b.md) and [web](https://x.test/c.md).';
@@ -65,4 +96,220 @@ test('the nav follows the README links, then the rest A to Z', () => {
     'c.md',
     'd.md',
   ]);
+});
+
+test('a link to a missing guide page or image fails the stage instead of becoming a GitHub link', () => {
+  assert.throws(
+    () => rewriteLinks('[x](before-sesion.md)', 'docs/gm/README.md', new Set()),
+    /before-sesion\.md.*does not exist/
+  );
+  assert.throws(() => rewriteLinks('![x](../images/nope.png)', 'docs/gm/README.md', new Set()), /does not exist/);
+});
+
+test('page URLs keep the old /gm/ and /gm/page/ shapes under the base', () => {
+  assert.equal(pageUrl('index.md'), `${BASE}/`);
+  assert.equal(pageUrl('gm/README.md'), `${BASE}/gm/`);
+  assert.equal(pageUrl('gm/first-hour.md'), `${BASE}/gm/first-hour/`);
+});
+
+test('toSite makes site URLs, keeps anchors, shows clips as video and drops the first H1', () => {
+  const text = [
+    '---',
+    'title: T',
+    '---',
+    '',
+    '# T',
+    '',
+    'See [the dashboard](dashboard.md#combat) and [join](../player/join.md).',
+    '![Shot](../images/guides/a.png "t")',
+    '![The clip](../images/foundry/a.mp4)',
+    '[zip](downloads/foundry-gm-coach.zip) [web](https://x.test/a.md) [here](#x)',
+    '```',
+    '# not a heading, [x](a.md)',
+    '```',
+  ].join('\n');
+  const out = toSite(text, 'gm/first-hour.md');
+  assert.equal(
+    out,
+    [
+      '---',
+      'title: T',
+      '---',
+      '',
+      '<p class="audience audience-gm">For the GM</p>',
+      '',
+      '',
+      '<a id="t"></a>',
+      '',
+      `See [the dashboard](${BASE}/gm/dashboard/#combat) and [join](${BASE}/player/join/).`,
+      `![Shot](${BASE}/images/guides/a.png "t")`,
+      `<video src="${BASE}/images/foundry/a.mp4" controls muted loop playsinline preload="metadata" aria-label="The clip"></video>`,
+      `[zip](${BASE}/gm/downloads/foundry-gm-coach.zip) [web](https://x.test/a.md) [here](#x)`,
+      '```',
+      '# not a heading, [x](a.md)',
+      '```',
+    ].join('\n')
+  );
+});
+
+test('the sidebar groups pages, puts a section README first and catches unknown pages last', () => {
+  const slugs = [
+    'index',
+    'gm',
+    'gm/first-hour',
+    'gm/dashboard',
+    'gm/new-page',
+    'foundry',
+    'player',
+    'player/join',
+    'player/foundry/tokens',
+  ];
+  const sidebar = buildSidebar(slugs, {
+    foundry: ['foundry'],
+    player: ['player', 'player/join'],
+    'player/foundry': ['player/foundry/tokens'],
+  });
+  assert.deepEqual(
+    sidebar.map(g => g.label),
+    [
+      'Player or GM?',
+      'Start here',
+      'The tool',
+      'Foundry basics',
+      'Player guides',
+      'Foundry basics for players',
+      'More guides',
+    ]
+  );
+  assert.deepEqual(sidebar[1].items.map(i => i.slug), ['gm', 'gm/first-hour']);
+  assert.deepEqual(sidebar[4].items.map(i => i.slug), ['player', 'player/join']);
+  assert.deepEqual(sidebar[5].items.map(i => i.slug), ['player/foundry/tokens']);
+  assert.deepEqual(sidebar[6].items.map(i => i.slug), ['gm/new-page']);
+});
+
+test('a player page links to the player copy of a Foundry page, never to a GM page', () => {
+  const out = rewriteLinks('[tokens](../foundry/tokens.md)', 'docs/player/join.md', new Set());
+  assert.equal(out, '[tokens](foundry/tokens.md)');
+  assert.throws(
+    () => rewriteLinks('[GM](../gm/prepare-session-0.md)', 'docs/player/join.md', new Set()),
+    /leaves the player side/
+  );
+  assert.throws(
+    () => rewriteLinks('[perm](../foundry/users-and-permissions.md)', 'docs/player/join.md', new Set()),
+    /leaves the player side/
+  );
+});
+
+test('the player copy of a Foundry page keeps its player links and drops the rest to plain text', () => {
+  const text = 'See [combat](combat.md#turns) and [actors](actors.md), also [GM](../gm/dashboard.md).';
+  assert.equal(
+    stripOffSideLinks(text, 'docs/foundry/tokens.md'),
+    'See [combat](combat.md#turns) and actors, also GM.'
+  );
+  const out = rewriteLinks(text, 'docs/foundry/tokens.md', new Set(), { playerCopy: true });
+  assert.equal(out, 'See [combat](combat.md#turns) and actors, also GM.');
+});
+
+test('the Danish twin of a Foundry basics page goes to the Danish player side only', () => {
+  assert.equal(playerFoundryPath('docs/foundry/tokens.md'), 'player/foundry/tokens.md');
+  assert.equal(playerFoundryPath('docs/da/foundry/tokens.md'), 'da/player/foundry/tokens.md');
+  assert.equal(playerFoundryPath('docs/da/foundry/actors.md'), null);
+  assert.equal(playerFoundryPath('docs/da/gm/tokens.md'), null);
+});
+
+test('the Danish player copy links its Danish siblings and drops GM-side links to plain text', () => {
+  const text =
+    'Se [combat](combat.md#turns), [actors](../../foundry/actors.md), [GM](../gm/dashboard.md) og ' +
+    '![billede](../../images/foundry/tokens-drag.png).';
+  const out = rewriteLinks(text, 'docs/da/foundry/tokens.md', new Set(), { playerCopy: true });
+  assert.equal(
+    out,
+    'Se [combat](combat.md#turns), actors, GM og ![billede](../../../images/foundry/tokens-drag.png).'
+  );
+});
+
+test('check-sides finds links from a player page to the GM side, and none to its own', () => {
+  const html = [
+    `<a href="${BASE}/player/join/">ok</a>`,
+    `<a href="${BASE}/player/foundry/tokens/">ok</a>`,
+    `<a href="${BASE}/">home</a> <a href="https://x.test/gm/">external</a>`,
+    `<a href="${BASE}/gm/first-hour/">bad</a>`,
+    `<a href="${BASE}/foundry/combat/#turns">bad</a>`,
+    `<a href="${BASE}/da/gm/">bad</a>`,
+  ].join('\n');
+  assert.deepEqual(gmLinks(html), [
+    `${BASE}/gm/first-hour/`,
+    `${BASE}/foundry/combat/#turns`,
+    `${BASE}/da/gm/`,
+  ]);
+});
+
+test('rewriteLinks: a double-backtick span holding a link or a single backtick stays as written', () => {
+  const out = rewriteLinks(
+    'Write ``[a](b.md) and `c` `` then [real](../../CHANGELOG.md).',
+    'docs/gm/a.md',
+    new Set()
+  );
+  assert.ok(out.includes('``[a](b.md) and `c` ``'));
+  assert.ok(!out.includes('[real](../../CHANGELOG.md)'));
+});
+
+test('insideCodeSpan: delimiter runs, escapes and unclosed runs', () => {
+  assert.equal(insideCodeSpan('a `x` b', 3), true);
+  assert.equal(insideCodeSpan('a `x` b', 6), false);
+  assert.equal(insideCodeSpan('`` `x` `` b', 4), true);
+  assert.equal(insideCodeSpan('`` `x` `` b', 10), false);
+  assert.equal(insideCodeSpan('a \\` b', 5), false);
+  assert.equal(insideCodeSpan('a ` b', 4), false);
+  // A backslash inside a span is no escape (a Windows path), so the link after it is outside.
+  assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 13), false);
+  assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 5), true);
+});
+
+test('a Danish page links to Danish pages and shows the Foundry basics under /da/', () => {
+  const images = new Set();
+  const gm = rewriteLinks(
+    '[tour](../../foundry/screen-tour.md#x) [tid](first-hour-quest.md) ![b](../../images/brand/logo.svg)',
+    'docs/da/gm/first-hour.md',
+    images
+  );
+  assert.equal(
+    gm,
+    '[tour](../foundry/screen-tour.md#x) [tid](first-hour-quest.md) ![b](../../images/brand/logo.svg)'
+  );
+  assert.deepEqual([...images], ['docs/images/brand/logo.svg']);
+  const player = rewriteLinks('[tokens](../../foundry/tokens.md)', 'docs/da/player/join.md', new Set());
+  assert.equal(player, '[tokens](foundry/tokens.md)');
+  assert.throws(
+    () => rewriteLinks('[perm](../../foundry/users-and-permissions.md)', 'docs/da/player/join.md', new Set()),
+    /leaves the player side/
+  );
+  assert.throws(
+    () => rewriteLinks('[gm](../gm/dashboard.md)', 'docs/da/player/join.md', new Set()),
+    /leaves the player side/
+  );
+});
+
+test('toSite labels Danish GM pages and chips a Danish time in a heading', () => {
+  const out = toSite('---\ntitle: T\n---\n\n## Skærmen (ca. 20 minutter)\n', 'da/gm/first-hour.md');
+  assert.ok(out.includes('<p class="audience audience-gm">Til GM\'en</p>'));
+  assert.ok(out.includes('## Skærmen <span class="chip">(ca. 20 minutter)</span>'));
+  assert.ok(!toSite('---\ntitle: T\n---\n', 'da/player/join.md').includes('audience'));
+});
+
+test('the wiki workflow pins a Node that Astro accepts (docs/wiki engines)', () => {
+  const read = (/** @type {string} */ p) =>
+    readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
+  const engines = JSON.parse(read('docs/wiki/package.json')).engines.node;
+  const min = /^>=(\d+)\.(\d+)\.(\d+)$/.exec(engines);
+  assert.ok(min, `docs/wiki engines.node is ${engines}, expected >=x.y.z`);
+  const pins = [...read('.github/workflows/wiki.yml').matchAll(/node-version:\s*'([^']*)'/g)];
+  assert.equal(pins.length, 1, 'wiki.yml has one setup-node');
+  // An exact version: a bare '22' let some runners take 22.23.3, below Astro's floor.
+  const pin = /^(\d+)\.(\d+)\.(\d+)$/.exec(pins[0][1]);
+  assert.ok(pin, `wiki.yml node-version '${pins[0][1]}' is not an exact x.y.z`);
+  const num = (/** @type {RegExpExecArray} */ m) => [1, 2, 3].map(i => Number(m[i]));
+  const [a, b] = [num(pin), num(min)];
+  const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  assert.ok(cmp >= 0, `wiki.yml pins Node ${pins[0][1]}, below docs/wiki ${engines}`);
 });

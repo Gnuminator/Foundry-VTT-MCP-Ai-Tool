@@ -5,10 +5,11 @@
  * window class on a fake `ApplicationV2` (escaped HTML, singleton, live refresh,
  * the "Show it now" box read per click, real deps for the names and the confirm).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   HandoutsController,
+  foundryHandoutsDeps,
   openHandoutsWindow,
   resetHandoutsWindowForTests,
   type HandoutsDeps,
@@ -33,15 +34,15 @@ function queued(id: string, over: Record<string, unknown> = {}): Record<string, 
 const plan = {
   planId: 'plan-1',
   summary: 'Reveal page "Page a" to all players',
-  risk: 'destructive',
+  risk: 'write',
   diff: [{ text: 'allowlist the page' }],
 };
 
 function makeDeps(over: Partial<HandoutsDeps> = {}): HandoutsDeps & {
-  request: ReturnType<typeof vi.fn>;
-  confirmReveal: ReturnType<typeof vi.fn>;
-  notifyInfo: ReturnType<typeof vi.fn>;
-  notifyError: ReturnType<typeof vi.fn>;
+  request: Mock;
+  confirmReveal: Mock;
+  notifyInfo: Mock;
+  notifyError: Mock;
 } {
   return {
     request: vi.fn(async (tool: string) => {
@@ -235,6 +236,17 @@ describe('HandoutsController', () => {
     expect(c.view.actionError).toMatch(/could not be shown.*nobody is online/);
   });
 
+  it('Reveal next: says so when the page was revealed but the chat notice was not posted', async () => {
+    const deps = makeDeps();
+    const c = new HandoutsController(deps, () => {});
+    await c.load();
+    deps.request.mockResolvedValueOnce(plan);
+    deps.request.mockResolvedValueOnce({ noticed: { ok: false, error: 'No handler found' } });
+    await c.revealNext();
+    expect(deps.notifyInfo).toHaveBeenCalled();
+    expect(c.view.actionError).toMatch(/chat notice.*not posted.*No handler found/);
+  });
+
   it('Reveal next: does nothing with nothing queued, and ignores a second click while busy', async () => {
     const deps = makeDeps();
     deps.request.mockResolvedValue({ queue: [] });
@@ -266,8 +278,8 @@ describe('the window class on a fake ApplicationV2', () => {
   let world: TestWorld;
   let restore: () => void;
   let rendered: any[];
-  let link: { request: ReturnType<typeof vi.fn> };
-  let confirm: ReturnType<typeof vi.fn>;
+  let link: { request: Mock };
+  let confirm: Mock;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -504,5 +516,27 @@ describe('the window class on a fake ApplicationV2', () => {
     announceAiChangesUpdated();
     await vi.advanceTimersByTimeAsync(500);
     expect(link.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('foundryHandoutsDeps: Foundry without DialogV2', () => {
+  it('warns in plain words and answers no, so nothing is revealed', async () => {
+    const world = createTestWorld({ foundryVersion: '14.368' });
+    const restore = world.install();
+    try {
+      g.foundry.applications = { api: {} };
+      const answer = await foundryHandoutsDeps().confirmReveal(plan as any);
+      expect(answer).toBe(false);
+      expect(world.notifications).toEqual([
+        {
+          level: 'warn',
+          message:
+            'Foundry could not show the confirmation window, so nothing was changed. Reload the page and try again.',
+        },
+      ]);
+    } finally {
+      delete g.foundry.applications;
+      restore();
+    }
   });
 });

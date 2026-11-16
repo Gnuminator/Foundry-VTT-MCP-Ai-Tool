@@ -11,6 +11,13 @@
  * | `FOUNDRY_AI_SPACE_STATUS` | the space check's status file (the Pi writes it)       |
  * | `FOUNDRY_AI_BACKUP_PULLS` | folder with the Pi's record of the PC's last backup copies |
  * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when a kind of copy is older than this; default 3  |
+ * | `DISCORD_SESSION_POST_CHANNEL_ID` | channel for the "session is over" link post; unset = off |
+ * | `DISCORD_GM_BOT_CHANNEL_ID` | #gm-bot: recorder alerts go here (else `GAMENIGHT_WATCH_CHANNEL_ID`, else the voice channel chat) |
+ * | `FOUNDRY_AI_DASHBOARD_URL` | where the bot reads the session state; default `http://127.0.0.1:3100` |
+ * | `FOUNDRY_AI_BOT_STATUS_PORT` | port of the read-only status endpoint the dashboard's health line asks; unset = off |
+ * | `FOUNDRY_AI_BOT_STATUS_HOST` | its listen address; default `127.0.0.1` (the Pi network address to share it, never the internet) |
+ * | `FOUNDRY_AI_PLAYER_PAGE_URL` | the player page link in the post (required for the post; no default) |
+ * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |
@@ -36,12 +43,42 @@ export interface BotConfig {
   backupPullsDir?: string | undefined;
   /** Days before a copy counts as stale; unset or invalid means 3. */
   backupStaleDays?: number | undefined;
+  /** I-111: the channel for the "session is over" post; unset means the post is off. */
+  sessionPostChannelId?: string | undefined;
+  /** Where the bot reads the session state; default `http://127.0.0.1:3100`. */
+  dashboardUrl?: string | undefined;
+  /** Port of the small status endpoint the dashboard's health line reads; unset means it is off. */
+  statusPort?: number | undefined;
+  /** The setting as written, so the bot can warn when it is set but not a usable port. */
+  statusPortRaw?: string | undefined;
+  /** Address the status endpoint listens on; default 127.0.0.1 (set the Pi-network address to share it). */
+  statusHost?: string | undefined;
+  /** The player page link in the post; without it the post stays off (127.0.0.1 is no link for players). */
+  playerPageUrl?: string | undefined;
+  /** The dashboard's player token, when the deployment sets one. */
+  playerToken?: string | undefined;
+  /**
+   * The #gm-bot channel for recorder alerts (silent speaker, stream error, rejoin trouble, restart
+   * after a crash). `DISCORD_GM_BOT_CHANNEL_ID`, else `GAMENIGHT_WATCH_CHANNEL_ID` (the same
+   * channel); unset means alerts go to the voice channel's text chat as before.
+   */
+  gmBotChannelId?: string | undefined;
 }
 
 export interface RehearsalConfig {
   speakerTokens: string[];
   channelId: string;
   dir: string;
+}
+
+/** Where the status endpoint listens unless `FOUNDRY_AI_BOT_STATUS_HOST` says otherwise: this PC only. */
+export const DEFAULT_STATUS_HOST = '127.0.0.1';
+
+/** A usable TCP port, or undefined (the status endpoint stays off). */
+export function parseStatusPort(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : undefined;
 }
 
 export function defaultEnvFile(): string {
@@ -85,6 +122,14 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),
     backupPullsDir: get('FOUNDRY_AI_BACKUP_PULLS'),
     backupStaleDays: parseStaleDays(get('FOUNDRY_AI_BACKUP_STALE_DAYS')),
+    sessionPostChannelId: get('DISCORD_SESSION_POST_CHANNEL_ID'),
+    dashboardUrl: get('FOUNDRY_AI_DASHBOARD_URL'),
+    statusPort: parseStatusPort(get('FOUNDRY_AI_BOT_STATUS_PORT')),
+    statusPortRaw: get('FOUNDRY_AI_BOT_STATUS_PORT'),
+    statusHost: get('FOUNDRY_AI_BOT_STATUS_HOST'),
+    playerPageUrl: get('FOUNDRY_AI_PLAYER_PAGE_URL'),
+    playerToken: get('FOUNDRY_AI_PLAYER_TOKEN'),
+    gmBotChannelId: get('DISCORD_GM_BOT_CHANNEL_ID') ?? get('GAMENIGHT_WATCH_CHANNEL_ID'),
   };
 }
 

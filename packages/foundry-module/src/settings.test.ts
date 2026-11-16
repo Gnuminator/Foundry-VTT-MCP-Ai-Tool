@@ -40,7 +40,7 @@ afterEach(() => {
   restore();
 });
 
-describe('ModuleSettings — access defaults', () => {
+describe('ModuleSettings: access defaults', () => {
   it('allowNonGmAccess is a world setting, default OFF, shown in the config UI', () => {
     const config = registered.get(`${MODULE_ID}.allowNonGmAccess`);
     expect(config).toMatchObject({ scope: 'world', config: true, type: Boolean, default: false });
@@ -51,7 +51,18 @@ describe('ModuleSettings — access defaults', () => {
   });
 });
 
-describe('ModuleSettings — bridge port default', () => {
+describe('ModuleSettings: linkState relay', () => {
+  it('writing linkState calls the linkStateChanged hook in every client', () => {
+    const config = registered.get(`${MODULE_ID}.linkState`);
+    expect(config).toMatchObject({ scope: 'world', config: false });
+    const seen = vi.fn();
+    g.Hooks.on('foundry-mcp-bridge.linkStateChanged', seen);
+    config?.onChange();
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ModuleSettings: bridge port default', () => {
   it('defaults to 31415 without a manifest flag', () => {
     expect(registered.get(`${MODULE_ID}.serverPort`)).toMatchObject({
       scope: 'world',
@@ -77,7 +88,7 @@ describe('ModuleSettings — bridge port default', () => {
   });
 });
 
-describe('ModuleSettings — validateSettings', () => {
+describe('ModuleSettings: validateSettings', () => {
   const valid = {
     serverHost: 'localhost',
     serverPort: 31415,
@@ -202,12 +213,9 @@ describe('ModuleSettings: bridge user (PB-02)', () => {
     expect(config.getHello?.()).toMatchObject({ userId: 'gm', isBridgeUser: true });
   });
 
-  it('keeps the deprecated state settings registered so old worlds load', () => {
+  it('no longer registers the old connection-state settings', () => {
     for (const key of ['lastConnectionState', 'lastActivity', 'lastMCPServerNotification']) {
-      expect(registered.get(`${MODULE_ID}.${key}`)).toMatchObject({
-        scope: 'world',
-        config: false,
-      });
+      expect(registered.has(`${MODULE_ID}.${key}`)).toBe(false);
     }
   });
 });

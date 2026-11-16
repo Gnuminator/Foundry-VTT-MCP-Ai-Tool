@@ -37,8 +37,7 @@ credentials-file: /home/<YOUR_LINUX_USER>/.cloudflared/<TUNNEL_UUID>.json
 # The MCP control channel (31414) and the Foundry WebSocket connector (31415)
 # are intentionally NOT listed — they must stay on loopback or be firewalled;
 # they are NOT fronted by this tunnel.
-# The Anthropic API key lives in the Node process on this host and never transits
-# this tunnel in either direction.
+# The dashboard makes no Anthropic API calls, so no API key lives on this host.
 
 ingress:
   # ── Co-GM dashboard ────────────────────────────────────────────────────────

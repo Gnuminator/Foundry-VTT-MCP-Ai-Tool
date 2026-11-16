@@ -14,6 +14,8 @@ import {
   checkChannel,
   parseArgs,
   safeUrl,
+  envFileList,
+  loadEnvFiles,
 } from './gamenight-watch.mjs';
 
 const GOOD = { ok: true, ms: 100 };
@@ -96,10 +98,10 @@ test('thresholds come from the config', () => {
   assert.deepEqual(run([FAIL, { ok: true, ms: 10 }], cfg).alerts, ['down', 'recovered']);
 });
 
-test('formatAlert names the address and pings the given users', () => {
-  assert.match(
-    formatAlert('down', 'http://pi:30000', FAIL),
-    /does not answer at http:\/\/pi:30000 \(timed out\)/
+test('formatAlert names no address and pings the given users', () => {
+  assert.equal(
+    formatAlert('down', 'http://pi:30000/?token=SECRET', FAIL),
+    'Foundry does not answer (timed out).'
   );
   assert.match(formatAlert('slow', 'u', SLOW), /5000 ms, the limit is 3000 ms/);
   assert.match(formatAlert('recovered', 'u', GOOD), /answers again/);
@@ -211,4 +213,22 @@ test('postToChannel sends the bot header and fails on a bad status without leaki
     })),
     err => /HTTP 403/.test(err.message) && !err.message.includes('SECRET')
   );
+});
+
+test('--env-files takes a comma list, the old --env-file still works, a later file wins', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  assert.deepEqual(envFileList({ 'env-files': 'a.env, b.env' }), ['a.env', 'b.env']);
+  assert.deepEqual(envFileList({ 'env-file': 'old.env' }), ['old.env']);
+  assert.deepEqual(envFileList({ 'env-files': 'new.env', 'env-file': 'old.env' }), ['new.env']);
+  // Only --env-files is split on commas; the old --env-file is one path.
+  assert.deepEqual(envFileList({ 'env-file': 'a,b.env' }), ['a,b.env']);
+  const dir = mkdtempSync(join(tmpdir(), 'gnw-'));
+  writeFileSync(join(dir, 'a.env'), 'X=1\nY=a\n');
+  writeFileSync(join(dir, 'b.env'), 'Y=b\n');
+  assert.deepEqual(loadEnvFiles([join(dir, 'a.env'), join(dir, 'nope.env'), join(dir, 'b.env')]), {
+    X: '1',
+    Y: 'b',
+  });
 });

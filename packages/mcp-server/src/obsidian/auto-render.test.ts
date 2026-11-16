@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import type { VaultStore } from '../vault/store.js';
 
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './auto-render.js';
@@ -25,9 +26,9 @@ function result(worldId: string, extra: Partial<ExportResult> = {}): ExportResul
 
 interface Harness {
   render: ObsidianAutoRender;
-  exportWorld: ReturnType<typeof vi.fn>;
+  exportWorld: Mock;
   calls: ExportArgs[];
-  logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+  logger: { info: Mock; warn: Mock };
 }
 
 function setup(
@@ -39,7 +40,7 @@ function setup(
     calls.push(args);
     return impl ? impl(args) : result(args.worldId);
   });
-  const logger = { info: vi.fn(), warn: vi.fn() };
+  const logger = makeLogger();
   const render = new ObsidianAutoRender({
     store: {} as VaultStore,
     audit: { list: (): Promise<never[]> => Promise.resolve([]) },

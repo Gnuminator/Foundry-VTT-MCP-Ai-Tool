@@ -1,5 +1,5 @@
 /**
- * Standalone-bridge launch configuration — argument parsing and environment
+ * Standalone-bridge launch configuration: argument parsing and environment
  * wiring for `standalone.ts`.
  *
  * This module is deliberately **pure plumbing**: it has no side effects on import
@@ -7,8 +7,9 @@
  * is what lets it be unit-tested without spinning up a real backend, and lets the
  * entrypoint apply CLI → env BEFORE dynamically importing the backend.
  *
- * See DETACH-PLAN.md Phase 6 (A — decouple the bridge from Claude Desktop).
+ * See DETACH-PLAN.md Phase 6 (A, decouple the bridge from Claude Desktop).
  */
+import { DEFAULT_CONTROL_PORT } from '@gnuminator/shared';
 
 export interface StandaloneOptions {
   /** Control-channel bind host (→ MCP_CONTROL_HOST). */
@@ -16,7 +17,7 @@ export interface StandaloneOptions {
   /** Control-channel bind port (→ MCP_CONTROL_PORT). */
   port?: number;
   /**
-   * Serve the control channel only — skip the Foundry connector (WS 31415)
+   * Serve the control channel only, skip the Foundry connector (WS 31415)
    * (→ MCP_FOUNDRY_LINK=off). Used for health checks,
    * tool introspection, and the standalone smoke test on an alternate port.
    */
@@ -25,7 +26,7 @@ export interface StandaloneOptions {
   help: boolean;
 }
 
-export const STANDALONE_HELP = `foundry-mcp-bridge — standalone backend
+export const STANDALONE_HELP = `foundry-mcp-bridge, standalone backend
 
 Runs the MCP control channel + Foundry connector as a long-lived process,
 independent of Claude Desktop. The co-GM dashboard connects to its control
@@ -37,13 +38,13 @@ Usage:
 Options:
   --host <addr>     Control-channel bind host   (default 127.0.0.1, env MCP_CONTROL_HOST)
   --port <n>        Control-channel bind port    (default 31414,     env MCP_CONTROL_PORT)
-  --control-only    Serve the control channel only — do NOT bind the Foundry
+  --control-only    Serve the control channel only; do NOT bind the Foundry
                     connector (31415). (env MCP_FOUNDRY_LINK=off)
   -h, --help        Show this help and exit
 
 Notes:
   - Defaults match the frozen loopback contract, so with no flags this is the same
-    backend Claude Desktop would spawn — just started by you instead.
+    backend Claude Desktop would spawn, just started by you instead.
   - Do NOT bind the live 31414 from a second process while Claude Desktop's backend
     is running; use --port for an alternate instance.
 `;
@@ -114,13 +115,13 @@ export function applyStandaloneEnv(
   if (opts.controlOnly) env.MCP_FOUNDRY_LINK = 'off';
 }
 
-/** Effective control-channel target after env is applied — for banners + readiness ping. */
+/** Effective control-channel target after env is applied, for banners + readiness ping. */
 export function resolveControlTarget(env: NodeJS.ProcessEnv = process.env): {
   host: string;
   port: number;
 } {
   return {
     host: env.MCP_CONTROL_HOST || '127.0.0.1',
-    port: Number.parseInt(env.MCP_CONTROL_PORT || '31414', 10),
+    port: Number.parseInt(env.MCP_CONTROL_PORT || String(DEFAULT_CONTROL_PORT), 10),
   };
 }

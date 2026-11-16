@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   archiveDir,
   compareVersions,
+  dropPins,
   isSafeId,
   planUpdates,
   readManifest,
@@ -206,6 +207,10 @@ test('zipEntryNames reads a real zip and unsafe entry names are refused before u
   shortDir.writeUInt16LE(9, shortDir.length - 22 + 10);
   writeFileSync(path.join(d, 'short.zip'), shortDir);
   assert.throws(() => zipEntryNames(path.join(d, 'short.zip')), /cut short/);
+  const lowCount = Buffer.from(whole); // fewer entries stated than the directory holds: names would hide
+  lowCount.writeUInt16LE(2, lowCount.length - 22 + 10);
+  writeFileSync(path.join(d, 'low.zip'), lowCount);
+  assert.throws(() => zipEntryNames(path.join(d, 'low.zip')), /does not match its stated size/);
   rmSync(d, { recursive: true, force: true });
 });
 
@@ -362,4 +367,21 @@ test('the all-modules profile is valid and lists exactly the Strahd modules', ()
   const want = strahd.modules.map(m => m.id).filter(id => id !== 'foundry-mcp-bridge').sort();
   assert.deepEqual([...profile.modules].sort(), want);
   assert.deepEqual(profile.knownAlso, ['srd']);
+});
+
+test('NotYourTurn blocks players and trusted players, and only warns for GM and Assistant', () => {
+  const strahd = JSON.parse(readFileSync(path.join(here, '..', '..', 'modules', 'strahd-modules.json'), 'utf8'));
+  const nyt = strahd.modules.find(m => m.id === 'NotYourTurn');
+  // Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. The AI Tool acts as a GM,
+  // so a blocking GM value would stop AI-planned token moves.
+  assert.deepEqual(nyt.worldSettings, { BlockPlayer: 3, BlockTrusted: 3, BlockAssistant: 1, BlockGM: 1 });
+});
+
+test('dropPins removes only the pins of dropped modules and reports them', () => {
+  const pin = { version: '1.0.0' };
+  const pinned = { updated: '', foundry: null, systems: { dnd5e: pin }, modules: { keep: pin, gone: pin } };
+  assert.deepEqual(dropPins(pinned, ['gone', 'never-pinned', 'dnd5e']), ['gone']);
+  assert.deepEqual(Object.keys(pinned.modules), ['keep']);
+  assert.ok(pinned.systems.dnd5e);
+  assert.deepEqual(dropPins(pinned, ['gone']), []);
 });

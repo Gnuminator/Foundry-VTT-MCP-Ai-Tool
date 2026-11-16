@@ -5,9 +5,11 @@
  * `discord-bot rehearse <folder>` tests the recorder with speaker bots (see `rehearse/rehearse.ts`).
  */
 
+import { createAlertLimit } from './alert-limit.js';
 import { RecorderBot } from './bot.js';
 import { loadConfig, loadRehearsalConfig } from './config.js';
 import { convertSession } from './convert/convert.js';
+import { bi } from './i18n.js';
 import * as log from './log.js';
 import { rehearse } from './rehearse/rehearse.js';
 
@@ -43,6 +45,35 @@ async function main(argv: string[]): Promise<number> {
         }
       );
     };
+    // A stray rejection should not take a running recording down: log it, tell the GM, carry on.
+    // At most one post every 5 minutes: a rejection in a loop must not flood #gm-bot (the log has all).
+    const allowRejectionAlert = createAlertLimit(5 * 60_000);
+    process.on('unhandledRejection', (reason: unknown) => {
+      log.error('Unhandled rejection', reason);
+      if (!allowRejectionAlert(Date.now())) return;
+      const why = reason instanceof Error ? reason.message : String(reason);
+      void bot.alertGm(
+        bi(
+          `Recorder bot: en uventet fejl blev fanget, og botten kører videre (${why}).`,
+          `Recorder bot: an unexpected error was caught and the bot keeps running (${why}).`
+        )
+      );
+    });
+    // An uncaught exception leaves the process in an unknown state: tell the GM (at most 3 s), then
+    // exit so the service manager restarts it; the run marker makes the restart announce itself.
+    process.on('uncaughtException', (err: Error) => {
+      log.error('Uncaught exception, exiting', err);
+      const done = (): never => process.exit(1);
+      setTimeout(done, 3000).unref();
+      bot
+        .alertGm(
+          bi(
+            `Recorder bot: gik ned (${err.message}). Den starter selv igen.`,
+            `Recorder bot: crashed (${err.message}). It will restart on its own.`
+          )
+        )
+        .then(done, done);
+    });
     process.on('SIGINT', close);
     process.on('SIGTERM', close);
     await bot.run();

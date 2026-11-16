@@ -8,7 +8,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { parseAllowedHosts } from './host-allowlist.js';
@@ -32,13 +31,6 @@ const fakeBridge = {
       (name === 'get-world-info' ? { id: 'prefs-world', title: 'Prefs world' } : {}) as T
     ),
 };
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 interface Harness {
   port: number;
@@ -65,7 +57,6 @@ async function start(): Promise<Harness> {
     config: testConfig,
     logger: new Logger('error', 'prefs-test'),
     client: fakeBridge,
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -120,9 +111,10 @@ async function setPrefs(
 }
 
 /**
- * The last event each stream writes on connect (app.ts writes the whole snapshot in one handler).
+ * The last event each stream writes on connect (routes/api-stream.ts for the GM stream and
+ * live-state.ts `attachPlayerStream` for the player stream write the whole snapshot in one handler).
  * Once it is in the text, everything the stream says on connect has arrived, so a test needs no
- * fixed wait that a loaded CPU can outrun. app.ts must keep these events last (it says so there);
+ * fixed wait that a loaded CPU can outrun. Those handlers must keep these events last (they say so);
  * stream-combat.app.test.ts holds a copy of this table.
  */
 const SNAPSHOT_END: Record<string, string> = {
@@ -181,9 +173,9 @@ describe('set-prefs on /api/control', () => {
     const player = listen(h, '/api/player/stream', PLAYER_TOKEN);
     await Promise.all([gm.snapshot(), player.snapshot()]);
 
-    const answer = await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle', combatButtons: true });
+    const answer = await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle' });
     expect(answer.status).toBe(200);
-    expect(answer.json).toMatchObject({ duringLayout: 'toggle', combatButtons: true });
+    expect(answer.json).toMatchObject({ duringLayout: 'toggle' });
     // The prefs event goes out with the answer. Waiting for the toggled value on the GM stream is the
     // assertion that counts (the connect snapshot already holds a `prefs` event, so that line alone
     // proves nothing). The player stream is another hub: a leak would be a write in the same handler,
@@ -209,9 +201,9 @@ describe('prefs on /api/state', () => {
     const h = await start();
     expect((await getState(h, GM_TOKEN)).prefs).toBeNull();
     await loadWorld(h);
-    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: false });
-    await setPrefs(h, GM_TOKEN, { combatButtons: true });
-    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: true });
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ duringLayout: 'auto' });
+    await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle' });
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ duringLayout: 'toggle' });
   });
 
   it('never reaches the player role', async () => {

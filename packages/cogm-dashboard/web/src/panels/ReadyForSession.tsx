@@ -7,6 +7,7 @@ import { useEffect, useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
 import { api, errorText } from '../lib/api';
+import { failCode } from '../lib/guarded';
 import { usePlaySessionMark } from '../lib/playSessionMark';
 import { usePlaySession } from '../lib/session';
 import {
@@ -52,7 +53,9 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   const state = read.data?.switches ?? null;
   const list = state?.switches ?? [];
   const gmActions = settings?.gmActionsEnabled ?? read.data?.gmActionsEnabled ?? false;
-  const readError = read.error ? errorText(read.error) : (read.data?.error ?? null);
+  // The server's own sentence for a failed read already says what could not be read.
+  const readError = read.error ? errorText(read.error) : null;
+  const readerSaid = read.data?.error ?? null;
 
   // Set before the first re-render disables the buttons, so a fast double click sends once.
   const sending = useRef(false);
@@ -66,7 +69,9 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
     onError: (err, action) => {
       toast(
         `✗ ${action === 'ready' ? 'Turn on for tonight' : 'Turning off'}: ${errorText(err)}`,
-        'err'
+        'err',
+        undefined,
+        failCode(err)
       );
       // A failed End may still have turned GM Actions off (the server does that first), and the
       // module may have changed some switches: read them again.
@@ -96,6 +101,8 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   let note = DEFAULT_NOTE;
   if (readError !== null) {
     note = `Could not read the switches: ${readError}`;
+  } else if (readerSaid !== null) {
+    note = readerSaid;
   } else if (allOn && state?.ready?.at) {
     const time = new Date(state.ready.at).toLocaleTimeString([], {
       hour: '2-digit',
@@ -132,10 +139,11 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
             variant="quiet"
             id="btn-ready-log"
             data-track="dash.ready.start-log"
-            disabled={startLog.pending}
+            busy={startLog.pending}
+            busyLabel="Starting..."
             onClick={() => startLog.mark('start')}
           >
-            Start the session log
+            Start the session log and GM Actions
           </Button>
         )}
       </div>

@@ -1,6 +1,6 @@
 ---
 name: foundry-ai-tool
-description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (tool runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist, the M2 player-view checks and the Obsidian O4 mirror checks (notes, links, /open route). Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
+description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (Tool Runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist, the M2 player-view checks and the Obsidian O4 mirror checks (notes, links, /open route). Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
 ---
 
 # Foundry AI Tool: tools, dashboard, smoke test
@@ -11,7 +11,7 @@ screens are in `foundry-core-ui`. Never the live bridge (31414-31416), never `mc
 
 ## Calling tools
 
-Through the test dashboard's REST API. In local mode (no `GM_DASHBOARD_TOKEN`) every caller is GM.
+Through the test dashboard's REST API. In local mode (neither `GM_DASHBOARD_TOKEN` nor `GM_EMAILS` set) every caller is GM.
 From the PowerShell tool (curl.exe quoting breaks JSON there):
 
 ```
@@ -28,8 +28,9 @@ The answer is `{ok, name, mutates, result}`; a tool error is HTTP 422 `{ok:false
 - Writes need `"confirm": true` in the body, destructive ones also `"confirmDestructive": true`
   (412 `confirm-required` / `confirm-destructive-required` otherwise). For `apply-planned-change`
   and `undo-change` the flags come from the body only, never from `args`.
-- With the player/GM split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard), send the GM
-  token as header `X-CoGM-Token`; without it `/api/tool` answers 403 `gm-required`. Don't put the
+- With the player/GM split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard; `GM_EMAILS`
+  turns it on too, but then the GM proves identity by Cloudflare Access email, not testable here),
+  send the GM token as header `X-CoGM-Token`; without it `/api/tool` answers 403 `gm-required`. Don't put the
   token in a URL; to use the dashboard UI in the browser pane, run it in local mode.
 
 ## Guarded writes
@@ -49,15 +50,21 @@ Features plan with read-only `plan-*` tools; one generic `apply-planned-change` 
 
 ## Dashboard (http://localhost:3100)
 
-- Header: GM Actions switch, **Tools** (tool runner), **Tarokka** drawer (GM only).
-- Tool runner: search, then a form built from the tool's schema. Parameters that name something
-  have **Pick…**: a filterable list of what exists now (tokens of the current scene with
+- Header: GM Actions switch; **Advanced** menu with **Tools** (Tool Runner), **Tarokka** drawer
+  (GM only), Handouts, Prep, Party, Module diagnostics and Player links. The Tool Runner's chunk
+  loads lazily: "Loading..." for a few seconds the first time. Turning GM Actions on removes the
+  yellow banner at the top of the runner and moves the search box up: take a new screenshot
+  before clicking.
+- Tool Runner: search, then a form built from the tool's schema. Parameters that name something
+  have **Pick from list**: a filterable list of what exists now (tokens of the current scene with
   disposition, hidden flag and position; actors; journals; compendium entries by search; plans;
   changes; ...). Multi-select for list parameters; typing by hand still works. A red
   "same name ×N" means the tool matches by name and several share it. Candidates come from the
   read tool `list-ref-choices` (`{kind, filter?, parent?, query?}`), usable through the API too.
-- Writes open a confirm modal (with the plan's diff for `apply-planned-change`); destructive ones
-  need the "I understand" checkbox. The modal fades in: screenshot after ~1 s.
+- An ordinary write (plan risk `write`, e.g. Tarokka New reading, Start combat) applies on the
+  click, with a toast and Undo; everything else opens a confirm modal (with the plan's diff);
+  destructive ones need the "I understand" checkbox (End combat, reveals). The modal fades in:
+  screenshot after ~1 s.
 - Recent Changes pane: applied changes with **Undo**. Live Feed: session events and `gm-change`
   entries. Module Diagnostics: the GM client's captured console errors (kept in the browser's
   localStorage across reloads, so older entries from other sessions or users can show up).
@@ -75,18 +82,19 @@ backend's copy of the session events, written only when there are events) and
 
 ## Smoke checklist (M0 + M1)
 
-Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evidence.
+Last full pass: 2026-09-28, all green (see `docs/history/PROGRESS.md`). For each item record evidence.
 
-1. Bridge connects (notification "MCP Bridge connected successfully"); `get-world-info` returns
+1. Bridge connects (notification "AI Tool connected"); `get-world-info` returns
    `ai-tool-test`.
 2. Query lockdown: join as `Player` in a second tab on `http://127.0.0.1:30001` (separate cookies;
    open it with `tabs_create` + `navigate`, not `preview_start`). In its console,
    `await game.users.activeGM.query('foundry-mcp-bridge.getWorldInfo', {})` fails "not
-   registered"; `foundry-mcp-bridge.gm.tarokkaReading` fails "helper queries are GM-only".
+   registered"; `foundry-mcp-bridge.gm.openDocument` fails "helper queries are GM-only".
 3. Guarded write: `plan-tarokka-import {"source":"builtin-roll"}`, `get-planned-change`, apply
    (refused without confirm; flags in `args` do not count), `list-recent-changes`, `undo-change`
    (destructive class). After undoing the first import, `get-tarokka-reading` says no reading.
-4. Same through the dashboard UI: Tarokka drawer, New reading, confirm modal, Recent Changes, undo.
+4. Same through the dashboard UI: Tarokka drawer, New reading (applies on the click, toast with
+   Undo), Reveal with its destructive confirm modal, Recent Changes, undo.
 5. Switch off: apply refused for a links plan, a reveal plan and a Foundry-only re-reveal; undo
    still works. Switch back on.
 6. Conflict: plan, change the same target (vault: apply a second plan on the same path; Foundry:
@@ -149,11 +157,6 @@ Checks:
    handler; as `Player` (second origin), the journal is listed and the page opens. Hide (also
    destructive): ownership back, the entry gone from `gm\reveals.json`, the page gone in both
    places. `undo-change` works on every one of these.
-5. Whisper guard: with a reading in the vault (`plan-tarokka-import` builtin-roll, Tarokka switch
-   on), `POST /api/post-chat` with a card name in a sentence (any case) answers 409
-   `secret-terms`; with `allowSecrets: true` it posts; plain text posts; without the GM token 403.
-   The GM page's confirm prompt is only on AI commentary cards (needs `ANTHROPIC_API_KEY`), and
-   `app.js` is an ES module, so its functions cannot be called from the console.
 
 Gotchas: Foundry's page cannot `fetch` the dashboard (no CORS), so read player state from
 PowerShell. Foundry itself gives players every non-hidden combatant's name; `/player` is stricter.
@@ -175,7 +178,7 @@ The test bridge renders into the throwaway vault `C:\FoundryTest\obsidian` (`Obs
 3. Edit a generated note by hand, then run
    `FOUNDRY_AI_DATA_DIR=C:\FoundryTest\vault node packages/mcp-server/dist/obsidian-cli.js export ai-tool-test --vault C:\FoundryTest\obsidian`:
    the note is untouched and listed under "Skipped" in `AI Tool\_status.md`.
-4. With the split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard): `/api/state` and
+4. With the split on (`GM_DASHBOARD_TOKEN` or `GM_EMAILS` set when starting the dashboard): `/api/state` and
    `/api/stream` without the token carry no `obsidian` data and no world id; `mark-play-session`
    answers 403.
 5. No generated file contains a literal `<%` (Templater tags from game text are written `&lt;%`).
@@ -222,8 +225,9 @@ pass:
   the 10-minute reconcile.
 - From PowerShell, call the dashboard at `127.0.0.1`, not `localhost`: `localhost` tries IPv6 first
   and adds about 2 s per request, so 11 opens never fit in the rate limit's 10 s.
-- The test bridge logs nothing to a file unless `LOG_FILE_PATH` is set; use `get-obsidian-mirror`
-  (`status.lastError`, `skipped`, `errors`) and `Foundry\_status.md` instead.
+- The test bridge logs to `%TEMP%\foundry-mcp-server\mcp-server.log` unless `LOG_FILE_PATH` names
+  another file (the wrapper writes `wrapper.log` in the same folder); `get-obsidian-mirror`
+  (`status.lastError`, `skipped`, `errors`) and `Foundry\_status.md` are quicker for the mirror.
 - Hand-made test data needs its own cleanup list (ids in a scratchpad file); a PC created by script
   has `hp_max: 0` unless HP is set.
 
@@ -243,7 +247,7 @@ mirror settings `enabled: true`. `start.ps1` sets `FOUNDRY_AI_OPEN_BASE=http://l
    scene without `navName` has the "Players see the true name" warning.
 4. Opted-in journal: page notes in `Journals\<journal>\`; `@UUID` links became relative links to
    the notes, a compendium link points at `/open?uuid=`, `section.secret` is a collapsed
-   `[!secret]-` callout, `[[/r ...]]` is inline code, `javascript:` links are plain text, no `<%`.
+   `[!secret]-` callout, `[[/r 1d20]]` is the words Foundry shows ("1d20"), `javascript:` links are plain text, no `<%`.
    A journal that is not opted in has an index note only: its page text appears nowhere in the vault.
 5. Rename an actor in Foundry: same file, new H1, `name` and `aliases`. Delete a journal: its
    notes move to the vault `.trash\`. Edit a mirror note by hand: it is skipped and listed in

@@ -13,18 +13,15 @@
 // where every world of the run is marked), no password in the output,
 // and the old campaign default (the kit copy reset and marked, no extra GM), the kit-copy rule (an installed
 // KIT_WORLD that is not a kit copy of WORLD is refused unless REPLACE_KIT=1; a second world's own kit copy resets twice)
-// and suffix-only module versions (-aitool.n compared as a number), and how options.json is written (by the foundry
+// a Plan B push-back that names pi-modules (the Pi's module copy stays), and suffix-only module versions (-aitool.n compared as a number), and how options.json is written (by the foundry
 // user through options.json.foundry-tmp and a rename: mode and owner stay, a link at the temp name is never followed)
 // with the up-front refusals for a kit session that is up, a Config folder the foundry user cannot write, and no Node. Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { before, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const saved = process.env.PI_STAGE11_OUTPUT;
 const containerReason = saved
@@ -34,27 +31,10 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
-// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
-// A few minutes under QEMU emulation on a PC (apt is the slow part), less on an ARM runner.
+// A few minutes under QEMU emulation on a PC (every node start is slow), less on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/stage11-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('stage11-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 
@@ -81,6 +61,9 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           exit: block.match(/^--- exit (\d+)$/m)?.[1] ?? '?',
           calls: part('calls'),
           provision: part('provision'),
+          switches: part('switches'),
+          prevSettings: part('prev settings'),
+          driverLeft: part('driver left'),
           world: part('options.json'),
           optstate: part('options state'),
           victim: part('victim'),
@@ -89,11 +72,15 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           first: part('first run'),
           after: part('env after'),
           pending: part('pending'),
+          switchesPending: part('switches pending'),
+          firstSwitchesPending: part('first run switches pending'),
           sentinels: part('sentinels'),
           kitof: part('kitof'),
           worlds: part('worlds'),
           modules: part('modules'),
           leak: part('leak'),
+          log: part('log'),
+          logMode: part('log mode'),
         });
       }
     },
@@ -136,6 +123,16 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /world frostmaiden-training installed/);
     assert.doesNotMatch(r.output, /KEPT/);
+    // The run is logged like stages 14 and 19: the output names the log, and the log holds the lines with a time.
+    assert.match(
+      r.output,
+      /^ {4}ok: this run is logged in \/var\/lib\/foundry-import\/world-run-\d{8}-\d{6}\.log$/m
+    );
+    assert.match(r.log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d {5}ok: this run is logged in /m);
+    assert.match(r.log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ==> summary$/m);
+    assert.match(r.log, / {4}Foundry launches: curse-of-strahd$/m);
+    assert.equal(r.logMode, '600 root', 'the log is root only');
+    assert.equal(r.leak, 'no', 'no password reaches the log');
     const files = envFiles(r.after);
     const frost = files['world-frostmaiden-training.env'];
     assert.ok(frost, r.after);
@@ -380,6 +377,15 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.leak, 'no');
   });
 
+  test('pi-modules-pushback: a Plan B push-back keeps the pi-modules line and leaves the Pi copy of the module alone', () => {
+    const r = run('pi-modules-pushback');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /a Plan B push-back of frostmaiden-training/);
+    assert.match(r.output, /modules already on the Pi, left as they are: aitool-content/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+    assert.equal(r.leak, 'no');
+  });
+
   test('pi-modules-newer: a Pi copy newer than the PC version the world was checked against is fine', () => {
     const r = run('pi-modules-newer');
     assert.equal(r.exit, '0', r.output);
@@ -501,6 +507,8 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(stops(r), []);
     assert.ok(!r.worlds.includes('frostmaiden-training'), 'the world must not be installed');
+    assert.equal(r.pending, '', 'no provisioning marker may be written');
+    assert.equal(r.after, r.before, 'the env files must not change');
   });
 
   test('old-driver-env: an env file that already names an extra GM needs the new driver too', () => {
@@ -509,6 +517,8 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(stops(r), []);
     assert.ok(!r.worlds.includes('frostmaiden-training'), 'the world must not be installed');
+    assert.equal(r.pending, '', 'no provisioning marker may be written');
+    assert.equal(r.after, r.before, 'the env file that names the extra GM must not change');
   });
 
   test('old-driver-plain: the old driver is fine when no extra GM is involved', () => {
@@ -659,5 +669,137 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     );
     assert.equal(r.world, 'curse-of-strahd');
     assert.equal(r.leak, 'no');
+  });
+
+  // The fake world-switches.mjs records the world it was given and the world options.json launches at that moment.
+  const SW = world =>
+    `SWITCHES world=${world} launches=${world} gm=Gamemaster pw=true url=http://127.0.0.1:30000`;
+
+  test('world switches: a world the run installs gets them while Foundry runs it, the kit world too', () => {
+    const t = run('training');
+    assert.equal(t.exit, '0', t.output);
+    assert.equal(t.switches, SW('frostmaiden-training'));
+    assert.match(t.output, /world switches in frostmaiden-training/);
+    assert.match(t.output, /frostmaiden-training: world switches set and read back/);
+    assert.match(t.output, /world switches set and verified in: frostmaiden-training/);
+    assert.equal(t.leak, 'no');
+    const c = run('campaign-default');
+    assert.deepEqual(lines(c.switches), [SW('strahd-kit'), SW('curse-of-strahd')]);
+    assert.equal(c.prevSettings, '', 'an installed world has its old copy in prev already');
+  });
+
+  test('world switches: a kept world is left alone unless WORLD_SWITCHES=1', () => {
+    const rerun = run('training-rerun');
+    // /tmp/switches keeps the first run's line; the rerun keeps the world and adds none.
+    assert.equal(rerun.switches, SW('frostmaiden-training'), 'the rerun adds no switches');
+    assert.match(rerun.output, /world switches: not touched \(WORLD_SWITCHES=auto\)/);
+    const auto = run('switches-kept-auto');
+    assert.equal(auto.exit, '0', auto.output);
+    assert.equal(auto.switches, '');
+    const kept = run('switches-kept');
+    assert.equal(kept.exit, '0', kept.output);
+    assert.equal(kept.switches, SW('curse-of-strahd'));
+    assert.match(kept.output, /the settings of curse-of-strahd before the world switches/);
+    assert.equal(kept.prevSettings, 'prev/worlds/curse-of-strahd/settings');
+    assert.ok(sentinel(kept, 'curse-of-strahd'), 'the kept world is not replaced');
+  });
+
+  test('world switches: WORLD_SWITCHES=0 sets none and needs no driver', () => {
+    const off = run('switches-off');
+    assert.equal(off.exit, '0', off.output);
+    assert.equal(off.switches, '');
+    assert.match(off.output, /world switches: not touched \(WORLD_SWITCHES=0\)/);
+    const nodriver = run('switches-no-driver-off');
+    assert.equal(nodriver.exit, '0', nodriver.output);
+    assert.equal(nodriver.switches, '');
+  });
+
+  test('world switches: a driver from /root is installed and the upload removed', () => {
+    const r = run('switches-upload');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /installed .*gm-browser\/world-switches\.mjs/);
+    assert.equal(r.switches, SW('frostmaiden-training'));
+    assert.equal(r.driverLeft.trim(), '1', 'one copy: installed, none left in /root');
+  });
+
+  test('world switches: no driver is refused before anything stops; a bad WORLD_SWITCHES too', () => {
+    const missing = run('switches-no-driver');
+    assert.equal(missing.exit, '1', missing.output);
+    assert.match(missing.output, /no \/root\/world-switches\.mjs: scp .* Nothing was changed/);
+    assert.equal(missing.calls, '', 'nothing may stop or start');
+    assert.equal(missing.switches, '');
+    // A kept world under auto gets no switches, so it needs no driver (the push-back command has no scp either).
+    const keptAuto = run('switches-kept-no-driver');
+    assert.equal(keptAuto.exit, '0', keptAuto.output);
+    assert.equal(keptAuto.switches, '');
+    const kept1 = run('switches-kept-1-no-driver');
+    assert.equal(kept1.exit, '1', kept1.output);
+    assert.match(kept1.output, /no \/root\/world-switches\.mjs: scp .* Nothing was changed/);
+    assert.equal(kept1.calls, '', 'nothing may stop or start');
+    const bad = run('switches-bad-value');
+    assert.equal(bad.exit, '1', bad.output);
+    assert.match(bad.output, /WORLD_SWITCHES must be auto, 1 or 0/);
+    assert.equal(bad.calls, '', 'nothing may stop or start');
+  });
+
+  test('world switches: a failing driver stops the run and says how to go on', () => {
+    const r = run('switches-fails');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /the world switches of frostmaiden-training failed or did not verify/);
+    assert.match(r.output, /run the stage again without REPLACE_WORLD/);
+    assert.doesNotMatch(r.output, /Run the same command again/);
+    assert.match(r.switches, /FAILED$/);
+    assert.equal(r.switchesPending, 'world-frostmaiden-training.switches-pending');
+    assert.equal(r.world, 'curse-of-strahd', 'options.json is put back');
+    assert.equal(r.leak, 'no');
+  });
+
+  test('world switches: after a failure a plain rerun does them again for the kept world and clears the marker', () => {
+    const r = run('switches-fails-rerun');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /KEPT: the campaign world frostmaiden-training already exists/);
+    assert.deepEqual(lines(r.switches), [
+      `${SW('frostmaiden-training')} FAILED`,
+      SW('frostmaiden-training'),
+    ]);
+    assert.equal(r.switchesPending, '', 'the marker is gone once the switches are set');
+  });
+
+  test('world switches: a push-back that replaces the world clears the owed-switches marker, and no switches run', () => {
+    const r = run('switches-stale-pushback');
+    assert.equal(r.firstSwitchesPending, 'world-frostmaiden-training.switches-pending', 'the failed first run owed them');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /a Plan B push-back of frostmaiden-training/);
+    assert.match(r.output, /old owed-switches marker is cleared/);
+    assert.equal(r.switchesPending, '', 'the stale marker is gone');
+    assert.deepEqual(lines(r.switches), [`${SW('frostmaiden-training')} FAILED`], 'the push-back runs no driver');
+  });
+
+  test('world switches: WORLD_SWITCHES=0 on the kept world clears the owed-switches marker', () => {
+    const r = run('switches-stale-off');
+    assert.equal(r.firstSwitchesPending, 'world-frostmaiden-training.switches-pending');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /KEPT: the campaign world frostmaiden-training already exists/);
+    assert.match(r.output, /old owed-switches marker is cleared/);
+    assert.equal(r.switchesPending, '');
+    assert.deepEqual(lines(r.switches), [`${SW('frostmaiden-training')} FAILED`]);
+  });
+
+  test('world switches: WORLD_SWITCHES=1 with a push-back is refused before anything changes', () => {
+    const r = run('switches-1-pushback');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/);
+    assert.doesNotMatch(r.output, /stopping the Assistant GM browser and Foundry/, 'refused before the stop');
+    assert.deepEqual(lines(r.switches), [SW('frostmaiden-training')], 'only the first run set switches');
+  });
+
+  test('world switches: a failing kit world says to run the same command, never WORLD_SWITCHES=1', () => {
+    const r = run('switches-fails-kit');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /the world switches of the kit world strahd-kit failed/);
+    assert.match(r.output, /Run the same command again/);
+    assert.doesNotMatch(r.output, /run the stage again with WORLD_SWITCHES=1/);
+    assert.equal(r.switchesPending, 'world-strahd-kit.switches-pending');
+    assert.ok(sentinel(r, 'curse-of-strahd'), 'the kept campaign is untouched');
   });
 });

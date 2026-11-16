@@ -45,7 +45,12 @@ import {
   ADVENTURE_HUB_TYPE,
   HUB_SECTION_LIMIT,
   HUB_SECTIONS,
+  LOOSE_NOTES_PATH,
+  LOOSE_NOTES_TYPE,
+  LOOSE_SECTIONS,
   type AdventureHub,
+  type HubMember,
+  type LooseSectionType,
 } from './adventure-hubs.js';
 import { htmlToMarkdown, markdownPageText } from './html-to-md.js';
 import {
@@ -1105,6 +1110,82 @@ export function renderAdventureHub(
     ].join('\n')
   );
   return { path: hub.path, text };
+}
+
+/**
+ * `AI Tool/Foundry/Without an adventure.md`: links the journals, scenes and NPCs that no adventure
+ * hub lists, so none of them is loose in the graph (I-120 lane D, audit 2026-10-29). Not a hub:
+ * its own type, so it gets no graph colour and is not an entry in Home's Adventures table.
+ */
+export function renderLooseNotes(
+  worldId: string,
+  members: Record<LooseSectionType, HubMember[]>
+): RenderedNote {
+  assertWorldId(worldId);
+  const props: Props = {
+    type: LOOSE_NOTES_TYPE,
+    fvtt_world: worldId,
+    name: 'Without an adventure',
+    aliases: ['Without an adventure'],
+    schema: 1,
+    tags: [`campaign/${worldId}`, LOOSE_NOTES_TYPE],
+    generated_by: GENERATED_BY,
+    generated_hash: '',
+  };
+  const counts = LOOSE_SECTIONS.map(s => [members[s.type].length, s.count] as const)
+    .filter(([n]) => n > 0)
+    .map(([n, [one, many]]) => `${n} ${n === 1 ? one : many}`)
+    .join(', ');
+  const lines: string[] = [
+    `${counts}.`,
+    '',
+    `Part of ${noteLink(LOOSE_NOTES_PATH, CAMPAIGN_HOME_PATH, 'the campaign home')}.`,
+    '',
+  ];
+  for (const section of LOOSE_SECTIONS) {
+    const list = members[section.type];
+    if (list.length === 0) continue;
+    lines.push(`## ${section.heading}`, '');
+    let subfolder: string | null = null;
+    for (const member of list.slice(0, HUB_SECTION_LIMIT)) {
+      if (member.subfolder !== subfolder) {
+        if (member.subfolder) {
+          if (subfolder !== null) lines.push('');
+          lines.push(
+            `**${escapeMd(member.subfolder.split('/').join(' / '), NAME_CHARS * 2)}**`,
+            ''
+          );
+        }
+        subfolder = member.subfolder;
+      }
+      lines.push(`- ${noteLink(LOOSE_NOTES_PATH, member.path, member.name)}`);
+    }
+    if (list.length > HUB_SECTION_LIMIT)
+      lines.push(`- and ${list.length - HUB_SECTION_LIMIT} more`);
+    lines.push('');
+  }
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  const text = withGeneratedHash(
+    [
+      frontmatter(props),
+      '# Without an adventure',
+      '',
+      '> [!info] Notes without an adventure',
+      '> Journals, scenes and NPCs that sit in no adventure folder in Foundry are linked here, so they are not loose in the graph. The AI Tool rewrites this note; if you edit it here, the tool stops updating it.',
+      '',
+      ...lines,
+      '',
+    ].join('\n')
+  );
+  return { path: LOOSE_NOTES_PATH, text };
+}
+
+/** Whether a note's text is the "Without an adventure" note we wrote (its type and marker). */
+export function isLooseNotesText(text: string): boolean {
+  return (
+    new RegExp(`^type: "?${LOOSE_NOTES_TYPE}"?$`, 'm').test(text) &&
+    new RegExp(`^generated_by: "?${GENERATED_BY}"?$`, 'm').test(text)
+  );
 }
 
 /** Whether a note's text is an adventure hub we wrote (its type and marker), from its head. */

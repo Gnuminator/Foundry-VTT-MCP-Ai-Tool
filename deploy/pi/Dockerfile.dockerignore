@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+# A host build leaves tsconfig.tsbuildinfo next to its dist; with dist excluded, tsc (composite) would call the
+# project up to date and emit nothing, and the next package fails with TS2307 (Pi, 2026-11-15).
+**/*.tsbuildinfo
+.claude
+!.claude/skills/foundry-core-ui/reference
+*.log
+.env

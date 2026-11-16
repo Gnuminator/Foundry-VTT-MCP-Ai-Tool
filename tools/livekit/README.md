@@ -32,7 +32,7 @@ Pinned versions (checked 2026-09-30, all have amd64 and arm64 images):
 | `redis`                         | `7-alpine`                                                                   |
 | `caddy` (optional local TLS)    | `2.11.4-alpine`                                                              |
 | `livekit-server-sdk` (recorder) | `2.19.1`                                                                     |
-| Recorder runtime                | Node 22 (`node:22-alpine`)                                                   |
+| Recorder runtime                | Node 24 (`node:24-alpine`)                                                   |
 | Foundry module                  | LiveKit AVClient (`bekriebel/fvtt-module-avclient-livekit`), `0.6.6` to test |
 
 ## Local proof of concept (PC, Docker Desktop)
@@ -48,8 +48,8 @@ pwsh tools/livekit/scripts/livekit-poc.ps1 logs recorder
 pwsh tools/livekit/scripts/livekit-poc.ps1 down
 ```
 
-The script refuses to run if `.env` points a host port at 30000, 30001, 3100, 31414 to 31416 or
-31514 to 31516. Ports used: 7880 (signalling, bound to 127.0.0.1), 7881 (TCP fallback), 7882/udp
+The script refuses to run if `.env` points a host port at a Foundry or bridge port: the list in
+`shared/ports.json` (30000 to 30003, 3000 and 3100 to 3102, 31414 to 31416, 31514 to 31516, 31524, 31525, 31534, 31535). Ports used: 7880 (signalling, bound to 127.0.0.1), 7881 (TCP fallback), 7882/udp
 (media), optional 7443 (TLS).
 
 `test` joins the room `poc-room` from the `livekit/livekit-cli` container, publishes a generated tone

@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 
-import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server';
+import {
+  type CallToolResult,
+  type ListToolsResult,
+  ProtocolError,
+  ProtocolErrorCode,
+  Server,
+} from '@modelcontextprotocol/server';
 
 import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
 
 import { config } from './config.js';
 
 import { LIST_CACHE_HINTS } from './list-cache-hints.js';
+
+import { rollLogIfLarge } from './log-roll.js';
 
 import {
   BACKEND_LOCK_HELD_EXIT_CODE,
@@ -20,6 +28,8 @@ import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.j
 import { ToolCallLog, runLoggedCall } from './tool-call-log.js';
 
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
+
+import { BUILD_ID } from './build-id.js';
 
 import {
   TOOL_SETS_ENV,
@@ -37,7 +47,7 @@ import {
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
-import { stripToolRefs } from '@gnuminator/shared';
+import { TOOL_VERSION, stripToolRefs } from '@gnuminator/shared';
 
 import { spawn, ChildProcess } from 'child_process';
 
@@ -86,6 +96,9 @@ class BackendClient {
 
       const line = `[${new Date().toISOString()}] ${msg}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`;
 
+      // Keep the wrapper log from growing without bound: past 5 MB it rolls to wrapper.log.1.
+      rollLogIfLarge(this.logFile);
+
       fs.appendFileSync(this.logFile, line);
     } catch {}
   }
@@ -112,6 +125,20 @@ class BackendClient {
         sock.on('close', () => this.rejectAll(new Error('Backend disconnected')));
 
         this.log('connect(): connected to backend');
+
+        // Say which version and build this wrapper is, so the bridge can warn when it is behind.
+        // A backend from before this answers "Unknown method", which has no pending request and
+        // is ignored; one from before build ids ignores `build`.
+        const hello: ControlRequest = {
+          id: 'hello',
+          method: 'hello',
+          params: {
+            version: TOOL_VERSION,
+            build: BUILD_ID,
+            sets: TOOL_SET_SELECTION.all ? 'all' : TOOL_SET_SELECTION.sets.join(','),
+          },
+        };
+        sock.write(`${JSON.stringify(hello)}\n`, 'utf8');
 
         resolve();
       });
@@ -262,7 +289,7 @@ class BackendClient {
           hasResult: !!msg.result,
         });
 
-        // An id-less frame is an uncorrelated protocol error — nothing to resolve.
+        // An id-less frame is an uncorrelated protocol error, nothing to resolve.
         if (msg.id === undefined) {
           this.log('onData(): protocol message without id, ignoring', {
             hasError: !!msg.error,
@@ -437,9 +464,13 @@ async function startWrapper(): Promise<void> {
     // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
     registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
 
-    mcp.setRequestHandler('tools/list', async (_request, ctx) => {
+    mcp.setRequestHandler('tools/list', async () => {
       try {
         const res = (await backend.send('list_tools', {})) as ListToolsReply;
+        // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
+        if (!res.tools || res.tools.length === 0) {
+          throw new Error('The Foundry AI Tool backend returned no tools');
+        }
 
         try {
           backend.log('ListTools handler: received from backend', {
@@ -459,19 +490,15 @@ async function startWrapper(): Promise<void> {
         // The backend's tool definitions are already protocol-shaped; v2 types the schema strictly.
         return { tools: served as unknown as ListToolsResult['tools'] };
       } catch (e) {
-        // Log but return empty to remain MCP-compliant
-
         try {
-          backend.log('ListTools failed; returning empty', { error: messageOf(e) });
+          backend.log('ListTools failed', { error: messageOf(e) });
         } catch {}
 
-        // Not cacheable: a 2026-era client must not hold an empty list for the tool TTL. A handler's own
-        // `ttlMs` reaches the wire in either era, so it is added only on a request that carries the
-        // 2026 `_meta` envelope (`ctx.mcpReq.envelope`); a 2025-11-25 client gets the plain empty list.
-        if (ctx.mcpReq.envelope) {
-          return { tools: [], ttlMs: 0, cacheScope: 'private' };
-        }
-        return { tools: [] };
+        // An error result is never cached, so a 2026-era client cannot hold a failed list for the TTL.
+        throw new ProtocolError(
+          ProtocolErrorCode.InternalError,
+          `Foundry AI Tool tools could not be listed: ${String(messageOf(e))}. Restart Claude Desktop; if it keeps failing, check that the bridge is running.`
+        );
       }
     });
 

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { SocketBridge, reconnectDelayMs, type BridgeConfig } from './socket-bridge.js';
 import { CONNECTION_STATES, MODULE_HELLO_TYPE } from './constants.js';
-import { MODULE_HELLO_TYPE as SHARED_HELLO_TYPE } from '../../../shared/src/protocol.js';
+import { MODULE_HELLO_TYPE as SHARED_HELLO_TYPE } from '@gnuminator/shared';
 
 let world: TestWorld;
 let restore: () => void;

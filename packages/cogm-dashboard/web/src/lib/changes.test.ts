@@ -1,7 +1,12 @@
 // Recent Changes: reading the bridge answers, the AI row state, the Everyone rows, the person
 // filter, the redo rule and the undo choice (just this, everything since, rewind the table) as
 // plain data. Pure functions, no DOM. Ported from the old changes-everyone.test.ts.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
+
+import { EVERYONE_CHANGES } from '../storybook/fixtures/changes';
 
 import {
   AI_LIMIT,
@@ -12,7 +17,10 @@ import {
   dialogFor,
   filterChanges,
   filterOptions,
+  gameChanges,
+  CHANGES_TABS,
   firstStage,
+  foldTokenMoves,
   needsDestructive,
   nextStep,
   obsidianChangePath,
@@ -211,6 +219,27 @@ describe('obsidianChangePath', () => {
     expect(obsidianChangePath({ appliedAt: '2026-01-31T23:59:59.999Z' })).toBe(
       'AI Tool/Changes/2026-01'
     );
+  });
+
+  it('opens the -pN part the bridge names, and ignores one from another month', () => {
+    expect(obsidianChangePath({ appliedAt: '2026-10-06T19:05:00Z', notePart: '2026-10-p2' })).toBe(
+      'AI Tool/Changes/2026-10-p2'
+    );
+    expect(obsidianChangePath({ appliedAt: '2026-10-06T19:05:00Z', notePart: '2026-09-p2' })).toBe(
+      'AI Tool/Changes/2026-10'
+    );
+  });
+
+  it('reads notePart from list-recent-changes and drops a malformed one', () => {
+    const row = { changeId: 'c1', appliedAt: '2026-10-06T19:05:00Z' };
+    const [a, b] = readAiChanges({
+      changes: [
+        { ...row, notePart: '2026-10-p3' },
+        { ...row, changeId: 'c2', notePart: '../x' },
+      ],
+    });
+    expect(a?.notePart).toBe('2026-10-p3');
+    expect(b?.notePart).toBeUndefined();
   });
 
   it('is null for a missing or bad date', () => {
@@ -414,12 +443,63 @@ describe('readUndoPlan', () => {
   });
 });
 
+describe('foldTokenMoves', () => {
+  const move = (id: string, by = 'Zed', uuid = 'Token.a'): EveryoneChange =>
+    human(id, by, {
+      summary: 'Token "Ogre" moved',
+      lines: ['Token "Ogre" moved'],
+      things: [{ uuid, name: 'Ogre' }],
+    });
+
+  it('folds a run of the same token by the same person into the newest', () => {
+    const out = foldTokenMoves([move('m1'), move('m2'), move('m3')]);
+    expect(out.map(c => c.id)).toEqual(['m1']);
+    expect(out[0]?.moves).toBe(3);
+    expect(rowView(out[0], out).summary).toBe('Token "Ogre" moved 3 times');
+  });
+
+  it('keeps a single move, other tokens, other people and real changes apart', () => {
+    const real = human('h', 'Zed');
+    const out = foldTokenMoves([
+      move('a'),
+      move('b', 'anna'),
+      move('c', 'anna', 'Token.b'),
+      real,
+      move('d'),
+      move('e'),
+    ]);
+    expect(out.map(c => c.id)).toEqual(['a', 'b', 'c', 'h', 'd']);
+    expect(out.map(c => c.moves)).toEqual([undefined, undefined, undefined, undefined, 2]);
+  });
+
+  it('never folds an AI change or an undone move', () => {
+    const out = foldTokenMoves([
+      ai('x', { summary: 'Token "Ogre" moved', lines: ['Token "Ogre" moved'] }),
+      ai('y', { summary: 'Token "Ogre" moved', lines: ['Token "Ogre" moved'] }),
+      move('u1'),
+      { ...move('u2'), undone: true },
+    ]);
+    expect(out).toHaveLength(4);
+  });
+});
+
 describe('person filter', () => {
   const all = [human('act:1', 'Zed'), human('act:2', 'anna'), human('act:3', 'Zed'), ai('c1')];
 
-  it('lists Everyone, AI, then each person once, A to Z', () => {
-    expect(filterOptions(all).map(o => o.label)).toEqual(['Everyone', 'AI', 'anna', 'Zed']);
-    expect(filterOptions([]).map(o => o.label)).toEqual(['Everyone', 'AI']);
+  it('lists Everyone, Tool, then each person once, A to Z', () => {
+    expect(filterOptions(all).map(o => o.label)).toEqual(['Everyone', 'Tool', 'anna', 'Zed']);
+    expect(filterOptions([]).map(o => o.label)).toEqual(['Everyone', 'Tool']);
+  });
+
+  it('has no Tool choice for the Game tab, and drops a Tool pick there', () => {
+    expect(filterOptions(all, false).map(o => o.label)).toEqual(['Everyone', 'anna', 'Zed']);
+    expect(validFilter(all, 'ai', false)).toBe('all');
+    expect(validFilter(all, 'ai')).toBe('ai');
+  });
+
+  it('the Game list is what people did in Foundry, the Tool tab is not in it', () => {
+    expect(gameChanges(all).map(c => c.id)).toEqual(['act:1', 'act:2', 'act:3']);
+    expect(CHANGES_TABS).toEqual(['tool', 'game', 'everything']);
   });
 
   it('gives each option a value, the person ones by name', () => {
@@ -813,5 +893,67 @@ describe('the undo choice', () => {
       expect(rewindButtonLabel(12)).toBe('Undo all 12 changes');
       expect(rewindButtonLabel(null)).toBe('Undo all changes');
     });
+  });
+});
+
+// The bridge's own list-changes answer, written by packages/mcp-server's
+// change-summary-fixture.test.ts from the real ChangeHistory. Reading it here means a change to
+// the bridge's summary shape reaches the dashboard's tests.
+describe('the bridge change summary fixture', () => {
+  const raw: { changes: Record<string, unknown>[]; note?: string } = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL('../../../../../shared/fixtures/bridge/change-list.json', import.meta.url)
+      ),
+      'utf8'
+    )
+  );
+
+  // Keys the bridge sends that the Everyone tab does not read (yet), by kind.
+  const UNREAD = new Set(['userId', 'isGM', 'records', 'documents', 'undoneAt']);
+  const READ = new Set([
+    'kind',
+    'id',
+    'at',
+    'by',
+    'summary',
+    'lines',
+    'canUndo',
+    'ownData',
+    'undone',
+    'undoneBy',
+    'requestedBy',
+    'mode',
+    'feature',
+    'covers',
+    'things',
+  ]);
+
+  it('is read into every row, with the state the bridge meant', () => {
+    const list = readEveryoneChanges(raw);
+    expect(list.changes.map(c => c.id)).toEqual(raw.changes.map(c => c['id']));
+    expect(list.note).toBe(raw.note ?? '');
+    const byId = new Map(list.changes.map(c => [c.id, c]));
+    expect(byId.get('chg-1')).toMatchObject({ kind: 'ai', undone: true, undoneBy: 'chg-2' });
+    expect(byId.get('chg-2')).toMatchObject({ mode: 'undo', ownData: true });
+    expect(byId.get('chg-3')).toMatchObject({ requestedBy: 'Danni', canUndo: true });
+    expect(byId.get('act:h1')).toMatchObject({
+      kind: 'human',
+      by: 'Ilvara',
+      lines: ['Ilvara: HP 10 -> 5'],
+      things: [{ uuid: 'Actor.a1', name: 'Ilvara' }],
+    });
+  });
+
+  it('is the key set the Storybook list-changes fixture stays inside', () => {
+    const sent = new Set(raw.changes.flatMap(c => Object.keys(c)));
+    const fake = new Set(EVERYONE_CHANGES.changes.flatMap(c => Object.keys(c)));
+    expect([...fake].filter(k => !sent.has(k))).toEqual([]);
+  });
+
+  it('has no key the dashboard neither reads nor knowingly leaves out', () => {
+    const sent = new Set(raw.changes.flatMap(c => Object.keys(c)));
+    const unknown = [...sent].filter(k => !READ.has(k) && !UNREAD.has(k));
+    expect(unknown).toEqual([]);
   });
 });

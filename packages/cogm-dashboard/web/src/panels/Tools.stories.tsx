@@ -18,7 +18,7 @@ import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
 import { ToolsDrawer, type ToolRequest } from './Tools';
 
-// The Tool runner: every bridge tool in a list, a form for the one picked, and the answer under
+// The Tool Runner: every bridge tool in a list, a form for the one picked, and the answer under
 // it. The catalog is /api/tools; the tools' own answers come from the fake bridge.
 const api = (catalog: Reply, extra: FakeApi['tools'] = {}): { dashboard: { api: FakeApi } } => ({
   dashboard: {

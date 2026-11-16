@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
@@ -195,7 +195,7 @@ describe('describeRecord', () => {
     ).toEqual(['Deleted Wall']);
   });
 
-  it('says a token moved when only x and y changed', () => {
+  it('says a token moved when only x and y changed (no rotation)', () => {
     expect(
       describeRecord(
         rec({
@@ -210,6 +210,52 @@ describe('describeRecord', () => {
         })
       )
     ).toEqual(['Token "Wolf 2" moved']);
+  });
+
+  it('says a token moved when a Foundry 14 drag also turned it (x, y and rotation)', () => {
+    const token = {
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t1',
+      parentUuid: 'Scene.s1',
+      name: 'Wolf 1',
+      rootUuid: 'Scene.s1.Token.t1',
+      rootName: 'Wolf 1',
+    } as const;
+    // The real shapes of the test 3 drags on the Pi: x,y,rotation, x,rotation and y,rotation.
+    for (const [before, after] of [
+      [
+        [val('x', 400), val('y', 400), val('rotation', 0)],
+        [val('x', 500), val('y', 300), val('rotation', 225)],
+      ],
+      [
+        [val('x', 500), val('rotation', 225)],
+        [val('x', 600), val('rotation', 270)],
+      ],
+      [
+        [val('y', 300), val('rotation', 270)],
+        [val('y', 400), val('rotation', 180)],
+      ],
+    ] as const) {
+      expect(describeRecord(rec({ ...token, before: [...before], after: [...after] }))).toEqual([
+        'Token "Wolf 1" moved',
+      ]);
+    }
+  });
+
+  it('keeps a turn on its own as a change, not a move', () => {
+    const lines = describeRecord(
+      rec({
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t1',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf 1',
+        rootUuid: 'Scene.s1.Token.t1',
+        rootName: 'Wolf 1',
+        before: [val('rotation', 0)],
+        after: [val('rotation', 90)],
+      })
+    );
+    expect(lines).toEqual(['Token "Wolf 1": rotation 0 -> 90']);
   });
 
   it('shows an oversize record and a record with unknown before values', () => {
@@ -468,6 +514,233 @@ describe('buildActions', () => {
       'E',
       `E${OWN_ACTION_SUFFIX}`,
     ]);
+  });
+
+  it("ties dnd5e's dependent deletes from another browser of the same user to the AI change by data", () => {
+    const ai = rec({
+      actionId: 'bridge',
+      changeId: 'chg-x',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Count Dorn',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
+    });
+    const dependent = rec({
+      actionId: 'other-browser',
+      t: ai.t + 800,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+    });
+    const unnamed = rec({
+      actionId: 'other-browser',
+      t: ai.t + 900,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e3',
+      parentUuid: 'Actor.a1',
+      name: 'Bless',
+    });
+    const actions = buildActions([ai, dependent, unnamed]);
+    expect(actions.map(a => a.actionId)).toEqual(['bridge', 'other-browser']);
+    expect(actions[0]).toMatchObject({ changeId: 'chg-x', followUps: [dependent] });
+    expect(actions[1].records).toEqual([unnamed]);
+
+    // Pump order does not matter, and a delete long after the AI change is not tied to it.
+    expect(buildActions([dependent, ai])[0].followUps).toEqual([dependent]);
+    const late = { ...dependent, t: ai.t + 60_000 };
+    expect(buildActions([ai, late])[0].followUps).toEqual([]);
+    // Nor is a delete another user made, even when the data names it.
+    const otherUser = { ...dependent, userId: 'u2', userName: 'Someone' };
+    expect(buildActions([ai, otherUser])[0].followUps).toEqual([]);
+  });
+
+  it("does not swallow a person's own concentration end into an AI item delete across browsers, and files a re-deleted dependent under the latest change", () => {
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const aiItem = rec({
+      actionId: 'bridge',
+      changeId: 'chg-i',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'Item',
+      uuid: 'Actor.a2.Item.i1',
+      rootUuid: 'Actor.a2',
+      rootName: 'Count Dorn',
+      name: 'Longsword',
+      data: { name: 'Longsword' },
+    });
+    // The same user ends their own Bless on that actor from another browser, 5 s later.
+    const bless = rec({
+      actionId: 'other-browser',
+      t: aiItem.t + 5000,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.bless',
+      parentUuid: 'Actor.a2',
+      rootUuid: 'Actor.a2',
+      rootName: 'Count Dorn',
+      name: 'Bless',
+      data: { statuses: ['concentrating'], ...dependentsOf('Actor.a1.ActiveEffect.b') },
+    });
+    const blessed = rec({
+      actionId: 'other-browser',
+      t: aiItem.t + 5100,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.b',
+      parentUuid: 'Actor.a1',
+      name: 'Blessed',
+    });
+    const none = buildActions([aiItem, bless, blessed]);
+    expect(none[0].followUps).toEqual([]);
+
+    // The same dependent deleted again after a second AI change belongs to the latest one.
+    const named = dependentsOf('Actor.a1.ActiveEffect.e2');
+    const ai = (actionId: string, changeId: string, t: number): ChangeRecord =>
+      rec({
+        actionId,
+        changeId,
+        changeMode: 'apply',
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.e1',
+        rootUuid: 'Actor.a2',
+        data: named,
+      });
+    const dep = (t: number): ChangeRecord =>
+      rec({
+        actionId: `other-${t}`,
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.e2',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+      });
+    const ai1 = ai('b1', 'chg-1', NOW);
+    const ai2 = ai('b2', 'chg-2', NOW + 20_000);
+    const dep1 = dep(NOW + 1000);
+    const dep2 = dep(NOW + 21_000);
+    const actions = buildActions([ai1, dep1, ai2, dep2]).filter(a => a.changeId);
+    expect(actions.map(a => [a.changeId, a.followUps])).toEqual([
+      ['chg-1', [dep1]],
+      ['chg-2', [dep2]],
+    ]);
+  });
+
+  describe('dependent deletes from another browser, own records and segments', () => {
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const aiItem = (): ChangeRecord =>
+      rec({
+        actionId: 'bridge',
+        changeId: 'chg-i',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i1',
+        rootUuid: 'Actor.a2',
+        rootName: 'Count Dorn',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+    const concentration = (t: number): ChangeRecord =>
+      rec({
+        actionId: 'bridge',
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.conc',
+        parentUuid: 'Actor.a2',
+        rootUuid: 'Actor.a2',
+        rootName: 'Count Dorn',
+        name: 'Concentrating: Hold Person',
+        data: {
+          statuses: ['concentrating'],
+          origin: 'Actor.a2.Item.i1',
+          ...dependentsOf('Actor.a1.ActiveEffect.held'),
+        },
+      });
+    const held = (t: number): ChangeRecord =>
+      rec({
+        actionId: 'other-browser',
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.held',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+      });
+
+    it("ties foreign dependents through the group's own concentration delete after an AI item delete", () => {
+      const ai = aiItem();
+      const conc = concentration(ai.t + 200);
+      const dep = held(ai.t + 5000);
+      const [action] = buildActions([ai, conc, dep]);
+      expect(action.followUps).toEqual(expect.arrayContaining([dep]));
+    });
+
+    it("ties nothing through the group's own concentration delete from before the first AI source", () => {
+      const ai = aiItem();
+      const conc = concentration(ai.t - 3000);
+      const dep = held(ai.t + 5000);
+      const actions = buildActions([conc, ai, dep]);
+      // It stays the other browser's own action, not filed into the group.
+      expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
+    });
+
+    it("ties nothing through the group's own concentration delete from before the first AI item delete, even after an AI effect delete", () => {
+      const effect = rec({
+        actionId: 'bridge',
+        changeId: 'chg-e',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.other',
+        rootUuid: 'Actor.a2',
+        data: { name: 'Other' },
+      });
+      const conc = concentration(effect.t + 1000);
+      const item = { ...aiItem(), t: effect.t + 2000 };
+      const dep = held(effect.t + 5000);
+      const actions = buildActions([effect, conc, item, dep]);
+      expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
+    });
+
+    it('files a foreign dependent named by two AI changes of one group by the time it arrived', () => {
+      const ai = (changeId: string, t: number, id: string): ChangeRecord =>
+        rec({
+          actionId: 'bridge',
+          changeId,
+          changeMode: 'apply',
+          t,
+          op: 'delete',
+          documentName: 'ActiveEffect',
+          uuid: `Actor.a2.ActiveEffect.${id}`,
+          rootUuid: 'Actor.a2',
+          data: dependentsOf('Actor.a1.ActiveEffect.held'),
+        });
+      const ai1 = ai('chg-1', NOW, 'e1');
+      const ai2 = ai('chg-2', NOW + 20_000, 'e2');
+      // Both name the same dependent: one that landed between the changes belongs to the first.
+      const between = held(NOW + 5000);
+      const actions = buildActions([ai1, ai2, between]).filter(a => a.changeId);
+      expect(actions.map(a => [a.changeId, a.followUps])).toEqual([
+        ['chg-1', [between]],
+        ['chg-2', []],
+      ]);
+    });
   });
 
   it('hands the planner only the follow-ups on other things, and reads the dependents link from sources only', () => {
@@ -1013,7 +1286,7 @@ describe('ChangeHistory.list', () => {
   let logger: any;
   let audit: RecentChange[];
   let undoState: UndoState;
-  let pullNow: ReturnType<typeof vi.fn>;
+  let pullNow: Mock;
 
   async function writeDay(records: ChangeRecord[]): Promise<void> {
     const byDate = new Map<string, ChangeRecord[]>();

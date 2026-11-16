@@ -10,11 +10,15 @@ is one action.
 
 ## Close the session
 
-- [ ] In the dashboard header, click **End session**. It should now say "No session".
 - [ ] Look through **Recent Changes** in the dashboard. If a change should not stay, click its
-      **Undo** (GM Actions must be on for that).
-- [ ] If the dashboard header says **⚔ GM Actions: on**, click it so it says **off**.
+      **Undo** (GM Actions must be on for that, so do this before the next step).
+- [ ] In the dashboard header, click **End session**. It should now say "No session". It also turns
+      off what **Turn on for tonight** turned on, and **GM Actions**. If the admin has set up the
+      Discord post, the bot posts the player page link in its channel within a couple of minutes.
+- [ ] If the dashboard header still says **GM Actions on**, click **End session** (it turns GM Actions off).
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), untick **Show cards** if it is ticked.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What does End session do, and how do I undo a change from tonight that I do not want to keep?" ([how to add the GM coach](gm-coach.md))
 
 ## Switch features off
 
@@ -32,6 +36,8 @@ is one action.
 - [ ] Write your own notes in your own files (for example in `Campaigns/<world id>/Prep/`), not in
       the notes the tool generated. A generated note you edit stops updating.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I get a recap of tonight's session for myself and one I can share with the players?"
+
 ## The players' own vaults (optional)
 
 Each player can have their own Obsidian vault that holds only what they may see: the handouts you
@@ -42,15 +48,20 @@ changed. Edits made inside a player's folder are lost on the next update.
 - To turn it on, set `FOUNDRY_AI_PLAYER_VAULTS_DIR` to a folder before you start the dashboard.
   Each player gets `<folder>/<player name>/`. Without it, nothing is written.
 - To give the players a recap, reveal it as a handout with "Recap" in its title. It lands in the
-  vault's `Recaps/` folder. The session notes journal itself never goes into a player vault.
+  vault's `Recaps/` folder, and the player page shows it as "Last recap". The session notes
+  journal itself never goes into a player vault.
 - Sharing the folders with the players comes with the Orange Pi setup (a send-only share per
   player). Until then the folders stay on the computer that runs the dashboard.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What is a player vault, and what can my players see in it?"
 
 ## Before you shut down
 
 - [ ] Leave Foundry (Settings tab, **Log Out**) or close the Foundry tab.
-- [ ] Stop the dashboard: in its terminal window press Ctrl+C, or close the window.
-- [ ] Quit Claude Desktop if you are done. The bridge stops with it.
+- [ ] Close the dashboard tab. The dashboard and the bridge keep running on the Pi; nothing to stop.
+- [ ] Quit Claude Desktop if you are done.
+
+(On the builder's own PC the dashboard runs in a terminal window: press Ctrl+C there.)
 
 ## If a player asks for their data to be removed
 

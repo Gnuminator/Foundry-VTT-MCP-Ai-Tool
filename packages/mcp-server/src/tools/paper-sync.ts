@@ -9,6 +9,7 @@ import {
   type PaperSyncPlan,
   type PaperSyncPlanResult,
   type PaperSyncRequest,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
@@ -102,7 +103,7 @@ export class PaperSyncTools {
       {
         name: 'plan-paper-sync',
         description:
-          'GM ONLY. After a paper night: plan the numbers on ONE paper sheet as one guarded change for that character (apply-planned-change, undo-change; the "AI Tool: Paper sync (writes)" switch must be on, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request, listing every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only.',
+          'After a paper night: plan the numbers on one paper sheet as one guarded change for that character (apply-planned-change, undo-change; needs the "AI Tool: Paper sync (writes)" switch, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request and lists every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only. Not for player chat: it shows more than players see.',
         inputSchema: {
           type: 'object',
           additionalProperties: false,
@@ -223,9 +224,7 @@ export class PaperSyncTools {
     );
     const feature = features.find(f => f.id === PAPER_SYNC_FEATURE_ID);
     if (!feature?.enabled) {
-      throw new Error(
-        'Paper sync is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Paper sync (writes)".'
-      );
+      throw new Error(featureSwitchOff('Paper sync', 'AI Tool: Paper sync (writes)'));
     }
 
     const built = unwrapBridgeReply(

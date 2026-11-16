@@ -1,7 +1,7 @@
 /**
- * The module keeps its own copy of the guarded-write wire types (it does not
- * import the shared package). This pins the runtime vocabulary to the shared
- * contract so the two cannot drift.
+ * The module keeps its own copy of the guarded-write values (it cannot import the shared package
+ * at runtime; `GuardedOp` is the shared type, imported type-only). This pins the runtime
+ * vocabulary to the shared contract so the two cannot drift.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,7 +14,7 @@ import {
   GUARDED_OP_KINDS as SHARED_KINDS,
   GUARDED_OUTCOME_MEMORY as SHARED_MEMORY,
   inverseGuardedOp,
-} from '../../../../shared/src/guarded-write.js';
+} from '@gnuminator/shared';
 
 describe('guarded-write wire contract', () => {
   it('module and shared agree on the op kinds', () => {

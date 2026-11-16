@@ -48,7 +48,7 @@ describe('the AI Tool scene-controls group', () => {
     expect(group).toMatchObject({ name: 'aiTool', title: 'AI Tool', visible: true });
     expect(group.layer).toBeUndefined();
     expect(group.order).toBeGreaterThan(10);
-    expect(Object.keys(group.tools)).toEqual(['aiChanges', 'handouts', 'tarokka']);
+    expect(Object.keys(group.tools)).toEqual(['aiChanges', 'handouts', 'tarokka', 'tarokkaTable']);
     expect(group.tools.aiChanges).toMatchObject({
       name: 'aiChanges',
       title: 'Changes',
@@ -92,9 +92,10 @@ describe('the AI Tool scene-controls group', () => {
       'aiChanges',
       'handouts',
       'tarokka',
+      'tarokkaTable',
       'later',
     ]);
-    expect(controls.aiTool.tools.later).toMatchObject({ order: 4, button: true });
+    expect(controls.aiTool.tools.later).toMatchObject({ order: 5, button: true });
   });
 
   it('a click runs the button and reports a failure as a notification', async () => {
@@ -108,7 +109,8 @@ describe('the AI Tool scene-controls group', () => {
 
     expect(open).toHaveBeenCalledTimes(1);
     expect(world.notifications[0]).toMatchObject({ level: 'error' });
-    expect(world.notifications[0]?.message).toContain('boom');
+    expect(world.notifications[0]?.message).toMatch(/^Could not open "X"\. /);
+    expect(world.notifications[0]?.message).not.toContain('boom');
   });
 
   it('registerAiToolControls hooks getSceneControlButtons', () => {

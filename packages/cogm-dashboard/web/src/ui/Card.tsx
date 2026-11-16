@@ -1,5 +1,5 @@
 // Small building blocks inside a panel's body: Card, Section, Stat and Pill. Card and Section are
-// new (their look is Card.module.css, on the tokens); Stat and Pill render the old page's markup
+// styled by Card.module.css (on the tokens); Stat and Pill render the markup of the shared stylesheets
 // (moments.css .stat-card, .feature-pill, styles.css .condition-chip), so a screen that moves
 // onto them keeps its look.
 import type { ComponentProps, JSX, ReactNode } from 'react';

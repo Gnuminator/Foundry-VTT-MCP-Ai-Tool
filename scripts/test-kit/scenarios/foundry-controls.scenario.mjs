@@ -21,7 +21,7 @@
 import { readUsageCatalog } from '../lib/dashboard-controls.mjs';
 import { FOUNDRY_CONTROLS, countHows, errorCounterRows, rowsOf } from '../lib/foundry-controls.mjs';
 import { changesRows, sceneRows } from '../lib/foundry-sweep-changes.mjs';
-import { handoutsRows, tarokkaOfferRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
+import { handoutsRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
 import {
   chatRows,
   journalRows,
@@ -53,13 +53,10 @@ export default {
   // Foundry logs an error notification as a console error. The runner applies this list to the GM
   // page's module errors for the whole scenario; each row also names its own texts (`expectErrors`),
   // which is what counts for the page console errors of a row. Who owns which message:
-  // - "Write the text the players will read first": row foundry.tarokka.reveal-form (an empty reveal
-  //   text is refused with a notification);
   // - the 401: rows module.join-page.veil and module.join-page.default only (Foundry answers a saved
   //   world change on /setup with 401 and the data, join-page.ts). It stays here because the runner
   //   blames a module console error on the scenario; it is not needed by any other row.
   knownConsoleErrors: [
-    'Write the text the players will read first',
     'status of 401 \\(Unauthorized\\)',
   ],
   timeoutMs: 15 * 60 * 1000,
@@ -124,7 +121,6 @@ export default {
       if (wanted('tarokka')) {
         await t.step('Tarokka window, with a reveal undone', async () => {
           await tarokkaRows(sweep, pages);
-          await tarokkaOfferRows(sweep, pages);
           return summary(sweep, rowsOf('tarokka'));
         });
       }

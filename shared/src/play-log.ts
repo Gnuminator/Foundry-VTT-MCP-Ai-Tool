@@ -185,7 +185,7 @@ export interface PlayRecord {
    * sorted by `actorUuid`, at most 200, visible actors kept first). `user-join` and `user-leave`
    * records carry `isGM`; a non-GM `user-join` adds `activeSceneId` and that scene's `tokens`.
    * `roll` and `item-use` records carry `whisper: true` and `blind: true` when set (`chat`
-   * records always carry both). GM-only like everything in the play log (hidden tokens are
+   * records always carry both) and `visibility`: `public`, `gm`, `blind` or `self`. GM-only like everything in the play log (hidden tokens are
    * marked, not dropped). Records from before 2026-10 lack these fields.
    */
   data?: Record<string, unknown>;

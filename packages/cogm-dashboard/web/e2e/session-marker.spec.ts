@@ -2,8 +2,11 @@
 // mark-play-session (a log-only tool: no GM Actions, no confirm) and the refresh after it.
 import { expect, test, type Page } from '@playwright/test';
 
+import type { SessionSwitch } from '../../src/session-switches';
 import {
   GM_TOKEN,
+  PREFLIGHT_OK,
+  apiBody,
   fakeCommonRoutes,
   fakeStream,
   fakeTools,
@@ -51,16 +54,14 @@ async function fakeBridge(
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, []);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
 });
 
 test('Start session marks the log, then the header reads Session since and End session', async ({
   page,
 }) => {
   const calls = await fakeBridge(page);
-  await fakeSwitches(page, false);
+  const switches = await fakeSwitches(page, false);
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const status = page.locator('#session-status');
@@ -75,6 +76,11 @@ test('Start session marks the log, then the header reads Session since and End s
   ]);
   // A log-only tool: no confirm flags.
   expect(calls.find(c => c.name === 'mark-play-session')?.confirm).toBeUndefined();
+  // Start session is the only switch for live play: it turns on GM Actions and the switches too.
+  await expect(
+    toast(page, '✓ Turn on for tonight. Turned on: Handouts (writes), GM Actions')
+  ).toBeVisible();
+  expect(switches.posts).toEqual([{ action: 'ready' }]);
 
   await page.locator('#btn-session').click();
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
@@ -89,7 +95,7 @@ interface SwitchCalls {
 /** The module's switches: `readyOn` has Turn on for tonight on (a write switch and GM Actions). */
 async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> {
   const calls: SwitchCalls = { posts: [] };
-  const list = (on: boolean): unknown[] => [
+  const list = (on: boolean): SessionSwitch[] => [
     { id: 'handouts', name: 'AI Tool: Handouts (writes)', on },
   ];
   await page.route('**/api/session/switches', route => {
@@ -105,7 +111,7 @@ async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> 
       });
     }
     return route.fulfill({
-      json: {
+      json: apiBody('/api/session/switches', {
         switches: {
           switches: list(readyOn),
           ready: readyOn ? { at: Date.now(), turnedOn: ['handouts'] } : null,
@@ -114,7 +120,7 @@ async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> 
         },
         gmActionsEnabled: readyOn,
         error: null,
-      },
+      }),
     });
   });
   return calls;
@@ -132,7 +138,7 @@ test('End session also turns off what Turn on for tonight turned on', async ({ p
 
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
   await expect(toast(page, '✓ Turned off again: Handouts (writes), GM Actions')).toBeVisible();
-  expect(switches.posts).toEqual([{ action: 'end' }]);
+  expect(switches.posts).toEqual([{ action: 'ready' }, { action: 'end' }]);
 });
 
 test('End session leaves the switches alone when Ready is not on', async ({ page }) => {
@@ -146,7 +152,7 @@ test('End session leaves the switches alone when Ready is not on', async ({ page
 
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
   await expect(page.locator('#btn-session')).toHaveText('Start session');
-  expect(switches.posts).toEqual([]);
+  expect(switches.posts).toEqual([{ action: 'ready' }]);
 });
 
 test('a mark that worked shows at once when the next read fails, and says so', async ({ page }) => {
@@ -156,7 +162,7 @@ test('a mark that worked shows at once when the next read fails, and says so', a
   await page.locator('#btn-session').click();
 
   await expect(toast(page, '✓ Play session started')).toBeVisible();
-  await expect(toast(page, '✗ get-play-session: bridge went away')).toBeVisible();
+  await expect(toast(page, '✗ Play session: bridge went away')).toBeVisible();
   await expect(page.locator('#session-status')).toHaveText(/^Session since/);
   await expect(page.locator('#btn-session')).toHaveText('End session');
 });
@@ -168,7 +174,7 @@ test('a failed mark says why and leaves the status alone', async ({ page }) => {
   await expect(page.locator('#session-status')).toHaveText('No session');
   await page.locator('#btn-session').click();
 
-  await expect(toast(page, '✗ mark-play-session: bridge is away')).toBeVisible();
+  await expect(toast(page, '✗ Play session: bridge is away')).toBeVisible();
   await expect(page.locator('#session-status')).toHaveText('No session');
   await expect(page.locator('#btn-session')).toBeEnabled();
 });

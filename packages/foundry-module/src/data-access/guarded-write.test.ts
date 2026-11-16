@@ -13,6 +13,7 @@ import { createTestWorld, type TestWorld } from '../test-support/foundry-mock/in
 import { eventTracker, type SessionLogEntry } from '../session-events.js';
 import { onAiChangesUpdated } from '../ai-changes-signal.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
+import { expectedAfterApply } from '@gnuminator/shared';
 import {
   GUARDED_OUTCOME_MEMORY,
   applyGuardedOps,
@@ -24,7 +25,6 @@ import {
   type GuardedApplyRequest,
   type GuardedApplyResult,
   type GuardedOp,
-  type OpSnapshot,
 } from './guarded-write.js';
 
 const MODULE_ID = 'foundry-mcp-bridge';
@@ -83,6 +83,9 @@ class FakeDoc {
   }
   get flags(): any {
     return this.source.flags;
+  }
+  get role(): unknown {
+    return this.source.role;
   }
   get actor(): FakeDoc | null {
     return this.parent?.documentName === 'Actor' ? this.parent : null;
@@ -224,11 +227,7 @@ function undoRequest(applied: GuardedApplyResult): GuardedApplyRequest {
     mode: 'undo',
     summary: 'Undo test change',
     ops: results.map(inverseOf),
-    expected: results.map((r): OpSnapshot => {
-      if (r.kind === 'update') return { exists: true, values: r.after ?? [] };
-      if (r.kind === 'create') return { exists: true, modifiedTime: r.modifiedTime ?? null };
-      return { exists: true, idTaken: false };
-    }),
+    expected: results.map(expectedAfterApply),
   };
 }
 
@@ -474,11 +473,7 @@ describe('applyGuardedOps: updating a User', () => {
   it('refuses a change of role, permissions or password from any feature, changing nothing', async () => {
     const user = makeDoc('User', { name: 'Table', role: 1, permissions: {}, flags: {} });
     for (const feature of ['table-viewer', FEATURE]) {
-      for (const changes of [
-        { role: 4 },
-        { 'permissions.SETTINGS_MODIFY': true },
-        { password: 'x' },
-      ]) {
+      for (const changes of [{ 'permissions.SETTINGS_MODIFY': true }, { password: 'x' }]) {
         const req = await request([{ kind: 'update', uuid: user.uuid, changes }], { feature });
         await expect(applyGuardedOps(req)).rejects.toThrow(/cannot be changed/);
       }
@@ -486,6 +481,166 @@ describe('applyGuardedOps: updating a User', () => {
     expect(user.source.role).toBe(1);
     expect(user.source.permissions).toEqual({});
     expect(user.source.password).toBeUndefined();
+  });
+
+  it('changes a role only from the setup feature, never to or from Gamemaster', async () => {
+    registerGuardedFeature({ id: 'foundry-setup', name: 'Setup', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', true);
+    const user = makeDoc('User', { name: 'Table', role: 1, permissions: {}, flags: {} });
+    // A Gamemaster role is refused at plan time, whatever the feature.
+    await expect(
+      request([{ kind: 'update', uuid: user.uuid, changes: { role: 4 } }], {
+        feature: 'foundry-setup',
+      })
+    ).rejects.toThrow(/None, Player, Trusted Player or Assistant GM/);
+    // Another feature may plan it, but the apply refuses.
+    const other = await request([{ kind: 'update', uuid: user.uuid, changes: { role: 2 } }], {
+      feature: 'table-viewer',
+    });
+    await expect(applyGuardedOps(other)).rejects.toThrow(/only changed by/);
+    expect(user.source.role).toBe(1);
+    const ok = await request([{ kind: 'update', uuid: user.uuid, changes: { role: 2 } }], {
+      feature: 'foundry-setup',
+    });
+    await expect(applyGuardedOps(ok)).resolves.toBeDefined();
+    expect(user.source.role).toBe(2);
+  });
+});
+
+describe('applyGuardedOps: setup writes to users and ownership', () => {
+  beforeEach(() => {
+    registerGuardedFeature({ id: 'foundry-setup', name: 'Setup', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', true);
+  });
+  const roleOp = (uuid: string, role: number): GuardedOp => ({
+    kind: 'update',
+    uuid,
+    changes: { role },
+  });
+
+  it('refuses a role plan whose user changed since (stale plan), writing nothing', async () => {
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const req = await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' });
+    user.source.role = 3;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/Conflict/);
+    expect(user.source.role).toBe(3);
+  });
+
+  it('applies and then undoes a role change', async () => {
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const applied = await applyGuardedOps(
+      await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' })
+    );
+    expect(user.source.role).toBe(2);
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(user.source.role).toBe(1);
+  });
+
+  it('refuses an apply of a role change with the setup switch off, but still undoes a lowering', async () => {
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const applied = await applyGuardedOps(
+      await request([roleOp(user.uuid, 0)], { feature: 'foundry-setup' })
+    );
+    world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', false);
+    await expect(
+      applyGuardedOps(await request([roleOp(user.uuid, 2)], { feature: 'foundry-setup' }))
+    ).rejects.toThrow(/switched off/);
+    // the undo of the lowering raises the role again: an undo is always allowed (mode apply is
+    // the shape the Changes list sends; undo-change sends the original feature in mode undo)
+    expect(user.source.role).toBe(0);
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(user.source.role).toBe(1);
+  });
+
+  it('undoes a role lowering with the switch off in both real request shapes', async () => {
+    // as main.ts registers it: the Changes list sends change-undo in mode apply
+    registerGuardedFeature({ id: 'change-undo', name: 'Undo', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.change-undo.enabled', true);
+    const user = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const lower = async (): Promise<GuardedApplyResult> => {
+      world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', true);
+      const applied = await applyGuardedOps(
+        await request([roleOp(user.uuid, 0)], { feature: 'foundry-setup' })
+      );
+      world.setSetting(MODULE_ID, 'feature.foundry-setup.enabled', false);
+      return applied;
+    };
+    // the Changes list: feature change-undo in mode apply
+    let applied = await lower();
+    await applyGuardedOps({
+      ...undoRequest(applied),
+      feature: 'change-undo',
+      mode: 'apply',
+      changeId: 'undo-list-1',
+    });
+    expect(user.source.role).toBe(1);
+    // undo-change: the original feature in mode undo
+    applied = await lower();
+    await applyGuardedOps({
+      ...undoRequest(applied),
+      feature: 'foundry-setup',
+      mode: 'undo',
+      changeId: 'undo-tool-1',
+    });
+    expect(user.source.role).toBe(1);
+  });
+
+  it('applies and then undoes a new ownership key on a journal', async () => {
+    const journal = makeDoc('JournalEntry', { name: 'Notes', ownership: { default: 0 } });
+    const op: GuardedOp = { kind: 'update', uuid: journal.uuid, changes: { 'ownership.u1': 2 } };
+    const applied = await applyGuardedOps(await request([op], { feature: 'foundry-setup' }));
+    expect(journal.source.ownership).toEqual({ default: 0, u1: 2 });
+    await applyGuardedOps({ ...undoRequest(applied), feature: 'change-undo' });
+    expect(journal.source.ownership).toEqual({ default: 0 });
+  });
+
+  it('refuses to delete a User, except the Table user through its undo', async () => {
+    const person = makeDoc('User', { name: 'Ask', role: 1, permissions: {}, flags: {} });
+    const table = makeDoc('User', {
+      name: 'Table',
+      role: 1,
+      permissions: {},
+      flags: { [MODULE_ID]: { tableViewer: true } },
+    });
+    const del = (uuid: string, feature: string, mode: 'apply' | 'undo'): Promise<unknown> =>
+      applyGuardedOps({
+        changeId: `del-${(changeSeq += 1)}`,
+        feature,
+        mode,
+        summary: 'Delete',
+        ops: [{ kind: 'delete', uuid }],
+        expected: [{ exists: true }],
+      });
+    await expect(del(person.uuid, 'foundry-setup', 'apply')).rejects.toThrow(/cannot be deleted/);
+    await expect(del(person.uuid, 'change-undo', 'undo')).rejects.toThrow(/cannot be deleted/);
+    await expect(del(table.uuid, 'foundry-setup', 'apply')).rejects.toThrow(/cannot be deleted/);
+    await expect(del(table.uuid, 'change-undo', 'undo')).resolves.toBeDefined();
+  });
+});
+
+describe('applyGuardedOps: a token ring on the prototype token (token-rings)', () => {
+  const RING = 'prototypeToken.ring.enabled';
+
+  it('snapshots, applies, refuses a stale plan and undoes the nested ring switch', async () => {
+    const actor = addActor({
+      prototypeToken: { name: 'Ilvara', ring: { enabled: false, colors: { ring: '#fff' } } },
+    });
+    const op: GuardedOp = { kind: 'update', uuid: actor.uuid, changes: { [RING]: true } };
+
+    // Stale: someone changed the ring after the snapshot, nothing is written.
+    const stale = await request([op]);
+    actor.source.prototypeToken.ring.enabled = 'changed';
+    await expect(applyGuardedOps(stale)).rejects.toThrow(/Conflict/);
+    expect(actor.source.prototypeToken.ring.enabled).toBe('changed');
+    actor.source.prototypeToken.ring.enabled = false;
+
+    const applied = await applyGuardedOps(await request([op]));
+    expect(actor.source.prototypeToken.ring).toEqual({ enabled: true, colors: { ring: '#fff' } });
+    expect(applied.results[0].before?.[0]).toEqual({ path: RING, present: true, value: false });
+    expect(applied.results[0].after?.[0]).toEqual({ path: RING, present: true, value: true });
+
+    await applyGuardedOps(undoRequest(applied));
+    expect(actor.source.prototypeToken.ring).toEqual({ enabled: false, colors: { ring: '#fff' } });
   });
 });
 
@@ -682,7 +837,10 @@ describe('applyGuardedOps: refusals', () => {
     );
     world.setSetting(MODULE_ID, `feature.${FEATURE}.enabled`, false);
     const again = await request([{ kind: 'update', uuid: actor.uuid, changes: { name: 'Y' } }]);
-    await expectRefused(again, /switched off/);
+    await expectRefused(
+      again,
+      /is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on/
+    );
     expect(actor.name).toBe('X');
 
     await applyGuardedOps(undoRequest(applied));
@@ -739,6 +897,59 @@ describe('applyGuardedOps: refusals', () => {
     await actor.delete();
     await expect(applyGuardedOps(createReq)).rejects.toThrow(/parent document no longer exists/);
   });
+
+  it('delete conflicts: a vanished document is a conflict on apply, not on undo', async () => {
+    const actor = addActor();
+    const deleteReq = await request([{ kind: 'delete', uuid: actor.uuid }]);
+    await actor.delete();
+    // On apply the vanished document is a conflict (nothing written), not a "not found" later.
+    await expect(applyGuardedOps(deleteReq)).rejects.toThrow(
+      /Conflict, nothing was written: op 0 \(delete\): the document no longer exists/
+    );
+
+    // On undo only a delete may find its document gone; an update still conflicts.
+    const other = addActor({ name: 'Other' });
+    const updateReq = await request(
+      [{ kind: 'update', uuid: other.uuid, changes: { name: 'Z' } }],
+      {
+        mode: 'undo',
+      }
+    );
+    await other.delete();
+    await expect(applyGuardedOps(updateReq)).rejects.toThrow(/no longer exists/);
+  });
+
+  it('delete conflicts: the content hash decides when both sides have one, else the modified time', async () => {
+    const actor = addActor();
+    // Both sides hold a hash: a write that leaves the content alone moves modifiedTime only, and
+    // the hash says no conflict.
+    const touched = makeDoc('ActiveEffect', { name: 'Hold Person' }, actor);
+    const hashed = await request([{ kind: 'delete', uuid: touched.uuid }]);
+    expect(hashed.expected[0].contentHash).toBeDefined();
+    registry.get(touched.uuid)!.source._stats.modifiedTime += 10;
+    await applyGuardedOps(hashed);
+    expect(registry.has(touched.uuid)).toBe(false);
+
+    // Both sides hold a hash and the content changed: a conflict.
+    const edited = makeDoc('ActiveEffect', { name: 'Haste' }, actor);
+    const staleHash = await request([{ kind: 'delete', uuid: edited.uuid }]);
+    registry.get(edited.uuid)!.source.name = 'Slow';
+    await expect(applyGuardedOps(staleHash)).rejects.toThrow(/was modified since/);
+
+    // An expected snapshot without a hash (an older plan) falls back to the modified time. A hash
+    // on one side only must not be compared with "undefined": unchanged time, no conflict.
+    const quiet = makeDoc('ActiveEffect', { name: 'Shield' }, actor);
+    const unhashed = await request([{ kind: 'delete', uuid: quiet.uuid }]);
+    delete unhashed.expected[0].contentHash;
+    await applyGuardedOps(unhashed);
+    expect(registry.has(quiet.uuid)).toBe(false);
+
+    const second = makeDoc('ActiveEffect', { name: 'Bless' }, actor);
+    const stale = await request([{ kind: 'delete', uuid: second.uuid }]);
+    delete stale.expected[0].contentHash;
+    registry.get(second.uuid)!.source._stats.modifiedTime += 10;
+    await expect(applyGuardedOps(stale)).rejects.toThrow(/was modified since/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -767,6 +978,42 @@ describe('applyGuardedOps: rollback', () => {
     expect(registry.get(victim.uuid)?.name).toBe('Victim');
     expect(b.name).toBe('B');
     expect(gmChangeEvents(req.changeId)).toHaveLength(0);
+  });
+
+  it('rolls back in reverse order, so the first op wins when two ops touch the same field', async () => {
+    const a = addActor({ name: 'A' });
+    const b = addActor({ name: 'B' });
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A3' } },
+      { kind: 'update', uuid: b.uuid, changes: { name: 'B2' } },
+    ]);
+    b.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/the 2 earlier op\(s\) were rolled back/);
+    // Reversed: A3 goes back to A2, then A2 back to A. In apply order it would end on A2.
+    expect(a.name).toBe('A');
+  });
+
+  it('rolls back an undo without re-creating a document that was already gone', async () => {
+    const applied = await applyGuardedOps(
+      await request([
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin 1', type: 'npc' } },
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin 2', type: 'npc' } },
+      ])
+    );
+    const [first, second] = applied.results;
+    await registry.get(first.uuid)!.delete(); // the GM killed it in play
+    const b = addActor({ name: 'B' });
+    const undoReq = undoRequest(applied);
+    const extra = await request([{ kind: 'update', uuid: b.uuid, changes: { name: 'B2' } }]);
+    undoReq.ops.push(...extra.ops);
+    undoReq.expected.push(...extra.expected);
+    b.failUpdates = true;
+
+    await expect(applyGuardedOps(undoReq)).rejects.toThrow(/rolled back/);
+    // The goblin the undo deleted comes back; the one that was already gone stays gone.
+    expect(registry.has(second.uuid)).toBe(true);
+    expect(registry.has(first.uuid)).toBe(false);
   });
 
   function addToken(): FakeDoc {
@@ -806,6 +1053,32 @@ describe('applyGuardedOps: rollback', () => {
     await applyGuardedOps(req);
     expect(tok.source.rotation).toBe(270);
     expect(tok.source.x).toBe(200);
+  });
+
+  it('marks an HP plan op for the feed on the apply only, never on a rollback', async () => {
+    const a = addActor({ name: 'A' });
+    const b = addActor({ name: 'B' });
+    const seen: Array<Record<string, any>> = [];
+    const realUpdate = a.update.bind(a);
+    a.update = (changes: Record<string, unknown>, options?: unknown): Promise<FakeDoc> => {
+      seen.push({ changes, options });
+      return realUpdate(changes);
+    };
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' }, hpLine: true, damageType: 'fire' },
+      { kind: 'update', uuid: b.uuid, changes: { name: 'B2' } },
+    ]);
+    b.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/database refused the update/);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.options[MODULE_ID]).toMatchObject({
+      changeMode: 'apply',
+      hpLine: true,
+      damageType: 'fire',
+    });
+    expect(seen[1]?.options[MODULE_ID].changeMode).toBe('rollback');
+    expect(seen[1]?.options[MODULE_ID]).not.toHaveProperty('hpLine');
+    expect(seen[1]?.options[MODULE_ID]).not.toHaveProperty('damageType');
   });
 
   it('lets a token position write cross walls, terrain and creatures, in the apply and in a rollback', async () => {
@@ -987,6 +1260,48 @@ describe('applyGuardedOps: change journal marker', () => {
 // ---------------------------------------------------------------------------
 
 describe('applyGuardedOps: undo', () => {
+  it('undoes a timed condition after turns passed, but not after a real edit', async () => {
+    const effect = (actor: FakeDoc): GuardedOp => ({
+      kind: 'create',
+      documentName: 'ActiveEffect',
+      parentUuid: actor.uuid,
+      data: {
+        name: 'Restrained',
+        statuses: ['restrained'],
+        duration: { value: 1, units: 'rounds' },
+      },
+    });
+    const passTurn = (doc: FakeDoc): void => {
+      // What Foundry writes as turns pass: the expired flag and the clock.
+      doc.source.duration.expired = true;
+      doc.source._stats.modifiedTime = clock += 1;
+    };
+
+    const actor = addActor();
+    const applied = await applyGuardedOps(await request([effect(actor)]));
+    const created = registry.get(applied.results[0].uuid)!;
+    passTurn(created);
+    await applyGuardedOps(undoRequest(applied));
+    expect(registry.has(created.uuid)).toBe(false);
+
+    const other = addActor();
+    const second = await applyGuardedOps(await request([effect(other)]));
+    const edited = registry.get(second.results[0].uuid)!;
+    passTurn(edited);
+    edited.source.name = 'Restrained (GM note)';
+    edited.source._stats.modifiedTime = clock += 1;
+    await expect(applyGuardedOps(undoRequest(second))).rejects.toThrow(/was modified since/);
+    expect(registry.has(edited.uuid)).toBe(true);
+
+    // A later change that revives the same condition stamps a new start: the older undo refuses.
+    const third = await applyGuardedOps(await request([effect(addActor())]));
+    const revived = registry.get(third.results[0].uuid)!;
+    revived.source.duration.expired = true;
+    revived.source.duration.expired = false;
+    revived.source.start = { round: 5, turn: 0 };
+    await expect(applyGuardedOps(undoRequest(third))).rejects.toThrow(/was modified since/);
+  });
+
   it('restores values and unsets the rules tag (v13 -= keys)', async () => {
     const actor = addActor({ flags: { [MODULE_ID]: { attitude: 'hostile' } } });
     const applied = await applyGuardedOps(

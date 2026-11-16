@@ -9,10 +9,13 @@ import {
 } from '@gnuminator/shared';
 import { z } from 'zod';
 
+import { SESSION_GAP_MS } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
+import { clockWithDay, type PumpHealthSnapshot } from '../pump-health.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
+import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-version.js';
 import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
 
 interface ToolDefinition {
@@ -33,6 +36,10 @@ export interface PreflightToolsOptions {
   /** FOUNDRY_AI_OBSIDIAN_DIR is set (Obsidian notes render). */
   obsidianVaultDirSet: boolean;
   logger: Logger;
+  /** Health of the vault pumps (session events, play log); absent when none runs. */
+  pumpHealth?: () => PumpHealthSnapshot[];
+  /** The stdio wrappers connected to this backend and their versions. */
+  wrapperStatus?: () => WrapperStatus;
   /** Tests only: the bridge's version (default: the shared TOOL_VERSION). */
   bridgeVersion?: string;
 }
@@ -75,14 +82,15 @@ export class PreflightTools {
       {
         name: 'get-preflight',
         description:
-          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
+          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, Claude Desktop connector versions, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
             action: {
               type: 'string',
-              enum: ['checks', 'scan'],
-              description: '"checks" (default) for the checklist, "scan" for the findings only.',
+              enum: ['checks', 'scan', 'pumps'],
+              description:
+                '"checks" (default) the checklist, "scan" findings only, "pumps" log recording health only.',
             },
           },
         },
@@ -90,10 +98,13 @@ export class PreflightTools {
     ];
   }
 
-  async handleGetPreflight(args: unknown): Promise<PreflightChecksResult | PreflightScanResult> {
+  async handleGetPreflight(
+    args: unknown
+  ): Promise<PreflightChecksResult | PreflightScanResult | { pumps: PumpHealthSnapshot[] }> {
     const { action } = z
-      .object({ action: z.enum(['checks', 'scan']).default('checks') })
+      .object({ action: z.enum(['checks', 'scan', 'pumps']).default('checks') })
       .parse(args ?? {});
+    if (action === 'pumps') return { pumps: this.options.pumpHealth?.() ?? [] };
     if (action === 'scan') return this.scan();
     return this.checks();
   }
@@ -152,10 +163,11 @@ export class PreflightTools {
             label: 'Foundry connected',
             status: 'fail',
             detail:
-              'Foundry is not connected. Open the world in your browser and join as your GM user, then wait for "MCP Bridge connected successfully".',
+              'Foundry is not connected. Open the world in your browser and join as your GM user, then wait for "AI Tool connected".',
           }
     );
     checks.push(this.versionCheck(connected, moduleVersion));
+    checks.push(this.wrapperCheck());
 
     let scan: PreflightScanResult | null = null;
     if (connected) {
@@ -218,6 +230,7 @@ export class PreflightTools {
           }
     );
     checks.push(await this.playSessionCheck());
+    checks.push(this.recordingCheck());
 
     return {
       ready: !checks.some(c => c.status === 'fail'),
@@ -225,6 +238,71 @@ export class PreflightTools {
       scan,
       bridgeVersion: this.bridgeVersion,
       moduleVersion,
+    };
+  }
+
+  /** Whether the pumps that write the session and play logs are recording, and what they lost. */
+  private recordingCheck(): PreflightCheck {
+    const label = 'Session and play log recording';
+    const pumps = this.options.pumpHealth?.() ?? [];
+    if (pumps.length === 0) {
+      return {
+        id: 'recording',
+        label,
+        status: 'info',
+        detail: 'No session or play log recording is running, so nothing is being recorded.',
+      };
+    }
+    const problems: string[] = [];
+    let unknown = false;
+    let recentGap = false;
+    const at = (iso: string): string => clockWithDay(Date.parse(iso));
+    for (const p of pumps) {
+      if (p.notRecordingSince) {
+        problems.push(
+          `${p.pump}: not recording since ${at(p.notRecordingSince)} (no link to Foundry)`
+        );
+      } else if (p.lastSuccessAt === null) {
+        unknown = true;
+      }
+      if (p.lastError) {
+        problems.push(`${p.pump}: last error at ${at(p.lastError.at)}: ${p.lastError.message}`);
+      }
+      // Only a recent gap is worth a warning; an old one is in the session log and must not keep
+      // the line amber for the weeks the backend runs.
+      if (p.gapCount > 0 && p.lastGap && Date.now() - Date.parse(p.lastGap.at) < SESSION_GAP_MS) {
+        const lost = p.lostCount > 0 ? `, ${plural(p.lostCount, 'record')} lost` : '';
+        recentGap = true;
+        problems.push(
+          `${p.pump}: ${plural(p.gapCount, 'gap')} since the backend started (last ${p.lastGap.reason} at ${at(p.lastGap.at)})${lost}`
+        );
+      }
+    }
+    if (problems.length > 0) {
+      return {
+        id: 'recording',
+        label,
+        status: 'warn',
+        detail: `${problems.join('; ')}.${recentGap ? ' A gap marker is in the session log.' : ''}`,
+      };
+    }
+    if (unknown) {
+      return {
+        id: 'recording',
+        label,
+        status: 'unknown',
+        detail: 'Nothing has been read from Foundry yet since the backend started.',
+      };
+    }
+    const last = pumps
+      .map(p => p.lastSuccessAt ?? '')
+      .sort()
+      .at(-1);
+    return {
+      id: 'recording',
+      label,
+      status: 'ok',
+      detail: `Recording; last read ${last ? at(last) : 'never'}. No recent gaps.`,
     };
   }
 
@@ -248,6 +326,50 @@ export class PreflightTools {
       label,
       status: 'fail',
       detail: `The Foundry module is ${moduleVersion} but the bridge is ${this.bridgeVersion}. Update the older one (Foundry's Add-on Modules tab, or the installer) so both match.`,
+    };
+  }
+
+  private wrapperCheck(): PreflightCheck {
+    const label = 'Claude Desktop connectors are up to date';
+    const status = this.options.wrapperStatus?.();
+    if (!status || status.wrappers.length === 0) {
+      return {
+        id: 'wrapper',
+        label,
+        status: 'info',
+        detail: 'No Claude Desktop connector is connected right now.',
+      };
+    }
+    if (!status.behind) {
+      return {
+        id: 'wrapper',
+        label,
+        status: 'ok',
+        detail: `No connector is older than the bridge (${status.current}).`,
+      };
+    }
+    const old = status.wrappers.filter(
+      w => w.version === null || isOlderVersion(w.version, status.current)
+    ).length;
+    if (old === 0) {
+      // Same version, another build: its tool sets may not list the tools this bridge has.
+      const other = status.wrappers.filter(w =>
+        isOtherBuild(w, status.current, status.build)
+      ).length;
+      const who = other === 1 ? 'A connector runs' : `${other} connectors run`;
+      return {
+        id: 'wrapper',
+        label,
+        status: 'warn',
+        detail: `${who} the bridge's version (${status.current}) from a different build, so its tool lists may not match the bridge's. Run the installer again, then restart Claude Desktop.`,
+      };
+    }
+    const who = old === 1 ? 'A connector runs' : `${old} connectors run`;
+    return {
+      id: 'wrapper',
+      label,
+      status: 'warn',
+      detail: `${who} an older version than the bridge (${status.current}), so Claude may be missing newer tools. Run the installer again, then restart Claude Desktop.`,
     };
   }
 

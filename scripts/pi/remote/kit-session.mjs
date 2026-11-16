@@ -8,8 +8,8 @@
 //     - core.permissions: ACTOR_CREATE includes the Player and Trusted Player roles (the roles already there stay);
 //     - Actor Studio, world settings: compendiumSources races, racialFeatures and backgrounds = the PHB origins
 //       pack, classes and subclasses = the PHB classes pack, spells, feats and equipment = their PHB packs (the
-//       other sources, items included, keep their values); the standard array on, manual input, point buy and
-//       rolling off; spell and equipment selection on;
+//       other sources, items included, keep their values); the standard array and point buy on, manual input
+//       and rolling off (the table's methods, the same as stage 13); spell and equipment selection on;
 //     - Actor Studio's per-user usage-tracking: every saved value that is not false becomes false;
 //     - the player user "Kit Player" exists: made without a password when missing; an existing one must be a
 //       Player with no password, otherwise nothing is changed and the run fails;
@@ -78,7 +78,7 @@ export const SOURCES = {
 export const FLAGS = {
   allowStandardArray: true,
   allowManualInput: false,
-  allowPointBuy: false,
+  allowPointBuy: true,
   allowRolling: false,
   enableSpellSelection: true,
   enableEquipmentSelection: true,

@@ -213,6 +213,29 @@ export interface PrepNote {
   truncated: boolean;
 }
 
+/** Encounter blocks read per note, and creatures kept per block. */
+export const PREP_ENCOUNTER_MAX_BLOCKS = 3;
+export const PREP_ENCOUNTER_MAX_CREATURES = 12;
+/** Encounter notes kept in the digest's `encounters`. */
+export const PREP_ENCOUNTERS_MAX = 5;
+
+/** A suggested encounter read from an `encounter` block in a Prep note (read-only). */
+export interface PrepEncounter {
+  name: string;
+  creatures: Array<{ name: string; count: number }>;
+  /** Creatures with counts added up. */
+  total: number;
+  /** True when the block had more creatures than were kept. */
+  truncated: boolean;
+}
+
+/** A prep note (encounter-prep first, any prep type) with its suggested encounters. */
+export interface PrepEncounterNote {
+  /** Campaign-relative path. */
+  path: string;
+  encounters: PrepEncounter[];
+}
+
 /** The digest's `prep` part. */
 export interface PrepNotesPart {
   /** Always PREP_NOTES_NOTICE. */
@@ -224,11 +247,44 @@ export interface PrepNotesPart {
   /** Matching notes the GM kept out with `ai_context: false`. */
   keptOut: number;
   /**
+   * Suggested encounters from `encounter` blocks in prep notes (encounter-prep first), at most
+   * PREP_ENCOUNTERS_MAX notes. Suggestions only: nothing is created. Left out when there are none.
+   */
+  encounters?: PrepEncounterNote[];
+  /**
    * What the notes were matched against; null when Foundry did not say (only the session plan is
    * looked for). openQuests is null when the prep scan failed (quest notes were not looked for).
    */
   matchedAgainst: { scene: string | null; tokens: number; openQuests: number | null } | null;
 }
+
+/** Longest "Previously on" text kept, in characters; a longer summary is cut at a line end. */
+export const PREP_PREVIOUSLY_MAX_CHARS = 1500;
+
+/**
+ * "Previously on": the GM summary (`notes/summary.<lang>.md`) of the newest recorded session that
+ * has one, read from the sessions folder (FVTT_SESSIONS_DIR, else Documents/FoundrySessions).
+ * Only that file is read: never the player recap draft or a transcript.
+ *
+ * - `found`: `session` is the folder name, `title` the summary's heading after "Summary:",
+ *   `text` the summary (cut to PREP_PREVIOUSLY_MAX_CHARS, then `truncated` is true).
+ * - `none`: the folder was read, but no `*-discord` session in it has a written summary yet.
+ * - `unreachable`: this bridge cannot see the folder (it may run on another computer).
+ *
+ * `note` is a plain sentence for the GM in every case.
+ */
+export type PrepPreviously =
+  | {
+      status: 'found';
+      sessionsDir: string;
+      session: string;
+      lang: 'en' | 'da';
+      title: string | null;
+      text: string;
+      truncated: boolean;
+      note: string;
+    }
+  | { status: 'none' | 'unreachable'; sessionsDir: string; note: string };
 
 /** What `get-prep-digest` returns. */
 export interface PrepDigest {
@@ -236,6 +292,11 @@ export interface PrepDigest {
   action: 'summary' | 'last-session';
   worldId: string;
   computedAt: number;
+  /**
+   * "Previously on", first so the digest opens with it. Undefined when the bridge was started
+   * without a sessions folder (only tests do that).
+   */
+  previously?: PrepPreviously;
   /** Null when the vault has no play session yet. */
   lastSession: PrepLastSession | null;
   /** Open quests only; null when Foundry was not reachable. */

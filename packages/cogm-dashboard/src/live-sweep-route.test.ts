@@ -48,13 +48,6 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'live-sweep'),
     client,
-    coGm: {
-      enabled: false,
-      isBusy: false,
-      setWorld: (): void => undefined,
-      abortActive: (): void => undefined,
-      stream: () => Promise.reject(new Error('off')),
-    } as never,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server!.once('listening', () => resolve()));

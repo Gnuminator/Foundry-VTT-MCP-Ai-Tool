@@ -5,9 +5,12 @@ import type {
   PreflightScanResult,
   PreflightSettingFinding,
 } from '@gnuminator/shared';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
+import { BUILD_ID } from '../build-id.js';
+import type { PumpHealthSnapshot } from '../pump-health.js';
+import { WrapperRegistry } from '../wrapper-registry.js';
 import { PreflightTools, type PreflightToolsOptions } from './preflight.js';
 
 function logger(): any {
@@ -38,9 +41,11 @@ interface Setup {
   vaultDirSet?: boolean;
   paperNights?: Array<{ date: string; startedAt: string }>;
   paperNightsError?: string;
+  wrappers?: Array<{ version: string | null; build?: string; sets: string }>;
+  pumps?: PumpHealthSnapshot[];
 }
 
-function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
+function tools(setup: Setup = {}): { tools: PreflightTools; query: Mock } {
   const query = vi.fn((method: string): Promise<unknown> => {
     if (method === 'foundry-mcp-bridge.getPreflightScan') {
       if (setup.scan instanceof Error) return Promise.reject(setup.scan);
@@ -85,8 +90,17 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
       },
     },
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
+    ...(setup.pumps ? { pumpHealth: () => setup.pumps ?? [] } : {}),
     logger: logger(),
     bridgeVersion: '1.2.3',
+    wrapperStatus: () => {
+      const registry = new WrapperRegistry('1.2.3');
+      (setup.wrappers ?? []).forEach((w, i) => {
+        if (w.version === null) registry.toolCallWithoutRequester(i);
+        else registry.hello(i, w);
+      });
+      return registry.status();
+    },
   };
   return { tools: new PreflightTools(options), query };
 }
@@ -94,6 +108,107 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
 function byId(result: PreflightChecksResult): Record<string, { status: string; detail: string }> {
   return Object.fromEntries(result.checks.map(c => [c.id, c]));
 }
+
+const PUMP_OK: PumpHealthSnapshot = {
+  pump: 'play',
+  lastSuccessAt: '2026-11-05T20:00:00.000Z',
+  lastError: null,
+  lostCount: 0,
+  gapCount: 0,
+  lastGap: null,
+  notRecordingSince: null,
+};
+
+describe('get-preflight recording check', () => {
+  it('is info with no pumps, unknown before the first read, ok when clean', async () => {
+    const get = async (pumps?: PumpHealthSnapshot[]): Promise<{ status: string } | undefined> =>
+      byId(
+        (await tools(pumps ? { pumps } : {}).tools.handleGetPreflight({})) as PreflightChecksResult
+      ).recording;
+    expect((await get())?.status).toBe('info');
+    expect((await get([{ ...PUMP_OK, lastSuccessAt: null }]))?.status).toBe('unknown');
+    expect((await get([PUMP_OK]))?.status).toBe('ok');
+  });
+
+  it('action "pumps" returns just the pump snapshots, nothing else', async () => {
+    const result = await tools({ pumps: [PUMP_OK] }).tools.handleGetPreflight({ action: 'pumps' });
+    expect(result).toEqual({ pumps: [PUMP_OK] });
+    expect(await tools().tools.handleGetPreflight({ action: 'pumps' })).toEqual({ pumps: [] });
+  });
+
+  it('does not stay amber for an old gap', async () => {
+    const result = (await tools({
+      pumps: [
+        {
+          ...PUMP_OK,
+          lostCount: 3,
+          gapCount: 1,
+          lastGap: {
+            reason: 'foundry-reload',
+            at: new Date(Date.now() - 24 * 3_600_000).toISOString(),
+            fromMs: 1,
+            toMs: 2,
+          },
+        },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(result).recording?.status).toBe('ok');
+  });
+
+  it('warns, in plain words, about an outage, an error and lost records', async () => {
+    const result = (await tools({
+      pumps: [
+        {
+          ...PUMP_OK,
+          notRecordingSince: '2026-11-05T20:05:00.000Z',
+          lastError: { message: 'disk full', at: '2026-11-05T20:04:00.000Z' },
+          lostCount: 7,
+          gapCount: 2,
+          lastGap: {
+            reason: 'ring-wrap',
+            at: new Date().toISOString(),
+            fromMs: 1,
+            toMs: 2,
+          },
+        },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    const rec = byId(result).recording;
+    expect(rec?.status).toBe('warn');
+    const clockOf = (iso: string): string => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    const dateOf = (iso: string): string => {
+      const d = new Date(iso);
+      const p = (n: number): string => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    };
+    // Not today: the date is in front of the time; the ISO form never shows.
+    expect(rec?.detail).toContain(
+      `not recording since ${dateOf('2026-11-05T20:05:00.000Z')} ${clockOf('2026-11-05T20:05:00.000Z')}`
+    );
+    expect(rec?.detail).not.toContain('2026-11-05T');
+    expect(rec?.detail).toContain('disk full');
+    expect(rec?.detail).toContain('7 records lost');
+    expect(rec?.detail).toContain('A gap marker is in the session log.');
+    expect(result.ready).toBe(true);
+  });
+
+  it('does not mention a gap marker when only an outage or error is listed', async () => {
+    const result = (await tools({
+      pumps: [{ ...PUMP_OK, notRecordingSince: '2026-11-05T20:05:00.000Z' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    const rec = byId(result).recording;
+    expect(rec?.status).toBe('warn');
+    expect(rec?.detail).not.toContain('gap marker');
+  });
+
+  it('words the no-pump case neutrally', async () => {
+    const result = (await tools().tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(result).recording?.detail).not.toContain('switched off');
+  });
+});
 
 describe('get-preflight', () => {
   it('is one read tool with an action parameter', () => {
@@ -108,12 +223,14 @@ describe('get-preflight', () => {
     expect(result.checks.map(c => c.id)).toEqual([
       'foundry-link',
       'versions',
+      'wrapper',
       'write-switches',
       'world-settings',
       'visible-names',
       'modules',
       'obsidian',
       'play-session',
+      'recording',
     ]);
     const c = byId(result);
     expect(c['foundry-link']?.status).toBe('ok');
@@ -160,6 +277,34 @@ describe('get-preflight', () => {
       {}
     )) as PreflightChecksResult;
     expect(byId(result)['play-session']?.status).toBe('info');
+  });
+
+  it('warns when a Claude Desktop connector is older or sends no version', async () => {
+    const ok = (await tools({
+      wrappers: [{ version: '1.2.3', sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(ok).wrapper?.status).toBe('ok');
+    const old = (await tools({
+      wrappers: [
+        { version: '1.2.3', sets: 'core' },
+        { version: null, sets: 'unknown' },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(old).wrapper).toMatchObject({ status: 'warn' });
+    expect(byId(old).wrapper?.detail).toContain('installer');
+    expect(old.ready).toBe(true);
+  });
+
+  it('warns when a connector runs the same version from another build, not without a build id', async () => {
+    const other = (await tools({
+      wrappers: [{ version: '1.2.3', build: 'not-this-one', sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(other).wrapper).toMatchObject({ status: 'warn' });
+    expect(byId(other).wrapper?.detail).toContain('different build');
+    const same = (await tools({
+      wrappers: [{ version: '1.2.3', build: BUILD_ID, sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(same).wrapper?.status).toBe('ok');
   });
 
   it('fails on a version mismatch and names both versions', async () => {

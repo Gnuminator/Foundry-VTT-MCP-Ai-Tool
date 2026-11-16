@@ -1,4 +1,4 @@
-import { MODULE_ID } from '../constants.js';
+import { AMBIGUOUS_ACTOR_PREFIX, MODULE_ID } from '../constants.js';
 import { isTablePlayer } from '../table-viewer-user.js';
 import * as shared from './shared.js';
 
@@ -149,7 +149,7 @@ export class OwnershipPlayersDataAccess {
   /**
    * Return every world actor that is a player-controlled character
    * (`hasPlayerOwner === true` and `type === 'character'`). This is the party
-   * roster — NPCs with a player owner and characters without one are excluded.
+   * roster: NPCs with a player owner and characters without one are excluded.
    */
   async getPartyCharacters(): Promise<Array<{ id: string; name: string }>> {
     shared.validateFoundryState();
@@ -167,7 +167,7 @@ export class OwnershipPlayersDataAccess {
 
   /**
    * Return every non-GM user who is currently connected (`active === true`).
-   * The result is the live player list — useful for directing rolls, chat
+   * The result is the live player list, useful for directing rolls, chat
    * messages, or permission grants at the people who are actually at the table.
    */
   async getConnectedPlayers(): Promise<Array<{ id: string; name: string }>> {
@@ -192,7 +192,7 @@ export class OwnershipPlayersDataAccess {
    *   1. Direct user-name match against all non-GM users.
    *   2. When the direct search yields nothing and `includeCharacterOwners` is
    *      true: scan characters whose name matches the identifier and return their
-   *      non-GM OWNER — de-duplicating by user id.
+   *      non-GM OWNER, de-duplicating by user id.
    *
    * GM users are never returned regardless of which path resolves.
    */
@@ -254,6 +254,10 @@ export class OwnershipPlayersDataAccess {
       const actor = shared.findActorByIdentifier(data.identifier);
       return actor ? { id: actor.id, name: actor.name } : null;
     } catch (error) {
+      // Several partial matches: the caller needs the candidates, not "no actor".
+      if (error instanceof Error && error.message.startsWith(AMBIGUOUS_ACTOR_PREFIX)) {
+        throw error;
+      }
       console.error(`[${MODULE_ID}] Error finding actor:`, error);
       return null;
     }

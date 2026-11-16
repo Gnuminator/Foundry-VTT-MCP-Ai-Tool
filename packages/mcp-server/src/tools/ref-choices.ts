@@ -60,7 +60,7 @@ type ChoicesRequest = z.infer<typeof requestSchema>;
 
 /**
  * `list-ref-choices`: the candidates for a tool parameter that names something
- * (see `shared/src/tool-refs.ts`). The dashboard's tool runner calls it to fill
+ * (see `shared/src/tool-refs.ts`). The dashboard's Tool Runner calls it to fill
  * its pickers; the AI may use it too. Read-only.
  *
  * Plans, recorded changes and Tarokka cards are listed here; every

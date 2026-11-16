@@ -1,0 +1,91 @@
+{
+  "_about": "Bold names in docs/gm and the checklists that are not a dashboard or module string, for scripts/docs-ui-check.mjs. Every entry needs a reason; an entry that a doc stops naming, or that the dashboard starts using, fails the check so this list cannot rot.",
+  "names": [
+    { "name": "Alt + F4", "reason": "Windows keyboard shortcut" },
+    { "name": "Win + R", "reason": "Windows keyboard shortcut" },
+    { "name": "Send me a code", "reason": "Cloudflare Access sign-in page button" },
+    { "name": "Sign in", "reason": "Cloudflare Access sign-in page button" },
+    { "name": "Projects", "reason": "Claude app menu" },
+    { "name": "Add secret", "reason": "Obsidian secret storage button in the plugin settings" },
+    { "name": "Installed plugins", "reason": "Obsidian Community plugins settings heading" },
+    { "name": "Turn on community plugins", "reason": "Obsidian Community plugins settings button" },
+    {
+      "name": "Add ignore patterns",
+      "reason": "Syncthing Add Folder window, Ignore Patterns tab checkbox"
+    },
+    { "name": "Enable NAT traversal", "reason": "Syncthing Connections setting" },
+    { "name": "Ignore Patterns", "reason": "Syncthing folder dialog tab" },
+    { "name": "Browse vault in Restricted Mode", "reason": "Obsidian trust prompt button" },
+    { "name": "Activate", "reason": "Foundry scene context menu entry" },
+    { "name": "Always allow", "reason": "Claude Desktop permission prompt" },
+    {
+      "name": "Claude Desktop connectors are up to date",
+      "reason": "get-preflight row label (packages/mcp-server/src/tools/preflight.ts), shown in Claude's answer"
+    },
+    { "name": "Customize", "reason": "Claude Desktop menu" },
+    { "name": "Quit", "reason": "Claude Desktop tray menu" },
+    { "name": "Search and tools", "reason": "Claude Desktop chat box menu" },
+    { "name": "foundry-mcp-admin", "reason": "Claude Desktop connector name" },
+    { "name": "Basics", "reason": "Foundry scene configuration tab" },
+    { "name": "Save Changes", "reason": "Foundry configuration dialog button" },
+    { "name": "Combat Encounters", "reason": "Foundry sidebar tab" },
+    { "name": "Roll All", "reason": "Foundry combat tracker button" },
+    { "name": "Create Additional User", "reason": "Foundry user management button" },
+    { "name": "Save and Return", "reason": "Foundry setup button" },
+    { "name": "Save Configuration", "reason": "Foundry permission configuration button" },
+    { "name": "User Management", "reason": "Foundry setup screen section" },
+    { "name": "User Permissions", "reason": "Foundry setup screen button" },
+    { "name": "Prototype Token", "reason": "Foundry actor sheet header button" },
+    { "name": "Use the Cloudflare tunnel", "reason": "Claude Desktop extension settings field" },
+    { "name": "Code execution and file creation", "reason": "Claude Desktop settings toggle" },
+    { "name": "3D Dice Settings", "reason": "Dice So Nice settings menu in Foundry" },
+    { "name": "Enable Spell Selection", "reason": "Actor Studio module setting" },
+    { "name": "Enable Level Up", "reason": "Actor Studio module setting" },
+    { "name": "Open Compendium Browser", "reason": "Foundry compendium sidebar button" },
+    {
+      "name": "Allow Player Effect Application",
+      "reason": "Automated Conditions 5e module setting"
+    },
+    { "name": "Level Up", "reason": "dnd5e character sheet button" },
+    { "name": "Identity", "reason": "Foundry prototype token configuration tab" },
+    { "name": "Dead", "reason": "Foundry token status icon" },
+    { "name": "Send login code", "reason": "Cloudflare Access login page" },
+    { "name": "Join Game Session", "reason": "Foundry join screen button" },
+    { "name": "Log Out", "reason": "Foundry game menu button" },
+    { "name": "Actor Studio", "reason": "Actor Studio module name (character builder in Foundry)" },
+    {
+      "name": "Go back",
+      "reason": "Actor Studio fork box button (Choices still open, Character name)"
+    },
+    { "name": "Add the subclass", "reason": "Actor Studio fork sheet bar button (subclass guard)" },
+    { "name": "Create Character", "reason": "Actor Studio button" },
+    { "name": "Resume", "reason": "Actor Studio fork resume dialog button" },
+    {
+      "name": "Resume in Actor Studio",
+      "reason": "Actor Studio fork resume bar on the character sheet"
+    },
+    { "name": "Advancements", "reason": "Actor Studio step" },
+    { "name": "Add Selected", "reason": "Actor Studio button" },
+    { "name": "Amulet", "reason": "dnd5e holy symbol item name" },
+    { "name": "[+] Cantrips", "reason": "Actor Studio spell step button" },
+    { "name": "Finalize Spells", "reason": "Actor Studio button" },
+    { "name": "Add Character Level", "reason": "Actor Studio button" },
+    { "name": "Take Average", "reason": "Actor Studio hit point button" },
+    { "name": "User Configuration", "reason": "Foundry player configuration window" },
+    { "name": "Save Player Configuration", "reason": "Foundry player configuration button" },
+    {
+      "name": "Add Device",
+      "reason": "Obsidian Sync or Self-hosted LiveSync device dialog button"
+    },
+    { "name": "Ignore", "reason": "Obsidian plugin prompt button" },
+    { "name": "Open folder as vault", "reason": "Obsidian start screen button" },
+    { "name": "Revert Local Changes", "reason": "Obsidian plugin button" },
+    { "name": "Create new pile", "reason": "Item Piles Dropping Item window button" },
+    { "name": "Add to pile", "reason": "Item Piles Dropping Item window button" },
+    { "name": "Add currency", "reason": "Item Piles pile window link" },
+    { "name": "Submit", "reason": "Item Piles Editing Currencies window button" },
+    { "name": "Show To Players", "reason": "Item Piles pile window button" },
+    { "name": "Configure Pile", "reason": "Item Piles pile window button" },
+    { "name": "Config Update", "reason": "Item Piles Configure Pile window button" }
+  ]
+}

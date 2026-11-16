@@ -11,15 +11,23 @@ to Claude Desktop, and it keeps a private, locked tunnel open to the server. You
 you need your **tunnel key** (two pieces of text) from the person who built the tool.
 
 You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel key. About 10 minutes.
+The free Claude plan is enough to connect, but it has a daily limit; see
+[Claude Free or Pro](claude-plans.md).
+
+This is one of the [one-time setups](README.md#one-time-setups). For a new install do "Install",
+"Check that it works" and "Stop the Allow questions", in that order. To move to a newer client
+(for example `FoundryMCPServer-Setup-v0.28.0.exe`) do "Update the client".
 
 ## Install
 
 1. **Quit Claude Desktop completely.** Right-click its icon in the tray (bottom right, near the
    clock) and choose **Quit**. Closing the window is not enough. The installer will not close it for
    you.
-2. Run `FoundryMCPServer-Setup-vX.Y.Z.exe` that you were sent.
-3. On the page about the bridge, tick **Reach the bridge through the Cloudflare tunnel**. In the
-   name box type the tunnel name you were given (it starts with `mcp.`). Leave the port as it is.
+2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (for example v0.28.0) from **Assets** at the bottom of
+   the newest release on <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, or use
+   the copy you were sent. Run it.
+3. On the page called "Bridge address", tick **Use the Cloudflare tunnel**. In **Tunnel name**
+   type the name you were given (it starts with `mcp.`). Leave the address and the port as they are.
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press
    Enter. The secret is hidden while you type; that is normal. Nothing you paste is shown or saved
    anywhere except in a locked store that only your Windows user can open.
@@ -28,10 +36,50 @@ You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel k
    A connector that is switched off is not available in that chat. Then do "Stop the Allow
    questions" below once, so Claude does not ask "Allow?" on every tool call.
 
+## Update the client
+
+The client does not update itself unless the person who built the tool switches that on for your PC
+(see "Automatic updates" below). When the person who built the tool sends a new
+`FoundryMCPServer-Setup-vX.Y.Z.exe`, install it over the old one: the same steps as "Install" above.
+The address page is already filled in, but the installer asks for the Client ID and secret again, so
+keep the key you were given and paste both.
+
+Do this when Claude seems to be missing tools that the guides mention. An old client hides newer
+tools without any error. To check: make sure the Prep connector is switched on (**+**, then **Connectors**), then in a new
+chat ask Claude _"Run get-preflight"_. The row **Claude Desktop connectors are up to date** is green
+when you are current. A warning means an old client is still connected: quit Claude Desktop from the
+tray, run the newest installer, start Claude Desktop again and ask once more. If the row says no
+connector is connected, Claude Desktop is not connected to the server yet; that is not an update
+problem.
+
+### Automatic updates (off until switched on)
+
+With the Cloudflare tunnel the client can update itself, but only after it is switched on for your
+PC. Once on, each time you sign in to Windows it asks the table which version it runs. If your
+client is older and Claude Desktop is closed, it downloads that exact release from GitHub, checks it
+against the release's `SHA256SUMS.txt`, and installs it silently with your key kept. If the download
+or the check fails, nothing is installed; if the installer itself fails, it puts the old files back. If Claude Desktop is open, it waits until the next
+sign-in. The result is one line in `%LOCALAPPDATA%\FoundryMCPServer\tunnel\update.log`; restart
+Claude Desktop afterwards to load the new client. The "update available" notice on the dashboard
+goes away once your client matches the table.
+
+Switch it on or off with (PowerShell):
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
+```
+
+The Obsidian plugin is updated through the synced GM vault (see the Obsidian sync guide), not by
+this.
+
 ## Check that it works
 
-Ask Claude: _"What world is open in Foundry?"_ A normal answer with the world's name means you are
-connected. If Claude says it cannot reach the bridge, go to the list below.
+Done when it looks like this: ask Claude _"What world is open in Foundry?"_ A normal answer with
+the world's name means you are connected. Then make sure the Prep connector is switched on and ask
+_"Run get-preflight"_: the row **Claude Desktop connectors are up to date** is green. If Claude says
+it cannot reach the bridge, go to the list below.
 
 ## Stop the "Allow" questions
 
@@ -73,8 +121,8 @@ asked for reading too.
   when it quit. Quit it from the tray and run the installer again.
 - **The key was refused:** the Client ID or the secret was pasted wrong, or the key was switched
   off. Run the installer again and paste both again, or ask for a new key.
-- **Everything worked yesterday and nothing works today:** check that the server is on
-  (`https://` the Foundry address should open) before anything else.
+- **Everything worked yesterday and nothing works today:** open the game's address first.
+  If it does not load, the server is down; see the [Game night runbook](game-night-runbook.md).
 
 ## Taking it off
 

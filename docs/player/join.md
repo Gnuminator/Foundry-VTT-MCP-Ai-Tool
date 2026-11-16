@@ -6,7 +6,7 @@ description: Step by step with pictures, the game's web address, the one-time em
 # Join the game
 
 **Phones are for reading, not playing.** Use a laptop or desktop computer to play. And **give Danni
-your email first**: until he adds it to the list, no login code ever arrives and Cloudflare shows
+your email first**: until Danni adds it to the list, no login code ever arrives and Cloudflare shows
 no error.
 
 We play in two places at once: **Foundry** in your web browser (the map, your character sheet,
@@ -58,7 +58,7 @@ does not say so: it just never sends a code. That is the first thing to check if
 
 Foundry's join page opens. It shows the game's name at the top and three panels on the left.
 
-![Foundry's join page: user name Player and the password box, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
+![Foundry's join page: the user name list with Player picked, an empty password box, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
 
 1. In the first box, pick your **user name** from the list, exactly as the GM wrote it.
 2. Leave the password box empty. Your user has no password.
@@ -67,14 +67,9 @@ Foundry's join page opens. It shows the game's name at the top and three panels 
 Ignore the **Return to Setup** box at the bottom. It is for the person who runs the server, and
 it does nothing for you.
 
-The game loads. The first time, two windows open by themselves: the Actor Studio welcome window
-and Foundry's **User Configuration**. Close both for now. User Configuration comes back every time
-you join until you have a character and have picked it there (see
-[Make your character](make-a-character.md)).
-
-![Foundry's User Configuration window and the Actor Studio welcome window open next to each other, touching, after the first join](../images/guides/join-first-windows.png)
-
-The two windows can overlap. Drag one aside, or click **Close** on the Actor Studio window first.
+The game loads. The first time, Foundry's **User Configuration** may open by itself. Close it for
+now. It comes back every time you join until you have a character (see
+[Make your character](make-a-character.md)); Actor Studio makes the new character yours.
 
 If the screen says **Game Paused**, the GM has paused the game. Nothing is wrong. It goes away when
 the GM starts again.
@@ -99,19 +94,20 @@ always posts a notice when it starts. What is recorded and what happens with it:
 ## The read-only player page
 
 The GM may also send you a second address: the **player page**. It is a read-only web page, handy
-on a phone or laptop, with the combat order, the session feed and the handouts the GM has shown you. It
+on a phone or laptop, with the combat order, the Live Feed and the handouts the GM has shown you. It
 is live now. It asks for an email code too, the same kind as in step 1 but a separate login, so the first visit
 works the same way. You don't need it to play. More in the [player guide](README.md).
 
 ## If it doesn't work
 
-| What you see                                  | What to do                                                                                                              |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No email code arrives                         | Wait a minute and check spam. Check you typed the address you gave the GM, with no extra spaces. Otherwise tell the GM. |
-| The Cloudflare page asks for your email again | Normal about once a month, or in a new browser. Get a new code.                                                         |
-| The code is refused                           | Codes run out after a short while. Reload the address, click **Send login code** again and use the newest email.        |
-| "The requested User ... does not exist"       | The user name is spelled differently. Copy it from the GM's message.                                                    |
-| Foundry asks for a password                   | You picked the wrong user, or the GM's. Pick your own name; yours has no password. Still asked? Tell the GM.            |
-| A warning about screen resolution             | Make the browser window bigger, or use a computer with a bigger screen.                                                 |
-| The page loads but stays black or very slow   | Close other tabs, check hardware acceleration is on, reload the page (F5).                                              |
-| The page can't be reached at all              | The server may be down. Tell the GM on Discord; the GM has a plan B.                                                    |
+| What you see                                    | What to do                                                                                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No email code arrives                           | Wait a minute and check spam. Check you typed the address you gave the GM, with no extra spaces. Otherwise tell the GM.                                            |
+| The Cloudflare page asks for your email again   | Normal about once a month, or in a new browser. Get a new code.                                                                                                    |
+| The code is refused                             | Codes run out after a short while. Reload the address, click **Send login code** again and use the newest email.                                                   |
+| "The requested User ... does not exist"         | The user name is spelled differently. Copy it from the GM's message.                                                                                               |
+| Your name is greyed out in the list, or missing | Greyed out: you are already logged in somewhere else (another tab or device). Close that one and try again. Missing: the name is not in this game, so tell the GM. |
+| Foundry asks for a password                     | You picked the wrong user, or the GM's. Pick your own name; yours has no password. Still asked? Tell the GM.                                                       |
+| A warning about screen resolution               | Make the browser window bigger, or use a computer with a bigger screen.                                                                                            |
+| The page loads but stays black or very slow     | Close other tabs, check hardware acceleration is on, reload the page (F5).                                                                                         |
+| The page can't be reached at all                | The server may be down. Tell the GM on Discord; the GM has a plan B.                                                                                               |

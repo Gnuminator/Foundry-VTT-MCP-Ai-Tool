@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
-import { CombatTools } from './combat.js';
+import { CombatTools, SET_INITIATIVE_NOTE } from './combat.js';
 
 /**
- * Tests for CombatTools — a thin, deterministic layer over FoundryClient.query.
+ * Tests for CombatTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures → return validation errors as strings
  * (handleSetInitiative only; all others throw).
@@ -13,7 +13,7 @@ import { CombatTools } from './combat.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: CombatTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
@@ -159,7 +159,8 @@ describe('CombatTools.handleSetInitiative', () => {
       combatantName: 'Goblin',
       initiative: 15,
     });
-    expect(result).toBe(payload);
+    expect(result).toEqual({ ...payload, note: SET_INITIATIVE_NOTE });
+    expect(SET_INITIATIVE_NOTE).toMatch(/turn did not move/);
   });
 
   it('returns a parameter-error string (not a throw) when combatantName is missing', async () => {

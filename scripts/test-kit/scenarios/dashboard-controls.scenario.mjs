@@ -11,8 +11,8 @@
  * review (no pixel comparison).
  *
  * The combat strip's controls only show with a live combat: when the kit has its scene and a
- * legendary monster, the sweep runs during a combat of that boss and one hero, with Combat buttons
- * on (both put back at the end), and the six combat rows must then pass instead of being skipped.
+ * legendary monster, the sweep runs during a combat of that boss and one hero
+ * (put back at the end), and the combat rows in BOSS_COMBAT_ROWS must then pass instead of being skipped.
  */
 import {
   CONTROLS,
@@ -21,6 +21,7 @@ import {
   moduleSkips,
   readUsageCatalog,
 } from '../lib/dashboard-controls.mjs';
+import { waitReady } from '../lib/dashboard-page.mjs';
 import { sweepGroups } from '../lib/dashboard-sweep.mjs';
 import { tokenHeroes, waitFor } from '../lib/helpers.mjs';
 
@@ -34,7 +35,6 @@ export const BOSS_COMBAT_ROWS = [
   'dash.combat.selection-clear',
   'dash.combat.selection-condition',
   'dash.combat.selection-damage',
-  'dash.combat.end',
 ];
 
 /** @type {import('../lib/contract.mjs').Scenario} */
@@ -64,20 +64,10 @@ export default {
       /** @type {import('playwright-core').Page} */
       let page;
       await t.step('open the dashboard', async () => {
-        // The old page (D-126): these steps use its controls; React is at / (D-126).
-        page = await browser.open('/legacy/', { viewport: VIEWPORT });
-        await page
-          .waitForFunction(
-            () => {
-              const bridge = document.querySelector('#status-bridge')?.textContent ?? '';
-              return bridge !== '' && !/connecting/i.test(bridge);
-            },
-            undefined,
-            { timeout: 30000 }
-          )
-          .catch(() => {
-            throw new Error('the dashboard never connected to its bridge');
-          });
+        page = await browser.open('/', { viewport: VIEWPORT });
+        await waitReady(page).catch(() => {
+          throw new Error('the dashboard never connected to its bridge');
+        });
         await page.waitForTimeout(800);
         // GM Actions on for the run (the Everyone tab's Undo opens its window only then), put back
         // afterwards. The sweep never clicks a write row, so nothing else changes.
@@ -96,7 +86,9 @@ export default {
             body: { action: 'set-gm-actions', value: true },
           });
           await page.waitForFunction(
-            () => /:\s*on/i.test(document.querySelector('#btn-gm')?.textContent ?? ''),
+            () => {
+              return document.querySelector('#btn-gm')?.getAttribute('data-gm-actions') === 'on';
+            },
             undefined,
             { timeout: 10000 }
           );
@@ -116,50 +108,6 @@ export default {
             : 'no GM session in Foundry';
           return `${combatNote}: the combat rows are skipped`;
         }
-        // Combat buttons are a per-world screen choice; read it from the server, set it, put it
-        // back. The page's label is no use here: it reads "off" until the prefs event lands. The
-        // server sends prefs null until it has read the world from the bridge (just after a
-        // Foundry restart or a module sync), so wait for that first.
-        /** @type {any} */
-        const state = await waitFor(
-          async () => {
-            const s = await t.http('/api/state');
-            return s.status === 200 && s.data?.world && s.data.prefs !== null ? s : null;
-          },
-          { label: 'the dashboard to know the world (/api/state prefs null before)' }
-        );
-        if (state.data.prefs === undefined) {
-          throw new Error(
-            '/api/state has no prefs: the dashboard is older than this checkout (start it from this worktree)'
-          );
-        }
-        const buttonsWereOn = state.data.prefs.combatButtons === true;
-        if (!buttonsWereOn) {
-          t.cleanup(async () => {
-            const off = await t.http('/api/control', {
-              method: 'POST',
-              body: { action: 'set-prefs', value: { combatButtons: false } },
-            });
-            if (off.status !== 200) {
-              throw new Error(`Combat buttons not put back off (set-prefs ${off.status})`);
-            }
-          });
-          const set = await t.http('/api/control', {
-            method: 'POST',
-            body: { action: 'set-prefs', value: { combatButtons: true } },
-          });
-          t.check(set.status === 200, 'Combat buttons turned on', set);
-        }
-        // The combatant rows are selectable only once the page has the prefs event.
-        await page
-          .waitForFunction(
-            () => /:\s*on/i.test(document.querySelector('#btn-combat-buttons')?.textContent ?? ''),
-            undefined,
-            { timeout: 10000 }
-          )
-          .catch(() => {
-            throw new Error('the dashboard never showed Combat buttons on');
-          });
         let started = false;
         t.cleanup(async () => {
           const ended = await t.gm('endCombats');
@@ -183,7 +131,7 @@ export default {
           .catch(() => {
             throw new Error(`the dashboard shows no Boss prompts toggle for ${boss.name}`);
           });
-        return `${boss.name} (legendary) and ${hero.name} in combat; Combat buttons ${buttonsWereOn ? 'were on' : 'turned on (put back at the end)'}`;
+        return `${boss.name} (legendary) and ${hero.name} in combat`;
       });
 
       if (!combatNote) {

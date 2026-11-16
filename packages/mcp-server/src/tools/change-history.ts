@@ -43,7 +43,7 @@ export class ChangeHistoryTools {
       {
         name: 'list-changes',
         description:
-          'List everyone\'s recent changes in Foundry (players, the GM and the AI) from the last 7 days, newest first: who, what and when, as readable lines such as "Ilvara: HP 10 -> 5". Filter by person, by thing (a document uuid) and by AI or human. Read-only. Each change has an id; undo it with plan-undo-changes (anyone\'s change) or, for an AI change, undo-change.',
+          'Use this to see what anyone changed (players, GM, AI) in the last 7 days, newest first: who, what, when, e.g. "Ilvara: HP 10 -> 5". Filter by person, thing (document uuid) or AI/human. Read-only. Undo with plan-undo-changes, or undo-change for an AI change.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -81,7 +81,7 @@ export class ChangeHistoryTools {
       {
         name: 'plan-undo-changes',
         description:
-          'Plan undoing one change from list-changes (by anyone: a player, the GM or the AI), or everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.',
+          'Use this to undo a change by anyone (id from list-changes); for an AI change undo-change is simpler. Can also undo everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.',
         inputSchema: {
           type: 'object',
           properties: {

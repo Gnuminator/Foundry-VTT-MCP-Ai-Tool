@@ -399,7 +399,7 @@ player vault from the M2 projection and never copies or filters mirror notes.
 ## 5. Page text: HTML to Markdown and the `@UUID` rewrite
 
 Only pages of opted-in journals have text. The converter (`obsidian/html-to-md.ts`) parses with
-`htmlparser2` ^10.1.0 (already vetted for the dashboard; v12 needs Node 20.19+; the floor is now Node 22, so
+`htmlparser2` ^10.1.0 (already vetted for the dashboard; v12 needs Node 20.19+; the floor is now Node 24, so
 v12 is allowed) and **rebuilds** Markdown from an allowlist: headings, paragraphs, line breaks, bold, italic,
 lists, blockquotes, simple tables (else paragraphs), `pre` (a fence one backtick longer than any run inside,
 info string `text`), horizontal rules. `section.secret` becomes a collapsed `> [!secret]- GM secret`
@@ -457,7 +457,7 @@ building, 2026-09-29). The uuid is the only parameter: no label, no token.
 | `POST /api/open` `{uuid, userId?}` | acts                              | 401                       | 403          | acts: calls `open-in-foundry` once |
 
 - **GET shows, POST acts.** A click in Obsidian is a top-level navigation: it carries no header, and the
-  dashboard sets no cookie (the GM page keeps its token in localStorage `cogm_token`, `public/app.js:11-24`).
+  dashboard sets no cookie (the GM page keeps its token in localStorage `cogm_token`).
   So the GET cannot authenticate; it serves `public/open.html`, a shell with no data (like `/` and `/player`
   today), and never calls the bridge. Its script (`public/open.js`) reads the uuid from the URL and the token
   from the same localStorage key, shows "Open this Actor (`Actor.abc…`) on your Foundry screen?", and POSTs

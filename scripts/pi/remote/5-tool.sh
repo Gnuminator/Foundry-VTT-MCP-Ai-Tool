@@ -13,6 +13,7 @@
 
 require_root
 require_recent_snapshot
+refuse_when_cut_over "stage 5 (the tool)"
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
@@ -51,7 +52,7 @@ check_build_loads() {
     import { pathToFileURL } from "node:url";
     const groups = {
       bridge: ["config.js", "logger.js", "foundry-connector.js", "handouts/strip-secrets.js", "prompts/register.js"].map(f => "packages/mcp-server/dist/" + f),
-      dashboard: ["app.js", "config.js", "ai/anthropic-co-gm.js"].map(f => "packages/cogm-dashboard/dist/" + f),
+      dashboard: ["app.js", "config.js"].map(f => "packages/cogm-dashboard/dist/" + f),
       shared: ["shared/dist/index.js"],
     };
     if (existsSync("packages/discord-bot/package.json")) groups.discord = ["packages/discord-bot/dist/rec/voice.js"];
@@ -106,6 +107,7 @@ if [ -z "$ref" ]; then
   ok "no TOOL_REF: building the newest release tag, $ref"
 fi
 say "the tool at $ref"
+prev_ref="$(cat "$app/.tool-ref" 2>/dev/null || true)"
 # The same ref is not built again, unless its build still has the dev packages although this stage can drop them
 # (an earlier stage 5 did not, or the ref moved past the prune since): then it is built once more, pruned. A pruned
 # build carries .tool-pruned.
@@ -177,6 +179,8 @@ $loads_out"
   chown -R root:root "$app"
   chmod 755 "$app"
   ok "built $ref ($commit), version $(node -p "require('$app/package.json').version") in $app"
+  # Building the running tag again (the prune) is not a new release.
+  [ "$prev_ref" = "$ref" ] || built_new=1
 fi
 
 say "the Foundry module"
@@ -208,9 +212,9 @@ trap - EXIT
 
 say "folders"
 install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/vault" "$TOOL_DATA/dashboard" \
-  "$TOOL_DATA/gm-browser"
+  "$TOOL_DATA/gm-browser" "$TOOL_DATA/logs"
 install -d -m 0755 "$driver_dir"
-ok "$TOOL_DATA/{vault,dashboard,gm-browser}"
+ok "$TOOL_DATA/{vault,dashboard,gm-browser,logs}"
 
 say "the Assistant GM browser driver"
 if [ -f "$driver_src" ]; then
@@ -251,6 +255,10 @@ Wants=network-online.target
 [Service]
 $common
 Environment=FOUNDRY_LINK_HOST=127.0.0.1
+# Log at info into a rotated file that survives restarts (the default, under the private /tmp, is lost at
+# every restart). bridge.env can still override both.
+Environment=LOG_LEVEL=info
+Environment=LOG_FILE_PATH=$TOOL_DATA/logs/mcp-server.log
 EnvironmentFile=-$TOOL_ETC/bridge.env
 WorkingDirectory=$app
 ExecStart=$NODE_DIR/bin/node $app/packages/mcp-server/dist/standalone.js
@@ -342,18 +350,28 @@ if have_systemd; then
     curl -fs -o /dev/null http://127.0.0.1:3000/ && break
     sleep 2
   done
-  curl -fs -o /dev/null http://127.0.0.1:3000/ && ok "dashboard answers on 127.0.0.1:3000" ||
+  curl -fs -o /dev/null http://127.0.0.1:3000/ && ok "dashboard answers on 127.0.0.1:3000" && dash_ok=1 ||
     warn "dashboard does not answer yet; see: journalctl -u foundry-ai-tool-dashboard -n 50"
   ss -ltn | grep -E ':(31414|31415|3000) ' || true
   # Tailscale serve listens on the Pi's tailnet addresses (100.64.0.0/10 and fd7a:115c:a1e0::/48);
   # that is the intended sharing, so only other addresses count as a leak.
-  tailnet='100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]+\.[0-9]+:|\[fd7a:115c:a1e0:'
+  # ss prints the interface scope: 100.x.y.z%tailscale0:PORT and [fd7a:...]%tailscale0:PORT (as control_port_check in lib.sh).
+  tailnet='%tailscale[0-9]*:'
   if ss -ltn | grep -E ':(31414|31415|3000) ' | grep -vE '127\.0\.0\.1:|\[::1\]:' |
     grep -vqE "$tailnet"; then
     warn "a tool port listens beyond loopback and the tailnet; check the units"
   else
     ok "tool ports listen on loopback, shared only with the tailnet"
   fi
+fi
+
+# A release tag the Pi did not run before was built and the dashboard answers: one English line in
+# #changelog (a normal post, rare). Off until the bot env on the Pi has DISCORD_CHANGELOG_CHANNEL_ID; a
+# failure is never fatal (announce.mjs prints one warning line). A run that dies before this point posts
+# nothing, and the rerun finds the build already there, so it posts nothing either (a courtesy post).
+if [ "${built_new:-}" = 1 ] && [ "${dash_ok:-}" = 1 ] && printf '%s' "$ref" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' &&
+  [ -f "$app/packages/discord-bot/announce/announce.mjs" ]; then
+  timeout 15 "$NODE_DIR/bin/node" "$app/packages/discord-bot/announce/announce.mjs" deploy "$ref" || true
 fi
 
 say "stage 5 done: run 5-check-world.sh for the throwaway check world, or set up the Assistant GM in the real world"

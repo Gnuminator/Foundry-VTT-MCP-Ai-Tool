@@ -7,12 +7,13 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { PageForPlayers } from '@gnuminator/shared';
 
 import { GuardedWriteService } from '../guarded-write/service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { HandoutsService } from './service.js';
@@ -97,8 +98,7 @@ beforeEach(async () => {
   });
   store = new VaultStore({ dataDir });
   now = Date.parse('2026-09-28T20:00:00.000Z');
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const worldIds = { current: (): Promise<string> => Promise.resolve(WORLD) };
   guarded = new GuardedWriteService({
     foundryClient: foundry,
@@ -220,8 +220,8 @@ describe('planPageReveal: reveal', () => {
   it('raises ownership to Observer and records previousOwnership when the page is not observable', async () => {
     const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(plan.target).toBe('mixed');
-    expect(plan.risk).toBe('destructive');
-    expect(plan.requires.confirmDestructive).toBe(true);
+    expect(plan.risk).toBe('write');
+    expect(plan.requires.confirmDestructive).toBe(false);
     await apply(plan.planId, true);
 
     expect(foundry.docs.get(PAGE1)?.source.ownership).toMatchObject({ default: 2 });
@@ -431,7 +431,7 @@ describe('planPageReveal: copy into "Handouts"', () => {
     const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(plan).toMatchObject({
       target: 'mixed',
-      risk: 'destructive',
+      risk: 'write',
       summary: 'Reveal page "Wine Cellar Notes" to players (copied into Handouts)',
       pageUuid: PAGE1,
       copy: {
@@ -588,12 +588,13 @@ describe('planPageReveal: copy into "Handouts"', () => {
     const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(plan).toMatchObject({
       target: 'foundry',
-      risk: 'destructive',
+      risk: 'write',
       summary: 'Reveal page "Wine Cellar Notes" to players again (updates its copy in Handouts)',
       copy: { action: 'update', pageUuid: copyUuid, journalCreated: false },
     });
-    expect(plan.diff).toHaveLength(1);
-    expect(plan.diff[0]).toMatchObject({ target: copyUuid, path: 'text.content' });
+    const changes = plan.diff.filter(d => d.kind !== 'notice');
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ target: copyUuid, path: 'text.content' });
     await apply(plan.planId, true);
 
     expect(foundry.docs.get(copyUuid)?.source.text).toMatchObject({
@@ -614,7 +615,7 @@ describe('planPageReveal: copy into "Handouts"', () => {
     const first = await planAndApply({ pageUuid: PAGE1, action: 'reveal' });
     foundry.edit(PAGE1, { path: 'name', present: true, value: 'Cellar Letter' });
     const { plan } = await planAndApply({ pageUuid: PAGE1, action: 'reveal' });
-    expect(plan.diff.map(d => d.path)).toEqual(['name']);
+    expect(plan.diff.filter(d => d.kind !== 'notice').map(d => d.path)).toEqual(['name']);
     expect(foundry.docs.get(first.plan.copy!.pageUuid)?.source.name).toBe('Cellar Letter');
   });
 
@@ -883,7 +884,12 @@ describe('planPageReveal: copying page types', () => {
     foundry.edit(IMAGE, { path: 'src', present: true, value: 'maps/valley-2.webp' });
     foundry.edit(IMAGE, { path: 'image.caption', present: true, value: 'Second draft' });
     const update = await handouts.planPageReveal({ pageUuid: IMAGE, action: 'reveal' });
-    expect(update.diff.map(d => d.path).sort()).toEqual(['image.caption', 'src']);
+    expect(
+      update.diff
+        .filter(d => d.kind !== 'notice')
+        .map(d => d.path)
+        .sort()
+    ).toEqual(['image.caption', 'src']);
     await apply(update.planId, true);
     expect(foundry.docs.get(plan.copy!.pageUuid)?.source).toMatchObject({
       src: 'maps/valley-2.webp',
@@ -914,6 +920,111 @@ describe('planPageReveal: copying page types', () => {
     await expect(
       handouts.planPageReveal({ pageUuid: IMAGE, action: 'reveal', copy: true })
     ).rejects.toThrow(/does not report page types. Update the module/);
+  });
+});
+
+describe('planPageReveal: chat notice (test 3)', () => {
+  const ANNA = 'aaaaaaaaaaaaaaaa';
+  const noticeLine = (plan: { diff: Array<{ kind: string }> }): any =>
+    plan.diff.find(d => d.kind === 'notice');
+  const notices = (): unknown[] =>
+    foundry.calls.filter(([m]) => m.endsWith('postHandoutNotice')).map(([, d]) => d);
+  const apply = (planId: string): ReturnType<typeof guarded.applyPlan> =>
+    guarded.applyPlan(planId, { confirm: true, confirmDestructive: true });
+
+  beforeEach(() => {
+    foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => ({
+      posted: true,
+    });
+  });
+
+  it('a reveal to everyone plans a notice line with no page text and posts it on apply', async () => {
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false });
+    expect(noticeLine(plan)).toMatchObject({ target: PAGE1 });
+    expect(noticeLine(plan).text).toContain('every player who can see it');
+    expect(notices()).toEqual([]);
+    const applied = await apply(plan.planId);
+    expect(notices()).toEqual([{ uuid: PAGE1, userIds: [] }]);
+    expect(applied.noticed).toEqual({ ok: true });
+  });
+
+  it('a reveal to chosen players whispers to exactly those players', async () => {
+    const plan = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      copy: false,
+      players: [ANNA],
+    });
+    expect(noticeLine(plan).text).toContain('1 player');
+    await apply(plan.planId);
+    expect(notices()).toEqual([{ uuid: PAGE1, userIds: [ANNA] }]);
+  });
+
+  it('a copy reveal names the copy, which is what the players can open', async () => {
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: true });
+    const applied = await apply(plan.planId);
+    const uuid = (notices()[0] as { uuid: string }).uuid;
+    expect(uuid).toContain('JournalEntryPage');
+    expect(uuid).not.toBe(PAGE1);
+    expect(applied.noticed).toEqual({ ok: true });
+  });
+
+  it('undoing the reveal posts no second notice and keeps the notice line out of the undo', async () => {
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false });
+    const applied = await apply(plan.planId);
+    expect(applied.diff.some(line => line.startsWith('Chat notice:'))).toBe(true);
+    const undone = await guarded.undo(applied.changeId, { confirm: true });
+    expect(notices()).toHaveLength(1);
+    expect(undone).not.toHaveProperty('noticed');
+    expect(undone.diff.some(line => line.includes('Chat notice'))).toBe(false);
+  });
+
+  it('hiding a page posts no notice', async () => {
+    const reveal = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      copy: false,
+    });
+    await apply(reveal.planId);
+    const before = notices().length;
+    const hide = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'hide' });
+    expect(noticeLine(hide)).toBeUndefined();
+    await apply(hide.planId);
+    expect(notices()).toHaveLength(before);
+  });
+
+  it('says so when the module posted nothing because no player can open the page', async () => {
+    foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => ({
+      posted: false,
+      users: [],
+    });
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false });
+    const applied = await apply(plan.planId);
+    expect(applied.noticed).toEqual({
+      ok: false,
+      error: 'No player can open the page, so no chat notice was posted',
+    });
+  });
+
+  it('refuses a malformed notice when planning', async () => {
+    await expect(
+      guarded.createPlan({
+        feature: 'handouts',
+        summary: 'x',
+        vaultOps: [{ kind: 'vault-set', file: 'reveals.json', path: 'x', value: 1 }],
+        noticeToPlayers: { uuid: 'Actor.ilvara', users: [] },
+      })
+    ).rejects.toThrow(/noticeToPlayers needs the uuid of a journal page or journal/);
+  });
+
+  it('still reveals when the notice cannot be posted, and says so', async () => {
+    foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => {
+      throw new Error('chat is down');
+    };
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false });
+    const applied = await apply(plan.planId);
+    expect(applied.noticed).toEqual({ ok: false, error: 'chat is down' });
+    expect(applied.mode).toBe('apply');
   });
 });
 

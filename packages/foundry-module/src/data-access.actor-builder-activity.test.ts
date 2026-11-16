@@ -1,5 +1,5 @@
 /**
- * Characterization tests for `useNpcActivity` in the `actor-builder` domain —
+ * Characterization tests for `useNpcActivity` in the `actor-builder` domain -
  * the one method the two parallel actor-builder nets each ceded to the other
  * (a blind-split gap). This file closes it.
  *
@@ -11,7 +11,7 @@
  * Driven through the Phase 9 Foundry-mock harness (in-memory, no browser).
  *
  * Harness gaps worked around locally (never editing shared harness files):
- *   - `makeItem` carries no dnd5e `system.activities`; an attack activity with
+ *   - `makeItem` gives a weapon an empty `system.activities` map; an attack activity with
  *     `rollAttack`/`rollDamage` `vi.fn()` stubs is attached per-test (and the
  *     item's own `use` stub for the no-activity path).
  *   - `game.user.targets` is set locally to exercise targeted-token AC resolution.
@@ -80,7 +80,7 @@ function npcWith(name: string, items: any[]): any {
 
 // ===========================================================================
 
-describe('FoundryDataAccess — useNpcActivity', () => {
+describe('FoundryDataAccess: useNpcActivity', () => {
   it('throws when the system is not dnd5e', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' })).rejects.toThrow(
@@ -178,6 +178,94 @@ describe('FoundryDataAccess — useNpcActivity', () => {
     expect(result.targetName).toBe('Goblin');
     expect(result.targetAC).toBe(15);
     expect(result.hit).toBe(true); // 16 >= 15
+  });
+
+  describe('GM target fallback', () => {
+    const gmWith = (
+      tokens: Array<{ id: string; name: string; ac: number }>
+    ): { id: string; isGM: boolean; active: boolean; targets: Set<unknown> } => ({
+      id: 'gm2',
+      isGM: true,
+      active: true,
+      targets: new Set(
+        tokens.map(t => ({
+          id: t.id,
+          name: t.name,
+          actor: { system: { attributes: { ac: { value: t.ac } } } },
+        }))
+      ),
+    });
+    const withGms = async (
+      gms: unknown[],
+      params: Record<string, unknown>
+    ): Promise<Awaited<ReturnType<typeof da.useNpcActivity>>> => {
+      const { item } = attackItem({
+        attack: { total: 16, formula: '1d20+4' },
+        damage: { total: 6 },
+      });
+      npcWith('Bandit', [item]);
+      const g = (globalThis as any).game;
+      const prevUsers = g.users;
+      g.users = { ...prevUsers, filter: (fn: (u: any) => boolean): unknown[] => gms.filter(fn) };
+      try {
+        return await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw', ...params });
+      } finally {
+        g.users = prevUsers;
+      }
+    };
+
+    it('leaves the target name empty when the caller passes an AC and only a GM has a target', async () => {
+      const result = await withGms([gmWith([{ id: 'tk1', name: 'Ogre', ac: 11 }])], {
+        targetAC: 13,
+      });
+      expect(result.targetName).toBeNull();
+      expect(result.targetAC).toBe(13);
+    });
+
+    it('guesses nothing when two active GMs target different tokens', async () => {
+      const result = await withGms(
+        [
+          gmWith([{ id: 'tk1', name: 'Ogre', ac: 11 }]),
+          { ...gmWith([{ id: 'tk2', name: 'Goblin', ac: 15 }]), id: 'gm3' },
+        ],
+        {}
+      );
+      expect(result.targetName).toBeNull();
+      expect(result.targetAC).toBeNull();
+    });
+  });
+
+  it('takes the target from another active GM when the bridge user has none', async () => {
+    const { item } = attackItem({ attack: { total: 16, formula: '1d20+4' }, damage: { total: 6 } });
+    npcWith('Bandit', [item]);
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean): unknown[] =>
+        [
+          {
+            id: 'gm2',
+            isGM: true,
+            active: true,
+            targets: new Set([
+              {
+                id: 'tk1',
+                name: 'Goblin',
+                actor: { system: { attributes: { ac: { value: 15 } } } },
+              },
+            ]),
+          },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' });
+      expect(result.targetName).toBe('Goblin');
+      expect(result.targetAC).toBe(15);
+      expect(result.hit).toBe(true);
+    } finally {
+      g.users = prevUsers;
+    }
   });
 
   it('falls back to using the item (no attack) when it has no attack activity', async () => {

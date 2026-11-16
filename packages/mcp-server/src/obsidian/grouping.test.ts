@@ -177,6 +177,54 @@ describe('groupWithPlayRecords', () => {
     expect(groups[0]?.playRecords.map(r => r.key)).toEqual(['r1']);
     expect(groups[1]?.playRecords.map(r => r.key)).toEqual(['r2']);
   });
+
+  describe('recording-gap lines', () => {
+    const t0 = Date.parse('2026-09-28T10:00:00Z');
+    const gap = (id: string, ms: number): SessionEvent =>
+      ev(id, new Date(ms).toISOString(), 'pump-gap');
+
+    it('opens no session after a session-end', () => {
+      const groups = groupWithPlayRecords(
+        [
+          ev('start', new Date(t0).toISOString(), 'session-start'),
+          ev('end', new Date(t0 + 60_000).toISOString(), 'session-end'),
+          gap('gap', t0 + 120_000),
+        ],
+        []
+      );
+      expect(groups).toHaveLength(1);
+      expect(groups[0]?.events.map(e => e.id)).toEqual(['start', 'end']);
+    });
+
+    it('opens no session more than 3 h after the last event, and none alone', () => {
+      const groups = groupWithPlayRecords(
+        [ev('a', new Date(t0).toISOString()), gap('gap', t0 + SESSION_GAP_MS + 60_000)],
+        [playRecord('r1', t0 + 1000)]
+      );
+      expect(groups).toHaveLength(1);
+      expect(groups[0]?.events.map(e => e.id)).toEqual(['a']);
+      expect(groupWithPlayRecords([gap('only', t0)], [])).toEqual([]);
+    });
+
+    it('keeps the row inside a session and leaves its duration alone', () => {
+      const plain = groupWithPlayRecords(
+        [ev('a', new Date(t0).toISOString()), ev('b', new Date(t0 + 600_000).toISOString())],
+        []
+      );
+      const withGap = groupWithPlayRecords(
+        [
+          ev('a', new Date(t0).toISOString()),
+          gap('gap', t0 + 300_000),
+          ev('b', new Date(t0 + 600_000).toISOString()),
+        ],
+        []
+      );
+      expect(withGap).toHaveLength(1);
+      expect(withGap[0]?.events.map(e => e.id)).toEqual(['a', 'gap', 'b']);
+      expect(withGap[0]?.startedBy).toBe(plain[0]?.startedBy);
+      expect(withGap[0]?.endedBy).toBe(plain[0]?.endedBy);
+    });
+  });
 });
 
 describe('sessionLabel', () => {

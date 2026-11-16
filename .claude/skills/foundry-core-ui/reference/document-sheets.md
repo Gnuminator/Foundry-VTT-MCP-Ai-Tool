@@ -105,7 +105,8 @@ contents) on the left and the **pages** viewport on the right.
   (`SIDEBAR.Delete`, permanent, confirmation dialog); **Duplicate** (`SIDEBAR.Duplicate`, creates a
   "Copy of ..." page). GM sees all six; a player-Owner sees Edit/Show/Jump/Delete/Duplicate as
   permitted. [unverified]
-- **Show Players** (window header control, `fa-eye`, GM only) — same "who to show" dialog for the
+- **Show Players** (window header control, `fa-eye`, GM only; in v14 it sits in the window's
+  three-dot menu next to the close button, not as its own icon) — same "who to show" dialog for the
   whole Journal Entry rather than a single page. [unverified]
 - **Configure Categories** (window header control, `fa-solid fa-chart-tree-map`, shown when
   editable) — opens **{Entry} Categories** (`JournalEntryCategoryConfig`, 480px wide,

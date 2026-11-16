@@ -10,24 +10,25 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { PlayActorRef, PlayRecord } from '@gnuminator/shared';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
 import { VaultStore } from '../vault/store.js';
 
 import { PlayStatsTools } from './play-stats.js';
 
 let dataDir: string;
 let store: VaultStore;
-let logger: any;
 
 const WORLD = 'w1';
 const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ilvara' };
 const T0 = Date.parse('2026-10-01T12:00:00.000Z');
 
-function makeTools(worldId = WORLD): PlayStatsTools {
-  return new PlayStatsTools({
-    worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve(worldId) },
-    store,
-    logger,
-  });
+function statsTools(worldId = WORLD): PlayStatsTools {
+  return makeTools(PlayStatsTools, {
+    extra: {
+      worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve(worldId) },
+      store,
+    },
+  }).tools;
 }
 
 function hp(
@@ -57,13 +58,6 @@ function hp(
 beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'play-stats-'));
   store = new VaultStore({ dataDir });
-  logger = {
-    error: (): void => undefined,
-    warn: (): void => undefined,
-    info: (): void => undefined,
-    debug: (): void => undefined,
-  };
-  logger.child = (): unknown => logger;
 });
 
 afterEach(async () => {
@@ -72,7 +66,7 @@ afterEach(async () => {
 
 describe('get-play-stats', () => {
   it('returns empty campaign totals and no session for a world with no logs yet', async () => {
-    const result = await makeTools().handleGetPlayStats({});
+    const result = await statsTools().handleGetPlayStats({});
     expect(result).toMatchObject({
       success: true,
       worldId: WORLD,
@@ -90,7 +84,7 @@ describe('get-play-stats', () => {
       hp('hp:2', farAway, 12, 6),
     ]);
 
-    const result = await makeTools().handleGetPlayStats({});
+    const result = await statsTools().handleGetPlayStats({});
     expect(result.sessionCount).toBe(2);
     expect(result.session?.number).toBe(2); // "latest" by default
     expect(result.campaign.sessions).toBe(2);
@@ -104,35 +98,35 @@ describe('get-play-stats', () => {
     await store.appendLines(WORLD, 'sessions', '2026-10-01.play.jsonl', [
       hp('hp:2', farAway, 12, 6),
     ]);
-    const result = await makeTools().handleGetPlayStats({ session: 1 });
+    const result = await statsTools().handleGetPlayStats({ session: 1 });
     expect(result.session?.number).toBe(1);
   });
 
   it('returns null for a session number that does not exist', async () => {
     await store.appendLines(WORLD, 'sessions', '2026-10-01.play.jsonl', [hp('hp:1', T0, 20, 12)]);
-    const result = await makeTools().handleGetPlayStats({ session: 99 });
+    const result = await statsTools().handleGetPlayStats({ session: 99 });
     expect(result.session).toBeNull();
   });
 
   it('filters PCs by a partial, case-insensitive name match', async () => {
     await store.appendLines(WORLD, 'sessions', '2026-10-01.play.jsonl', [hp('hp:1', T0, 20, 12)]);
-    const match = await makeTools().handleGetPlayStats({ pcName: 'lvar' });
+    const match = await statsTools().handleGetPlayStats({ pcName: 'lvar' });
     expect(match.pcs.map(p => p.name)).toEqual(['Ilvara']);
-    const noMatch = await makeTools().handleGetPlayStats({ pcName: 'nobody' });
+    const noMatch = await statsTools().handleGetPlayStats({ pcName: 'nobody' });
     expect(noMatch.pcs).toEqual([]);
   });
 
   it('never returns raw play records, only the built totals', async () => {
     await store.appendLines(WORLD, 'sessions', '2026-10-01.play.jsonl', [hp('hp:1', T0, 20, 12)]);
-    const result = await makeTools().handleGetPlayStats({});
+    const result = await statsTools().handleGetPlayStats({});
     const json = JSON.stringify(result);
     expect(json).not.toContain('"key"');
     expect(json).not.toContain('system.attributes.hp.value');
   });
 
   it('rejects an invalid session value', async () => {
-    await expect(makeTools().handleGetPlayStats({ session: 'yesterday' })).rejects.toThrow();
-    await expect(makeTools().handleGetPlayStats({ session: 0 })).rejects.toThrow();
+    await expect(statsTools().handleGetPlayStats({ session: 'yesterday' })).rejects.toThrow();
+    await expect(statsTools().handleGetPlayStats({ session: 0 })).rejects.toThrow();
   });
 
   it('drops a line that does not look like a play record instead of throwing', async () => {
@@ -140,7 +134,7 @@ describe('get-play-stats', () => {
       hp('hp:1', T0, 20, 12),
       { not: 'a play record' },
     ]);
-    const result = await makeTools().handleGetPlayStats({});
+    const result = await statsTools().handleGetPlayStats({});
     expect(result.session?.playRecords).toBe(1);
   });
 });

@@ -1,5 +1,5 @@
 // Tarokka (I-108): the five positions of the current reading, from the bridge vault (never Foundry
-// world data). Import and New reading replace the reading and a link pick links a card; all three
+// world data). Roll and Choose replace the reading and a link pick links a card; all three
 // are ordinary writes, applied in one click with an Undo toast. A reveal publishes text to the
 // players, so it goes through the confirm window. GM only, and spoiler safe: with "Show cards"
 // off the card names and GM notes are not on the page at all, only a blurred placeholder.
@@ -63,7 +63,7 @@ const LINK_LABELS: Record<string, string> = {
 
 /**
  * The link field for a found document. The bridge has no field of its own for a whole journal,
- * so a JournalEntry goes under journalPageUuid with the pages, as on the old page; it opens the
+ * so a JournalEntry goes under journalPageUuid with the pages; it opens the
  * same way.
  */
 function linkField(documentName: string): string {
@@ -122,6 +122,7 @@ export function TarokkaDrawer({
     return (): void => {
       usage().endView('dash.tarokka.view');
       onShowCardsChange(false);
+      setChoosing(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [open]);
@@ -143,15 +144,36 @@ export function TarokkaDrawer({
     }
   };
 
-  const importReading = (source: 'tarokka-reading' | 'builtin-roll'): void => {
-    void change('plan-tarokka-import', { source });
+  const rollReading = (): void => {
+    void change('plan-tarokka-import', { source: 'builtin-roll' });
   };
+
+  // The GM's own five cards (a reading read by hand): stored as a reading, nothing is dealt.
+  const [choosing, setChoosing] = useState(false);
+  const chooseToggleRef = useRef<HTMLButtonElement>(null);
+  const [refocusToggle, setRefocusToggle] = useState(false);
+  const chooseCards = (cards: Record<string, string>): void => {
+    // The tool takes the cards under the position names.
+    void change('plan-tarokka-import', cards).then(done => {
+      if (!done) return;
+      setChoosing(false);
+      // The form (and the focused Store button) is gone, no confirm window hands focus back.
+      // The toggle is still disabled until the change settles, so focus follows in an effect.
+      setRefocusToggle(true);
+    });
+  };
+  useEffect(() => {
+    if (!refocusToggle || busy) return;
+    setRefocusToggle(false);
+    // After the reload and the toast have settled, so nothing takes focus back.
+    window.setTimeout(() => chooseToggleRef.current?.focus(), 50);
+  }, [refocusToggle, busy]);
 
   // Opens the document on the GM's own Foundry screen; nothing changes, so no reload.
   const openDocument = (uuid: string): void => {
     callTool('open-in-foundry', { uuid }).then(
       () => toast('Opened in Foundry', 'ok'),
-      (err: unknown) => toast(`✗ open-in-foundry: ${errorText(err)}`, 'err')
+      (err: unknown) => toast(`✗ Open in Foundry: ${errorText(err)}`, 'err')
     );
   };
 
@@ -185,20 +207,23 @@ export function TarokkaDrawer({
             ↻ Refresh
           </Button>
           <Button
-            id="tarokka-import"
-            data-track="dash.tarokka.import"
-            disabled={busy}
-            onClick={() => importReading('tarokka-reading')}
-          >
-            Import from tarokka-reading
-          </Button>
-          <Button
             id="tarokka-roll"
             data-track="dash.tarokka.roll"
             disabled={busy}
-            onClick={() => importReading('builtin-roll')}
+            onClick={rollReading}
           >
             New reading (built-in roll)
+          </Button>
+          <Button
+            id="tarokka-choose"
+            data-track="dash.tarokka.choose"
+            ref={chooseToggleRef}
+            aria-expanded={choosing && showCards}
+            disabled={busy || !showCards}
+            title={showCards ? undefined : 'Tick “Show cards” first: the picks are on screen'}
+            onClick={() => setChoosing(c => !c)}
+          >
+            Choose the cards
           </Button>
           {obsidianUrl && (
             <a
@@ -227,15 +252,14 @@ export function TarokkaDrawer({
       }
     >
       <div id="tarokka-body">
+        {choosing && showCards && <ChooseCards busy={busy} onPlan={chooseCards} />}
         {tarokka.isError && (
           <ErrorState error={tarokka.error}>Couldn&apos;t load the reading</ErrorState>
         )}
         {!view ? (
           !tarokka.isError && <LoadingState />
         ) : !reading ? (
-          <EmptyState>
-            No reading in the vault. Import one from tarokka-reading or deal a new one.
-          </EmptyState>
+          <EmptyState>No reading in the vault. Choose the cards or deal a new one.</EmptyState>
         ) : (
           reading.positions.map(p => (
             // Keyed by the card too: an open form stays across reloads, but not onto another card.
@@ -251,6 +275,98 @@ export function TarokkaDrawer({
         )}
       </div>
     </Drawer>
+  );
+}
+
+/** The positions in reading order, with their labels and the plan-tarokka-import argument each fills. */
+const CHOOSE_POSITIONS = [
+  ['tome', 'Tome'],
+  ['holySymbol', 'Holy symbol'],
+  ['sunsword', 'Sunsword'],
+  ['ally', 'Ally'],
+  ['strahdLocation', "Strahd's location"],
+] as const;
+
+interface CardChoice {
+  id: string;
+  name: string;
+}
+
+/**
+ * Five pickers, one per position, for a reading the GM drew by hand. The lists come from the
+ * bridge (list-ref-choices, per position, so each shows its own deck). The cards are chosen on
+ * purpose, so the form exists only while "Show cards" is ticked (Pre-flight warns about that
+ * switch, and unticking it hides the form).
+ */
+function ChooseCards({
+  busy,
+  onPlan,
+}: {
+  busy: boolean;
+  onPlan: (cards: Record<string, string>) => void;
+}): JSX.Element {
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const decks = useQuery({
+    queryKey: ['tarokka-card-choices'],
+    queryFn: async (): Promise<Record<string, CardChoice[]>> => {
+      const entries = await Promise.all(
+        CHOOSE_POSITIONS.map(async ([position]) => {
+          const r = await callTool<{ choices?: CardChoice[] } | null>('list-ref-choices', {
+            kind: 'tarokka-card',
+            parent: position,
+            limit: 200,
+          });
+          return [position, r?.choices ?? []] as const;
+        })
+      );
+      return Object.fromEntries(entries);
+    },
+    staleTime: Infinity,
+    retry: false,
+  });
+  const chosen = CHOOSE_POSITIONS.map(([position]) => picked[position] ?? '');
+  const complete = chosen.every(Boolean);
+  const repeated = new Set(chosen.filter(Boolean)).size < chosen.filter(Boolean).length;
+  return (
+    <form
+      id="tarokka-choose-form"
+      className="tarokka-form"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        if (complete && !repeated) onPlan(picked);
+      }}
+    >
+      {decks.isError && <ErrorState error={decks.error}>Couldn&apos;t list the cards</ErrorState>}
+      {decks.isLoading && <LoadingState />}
+      {decks.data &&
+        CHOOSE_POSITIONS.map(([position, label]) => (
+          <label key={position} className="tarokka-choose-row">
+            {label}{' '}
+            <select
+              className="field-control"
+              data-position={position}
+              value={picked[position] ?? ''}
+              onChange={e => setPicked(p => ({ ...p, [position]: e.target.value }))}
+            >
+              <option value="">Pick a card…</option>
+              {(decks.data[position] ?? []).map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      {repeated && <ErrorState>Each card can be in the reading once.</ErrorState>}
+      <Button
+        type="submit"
+        size="sm"
+        data-track="dash.tarokka.choose-save"
+        disabled={busy || !complete || repeated}
+      >
+        Store this reading
+      </Button>
+    </form>
   );
 }
 
@@ -270,8 +386,8 @@ function PositionCard({
   openDocument: (uuid: string) => void;
 }): JSX.Element {
   const toast = useToast();
-  // One form at a time per position, as on the old page. Both drafts live here, so switching
-  // forms, a reload or a failed or cancelled change keeps what was typed; Link… or Reveal… again
+  // One form at a time per position. Both drafts live here, so switching
+  // forms, a reload or a failed or cancelled change keeps what was typed; Add a link or Reveal to players again
   // closes the form. A reveal that went in closes it and clears the draft.
   const [form, setForm] = useState<'link' | 'reveal' | null>(null);
   const [query, setQuery] = useState('');
@@ -349,7 +465,7 @@ function PositionCard({
       setForm(null);
       setTitle('');
       setText('');
-      // Plan reveal goes with the form, so focus moves to Reveal… when it was in the form or
+      // Plan reveal goes with the form, so focus moves to Reveal to players when it was in the form or
       // parked on the drawer or the page (the confirm window does that while the button is
       // disabled), and stays where the GM moved it otherwise.
       const toggle = revealToggleRef.current;
@@ -372,7 +488,7 @@ function PositionCard({
             {p.cardName} <code>{p.cardId}</code>
           </span>
         ) : (
-          // The same look as the old page's blurred name, but a fixed placeholder: neither the
+          // The look of a blurred name, but a fixed placeholder: neither the
           // name nor its length is on the page while the cards are hidden.
           <span className="tarokka-card veiled" title="Tick “Show cards” to see it">
             Hidden card <code>·····</code>
@@ -422,7 +538,7 @@ function PositionCard({
           aria-expanded={form === 'link'}
           onClick={() => toggleForm('link')}
         >
-          Link…
+          Add a link
         </Button>
         <Button
           type="button"
@@ -432,7 +548,7 @@ function PositionCard({
           aria-expanded={form === 'reveal'}
           onClick={() => toggleForm('reveal')}
         >
-          Reveal…
+          Reveal to players
         </Button>
       </div>
       {form === 'link' && (
@@ -516,7 +632,7 @@ function PositionCard({
             disabled={busy}
             onClick={planReveal}
           >
-            Plan reveal…
+            Plan reveal
           </Button>
         </div>
       )}

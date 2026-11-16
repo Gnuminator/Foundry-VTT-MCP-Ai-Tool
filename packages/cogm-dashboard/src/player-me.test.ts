@@ -10,6 +10,7 @@ import {
   concentrationReminders,
   mySheets,
   parseDamageLine,
+  rollBannerLines,
   turnLine,
   turnStatus,
 } from '../public/player-me.js';
@@ -175,5 +176,34 @@ describe('concentration reminder', () => {
   it('parses only the fixed damage template', () => {
     expect(parseDamageLine('Brenna took 7 damage.')).toEqual({ name: 'Brenna', amount: 7 });
     expect(parseDamageLine('Brenna was hit.')).toBeNull();
+  });
+});
+
+describe('rollBannerLines', () => {
+  const now = 1_000_000;
+  const open = [
+    { id: 'a', sentAt: now - 1000, label: 'Perception Skill Check (Private)', userId: 'u1' },
+    { id: 'b', sentAt: now - 1000, label: 'Dexterity Saving Throw', userId: 'u2' },
+  ];
+
+  it('names the roll for the player it is for and nobody else', () => {
+    expect(rollBannerLines(open, 'u1', now, false)?.title).toBe(
+      'The GM asked you to roll: Perception Skill Check'
+    );
+    expect(rollBannerLines(open, 'u3', now, false)).toBeNull();
+  });
+
+  it('shows nothing before the player has picked a name', () => {
+    expect(rollBannerLines(open, null, now, true)).toBeNull();
+  });
+
+  it('points a player without a personal link to Foundry or the link in Discord', () => {
+    expect(rollBannerLines(open, 'u1', now, false)?.hint).toMatch(/pinned in Discord/);
+    expect(rollBannerLines(open, 'u1', now, true)?.hint).toMatch(/Press Roll/);
+  });
+
+  it('lets an old request fade', () => {
+    const old = [{ id: 'c', sentAt: now - 31 * 60 * 1000, label: 'Stealth', userId: 'u1' }];
+    expect(rollBannerLines(old, 'u1', now, true)).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import {
   createModuleRequestHandler,
   requesterLabel,
 } from './module-requests.js';
+import { RepeatGuard } from './repeat-guard.js';
 
 const danni = { userId: 'u1', userName: 'Danni' };
 
@@ -95,6 +96,16 @@ describe('createModuleRequestHandler', () => {
       );
     }
     await expect(handler('toString', {}, danni)).rejects.toThrow(/not allowed/);
+    // A tool the window may call but the router lacks: the next step is in the message.
+    const empty = createModuleRequestHandler({
+      toolRouter: {},
+      guardedChangeTools: {} as never,
+      guardedWrites: {} as never,
+      tarokkaPositionRevealed: vi.fn(async () => false),
+    });
+    await expect(empty('list-recent-changes', {}, danni)).rejects.toThrow(
+      /Unknown tool: list-recent-changes.*restart the bridge/
+    );
   });
 
   describe('the Session window', () => {
@@ -390,5 +401,36 @@ describe('createAiChangesAnnouncer', () => {
       'Could not announce the recorded change to the module',
       { error: 'Foundry VTT module not connected' }
     );
+  });
+});
+
+describe('createModuleRequestHandler with the repeat guard', () => {
+  function guarded() {
+    const handleUndoChange = vi.fn(async () => ({ mode: 'undo' }));
+    const handler = createModuleRequestHandler({
+      toolRouter: {},
+      guardedChangeTools: { handleUndoChange, handleApplyPlannedChange: vi.fn() } as never,
+      guardedWrites: { getPlan: vi.fn() },
+      tarokkaPositionRevealed: vi.fn(async () => false),
+      repeatGuard: new RepeatGuard(),
+    });
+    return { handler, handleUndoChange };
+  }
+
+  it('a double click on Undo in a Foundry window undoes once', async () => {
+    const { handler, handleUndoChange } = guarded();
+    const [a, b] = await Promise.all([
+      handler('undo-change', { changeId: 'chg-1' }, danni),
+      handler('undo-change', { changeId: 'chg-1' }, danni),
+    ]);
+    expect(a).toEqual(b);
+    expect(handleUndoChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('another change is not held back', async () => {
+    const { handler, handleUndoChange } = guarded();
+    await handler('undo-change', { changeId: 'chg-1' }, danni);
+    await handler('undo-change', { changeId: 'chg-2' }, danni);
+    expect(handleUndoChange).toHaveBeenCalledTimes(2);
   });
 });

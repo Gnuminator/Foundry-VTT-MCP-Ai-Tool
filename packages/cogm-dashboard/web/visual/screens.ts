@@ -8,7 +8,7 @@ import { GM_TOKEN, fromMenu } from '../e2e/support';
 import { fakeDashboard, type Moment, type Setup, type Theme } from './fixtures';
 
 export interface Screen {
-  /** The file stem of the baseline, and the test title. */
+  /** The file stem of the page shot, and the test title. */
   name: string;
   /** The play session behind the screen; it decides the moment and which panels are docked. */
   moment: Moment;
@@ -16,6 +16,8 @@ export interface Screen {
   fullPage: boolean;
   versionMismatch?: boolean;
   moduleErrors?: boolean;
+  /** The Live screen (/?live=1): a fight on the strip; it has no moment tabs or Pre-flight button. */
+  live?: boolean;
   /** Gets the screen into its state and waits until its content is on the page. */
   show: (page: Page) => Promise<void>;
 }
@@ -59,6 +61,25 @@ export const SCREENS: Screen[] = [
       await expect(
         page.locator('#party-drawer').getByRole('heading', { name: /Party/ })
       ).toBeVisible();
+    },
+  },
+  {
+    // Live screen A: the strip with a fight, Party always open, Handouts, What just happened.
+    name: 'live',
+    moment: 'during',
+    fullPage: true,
+    live: true,
+    show: async (page): Promise<void> => {
+      // The page scrolls inside the window (the header stays), so a tall window shows all of it.
+      await page.setViewportSize({ width: page.viewportSize()?.width ?? 1440, height: 1700 });
+      await expect(page.locator('#live-strip li[data-id]')).toHaveCount(4);
+      await expect(page.locator('#party-drawer').getByText('Brenna').first()).toBeVisible();
+      await expect(page.locator('#handouts-drawer').getByText('Torn ledger page')).toBeVisible();
+      await expect(page.locator('#pane-changes').getByText('Moved Mara')).toBeVisible();
+      await expect(page.locator('#live-header-undo')).toContainText('Harbor thug 1: 7 fire');
+      // Drop the focus a loading shell may have left, so the shot is the same either way.
+      await page.evaluate(() => new Promise<void>(done => setTimeout(done, 150)));
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     },
   },
   {
@@ -183,9 +204,10 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
     moment: screen.moment,
     ...(screen.versionMismatch ? { versionMismatch: true } : {}),
     ...(screen.moduleErrors ? { moduleErrors: true } : {}),
+    ...(screen.live ? { live: true } : {}),
   };
   await fakeDashboard(page, setup);
-  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await page.goto(`/next/?${screen.live ? 'live=1&' : ''}token=${GM_TOKEN}`);
   // The selected moment tab has a blurred glow (box-shadow) whose rounded-corner pixels came out a
   // few colour units different on about one run in ten between identical runs (5 of 60 on the
   // advanced-menu shot; the cause of CI runs 39055187989, 39050484155 and three more). It is not
@@ -202,12 +224,16 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
   // The header's session label starts as "Session: …" and changes width when the session arrives,
   // which moves the tabs by a pixel or two: shoot after it settled.
   await expect(page.locator('#session-status')).not.toHaveText('Session: …');
+  // The header's Pre-flight button reads "Pre-flight" until the delayed quiet run
+  // (PREFLIGHT_QUIET_DELAY_MS after the page loads) has its result, then "Pre-flight: ready" (or
+  // "to fix"): wait for the settled label so no shot races it.
+  if (!screen.live) await expect(page.locator('#btn-preflight')).toContainText('Pre-flight: ');
   await screen.show(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');
   await page.mouse.move(0, 0);
   // Let every running CSS transition end (the tab pill's border colour was still a few units off in
-  // the advanced-menu shot on a loaded runner): `toHaveScreenshot` only finishes them on its own
+  // the advanced-menu shot on a loaded runner): the screenshot call only finishes them on its own
   // capture, not the ones the mouse move above just started.
   await page.evaluate(() =>
     Promise.all(

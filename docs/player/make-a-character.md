@@ -1,31 +1,35 @@
 ---
 title: Make your character
-description: Step by step, make a level-1 character in Foundry with Actor Studio from the 2024 Player's Handbook, check it, and make it yours.
+description: Step by step, make a level-3 character in Foundry with Actor Studio from the 2024 Player's Handbook (build at level 1, level up twice), check it, and make it yours.
 ---
 
 # Make your character
 
-This page walks you through making a level-1 character in Foundry, the way we do it at session 0.
-It takes about 45 minutes the first time. You need to be logged in first: see
+This page walks you through making a **level-3 character** in Foundry, the way we do it at session 0:
+our campaign starts at level 3. The builder always makes a level-1 character, so you build it first
+(steps 1 to 9) and then level it up twice to level 3, which is also where you pick your subclass
+(step 10). It takes about an hour the first time. You need to be logged in first: see
 [Join the game](join.md).
 
 We use **Actor Studio**, a character builder inside Foundry. It asks the same questions as the
 2024 Player's Handbook, in the same order, and fills in your character sheet for you. You can't
 break anything: if it goes wrong, the GM deletes the character and you start again.
 
-Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 and the 2024 Player's Handbook module
+Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (our build, 2.10.5-aitool.4; the Magic Initiate step on 2.10.5-aitool.5) and the 2024 Player's Handbook module
 2.2.0 (October 2026).
 
 ## Before you start
 
 Ask your GM, or read the session 0 message, for:
 
-- **How you get your ability scores.** The standard array (15, 14, 13, 12, 10, 8), point buy, or
-  rolling. The GM may ask the table first: the standard array gives balanced characters, rolling
-  can give very strong or very weak ones. The builder only offers the methods the GM switched on.
+- **How you get your ability scores.** Our table uses two methods: the standard array (15, 14, 13,
+  12, 10, 8) and point buy. Rolling and typing in your own numbers are switched off, so the builder
+  offers just those two. Pick whichever you like; the standard array is the quicker one.
 - **Which options are allowed.** Usually everything in the 2024 Player's Handbook; our table keeps
   to it. Some tables add or remove species, backgrounds or classes.
 - **Anything special about the campaign.** Some campaigns suggest backgrounds or character ideas.
+- **That levelling up is switched on for you.** The GM sets this (see step 10). If you can't find
+  the **Level Up** button when you get there, ask the GM.
 
 Have a rough idea of your class, species and background. You don't need to know the rules by
 heart: each choice in the builder shows its description.
@@ -37,6 +41,8 @@ Two small things that save trouble:
 - **A step can show a blank panel for about 5 seconds** after you click **Complete**. Nothing is
   wrong. Wait for the next step to appear and don't click again.
 
+> **Not sure? Ask Claude.** Ask the D&D helper: "I am new to D&D. What kind of character fits how I like to play?"
+
 ## 1. Open Actor Studio
 
 1. In the sidebar on the right, click the **Actors** tab (the person icon).
@@ -44,16 +50,15 @@ Two small things that save trouble:
 
 ![The Actors tab with the Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
 
-The first time you log in, two windows open by themselves: the Actor Studio welcome window and
-Foundry's **User Configuration**. Tick **Don't show this message again** in the welcome window and
-close it. Close User Configuration too: you pick your character there in
-[step 11](#11-make-it-your-character), and until you do, it opens again every time you join.
+The first time you log in, Foundry's **User Configuration** may open by itself. Close it: Actor
+Studio makes your new character yours when you click Create Character (see
+[step 11](#11-make-it-your-character)). There is no Actor Studio welcome window to deal with.
 
 The builder window has the tabs **Abilities**, **Species**, **Background** and **Class**, a
 **Character Name** box at the bottom and a bar that says how far you are.
 
 > If you get the message "User requires the 'Create New Actors' permission", tell the GM. Players
-> can't make characters until the GM ticks **Create Actors** for the Player role (see the GM's [Prepare session 0](../gm/prepare-session-0.md)).
+> can't make characters until the GM ticks **Create Actors** for the Player role (the GM's "Prepare session 0" page covers it).
 
 ## 2. Abilities
 
@@ -90,7 +95,8 @@ does), and picking one you already have costs you a proficiency, see
 
 Open the **Class** list and pick one. The page shows the class's main ability, hit points, saving
 throws, skills to choose from, and starting equipment. In the 2024 rules you pick a subclass at
-level 3, not now.
+level 3, so not now: you pick it when you level up in
+[step 10](#10-level-up-to-level-3-then-check-your-sheet).
 
 ## 6. Name and create
 
@@ -125,27 +131,48 @@ The steps you will see, roughly in this order:
   give you.** The species steps come first, and the background's fixed skills are not offered
   again afterwards, so a skill you pick twice is silently lost and you end up with one skill too
   few.
+- **Size:** the step may be set to **Small** even for a species that is Medium (a human, for
+  example). Open the list and choose **Medium** unless your species really is small.
+- **Choices with a counter**, like Divine Order for a cleric: the step shows **Chosen 0 of 1**.
+  Wait until it reads **Chosen 1 of 1** (or whatever the second number is). If you click Next or
+  Complete too early, a box says **Choices still open**: click **Go back** and choose. **Continue
+  anyway** is there only for a step that has nothing left to pick.
 - **Background ability scores:** raise the three listed scores: one by 2 and another by 1, or all
   three by 1. Click **+** next to the scores until it says **0 Points Remaining**.
 
   ![The background ability score step at 0 Points Remaining](../images/guides/studio-background-scores.png)
 
-- **Languages, skills and tools** from your background.
+- **Languages, skills and tools** from your background. The background's **Choose Languages**
+  step gives you Common and asks you to pick two more: the text says "Select 2 more Languages". Click
+  the languages you want in the list (ask your GM or your D&D helper which ones suit the
+  campaign) until that text is gone, then click **Next**.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
-  two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. The picker is
-  Foundry's compendium browser, and it needs care:
-  - **Pick the copy labelled "PHB 2024".** Most spells are listed once per book (SRD 5.1, SRD 5.2,
-    PHB, PHB 2024), so you see the same name up to four times.
-  - **Pick only spells of the class named after Magic Initiate**, for example Wizard spells for
-    Magic Initiate (Wizard). The class filters are locked on for Cleric, Druid and Wizard together,
-    so you are also shown spells from the other two lists, and nothing stops you picking one.
-  - A spell card may linger at the bottom right of the screen after the browser closes. Ignore it.
-
-  ![Foundry's compendium browser in the Magic Initiate step: most spells listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
+  two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. A **Select
+  Spells** window opens with Player's Handbook spells, each listed once. **The window lists the
+  spells of every class, not only of the one the feat is for, so it does not stop you from picking
+  a wrong one.** The feat's name tells you which class list to use: a Sage's feat reads Magic
+  Initiate (Wizard), so take wizard spells. If you are unsure which spells are on that class's list,
+  look the spell up on the class's page in the Player's Handbook or ask your GM or D&D helper. Type
+  in **Search spells...** to find one, click the spells you want (the window stops you when you
+  have enough) and click **Add Selected**. A spell you already picked is not offered again. One
+  thing to know:
+  - **A feat that asks for a spellcasting ability, and then asks again** (a second Magic Initiate
+    step): the second step puts the ability back to **Intelligence**, although it should match the
+    first. Set it again to the same ability as your cantrips, for example Wisdom for a cleric's
+    list.
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
-  armour training, and your level-1 class features. The steps are headed "Level 1 -> 2" even though
-  you are making a level-1 character; that is a labelling quirk. Do the steps as they come.
+  armour training, and your level-1 class features. **Weapon Mastery:** barbarian, fighter,
+  paladin, ranger and rogue get a step headed **Weapon Mastery** that asks you to pick weapons
+  whose mastery you know (3 for a fighter, 2 for the others). The counter above the list may say
+  something like "Select 3 more Weapon Proficiencies" (a confusing label, but it counts your
+  weapon picks). Pick the
+  weapons you plan to fight with, and wait until the counter is gone before you click Next. You
+  can then use a picked weapon's mastery property (Topple, Sap, Vex and so on) when you attack
+  with it. The steps are headed "Level 1 -> 2" even though
+  you are building a level-1 character first; that is a labelling quirk. Do the steps as they come.
+
+> **Not sure? Ask Claude.** Ask the D&D helper: "What does each of these choices change for my character, and which one would you pick for a beginner?"
 
 ## 8. Equipment
 
@@ -155,10 +182,14 @@ Next comes the **Equipment** tab.
    equipment plus a little gold, or only gold.
 2. The **Planned Inventory** on the right shows what you get.
 3. Scroll down in the left column. The items turn green by themselves, but **the gold amounts
-   (for example 5 GP and 8 GP) stay black until you click them**, and that is what holds the bar at
+   (for example 5 GP and 8 GP) stay black until you click them**, and that is one thing that holds the bar at
    75%. Click each gold amount until it is green and the bar at the bottom reaches
    **100% Complete**.
-4. Click **Confirm**.
+4. **If a row offers "any holy focus"** (a cleric's class row and the Acolyte background do),
+   it opens a **Select focus** list on the right, and the bar stays at 75% until you have chosen
+   from every such row. The list has no plain "Holy Symbol": pick **Amulet**, **Emblem** or
+   **Reliquary**, whichever suits your character.
+5. Click **Confirm**.
 
 ![The Equipment tab: Starting Gold options on the left, the Planned Inventory on the right, 100% Complete](../images/guides/studio-equipment.png)
 
@@ -177,18 +208,59 @@ may pick, for example "Cantrips: 0/3, Spells: 0/6".
 
 Your character sheet opens.
 
-## 10. Check your sheet
+## 10. Level up to level 3, then check your sheet
+
+Your sheet is open and shows level 1. Our campaign starts at level 3, so you level up twice, one
+level at a time, with the same builder.
+
+### Level up to level 3
+
+1. A small button with the blue Actor Studio logo appears at the top of your sheet, beside the
+   level badge. It has no text, only the logo in a thin gold frame; hover over it to see "Level Up". **It only
+   shows when the GM has switched on Milestone Levelling, or has given you enough experience points
+   (XP).** If there is no button, ask the GM.
+2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your
+   class's row (the row itself does nothing).
+3. **Going from level 2 to 3, you also choose your subclass.** A **Choose Subclass** list appears
+   under the class row. Click it (if it does not open, click it again), pick one, and read its
+   description. The bar at the bottom reaches 100% when you have picked.
+4. Click **Add Character Level**. The steps run like in [step 7](#7-advancements-answer-each-step):
+   - **Hit Points:** tick **Take Average** (or roll). Next does nothing until you have chosen.
+   - **Choices with a counter** (for example a wizard's level-2 **Scholar** skill for Expertise,
+     or an elf's spellcasting ability at level 3): choose before you click Next.
+   - **Information steps** (new class features, **Max Prepared Spells**, the **Subclass** step):
+     click **Next**.
+5. Click **Complete** on the last step. **At level 3 a second window then opens with your
+   subclass's features (for example "Champion • Level 2 -> 3, Step 1 of 1"). Click Complete in it
+   too.** If you close Studio before that, your sheet shows a bar **The level-up is not finished:
+   (subclass) was not added** with an **Add the subclass** button. Click it and click Complete in the
+   window that opens.
+6. Do this twice: level 1 to 2 first (no subclass then, so go straight to **Add Character
+   Level**), then level 2 to 3.
+
+A caster's level-up raises how many spells you may **prepare**, but it does **not** ask which new
+spells you learn (a wizard's two new spellbook spells, for example). Open the **Spells** tab
+afterwards and ask the GM or your D&D helper which to add.
+
+### Check your sheet
 
 Look over the sheet before you call it done. Ask the GM if anything looks wrong.
 
-- [ ] The level is 1, and the class, species and background are right.
-- [ ] Hit points: your class's hit die at its highest, plus your Constitution modifier (a wizard
-      with Constitution 14 has 8).
+- [ ] The level is 3, and the class, subclass, species and background are right.
+- [ ] Hit points: your class's hit die at its highest at level 1, plus the average (or your roll)
+      for levels 2 and 3, plus your Constitution modifier for each of the three levels (a fighter
+      with Constitution 14 who took the average has 12 + 8 + 8 = 28).
+- [ ] Proficiency bonus is +2 (it stays +2 until level 5).
 - [ ] Skills: the ones from your background (two), your class (usually two) and your species, if it
-      gives one. Count them: one too few means a step was skipped, or you picked a skill you
-      already had.
+      gives one (and a wizard's Scholar skill). Count them: one too few means a step was skipped,
+      or you picked a skill you already had.
 - [ ] Spells: every cantrip and spell you picked, including those from a feat such as Magic
       Initiate.
+- [ ] Armour class (AC). **Actor Studio puts your armour, shield and weapons on the sheet but
+      does not equip them**, so AC reads as if you wore nothing (a cleric with a chain shirt and a
+      shield shows 11 instead of 16). Open the **Inventory** tab and click the small icon at the
+      right end of the row of each piece of armour, your shield and your weapons (hover over it:
+      it says "Not Equipped", and "Equipped" after you click). The AC updates at once.
 - [ ] Equipment and gold are on the **Inventory** tab. **Wizards:** the starting kit has no
       spellbook. Ask the GM to add one.
 
@@ -205,9 +277,14 @@ A few cosmetic oddities are normal. For example, the Spells tab may show a raw l
 **Know your character.** Before the first session, read through your features and spells once.
 Knowing what your character can do is your job, so the game doesn't stop to look things up.
 
+> **Not sure? Ask Claude.** Ask the D&D helper: "Check my sheet: is anything missing or set up wrong for my class and level?"
+
 ## 11. Make it your character
 
 Foundry needs to know which character is yours, so it uses it for your rolls and tokens.
+Actor Studio does this for you when you click **Create Character**, and the Players list then
+shows your name with the character's name in brackets. Only if it does not (for example when you
+already had a character picked), do it by hand:
 
 1. In the **Players** list at the bottom left, right-click your own name and choose **User
    Configuration**.
@@ -218,24 +295,44 @@ Foundry needs to know which character is yours, so it uses it for your rolls and
 
 The Players list now shows your name with the character's name in brackets.
 
-## 12. A portrait (optional)
+## 12. Your picture (optional)
 
-Players can't upload pictures to Foundry. Send your picture to the GM on Discord, and the GM adds it
-as your portrait and token.
+You can put your own art on your character from the player page. Foundry's own file browser stays
+closed to players, so this is the way to do it yourself. If you would rather not, send the picture
+to the GM on Discord.
+
+1. Open the player page on the device where you opened your private link (the one pinned in
+   Discord). In the **You** card, press **Upload my portrait**.
+2. Pick one PNG, JPG or WebP file, at most 5 MB.
+3. The list next to the button says **Portrait and token**, so the same picture is also your token
+   on the map, and tokens of your character that are already placed on a scene get it too. Choose
+   **Portrait only** to change just the portrait. If the **Upload my portrait** button is missing,
+   your GM has switched it off.
+4. Wait for "Done". Your character now has the new picture in Foundry. If you have more than one
+   character, pick which one first.
+
+The picture is saved in your own folder, so nobody else's files are touched. The GM sees the change
+under Changes and can undo it if something went wrong. A file that is not a real PNG, JPG or WebP,
+or is too big, is refused with a short message; send it to the GM on Discord instead.
 
 ## If something goes wrong
 
-| What happened                                      | What to do                                                                                               |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| "User requires the 'Create New Actors' permission" | The GM has to allow players to make characters. Tell them.                                               |
-| A list is empty, or shows only a few choices       | The builder is not set to the right books. Tell the GM.                                                  |
-| You closed the builder halfway                     | Your character may exist half-made in the Actors tab. Ask the GM to delete it, then start again.         |
-| You skipped a choice with Next                     | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it. |
-| Equipment stays below 100%                         | Scroll down in the left column and click the gold amounts too, until everything is green.                |
-| The panel is blank after you click Complete        | Wait about 5 seconds. The next step appears by itself.                                                   |
-| A list is not what the GM described                | The GM may have changed the settings after you opened the page. Reload the page (F5).                    |
-| Your character is named after you                  | You left Character Name as it was. Tell the GM, who can rename it.                                       |
-| You picked a wrong spell, or the same spell twice  | Tell the GM. They can swap it on your sheet.                                                             |
+| What happened                                        | What to do                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "User requires the 'Create New Actors' permission"   | The GM has to allow players to make characters. Tell them.                                                                                                                                                                                                                                                                                                  |
+| A list is empty, or shows only a few choices         | The builder is not set to the right books. Tell the GM.                                                                                                                                                                                                                                                                                                     |
+| You closed the builder halfway, or the page reloaded | Reload the page (F5). A box asks if you want to resume your character: click **Resume** and answer the unfinished choices again. If you missed the box, open the half-made character in the Actors tab and click **Resume in Actor Studio** in the orange bar. A character with no orange bar cannot be resumed: ask the GM to delete it, then start again. |
+| Actor Studio says it is "already open and busy"      | The half-made character is blocking it. Reload the page (F5). Players can't delete characters, so ask the GM to delete the half-made one.                                                                                                                                                                                                                   |
+| AC is lower than it should be                        | Equip your armour and shield on the **Inventory** tab of your sheet.                                                                                                                                                                                                                                                                                        |
+| A box says "Choices still open"                      | You clicked Next or Complete with a **Chosen x of y** counter not full. Click **Go back** and choose. **Continue anyway** only when nothing is left to pick.                                                                                                                                                                                                |
+| There is no **Level Up** button on your sheet        | The GM has to switch on Milestone Levelling, or give you XP. Tell them.                                                                                                                                                                                                                                                                                     |
+| Level 3 shows, but no subclass on the sheet          | You closed Studio before the subclass window was finished. Open your sheet and click **Add the subclass** in the bar at the top, then Complete.                                                                                                                                                                                                             |
+| You skipped a choice with Continue anyway            | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it.                                                                                                                                                                                                                                                    |
+| Equipment stays below 100%                           | Click the gold amounts, and pick from every **Select focus** list, until everything is green.                                                                                                                                                                                                                                                               |
+| The panel is blank after you click Complete          | Wait about 5 seconds. The next step appears by itself.                                                                                                                                                                                                                                                                                                      |
+| A list is not what the GM described                  | The GM may have changed the settings after you opened the page. Reload the page (F5).                                                                                                                                                                                                                                                                       |
+| Your character is named after you                    | Studio asks before it creates one: click **Go back** and type the name. If it slipped through, tell the GM, who can rename it.                                                                                                                                                                                                                              |
+| You picked a wrong spell, or the same spell twice    | Tell the GM. They can swap it on your sheet.                                                                                                                                                                                                                                                                                                                |
 
 ## What to ask your GM
 

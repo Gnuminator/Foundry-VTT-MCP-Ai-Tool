@@ -194,6 +194,35 @@ describe('sessionSince', () => {
     expect(changes).toBe(1);
   });
 
+  it('keeps the open flag and reports an open-to-closed flip as a change', async () => {
+    const answers: Record<string, unknown> = {
+      'get-play-session': { open: true, startedAt: '2026-10-20T19:00:00.000Z', endedAt: null },
+      'get-player-handouts': { revealedUuids: [], handouts: [] },
+    };
+    let changes = 0;
+    const source = new PlayerViewSource(clientWith(answers), new Logger('error', 'test'), () => {
+      changes += 1;
+    });
+    vi.useFakeTimers();
+    try {
+      expect(source.sessionOpen).toBeNull();
+      await source.refresh();
+      expect(source.sessionOpen).toBe(true);
+      const before = changes;
+      answers['get-play-session'] = {
+        open: false,
+        startedAt: null,
+        endedAt: '2026-10-20T22:00:00.000Z',
+      };
+      await vi.advanceTimersByTimeAsync(61_000);
+      await source.refresh();
+      expect(source.sessionOpen).toBe(false);
+      expect(changes).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps counting from the previous end while a session is open (prep reveal)', async () => {
     const end = '2026-10-13T22:00:00.000Z';
     const start = '2026-10-20T19:00:00.000Z';

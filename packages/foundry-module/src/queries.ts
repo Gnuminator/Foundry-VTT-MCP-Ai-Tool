@@ -7,8 +7,8 @@ import type {
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 import { announceAiChangesUpdated } from './ai-changes-signal.js';
-import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-queries.js';
-import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
+import { openDocumentForGm } from './gm-helper-queries.js';
+import { searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
 import { setCampaignPartStatus } from './campaign-hooks.js';
 import { listGuardedFeatures } from './guarded-features.js';
@@ -25,7 +25,7 @@ import {
   snapshotGuardedOps,
 } from './data-access/guarded-write.js';
 import { ensureJournalFolder } from './data-access/journal-folder.js';
-import { showJournalPage } from './data-access/journal-show.js';
+import { postHandoutNotice, showJournalPage } from './data-access/journal-show.js';
 import { FoundryDataAccess } from './data-access.js';
 import {
   PLAYER_VIEW_QUERIES,
@@ -52,15 +52,21 @@ import {
   SCENE_MOOD_PLAN_QUERY,
   SCENE_MOODS_QUERY,
 } from './scene-mood.js';
+import { planTokenRings, TOKEN_RINGS_PLAN_QUERY } from './token-rings.js';
 import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
 import { NPC_TURN_QUERY } from './npc-turn.js';
 import { planNpcTurnWithDamage } from './npc-turn-damage.js';
 import { PAPER_SYNC_QUERY, planPaperSync } from './paper-sync-plan.js';
+import { planPcCreation, PC_CREATION_QUERY } from './pc-creation.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
+import { PLAYER_READ_QUERY, playerRead } from './player-read.js';
+import { UPLOAD_ACTOR_IMAGE_QUERY, uploadActorImage } from './actor-image.js';
+import { UPLOAD_PLAYER_PORTRAIT_QUERY, uploadPlayerPortrait } from './player-portrait.js';
 import { gateWriteHandlers } from './write-gate.js';
+import { getSetupInfo } from './data-access/setup-info.js';
 
 /** First argument of a FoundryDataAccess method: the wire payload shape its handler forwards. */
 type DataArg<K extends keyof FoundryDataAccess> = FoundryDataAccess[K] extends (
@@ -193,6 +199,9 @@ export class QueryHandlers {
     handlers.on(`${modulePrefix}.showJournalPage`, (data: unknown) =>
       this.withGmGate('Failed to show the page to the players', () => showJournalPage(data))
     );
+    handlers.on(`${modulePrefix}.postHandoutNotice`, (data: unknown) =>
+      this.withGmGate('Failed to post the handout notice', () => postHandoutNotice(data))
+    );
     handlers.on(`${modulePrefix}.listGuardedFeatures`, () =>
       this.withGmGate('Failed to list features', () => Promise.resolve(listGuardedFeatures()))
     );
@@ -210,11 +219,6 @@ export class QueryHandlers {
     );
 
     // Tarokka (read-only; the backend stores readings in its vault)
-    handlers.set(`${modulePrefix}.getTarokkaReading`, (data: { userId?: unknown } | undefined) =>
-      this.withGmGate('Failed to read the Tarokka reading', () =>
-        getTarokkaReading(data, fetchTarokkaReadingFromUser)
-      )
-    );
     handlers.set(
       `${modulePrefix}.searchLinkCandidates`,
       (data: { query?: unknown; limit?: unknown } | undefined) =>
@@ -290,6 +294,11 @@ export class QueryHandlers {
       this.withGmGate('Failed to read the moods', () => Promise.resolve(getSceneMoods()))
     );
 
+    // Dynamic token rings by default (I-093, read-only): one guarded op per actor. GM client only.
+    handlers.on(`${modulePrefix}.${TOKEN_RINGS_PLAN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the token rings', () => Promise.resolve(planTokenRings(data)))
+    );
+
     // Scene restore (I-128, read-only): one scene's walls, lights, tiles and tokens as source
     // data, compared with a backup copy by the backend. GM client only.
     handlers.on(`${modulePrefix}.${SCENE_STATE_QUERY}`, (data: unknown) =>
@@ -311,6 +320,11 @@ export class QueryHandlers {
     // Room setup (I-133, read-only): turns one request into Region and Token create ops. GM only.
     handlers.on(`${modulePrefix}.${ROOM_SETUP_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to plan the room setup', () => planRoomSetup(data))
+    );
+
+    // Player-character creation (pc-creation-tool, read-only): one Actor create op with items. GM only.
+    handlers.on(`${modulePrefix}.${PC_CREATION_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the character', () => planPcCreation(data))
     );
 
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for
@@ -337,6 +351,16 @@ export class QueryHandlers {
       })
     );
 
+    // A player's own Claude (playerRead): their sheets, level-up options and the books they may
+    // read, scoped to the one user id in the message. Read-only; the pack's permission level
+    // alone controls access (a document inside a pack follows its pack). Not an MCP tool for
+    // the GM connectors (the control method `player_tool`). GM client only.
+    handlers.set(`${modulePrefix}.${PLAYER_READ_QUERY}`, (data: unknown) =>
+      this.withGmGate('Player read failed', () =>
+        playerRead(data, this.dataAccess.playerReadDeps())
+      )
+    );
+
     // The player pressed a roll button on the dashboard's page: this GM client rolls for their
     // character and marks the request done (the module checks the button is theirs). A write
     // (write-gate.ts); not an MCP tool (the control method `player_roll`). GM client only.
@@ -351,6 +375,20 @@ export class QueryHandlers {
         }
         return this.dataAccess.executePlayerRoll(body.userId, body.buttonId);
       })
+    );
+
+    // "Upload my portrait": store a picture a player sent for a character they own, in
+    // assets/players/<slug>-<user id>/, only while the player-portrait switch is on (player-portrait.ts checks ownership and the bytes). A write
+    // (write-gate.ts); not an MCP tool (the control method `player_portrait`). GM client only.
+    handlers.on(`${modulePrefix}.${UPLOAD_PLAYER_PORTRAIT_QUERY}`, (data: unknown) =>
+      this.withGmGate('Portrait upload failed', () => uploadPlayerPortrait(data))
+    );
+
+    // plan-actor-image: store a picture the backend read from an allowed PC folder, in
+    // assets/ai-art/<actor>/ (actor-image.ts checks the bytes and finds the actor). A write
+    // (write-gate.ts); the actor change itself is a guarded plan. GM client only.
+    handlers.on(`${modulePrefix}.${UPLOAD_ACTOR_IMAGE_QUERY}`, (data: unknown) =>
+      this.withGmGate('Actor image upload failed', () => uploadActorImage(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,
@@ -561,6 +599,7 @@ export class QueryHandlers {
 
     // Diagnostics (module troubleshooting)
     handlers.set(`${modulePrefix}.getModules`, this.handleGetModules.bind(this));
+    handlers.set(`${modulePrefix}.getSetupInfo`, this.handleGetSetupInfo.bind(this));
     handlers.set(`${modulePrefix}.getModuleErrors`, this.handleGetModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.clearModuleErrors`, this.handleClearModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.getModuleManifest`, this.handleGetModuleManifest.bind(this));
@@ -965,6 +1004,8 @@ export class QueryHandlers {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    dc?: number;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request player rolls', async () => {
       if (!data.rollType || !data.rollTarget || !data.targetPlayer) {
@@ -1130,6 +1171,7 @@ export class QueryHandlers {
       configureDialog?: boolean;
       spellLevel?: number;
       versatile?: boolean;
+      rollAttack?: boolean;
     };
   }): Promise<unknown> {
     return this.withGmGate('Failed to use item', async () => {
@@ -1620,6 +1662,7 @@ export class QueryHandlers {
     dc?: number;
     isPublic: boolean;
     reason?: string;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request ability check', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
@@ -1632,6 +1675,7 @@ export class QueryHandlers {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request attack roll', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
@@ -1645,6 +1689,7 @@ export class QueryHandlers {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to roll NPC check', async () => {
       if (!data?.actorName) throw new Error('actorName is required');
@@ -1747,6 +1792,10 @@ export class QueryHandlers {
     return this.withGmGate('Failed to get modules', async () => {
       return await this.dataAccess.getModules(data || {});
     });
+  }
+
+  async handleGetSetupInfo(data: unknown): Promise<unknown> {
+    return this.withGmGate('Failed to read the Foundry setup', async () => getSetupInfo(data));
   }
 
   async handleGetModuleErrors(data: {

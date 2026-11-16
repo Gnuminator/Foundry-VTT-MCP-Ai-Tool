@@ -107,7 +107,8 @@ export async function journalRows(sweep, { t, gm, player }) {
  */
 export async function chatRows(sweep, { t, gm, player }) {
   const hero = playerHero(t.kit);
-  const label = 'STR Ability Check (Public)';
+  // The card names the ability by dnd5e's own label ("Strength"), not the short key.
+  const label = 'Strength Ability Check';
   const messageIds = () =>
     gm.evaluate(
       text =>
@@ -131,7 +132,7 @@ export async function chatRows(sweep, { t, gm, player }) {
       { targetPlayer: hero.name, ability: 'str', isPublic: true },
       { confirm: true }
     );
-    const button = gm.locator('.mcp-roll-button', { hasText: 'STR Ability Check' }).last();
+    const button = gm.locator('.mcp-roll-button', { hasText: 'Strength Ability Check' }).last();
     await button.waitFor({ state: 'attached', timeout: 15000 });
     const info = await button.evaluate(b => ({
       formula: /** @type {HTMLElement} */ (b).dataset.rollFormula ?? '',
@@ -142,7 +143,7 @@ export async function chatRows(sweep, { t, gm, player }) {
   });
 
   await sweep.row('module.chat.roll-button', 'player', async () => {
-    const button = player.locator('.mcp-roll-button', { hasText: 'STR Ability Check' }).last();
+    const button = player.locator('.mcp-roll-button', { hasText: 'Strength Ability Check' }).last();
     await button.waitFor({ state: 'visible', timeout: 15000 });
     const before = (await messageIds()).length;
     // Counted before the click: a card or a roll left by an earlier run must not pass for this one.
@@ -163,10 +164,7 @@ export async function chatRows(sweep, { t, gm, player }) {
     const rollsBefore = await rollMessages();
     const started = Date.now();
     await button.click();
-    await until(
-      async () => (await completedCards()) > cardsBefore,
-      'the card to say who rolled'
-    );
+    await until(async () => (await completedCards()) > cardsBefore, 'the card to say who rolled');
     const ms = Date.now() - started;
     const text = await player.evaluate(() => {
       const el = [...document.querySelectorAll('.message-content')]
@@ -198,16 +196,16 @@ export async function playerQueryRows(sweep, { gm, player }) {
       // Positive control: the GM's client does register the helper query, so a refusal below is
       // the player being locked out and not a query that was never there.
       const registered = await gm.evaluate(
-        () => typeof CONFIG.queries?.['foundry-mcp-bridge.gm.tarokkaReading'] === 'function'
+        () => typeof CONFIG.queries?.['foundry-mcp-bridge.gm.openDocument'] === 'function'
       );
-      if (!registered) throw new Error('the GM client has no gm.tarokkaReading query registered');
+      if (!registered) throw new Error('the GM client has no gm.openDocument query registered');
       const outcome = await player.evaluate(async () => {
         const gm = game.users.activeGM;
         if (!gm) return { skip: 'no GM is connected' };
         const results = {};
         for (const name of [
           'foundry-mcp-bridge.getWorldInfo',
-          'foundry-mcp-bridge.gm.tarokkaReading',
+          'foundry-mcp-bridge.gm.openDocument',
         ]) {
           try {
             await gm.query(name, {}, { timeout: 5000 });

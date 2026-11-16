@@ -1,0 +1,41 @@
+/* The quick roll bar (Party card, combat strip): small pickers in one wrapping row. Tokens only,
+   so both themes follow. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0.4rem 0;
+}
+
+.field {
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+.dc {
+  width: 3.2rem;
+  text-align: center;
+}
+
+/* Who has been asked and who has rolled: a full row under the pickers. */
+.status {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.statusDone {
+  color: var(--ok);
+}

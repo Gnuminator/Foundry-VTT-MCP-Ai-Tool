@@ -14,10 +14,11 @@
 # What it makes: the user `ghrunner` (no login, no sudo, no group of the foundry user); /opt/gh-runner/<name>/ (the pinned
 # runner release, sha256 checked); one hardened systemd unit per runner (no write outside its folder, the loopback and
 # Tailscale addresses unreachable, so a job cannot talk to the bridge, the dashboard or the Tailscale ports, 2 GB, low CPU weight);
-# and a gate timer (every minute) that keeps the runners STOPPED while a play session is marked (the same signal the Cast worker
-# uses: the newest session-start/session-end marker in the world vaults' sessions/<date>.jsonl). A job waits on GitHub's
-# side while the runners are stopped. A job already running is never killed by the gate. Unknown state (the vault folder
-# cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS in a row, then the gate lets the runners run again
+# and a gate timer (every minute) that keeps the `board` runner STOPPED (the `vault` runner is never held, so the PM board
+# rebuilds during play: 2026-11-10, the user) while a play session is marked (the same signal the Cast worker
+# uses: the newest session-start/session-end marker in the world vaults' sessions/<date>.jsonl, OR a connected non-GM player: the newest user-join/user-leave per user in sessions/<date>.play.jsonl, a join younger than 14 h counts, so an unmarked night is covered). A job waits on GitHub's
+# side while the board runner is stopped. A job already running is never killed by the gate. Unknown state (the vault folder
+# cannot be read) counts as playing, up to GATE_UNKNOWN_CEILING_HOURS (14) hours in a row, then the gate lets the board runner run again
 # and logs it (a broken signal must not freeze the board for good). The runners are not enabled at boot: the gate starts them.
 
 require_root
@@ -169,21 +170,23 @@ for pair in $RUNNERS; do
   fi
 done
 
-say "the gate (stops the runners while a play session is marked)"
+say "the gate (stops the board runner, never the vault runner, while a play session is marked or a player is connected)"
 # Quoted heredoc: nothing in it is expanded here; it runs every minute from a timer. Environment, for tests only:
-# GATE_VAULT_ROOT, GATE_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
+# GATE_VAULT_ROOT, GATE_UNITS, GATE_KEEP_UNITS, GATE_STATE_DIR, GATE_NODE, GATE_NOW_MS, GATE_DRY=1 (print the decision, change nothing).
 script_body="$(
   cat <<'GATE_SCRIPT_BODY'
 #!/usr/bin/env bash
-# Keeps the GitHub runners off the Pi while a play session is marked (written by scripts/pi/remote/17-gh-runner.sh; edit it there).
-# Idle: start the runners that are stopped. Playing, or unknown: stop the runners that run no job.
+# Keeps the GitHub runners off the Pi while a play session is marked or a player is connected (written by scripts/pi/remote/17-gh-runner.sh; edit it there).
+# Idle: start the runners that are stopped. Playing, or unknown: stop the board runner when it runs no job; the vault runner (GATE_KEEP_UNITS) is started in every state.
 set -euo pipefail
 vault_root="${GATE_VAULT_ROOT:-/var/lib/foundry-ai-tool/vault}"
 units="${GATE_UNITS:-foundry-ai-tool-gh-runner-vault.service foundry-ai-tool-gh-runner-board.service}"
+# Units the gate never holds: the vault runner rebuilds the PM board on every vault push, also during play.
+keep_units="${GATE_KEEP_UNITS-foundry-ai-tool-gh-runner-vault.service}"
 state_dir="${GATE_STATE_DIR:-/run/foundry-gh-runner-gate}"
 node="${GATE_NODE:-/opt/node24/bin/node}"
 now_ms="${GATE_NOW_MS:-$(($(date +%s) * 1000))}"
-ceiling_hours="${GATE_UNKNOWN_CEILING_HOURS:-6}"
+ceiling_hours="${GATE_UNKNOWN_CEILING_HOURS:-14}"
 cgroup_root="${GATE_CGROUP_ROOT:-/sys/fs/cgroup}"
 proc_root="${GATE_PROC_ROOT:-/proc}"
 mkdir -p "$state_dir"
@@ -198,7 +201,7 @@ const H = 3600000, MAX = 14 * H;
 let worlds;
 try { worlds = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name); }
 catch { console.log("unknown"); process.exit(0); }
-let playing = false, unknown = false;
+let playing = false, unknown = false, markerPlaying = false, byPlayers = false;
 for (const w of worlds) {
   const dir = path.join(root, w, "sessions");
   let files;
@@ -222,12 +225,51 @@ for (const w of worlds) {
       }
     } catch { unknown = true; }
   }
-  if (last && last.type === "session-start" && nowMs - last.ms <= MAX) playing = true;
+  if (last && last.type === "session-start" && nowMs - last.ms <= MAX) { playing = true; markerPlaying = true; }
+  // Presence (an unmarked night): the play log (<date>.play.jsonl, same 3 newest files) says who is connected. The newest
+  // user-join or user-leave per user decides; a join of a player (not a GM, not the TV table viewer) younger than 14 hours
+  // with no later leave and no later session-end means someone is playing. A log untouched for 28 hours is skipped, as
+  // above. A record without data.isGM counts as a player (the safe side: the runners stay stopped).
+  let pfiles = [];
+  try { pfiles = fs.readdirSync(dir).filter(f => /^\d{4}-\d{2}-\d{2}\.play\.jsonl$/.test(f)).sort().reverse().slice(0, 3); }
+  catch (e) { if (e && e.code !== "ENOENT") unknown = true; }
+  const users = new Map();
+  for (const f of pfiles) {
+    try {
+      const full = path.join(dir, f);
+      if (nowMs - fs.statSync(full).mtimeMs > 2 * MAX) continue;
+      for (const line of fs.readFileSync(full, "utf8").split(/\r?\n/)) {
+        // The play log holds every record: parse only the join and leave lines.
+        if (!line.includes("\"user-join\"") && !line.includes("\"user-leave\"")) continue;
+        try {
+          const e = JSON.parse(line);
+          if (e.kind !== "user-join" && e.kind !== "user-leave") continue;
+          const ms = e.t;
+          const uid = typeof e.userId === "string" ? e.userId : "";
+          if (!uid || typeof ms !== "number" || !Number.isFinite(ms)) continue;
+          const d = e.data && typeof e.data === "object" ? e.data : {};
+          const prev = users.get(uid);
+          if (!prev || ms >= prev.ms) users.set(uid, { type: e.kind, ms, player: d.isGM !== true && d.tableViewer !== true });
+        } catch {}
+      }
+    } catch { unknown = true; }
+  }
+  // A join older than the world newest session-end is ignored: a Foundry stop, a world switch or an Assistant GM restart
+  // can end the session without a user-leave, and the join would otherwise hold the runners for up to 14 hours.
+  const endMs = last && last.type === "session-end" ? last.ms : 0;
+  for (const u of users.values()) {
+    if (u.type === "user-join" && u.player && nowMs - u.ms <= MAX && u.ms > endMs) { playing = true; byPlayers = true; }
+  }
 }
 console.log(playing ? "playing" : unknown ? "unknown" : "idle");
+if (playing && byPlayers && !markerPlaying) console.log("players");
 ' "$vault_root" "$now_ms" 2>/dev/null
 )" || state=unknown
-case "$state" in playing | idle | unknown) ;; *) state=unknown ;; esac
+# Second line "players": playing by connected players alone (no session marker); named in the log lines.
+reason=""
+case "$state" in *$'\n'players) reason=" (players connected, no session marker)" ;; esac
+state="${state%%$'\n'*}"
+case "$state" in playing | idle | unknown) ;; *) state=unknown; reason="" ;; esac
 
 # Unknown holds the runners, but only for a ceiling in a row.
 since_file="$state_dir/unknown-since-ms"
@@ -245,7 +287,7 @@ else
 fi
 
 if [ "${GATE_DRY:-0}" = 1 ]; then
-  echo "state=$state decision=$decision"
+  echo "state=$state decision=$decision${reason:+ players=connected}"
   exit 0
 fi
 
@@ -265,11 +307,20 @@ rc=0
 for unit in $units; do
   # activating (a runner waiting out its restart delay) counts as running; only inactive and failed are stopped
   st="$(systemctl is-active "$unit" 2>/dev/null || true)"
-  if [ "$decision" = idle ]; then
+  # A kept unit (the vault runner, which builds the PM board) is never held: it is treated as idle whatever the state.
+  unit_decision="$decision"
+  start_flag=""
+  case " $keep_units " in *" $unit "*) unit_decision=idle start_flag="--no-block" ;; esac
+  if [ "$unit_decision" = idle ]; then
     case "$st" in
     active | activating) ;;
     *)
-      if systemctl start "$unit"; then echo "gh-runner-gate: $decision: started $unit"; else
+      # A kept unit starts with --no-block (a stalled start must not delay the board stop) and is logged as kept.
+      if [ -n "$start_flag" ]; then label="$state$reason (kept)"; else label="$unit_decision"; fi
+      # --no-block returns once the job is queued, so a kept unit is logged as "start queued", not "started".
+      if [ -n "$start_flag" ]; then verb="start queued for"; else verb=started; fi
+      # shellcheck disable=SC2086
+      if systemctl start $start_flag "$unit"; then echo "gh-runner-gate: $label: $verb $unit"; else
         echo "gh-runner-gate: could not start $unit" >&2
         rc=1
       fi
@@ -280,9 +331,9 @@ for unit in $units; do
     inactive | failed | "") ;;
     *)
       if has_job "$unit"; then
-        echo "gh-runner-gate: $state: $unit runs a job, left alone"
+        echo "gh-runner-gate: $state$reason: $unit runs a job, left alone"
       elif systemctl stop "$unit"; then
-        echo "gh-runner-gate: $state: stopped $unit"
+        echo "gh-runner-gate: $state$reason: stopped $unit"
       else
         echo "gh-runner-gate: could not stop $unit" >&2
         rc=1
@@ -308,7 +359,7 @@ for pair in $RUNNERS; do
     [ "${p2%%:*}" = "$name" ] || other="$other $RUNNER_BASE/${p2%%:*}"
   done
   unit_body="[Unit]
-Description=GitHub Actions runner for $GH_OWNER/$repo (PM board; stopped by the gate during a play session)
+Description=GitHub Actions runner for $GH_OWNER/$repo (PM board; the gate stops all but the vault runner during a play session)
 Wants=network-online.target
 After=network-online.target time-sync.target
 
@@ -341,12 +392,12 @@ Nice=10
 CPUWeight=20
 MemoryMax=2G
 TasksMax=512
-# No [Install]: the gate timer starts the runner when no play session is marked."
+# No [Install]: the gate timer starts the runner (the vault runner always, the board runner when no play session is marked)."
   write_file "/etc/systemd/system/foundry-ai-tool-gh-runner-$name.service" 0644 "$unit_body" || true
 done
 
 gate_service="[Unit]
-Description=Foundry AI Tool: keep the GitHub runners off the Pi during a play session
+Description=Foundry AI Tool: keep the GitHub runners (except the vault runner) off the Pi during a play session
 
 [Service]
 Type=oneshot
@@ -392,7 +443,12 @@ if have_systemd; then
   for pair in $RUNNERS; do
     unit="foundry-ai-tool-gh-runner-${pair%%:*}.service"
     if ! systemctl is-active --quiet "$unit"; then
-      ok "$unit is stopped (a play session is marked, or the state is unknown)"
+      if [ "$unit" = foundry-ai-tool-gh-runner-vault.service ]; then
+        # The gate starts the vault runner in every state, so a stopped one means the start failed.
+        warn "$unit is stopped, but the gate never holds it: journalctl -u $unit -n 30"
+      else
+        ok "$unit is stopped (a play session is marked, a player is connected, or the state is unknown)"
+      fi
       continue
     fi
     online=""

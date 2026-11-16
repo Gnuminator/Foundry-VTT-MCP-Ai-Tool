@@ -12,6 +12,7 @@
  * pushed to the aitool repo, and this checkout should be on it (the PNGs are written here).
  */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,7 +42,49 @@ export const safeTarget = rel => {
  * @param {{databaseId:number,displayTitle:string}[]} runs
  * @param {string} nonce
  */
-export const pickRun = (runs, nonce) => runs.find(r => r.displayTitle?.split(' ').includes(nonce));
+export const pickRun = (runs, nonce) =>
+  runs.find(r => r.displayTitle?.split(' ').includes(nonce));
+
+/**
+ * Refuses a run that is not for this branch and the sha the branch had when we dispatched.
+ * Empty string = fine. Fields come from `gh run list --json headBranch,headSha`.
+ * @param {{databaseId:number,headBranch?:string,headSha?:string}} run
+ * @param {string} branch
+ * @param {string} expectedSha  branch head at dispatch time ('' = unknown, skip the sha check)
+ */
+export const runProblem = (run, branch, expectedSha) => {
+  if (run.headBranch && run.headBranch !== branch) {
+    return `Run ${run.databaseId} is for branch ${run.headBranch}, not ${branch}: refusing its PNGs.`;
+  }
+  if (expectedSha && run.headSha && run.headSha !== expectedSha) {
+    return `Run ${run.databaseId} rendered ${run.headSha.slice(0, 8)} but ${branch} was at ${expectedSha.slice(0, 8)} when it started (a push in between?). Refusing its PNGs; run it again.`;
+  }
+  return '';
+};
+
+/**
+ * The artifact's head.txt must name the commit the run was started on.
+ * @param {string} headText
+ * @param {string} runSha
+ */
+export const artifactProblem = (headText, runSha) => {
+  const h = headText.trim();
+  if (h && runSha && h !== runSha) {
+    return `The artifact was rendered at ${h.slice(0, 8)} but the run is for ${runSha.slice(0, 8)}: it is another run's output. Refusing it.`;
+  }
+  return '';
+};
+
+/**
+ * Per-branch log file name, so lanes running at once never share one. A short hash of the exact
+ * branch name keeps `a/b` and `a_b` apart and, with the lower-cased name, `A` and `a` on NTFS.
+ * @param {string} branch
+ */
+export const logPathFor = branch =>
+  path.join(
+    os.tmpdir(),
+    `visual-baselines-${branch.replace(/[^A-Za-z0-9._-]/g, '_').toLowerCase()}-${createHash('sha1').update(branch).digest('hex').slice(0, 6)}.log`
+  );
 
 /**
  * What the run's playwright-exit.txt says. A non-zero exit with no changed PNG means nothing
@@ -94,6 +137,24 @@ async function main() {
     console.error('Usage: npm run visual:baselines -- <branch>   (a branch pushed to aitool)');
     return 2;
   }
+  const logFile = logPathFor(branch);
+  try {
+    fs.writeFileSync(logFile, '');
+  } catch {
+    /* the log is a convenience */
+  }
+  for (const m of ['log', 'warn', 'error']) {
+    const orig = console[m].bind(console);
+    console[m] = (...a) => {
+      orig(...a);
+      try {
+        fs.appendFileSync(logFile, `${a.join(' ')}\n`);
+      } catch {
+        /* the log is a convenience */
+      }
+    };
+  }
+  console.log(`Log for this branch: ${logFile}`);
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const refs = gh(['api', `repos/${REPO}/git/matching-refs/heads/${branch}`, '--jq', '.[].ref']);
   if (!refs.split('\n').includes(`refs/heads/${branch}`)) {
@@ -108,6 +169,7 @@ async function main() {
     );
     return 2;
   }
+  const expectedSha = gh(['api', `repos/${REPO}/git/ref/heads/${branch}`, '--jq', '.object.sha']).trim();
   const since = Date.now();
   const nonce = `n${since.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   gh([
@@ -122,11 +184,13 @@ async function main() {
     const list = JSON.parse(
       gh([
         'run', 'list', '--repo', REPO, '--workflow', WORKFLOW, '--event', 'workflow_dispatch',
-        '--limit', '10', '--json', 'databaseId,displayTitle'
+        '--limit', '30', '--json', 'databaseId,displayTitle,headBranch,headSha'
       ])
     );
     run = pickRun(list, nonce);
   }
+  const bad = runProblem(run, branch, expectedSha);
+  if (bad) throw new Error(bad);
   console.log(`Run ${run.databaseId}: https://github.com/${REPO}/actions/runs/${run.databaseId}`);
 
   for (;;) {
@@ -165,6 +229,7 @@ async function main() {
     }
   };
   const problem =
+    artifactProblem(readText('head.txt'), run.headSha ?? '') ||
     renderProblem(readText('playwright-exit.txt'), changed.length) ||
     collectProblem(readText('png-count.txt'), changed.length);
   if (!problem) {
@@ -196,7 +261,42 @@ async function main() {
   return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0 (as changelog-fold.mjs; each script stands alone).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && /^file:/i.test(argv1)) return 'import';
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const selfPath = fileURLToPath(import.meta.url);
+const decision = entryDecision(process.argv[1], selfPath);
+if (decision === 'run') {
   main().then(
     code => process.exit(code),
     err => {
@@ -204,4 +304,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       process.exit(1);
     }
   );
+} else if (decision === 'mismatch') {
+  console.error(`visual:baselines: started as ${process.argv[1]}, which is not ${selfPath}.`);
+  process.exit(1);
 }

@@ -32,12 +32,48 @@ describe('legacy Campaign Home templates', () => {
     );
   });
 
+  it('keeps the 2026-10-06 template byte for byte (frozen: never edit it)', () => {
+    const v2 = LEGACY_CAMPAIGN_HOMES[1];
+    expect(v2).toBeDefined();
+    expect(sha256(v2('ai-tool-test'))).toBe(
+      '36519e2419e7d741a1a07ca0b0d6da1667e072b165f9d4b3ac81680e8dad3302'
+    );
+    expect(isUntouchedLegacyHome('ai-tool-test', v2('ai-tool-test'))).toBe(true);
+  });
+
+  it('keeps the 2026-10-28 start page (#574) byte for byte (frozen: never edit it)', () => {
+    const v3 = LEGACY_CAMPAIGN_HOMES[2];
+    expect(v3).toBeDefined();
+    // The hash of renderCampaignHome('ai-tool-test') at main 659f3e2d, before the first-use note.
+    expect(sha256(v3('ai-tool-test'))).toBe(
+      '6728667fc187005ff332997d8d2e2e5809852e9e2dc94d3247f900a6b0d900e8'
+    );
+    expect(isUntouchedLegacyHome('ai-tool-test', v3('ai-tool-test'))).toBe(true);
+  });
+
   it('gives the current Home an Adventures base on the hubs folder', () => {
     const home = renderCampaignHome('curse-of-strahd');
-    expect(home).toContain('## Adventures');
+    expect(home).toContain('### Adventures');
     expect(home).toContain(
       '    - file.inFolder("Campaigns/curse-of-strahd/AI Tool/Foundry/Adventures")'
     );
-    expect(home.indexOf('## Adventures')).toBeLessThan(home.indexOf('## Sessions'));
+    expect(home.indexOf('### Adventures')).toBeLessThan(home.indexOf('## Play log'));
+  });
+
+  it('is a start page: sections by what the GM is doing, in plain words', () => {
+    const home = renderCampaignHome('curse-of-strahd');
+    const headings = home.split('\n').filter(line => line.startsWith('## '));
+    expect(headings).toEqual([
+      '## Before a session',
+      '## During a session',
+      '## After a session',
+      '## The campaign',
+      '## Play log',
+      '## Change log',
+      '## Rules lookups',
+      '## Help',
+    ]);
+    expect(home).toContain('start here');
+    expect(home).not.toContain(String.fromCharCode(0x2014));
   });
 });

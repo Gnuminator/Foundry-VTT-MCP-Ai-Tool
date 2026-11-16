@@ -29,7 +29,9 @@ import { randomBytes } from 'crypto';
 
 import {
   type BridgeAnswer,
+  errorMessage,
   expectedAfterApply,
+  featureOffMessage,
   GUARDED_OP_KINDS,
   type GuardedApplyOutcome,
   type GuardedApplyRequest,
@@ -42,11 +44,20 @@ import {
   type OpSnapshot,
   type PathValue,
   type RulesVersion,
+  notFoundMessage,
+  PLAN_GONE_TAIL,
   unwrapBridgeReply,
+  sleep,
+  WRITES_OFF_MESSAGE,
 } from '@gnuminator/shared';
+
+/** The read tools that find a document by name, for the "not found" next step. */
+const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
+import { mergeChangeHistory } from '../obsidian/audit-merge.js';
+import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
 import { AUDIT_FILE, AUDIT_HISTORY_FILE, AUDIT_RING_SIZE } from '../vault/audit.js';
 import { assertFileName } from '../vault/paths.js';
@@ -80,6 +91,8 @@ export const MAX_SHOW_USERS = 50;
 export const SHOW_DIFF_PREFIX = 'Show it now:';
 /** How long "show it now" waits for Foundry (it runs inside the guarded-write lock). */
 export const SHOW_TIMEOUT_MS = 15_000;
+/** Start of the diff text of a chat notice line; an undo's diff leaves such lines out. */
+export const NOTICE_DIFF_PREFIX = 'Chat notice:';
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
@@ -128,9 +141,15 @@ export interface PlanInput {
   rulesVersion?: RulesVersion;
   /**
    * Raise the plan to destructive (second confirmation) even without deletes,
-   * e.g. for a reveal that cannot be taken back at the table.
+   * e.g. for a Tarokka reveal that cannot be taken back at the table.
    */
   risk?: 'destructive';
+  /**
+   * The plan's vault deletes only tidy the tool's own bookkeeping (a revealed page leaving the
+   * handout queue) and Undo puts them back, so they do not raise the plan to destructive.
+   * Deletes of Foundry documents still do.
+   */
+  bookkeepingDeletes?: boolean;
   /**
    * Readable names for update paths the caller knows better than the bridge, e.g.
    * `{ "ownership.abc123": "ownership for Player" }` (F5 L3). Used in the diff text, which
@@ -143,6 +162,12 @@ export interface PlanInput {
    * player who can see it. Undo takes back the change, never the popup.
    */
   showToPlayers?: { uuid: string; users: string[] };
+  /**
+   * A handout reveal's chat notice: after a successful apply, a short chat message in Foundry,
+   * whispered to these players (empty: every player who can see the page), that names the page
+   * and opens it on click. No page text. Undo takes back the change, never the message.
+   */
+  noticeToPlayers?: { uuid: string; users: string[] };
   /**
    * The undo planner (I-109): the journal actions and audit changes this plan undoes. Carried onto
    * the audit entry the apply records, so the history can tell what is undone.
@@ -195,6 +220,7 @@ interface StoredPlan extends PlanView {
   vaultChecks: Array<{ file: string; expected: PathValue }>;
   rulesVersion?: RulesVersion;
   showToPlayers?: { uuid: string; users: string[] };
+  noticeToPlayers?: { uuid: string; users: string[] };
   undoes?: { actions?: string[]; changes?: string[] };
   createdMs: number;
 }
@@ -222,6 +248,8 @@ export interface AppliedChange {
   documents?: string[];
   /** Only for an apply whose plan asked to show the page: whether the popup went out. */
   shown?: { ok: true; users: string[] } | { ok: false; error: string };
+  /** Only for an apply whose plan asked for a chat notice: whether the message was posted. */
+  noticed?: { ok: true } | { ok: false; error: string };
 }
 
 /** A row of `list-recent-changes`. */
@@ -231,6 +259,8 @@ export interface RecentChange extends AppliedChange {
   canUndo: boolean;
   /** The change also wrote the AI Tool's own data (Tarokka and handout reveals): only `undo-change` takes it back. */
   ownData?: boolean;
+  /** The Obsidian Changes/ note (file name without .md) that holds this change: `2026-10`, `2026-10-p2`, ... */
+  notePart?: string;
 }
 
 export interface GuardedWriteServiceOptions {
@@ -268,7 +298,7 @@ export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string |
 
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /query timeout|connection closed/i.test(message);
 }
 
@@ -277,35 +307,34 @@ function isLostAnswer(error: unknown): boolean {
  * first), so the change certainly did not run: no outcome polling, fail at once.
  */
 function isNeverSent(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return /^(Query \S+ failed: )?(Foundry VTT module not connected|Not connected to Foundry VTT module)/i.test(
     message
   );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function newId(prefix: string, now: number): string {
   return `${prefix}-${now.toString(36)}-${randomBytes(4).toString('hex')}`;
 }
 
-function validateShowToPlayers(show: unknown): { uuid: string; users: string[] } {
+function validateShowToPlayers(
+  show: unknown,
+  field = 'showToPlayers'
+): { uuid: string; users: string[] } {
   const { uuid, users } = (show ?? {}) as { uuid?: unknown; users?: unknown };
   if (
     typeof uuid !== 'string' ||
     !uuid ||
     !(uuid.includes('JournalEntryPage') || uuid.startsWith('JournalEntry.'))
   ) {
-    throw new Error('showToPlayers needs the uuid of a journal page or journal');
+    throw new Error(`${field} needs the uuid of a journal page or journal`);
   }
   if (
     !Array.isArray(users) ||
     users.length > MAX_SHOW_USERS ||
     users.some(u => typeof u !== 'string' || !u)
   ) {
-    throw new Error(`showToPlayers users must be a list of at most ${MAX_SHOW_USERS} user ids`);
+    throw new Error(`${field} users must be a list of at most ${MAX_SHOW_USERS} user ids`);
   }
   return { uuid, users: [...(users as string[])] };
 }
@@ -441,7 +470,9 @@ function foundryDiff(
     const snap = snapshots[i];
     if (!snap) throw new Error(`No snapshot for op ${i}`);
     if (op.kind === 'update') {
-      if (!snap.exists) throw new Error(`Op ${i}: document not found: ${op.uuid}`);
+      if (!snap.exists) {
+        throw new Error(notFoundMessage(`Op ${i}: document ${op.uuid}`, DOCUMENT_LOOKUP_TOOLS));
+      }
       const label = describeTarget(snap, op.uuid);
       const paths: Array<[string, PathValue]> = [
         ...Object.entries(op.changes).map(([path, value]): [string, PathValue] => [
@@ -464,7 +495,11 @@ function foundryDiff(
         });
       }
     } else if (op.kind === 'create') {
-      if (!snap.exists) throw new Error(`Op ${i}: parent not found: ${String(op.parentUuid)}`);
+      if (!snap.exists) {
+        throw new Error(
+          notFoundMessage(`Op ${i}: parent ${String(op.parentUuid)}`, DOCUMENT_LOOKUP_TOOLS)
+        );
+      }
       if (snap.idTaken) throw new Error(`Op ${i}: a document with that id already exists`);
       // A map note carries its label in `text`, not `name`.
       const named = op.documentName === 'Note' ? (op.data.text ?? op.data.name) : op.data.name;
@@ -480,7 +515,9 @@ function foundryDiff(
         text: `Create ${label}${where}`,
       });
     } else {
-      if (!snap.exists) throw new Error(`Op ${i}: document not found: ${op.uuid}`);
+      if (!snap.exists) {
+        throw new Error(notFoundMessage(`Op ${i}: document ${op.uuid}`, DOCUMENT_LOOKUP_TOOLS));
+      }
       const label = describeTarget(snap, op.uuid);
       lines.push({
         op: i,
@@ -554,6 +591,10 @@ export class GuardedWriteService {
     }
     const showToPlayers =
       input.showToPlayers === undefined ? undefined : validateShowToPlayers(input.showToPlayers);
+    const noticeToPlayers =
+      input.noticeToPlayers === undefined
+        ? undefined
+        : validateShowToPlayers(input.noticeToPlayers, 'noticeToPlayers');
     const ops = input.ops === undefined ? [] : validateFoundryOps(input.ops);
     const vaultOps = input.vaultOps === undefined ? [] : validateVaultOps(input.vaultOps);
     const checks = input.vaultChecks === undefined ? [] : validateVaultChecks(input.vaultChecks);
@@ -631,6 +672,22 @@ export class GuardedWriteService {
       });
     }
 
+    if (noticeToPlayers) {
+      const who =
+        noticeToPlayers.users.length === 0
+          ? 'every player who can see it'
+          : noticeToPlayers.users.length === 1
+            ? '1 player'
+            : `${noticeToPlayers.users.length} players`;
+      diff.push({
+        op: ops.length + vaultOps.length,
+        kind: 'notice',
+        target: noticeToPlayers.uuid,
+        label: diff.find(d => d.target === noticeToPlayers.uuid)?.label ?? noticeToPlayers.uuid,
+        text: `${NOTICE_DIFF_PREFIX} whispers the page's title to ${who} in Foundry chat, with a link that opens it (no page text; Undo cannot take this back)`,
+      });
+    }
+
     for (const note of input.notes ?? []) {
       if (typeof note !== 'string' || !note.trim()) continue;
       diff.push({
@@ -646,7 +703,7 @@ export class GuardedWriteService {
     // it needs one confirm (F5, D-082). Any other delete raises the plan to destructive.
     const deletes =
       ops.some((op, i) => op.kind === 'delete' && expected[i]?.documentName !== 'ActiveEffect') ||
-      vaultOps.some(op => op.kind === 'vault-delete');
+      (input.bookkeepingDeletes !== true && vaultOps.some(op => op.kind === 'vault-delete'));
     const risk: GuardedRisk = deletes || input.risk === 'destructive' ? 'destructive' : 'write';
     const target: ChangeTarget =
       ops.length > 0 && vaultOps.length > 0 ? 'mixed' : ops.length > 0 ? 'foundry' : 'vault';
@@ -669,6 +726,7 @@ export class GuardedWriteService {
       createdMs,
       ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
       ...(showToPlayers ? { showToPlayers } : {}),
+      ...(noticeToPlayers ? { noticeToPlayers } : {}),
       ...(input.undoes ? { undoes: input.undoes } : {}),
     };
 
@@ -835,15 +893,34 @@ export class GuardedWriteService {
     return computeUndoState(await this.audit.ring(await this.worldIds.current()));
   }
 
-  async listRecentChanges(limit = 20): Promise<RecentChange[]> {
+  /** `noteParts`: add the Obsidian Changes/ note of each change; it reads the whole history file, so only the tool that shows it asks. */
+  async listRecentChanges(
+    limit = 20,
+    options: { noteParts?: boolean } = {}
+  ): Promise<RecentChange[]> {
     const worldId = await this.worldIds.current();
     const ring = await this.audit.ring(worldId);
     const state = computeUndoState(ring);
     const shown = ring.slice(-Math.min(Math.max(limit, 1), AUDIT_RING_SIZE)).reverse();
+    // Which Changes/ note the Obsidian export files each change in (a long month rolls over to
+    // -p2, -p3): the same split as the export, over the full history. Best effort.
+    let noteNames = new Map<string, string>();
+    if (options.noteParts) {
+      try {
+        const jsonl = await this.store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
+        noteNames = changeNoteNames(changeNoteParts(mergeChangeHistory(ring, jsonl)));
+      } catch (error) {
+        this.logger.warn('Changes note parts unavailable; links open the month note', {
+          error: errorMessage(error),
+        });
+      }
+    }
     return shown.map(e => {
       const undone = state.get(e.changeId);
+      const notePart = noteNames.get(e.changeId);
       return {
         ...this.appliedView(e),
+        ...(notePart ? { notePart } : {}),
         ...(undone ? { undoneBy: undone.undoneBy, undoneAt: undone.undoneAt } : {}),
         canUndo: !undone && ((e.results?.length ?? 0) > 0 || (e.vaultOps?.length ?? 0) > 0),
         ...((e.vaultOps?.length ?? 0) > 0 ? { ownData: true } : {}),
@@ -922,8 +999,51 @@ export class GuardedWriteService {
     await this.notifyRecorded(worldId, entry.changeId);
     // A Foundry apply logs its own gm-change event; vault-only changes do it here.
     if (!foundry) await this.logGmChange(entry);
-    const shown = plan.showToPlayers ? await this.showToPlayers(plan.showToPlayers) : undefined;
-    return { ...this.appliedView(entry), ...(shown ? { shown } : {}) };
+    // Side by side, so a stalled client holds the lock for one timeout, not two.
+    const [shown, noticed] = await Promise.all([
+      plan.showToPlayers ? this.showToPlayers(plan.showToPlayers) : undefined,
+      plan.noticeToPlayers ? this.noticeToPlayers(plan.noticeToPlayers) : undefined,
+    ]);
+    return {
+      ...this.appliedView(entry),
+      ...(shown ? { shown } : {}),
+      ...(noticed ? { noticed } : {}),
+    };
+  }
+
+  /**
+   * Whisper the handout notice in Foundry chat. Never throws: the change is already applied, and a
+   * missing notice must not turn a good reveal into an error.
+   */
+  private async noticeToPlayers(notice: {
+    uuid: string;
+    users: string[];
+  }): Promise<NonNullable<AppliedChange['noticed']>> {
+    try {
+      const reply = unwrapBridgeReply(
+        await this.foundry.query(
+          'foundry-mcp-bridge.postHandoutNotice',
+          { uuid: notice.uuid, userIds: notice.users },
+          { timeoutMs: SHOW_TIMEOUT_MS }
+        ),
+        'Chat notice refused'
+      ) as { posted?: boolean } | null;
+      // The module posts nothing when no player can open the page: say so, not "ok".
+      if (reply?.posted === false) {
+        return {
+          ok: false,
+          error: 'No player can open the page, so no chat notice was posted',
+        };
+      }
+      return { ok: true };
+    } catch (error) {
+      const message = errorMessage(error);
+      this.logger.warn('Handout chat notice failed after the change was applied', {
+        uuid: notice.uuid,
+        error: message,
+      });
+      return { ok: false, error: message };
+    }
   }
 
   /** Pop the page up on the players' screens (I-110). Never throws: the change is already applied. */
@@ -942,7 +1062,7 @@ export class GuardedWriteService {
       );
       return { ok: true, users: show.users };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       this.logger.warn('Show it now failed after the change was applied', {
         uuid: show.uuid,
         error: message,
@@ -1017,7 +1137,9 @@ export class GuardedWriteService {
       appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
       diff: [
         ...entry.diff
-          .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
+          .filter(
+            line => !line.startsWith(SHOW_DIFF_PREFIX) && !line.startsWith(NOTICE_DIFF_PREFIX)
+          )
           .map(line => `undone: ${line}`),
         ...leftAlone,
       ],
@@ -1038,7 +1160,7 @@ export class GuardedWriteService {
     const listeners = [...(this.onRecorded ? [this.onRecorded] : []), ...this.recordedListeners];
     const warn = (error: unknown): void =>
       this.logger.warn('onRecorded listener failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     const pending: Array<Promise<void>> = [];
     for (const listener of listeners) {
@@ -1078,7 +1200,7 @@ export class GuardedWriteService {
     try {
       await this.commitVaultWrite(worldId, vault);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       if (!foundry) throw error;
       // A delete that found nothing to delete has nothing to roll back.
       const done = [...foundry.results].reverse().filter(r => !isNoOpResult(r));
@@ -1095,9 +1217,9 @@ export class GuardedWriteService {
         }
       } catch (rollbackError) {
         throw new Error(
-          `The vault write failed (${message}) and the Foundry part could not be rolled back: ${
-            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
-          }`,
+          `The vault write failed (${message}) and the Foundry part could not be rolled back: ${errorMessage(
+            rollbackError
+          )}`,
           { cause: rollbackError }
         );
       }
@@ -1124,7 +1246,7 @@ export class GuardedWriteService {
       // The apply may still have run in Foundry: ask the module how it went (PB-04).
       this.logger.warn('Apply answer lost, asking Foundry for the outcome', {
         changeId: request.changeId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
       return this.awaitApplyOutcome(request);
     }
@@ -1172,7 +1294,7 @@ export class GuardedWriteService {
         // The link is down or the module cannot answer: try again on the next tick.
         this.logger.debug('Outcome check failed', {
           changeId: request.changeId,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage(error),
         });
       }
       if (outcome?.status === 'applied') {
@@ -1225,9 +1347,7 @@ export class GuardedWriteService {
           writeDataPath(simulated.get(record.file), targetOf(record), { pruneEmpty: true })
         );
       } catch (error) {
-        conflicts.push(
-          `${record.file} ${record.path}: ${error instanceof Error ? error.message : String(error)}`
-        );
+        conflicts.push(`${record.file} ${record.path}: ${errorMessage(error)}`);
         blocked.add(record.file);
       }
     }
@@ -1302,22 +1422,23 @@ export class GuardedWriteService {
       );
     } catch (error) {
       throw new Error(
-        `Cannot check the "${feature}" switch in Foundry, so the change was refused: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Cannot check the "${feature}" switch in Foundry, so the change was refused: ${errorMessage(
+          error
+        )}`,
         { cause: error }
       );
     }
     const list = Array.isArray(features) ? features : [];
     // Every feature carries the same writesAllowed; a module before 0.19.0 sends none (allowed).
     if (list.some(f => f.writesAllowed === false)) {
-      throw new Error('Write operations are disabled in the module settings');
+      throw new Error(WRITES_OFF_MESSAGE);
     }
     if (undo) return;
     const state = list.find(f => f.id === feature);
     if (!state) throw new Error(`Unknown feature "${feature}" (not installed in the module)`);
     if (state.enabled !== true) {
-      throw new Error(`The "${feature}" feature is switched off in the module settings`);
+      const name = state.name || feature;
+      throw new Error(featureOffMessage(name));
     }
   }
 
@@ -1332,7 +1453,7 @@ export class GuardedWriteService {
     } catch (error) {
       this.logger.warn('Could not log the change to the GM feed', {
         changeId: entry.changeId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     }
   }
@@ -1346,7 +1467,7 @@ export class GuardedWriteService {
     try {
       await write();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       this.logger.error('Change applied but not recorded in the audit log', {
         worldId,
         changeId: entry.changeId,
@@ -1381,7 +1502,11 @@ export class GuardedWriteService {
   private requirePlan(planId: string): StoredPlan {
     this.prune();
     const plan = typeof planId === 'string' ? this.plans.get(planId) : undefined;
-    if (!plan) throw new Error(`No pending plan ${String(planId)} (plans expire after 15 minutes)`);
+    if (!plan) {
+      throw new Error(
+        `No pending plan ${String(planId)} (plans expire after 15 minutes). ${PLAN_GONE_TAIL}`
+      );
+    }
     return plan;
   }
 

@@ -240,7 +240,7 @@ test('module console errors fail the scenario; other errors are only collected',
       assert.equal(typeof args.since, 'number');
       return {
         errors: [
-          { at: 't1', message: 'foundry-mcp-bridge | query failed', source: 'module' },
+          { at: 't1', message: '[foundry-mcp-bridge] query failed', source: 'module' },
           { at: 't2', message: 'texture missing', source: 'core' },
         ],
       };

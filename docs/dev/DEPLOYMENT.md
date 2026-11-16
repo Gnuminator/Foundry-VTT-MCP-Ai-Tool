@@ -9,7 +9,7 @@ The bridge has two halves that are deployed differently:
 
 ## 1. Foundry module — Manifest URL install (recommended)
 
-The module is published as a GitHub Release on the fork, so it installs like any other Foundry module.
+The module is published as a GitHub Release on the aitool repository, so it installs like any other Foundry module.
 
 **In Foundry:** Setup → **Add-on Modules** → **Install Module** → paste this in the _Manifest URL_
 field → Install:
@@ -77,9 +77,13 @@ a logon task that keeps `cloudflared access tcp` running on `127.0.0.1:<port>`, 
 - **Claude Desktop must be closed** while the installer writes its settings (Claude Desktop
   rewrites them when it quits). The installer asks you to quit it from the tray icon and retry; it
   never closes it. It backs up each settings file first and keeps every other entry.
-- **Config files:** the classic `%APPDATA%\Claude\claude_desktop_config.json` and the Microsoft
-  Store build's copy under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`; every one
-  that exists is written, and the classic one is created when none does.
+- **Config files:** current Claude Desktop (Store build) reads
+  `%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json`; the installer writes
+  that file first and logs which one it is. The older places, the Store build's
+  `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\` copy and the classic
+  `%APPDATA%\Claude\claude_desktop_config.json`, are stale copies there but are still written when
+  they exist (older builds read them); the classic one is created only when neither of the others
+  exists. `configure-claude.ps1 -ListConfigFiles` prints the list without writing.
 - **Uninstall** removes only the five entries.
 - `installer/nsis/configure-claude.ps1` does the editing and can be run by hand
   (`-InstallDir`, `-BridgeHost`, `-BridgePort`, `-Uninstall`, `-ConfigPath` for a single file).
@@ -118,7 +122,8 @@ in the repo tree.
    `module.json`, `package-lock.json`, `shared/src/version.ts` (`TOOL_VERSION`) and the installer script (`installer/nsis/foundry-mcp-server.nsi`).
    `npm run version:check` (and the release workflow) fail if any place disagrees.
 2. Commit, then tag `vX.Y.Z` (the tag must equal the root version) and push the tag. The workflow
-   verifies, builds and publishes one GitHub release with these assets, all under that tag's own links:
+   verifies and builds, then publishes one GitHub release once the user approves the run (the publish job
+   is in the GitHub environment `release`, see [RELEASING](RELEASING.md)), with these assets, all under that tag's own links:
    - `module.json` (manifest and download URLs point at this tag)
    - `foundry-mcp-bridge.zip` (the module with its built code)
    - `foundry-mcp-server-vX.Y.Z.zip` (standalone bridge)
@@ -137,5 +142,4 @@ Nothing is sent to foundryvtt.com: the package id belongs to the upstream projec
 ## Repository
 
 - Remote `aitool` → `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool` (canonical — push here).
-- Remote `fork` → `https://github.com/Gnuminator/Foundry-VTT-MCP` (old fork — retire/archive).
-- Push work with `git push aitool <branch>:main`.
+- Push a work branch with `git push -u aitool <branch>:<branch>`, open a PR, and merge it only through `scripts/lane-merge.mjs`. `main` is protected (PR, CI checks, no force-push), so never push to it directly.

@@ -137,7 +137,9 @@ describe('plainText', () => {
     expect(plainText('&lt;script&gt;x&#60;b&#x3e; ok')).toBe('‹script›x‹b› ok');
     expect(plainText('<p>AC &lt; 15 and HP &gt;= 10</p>')).toBe('AC ‹ 15 and HP ›= 10');
     expect(plainText('<table><tr><td>a</td><td>b</td></tr></table>')).toBe('a b');
-    expect(plainText('x&#233;y &amp;lt; z @UUID[Compendium.a.b.c] ok')).toBe('xéy &lt; z ok');
+    expect(plainText('x&#233;y &amp;lt; z @UUID[Compendium.a.b.c] ok')).toBe(
+      'xéy &lt; z (link) ok'
+    );
   });
 });
 
@@ -220,7 +222,7 @@ describe('FoundryDataAccess.searchRules', () => {
     expect(res.skippedPacks).toEqual(['dnd5e.broken']);
     allowlistSetting = 'nothing-matches-this';
     const none = await da.searchRules({ query: 'grapple' });
-    expect(none.note).toMatch(/No pack matches/);
+    expect(none.note).toMatch(/No rules pack matched/);
   });
 
   it('treats a non-numeric limit as the default and shares one index build', async () => {

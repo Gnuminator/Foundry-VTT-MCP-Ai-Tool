@@ -53,6 +53,8 @@ export interface GetPlaySessionResult {
   worldId: string;
   open: boolean;
   startedAt: string | null;
+  /** While open: a live session or a night played on paper (Foundry is closed on those). Null when closed. */
+  mode: 'live' | 'paper' | null;
   lastEventAt: string | null;
   /**
    * When the newest session ended, for a closed one: its end marker, or its last logged event
@@ -97,6 +99,11 @@ function newMarkerId(nowMs: number): string {
 function isLoggedEvent(value: unknown): value is LoggedEvent {
   const e = value as Partial<LoggedEvent> | null;
   return !!e && typeof e.timestamp === 'string';
+}
+
+/** A gap marker from a pump (pump-health.ts): not activity at the table. */
+function isPumpGap(event: LoggedEvent): boolean {
+  return event.eventType === 'pump-gap';
 }
 
 function eventTimeOf(event: LoggedEvent): number {
@@ -172,7 +179,7 @@ export class PlaySessionTools {
       {
         name: 'mark-play-session',
         description:
-          'GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault\'s own session log (sessions/<date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.',
+          'Direct write. GM ONLY. Mark the start or end of a play session with a line in the bridge vault\'s session log (sessions/<date>.jsonl). Touches only that log, never game state. Groups session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -317,7 +324,9 @@ export class PlaySessionTools {
     const events: LoggedEvent[] = [];
     for (const file of files) {
       for (const line of await this.store.readLines(worldId, 'sessions', file)) {
-        if (isLoggedEvent(line) && Number.isFinite(eventTimeOf(line))) events.push(line);
+        if (isLoggedEvent(line) && !isPumpGap(line) && Number.isFinite(eventTimeOf(line))) {
+          events.push(line);
+        }
       }
     }
     const byTime = (a: LoggedEvent, b: LoggedEvent): number => eventTimeOf(a) - eventTimeOf(b);
@@ -364,7 +373,7 @@ export class PlaySessionTools {
     for (const file of files) {
       const all = (await this.store.readLines(worldId, 'sessions', file))
         .filter(isLoggedEvent)
-        .filter(e => Number.isFinite(eventTimeOf(e)));
+        .filter(e => !isPumpGap(e) && Number.isFinite(eventTimeOf(e)));
       for (const id of paperSyncChangeIds(all)) syncChangeIds.add(id);
       const events = all.filter(e => !isPaperSyncEvent(e));
       if (events.length === 0) continue;
@@ -408,7 +417,7 @@ export class PlaySessionTools {
         before.push(
           ...(await this.store.readLines(worldId, 'sessions', file))
             .filter(isLoggedEvent)
-            .filter(e => !isPaperSyncEvent(e) && eventTimeOf(e) < startMs)
+            .filter(e => !isPaperSyncEvent(e) && !isPumpGap(e) && eventTimeOf(e) < startMs)
         );
       }
       before.sort((a, b) => eventTimeOf(a) - eventTimeOf(b));
@@ -432,6 +441,7 @@ export class PlaySessionTools {
       worldId,
       open,
       startedAt: open ? newestMarker!.timestamp : null,
+      mode: open ? (isPaperStart(newestMarker!) ? 'paper' : 'live') : null,
       lastEventAt: lastEventAtMs === null ? null : new Date(lastEventAtMs).toISOString(),
       endedAt,
       previousEndedAt,

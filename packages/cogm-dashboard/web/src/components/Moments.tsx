@@ -1,7 +1,7 @@
 // The three moments of the evening (D-085, PB-16): Before, During and After, as tabs in the header
 // and one view each. The moment follows the play session (lib/session.ts); a tab click pins it.
 // Panels dock in their view's slots (Drawer.tsx, DockContext); the ones not in React yet show a
-// small card that points to the full dashboard. The look is the old page's moments.css.
+// small card that points to the full dashboard. The look is moments.css.
 import {
   useEffect,
   useLayoutEffect,
@@ -15,12 +15,14 @@ import {
 } from 'react';
 
 import type { DuringScreen } from '../lib/duringTrial';
+import { REMEMBER, readJson, readMomentPin, writeJson } from '../lib/remember';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
 import type { DuringFolds } from './Folds';
 import { LiveFeed } from './LiveFeed';
 
 export type Moment = 'before' | 'during' | 'after';
+
 /** The drawers that dock into a view (Drawer.tsx); the others float over the page. */
 export type DrawerDockName = 'preflight' | 'prep' | 'party' | 'handouts';
 /** Everything that docks: the drawers and the Recent Changes card (a pane, not a drawer). */
@@ -29,7 +31,7 @@ export type DockName = DrawerDockName | 'changes';
 const ORDER: readonly Moment[] = ['before', 'during', 'after'];
 
 /**
- * The panels docked in each moment, as on the old page. Tarokka and the Tool runner never dock.
+ * The panels docked in each moment. Tarokka and the Tool Runner never dock.
  * Recent Changes is in During and After only; over Before it is not on the page.
  */
 export const DOCKS: Record<Moment, readonly DockName[]> = {
@@ -39,10 +41,10 @@ export const DOCKS: Record<Moment, readonly DockName[]> = {
 };
 
 /** After shows for this long after a session ended. */
-export const AFTER_WINDOW_MS = 12 * 60 * 60 * 1000;
+const AFTER_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 /** The moment the session asks for: During while open, After for 12 hours after the end. */
-export function momentFromSession(session: PlaySession, now: number): Moment {
+function momentFromSession(session: PlaySession, now: number): Moment {
   if (session.open) return 'during';
   const ended = session.endedAt ? Date.parse(session.endedAt) : NaN;
   return Number.isFinite(ended) && now - ended <= AFTER_WINDOW_MS ? 'after' : 'before';
@@ -52,21 +54,39 @@ export function momentFromSession(session: PlaySession, now: number): Moment {
  * The moment on screen: the one the GM picked with a tab, else the session's. Null until the
  * first answer, so a reload during a session does not show Before (and run its panels) first.
  * A failed read shows Before. The pick holds until a session starts or ends (the open flag
- * flips), or the page reloads.
+ * flips); a reload brings it back while the session is as it was and the pick is under 12 hours
+ * old (so a pick from another game night is forgotten).
  */
 export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => void } {
   const { session, failed, checkedAt } = usePlaySession();
   const [pinned, setPinned] = useState<Moment | null>(null);
   const open = session?.open;
   const [seenOpen, setSeenOpen] = useState(open);
+  const [restored, setRestored] = useState(false);
   if (open !== seenOpen) {
     setSeenOpen(open);
-    if (seenOpen !== undefined) setPinned(null);
+    if (seenOpen !== undefined) {
+      setPinned(null);
+      writeJson(REMEMBER.momentPin, null);
+    }
   }
+  // The pick of the last visit comes back once the session is known, when the session is still as
+  // it was then (open or closed): a new session starts on its own moment again.
+  if (open !== undefined && !restored) {
+    setRestored(true);
+    const saved = readMomentPin(readJson(REMEMBER.momentPin));
+    if (saved?.open === open && Date.now() - saved.at <= AFTER_WINDOW_MS) {
+      setPinned(saved.moment);
+    }
+  }
+  const pick = (moment: Moment): void => {
+    setPinned(moment);
+    if (open !== undefined) writeJson(REMEMBER.momentPin, { moment, open, at: Date.now() });
+  };
   // The time of the last poll (answered or failed), not the clock: each poll checks the 12 hours
   // again, also while the bridge is down.
   const fromSession = session ? momentFromSession(session, checkedAt) : failed ? 'before' : null;
-  return { moment: pinned ?? fromSession, pick: setPinned };
+  return { moment: pinned ?? fromSession, pick };
 }
 
 type SlotKey = `${Moment}-${DockName}`;
@@ -182,23 +202,6 @@ export function MomentTabs({
   );
 }
 
-/** A slot whose panel is not in the new dashboard yet. */
-function NotHereYet({ title, wide = false }: { title: string; wide?: boolean }): JSX.Element {
-  const classes = ['pane', 'not-here-yet'];
-  if (wide) classes.push('not-here-yet-wide');
-  return (
-    <section className={classes.join(' ')} aria-label={title}>
-      <div className="pane-head">
-        <h2>{title}</h2>
-      </div>
-      <p className="not-here-yet-text">
-        Not on this page yet. Find it on the <a href="/legacy/">old dashboard</a> (the button at the
-        top right).
-      </p>
-    </section>
-  );
-}
-
 /**
  * The three views (the old main#moment-views). All three stay in the page and the ones not on
  * screen are hidden, so the slots stay put and a panel docked in two moments only moves.
@@ -244,7 +247,6 @@ export function MomentViews({
         {beforeTop}
         <div className="slot" data-slot="preflight" ref={slotRefs['before-preflight']} />
         <div className="slot" data-slot="prep" ref={slotRefs['before-prep']} />
-        <NotHereYet title="Features" wide />
       </section>
       <section
         className={duringBar ? 'moment' : 'moment during-no-bar'}

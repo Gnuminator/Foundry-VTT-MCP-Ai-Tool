@@ -16,6 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildReport, fetchMergedPrs, usageLogFile, vaultDirFor } from './usage-week.mjs';
+import { paceNow, weekStartFor } from './usage-pace.mjs';
 
 const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -84,9 +85,9 @@ export function planLines(opts, now) {
   return lines;
 }
 
-// The `check-` lines from a usage:week report (targets[].value; unknown values are left out).
+// The `check-` lines from a usage:week report (figures[].value; unknown values are left out).
 export function checkLines(report) {
-  const value = name => report.targets.find(t => t.name === name)?.value;
+  const value = name => report.figures.find(t => t.name === name)?.value;
   const rows = [
     ['check-from', report.window.from],
     ['check-to', report.window.to],
@@ -94,8 +95,32 @@ export function checkLines(report) {
     ['check-m-tokens-per-pr', value('M tokens per PR') == null ? null : round1(value('M tokens per PR'))],
     ['check-sessions-a-day', value('sessions a day') == null ? null : round1(value('sessions a day'))],
     ['check-weekly-points-a-day', value('weekly % a day') == null ? null : round1(value('weekly % a day'))],
+    [
+      'check-weekly-points-per-pr',
+      value('weekly points per PR') == null ? null : round1(value('weekly points per PR')),
+    ],
   ];
   return rows.filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k}: ${v}`);
+}
+
+// The `pace-` lines: expected percent by now from the hourly profile (usage-pace.mjs), the delta
+// to the weekly percent passed in, the projection at the reset, the active hours left and the
+// weeks the profile used (0 = the short-log fallback table). The projection is left out before
+// 15 percent of the week is expected. Nothing without a profile (no usage log).
+export function paceLines(report, opts, now) {
+  const profile = report?.pace?.profile;
+  if (!profile || opts.weekly === undefined) return [];
+  const nowMs = now.getTime();
+  const weekStartMs = weekStartFor(nowMs, opts.weeklyResets);
+  const pace = paceNow({ profile, weekStartMs, nowMs, actual: percent(opts.weekly, '--weekly') });
+  const rows = [
+    ['pace-expected-percent', pace.expected],
+    ['pace-delta', pace.delta],
+    ['pace-projected-percent', pace.projected],
+    ['pace-active-hours-left', pace.activeHoursLeft],
+    ['pace-profile-weeks', pace.profileWeeks],
+  ];
+  return rows.filter(([, v]) => v !== null).map(([k, v]) => `${k}: ${v}`);
 }
 
 export function renderNote(lines) {
@@ -129,8 +154,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
     const logFile = usageLogFile(vaultDirFor(env));
     const usageLog = existsSync(logFile) ? readFileSync(logFile, 'utf8') : null;
     const root = env.USAGE_WEEK_ROOT || path.join(os.homedir(), '.claude', 'projects');
-    const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
-    lines.push(...checkLines(report));
+    const report = await buildReport({ root, now, days: opts.days, prs, usageLog, weeklyResets: opts.weeklyResets });
+    lines.push(...checkLines(report), ...paceLines(report, opts, now));
   }
   const text = renderNote(lines);
   if (opts.stdout) {

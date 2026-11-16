@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SCENE_RESTORE_FEATURE_ID as SHARED_FEATURE,
   SCENE_STATE_QUERY as SHARED_QUERY,
-} from '../../../shared/src/scene-restore.js';
+} from '@gnuminator/shared';
 import { getSceneState, SCENE_RESTORE_FEATURE_ID, SCENE_STATE_QUERY } from './scene-state.js';
 import { NON_WRITE_METHODS } from './write-gate.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';

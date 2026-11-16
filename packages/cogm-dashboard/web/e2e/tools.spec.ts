@@ -1,7 +1,7 @@
-// The Tool runner on the React dashboard: the catalog by category (GET /api/tools, faked here),
+// The Tool Runner on the React dashboard: the catalog by category (GET /api/tools, faked here),
 // the search, a read, form checks, a plan typed by hand through the GM Actions gate and the
 // confirm window (Cancel, Confirm, Undo), a destructive plan, a write that is not a plan, a failed
-// plan, an apply the bridge refuses, Pick… lists naming a prefilled value, the Escape order, where
+// plan, an apply the bridge refuses, picker lists naming a prefilled value, the Escape order, where
 // focus goes (a gate request expires), Enter never applying a change, and "+ Queue a page" in the
 // Handouts drawer.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
@@ -15,6 +15,7 @@ import {
   toast,
   type ToolCall,
   fromMenu,
+  apiBody,
 } from './support';
 
 const PAGE_UUID = 'JournalEntry.j1.JournalEntryPage.p1';
@@ -201,7 +202,9 @@ const bridge = (call: ToolCall): ToolAnswer => {
   }
   if (call.name === 'apply-planned-change') return ok(APPLIED);
   if (call.name === 'undo-change') return ok({ changeId: 'ch1', summary: 'Undid: Damage' });
-  if (call.name === 'create-quest-journal') return ok({ summary: 'Made "Find Ilvara"' });
+  if (call.name === 'create-quest-journal') {
+    return ok({ summary: 'Made "Find Ilvara"', journalName: 'Find Ilvara' });
+  }
   return ok({});
 };
 
@@ -238,10 +241,10 @@ test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await page.route('**/api/player/names', route =>
     route.fulfill({
-      json: [
+      json: apiBody('/api/player/names', [
         { userId: 'u1', name: 'Anna' },
         { userId: 'u2', name: 'Bo' },
-      ],
+      ]),
     })
   );
 });
@@ -405,7 +408,7 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   const calls = await fakeTools(page, bridge);
   const drawer = await openTools(page);
   await openTool(drawer, 'plan-actor-change');
-  await expect(drawer.locator('#tool-run')).toHaveText('Run…');
+  await expect(drawer.locator('#tool-run')).toHaveText('Plan and confirm');
   await field(drawer, 'action').selectOption('damage');
   await field(drawer, 'amount').fill('5');
 
@@ -460,7 +463,7 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   ]);
 });
 
-test('an Undo GM Actions refuse after the drawer closed opens the Tool runner again', async ({
+test('an Undo GM Actions refuse after the drawer closed opens the Tool Runner again', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));
@@ -481,7 +484,7 @@ test('an Undo GM Actions refuse after the drawer closed opens the Tool runner ag
   await drawer.getByRole('button', { name: 'Close' }).click();
   await expect(drawer).toBeHidden();
   await page.locator('.toast-stack .toast-undo .toast-action').click();
-  // The Tool runner's own gate text, and its drawer, not Pre-flight.
+  // The Tool Runner's own gate text, and its drawer, not Pre-flight.
   await expect(
     toast(page, 'GM Actions are off. Enable GM Actions at the top of the Tool Runner.')
   ).toBeVisible();
@@ -518,7 +521,7 @@ test('an Undo GM Actions refuse with the drawer open under another brings it to 
   await expect(drawer).toHaveClass(/drawer-top/);
   await expect(party).not.toHaveClass(/drawer-top/);
   await expect(drawer.locator('#gm-gate-enable')).toBeFocused();
-  // Escape follows the top: the Tool runner closes first, then Party.
+  // Escape follows the top: the Tool Runner closes first, then Party.
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(party).toHaveClass(/drawer-top/);
@@ -549,6 +552,7 @@ async function refusedForAnotherReason(page: Page): Promise<Locator> {
       ? { status: 403, json: { code: 'forbidden', error: 'Not allowed.' } }
       : bridge(call)
   );
+  await page.clock.install();
   const drawer = await openTools(page);
   await openTool(drawer, 'plan-actor-change');
   await field(drawer, 'action').selectOption('damage');
@@ -560,7 +564,7 @@ async function refusedForAnotherReason(page: Page): Promise<Locator> {
   ).toBeVisible();
   // GM Actions stay on: no bar draws, so the request for its focus waits for nothing and expires.
   await expect(drawer.locator('#gm-gate')).toBeHidden();
-  await page.waitForTimeout(1_500);
+  await page.clock.runFor(1_500);
   return drawer;
 }
 
@@ -617,7 +621,7 @@ test('Enter in a field never applies a change without the confirm window', async
   // Focus goes back to the field Enter was pressed in.
   await expect(field(drawer, 'amount')).toBeFocused();
 
-  // Enter in a Pick… filter box picks nothing and sends nothing.
+  // Enter in a Pick from list filter box picks nothing and sends nothing.
   await drawer.locator('#tool-field-targets-pick').click();
   await drawer.locator('#tool-field-targets-menu .ref-search').press('Enter');
   await expect(confirm).toBeHidden();
@@ -697,7 +701,7 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     'sceneId: Valmere (s2)',
   ]);
   await confirm.getByRole('button', { name: 'Confirm' }).click();
-  await expect(toast(page, '✓ create-quest-journal')).toBeVisible();
+  await expect(toast(page, '✓ Create quest journal done: Find Ilvara')).toBeVisible();
   expect(named(calls, 'create-quest-journal')).toEqual([
     {
       name: 'create-quest-journal',
@@ -706,7 +710,7 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     },
   ]);
 
-  // apply-planned-change by hand shows the plan it applies, as the old page does.
+  // apply-planned-change by hand shows the plan it applies.
   await drawer.locator('#tool-back').click();
   await openTool(drawer, 'apply-planned-change');
   await drawer.locator('#tool-field-planId-pick').click();
@@ -762,7 +766,7 @@ test('a failed plan and a refused apply show the error under the form', async ({
   await field(drawer, 'action').selectOption('heal');
   await field(drawer, 'targets').fill('Wolf');
   await drawer.locator('#tool-run').click();
-  await expect(toast(page, '✗ plan-actor-change: No token named Wolf')).toBeVisible();
+  await expect(toast(page, '✗ Actor change: No token named Wolf')).toBeVisible();
   await expect(drawer.locator('#tool-result')).toHaveClass('tool-result err');
   await expect(drawer.locator('#tool-result strong')).toHaveText('Error');
   await expect(drawer.locator('#tool-result pre')).toHaveText('No token named Wolf');
@@ -772,9 +776,7 @@ test('a failed plan and a refused apply show the error under the form', async ({
   applyRefused = true;
   await drawer.locator('#tool-run').click();
   await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
-  await expect(
-    toast(page, '✗ apply-planned-change: The Combat feature is off in Foundry.')
-  ).toBeVisible();
+  await expect(toast(page, '✗ The change: The Combat feature is off in Foundry.')).toBeVisible();
   await expect(drawer.locator('#tool-result pre')).toHaveText(
     'The Combat feature is off in Foundry.'
   );
@@ -800,7 +802,7 @@ test('an apply that timed out says it may have applied', async ({ page }) => {
   );
 });
 
-test('Escape closes an open Pick… list, then the confirm window, then the drawer', async ({
+test('Escape closes an open picker list, then the confirm window, then the drawer', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));
@@ -855,7 +857,7 @@ test('a compendium picker waits for two letters', async ({ page }) => {
   ]);
 });
 
-test('+ Queue a page opens the Tool runner filled in, names shown, and queues on Run', async ({
+test('+ Queue a page opens the Tool Runner filled in, names shown, and queues on Run', async ({
   page,
 }) => {
   // Queueing changes nothing in Foundry: it works with GM Actions off, as Remove does.

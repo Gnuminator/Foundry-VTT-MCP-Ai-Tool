@@ -27,6 +27,12 @@
     "why": "an effect that adds to the maximum raises the maximum, not the current value"
   },
   {
+    "id": "current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind",
+    "kind": "STUDIO",
+    "why": "a hero levelled in Actor Studio whose Constitution modifier rises on an ability score increase ends below the maximum: the 2024 book raises the maximum by one per level, the system adds only each level's own hit points to the current value, and takes a level's hit points before its increase. Fighter 17 with a Constitution modifier of +2 up to level 11 and +3 from level 12 ends at 145 of 157 (12 more in the maximum than in the current value); fixed in the fork: a hero that was at full hit points before a level up ends it at full",
+    "fixedIn": "2.10.5-aitool.6"
+  },
+  {
     "id": "feature-problems:no-slot-to-spend",
     "kind": "SYSTEM",
     "why": "a feature that spends a slot cannot run on a hero with empty slots",

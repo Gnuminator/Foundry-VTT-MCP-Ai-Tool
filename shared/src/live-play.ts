@@ -63,6 +63,8 @@ export interface LiveActorRequest {
   active?: boolean;
   /** condition "exhaustion": the level to set (default one more, or 0 when off). */
   level?: number;
+  /** condition (on): lasts this many rounds, then Foundry expires it; omitted = until removed. */
+  rounds?: number;
   /** clear-conditions: names or ids to remove; omitted = only expired effects. */
   conditions?: string[];
   /** resource: spell level ("spell3"), "pact", a class resource label or key, or an item name. */

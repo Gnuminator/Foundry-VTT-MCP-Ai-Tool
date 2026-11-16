@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+// The settings database of a fake world (stage 14 scenarios): a fake-docs.json in the db folder that the fake
+// classic-level package serves. Documents as Foundry stores them: [key, raw] with raw = JSON {key, value, user?}
+// and value a JSON-encoded string. The fake holds two decoys besides the world's own dnd5e.systemMigrationVersion:
+// another key, and the same key for one user (the stage must ignore both).
+//   fake-settings set <db folder> <version|none>   write the documents ("none": without the world's own setting)
+//   fake-settings get <db folder>                  print the world's own setting, or "none"
+//   fake-settings dump <worlds folder>             print "<world id> <setting|none>" for each world in it
+const fs = require('node:fs');
+const path = require('node:path');
+
+const KEY = 'dnd5e.systemMigrationVersion';
+const file = dir => path.join(dir, 'fake-docs.json');
+const doc = (key, value, user) => JSON.stringify({ key, value: JSON.stringify(value), ...(user ? { user } : {}) });
+function read(dir) {
+  try {
+    const docs = JSON.parse(fs.readFileSync(file(dir), 'utf8'));
+    for (const [, raw] of docs) {
+      const d = JSON.parse(raw);
+      if (d.key === KEY && !d.user) return JSON.parse(d.value);
+    }
+  } catch {}
+  return 'none';
+}
+
+const [cmd, arg, version] = process.argv.slice(2);
+if (cmd === 'set') {
+  const docs = [
+    ['!settings!core.time', doc('core.time', 'x')],
+    ['!settings!dnd5e.systemMigrationVersion.user', doc(KEY, '1.0.0', 'someone')],
+  ];
+  if (version !== 'none') docs.push([`!settings!${KEY}`, doc(KEY, version)]);
+  fs.mkdirSync(arg, { recursive: true });
+  fs.writeFileSync(file(arg), JSON.stringify(docs));
+} else if (cmd === 'get') {
+  process.stdout.write(`${read(arg)}\n`);
+} else if (cmd === 'dump') {
+  for (const id of fs.readdirSync(arg).sort()) {
+    if (fs.statSync(path.join(arg, id)).isDirectory())
+      process.stdout.write(`${id} ${read(path.join(arg, id, 'data', 'settings'))}\n`);
+  }
+} else {
+  console.error('usage: fake-settings set|get|dump ...');
+  process.exit(2);
+}

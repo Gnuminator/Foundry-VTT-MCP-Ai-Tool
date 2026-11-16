@@ -1,0 +1,30 @@
+{
+  "kind": "User",
+  "foundry": "14.370",
+  "system": "dnd5e 6.0.6",
+  "samples": 4,
+  "paths": {
+    "_id": "string:4",
+    "_stats": "object:4",
+    "_stats.compendiumSource": "null:4",
+    "_stats.coreVersion": "string:4",
+    "_stats.createdTime": "number:4",
+    "_stats.duplicateSource": "null:4",
+    "_stats.exportSource": "null:4",
+    "_stats.lastModifiedBy": "null|string:4",
+    "_stats.modifiedTime": "number:4",
+    "_stats.systemId": "string:4",
+    "_stats.systemVersion": "string:4",
+    "avatar": "null:4",
+    "character": "null|string:4",
+    "color": "string:4",
+    "flags": "object:4",
+    "hotbar": "object:4",
+    "name": "string:4",
+    "password": "string:4",
+    "passwordSalt": "undefined:4",
+    "permissions": "object:4",
+    "pronouns": "string:4",
+    "role": "number:4"
+  }
+}

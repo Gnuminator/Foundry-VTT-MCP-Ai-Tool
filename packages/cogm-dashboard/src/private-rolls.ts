@@ -1,3 +1,5 @@
+import { isRecord } from '@gnuminator/shared';
+
 import type { SessionEvent } from './feed/types.js';
 
 /** One private roll request or result as the target player reads it on /me. */
@@ -9,10 +11,7 @@ export interface PrivateRollLine {
 }
 
 /** How many lines /me shows. */
-export const PRIVATE_ROLL_LIMIT = 10;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
+const PRIVATE_ROLL_LIMIT = 10;
 
 /**
  * The private roll requests made to this Foundry user and their results, newest first. Only an

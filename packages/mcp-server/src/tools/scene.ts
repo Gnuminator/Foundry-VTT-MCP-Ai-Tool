@@ -97,7 +97,7 @@ export class SceneTools {
       },
       {
         name: 'switch-scene',
-        description: 'Switch to a different Foundry VTT scene by name or ID',
+        description: 'Direct write. Switch to a different Foundry VTT scene by name or ID',
         inputSchema: {
           type: 'object',
           properties: {

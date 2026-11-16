@@ -1,9 +1,8 @@
-// The Tool runner (🛠 Tools): every bridge tool the dashboard can see (GET /api/tools), grouped by
-// category, and one tool as a form built from its input schema, with Pick… lists for parameters
+// The Tool Runner (🛠 Tools): every bridge tool the dashboard can see (GET /api/tools), grouped by
+// category, and one tool as a form built from its input schema, with picker lists for parameters
 // that name something. Reads run at once. A plan-* tool is planned and then applied after the
 // confirm window, always (a plan typed by hand is never a one-click change, and Enter in a field
-// submits the form); any other write goes through the same window. Port of the old page's tool
-// drawer (public/app.js openTool, buildForm, submitToolForm, showToolResult). GM only.
+// submits the form); any other write goes through the same window. GM only.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useCallback,
@@ -240,7 +239,7 @@ function ToolRunner({
   }, []);
 
   // A request from another panel: that tool, its form filled in fresh (it never runs by itself).
-  // The old page left the last form under the list when the tool was missing.
+  // A tool missing from the catalog gets a warning and no form.
   const handled = useRef(0);
   useEffect(() => {
     if (!request || !tools || handled.current === request.seq) return;
@@ -369,7 +368,7 @@ function ToolRunner({
       });
   };
 
-  // Escape closes an open Pick… list first (focus back on its button), then the drawer.
+  // Escape closes an open picker list first (focus back on its button), then the drawer.
   const escapeKey = (): boolean => {
     if (!openPicker) return false;
     usage().track('shortcut', 'dash.shortcut.escape-picker');
@@ -521,6 +520,18 @@ function ToolRunner({
   );
 }
 
+const TAROKKA_POSITION_FIELDS = new Set([
+  'tome',
+  'holySymbol',
+  'sunsword',
+  'ally',
+  'strahdLocation',
+]);
+
+/** plan-tarokka-import has one card field per position, named like it: the name picks the deck. */
+const positionDeckParent = (ref: { kind: string | string[] }, key: string): string =>
+  ref.kind === 'tarokka-card' && TAROKKA_POSITION_FIELDS.has(key) ? key : '';
+
 /** The id of a field's control (its label points at it). */
 const fieldId = (key: string): string => `tool-field-${key}`;
 
@@ -583,7 +594,7 @@ function ToolForm({
         <div className="field" key={key} data-key={key}>
           {label}
           <select {...common} value={text(key)} onChange={e => setField(key, e.target.value)}>
-            {/* Not sent: the bridge's default applies (the old page's "choose" row). */}
+            {/* Not sent: the bridge's default applies. */}
             <option value="">(not set)</option>
             {def.enum.map(v => (
               <option key={String(v)} value={String(v)}>
@@ -643,7 +654,11 @@ function ToolForm({
             multiple={multiple}
             value={text(key)}
             onChange={v => setField(key, v)}
-            parentValue={ref.parent ? (fieldValues(text(ref.parent), true)[0] ?? '') : ''}
+            parentValue={
+              ref.parent
+                ? (fieldValues(text(ref.parent), true)[0] ?? '')
+                : positionDeckParent(ref, key)
+            }
             open={openPicker === key}
             onOpenChange={o => setOpenPicker(o ? key : null)}
             names={namesOf(key)}
@@ -680,7 +695,7 @@ function ToolForm({
       {keys.length === 0 && <p className="field-hint">This tool takes no parameters.</p>}
       <div className="form-actions">
         <Button type="submit" variant="primary" id="tool-run" disabled={running !== null}>
-          {reads ? 'Run' : 'Run…'}
+          {reads ? 'Run' : 'Plan and confirm'}
         </Button>
         <span className="form-error" id="tool-form-error" role="alert">
           {error}

@@ -2,7 +2,7 @@
  * The M2 proof (campaign plan in the private vault, feature 2): GM state is seeded
  * with unique canary strings, and none of them may appear in anything a player
  * can fetch or stream: `/api/player/state`, the player stream, the player role
- * on the legacy `/api/state` and `/api/stream`, `/player` and `player.js`,
+ * on the GM `/api/state` and `/api/stream`, `/player` and `player.js`,
  * whatever credential is presented. As a control, the GM endpoint does show
  * them (so the seeding is real). Runs the real Express app against a fake
  * bridge.
@@ -11,9 +11,8 @@ import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 
 import type { PlayerVisibility } from '@gnuminator/shared';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import type { CoGm, StreamRequest, StreamResult } from '../ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from '../app.js';
 import { config, type Config } from '../config.js';
 import type { CombatState, SessionEvent } from '../feed/types.js';
@@ -43,34 +42,15 @@ const CANARY = {
   unrevealedLink: 'CANARY-UNREVEALED-LINK',
   inlineRoll: 'CANARY-INLINE-ROLL',
   tarokka: 'CANARY-TAROKKA-CARD',
-  aiText: 'CANARY-AI-COMMENTARY',
   /** Actor id of every non-PC combatant: only player characters may carry one to a player. */
   npcActor: 'CANARY-NPC-ACTOR-ID',
   /** A scene mood preset name or free text the module must never forward as time of day or weather. */
   moodName: 'CANARY-SCENE-MOOD-NAME',
+  /** I-111: the session marker carries more than players get (names, notes); only open/ended pass. */
+  sessionNote: 'CANARY-SESSION-MARKER-NOTE',
+  /** A GM-only section inside a revealed recap page. */
+  recapSecret: 'CANARY-RECAP-GM-SECRET',
 } as const;
-
-/** An enabled co-GM whose every answer is a canary: AI output is GM-only. */
-const fakeCoGm = {
-  enabled: true,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-  stream: (request: StreamRequest): Promise<StreamResult> => {
-    request.onDelta(CANARY.aiText);
-    return Promise.resolve({
-      text: CANARY.aiText,
-      usage: {
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
-        cacheHit: false,
-      },
-      aborted: false,
-    });
-  },
-} as unknown as CoGm;
 
 const REVEALED = 'JournalEntry.aaaaaaaaaaaaaaaa.JournalEntryPage.bbbbbbbbbbbbbbbb';
 const UNREVEALED = 'JournalEntry.cccccccccccccccc.JournalEntryPage.dddddddddddddddd';
@@ -90,12 +70,10 @@ const visibility: PlayerVisibility = {
   ],
 };
 
-let sentChat: unknown[] = [];
-
 const fakeClient = {
   isConnected: true,
   listTools: (): Promise<unknown[]> => Promise.resolve([]),
-  callTool: <T>(name: string, args: Record<string, unknown> = {}): Promise<T> => {
+  callTool: <T>(name: string, _args: Record<string, unknown> = {}): Promise<T> => {
     const answers: Record<string, unknown> = {
       'get-world-info': {
         id: CANARY.worldId,
@@ -105,9 +83,25 @@ const fakeClient = {
         activeUsers: [{ name: CANARY.gmName, isGM: true }],
       },
       'get-player-visibility': visibility,
+      'get-play-session': {
+        open: false,
+        startedAt: '2026-09-28T18:00:00.000Z',
+        endedAt: '2026-09-28T22:00:00.000Z',
+        note: CANARY.sessionNote,
+        gmName: CANARY.gmName,
+      },
       'get-player-handouts': {
         revealedUuids: [REVEALED],
         handouts: [
+          {
+            id: 'cccccccccccccccc',
+            uuid: REVEALED,
+            title: 'Recap',
+            revealedAt: '2026-09-28T22:05:00.000Z',
+            html:
+              '<p>The party crossed the bridge.</p>' +
+              `<section class="secret"><p>${CANARY.recapSecret}</p></section>`,
+          },
           {
             id: 'bbbbbbbbbbbbbbbb',
             uuid: REVEALED,
@@ -121,14 +115,7 @@ const fakeClient = {
           },
         ],
       },
-      'check-secret-terms': {
-        matches: (typeof args.text === 'string' ? args.text : '').includes(CANARY.tarokka)
-          ? [{ category: 'tarokka-card', term: CANARY.tarokka }]
-          : [],
-      },
-      'send-chat-message': { ok: true },
     };
-    if (name === 'send-chat-message') sentChat.push(args);
     return name in answers
       ? Promise.resolve(answers[name] as T)
       : Promise.reject(new Error(`unknown tool ${name}`));
@@ -294,13 +281,22 @@ async function get(
   return { status: res.status, text: await res.text(), headers: res.headers };
 }
 
-/** Everything a stream sends in `ms`, as text. */
-async function readStream(path: string, ms: number, token?: string): Promise<string> {
+/** Resolves once the stream's headers are in (the server has registered the client). */
+async function openStream(
+  path: string,
+  ms: number,
+  token?: string
+): Promise<{ text: Promise<string> }> {
   const controller = new AbortController();
   const res = await fetch(`${base}${path}`, {
     signal: controller.signal,
     ...(token ? { headers: { 'X-CoGM-Token': token } } : {}),
   });
+  return { text: readBody(res, controller, ms) };
+}
+
+/** Everything a stream sends in `ms`, as text. */
+async function readBody(res: Response, controller: AbortController, ms: number): Promise<string> {
   const reader = res.body?.getReader();
   const decoder = new TextDecoder();
   let text = '';
@@ -323,22 +319,17 @@ function leaks(text: string): string[] {
   return Object.values(CANARY).filter(canary => text.includes(canary));
 }
 
-const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
 beforeAll(async () => {
   const logger = new Logger('error', 'canary');
   const testConfig: Config = {
     ...config,
     auth: { ...config.auth, splitEnabled: true, gmToken: GM_TOKEN, playerToken: '' },
     playerView: { showEnemyConditions: true, showEnemyHpBands: true },
-    commentDebounceMs: 10,
-    commentMinIntervalMs: 0,
   };
   dashboard = createDashboard({
     config: testConfig,
     logger,
     client: fakeClient,
-    coGm: fakeCoGm,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -367,7 +358,17 @@ beforeAll(async () => {
     ],
     { initial: true }
   );
-  await wait(300); // world info and the player view context arrive asynchronously
+  // World info and the player view context (what the players may see) arrive asynchronously:
+  // ready once the player state has the world and the projected events.
+  await vi.waitFor(
+    async () => {
+      const res = await get('/api/player/state', GM_TOKEN);
+      const state = JSON.parse(res.text) as { world?: unknown; events?: unknown[] };
+      expect(state.world).toBeTruthy();
+      expect(state.events?.length ?? 0).toBeGreaterThan(0);
+    },
+    { timeout: 5000 }
+  );
 });
 
 afterAll(async () => {
@@ -414,10 +415,14 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       );
       expect(state.combat.combatants.map(c => c.name)).toEqual(['Hooded figure']);
       expect(res.text).toContain('the map'); // a link to a revealed page keeps its label
+      // I-111: the session flag is the open bit and the end time, nothing else of the marker.
+      const session = (JSON.parse(res.text) as { session: unknown }).session;
+      expect(session).toEqual({ open: false, endedAt: '2026-09-28T22:00:00.000Z' });
+      expect(res.text).toContain('The party crossed the bridge.');
     }
   });
 
-  it('the legacy /api/state gives the player role the same projection', async () => {
+  it('the GM /api/state gives the player role the same projection', async () => {
     const res = await get('/api/state');
     expect(res.status).toBe(200);
     expect(leaks(res.text)).toEqual([]);
@@ -426,20 +431,12 @@ describe('canary suite: nothing GM-only reaches a player', () => {
   });
 
   it('no player stream frame leaks, including later broadcasts', async () => {
-    const reading = Promise.all([
-      readStream('/api/player/stream', 800),
-      readStream('/api/player/stream', 800, GM_TOKEN),
-      readStream('/api/stream', 800), // the player role on the legacy stream
+    const opened = await Promise.all([
+      openStream('/api/player/stream', 800),
+      openStream('/api/player/stream', 800, GM_TOKEN),
+      openStream('/api/stream', 800), // the player role on the GM stream
     ]);
-    const gmReading = readStream('/api/stream', 800, GM_TOKEN);
-    await wait(100);
-    // AI output: an answer to the GM, and commentary on the events below.
-    const ask = await fetch(`${base}/api/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CoGM-Token': GM_TOKEN },
-      body: JSON.stringify({ question: 'What happens next?' }),
-    });
-    expect(ask.status).toBe(200);
+    const reading = Promise.all(opened.map(o => o.text));
     dashboard.handlers.onEvents(
       [
         event('late-blind', {
@@ -456,53 +453,15 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       expect(text).toContain('event: state');
       expect(leaks(text)).toEqual([]);
     }
-    // Control: the GM stream did carry the AI output.
-    expect(await gmReading).toContain(CANARY.aiText);
   });
 
   it('the player page and script carry no GM data, and the page has a strict CSP', async () => {
-    for (const path of ['/player', '/player.html', '/player.js']) {
+    for (const path of ['/player', '/player.html', '/player.js', '/player-session.js']) {
       const res = await get(path);
       expect(res.status).toBe(200);
       expect(leaks(res.text)).toEqual([]);
     }
     const page = await get('/player');
     expect(page.headers.get('content-security-policy')).toContain("script-src 'self'");
-  });
-});
-
-describe('whisper guard', () => {
-  it('refuses a whisper naming a GM secret until the GM confirms', async () => {
-    sentChat = [];
-    const post = (body: Record<string, unknown>): Promise<Response> =>
-      fetch(`${base}/api/post-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CoGM-Token': GM_TOKEN },
-        body: JSON.stringify(body),
-      });
-    const refused = await post({ text: `The ${CANARY.tarokka} points to the church.` });
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toMatchObject({ code: 'secret-terms' });
-    expect(sentChat).toHaveLength(0);
-
-    const forced = await post({
-      text: `The ${CANARY.tarokka} points to the church.`,
-      allowSecrets: true,
-    });
-    expect(forced.status).toBe(200);
-    expect(sentChat).toHaveLength(1);
-
-    const plain = await post({ text: 'Remember the bridge toll.' });
-    expect(plain.status).toBe(200);
-    expect(sentChat).toHaveLength(2);
-  });
-
-  it('a player cannot post at all', async () => {
-    const res = await fetch(`${base}/api/post-chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: 'hi' }),
-    });
-    expect(res.status).toBe(403);
   });
 });

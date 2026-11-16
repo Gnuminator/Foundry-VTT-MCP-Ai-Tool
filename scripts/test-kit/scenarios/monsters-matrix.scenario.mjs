@@ -22,6 +22,7 @@ import {
   monstersOf,
 } from '../lib/monsters.mjs';
 import { loadProfile } from '../lib/profiles.mjs';
+import { bridgeProbe } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -31,11 +32,12 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build'],
   needs: [],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: ['listMonsters'],
   timeoutMs: 30 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     const profile = loadProfile(t.kit.profile);
     const packs = profile.packs.monsters;
     const { rows, missing, perPack } = await monstersOf(t, packs);

@@ -1,0 +1,68 @@
+.panel {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-elev-2);
+  max-width: 46rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pick {
+  min-height: 2.25rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.pick[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+/* The rules link shows on hover or focus, and always for the picked condition; a touch screen has
+   no hover, so it stays visible there. */
+.rules {
+  min-height: 2.25rem;
+  padding: 0.1rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.chip:hover .rules,
+.chip:focus-within .rules,
+.chip:has(.pick[aria-pressed='true']) .rules,
+.rules:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .rules {
+    opacity: 1;
+  }
+}

@@ -2,11 +2,12 @@
  * The module mirrors the change journal contract (I-109) because the browser
  * cannot resolve `@gnuminator/shared`. This pins the copies to the shared file
  * so the two cannot drift: every constant, the ignored-path rule, and (at
- * type-check time) the record, stash and response shapes.
+ * type-check time) the stash and response shapes. `ChangeRecord` is the shared type itself.
  */
 import { describe, expect, it } from 'vitest';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS as MODULE_GAP,
+  CHANGE_JOURNAL_GUARDED_GAP_MS as MODULE_GUARDED_GAP,
   CHANGE_JOURNAL_ACTION_MAX_MS as MODULE_ACTION_MAX_MS,
   CHANGE_JOURNAL_ACTION_MAX_OPS as MODULE_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS as MODULE_DOCUMENTS,
@@ -23,6 +24,7 @@ import {
 } from './change-journal-types.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS as SHARED_GAP,
+  CHANGE_JOURNAL_GUARDED_GAP_MS as SHARED_GUARDED_GAP,
   CHANGE_JOURNAL_ACTION_MAX_MS as SHARED_ACTION_MAX_MS,
   CHANGE_JOURNAL_ACTION_MAX_OPS as SHARED_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS as SHARED_DOCUMENTS,
@@ -36,7 +38,7 @@ import {
   type ChangeJournalOptions as SharedOptions,
   type ChangeJournalResponse as SharedResponse,
   type ChangeRecord as SharedRecord,
-} from '../../../shared/src/change-journal.js';
+} from '@gnuminator/shared';
 
 // Compile-time drift check: each pair must be assignable both ways.
 export function assertSameShapes(
@@ -57,6 +59,7 @@ describe('change journal wire contract', () => {
     expect(MODULE_MAX_BYTES).toBe(SHARED_MAX_BYTES);
     expect(MODULE_MAX_BUFFER).toBe(SHARED_MAX_BUFFER);
     expect(MODULE_GAP).toBe(SHARED_GAP);
+    expect(MODULE_GUARDED_GAP).toBe(SHARED_GUARDED_GAP);
     expect(MODULE_ACTION_MAX_MS).toBe(SHARED_ACTION_MAX_MS);
     expect(MODULE_ACTION_MAX_OPS).toBe(SHARED_ACTION_MAX_OPS);
   });

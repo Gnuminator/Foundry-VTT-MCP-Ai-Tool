@@ -14,12 +14,18 @@ import {
   isTruthyFlag,
 } from './control-target.js';
 
-import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
+import { buildToolRouter, collectToolDefinitions, DETACHED_TOOLS } from './tool-router.js';
+import { RepeatGuard } from './repeat-guard.js';
 import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-requests.js';
 
 import { config } from './config.js';
 
-import { MAX_REQUESTER_LENGTH } from '@gnuminator/shared';
+import {
+  DEFAULT_CONTROL_PORT,
+  MAX_REQUESTER_LENGTH,
+  sessionsDirFrom,
+  unknownToolMessage,
+} from '@gnuminator/shared';
 import type { ToolResultPayload } from '@gnuminator/shared';
 
 import { createControlReader } from './control-reader.js';
@@ -27,58 +33,11 @@ import { Logger } from './logger.js';
 
 import { FoundryClient } from './foundry-client.js';
 
-import { CharacterTools } from './tools/character.js';
-
-import { CompendiumTools } from './tools/compendium.js';
-
-import { SceneTools } from './tools/scene.js';
-
-import { ActorCreationTools } from './tools/actor-creation.js';
-
-import { QuestCreationTools } from './tools/quest-creation.js';
-
-import { DiceRollTools } from './tools/dice-roll.js';
-
-import { CampaignManagementTools } from './tools/campaign-management.js';
-
-import { OwnershipTools } from './tools/ownership.js';
-import { SceneMoodTools } from './tools/scene-mood.js';
-import { RulesCheckTools } from './tools/rules-check.js';
-import { SceneRestoreTools } from './tools/scene-restore.js';
-import { NpcTurnTools } from './tools/npc-turn.js';
-import { PaperSyncTools } from './tools/paper-sync.js';
-import { RoomSetupTools } from './tools/room-setup.js';
-import { TableViewerTools } from './tools/table-viewer.js';
-
-import { TokenManipulationTools } from './tools/token-manipulation.js';
-
-import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
-import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
-import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
-
-import { ChatLogTools } from './tools/chat-log.js';
-import { LevelUpTools } from './tools/level-up.js';
-import { ResourceTools } from './tools/resources.js';
-import { EffectsTools } from './tools/effects.js';
-import { CombatTools } from './tools/combat.js';
-import { MovementTools } from './tools/movement.js';
-import { SessionLogTools } from './tools/session-log.js';
-import { CombatResolutionTools } from './tools/combat-resolution.js';
-import { EncounterTools } from './tools/encounter.js';
-import { SceneChangeTools } from './tools/scene-change.js';
-import { CombatChangeTools } from './tools/combat-change.js';
-import { DiagnosticsTools } from './tools/diagnostics.js';
-import { GuardedChangeTools } from './tools/guarded-changes.js';
-import { ChangeHistoryTools } from './tools/change-history.js';
-import { TarokkaTools } from './tools/tarokka.js';
-import { PlaySessionTools } from './tools/play-session.js';
-import { PlayStatsTools } from './tools/play-stats.js';
-import { PlayerViewTools } from './tools/player-view.js';
-import { PreflightTools } from './tools/preflight.js';
-import { LivePlayTools } from './tools/live-play.js';
-import { PartyTools } from './tools/party.js';
-import { PrepDigestTools } from './tools/prep-digest.js';
-import { RefChoiceTools } from './tools/ref-choices.js';
+import { createTools, guardedChangesModule, playerModule } from './tools/index.js';
+import { splitPlayerTools } from './tool-sets.js';
+import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
+import { GameEventHub } from './game-event-hub.js';
+import { WrapperRegistry } from './wrapper-registry.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
@@ -87,9 +46,11 @@ import { UndoPlanner } from './guarded-write/undo-planner.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
+import type { PumpHealthSnapshot } from './pump-health.js';
 import { ChangeJournalPump, changeJournalSettings } from './change-journal-pump.js';
 import { ChangeHistory, journalLinks } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
+import { handlePlayerPortrait, PortraitError } from './player-portrait.js';
 import {
   handleCharacterSheet,
   handlePlayerRoll,
@@ -104,7 +65,7 @@ import { EveryoneNotes } from './obsidian/everyone-notes.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { messageOf } from './types/server-types.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
-import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
+import { ObsidianQuestImportTools } from './tools/obsidian-quest-import.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
@@ -115,12 +76,14 @@ const CONTROL_HOST = process.env.MCP_CONTROL_HOST?.length
   : '127.0.0.1';
 
 const CONTROL_PORT = parseInt(
-  process.env.MCP_CONTROL_PORT?.length ? process.env.MCP_CONTROL_PORT : '31414',
+  process.env.MCP_CONTROL_PORT?.length
+    ? process.env.MCP_CONTROL_PORT
+    : String(DEFAULT_CONTROL_PORT),
   10
 );
 
 // When the Foundry link is disabled (MCP_FOUNDRY_LINK=off) the backend serves the
-// control channel ONLY — it does not bind the Foundry connector (WS 31415).
+// control channel ONLY: it does not bind the Foundry connector (WS 31415).
 // Used to smoke-test the standalone entrypoint on an
 // alternate port without colliding with a live bridge. Default: enabled (full backend).
 const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
@@ -130,7 +93,9 @@ const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY
 // original lock name for exact backward compatibility.
 const LOCK_FILE = path.join(
   os.tmpdir(),
-  CONTROL_PORT === 31414 ? 'foundry-mcp-backend.lock' : `foundry-mcp-backend-${CONTROL_PORT}.lock`
+  CONTROL_PORT === DEFAULT_CONTROL_PORT
+    ? 'foundry-mcp-backend.lock'
+    : `foundry-mcp-backend-${CONTROL_PORT}.lock`
 );
 
 let lockFd: number | null = null;
@@ -163,7 +128,7 @@ function acquireLock(): boolean {
               } catch {}
               lockFd = fs.openSync(LOCK_FILE, 'wx');
             } else {
-              // Backend is genuinely running — exit gracefully
+              // Backend is genuinely running: exit gracefully
               return false;
             }
           } catch {
@@ -240,7 +205,9 @@ async function startBackend(): Promise<void> {
 
     enableFile: true,
 
-    filePath: path.join(os.tmpdir(), 'foundry-mcp-server', 'mcp-server.log'),
+    // LOG_FILE_PATH puts the log somewhere that survives a restart (the Pi unit sets it); the
+    // default is the temp folder, which a service with PrivateTmp loses at every restart.
+    filePath: config.logFilePath || path.join(os.tmpdir(), 'foundry-mcp-server', 'mcp-server.log'),
   });
 
   logger.info('Starting Foundry MCP Backend', {
@@ -266,54 +233,8 @@ async function startBackend(): Promise<void> {
     supportedSystems: systemRegistry.getSupportedSystems(),
   });
 
-  const rulesCheckTools = new RulesCheckTools({ foundryClient, logger });
-  const characterTools = new CharacterTools({
-    foundryClient,
-    logger,
-    systemRegistry,
-    rulesCheck: rulesCheckTools,
-  });
-
-  const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
-
-  const sceneTools = new SceneTools({ foundryClient, logger });
-
-  const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-
-  const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
-  const dnd5eNpcTools = new DnD5eNpcTools({ foundryClient, logger });
-  const dnd5eFeaturesFromCompendiumTools = new DnD5eFeaturesFromCompendiumTools({
-    foundryClient,
-    logger,
-  });
-
-  const questCreationTools = new QuestCreationTools({ foundryClient, logger });
-
-  const diceRollTools = new DiceRollTools({ foundryClient, logger, rulesCheck: rulesCheckTools });
-
-  const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
-
-  const tokenManipulationTools = new TokenManipulationTools({ foundryClient, logger });
-
-  const chatLogTools = new ChatLogTools({ foundryClient, logger });
-
-  const resourceTools = new ResourceTools({ foundryClient, logger });
-
-  const levelUpTools = new LevelUpTools({ foundryClient, logger });
-
-  const effectsTools = new EffectsTools({ foundryClient, logger });
-
-  const combatTools = new CombatTools({ foundryClient, logger });
-
-  const movementTools = new MovementTools({ foundryClient, logger });
-
-  const sessionLogTools = new SessionLogTools({ foundryClient, logger });
-
-  const combatResolutionTools = new CombatResolutionTools({ foundryClient, logger });
-
-  const encounterTools = new EncounterTools({ foundryClient, logger });
-
-  const diagnosticsTools = new DiagnosticsTools({ foundryClient, logger });
+  // wait-for-game-event (I-001): the event pumps publish here, the tool sleeps on it.
+  const gameEventHub = new GameEventHub();
 
   // Bridge vault (GM-only data off Foundry) + guarded writes (plan/apply/undo).
   const vaultStore = new VaultStore({ dataDir: resolveDataDir() });
@@ -353,7 +274,6 @@ async function startBackend(): Promise<void> {
       everyoneNotes?.schedule(worldId);
     },
   });
-  const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
   // Everyone's recent changes (I-109): the change-journal pump fills the vault, this index reads it.
   // The pump starts below once the Foundry link does; `list-changes` pulls the newest records through it.
   const changeJournalConfig = changeJournalSettings();
@@ -378,21 +298,12 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
-  const changeHistoryTools = new ChangeHistoryTools({ changeHistory, undoPlanner, logger });
   const tarokkaService = new TarokkaService({
     guardedWrites,
     store: vaultStore,
     worldIds,
     foundryClient,
   });
-  const tarokkaTools = new TarokkaTools({ tarokka: tarokkaService, logger });
-  const playSessionTools = new PlaySessionTools({
-    worldIds,
-    store: vaultStore,
-    logger,
-    onMarked: renderObsidian,
-  });
-  const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
   const secretTerms = new SecretTermsService({ store: vaultStore });
   const handouts = new HandoutsService({
     guardedWrites,
@@ -410,131 +321,71 @@ async function startBackend(): Promise<void> {
     handouts,
     logger,
   });
-  const playerViewTools = new PlayerViewTools({
-    handouts,
-    secretTerms,
-    foundryClient,
-    worldIds,
-    logger,
-  });
-  const preflightTools = new PreflightTools({
-    foundryClient,
-    secretTerms,
-    worldIds,
-    playSession: playSessionTools,
-    obsidianVaultDirSet: Boolean(obsidianVaultDir),
-    logger,
-  });
-  const prepDigestTools = new PrepDigestTools({
-    foundryClient,
-    worldIds,
-    store: vaultStore,
-    handouts,
-    preflight: preflightTools,
-    guardedWrites,
-    tarokka: tarokkaService,
-    vaultDir: obsidianVaultDir,
-    logger,
-  });
-  const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
-  const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
-  const roomSetupTools = new RoomSetupTools({ foundryClient, guardedWrites, logger });
-  const npcTurnTools = new NpcTurnTools({ foundryClient, guardedWrites, logger });
-  const paperSyncTools = new PaperSyncTools({ foundryClient, guardedWrites, logger });
-  const sceneRestoreTools = new SceneRestoreTools({
-    foundryClient,
-    guardedWrites,
-    worldIds,
-    logger,
-  });
-  const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
-  const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
-  const livePlayTools = new LivePlayTools({
-    foundryClient,
-    guardedWrites,
-    logger,
-    rulesCheck: rulesCheckTools,
-  });
-  const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
-  const combatChangeTools = new CombatChangeTools({ foundryClient, guardedWrites, logger });
+  const wrapperRegistry = new WrapperRegistry();
+  // Filled when the pumps start below; get-preflight reads their health through it.
+  const pumpHealthSources: Array<() => PumpHealthSnapshot> = [];
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
   let mirrorPump: ObsidianMirrorPump | null = null;
-  const obsidianMirrorTools = new ObsidianMirrorTools({
-    store: vaultStore,
+  const obsidianQuestImportTools = new ObsidianQuestImportTools({
+    vaultDir: obsidianVaultDir ?? null,
     worldIds,
     guardedWrites,
-    status: (): ReturnType<ObsidianMirrorPump['status']> | null => mirrorPump?.status() ?? null,
-    env: {
-      vaultDirSet: Boolean(obsidianVaultDir),
-      openBase: mirrorEnv.openBase,
-      pollMs: mirrorEnv.pollMs,
-      foundryUrl: mirrorEnv.foundryUrl,
-    },
     logger,
   });
   logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
   if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
 
-  // Control-channel call_tool dispatch table (see tool-router.ts).
-  const refChoiceTools = new RefChoiceTools({
+  // Every tool family, built from the modules in tools/index.ts with the services above.
+  const toolDeps = createTools({
     foundryClient,
-    guardedWrites,
     logger,
+    systemRegistry,
+    gameEventHub,
+    guardedWrites,
+    worldIds,
+    store: vaultStore,
+    changeHistory,
+    undoPlanner,
+    tarokka: tarokkaService,
+    secretTerms,
+    handouts,
+    onPlaySessionMarked: renderObsidian,
+    wrapperStatus: () => wrapperRegistry.status(),
+    pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
+    obsidianVaultDir,
+    sessionsDir: sessionsDirFrom(process.env.FVTT_SESSIONS_DIR),
+    mirrorStatus: (): ReturnType<ObsidianMirrorPump['status']> | null =>
+      mirrorPump?.status() ?? null,
+    mirrorEnv: {
+      vaultDirSet: Boolean(obsidianVaultDir),
+      openBase: mirrorEnv.openBase,
+      pollMs: mirrorEnv.pollMs,
+      foundryUrl: mirrorEnv.foundryUrl,
+    },
+    playerExtraDenyTerms: (): string[] => readExtraDenyTerms(process.env[PLAYER_CONFIG_ENV]),
   });
+  const guardedChangeTools = toolDeps.get(guardedChangesModule);
+  // The player set (D-136): runs only through the `player_tool` control message below.
+  const playerTools = toolDeps.get(playerModule);
 
-  const toolDeps = {
-    characterTools,
-    compendiumTools,
-    sceneTools,
-    actorCreationTools,
-    questCreationTools,
-    diceRollTools,
-    campaignManagementTools,
-    tokenManipulationTools,
-    ownershipTools,
-    sceneRestoreTools,
-    npcTurnTools,
-    paperSyncTools,
-    roomSetupTools,
-    sceneMoodTools,
-    rulesCheckTools,
-    tableViewerTools,
-    dnd5eAddFeatureTool,
-    dnd5eNpcTools,
-    dnd5eFeaturesFromCompendiumTools,
-    chatLogTools,
-    resourceTools,
-    levelUpTools,
-    effectsTools,
-    combatTools,
-    movementTools,
-    obsidianMirrorTools,
-    sessionLogTools,
-    combatResolutionTools,
-    encounterTools,
-    changeHistoryTools,
-    guardedChangeTools,
-    tarokkaTools,
-    playSessionTools,
-    playStatsTools,
-    playerViewTools,
-    preflightTools,
-    prepDigestTools,
-    partyTools,
-    livePlayTools,
-    sceneChangeTools,
-    combatChangeTools,
-    diagnosticsTools,
-    refChoiceTools,
-  };
+  // Control-channel call_tool dispatch table (see tool-router.ts).
   const toolRouter = buildToolRouter(toolDeps);
+  // The same write twice within 3 s (a double click) answers with the first result (repeat-guard.ts).
+  const repeatGuard = new RepeatGuard();
+  // Dashboard-only routes (O6): callable through call_tool by the dashboard's GM proxy, but not
+  // MCP tools (no definition, in no tool set), so buildToolRouter's one-route-per-tool test and
+  // the tool-set size budgets stay as they are. They are not listed to Claude, but not walled off
+  // either, so each must be harmless alone (this one plans only; applying needs confirm).
+  toolRouter['plan-obsidian-quest-import'] = (args: unknown): Promise<unknown> =>
+    obsidianQuestImportTools.handlePlanObsidianQuestImport(args);
   // A `module-request` from the linked browser runs through the same dispatch table as the
   // control channel's call_tool (MODULE_REQUEST_TOOLS only; an undo records who asked).
   foundryClient.setModuleRequestHandler(
     createModuleRequestHandler({
       toolRouter,
+      repeatGuard,
       guardedChangeTools,
       guardedWrites,
       tarokkaPositionRevealed: async position => {
@@ -548,7 +399,10 @@ async function startBackend(): Promise<void> {
   const announceAiChanges = createAiChangesAnnouncer(foundryClient, logger);
   guardedWrites.addRecordedListener(announceAiChanges);
   handouts.addQueueChangedListener(announceAiChanges);
-  const allTools = collectToolDefinitions(toolDeps);
+  // The player tools are not listed to any other control client (see splitPlayerTools).
+  const { listed: allTools, player: playerToolDefinitions } = splitPlayerTools(
+    collectToolDefinitions(toolDeps)
+  );
   allToolNames = allTools.map(t => t.name);
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
@@ -574,12 +428,19 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: pumpSettings.intervalMs,
         onAppended: renderObsidian,
+        onEvents: (_worldId, events): void => gameEventHub.publishSessionEvents(events),
       });
+      const pump = eventPump;
+      pumpHealthSources.push(() => pump.health.snapshot());
       eventPump.start();
     } else {
       logger.info('Session event log disabled (FOUNDRY_AI_EVENT_LOG=off)');
     }
     const playSettings = playLogSettings();
+    gameEventHub.setSources({
+      sessionEvents: pumpSettings.enabled,
+      playLog: playSettings.enabled,
+    });
     if (playSettings.enabled) {
       playLogPump = new PlayLogPump({
         foundryClient,
@@ -588,7 +449,10 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: playSettings.intervalMs,
         onAppended: renderObsidian,
+        onRecords: (_worldId, records): void => gameEventHub.publishPlayRecords(records),
       });
+      const pump = playLogPump;
+      pumpHealthSources.push(() => pump.health.snapshot());
       playLogPump.start();
     } else {
       logger.info('Play log disabled (FOUNDRY_AI_PLAY_LOG=off)');
@@ -639,13 +503,20 @@ async function startBackend(): Promise<void> {
       mirrorPump.start();
     }
   } else {
-    logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
+    logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off), serving control channel only');
   }
 
   // Control channel (TCP JSON-lines)
 
+  let nextConnectionId = 0;
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
+    const connectionId = (nextConnectionId += 1);
+    socket.on('close', () => wrapperRegistry.close(connectionId));
+
+    // Aborts the long waits (wait-for-game-event) of a connection that closed.
+    const socketAbort = new AbortController();
+    socket.on('close', () => socketAbort.abort());
 
     // Closes the socket on anything that is not a JSON-lines client (an HTTP POST from a web page).
     const reader = createControlReader(socket, logger);
@@ -661,8 +532,46 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // Whether the Foundry module's socket is connected (the Assistant GM's link check on the Pi).
+          if (msg.method === 'link_status') {
+            socket.write(
+              `${JSON.stringify({
+                id: msg.id,
+                result: { ok: true, module: foundryClient.getConnectionState() },
+              })}\n`
+            );
+
+            continue;
+          }
+
+          // The stdio wrapper says which version and build it is (a wrapper from before this sends
+          // none). get-preflight reads the registry in-process; `wrapper_status` serves the same view.
+          if (msg.method === 'hello') {
+            wrapperRegistry.hello(connectionId, msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
+
+            continue;
+          }
+
+          // The connected connectors, names and versions only (read-only; the same object
+          // get-preflight reads).
+          if (msg.method === 'wrapper_status') {
+            socket.write(`${JSON.stringify({ id: msg.id, result: wrapperRegistry.status() })}\n`);
+
+            continue;
+          }
+
           if (msg.method === 'list_tools') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
+
+            continue;
+          }
+
+          // The five player tool definitions, for the dashboard's /mcp/player `tools/list`.
+          if (msg.method === 'list_player_tools') {
+            socket.write(
+              `${JSON.stringify({ id: msg.id, result: { tools: playerToolDefinitions } })}\n`
+            );
 
             continue;
           }
@@ -674,44 +583,74 @@ async function startBackend(): Promise<void> {
               requestedBy?: unknown;
             };
 
-            try {
-              const route = toolRouter[name];
-              if (!route) {
-                throw new Error(`Unknown tool: ${name}`);
+            if (typeof requestedBy !== 'string')
+              wrapperRegistry.toolCallWithoutRequester(connectionId);
+
+            const runCall = async (): Promise<void> => {
+              try {
+                // Own keys only: a name such as "constructor" must not reach Object.prototype.
+                const route =
+                  typeof name === 'string' && Object.hasOwn(toolRouter, name)
+                    ? toolRouter[name]
+                    : undefined;
+                if (typeof route !== 'function') {
+                  throw new Error(unknownToolMessage(String(name)));
+                }
+                // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
+                const requester =
+                  typeof requestedBy === 'string'
+                    ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
+                    : '';
+                // Guarded routes must not read `signal`: a joined second caller would share the first socket's abort.
+                const result: unknown = await repeatGuard.run(name, args, requester, () =>
+                  route(args, {
+                    ...(requester ? { requestedBy: requester } : {}),
+                    signal: socketAbort.signal,
+                  })
+                );
+
+                const payload: ToolResultPayload = {
+                  content: [
+                    {
+                      type: 'text',
+                      text: typeof result === 'string' ? result : JSON.stringify(result),
+                    },
+                  ],
+                };
+
+                // An older connector gets one outdated line, appended to a successful answer.
+                if (!socket.destroyed) {
+                  const notice = wrapperRegistry.noticeFor(
+                    connectionId,
+                    Date.now(),
+                    payload.content[0]?.text.length ?? 0
+                  );
+                  if (notice !== null) payload.content.push({ type: 'text', text: notice });
+                }
+
+                if (!socket.destroyed) {
+                  socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
+                }
+              } catch (e: unknown) {
+                const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+
+                if (!socket.destroyed) {
+                  socket.write(
+                    `${JSON.stringify({
+                      id: msg.id,
+                      result: {
+                        content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+                        isError: true,
+                      },
+                    })}\n`
+                  );
+                }
               }
-              // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
-              const requester =
-                typeof requestedBy === 'string'
-                  ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
-                  : '';
-              const result: unknown = await route(
-                args,
-                requester ? { requestedBy: requester } : undefined
-              );
-
-              const payload: ToolResultPayload = {
-                content: [
-                  {
-                    type: 'text',
-                    text: typeof result === 'string' ? result : JSON.stringify(result),
-                  },
-                ],
-              };
-
-              socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
-            } catch (e: unknown) {
-              const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
-
-              socket.write(
-                `${JSON.stringify({
-                  id: msg.id,
-                  result: {
-                    content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-                    isError: true,
-                  },
-                })}\n`
-              );
-            }
+            };
+            // Lines that arrive in the same chunk run in order; a long wait must not hold up the
+            // lines behind it, so only this tool is not awaited.
+            if (DETACHED_TOOLS.has(name)) void runCall();
+            else await runCall();
 
             continue;
           }
@@ -784,6 +723,33 @@ async function startBackend(): Promise<void> {
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          // A player's own Claude (D-136): the dashboard's /mcp/player route sends the verified
+          // Foundry user id in `params.userId`; the tool arguments are untrusted and never carry
+          // one. Only the five player tools run here, all read-only. Not a call_tool route, never
+          // listed to Claude, and the stdio wrapper never forwards it.
+          if (msg.method === 'player_tool') {
+            const result = await handlePlayerTool(playerTools, msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+
+            continue;
+          }
+
+          // "Upload my portrait" (player-portrait.ts): the dashboard's player page sends a
+          // player's picture for a character they own. Not a tool, never listed to Claude.
+          if (msg.method === 'player_portrait') {
+            try {
+              const result = await handlePlayerPortrait(foundryClient, guardedWrites, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'The picture was not saved.';
+              const error =
+                e instanceof PortraitError ? { message, code: 'portrait' } : controlError(e);
+              socket.write(`${JSON.stringify({ id: msg.id, error })}\n`);
             }
 
             continue;

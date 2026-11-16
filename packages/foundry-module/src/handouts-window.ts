@@ -131,11 +131,18 @@ export class HandoutsController {
           planId: plan.planId,
           confirm: true,
           confirmDestructive: true,
-        })) as { shown?: { ok?: boolean; error?: string } } | null;
+        })) as {
+          shown?: { ok?: boolean; error?: string };
+          noticed?: { ok?: boolean; error?: string };
+        } | null;
         this.deps.notifyInfo(`Revealed: ${plan.summary}`);
         if (applied?.shown?.ok === false) {
           this.failed(
             `Revealed, but the page could not be shown on the players' screens: ${applied.shown.error ?? 'unknown error'}`
+          );
+        } else if (applied?.noticed?.ok === false) {
+          this.failed(
+            `Revealed, but the chat notice to the players was not posted: ${applied.noticed.error ?? 'unknown error'}`
           );
         }
       }
@@ -201,7 +208,12 @@ export function foundryHandoutsDeps(): HandoutsDeps {
     context: worldContext,
     confirmReveal: async (plan): Promise<boolean> => {
       const api = (foundry.applications as { api?: { DialogV2?: DialogV2Like } }).api;
-      if (!api?.DialogV2) return false;
+      if (!api?.DialogV2) {
+        ui.notifications?.warn(
+          'Foundry could not show the confirmation window, so nothing was changed. Reload the page and try again.'
+        );
+        return false;
+      }
       const answer = await api.DialogV2.confirm({
         window: { title: 'Reveal handout' },
         content: renderRevealConfirmHtml(plan),

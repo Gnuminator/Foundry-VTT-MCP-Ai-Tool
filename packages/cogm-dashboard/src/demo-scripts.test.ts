@@ -4,7 +4,7 @@
  * worked example, the OBS ini editor must keep every line it does not change, and the
  * export's YouTube chapters and clip bitrate must follow their rules.
  */
-import { promises as fsp, readFileSync } from 'fs';
+import { promises as fsp, readFileSync, readdirSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -18,19 +18,42 @@ const demoExport = pathToFileURL(path.join(repoRoot, 'scripts', 'demo', 'export.
 // A UTF-8 byte order mark, as OBS may write at the start of its ini files.
 const BOM = String.fromCharCode(0xfeff);
 
+/** All .ts and .tsx source under a folder as one string (test and story files skipped). */
+function sourceText(dir: string): string {
+  let text = '';
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) text += sourceText(full);
+    else if (/\.tsx?$/.test(entry.name) && !/\.(test|stories)\./.test(entry.name))
+      text += readFileSync(full, 'utf8');
+  }
+  return text;
+}
+
 describe('demo dashboard helpers', () => {
   it('only use element ids that the dashboard page has', () => {
-    const helpers = readFileSync(
-      path.join(repoRoot, 'scripts', 'demo', 'lib', 'dashboard.mjs'),
-      'utf8'
-    );
-    const page = readFileSync(
-      path.join(repoRoot, 'packages', 'cogm-dashboard', 'public', 'index.html'),
-      'utf8'
-    );
+    const demoDir = path.join(repoRoot, 'scripts', 'demo');
+    // The helpers and the takes in the repo (takes kept outside it are not scanned).
+    const helpers = [
+      path.join(demoDir, 'lib', 'dashboard.mjs'),
+      ...readdirSync(path.join(demoDir, 'takes'))
+        .filter(name => name.endsWith('.mjs'))
+        .map(name => path.join(demoDir, 'takes', name)),
+    ]
+      .map(file => readFileSync(file, 'utf8'))
+      .join('\n');
+    // The React dashboard at /: an id is written in its source as id="x" or as a string 'x'.
+    // This accepts any such string in web/src, so it catches a deleted id, not a moved one.
+    const page = sourceText(path.join(repoRoot, 'packages', 'cogm-dashboard', 'web', 'src'));
     const ids = [...new Set([...helpers.matchAll(/#([a-z][a-z0-9-]*)/g)].map(m => m[1]))];
     expect(ids.length).toBeGreaterThan(5);
-    const missing = ids.filter(id => !page.includes(`id="${id}"`));
+    // Foundry's own elements, which take scripts also click (table-player-attack runs in Foundry).
+    const foundryIds = new Set(['tooltip', 'chat-notifications']);
+    // The Before / During / After tabs are built as `tab-${moment}` in components/Moments.tsx.
+    const built = (id: string): boolean => /^tab-(before|during|after)$/.test(id);
+    const missing = ids.filter(
+      id => !foundryIds.has(id) && !built(id) && !new RegExp(`[iI]d="${id}"|'${id}'`).test(page) // id="x", bodyId="x" or a string 'x'
+    );
     expect(missing).toEqual([]);
   });
 });

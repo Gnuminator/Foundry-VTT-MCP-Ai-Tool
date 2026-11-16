@@ -17,7 +17,10 @@ interface HttpishError {
 }
 
 /** The status and public message for an error (never its stack or paths). */
-export function publicError(error: unknown): { status: number; body: { error: string } } {
+export function publicError(error: unknown): {
+  status: number;
+  body: { error: string; kind?: string };
+} {
   const e = (error ?? {}) as HttpishError;
   if (e.type === 'entity.parse.failed') {
     return { status: 400, body: { error: 'Invalid JSON body' } };
@@ -29,7 +32,8 @@ export function publicError(error: unknown): { status: number; body: { error: st
   if (Number.isInteger(status) && status >= 400 && status < 500) {
     return { status, body: { error: 'Bad request' } };
   }
-  return { status: 500, body: { error: 'Internal error' } };
+  // The kind tells the dashboard this one failed here, before anything went to Foundry.
+  return { status: 500, body: { error: 'Internal error', kind: 'internal' } };
 }
 
 export function jsonErrorHandler(logger: Logger) {

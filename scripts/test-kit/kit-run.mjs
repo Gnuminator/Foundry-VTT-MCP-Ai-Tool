@@ -117,7 +117,7 @@ export function defaultRun(
 ) {
   return new Promise(resolve => {
     const env = { ...process.env, ...extraEnv };
-    // npm and node children use the same Node as this command (the portable Node 22).
+    // npm and node children use the same Node as this command (the portable Node 24).
     const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') || 'PATH';
     env[pathKey] = `${path.dirname(process.execPath)}${path.delimiter}${env[pathKey] || ''}`;
     // `signal` stops the child when the run is interrupted (the build and the kit only).

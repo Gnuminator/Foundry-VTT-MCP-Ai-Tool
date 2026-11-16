@@ -23,12 +23,56 @@ export function mySheets(me) {
     }));
 }
 
+/** The largest picture the page sends, in bytes (the server checks again, by the bytes). */
+export const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * A quick check before a picture is sent: a line telling the player what is wrong, or null. The
+ * server decides in the end (it reads the type from the bytes, not from the name).
+ */
+export function portraitProblem(file) {
+  if (!file) return 'Pick a picture first.';
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    return 'Only PNG, JPG or WebP pictures work.';
+  }
+  if (file.size > PORTRAIT_MAX_BYTES) return 'That picture is too big. The limit is 5 MB.';
+  if (file.size === 0) return 'That file is empty.';
+  return null;
+}
+
+/** The line shown after a failed upload: the server's own words for a refusal, else a fixed one. */
+export function portraitFailure(status, body) {
+  if (status >= 500) return 'Could not save your picture. Ask your GM.';
+  return (body && body.error) || 'Could not save your picture. Ask your GM.';
+}
+
 /** The roll requests waiting for the player: a button id and its text, nothing else. */
 export function myRollRequests(me) {
   const list = me && Array.isArray(me.rollRequests) ? me.rollRequests : [];
   return list
     .filter(r => r && typeof r.buttonId === 'string' && typeof r.label === 'string')
     .map(r => ({ buttonId: r.buttonId, label: r.label }));
+}
+
+/**
+ * The roll banner for the player who picked their name: the title ("The GM asked you for
+ * Perception.") and a hint on where to roll, or null when nothing is open for them. `open` is the
+ * player stream's list ({ id, sentAt, label, userId }); a request older than half an hour no
+ * longer shows.
+ */
+export function rollBannerLines(open, userId, now, hasKey) {
+  if (!userId || !Array.isArray(open)) return null;
+  const mine = open.filter(
+    r => r && r.userId === userId && typeof r.label === 'string' && now - r.sentAt < 30 * 60 * 1000
+  );
+  if (mine.length === 0) return null;
+  const names = mine.map(r => r.label.replace(/\s*\((?:Private|Public)\)\s*$/i, ''));
+  return {
+    title: `The GM asked you to roll: ${names.join(', ')}`,
+    hint: hasKey
+      ? 'Press Roll under "You" below, or roll it in Foundry.'
+      : 'Roll it in Foundry, or open your own link (pinned in Discord) to roll here.',
+  };
 }
 
 /**

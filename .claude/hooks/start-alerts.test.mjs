@@ -9,11 +9,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   claudeMdAlert,
+  cloudflareAllowAlert,
   collectAlerts,
   foundryPart,
   formatOutput,
   lockAlert,
+  MAX_LINES,
   mainCheckout,
+  mainRedAlert,
   parseWaiting,
   readLockFile,
   testEnvRootBFor,
@@ -399,7 +402,98 @@ test('every alert forced at once: one line each, ten lines at most', async () =>
     const out = JSON.parse(formatOutput(lines));
     assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart');
     assert.equal(out.systemMessage.split('\n').length, 4); // the heading plus three alerts
+    // with the main CI line as well: it comes first and the total stays within the cap
+    const { gh } = fakeGh({ list: [RUN(1, 'failure', 'abcdef123456')], view: JOBS });
+    const four = await collectAlerts(opts(f, { fetchImpl: answer(snap), mainCi: gh }));
+    assert.equal(four.length, 4);
+    assert.match(four[0], /^main CI red since abcdef12/);
+    assert.ok(four.length <= MAX_LINES);
     assert.ok(formatOutput(Array(20).fill('x')).length > 0);
+  } finally {
+    f.cleanup();
+  }
+});
+
+// A fake gh: `list` answers the run list, `view` the jobs of a run; null stands for a failed call.
+function fakeGh({ list, view }) {
+  const calls = [];
+  const gh = args => {
+    calls.push(args.join(' '));
+    const answer = args[1] === 'list' ? list : view;
+    return answer === null || answer === undefined ? null : JSON.stringify(answer);
+  };
+  return { gh, calls };
+}
+const RUN = (databaseId, conclusion, headSha) => ({ databaseId, conclusion, headSha });
+const JOBS = {
+  jobs: [
+    {
+      name: 'build-test (Node 22)',
+      conclusion: 'failure',
+      steps: [
+        { name: 'Build', conclusion: 'success' },
+        { name: 'Dashboard bundle budget', conclusion: 'failure' },
+      ],
+    },
+  ],
+};
+
+test('main CI red: names the oldest sha of the red streak and the failing step', async () => {
+  const { gh, calls } = fakeGh({
+    list: [
+      RUN(5, 'failure', 'eeee5555aaaa'),
+      RUN(4, 'cancelled', 'dddd4444aaaa'),
+      RUN(3, 'failure', 'cccc3333aaaa'),
+      RUN(2, 'success', 'bbbb2222aaaa'),
+      RUN(1, 'failure', 'aaaa1111aaaa'),
+    ],
+    view: JOBS,
+  });
+  const line = await mainRedAlert({ gh });
+  assert.match(line, /^main CI red since cccc3333 \(Dashboard bundle budget\)/);
+  assert.ok(calls[0].includes('--branch main') && calls[0].includes('--workflow ci.yml'));
+  assert.ok(calls[1].startsWith('run view 5 '));
+});
+
+test('main CI red: green, cancelled-only, empty, offline and garbage are silent', async () => {
+  assert.equal(
+    await mainRedAlert({
+      gh: fakeGh({ list: [RUN(2, 'success', 'aaaa'), RUN(1, 'failure', 'bbbb')] }).gh,
+    }),
+    null
+  );
+  assert.equal(
+    await mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'cancelled', 'aaaa')] }).gh }),
+    null
+  );
+  assert.equal(await mainRedAlert({ gh: fakeGh({ list: [] }).gh }), null);
+  assert.equal(await mainRedAlert({ gh: fakeGh({ list: null }).gh }), null); // gh missing or offline
+  assert.equal(await mainRedAlert({ gh: () => 'not json' }), null);
+  assert.equal(
+    await mainRedAlert({
+      gh: () => {
+        throw new Error('spawn gh ENOENT');
+      },
+    }),
+    null
+  );
+  // a red run whose jobs cannot be read still alerts, without the step
+  const noJobs = fakeGh({ list: [RUN(9, 'failure', 'abcdef123456')], view: null });
+  assert.equal(
+    (await mainRedAlert({ gh: noJobs.gh })).replace(/;.*$/, ''),
+    'main CI red since abcdef12'
+  );
+});
+
+test('main CI red: collectAlerts puts it first, and nothing runs without mainCi', async () => {
+  const f = fixture();
+  try {
+    const { gh } = fakeGh({ list: [RUN(7, 'failure', 'feedface0000')], view: JOBS });
+    const lines = await collectAlerts(opts(f, { mainCi: gh, fetchImpl: answer(snapshot({})) }));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^main CI red since feedface/);
+    // without mainCi (the tests, START_ALERTS_MAIN_CI=off) no gh call is made and no line appears
+    assert.deepEqual(await collectAlerts(opts(f, { fetchImpl: answer(snapshot({})) })), []);
   } finally {
     f.cleanup();
   }
@@ -457,6 +551,7 @@ test('the hook as a process: silent when clean, JSON when an alert fires', () =>
       START_ALERTS_VAULT: f.vault,
       START_ALERTS_TEST_ROOT: f.testEnv,
       START_ALERTS_SNAPSHOT_URL: 'off',
+      START_ALERTS_MAIN_CI: 'off',
       START_ALERTS_SNAPSHOT_FILE: path.join(f.root, 'none.json'),
       START_ALERTS_CC_DIR: path.join(f.root, 'none'),
     };
@@ -466,6 +561,158 @@ test('the hook as a process: silent when clean, JSON when an alert fires', () =>
     writeFileSync(path.join(f.testEnv, 'lock.json'), JSON.stringify({ holder: 'kit run' }));
     const out = JSON.parse(run());
     assert.match(out.systemMessage, /held by kit run/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+// --- the Cloudflare allow entry ------------------------------------------------------------------
+
+const EXECUTE = 'mcp__25eaf6dd-3fb3-49b4-b302-e9ce368379ed__execute';
+
+function writeLocal(f, value) {
+  mkdirSync(path.join(f.repo, '.claude'), { recursive: true });
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  writeFileSync(path.join(f.repo, '.claude', 'settings.local.json'), text);
+}
+
+test('cloudflare allow entry: present in permissions.allow gives one line', async () => {
+  const f = fixture();
+  try {
+    writeLocal(f, { permissions: { allow: ['Bash(git status)', EXECUTE] } });
+    const line = cloudflareAllowAlert({ repoRoot: f.repo });
+    assert.match(line, /may run without a prompt/);
+    assert.ok(line.includes(EXECUTE));
+    assert.ok(!line.includes('git status'));
+    const lines = await collectAlerts(opts(f));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /__execute/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: absent, missing or unreadable file stays silent', async () => {
+  const f = fixture();
+  try {
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null); // no file
+    writeLocal(f, {
+      permissions: { allow: ['Bash(git status)', 'mcp__foundry-mcp__get-world-info'] },
+    });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, { permissions: { allow: [`${EXECUTE}-not`, 'Bash(echo __execute)'] } });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null); // does not END in __execute
+    writeLocal(f, { permissions: { deny: [EXECUTE] } }); // deny and ask lists are fine
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, { permissions: { allow: 'nope' } });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, '{ not json');
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    writeLocal(f, 'null');
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+    assert.deepEqual(await collectAlerts(opts(f)), []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: never prints other entries, even an odd __execute one', () => {
+  const f = fixture();
+  try {
+    const odd = 'Bash(curl -H "Authorization: Bearer SECRET123" https://x/__execute';
+    writeLocal(f, { permissions: { allow: ['Bash(TOKEN=SECRET456 node x.js)', odd] } });
+    const line = cloudflareAllowAlert({ repoRoot: f.repo });
+    assert.match(line, /may run without a prompt/);
+    assert.ok(!line.includes('SECRET'));
+    assert.ok(!line.includes('curl'));
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: a whole-connector allow counts, a Foundry server one does not', () => {
+  const f = fixture();
+  try {
+    const uuid = '25eaf6dd-3fb3-49b4-b302-e9ce368379ed';
+    for (const entry of [`mcp__${uuid}`, `mcp__${uuid}__*`]) {
+      writeLocal(f, { permissions: { allow: [entry] } });
+      const line = cloudflareAllowAlert({ repoRoot: f.repo });
+      assert.match(line, /may run without a prompt/);
+      assert.ok(line.includes(entry));
+    }
+    writeLocal(f, {
+      permissions: { allow: ['mcp__foundry-mcp', 'mcp__foundry-mcp-play__*', 'mcp__ccd_session'] },
+    });
+    assert.equal(cloudflareAllowAlert({ repoRoot: f.repo }), null);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: the name survives an odd entry before it and non-strings', () => {
+  const f = fixture();
+  try {
+    const odd = 'Bash(curl -H "Authorization: Bearer SECRET123" https://x/__execute';
+    writeLocal(f, { permissions: { allow: [null, 42, { a: 1 }, odd, ` ${EXECUTE} `] } });
+    const line = cloudflareAllowAlert({ repoRoot: f.repo });
+    assert.ok(line.includes(EXECUTE));
+    assert.ok(!line.includes('SECRET'));
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: a lane worktree own file counts and is named', () => {
+  const f = fixture();
+  try {
+    const wt = path.join(f.repo, '.claude', 'worktrees', 'lane-b');
+    mkdirSync(path.join(wt, '.claude'), { recursive: true });
+    writeFileSync(
+      path.join(wt, '.claude', 'settings.local.json'),
+      JSON.stringify({ permissions: { allow: [EXECUTE] } })
+    );
+    // the main checkout is clean, the worktree is not
+    const line = cloudflareAllowAlert({ repoRoot: f.repo, projectDir: wt });
+    assert.match(line, /in this worktree's \.claude/);
+    assert.ok(!/main checkout/.test(line));
+    // both dirty: both named; no projectDir: only the main checkout is read
+    writeLocal(f, { permissions: { allow: [EXECUTE] } });
+    assert.match(
+      cloudflareAllowAlert({ repoRoot: f.repo, projectDir: wt }),
+      /the main checkout and this worktree's/
+    );
+    assert.match(cloudflareAllowAlert({ repoRoot: f.repo }), /the main checkout's/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('cloudflare allow entry: a lane in a worktree reads the main checkout file', () => {
+  const f = fixture();
+  try {
+    writeLocal(f, { permissions: { allow: [EXECUTE] } });
+    const wt = path.join(f.repo, '.claude', 'worktrees', 'lane-a');
+    mkdirSync(wt, { recursive: true });
+    writeFileSync(
+      path.join(wt, '.git'),
+      `gitdir: ${f.repo.replaceAll('\\', '/')}/.git/worktrees/lane-a\n`
+    );
+    assert.match(cloudflareAllowAlert({ repoRoot: mainCheckout(wt) }), /__execute/);
+    const env = {
+      ...process.env,
+      START_ALERTS_REPO: wt,
+      START_ALERTS_VAULT: f.vault,
+      START_ALERTS_TEST_ROOT: f.testEnv,
+      START_ALERTS_SNAPSHOT_URL: 'off',
+      START_ALERTS_MAIN_CI: 'off',
+      START_ALERTS_SNAPSHOT_FILE: path.join(f.root, 'none.json'),
+      START_ALERTS_CC_DIR: path.join(f.root, 'none'),
+    };
+    const out = JSON.parse(
+      execFileSync(process.execPath, [HOOK], { env, encoding: 'utf8', input: '{}' })
+    );
+    assert.match(out.systemMessage, /may run without a prompt/);
+    assert.ok(out.systemMessage.includes(EXECUTE));
   } finally {
     f.cleanup();
   }

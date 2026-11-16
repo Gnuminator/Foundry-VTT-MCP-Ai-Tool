@@ -2,17 +2,24 @@
 // focus goes, and opening a drawer from it with the keyboard while another drawer is open.
 import { expect, test } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok } from './support';
+import {
+  GM_TOKEN,
+  SPACE_UNAVAILABLE,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+} from './support';
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
   await fakeTools(page, () => ok({}));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 });
 
-test('the menu lists the panels and tools in the old page order', async ({ page }) => {
+test('the menu lists the panels and tools in their set order', async ({ page }) => {
   const button = page.locator('#btn-advanced');
   await expect(button).toHaveAttribute('aria-expanded', 'false');
   await button.click();
@@ -25,9 +32,9 @@ test('the menu lists the panels and tools in the old page order', async ({ page 
     '📜 Handouts',
     '🃏 Tarokka',
     '📝 After a paper night',
-    '⚔ Combat buttons: off',
+    '🧛 2024 twin of a monster',
     '▦ Try the During layouts',
-    '🛠 Tools',
+    '🛠 Tool Runner',
     '🩺 Module diagnostics',
     '🔗 Player links',
     // The Versions panel itself shows only once this switch is on (I-127, off by default).
@@ -45,7 +52,7 @@ test('the menu lists the panels and tools in the old page order', async ({ page 
   // So does a click outside it.
   await button.click();
   await expect(menu).toBeVisible();
-  await page.locator('.link-banner').click();
+  await page.locator('#moment-views').click({ position: { x: 4, y: 4 } });
   await expect(menu).toBeHidden();
 });
 

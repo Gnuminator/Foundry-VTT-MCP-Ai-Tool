@@ -11,6 +11,7 @@
 import { FAILURE_KINDS, checkHero, classifyBuildError, problemText } from '../lib/advancement.mjs';
 import { knownAttachment, loadKnown, splitKnown } from '../lib/known.mjs';
 import { pickCoverage, pickSummary } from '../lib/picks.mjs';
+import { bridgeProbe } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -19,11 +20,12 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: ['heroes'],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: ['describeClass', 'inspectActor'],
   timeoutMs: 20 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     /** @type {Array<{hero: any, problems: import('../lib/advancement.mjs').Problem[]}>} */
     const results = [];
     const knownList = loadKnown(t.kit.profile);

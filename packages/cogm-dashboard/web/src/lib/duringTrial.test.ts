@@ -77,7 +77,7 @@ describe('the trial steps', () => {
   });
 
   it('points at "Show everything" only in the step that the bar shows that button for', () => {
-    // The old page hid the button in the trial while this text pointed at it.
+    // The button must be visible in the trial, since this text points at it.
     const text = TOUR[1]?.text ?? '';
     expect(text).toContain(`"${fullButtonLabel('simple')}"`);
   });
@@ -85,7 +85,13 @@ describe('the trial steps', () => {
 
 describe('what the During screen shows', () => {
   it('uses the saved layout, calm, outside the trial', () => {
-    expect(duringScreen({ prefs: prefs(), trial: null, combatActive: false })).toEqual({
+    expect(
+      duringScreen({
+        prefs: prefs({ duringLayout: 'layered' }),
+        trial: null,
+        combatActive: false,
+      })
+    ).toEqual({
       layout: 'layered',
       context: 'calm',
       view: undefined,
@@ -143,10 +149,10 @@ describe('what the During screen shows', () => {
 
   it('words the Auto note and the Full button', () => {
     expect(autoNote('calm')).toBe(
-      'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.'
+      'Auto is showing Cards now, because no fight is running. A fight brings the combat order and the party forward.'
     );
     expect(autoNote('combat')).toBe(
-      'Auto is showing Combat now: the turn order and the party come forward.'
+      'Auto is showing Combat now: the combat order and the party come forward.'
     );
     expect(fullButtonLabel('simple')).toBe('Show everything');
     expect(fullButtonLabel('full')).toBe('Show less');
@@ -158,7 +164,7 @@ describe('the layout hint', () => {
     duringOnScreen: true,
     trialRunning: false,
     sessionKey: '2026-10-10T18:00:00.000Z',
-    prefs: prefs(),
+    prefs: prefs({ layoutPicked: false }),
   };
 
   it('shows for an open session on During until a layout is kept', () => {
@@ -182,13 +188,22 @@ describe('the layout hint', () => {
 
   it('shows in the first three sessions only; the one on screen keeps showing', () => {
     const seen = ['a', 'b', 'c'].slice(0, LAYOUT_HINT_SESSIONS);
-    expect(showLayoutHint({ ...base, prefs: prefs({ hintSessions: seen.slice(0, 2) }) })).toBe(
-      true
-    );
-    expect(showLayoutHint({ ...base, prefs: prefs({ hintSessions: seen }) })).toBe(false);
-    expect(showLayoutHint({ ...base, sessionKey: 'b', prefs: prefs({ hintSessions: seen }) })).toBe(
-      true
-    );
+    expect(
+      showLayoutHint({
+        ...base,
+        prefs: prefs({ layoutPicked: false, hintSessions: seen.slice(0, 2) }),
+      })
+    ).toBe(true);
+    expect(
+      showLayoutHint({ ...base, prefs: prefs({ layoutPicked: false, hintSessions: seen }) })
+    ).toBe(false);
+    expect(
+      showLayoutHint({
+        ...base,
+        sessionKey: 'b',
+        prefs: prefs({ layoutPicked: false, hintSessions: seen }),
+      })
+    ).toBe(true);
   });
 
   it('keys a session by its start time, only while it is open', () => {
@@ -202,9 +217,11 @@ describe('the layout hint', () => {
 
 describe('the prefs', () => {
   it('reads an answer field by field and fills the rest from the defaults', () => {
-    expect(
-      readPrefs({ duringLayout: 'auto', combatButtons: true, hintSessions: ['x', 5] })
-    ).toEqual({ ...DEFAULT_PREFS, duringLayout: 'auto', combatButtons: true, hintSessions: ['x'] });
+    expect(readPrefs({ duringLayout: 'auto', hintSessions: ['x', 5] })).toEqual({
+      ...DEFAULT_PREFS,
+      duringLayout: 'auto',
+      hintSessions: ['x'],
+    });
     expect(readPrefs({ duringLayout: 'sideways', duringFull: 'yes' })).toEqual(DEFAULT_PREFS);
     expect(readPrefs(null)).toEqual(DEFAULT_PREFS);
     expect(readPrefs({}).versionTracker).toBe(true);
@@ -219,13 +236,15 @@ describe('the prefs', () => {
   });
 
   it('rolls back only the fields of a failed change that still show it', () => {
-    const before = prefs();
+    const before = prefs({ duringLayout: 'layered', layoutPicked: false });
     const change = { duringLayout: 'auto', layoutPicked: true } as const;
     // Nothing newer: both fields go back.
     expect(rollBackChange(applyPrefsChange(before, change), before, change)).toEqual(before);
     // A newer change to another field survives.
     const newer = applyPrefsChange(applyPrefsChange(before, change), { duringFull: true });
-    expect(rollBackChange(newer, before, change)).toEqual(prefs({ duringFull: true }));
+    expect(rollBackChange(newer, before, change)).toEqual(
+      prefs({ duringLayout: 'layered', layoutPicked: false, duringFull: true })
+    );
     // A field that something newer changed is left alone.
     const toggled = applyPrefsChange(applyPrefsChange(before, change), { duringLayout: 'toggle' });
     expect(rollBackChange(toggled, before, change)).toEqual(

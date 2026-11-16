@@ -32,12 +32,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const noop = (): void => undefined;
-
 interface Setup {
   /** The fight; omitted for none. */
   fight?: CombatState;
-  combatButtons?: boolean;
   gmActions?: boolean;
   /** The bridge is away (the fight on screen may be old). */
   away?: boolean;
@@ -45,13 +42,13 @@ interface Setup {
 }
 
 /** `parameters.dashboard` for a story: what the stream would have put in the cache. */
-function seed({ fight, combatButtons = false, gmActions = true, away = false }: Setup): {
+function seed({ fight, gmActions = true, away = false }: Setup): {
   dashboard: DashboardParameters;
 } {
   return {
     dashboard: {
       cache: [
-        [PREFS_KEY, { ...PICKED, combatButtons }],
+        [PREFS_KEY, PICKED],
         [SETTINGS_KEY, { gmActionsEnabled: gmActions }],
         [BRIDGE_STATUS_KEY, away ? BRIDGE_AWAY : BRIDGE_UP],
         ...(fight ? [[COMBAT_KEY, fight] as const] : []),
@@ -88,7 +85,7 @@ function Host({
         {...(layout === 'layered' && !fight ? { 'data-view': 'full' } : {})}
       >
         <div className="slot slot-strip" data-slot="strip">
-          <CombatStrip sample={sample} onOpenTool={noop} />
+          <CombatStrip sample={sample} />
         </div>
       </section>
     </div>
@@ -144,22 +141,80 @@ export const DeathSaves: Story = {
 
 // --- Combat buttons and GM Actions -----------------------------------------------------------
 
-export const CombatButtonsOn: Story = {
-  name: 'Combat buttons on, nothing picked',
-  parameters: seed({ fight: FIGHT, combatButtons: true }),
-  render: render(),
-};
-
 export const CombatButtonsPicked: Story = {
-  name: 'Combat buttons on, two picked',
-  parameters: seed({ fight: FIGHT, combatButtons: true }),
+  name: 'two picked',
+  parameters: seed({ fight: FIGHT }),
   render: render(),
   play: pick('Ogre Brute', 'Goblin Archer'),
 };
 
+/** Two picked, Damage / Heal pressed: the small form with an amount typed and a type chosen. */
+export const DamageFormOpen: Story = {
+  name: 'Damage / Heal form, two picked',
+  parameters: seed({ fight: FIGHT }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute', 'Goblin Archer')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: /Damage \/ Heal/ }));
+    await userEvent.type(await canvas.findByRole('textbox', { name: 'Amount' }), '7');
+    await userEvent.click(await canvas.findByRole('button', { name: 'fire' }));
+  },
+};
+
+/**
+ * Two picked, Condition pressed: the condition chips under the action bar. A chip plans the
+ * condition, one confirm asks, and it applies with Undo (no Tool Runner).
+ */
+export const ConditionPickerOpen: Story = {
+  name: 'Condition picker, two picked',
+  parameters: seed({ fight: FIGHT }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute', 'Goblin Archer')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Condition' }));
+    const picker = await canvas.findByRole('group', { name: 'Set a condition' });
+    await waitFor(() =>
+      expect(within(picker).getByRole('button', { name: 'prone' })).toHaveFocus()
+    );
+  },
+};
+
+/** The same picker on a phone. */
+export const ConditionPickerPhone: Story = {
+  name: 'Condition picker (phone)',
+  tags: ['phone'],
+  globals: PHONE_VIEW,
+  parameters: seed({ fight: FIGHT }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Condition' }));
+    await canvas.findByRole('group', { name: 'Set a condition' });
+  },
+};
+
+/** The same form in heal mode, in the Veil theme. */
+export const HealFormVeil: Story = {
+  name: 'Heal form (Veil)',
+  tags: ['veil'],
+  globals: VEIL,
+  parameters: seed({ fight: FIGHT }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: /Damage \/ Heal/ }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'Heal' }));
+    await userEvent.type(await canvas.findByRole('textbox', { name: 'Amount' }), '12');
+  },
+};
+
 export const GmActionsOff: Story = {
-  name: 'Combat buttons on, GM Actions off',
-  parameters: seed({ fight: FIGHT, combatButtons: true, gmActions: false }),
+  name: 'GM Actions off',
+  parameters: seed({ fight: FIGHT, gmActions: false }),
   render: render(),
 };
 
@@ -210,13 +265,13 @@ export const PromptsOnNoBoss: Story = {
 
 export const BridgeAway: Story = {
   name: 'The bridge is away',
-  parameters: seed({ fight: FIGHT, combatButtons: true, away: true }),
+  parameters: seed({ fight: FIGHT, away: true }),
   render: render(),
 };
 
 export const BridgeAwayPicked: Story = {
   name: 'The bridge is away, two picked and a boss',
-  parameters: seed({ fight: FIGHT_BOSS, combatButtons: true, away: true }),
+  parameters: seed({ fight: FIGHT_BOSS, away: true }),
   beforeEach: bossPrompts(true),
   render: render(),
   play: pick('Brannoc', 'Mira'),
@@ -227,7 +282,7 @@ export const BridgeAwayPicked: Story = {
 /** The trial's Auto step shows a made-up fight when no real one runs. */
 export const TrialSampleFight: Story = {
   name: 'Layout trial: the sample fight',
-  parameters: seed({ combatButtons: true }),
+  parameters: seed({}),
   render: render({ layout: 'auto', fight: false, sample: true }),
 };
 
@@ -236,7 +291,7 @@ export const TrialSampleFight: Story = {
 export const FightVeil: Story = {
   tags: ['veil'],
   globals: VEIL,
-  parameters: seed({ fight: FIGHT, combatButtons: true }),
+  parameters: seed({ fight: FIGHT }),
   render: render(),
   play: pick('Ogre Brute'),
 };
@@ -254,14 +309,14 @@ export const BridgeAwayVeil: Story = {
   name: 'The bridge is away (Veil)',
   tags: ['veil'],
   globals: VEIL,
-  parameters: seed({ fight: FIGHT, combatButtons: true, away: true }),
+  parameters: seed({ fight: FIGHT, away: true }),
   render: render(),
 };
 
 export const FightPhone: Story = {
   tags: ['phone'],
   globals: PHONE_VIEW,
-  parameters: seed({ fight: FIGHT, combatButtons: true }),
+  parameters: seed({ fight: FIGHT }),
   render: render(),
   play: pick('Ogre Brute'),
 };

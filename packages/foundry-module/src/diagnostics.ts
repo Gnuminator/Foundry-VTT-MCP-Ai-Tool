@@ -2,7 +2,7 @@ import { MODULE_ID } from './constants.js';
 import { logInfo } from './log.js';
 
 /**
- * Diagnostics — captures runtime errors/warnings from the Foundry client so the
+ * Diagnostics: captures runtime errors/warnings from the Foundry client so the
  * MCP server can surface them on demand for troubleshooting other modules.
  *
  * It hooks console.error / console.warn, window 'error', and 'unhandledrejection',
@@ -10,7 +10,7 @@ import { logInfo } from './log.js';
  * parsing the stack), and persists the buffer to localStorage so it survives the
  * page reloads that typically follow a load-time module error.
  *
- * Filename is deliberately NOT "*tracking*" — ad blockers block such filenames
+ * Filename is deliberately NOT "*tracking*", ad blockers block such filenames
  * and would break the module for players.
  *
  * Everything here is defensive: capturing a diagnostic must never throw or break
@@ -53,11 +53,24 @@ interface WindowErrorLike {
 
 const MAX_ENTRIES = 500;
 const STORAGE_KEY = `${MODULE_ID}.diagnostics`;
+/**
+ * The world whose errors the persisted buffer holds (localStorage is shared by every world on this
+ * server). No key of ours may be a dotted prefix of another: Foundry keeps client settings in
+ * localStorage as `namespace.key`, and modules that run `foundry.utils.expandObject` over that
+ * storage (Monk's Player Settings does) throw "Cannot use 'in' operator to search for 'world'"
+ * when `<id>.diagnostics` is a string and `<id>.diagnostics.world` also exists.
+ */
+const WORLD_KEY = `${MODULE_ID}.diagnosticsWorld`;
+/** The old name of WORLD_KEY (earlier versions); moved to WORLD_KEY and removed at install. */
+const LEGACY_WORLD_KEY = `${MODULE_ID}.diagnostics.world`;
 
 export class Diagnostics {
   private buffer: DiagnosticEntry[] = [];
   private installed = false;
+  private installedAtMs = Date.now();
   private seq = 0;
+  /** True once bindWorld has run; persisting waits for it (see persist). */
+  private worldBound = false;
 
   private nextId(): string {
     this.seq += 1;
@@ -71,6 +84,13 @@ export class Diagnostics {
   install(): void {
     if (this.installed) return;
     this.installed = true;
+    this.installedAtMs = Date.now();
+
+    try {
+      this.migrateWorldKey();
+    } catch {
+      // storage unavailable
+    }
 
     try {
       this.restore();
@@ -199,11 +219,24 @@ export class Diagnostics {
   }
 
   private persist(): void {
+    // Until bindWorld has run the stored world marker may belong to the previous world, so a write
+    // now would file this load's errors under it. bindWorld persists the buffer once the world is known.
+    if (!this.worldBound) return;
     try {
       window.localStorage?.setItem(STORAGE_KEY, JSON.stringify(this.buffer.slice(-MAX_ENTRIES)));
     } catch {
       // storage may be full/unavailable; in-memory buffer still works
     }
+  }
+
+  /** Move the world marker from its old dotted key, which collides with STORAGE_KEY, to WORLD_KEY. */
+  private migrateWorldKey(): void {
+    const storage = window.localStorage;
+    if (!storage) return;
+    const legacy = storage.getItem(LEGACY_WORLD_KEY);
+    if (legacy === null) return;
+    if (storage.getItem(WORLD_KEY) === null) storage.setItem(WORLD_KEY, legacy);
+    storage.removeItem(LEGACY_WORLD_KEY);
   }
 
   private restore(): void {
@@ -243,7 +276,7 @@ export class Diagnostics {
     return entries.slice(-limit);
   }
 
-  /** Counts by attributed module + level — a quick triage summary. */
+  /** Counts by attributed module + level, a quick triage summary. */
   summary(): { total: number; byModule: Record<string, number>; byLevel: Record<string, number> } {
     const byModule: Record<string, number> = {};
     const byLevel: Record<string, number> = {};
@@ -253,6 +286,30 @@ export class Diagnostics {
       byLevel[e.level] = (byLevel[e.level] || 0) + 1;
     }
     return { total: this.buffer.length, byModule, byLevel };
+  }
+
+  /**
+   * Tie the persisted buffer to the open world. The browser storage outlives a world switch, so
+   * errors restored from the previous world are dropped; those captured since this page loaded
+   * belong to the new world and stay. Call once the world id is known (the `ready` hook).
+   */
+  bindWorld(worldId: string): number {
+    let dropped = 0;
+    try {
+      const stored = window.localStorage?.getItem(WORLD_KEY);
+      if (stored !== worldId) {
+        const before = this.buffer.length;
+        this.buffer = this.buffer.filter(e => e.timestampMs >= this.installedAtMs);
+        dropped = before - this.buffer.length;
+        window.localStorage?.setItem(WORLD_KEY, worldId);
+      }
+    } catch {
+      // storage unavailable; the in-memory buffer still works
+    }
+    // Flush what was captured before the world was known, now under the right marker.
+    this.worldBound = true;
+    this.persist();
+    return dropped;
   }
 
   clear(): number {

@@ -8,10 +8,20 @@
 import {
   concentrationReminders,
   myRollRequests,
+  portraitFailure,
+  portraitProblem,
+  rollBannerLines,
   mySheets,
   turnLine,
   turnStatus,
 } from './player-me.js';
+import {
+  handoutTitle,
+  sessionPhase,
+  splitHandouts,
+  visibleHandouts,
+  whoLine,
+} from './player-session.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -49,6 +59,10 @@ const elScene = $('scene');
 const elCombat = $('combat');
 const elFeed = $('feed');
 const elHandouts = $('handouts');
+const elRecap = $('recap');
+const elQuests = $('quests');
+const elWrap = $('wrap');
+const elRollBanner = $('roll-banner');
 const elWho = $('who');
 const elWhoName = $('who-name');
 const elWhoChange = $('who-change');
@@ -62,10 +76,10 @@ const escape = s =>
   );
 
 const STATUS_LABELS = {
-  live: 'live',
-  'foundry-offline': 'foundry offline',
-  disconnected: 'disconnected',
-  connecting: 'connecting…',
+  live: 'Live',
+  'foundry-offline': 'Foundry is offline. Wait a moment.',
+  disconnected: 'Not connected. Wait a moment.',
+  connecting: 'Connecting…',
 };
 
 function hpCell(c) {
@@ -75,7 +89,7 @@ function hpCell(c) {
   }
   // Enemy/NPC: never numbers. A coarse band if the server provided one.
   if (c.hpBand) return `<span class="hp-muted">${escape(c.hpBand)}</span>`;
-  return `<span class="hp-muted">—</span>`;
+  return `<span class="hp-muted">hidden</span>`;
 }
 
 function renderCombat(combat) {
@@ -93,7 +107,7 @@ function renderCombat(combat) {
           ? `<span class="cond">${c.conditions.map(escape).join(', ')}</span>`
           : '';
       return `<div class="${cls.join(' ')}">
-        <span class="init">${escape(c.initiative ?? '—')}</span>
+        <span class="init">${escape(c.initiative ?? 'not rolled')}</span>
         <span class="dot ${escape(c.side)}"></span>
         <span class="name">${escape(c.name)}</span>
         ${conds}
@@ -131,6 +145,7 @@ const elMineAlerts = $('mine-alerts');
 const elMineChars = $('mine-chars');
 const elMineRolls = $('mine-rolls');
 let mySheetList = [];
+let portraitOn = true;
 let myRolls = [];
 const rollNotes = new Map();
 let lastCombat = null;
@@ -157,6 +172,8 @@ function loadMe() {
       if (!res.ok) throw new Error(String(res.status));
       const me = await res.json();
       mySheetList = mySheets(me);
+      // false only when the GM switched "Player portraits" off; null (unknown) keeps the control.
+      portraitOn = me.portraitEnabled !== false;
       myRolls = myRollRequests(me);
       meMissed = false;
     } catch {
@@ -181,6 +198,12 @@ function renderMineRolls() {
     .join('');
 }
 
+// A server-side failure (5xx) can carry a raw error message: players always get the same line.
+function rollFailureNote(status, body) {
+  if (status >= 500) return 'Could not roll. Ask your GM.';
+  return (body && body.error) || 'The roll did not work. Ask your GM.';
+}
+
 elMineRolls.addEventListener('click', async e => {
   const btn = e.target instanceof Element ? e.target.closest('button[data-roll]') : null;
   if (!btn || btn.disabled || !meKey) return;
@@ -198,14 +221,106 @@ elMineRolls.addEventListener('click', async e => {
     if (res.ok) {
       myRolls = myRolls.filter(r => r.buttonId !== id);
     } else {
-      rollNotes.set(id, body.error || 'The roll did not work.');
+      rollNotes.set(id, rollFailureNote(res.status, body));
     }
   } catch {
-    rollNotes.set(id, 'Could not reach the table. Try again.');
+    rollNotes.set(id, 'Could not roll. Ask your GM.');
   }
   await loadMe();
   renderMine();
 });
+
+// --- "Upload my portrait": the player's own art on a character they own ----------------
+// The picture goes to /api/me/portrait with the private key; the server stores it only in the
+// player's own folder and sets the picture of a character they own. Nothing here names a path.
+const elPortraitActor = $('portrait-actor');
+const elPortraitPick = $('portrait-pick');
+const elPortraitToken = $('portrait-token');
+const elPortraitFile = $('portrait-file');
+const elPortraitNote = $('portrait-note');
+const elPortraitBox = $('mine-portrait');
+let portraitIds = '';
+let portraitBusy = false;
+
+function renderPortraitControl() {
+  elPortraitBox.hidden = !portraitOn;
+  const ids = mySheetList.map(s => s.id).join(',');
+  if (ids === portraitIds) return;
+  portraitIds = ids;
+  const previous = elPortraitActor.value;
+  elPortraitActor.innerHTML = mySheetList
+    .map(s => `<option value="${escape(s.id)}">${escape(s.name)}</option>`)
+    .join('');
+  if (mySheetList.some(s => s.id === previous)) elPortraitActor.value = previous;
+  $('portrait-actor-field').hidden = mySheetList.length < 2;
+}
+
+elPortraitPick.addEventListener('click', () => {
+  if (portraitBusy || !meKey) return;
+  elPortraitFile.value = '';
+  elPortraitFile.click();
+});
+
+elPortraitFile.addEventListener('change', async () => {
+  const file = elPortraitFile.files && elPortraitFile.files[0];
+  if (!file || portraitBusy || !meKey) return;
+  const problem = portraitProblem(file);
+  if (problem) {
+    elPortraitNote.textContent = problem;
+    return;
+  }
+  const actor = elPortraitActor.value || (mySheetList[0] && mySheetList[0].id) || '';
+  const target = elPortraitToken.value === 'portrait' ? 'portrait' : 'both';
+  portraitBusy = true;
+  elPortraitPick.disabled = true;
+  elPortraitNote.textContent = 'Saving...';
+  try {
+    const res = await fetch(
+      `/api/me/portrait?actor=${encodeURIComponent(actor)}&target=${target}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', 'X-CoGM-Me': meKey },
+        body: file,
+      }
+    );
+    const body = await res.json().catch(() => ({}));
+    elPortraitNote.textContent = res.ok
+      ? `Done${body.actorName ? `: ${body.actorName} has your new picture` : ''}.`
+      : portraitFailure(res.status, body);
+  } catch {
+    elPortraitNote.textContent = 'Could not save your picture. Ask your GM.';
+  } finally {
+    portraitBusy = false;
+    elPortraitPick.disabled = false;
+    elPortraitFile.value = '';
+  }
+});
+
+// --- Roll requests, pushed live (item roll-status-player-push) -------------------
+// The stream carries every open request with the Foundry user it is for; the page shows the ones
+// for the name picked under "Who are you?". With the personal link key the Roll button is fetched
+// at once (loadMe) instead of at the next 8 second refresh.
+let openRolls = [];
+function renderRollBanner() {
+  const lines = rollBannerLines(openRolls, currentWho && currentWho.userId, Date.now(), !!meKey);
+  elRollBanner.hidden = lines === null;
+  if (lines === null) return;
+  elRollBanner.innerHTML =
+    '<strong>' +
+    escape(lines.title) +
+    '</strong><span class="roll-hint">' +
+    escape(lines.hint) +
+    '</span>';
+}
+function onRolls(open) {
+  openRolls = Array.isArray(open) ? open : [];
+  renderRollBanner();
+  if (meKey && currentWho && openRolls.some(r => r.userId === currentWho.userId)) {
+    void loadMe().then(renderMine);
+  }
+}
+// A request nobody answered fades from the page by itself.
+setInterval(renderRollBanner, 30000);
 
 function renderMine() {
   if (!meKey || mySheetList.length === 0) {
@@ -214,6 +329,7 @@ function renderMine() {
   }
   elMine.hidden = false;
   renderMineRolls();
+  renderPortraitControl();
   const status = turnStatus(
     lastCombat,
     mySheetList.map(s => s.id)
@@ -253,9 +369,12 @@ async function onMineState(s) {
   if (fresh || Date.now() - meAt > ME_REFRESH_MS || mySheetList.length === 0) await loadMe();
   if (fresh && !meMissed) {
     for (const r of concentrationReminders(events, mySheetList, seenDamage)) {
-      const div = document.createElement('div');
+      const div = document.createElement('button');
+      div.type = 'button';
       div.className = 'mine-alert';
-      div.textContent = r.text;
+      div.textContent = `${r.text} (tap to dismiss ✕)`;
+      div.title = 'Dismiss';
+      div.setAttribute('aria-label', `${r.text} (tap to dismiss)`);
       div.addEventListener('click', () => div.remove());
       elMineAlerts.prepend(div);
     }
@@ -272,40 +391,51 @@ function sceneLook(env) {
 
 function renderState(s) {
   void onMineState(s);
-  elStatus.textContent = STATUS_LABELS[s.status] || 'connecting…';
-  elWorld.textContent = s.world
-    ? `${s.world.title}${s.world.systemId ? ' · ' + s.world.systemId : ''}`
-    : '—';
+  elStatus.textContent = STATUS_LABELS[s.status] || STATUS_LABELS.connecting;
+  elWorld.textContent = s.world ? s.world.title : 'No world yet';
   elScene.textContent = s.scene ? `· ${s.scene}${sceneLook(s.sceneEnvironment)}` : '';
+  elWrap.dataset.phase = sessionPhase(s);
   renderCombat(s.combat);
   renderFeed(s.events);
 }
 
 // I-039: a handout revealed to chosen players shows only to them (by the picked name; the
 // table is trusted, D-065). Opening one tells the GM's seen log, once per page per visit.
+/** Whether the name list had names to pick from: null until asked (a stored pick or Skip never asks), so the hint only hides once we know there is nobody. */
+let pickerHasNames = null;
+
 let lastHandouts = [];
 let currentWho = null;
 const reportedSeen = new Set();
 
-function visibleHandouts(handouts) {
-  const me = currentWho && currentWho.userId;
-  return (handouts || []).filter(h => !Array.isArray(h.players) || (me && h.players.includes(me)));
+function handoutHtml(h) {
+  // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
+  return `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(handoutTitle(h))}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
+        <div class="content">${h.html}</div></details>`;
+}
+
+function fill(el, list, emptyText) {
+  el.innerHTML = list.length
+    ? list.map(handoutHtml).join('')
+    : `<div class="empty">${emptyText}</div>`;
 }
 
 function renderHandouts(handouts) {
   lastHandouts = Array.isArray(handouts) ? handouts : [];
-  const shown = visibleHandouts(lastHandouts);
-  if (shown.length === 0) {
-    elHandouts.innerHTML = '<div class="empty">Nothing revealed yet.</div>';
-    return;
-  }
-  // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
-  elHandouts.innerHTML = shown
-    .map(
-      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
-        <div class="content">${h.html}</div></details>`
-    )
-    .join('');
+  const { recap, quests, rest } = splitHandouts(
+    visibleHandouts(lastHandouts, currentWho && currentWho.userId)
+  );
+  fill(elRecap, recap ? [recap] : [], 'No recap yet.');
+  fill(
+    elHandouts,
+    rest,
+    currentWho && currentWho.userId
+      ? 'Nothing revealed yet.'
+      : pickerHasNames !== false
+        ? 'Nothing revealed yet. Pick your name to see handouts meant just for you.'
+        : 'Nothing revealed yet.'
+  );
+  fill(elQuests, quests, 'No quests yet.');
 }
 
 function reportSeen(handoutId) {
@@ -319,23 +449,26 @@ function reportSeen(handoutId) {
   }).catch(() => reportedSeen.delete(handoutId));
 }
 
-elHandouts.addEventListener(
-  'toggle',
-  e => {
-    const box = e.target;
-    if (box && box.open && box.dataset && box.dataset.handout) reportSeen(box.dataset.handout);
-  },
-  true
-);
+for (const el of [elHandouts, elRecap, elQuests]) {
+  el.addEventListener(
+    'toggle',
+    e => {
+      const box = e.target;
+      if (box && box.open && box.dataset && box.dataset.handout) reportSeen(box.dataset.handout);
+    },
+    true
+  );
+}
 
 function connect() {
   const es = new EventSource(streamUrl);
   const on = (type, fn) => es.addEventListener(type, e => fn(JSON.parse(e.data)));
   on('state', renderState);
   on('handouts', p => renderHandouts(p.handouts));
+  on('rolls', p => onRolls(p.open));
   on('theme', p => renderTheme(p.theme));
   es.onerror = () => {
-    elStatus.textContent = 'reconnecting…';
+    elStatus.textContent = 'Reconnecting. Wait a moment.';
     // The browser retries a dropped connection by itself, but gives up for good on a non-200 answer
     // (a 502 while the dashboard restarts): make a new one after a wait. The server sends the
     // state again on connect, which sets the label.
@@ -374,13 +507,15 @@ function saveWho(who) {
 function showWho(who) {
   usage.setWho(who);
   currentWho = who;
+  renderRollBanner();
   renderHandouts(lastHandouts);
   elWhoPicker.hidden = true;
   elWho.hidden = false;
-  elWhoName.textContent = who && who.name ? `Playing as ${who.name}` : '';
-  elWhoChange.textContent = who && who.name ? 'not you?' : 'pick your name';
+  elWhoName.textContent = whoLine(who);
+  elWhoChange.textContent = who && who.name ? 'Not you? Change' : 'Pick your name';
+  // No names to pick from: the button would open an empty picker.
+  elWhoChange.hidden = !(who && who.name) && pickerHasNames === false;
 }
-
 async function loadNames() {
   try {
     const res = await fetch('/api/player/names', {
@@ -398,8 +533,13 @@ async function loadNames() {
 
 async function askWho() {
   const names = await loadNames();
+  pickerHasNames = names.length > 0;
+  renderHandouts(lastHandouts);
   // Nobody known yet (the bridge has not seen the players): ask again next visit.
-  if (names.length === 0) return;
+  if (names.length === 0) {
+    showWho(null);
+    return;
+  }
   elWhoList.innerHTML = '';
   for (const n of names) {
     const b = document.createElement('button');

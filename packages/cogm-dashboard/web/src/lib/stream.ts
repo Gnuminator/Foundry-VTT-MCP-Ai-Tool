@@ -1,14 +1,16 @@
-// The live stream (/api/stream, sse.ts on the server): one EventSource for the whole page, as the
-// old page has. Each event the new page uses lands in the TanStack Query cache under its own key,
+// The live stream (/api/stream, sse.ts on the server): one EventSource for the whole page.
+// Each event the page uses lands in the TanStack Query cache under its own key,
 // so a panel reads it like any other query and re-renders when it changes. EventSource reconnects
 // by itself; the server replays what a new connection needs (status, recent errors, ...).
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { callTool } from './api';
 import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
+import { ROLLS_KEY } from './rollsKey';
 import { PLAY_SESSION_KEY } from './session';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -36,9 +38,29 @@ export interface BridgeStatus {
   lastError: string | null;
   lastPollAt: string | null;
   foundryDownSince: string | null;
+  /** The server's clock when it sent this status (ISO); absent from an older server. */
+  now?: string;
 }
 
 export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
+
+/** One extra dot of the health line (server recording-health.ts); absent when all is well. */
+export interface RecordingDot {
+  tone: 'warn' | 'bad' | 'unknown';
+  text: string;
+  detail: string;
+}
+
+/** The Recorder and Play log dots as the stream last sent them (null = hidden). */
+export interface RecordingHealth {
+  recorder: RecordingDot | null;
+  playLog: RecordingDot | null;
+}
+
+export const RECORDING_HEALTH_KEY = ['stream', 'recording-health'] as const;
+
+/** When the last status event (the server's heartbeat) arrived, ms since the epoch (lib/health.ts). */
+export const STREAM_HEARD_KEY = ['stream', 'heard'] as const;
 
 /** The dashboard's own settings (app.ts settingsPayload, GM only); fields the page uses so far. */
 export interface DashboardSettings {
@@ -56,7 +78,7 @@ export interface WorldTheme {
 export const SETTINGS_KEY = ['stream', 'settings'] as const;
 
 /** The Foundry world (app.ts world event, GM only); null while Foundry is not reachable. */
-export interface WorldInfo {
+export interface StreamWorld {
   id: string;
   title?: string;
 }
@@ -89,14 +111,14 @@ export interface StreamLink {
 
 export const STREAM_LINK_KEY = ['stream', 'link'] as const;
 
-/** The old page keeps 150 entries on screen; the server keeps the newest 100. */
-export const MAX_ERROR_ENTRIES = 150;
+/** The page keeps 150 entries on screen; the server keeps the newest 100. */
+const MAX_ERROR_ENTRIES = 150;
 
 export const MODULE_ERRORS_KEY = ['stream', 'errors'] as const;
 const EMPTY_LOG: ModuleErrorLog = { entries: [], errors: 0, warns: 0 };
 
 /** Adds a batch to the log: unseen ids only, newest first, capped. */
-export function addModuleErrors(log: ModuleErrorLog, batch: ModuleError[]): ModuleErrorLog {
+function addModuleErrors(log: ModuleErrorLog, batch: ModuleError[]): ModuleErrorLog {
   const seen = new Set(log.entries.map(e => e.id));
   const fresh = batch.filter(e => {
     if (seen.has(e.id)) return false;
@@ -136,7 +158,7 @@ export const TAROKKA_KEY = ['game', 'tarokka'] as const;
  */
 export const CHANGES_KEY = ['game', 'changes'] as const;
 
-/** How long a burst of gm-change events waits before Recent Changes reloads once (as the old page). */
+/** How long a burst of gm-change events waits before Recent Changes reloads once. */
 export const CHANGES_RELOAD_MS = 400;
 let changesReload: ReturnType<typeof setTimeout> | null = null;
 
@@ -164,18 +186,23 @@ export function onEvents(queryClient: QueryClient, data: unknown): void {
 
 /**
  * The bridge link status. Foundry turning reachable again (a restart, a dropped link) reloads
- * Recent Changes as the old page did: a change made while the link was down sent no `gm-change`,
+ * Recent Changes: a change made while the link was down sent no `gm-change`,
  * and a load that failed meanwhile would stay failed.
  */
 export function onStatus(queryClient: QueryClient, data: unknown): void {
   const before = queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY);
   const next = data as BridgeStatus;
   queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, next);
+  // The server repeats the status as a heartbeat: this is the watchdog's "last heard".
+  queryClient.setQueryData<number>(STREAM_HEARD_KEY, Date.now());
   // `unknown` counts too: a dropped or restarted bridge link reports it, not `unreachable`.
   if (before !== undefined && before.foundry !== 'reachable' && next?.foundry === 'reachable') {
     scheduleChangesReload(queryClient);
   }
 }
+
+/** Counts the `combat` events of the stream, so a direct read can tell a newer push arrived. */
+let combatSeq = 0;
 
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
@@ -189,10 +216,22 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   // so another open window follows without waiting for its minute poll.
   'play-session': queryClient => void queryClient.invalidateQueries({ queryKey: PLAY_SESSION_KEY }),
   status: onStatus,
+  'recording-health': (queryClient, data) =>
+    queryClient.setQueryData<RecordingHealth>(RECORDING_HEALTH_KEY, data as RecordingHealth),
+  // A different world opened (GM only, no payload): the old world's events, errors and fight go,
+  // and everything read from the game (handouts, changes, ...) is read again.
+  reset: queryClient => {
+    // A direct fight read still out is about the old world: it must not put the old fight back.
+    combatSeq += 1;
+    queryClient.setQueryData<FeedLog>(FEED_KEY, EMPTY_FEED);
+    queryClient.setQueryData<ModuleErrorLog>(MODULE_ERRORS_KEY, EMPTY_LOG);
+    queryClient.setQueryData<CombatState | null>(COMBAT_KEY, null);
+    void queryClient.invalidateQueries({ queryKey: ['game'] });
+  },
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>
-    queryClient.setQueryData<WorldInfo | null>(WORLD_KEY, (data as WorldInfo | null) ?? null),
+    queryClient.setQueryData<StreamWorld | null>(WORLD_KEY, (data as StreamWorld | null) ?? null),
   // The world's theme, sent on connect and whenever any page changes it (lib/theme.ts applies it).
   theme: (queryClient, data) => {
     const theme = (data as { theme?: unknown } | null)?.theme;
@@ -204,15 +243,19 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   },
   // The GM's screen choices for this world (lib/prefs.ts).
   prefs: onPrefs,
+  // Who was asked for a roll and who rolled it, newest first (lib/rollStatus.ts).
+  rolls: (queryClient, data) =>
+    queryClient.setQueryData<unknown>(ROLLS_KEY, (data as { rows?: unknown } | null)?.rows),
   // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.
   combat: (queryClient, data) => {
+    combatSeq += 1;
     const combat = readCombat((data as { combat?: unknown } | null)?.combat);
     queryClient.setQueryData<CombatState | null>(COMBAT_KEY, () => combat);
   },
 };
 
 /** The wait before the first new connection after the browser gave up on the stream, then doubling. */
-export const STREAM_RETRY_MIN_MS = 2000;
+const STREAM_RETRY_MIN_MS = 2000;
 /** The longest wait between two new connections. */
 export const STREAM_RETRY_MAX_MS = 10_000;
 /**
@@ -226,6 +269,11 @@ export const STREAM_GIVE_UP_AFTER = 3;
 export function streamRetryDelay(failures: number): number {
   return Math.min(STREAM_RETRY_MAX_MS, STREAM_RETRY_MIN_MS * 2 ** Math.max(0, failures - 1));
 }
+
+/** No event (the server repeats the status every ~17 s) for this long: the page calls itself not live. */
+export const STREAM_WATCHDOG_MS = 45_000;
+/** How often the watchdog looks. */
+const WATCHDOG_CHECK_MS = 5000;
 
 /** What startStream needs from the page; the tests give it fakes. */
 export interface StreamEnv {
@@ -252,6 +300,9 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
   let cancelRetry: (() => void) | null = null;
   let stopped = false;
   let failures = 0;
+  let cancelWatch: (() => void) | null = null;
+  // Any message from the server counts: the status heartbeat, but also events.
+  let lastHeard = Date.now();
   const setLink = (state: StreamLink['state']): void => {
     queryClient.setQueryData<StreamLink>(STREAM_LINK_KEY, link =>
       // A second error while still down keeps the time the stream first went down.
@@ -260,6 +311,7 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
   };
   const connect = (): void => {
     cancelRetry = null;
+    lastHeard = Date.now();
     const current = env.create();
     source = current;
     current.onopen = (): void => {
@@ -281,6 +333,7 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
     };
     for (const [event, handle] of Object.entries(HANDLERS)) {
       current.addEventListener(event, e => {
+        if (source === current) lastHeard = Date.now();
         try {
           handle(queryClient, JSON.parse((e as MessageEvent<string>).data));
         } catch {
@@ -289,9 +342,23 @@ export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()
       });
     }
   };
+  // A half-open stream (the laptop slept, a tunnel stalled) never fires onerror. After the
+  // watchdog's silence the source is closed and a new one opened, so the page recovers by itself.
+  const watch = (): void => {
+    cancelWatch = env.schedule(() => {
+      if (stopped) return;
+      if (cancelRetry === null && Date.now() - lastHeard > STREAM_WATCHDOG_MS) {
+        source?.close();
+        connect();
+      }
+      watch();
+    }, WATCHDOG_CHECK_MS);
+  };
   connect();
+  watch();
   return () => {
     stopped = true;
+    cancelWatch?.();
     cancelRetry?.();
     source?.close();
   };
@@ -393,6 +460,30 @@ export function useBridgeStatus(): BridgeStatus | undefined {
   return data ?? undefined;
 }
 
+/** The Recorder and Play log dots; undefined until the first event. */
+export function useRecordingHealth(): RecordingHealth | undefined {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: RECORDING_HEALTH_KEY,
+    queryFn: () => queryClient.getQueryData<RecordingHealth>(RECORDING_HEALTH_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? undefined;
+}
+
+/** When the stream last brought a status (the heartbeat); null before the first. */
+export function useStreamHeardAt(): number | null {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: STREAM_HEARD_KEY,
+    queryFn: () => queryClient.getQueryData<number>(STREAM_HEARD_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? null;
+}
+
 /** The dashboard settings as the stream last sent them; undefined until the first one. */
 export function useDashboardSettings(): DashboardSettings | undefined {
   const queryClient = useQueryClient();
@@ -406,11 +497,11 @@ export function useDashboardSettings(): DashboardSettings | undefined {
 }
 
 /** The world as the stream last reported it; null until the first world event or while away. */
-export function useWorld(): WorldInfo | null {
+function useWorld(): StreamWorld | null {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: WORLD_KEY,
-    queryFn: () => queryClient.getQueryData<WorldInfo | null>(WORLD_KEY) ?? null,
+    queryFn: () => queryClient.getQueryData<StreamWorld | null>(WORLD_KEY) ?? null,
     staleTime: Infinity,
     gcTime: Infinity,
   });
@@ -427,6 +518,62 @@ export function useCombat(): CombatState | null {
     gcTime: Infinity,
   });
   return data ?? null;
+}
+
+/**
+ * A fight read straight from `get-combat-state`, with the portrait addresses the server already
+ * made for the same creatures (the server rewrites them before it streams; a direct read has the
+ * raw path, which `readCombat` drops).
+ */
+export function withKnownPortraits(
+  fresh: CombatState | null,
+  known: CombatState | null
+): CombatState | null {
+  if (!fresh) return fresh;
+  const imgs = new Map((known?.combatants ?? []).map(c => [c.id, c.img]));
+  const fix = (c: CombatState['combatants'][number]): CombatState['combatants'][number] => ({
+    ...c,
+    img: c.img ?? imgs.get(c.id) ?? null,
+  });
+  return {
+    ...fresh,
+    current: fresh.current ? fix(fresh.current) : null,
+    combatants: fresh.combatants.map(fix),
+  };
+}
+
+/** The longest a strip write waits for the fight to be read back. */
+export const REFRESH_COMBAT_MAX_MS = 2500;
+
+/**
+ * Reads the fight now instead of waiting for the server's next poll (item live-strip-instant): a
+ * strip write calls this when it lands. A failed read changes nothing; the stream catches up.
+ */
+export async function refreshCombat(queryClient: QueryClient): Promise<void> {
+  const seq = combatSeq;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Bounded: a slow bridge must not hold the strip's buttons; the poll catches up.
+    const raw = await Promise.race([
+      callTool<unknown>('get-combat-state', {}),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('slow')), REFRESH_COMBAT_MAX_MS);
+      }),
+    ]);
+    // Only an answer that says whether a fight runs counts; anything else must not end the fight.
+    if (typeof (raw as { active?: unknown } | null)?.active !== 'boolean') return;
+    // A fight the stream pushed while this read was out is newer than the read: keep the stream's.
+    if (combatSeq !== seq) return;
+    const known = queryClient.getQueryData<CombatState | null>(COMBAT_KEY) ?? null;
+    queryClient.setQueryData<CombatState | null>(
+      COMBAT_KEY,
+      withKnownPortraits(readCombat(raw), known)
+    );
+  } catch {
+    // The 4 s poll shows it.
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Whether a fight is running, as the stream last said; false until it says. */
@@ -467,8 +614,8 @@ export function useBridgeAway(): boolean {
 }
 
 /**
- * An obsidian:// link to a note in this world's folder of the vault (the old page's
- * obsidianFileUrl), or null until both the vault name and the world id are known.
+ * An obsidian:// link to a note in this world's folder of the vault,
+ * or null until both the vault name and the world id are known.
  */
 export function useObsidianFileUrl(relativePath: string): string | null {
   const vault = useDashboardSettings()?.obsidian?.vault;

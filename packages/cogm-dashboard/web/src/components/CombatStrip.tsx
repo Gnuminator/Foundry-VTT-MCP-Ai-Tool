@@ -1,15 +1,28 @@
-// The combat strip (D-092, I-070, I-095), ported from the old page: the turn order in the During
+// The combat strip (D-092, I-070, I-095): the turn order in the During
 // view's strip slot, one row per combatant in the bridge's order, with the Boss prompts switch and
-// reaction ticks, and (Combat buttons and GM Actions on) rows to pick and an action bar whose
-// Damage / Heal and Condition open the Tool runner on plan-actor-change for the picked names. It
-// never writes: the plan, confirm and undo flow is the Tool runner's. The rules are in
-// lib/combat.ts; moments.css lays the strip out per During layout and fight.
+// reaction ticks, and (GM Actions on) rows to pick and an action bar. Condition opens a row of
+// condition chips (ConditionForm): a chip plans it with plan-actor-change, one confirm asks, the
+// apply puts it on, with Undo. End combat plans, asks once and applies (lib/endCombat.ts, the same
+// flow as the live strip's). Damage / Heal opens the small form (DamageForm), which plans and
+// applies in one click with Undo; the roll row (StripRolls) asks players for checks and saves.
+// Nothing here opens the Tool Runner. The rules are in lib/combat.ts; moments.css lays the strip
+// out per During layout and fight.
 //
 // What is new: the reaction button is only on a living boss, the switch is there whenever Boss
 // prompts is on (so it can be turned off), a fight shown while the bridge is away says so and its
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
-import { lazy, Suspense, useState, type JSX, type MouseEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+  type MouseEvent,
+} from 'react';
 import { RibbonBoundary } from './RibbonBoundary';
 
 import {
@@ -22,13 +35,11 @@ import {
   bossPrompts,
   canSelect,
   deathSavesWords,
-  endCombatRequest,
   hpPercent,
   hpText,
   hpTone,
   hpWords,
   metaText,
-  planRequest,
   pruneSelection,
   reactionLabel,
   reactionsFor,
@@ -46,21 +57,62 @@ import {
   type Reactions,
   type SelectionAction,
 } from '../lib/combat';
-import { usePrefs } from '../lib/prefs';
-import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
-import { Panel, Pill } from '../ui';
+import { useEndCombat } from '../lib/endCombat';
+import { useLivePlay, type LivePlay } from '../lib/livePlay';
+import { chipText, displayNames } from '../lib/liveStrip';
+import { offReason } from '../lib/liveSwitches';
+import { refreshCombat, useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
+import { DelayedLoading, Panel, Pill } from '../ui';
+
+import { TurnOnNote } from './TurnOnNote';
 
 // The picker is a lazy chunk (bundle budget): it loads when no fight runs and GM Actions is on.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// So are the Damage / Heal form and the roll row (first-load budget).
+const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const ConditionForm = lazy(() =>
+  import('./ConditionForm').then(m => ({ default: m.ConditionForm }))
+);
+const AttackForm = lazy(() => import('./AttackForm').then(m => ({ default: m.AttackForm })));
+const FoundryTargetsButton = lazy(() =>
+  import('./FoundryTargetsButton').then(m => ({ default: m.FoundryTargetsButton }))
+);
+const StripRolls = lazy(() => import('./StripRolls').then(m => ({ default: m.StripRolls })));
 // So is the initiative ribbon: it loads when a fight with somebody in it runs.
 const InitiativeRibbon = lazy(() =>
   import('./InitiativeRibbon').then(m => ({ default: m.InitiativeRibbon }))
 );
 
-/** The tool runner's request: a tool and the form's starting values. */
-export interface StripToolRequest {
-  name: string;
-  prefill: Record<string, unknown>;
+/**
+ * End combat went in and the focus is still to move to the combat pane. Module level, not a ref:
+ * the strip can be mounted again when the fight leaves the page, and the new one finishes the job.
+ */
+const focusAfterEnd = { until: 0, timers: [] as number[] };
+
+/** How long after End combat went in the focus move may still happen (ms). */
+const FOCUS_AFTER_END_MS = 10_000;
+
+/** Cancels the focus checks still waiting (a fight is back on the page). */
+function cancelFocusChecks(): void {
+  for (const id of focusAfterEnd.timers) window.clearTimeout(id);
+  focusAfterEnd.timers.length = 0;
+}
+
+/**
+ * Where the focus goes once the fight is gone, only when it fell to the page: the combat pane, or,
+ * when the layout hides the pane with no fight, the Start combat button, else the During bar
+ * itself (not its first button, which is the layout switch).
+ */
+function focusAfterEndTarget(): void {
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  const pane = document.getElementById('pane-combat');
+  const target =
+    pane && pane.getBoundingClientRect().width > 0
+      ? pane
+      : (document.querySelector<HTMLElement>('#btn-during-start-combat, #btn-combat-start') ??
+        document.getElementById('during-bar'));
+  target?.focus();
 }
 
 /** Boss prompts is remembered per browser; off by default (D-081). */
@@ -136,6 +188,8 @@ function BossLineView({ combatant }: { combatant: Combatant }): JSX.Element | nu
 
 interface RowProps {
   combatant: Combatant;
+  /** The name as the row shows it ("Wolf 2" when two share one); data-name keeps the raw name. */
+  shownName: string;
   selectable: boolean;
   selected: boolean;
   /** Boss prompts is on: the boss line and the reaction button. */
@@ -149,6 +203,7 @@ interface RowProps {
 
 function CombatantRow({
   combatant: c,
+  shownName,
   selectable,
   selected,
   bossFlag,
@@ -184,18 +239,17 @@ function CombatantRow({
         <div className="combatant-name">
           {selectable ? (
             <button type="button" className="combatant-pick" aria-pressed={selected}>
-              {c.name}
+              {shownName}
             </button>
           ) : (
-            <span className="combatant-text">{c.name}</span>
+            <span className="combatant-text">{shownName}</span>
           )}
-          {(c.defeated || c.isCurrentTurn) && (
-            <span className="visually-hidden">
-              {[c.isCurrentTurn && 'current turn', c.defeated && 'defeated']
-                .filter(Boolean)
-                .join(', ')}
+          {c.isCurrentTurn && (
+            <span className="turn-pill" data-turn-pill>
+              <span aria-hidden="true">▶ </span>Up now
             </span>
           )}
+          {c.defeated && <span className="visually-hidden">defeated</span>}
           <span className={`side side-${side}`}>{SIDE_LABEL[side]}</span>
           {showReaction(bossFlag, c) && (
             <button
@@ -203,7 +257,7 @@ function CombatantRow({
               className={`reaction-btn${reactionUsed ? ' used' : ''}`}
               data-track="dash.combat.reaction"
               data-reaction={c.id}
-              aria-label={reactionLabel(c.name, reactionUsed)}
+              aria-label={reactionLabel(shownName, reactionUsed)}
               aria-pressed={reactionUsed}
               aria-disabled={stale ? 'true' : undefined}
               title={
@@ -224,7 +278,7 @@ function CombatantRow({
           <div className="conditions">
             {c.conditions.map(cond => (
               <Pill key={cond} variant="condition">
-                {cond}
+                {chipText(cond, c.timed?.[cond])}
               </Pill>
             ))}
           </div>
@@ -264,36 +318,86 @@ function ActionBar({
   count,
   stale,
   onAct,
+  onAttack,
   onClear,
   onEnd,
+  ending,
+  busy,
+  combatants,
+  onPick,
 }: {
   count: number;
   stale: boolean;
+  /** Another write from the strip runs: the buttons that start one wait. */
+  busy: boolean;
+  /** End combat's write runs (after the GM said yes): the button says so. */
+  ending: boolean;
   onAct: (action: SelectionAction) => void;
+  onAttack: () => void;
   onClear: () => void;
   onEnd: () => void;
+  combatants: ReadonlyArray<Combatant>;
+  /** Replace the pick with the combatants whose tokens are targeted (else selected) in Foundry. */
+  onPick: (ids: string[]) => void;
 }): JSX.Element {
   const off = stale ? ('true' as const) : undefined;
   const away = stale ? 'The bridge is away' : undefined;
+  // A write that starts a change waits for the one that runs (the strip lock drops a second click).
+  const writeOff = stale || busy ? ('true' as const) : undefined;
+  const writeTitle = stale ? away : busy ? 'Another change is running' : undefined;
+  // Held here, not in the button: the button remounts when the pick goes from none to some.
+  const [targetsNote, setTargetsNote] = useState('');
+  const foundryButton = (
+    <Suspense fallback={null}>
+      <FoundryTargetsButton
+        combatants={combatants}
+        stale={stale}
+        onPick={onPick}
+        note={targetsNote}
+        onNote={setTargetsNote}
+      />
+    </Suspense>
+  );
+  const attackButton = (
+    <button
+      type="button"
+      className="ca-btn"
+      data-track="dash.combat.attack"
+      data-sel="attack"
+      aria-disabled={off}
+      title={away}
+      onClick={() => {
+        if (!stale) onAttack();
+      }}
+    >
+      Attack
+    </button>
+  );
   const endButton = (
     <button
       type="button"
       className="ca-btn ghost"
       data-track="dash.combat.end"
       data-sel="end"
-      aria-disabled={off}
-      title={away ?? 'Plan ending this fight; you confirm it, and Undo brings it back'}
+      aria-disabled={writeOff}
+      aria-busy={ending ? 'true' : undefined}
+      title={
+        (ending ? away : writeTitle) ??
+        'Plan ending this fight; you confirm it, and Undo brings it back'
+      }
       onClick={() => {
-        if (!stale) onEnd();
+        if (!stale && !busy) onEnd();
       }}
     >
-      End combat
+      {ending ? 'Ending...' : 'End combat'}
     </button>
   );
   if (count === 0) {
     return (
       <div className="ca-row">
         <span className="ca-hint">Click combatants to deal damage or set a condition on them.</span>
+        {attackButton}
+        {foundryButton}
         {endButton}
       </div>
     );
@@ -308,23 +412,24 @@ function ActionBar({
         className="ca-btn"
         data-track="dash.combat.selection-damage"
         data-sel="damage"
-        aria-disabled={off}
-        title={away}
+        aria-disabled={writeOff}
+        title={writeTitle}
         onClick={() => {
-          if (!stale) onAct('damage');
+          if (!stale && !busy) onAct('damage');
         }}
       >
         Damage / Heal
       </button>
+      {attackButton}
       <button
         type="button"
         className="ca-btn"
         data-track="dash.combat.selection-condition"
         data-sel="condition"
-        aria-disabled={off}
-        title={away}
+        aria-disabled={writeOff}
+        title={writeTitle}
         onClick={() => {
-          if (!stale) onAct('condition');
+          if (!stale && !busy) onAct('condition');
         }}
       >
         Condition
@@ -342,7 +447,34 @@ function ActionBar({
       >
         Clear
       </button>
+      {foundryButton}
       {endButton}
+    </div>
+  );
+}
+
+/**
+ * A strip control that live play being off disables: the button stays, greyed out, with the reason
+ * and a Turn on next to it (one click, the same as Start session's).
+ */
+function GatedRow({
+  live,
+  off,
+  label,
+  hint,
+}: {
+  live: LivePlay;
+  off: string[];
+  label: string;
+  hint?: string;
+}): JSX.Element {
+  return (
+    <div className="ca-row" data-gated={label}>
+      {hint ? <span className="ca-hint">{hint}</span> : null}
+      <button type="button" className="ca-btn ghost" aria-disabled="true" title={offReason(off)}>
+        {label}
+      </button>
+      <TurnOnNote live={live} off={off} />
     </div>
   );
 }
@@ -351,27 +483,72 @@ function ActionBar({
  * The strip. It is in the page all the time and the During layouts show it (moments.css): while a
  * fight runs, and in Full. `sample` shows the layout trial's made-up fight when no real one runs.
  */
-export function CombatStrip({
-  sample = false,
-  onOpenTool,
-}: {
-  sample?: boolean;
-  onOpenTool: (request: StripToolRequest) => void;
-}): JSX.Element {
+export function CombatStrip({ sample = false }: { sample?: boolean }): JSX.Element {
   const real = useCombat();
   const away = useBridgeAway();
-  const prefs = usePrefs();
+  const live = useLivePlay();
+  const liveOff = live.off();
   const settings = useDashboardSettings();
   const [bossFlag, setBossFlag] = useState(readBossFlag);
   const [reactions, setReactions] = useState<Reactions>(NO_REACTIONS);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [damageOpen, setDamageOpen] = useState(false);
+  const [conditionOpen, setConditionOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const planEnd = useEndCombat();
+  // One write at a time from the strip (End combat, a condition, Damage / Heal), as on the live
+  // strip: a second click while one runs does nothing.
+  const busyRef = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [ending, setEnding] = useState(false);
+  const awayRef = useRef(false);
+  awayRef.current = away;
+  const once = useCallback(
+    async (work: () => Promise<void>): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        await work();
+      } finally {
+        // Read the fight at once: the rows show the change now, not at the next poll.
+        if (!awayRef.current) await refreshCombat(queryClient);
+        busyRef.current = false;
+        setBusy(false);
+        setEnding(false);
+      }
+    },
+    [queryClient]
+  );
+  const [attackOpen, setAttackOpen] = useState(false);
+
+  // End combat went in: once the fight has left the page its bar is gone, and the focus goes to the
+  // pane (after the confirm window gave it back to the button that is about to unmount).
+  const fightGone = real === null;
+  useEffect(() => {
+    // The wish expires: an End combat that did not end the fight must not move the focus at the
+    // end of a later one. A fight on the page cancels the checks still waiting.
+    if (!fightGone) {
+      cancelFocusChecks();
+      return;
+    }
+    if (focusAfterEnd.until > Date.now()) {
+      focusAfterEnd.until = 0;
+      // The confirm window gives focus back to the unmounting button a moment later: take it
+      // again if it fell to the page.
+      focusAfterEndTarget();
+      focusAfterEnd.timers.push(
+        window.setTimeout(focusAfterEndTarget, 150),
+        window.setTimeout(focusAfterEndTarget, 500)
+      );
+    }
+  }, [fightGone, ending, busy]);
 
   const showSample = sample && real === null;
   const combat = showSample ? SAMPLE_COMBAT : real;
   const mode = showSample ? 'live' : stripMode(real, away);
   const stale = mode === 'stale';
   const selectable = canSelect({
-    combatButtons: prefs?.combatButtons === true,
     gmActions: settings?.gmActionsEnabled === true,
     fightActive: combat !== null,
     sample: showSample,
@@ -381,6 +558,22 @@ export function CombatStrip({
   const kept = pruneSelection(picked, combat, selectable);
   if (kept !== picked) setPicked(kept);
 
+  // The Damage / Heal form closes with the pick it was opened for.
+  const showDamage = damageOpen && kept.size > 0 && selectable;
+  // Clear, an emptied pick or GM Actions going off close it for good: it must not reopen with the
+  // next pick.
+  if (damageOpen && !showDamage) setDamageOpen(false);
+  // The Condition picker the same way.
+  const showCondition = conditionOpen && kept.size > 0 && selectable;
+  if (conditionOpen && !showCondition) setConditionOpen(false);
+  // The Attack form needs no pick; GM Actions going off or the fight ending closes it.
+  const showAttack = attackOpen && selectable;
+  if (attackOpen && !showAttack) setAttackOpen(false);
+  const pickedRows = (combat?.combatants ?? []).filter(c => kept.has(c.id));
+  // Two Wolves read "Wolf 1" and "Wolf 2" in the questions, numbered across the whole fight.
+  const shownNames = displayNames(combat?.combatants ?? []);
+  const pickedNames = pickedRows.map(c => shownNames.get(c.id) ?? c.name);
+  const partyRows = (combat?.combatants ?? []).filter(c => c.isPC && !c.defeated);
   const used = combat ? reactionsFor(reactions, combat.round) : NO_REACTIONS.used;
   const prompts = bossPrompts(combat);
   const toggleShown = showBossToggle(bossFlag, combat);
@@ -396,6 +589,7 @@ export function CombatStrip({
 
   const rowProps = (c: Combatant): RowProps => ({
     combatant: c,
+    shownName: shownNames.get(c.id) ?? c.name,
     selectable,
     selected: kept.has(c.id),
     bossFlag,
@@ -452,25 +646,117 @@ export function CombatStrip({
                 </div>
               ))}
           </div>
-          {real === null && !showSample && settings?.gmActionsEnabled === true && (
-            <Suspense fallback={null}>
-              <StartCombat />
-            </Suspense>
+          {real === null &&
+            !showSample &&
+            (liveOff.length === 0 ? (
+              <Suspense fallback={<DelayedLoading as="div" />}>
+                <StartCombat />
+              </Suspense>
+            ) : (
+              <GatedRow live={live} off={liveOff} label="Start combat" />
+            ))}
+          {combat !== null && !showSample && !selectable && (
+            <GatedRow
+              live={live}
+              off={liveOff}
+              label="End combat"
+              hint="Damage, conditions and rolls on the combatants need GM Actions."
+            />
           )}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
             {selectable && (
               <ActionBar
                 count={kept.size}
                 stale={stale}
+                busy={busy}
                 onAct={action => {
                   const targets = selectedTargets(combat, kept);
-                  if (targets.length > 0) onOpenTool(planRequest(action, targets));
+                  if (busy || targets.length === 0) return;
+                  // One form at a time under the bar.
+                  setDamageOpen(action === 'damage');
+                  setConditionOpen(action === 'condition');
                 }}
+                onAttack={() => setAttackOpen(true)}
                 onClear={() => setPicked(new Set())}
-                onEnd={() => onOpenTool(endCombatRequest())}
+                onEnd={() => {
+                  let applied = false;
+                  void once(async () => {
+                    // The fight is over and the bar unmounts with it: focus would drop to the page.
+                    // The effect above moves it if the fight is only gone from the page later.
+                    applied = await planEnd(() => setEnding(true));
+                    if (applied) focusAfterEnd.until = Date.now() + FOCUS_AFTER_END_MS;
+                  }).then(() => {
+                    // The fight was read again before the lock dropped: the bar is gone now.
+                    if (applied) {
+                      requestAnimationFrame(focusAfterEndTarget);
+                    }
+                  });
+                }}
+                ending={ending}
+                combatants={combat?.combatants ?? []}
+                onPick={ids => setPicked(new Set(ids))}
               />
             )}
           </div>
+          {showCondition && (
+            <Suspense fallback={<DelayedLoading as="div" />}>
+              <ConditionForm
+                targets={selectedTargets(combat, kept)}
+                names={pickedNames}
+                stale={stale}
+                locked={busy}
+                once={once}
+                onClose={() => {
+                  setConditionOpen(false);
+                  // The picker's buttons unmount with it: put focus back on the one that opened it.
+                  requestAnimationFrame(() =>
+                    document.querySelector<HTMLElement>('[data-sel="condition"]')?.focus()
+                  );
+                }}
+              />
+            </Suspense>
+          )}
+          {showDamage && (
+            <Suspense fallback={<DelayedLoading as="div" />}>
+              <DamageForm
+                targets={selectedTargets(combat, kept)}
+                names={pickedNames}
+                stale={stale}
+                locked={busy}
+                once={once}
+                onClose={() => {
+                  setDamageOpen(false);
+                  // The form's own button unmounts with it: put focus back on the one that opened it.
+                  requestAnimationFrame(() =>
+                    document.querySelector<HTMLElement>('[data-sel="damage"]')?.focus()
+                  );
+                }}
+              />
+            </Suspense>
+          )}
+          {showAttack && (
+            <Suspense fallback={<DelayedLoading as="div" />}>
+              <AttackForm
+                combatants={combat?.combatants ?? []}
+                picked={pickedRows.map(c => c.id)}
+                stale={stale}
+                locked={busy}
+                once={once}
+                onClose={() => {
+                  setAttackOpen(false);
+                  // The form's own button unmounts with it: put focus back on the one that opened it.
+                  requestAnimationFrame(() =>
+                    document.querySelector<HTMLElement>('[data-sel="attack"]')?.focus()
+                  );
+                }}
+              />
+            </Suspense>
+          )}
+          {combat !== null && !showSample && (
+            <Suspense fallback={<DelayedLoading as="div" />}>
+              <StripRolls party={partyRows} picked={pickedRows.filter(c => c.isPC)} stale={stale} />
+            </Suspense>
+          )}
         </>
       }
       bodyId="combat-body"
@@ -478,7 +764,7 @@ export function CombatStrip({
         ? {
             bodyProps: {
               role: 'list',
-              'aria-label': 'Turn order',
+              'aria-label': 'Combat order',
               // The row scrolls sideways on a narrow screen; with nothing in it to Tab to, the
               // keyboard needs the list itself to scroll it.
               ...(hasControls ? {} : { tabIndex: 0 }),

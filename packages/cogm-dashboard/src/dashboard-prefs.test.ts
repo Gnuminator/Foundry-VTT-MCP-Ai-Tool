@@ -26,7 +26,7 @@ describe('parsePrefsChange', () => {
   it('keeps known, well-typed fields only', () => {
     expect(
       parsePrefsChange({ duringLayout: 'auto', combatButtons: true, extra: 1, duringFull: 'yes' })
-    ).toEqual({ duringLayout: 'auto', combatButtons: true });
+    ).toEqual({ duringLayout: 'auto' });
     expect(parsePrefsChange({ duringLayout: 'grid' })).toBeNull();
     expect(parsePrefsChange(null)).toBeNull();
     expect(parsePrefsChange(['layered'])).toBeNull();
@@ -35,18 +35,18 @@ describe('parsePrefsChange', () => {
 });
 
 describe('DashboardPrefsStore', () => {
-  it('starts on layout A with the combat buttons off', () => {
+  it('starts on Auto', () => {
     const store = new DashboardPrefsStore(null);
     expect(store.get(null)).toEqual(DEFAULT_PREFS);
-    expect(store.get('sorvan').duringLayout).toBe('layered');
-    expect(store.get('sorvan').combatButtons).toBe(false);
+    expect(store.get('sorvan').duringLayout).toBe('auto');
+    expect(store.get('sorvan').layoutPicked).toBe(true);
   });
 
   it('keeps choices per world', async () => {
     const store = new DashboardPrefsStore(null);
     await store.update('sorvan', { duringLayout: 'toggle', duringFull: true });
     expect(store.get('sorvan')).toMatchObject({ duringLayout: 'toggle', duringFull: true });
-    expect(store.get('other').duringLayout).toBe('layered');
+    expect(store.get('other').duringLayout).toBe('auto');
   });
 
   it('counts each session once for the hint, up to the limit', async () => {
@@ -69,10 +69,9 @@ describe('DashboardPrefsStore', () => {
   it('saves to the file and reads it back, dropping bad fields', async () => {
     const file = path.join(dir, 'state', 'dashboard-prefs.json');
     const store = new DashboardPrefsStore(file);
-    await store.update('sorvan', { duringLayout: 'auto', combatButtons: true, layoutPicked: true });
+    await store.update('sorvan', { duringLayout: 'auto', layoutPicked: true });
     expect(new DashboardPrefsStore(file).get('sorvan')).toMatchObject({
       duringLayout: 'auto',
-      combatButtons: true,
       layoutPicked: true,
     });
 
@@ -102,11 +101,11 @@ describe('DashboardPrefsStore', () => {
     await Promise.all([
       store.update('w', { hintSession: 's1' }),
       store.update('w', { duringLayout: 'auto' }),
-      store.update('other', { combatButtons: true }),
+      store.update('other', { layoutPicked: false }),
     ]);
     const reread = new DashboardPrefsStore(file);
     expect(reread.get('w')).toMatchObject({ duringLayout: 'auto', hintSessions: ['s1'] });
-    expect(reread.get('other').combatButtons).toBe(true);
+    expect(reread.get('other').layoutPicked).toBe(false);
   });
 
   it('logs an unreadable file and falls back to the defaults', async () => {

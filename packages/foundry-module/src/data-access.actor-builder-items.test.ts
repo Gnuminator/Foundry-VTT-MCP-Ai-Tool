@@ -29,7 +29,7 @@
  *     `game.system.id` after `world.install()`.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createTestWorld,
   makeActor,
@@ -59,10 +59,22 @@ afterEach(() => {
 });
 
 /** A ready canvas viewing `sceneId`, with a stubbed tokens layer. */
-function stubCanvas(sceneId: string): ReturnType<typeof vi.fn> {
+function stubCanvas(sceneId: string): Mock {
   const setTargets = vi.fn();
   (globalThis as any).canvas = { ready: true, scene: { id: sceneId }, tokens: { setTargets } };
   return setTargets;
+}
+
+/** An active scene with one goblin token and a ready canvas on it; returns setTargets. */
+function goblinScene(): Mock {
+  const scene = world.addScene({
+    id: 'scene1',
+    name: 'Field',
+    active: true,
+    tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+  });
+  world.setActiveScene(scene.id);
+  return stubCanvas(scene.id);
 }
 
 /** A short tick so a fire-and-forget `.use()/.toMessage()` promise resolves. */
@@ -72,11 +84,41 @@ const flush = (): Promise<unknown> => new Promise(resolve => setTimeout(resolve,
 // useItem
 // ===========================================================================
 
-describe('FoundryDataAccess — useItem', () => {
+describe('FoundryDataAccess: useItem', () => {
   it('throws when the actor cannot be resolved', async () => {
     await expect(
       da.useItem({ actorIdentifier: 'ghost', itemIdentifier: 'Fireball' })
     ).rejects.toThrow('Actor not found: ghost');
+  });
+
+  it("finds an unlinked token by its token id and uses that token's own actor", async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'bite1', name: 'Bite', type: 'weapon' });
+    (item as any).use = use;
+    const synthetic = makeActor({ id: 'wolf', name: 'Wolf 2', items: [item] });
+    world.addActor({ id: 'wolf', name: 'Wolf', items: [] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [
+        makeToken({ id: 'tok-w1', name: 'Wolf 1', actorId: 'wolf', actorLink: false }),
+        makeToken({
+          id: 'tok-w2',
+          name: 'Wolf 2',
+          actorId: 'wolf',
+          actorLink: false,
+          actor: synthetic,
+        }),
+      ],
+    });
+    world.setActiveScene(scene.id);
+
+    const result = await da.useItem({ actorIdentifier: 'tok-w2', itemIdentifier: 'Bite' });
+    await flush();
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(result.actorName).toBe('Wolf 2');
   });
 
   it('throws when the item is not on the actor', async () => {
@@ -97,7 +139,7 @@ describe('FoundryDataAccess — useItem', () => {
     await flush();
 
     expect(use).toHaveBeenCalledTimes(1);
-    // dnd5e branch (game.system.id === 'dnd5e'): Item5e#use(usage, dialog, message) —
+    // dnd5e branch (game.system.id === 'dnd5e'): Item5e#use(usage, dialog, message) -
     // three config objects. No explicit `consume` (default: false, gets not passed,
     // to let dnd5e default it itself, matches "consume unless told not to").
     expect(use.mock.calls[0]).toEqual([{}, { configure: true }, { create: true }]);
@@ -110,6 +152,196 @@ describe('FoundryDataAccess — useItem', () => {
       actorName: 'Mage',
       requiresGMInteraction: true,
     });
+  });
+
+  it('rollAttack: uses the item without a dialog, then rolls its attack activity without one', async () => {
+    const itemUse = vi.fn(() => Promise.resolve());
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = itemUse;
+    (item as any).system = {
+      activities: [{ type: 'save' }, { type: 'attack', use, rollAttack }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    goblinScene();
+
+    const result = await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      targets: ['Goblin'],
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    // The attack activity makes the card (not the item's first usable activity, the save).
+    expect(itemUse).not.toHaveBeenCalled();
+    expect(use.mock.calls[0]).toEqual([
+      { event: { shiftKey: true }, subsequentActions: false },
+      { configure: false },
+      { create: true },
+    ]);
+    expect(rollAttack).toHaveBeenCalledWith({}, { configure: false }, { create: true });
+    expect(result.requiresGMInteraction).toBe(false);
+    expect(result.message).toContain('rolled without a dialog');
+  });
+
+  it('rollAttack: rolls nothing when the use made no card', async () => {
+    const use = vi.fn(() => Promise.resolve(undefined));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = { activities: [{ type: 'attack', use, rollAttack }] };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    goblinScene();
+
+    await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      targets: ['Goblin'],
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(rollAttack).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses with no targets, before anything is used', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('needs at least one target');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: an unresolved target stops before setTargets is called', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const setTargets = goblinScene();
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin', 'tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(setTargets).not.toHaveBeenCalled();
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: skips an attack activity that cannot be used', async () => {
+    const dead = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const live = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = {
+      activities: [
+        { type: 'attack', canUse: false, use: dead, rollAttack },
+        { type: 'attack', canUse: true, use: live, rollAttack },
+      ],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    goblinScene();
+
+    await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      targets: ['Goblin'],
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    expect(dead).not.toHaveBeenCalled();
+    expect(live).toHaveBeenCalledTimes(1);
+  });
+
+  it('rollAttack: refuses when a named target is not on the active scene', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas(scene.id);
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses when the GM views another scene than the active one', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas('other-scene');
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('viewing a different scene');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses an item with no attack before using it', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'f1', name: 'Second Wind', type: 'feat' });
+    (item as any).use = use;
+    (item as any).system = { activities: [{ type: 'heal' }] };
+    world.addActor({ id: 'a1', name: 'Fighter', items: [item] });
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Fighter',
+        itemIdentifier: 'Second Wind',
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('"Second Wind" has no attack to roll');
+    expect(use).not.toHaveBeenCalled();
   });
 
   it('resolves the item by id as well as by name', async () => {
@@ -144,6 +376,328 @@ describe('FoundryDataAccess — useItem', () => {
     expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
   });
 
+  describe('slot spells with no slot at their level', () => {
+    const wizard = (slots: Record<string, number>, method = 'spell', level = 1): Mock => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level, method },
+      });
+      (item as any).use = use;
+      const spells = Object.fromEntries(
+        Object.entries(slots).map(([k, value]) => [k, { value, max: 2 }])
+      );
+      world.addActor({ id: 'w1', name: 'Wizard', items: [item], system: { spells } });
+      return use;
+    };
+
+    it('casts normally while a slot at the spell level is left', async () => {
+      const use = wizard({ spell1: 1, spell2: 2 });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('upcasts into the lowest higher slot when the level slot is empty', async () => {
+      const use = wizard({ spell1: 0, spell2: 0, spell3: 1 });
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+      });
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
+      expect(result.success).toBe(true);
+    });
+
+    it('refuses before anything is used when no slot at that level or above is left', async () => {
+      const use = wizard({ spell1: 0, spell2: 0 });
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('an attack-form cast (rollAttack) upcasts through the attack activity too', async () => {
+      const use = vi.fn(() => Promise.resolve(undefined));
+      const rollAttack = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell', activities: [{ type: 'attack', use, rollAttack }] },
+      });
+      (item as any).use = vi.fn();
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell2: { value: 1 } } },
+      });
+      goblinScene();
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      });
+      await flush();
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell2' } });
+      expect(result.message).toContain('at level 2');
+    });
+
+    it('treats an explicit empty spellLevel as a refusal, not an upcast', async () => {
+      const use = wizard({ spell1: 1, spell2: 0, spell3: 1 });
+      await expect(
+        da.useItem({
+          actorIdentifier: 'Wizard',
+          itemIdentifier: 'Guiding Bolt',
+          options: { spellLevel: 2 },
+        })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('leaves a spell granted by a Cast activity (cachedFor) alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'co',
+        name: 'Chromatic Orb',
+        type: 'spell',
+        system: { level: 1, method: 'spell' },
+        flags: { dnd5e: { cachedFor: 'x' } },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell3: { value: 1 } } },
+      });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Chromatic Orb' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('leaves an activity that spends no slot (consumption.spellSlot false) alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'ns',
+        name: 'Free Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell', activities: [{ consumption: { spellSlot: false } }] },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 } } },
+      });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Free Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a cantrip alone', async () => {
+      const use = wizard({ spell1: 0 }, 'spell', 0);
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves other casting methods (pact, innate, at will) alone', async () => {
+      const use = wizard({ spell1: 0 }, 'innate');
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves consume:false alone', async () => {
+      const use = wizard({ spell1: 0 });
+      await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        options: { consume: false },
+      });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses a level 8 spell when levels 8 and 9 are both empty', async () => {
+      const use = wizard({ spell8: 0, spell9: 0 }, 'spell', 8);
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('leaves an actor with no system.spells alone', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell' },
+      });
+      (item as any).use = use;
+      world.addActor({ id: 'w1', name: 'Wizard', items: [item], system: {} });
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use.mock.calls[0][0]).toEqual({});
+    });
+
+    it('refuses an explicit spellLevel below the spell level', async () => {
+      const use = wizard({ spell1: 2, spell2: 2 }, 'spell', 2);
+      await expect(
+        da.useItem({
+          actorIdentifier: 'Wizard',
+          itemIdentifier: 'Guiding Bolt',
+          options: { spellLevel: 1 },
+        })
+      ).rejects.toThrow('below that');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('casts with the pact slot when it is the lowest slot that fits', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: { level: 1, method: 'spell' },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: {
+          spells: {
+            spell1: { value: 0 },
+            spell2: { value: 0 },
+            spell3: { value: 1 },
+            pact: { value: 1, level: 2 },
+          },
+        },
+      });
+      const result = await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+      });
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'pact' } });
+      expect(result.message).toContain('at level 2');
+    });
+
+    it('ignores a pact slot that is spent or lower than the spell', async () => {
+      wizard({ spell2: 0, pact: 0 }, 'spell', 2);
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+    });
+
+    it('rollAttack: only the attack activity slot box counts', async () => {
+      const use = vi.fn(() => Promise.resolve(undefined));
+      const rollAttack = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: {
+          level: 1,
+          method: 'spell',
+          activities: [
+            { type: 'attack', use, rollAttack },
+            { type: 'save', consumption: { spellSlot: false } },
+          ],
+        },
+      });
+      (item as any).use = vi.fn();
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 }, spell2: { value: 1 } } },
+      });
+      goblinScene();
+      await da.useItem({
+        actorIdentifier: 'Wizard',
+        itemIdentifier: 'Guiding Bolt',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      });
+      await flush();
+      expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell2' } });
+    });
+
+    const twoActivities = (firstSlot: boolean): Mock => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: {
+          level: 1,
+          method: 'spell',
+          activities: [
+            { consumption: { spellSlot: firstSlot } },
+            { consumption: { spellSlot: !firstSlot } },
+          ],
+        },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 } } },
+      });
+      return use;
+    };
+
+    it('with a dialog and activities that disagree, leaves the choice to dnd5e', async () => {
+      const use = twoActivities(true);
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('headless: the first usable activity decides (no slot box off casts)', async () => {
+      const use = twoActivities(false);
+      headless();
+      (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+      await da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' });
+      expect(use).toHaveBeenCalledTimes(1);
+    });
+
+    it('headless: a first activity that spends a slot is refused with none left', async () => {
+      const use = twoActivities(true);
+      headless();
+      (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+
+    it('item.use: when every activity spends a slot the check still refuses', async () => {
+      const use = vi.fn(() => Promise.resolve());
+      const item = makeItem({
+        id: 'gb',
+        name: 'Guiding Bolt',
+        type: 'spell',
+        system: {
+          level: 1,
+          method: 'spell',
+          activities: [{ consumption: { spellSlot: true } }, { consumption: { spellSlot: true } }],
+        },
+      });
+      (item as any).use = use;
+      world.addActor({
+        id: 'w1',
+        name: 'Wizard',
+        items: [item],
+        system: { spells: { spell1: { value: 0 } } },
+      });
+      await expect(
+        da.useItem({ actorIdentifier: 'Wizard', itemIdentifier: 'Guiding Bolt' })
+      ).rejects.toThrow('no spell slot left');
+      expect(use).not.toHaveBeenCalled();
+    });
+  });
+
   it('honors consume:false to disable consumption (omitted otherwise, letting dnd5e default it)', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Shield', type: 'spell' });
@@ -158,7 +712,7 @@ describe('FoundryDataAccess — useItem', () => {
 
     // dnd5e's `_prepareUsageConfig` assigns properties onto `config.consume` when
     // it isn't `false` (`config.consume ??= {}` then `.action ??=`, `.resources
-    // ??=`, ...) — passing the boolean `true` would throw in strict mode, so
+    // ??=`, ...), passing the boolean `true` would throw in strict mode, so
     // `consume` must be `false` or simply absent, never `true`.
     expect(use.mock.calls[0][0]).toEqual({ consume: false });
   });
@@ -218,7 +772,16 @@ describe('FoundryDataAccess — useItem', () => {
     expect(result.message).toContain('targeting Goblin');
   });
 
-  it('still uses the item when no canvas is ready to take the targets', async () => {
+  /** A headless client: core.noCanvas is on. */
+  function headless(): void {
+    // The world is reinstalled before each test, so this needs no restore.
+    const settings = (game as any).settings ?? ((game as any).settings = {});
+    const original = settings.get?.bind(settings);
+    settings.get = (ns: string, key: string): unknown =>
+      ns === 'core' && key === 'noCanvas' ? true : original?.(ns, key);
+  }
+
+  function noCanvasWorld(): Mock {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
     (item as any).use = use;
@@ -230,6 +793,97 @@ describe('FoundryDataAccess — useItem', () => {
       tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin', x: 100, y: 100 })],
     });
     world.setActiveScene(scene.id);
+    return use;
+  }
+
+  it('a headless auto-upcast says the level, not "no upcasting"', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({
+      id: 'gb',
+      name: 'Guiding Bolt',
+      type: 'spell',
+      system: { level: 1, method: 'spell' },
+    });
+    (item as any).use = use;
+    world.addActor({
+      id: 'a1',
+      name: 'Mage',
+      items: [item],
+      system: { spells: { spell1: { value: 0 }, spell2: { value: 1 } } },
+    });
+    headless();
+    (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+    const result = await da.useItem({ actorIdentifier: 'Mage', itemIdentifier: 'Guiding Bolt' });
+    expect(result.message).toContain('cast at level 2');
+    expect(result.message).not.toContain('no upcasting');
+  });
+
+  it('shows no dialog on a headless GM and says so', async () => {
+    const use = noCanvasWorld();
+    headless();
+    (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+
+    const result = await da.useItem({ actorIdentifier: 'Mage', itemIdentifier: 'Hold Person' });
+
+    expect(use.mock.calls[0][0]).toMatchObject({ subsequentActions: false });
+    expect(use.mock.calls[0][1]).toEqual({ configure: false });
+    expect(result.message).toContain('no dialog was shown');
+    expect(result.message).toContain('whoever clicks');
+  });
+
+  it('sets targets through game.user.targets when there is no canvas (headless GM)', async () => {
+    const use = noCanvasWorld();
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+    let seen: string[] = [];
+    use.mockImplementation(() => {
+      seen = Array.from(userTargets).map((t: any) => t.id);
+      return Promise.resolve();
+    });
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+    await flush();
+
+    expect(seen).toEqual(['tok-goblin']);
+    expect(userTargets.size).toBe(0); // cleared once the use has read them
+    expect(result.targets).toEqual(['Goblin']);
+    expect(result.message).toContain('targeting Goblin');
+  });
+
+  it('rollAttack on a headless GM with an unresolved target leaves no targets behind', async () => {
+    noCanvasWorld();
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a2', name: 'Bandit', items: [item] });
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin', 'tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(userTargets.size).toBe(0);
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('still uses the item and says so when the no-canvas fallback fails', async () => {
+    noCanvasWorld();
+    headless();
+    (game as any).user = { ...((game as any).user ?? {}), targets: undefined };
 
     const result = await da.useItem({
       actorIdentifier: 'Mage',
@@ -237,10 +891,50 @@ describe('FoundryDataAccess — useItem', () => {
       targets: ['Goblin'],
     });
 
-    expect(use).toHaveBeenCalledTimes(1);
     expect(result.targets).toBeUndefined();
     expect(result.message).not.toContain('targeting');
+    expect(result.message).toContain('targets not set: Foundry refused');
+  });
+
+  it('leaves the target set alone while a normal GM canvas is still loading', async () => {
+    noCanvasWorld();
+    const userTargets = new Set<unknown>(['keep']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+
+    expect(Array.from(userTargets)).toEqual(['keep']);
     expect(result.message).toContain('targets not set: the canvas is not ready');
+  });
+
+  it('does not reuse old targets when the names given match no token (headless)', async () => {
+    noCanvasWorld();
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Gobblin'],
+    });
+
+    expect(userTargets.size).toBe(0);
+  });
+
+  it('clears leftover targets on a headless GM when the call names none', async () => {
+    noCanvasWorld();
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    await da.useItem({ actorIdentifier: 'Mage', itemIdentifier: 'Hold Person' });
+
+    expect(userTargets.size).toBe(0);
   });
 
   it('does not clear the GM targets when the viewed scene is not the active one', async () => {
@@ -358,7 +1052,7 @@ describe('FoundryDataAccess — useItem', () => {
 // setActorSpellcasting
 // ===========================================================================
 
-describe('FoundryDataAccess — setActorSpellcasting', () => {
+describe('FoundryDataAccess: setActorSpellcasting', () => {
   it('throws under a non-dnd5e system', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -478,7 +1172,7 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
     );
   });
 
-  it('artificer uses the artificer slot table (rounds up — slots at level 1)', async () => {
+  it('artificer uses the artificer slot table (rounds up: slots at level 1)', async () => {
     const actor = world.addActor({ id: 'a1', name: 'Tinker', type: 'character', system: {} });
 
     const result = await da.setActorSpellcasting({
@@ -515,7 +1209,7 @@ function addSpellPack(
   });
 }
 
-describe('FoundryDataAccess — addSpellsToActor', () => {
+describe('FoundryDataAccess: addSpellsToActor', () => {
   it('throws under a non-dnd5e system', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -615,7 +1309,7 @@ describe('FoundryDataAccess — addSpellsToActor', () => {
 
   it('warns and skips a pack of the wrong metadata type', async () => {
     world.addActor({ id: 'a1', name: 'Mage', type: 'character', items: [] });
-    // Actor-typed pack — rejected by the Item type guard.
+    // Actor-typed pack, rejected by the Item type guard.
     world.addPack({
       id: 'world.actors',
       label: 'Actors',
@@ -666,7 +1360,7 @@ function addFeaturePack(
   });
 }
 
-describe('FoundryDataAccess — addFeaturesFromCompendium', () => {
+describe('FoundryDataAccess: addFeaturesFromCompendium', () => {
   it('throws under a non-dnd5e system', async () => {
     (globalThis as any).game.system.id = 'pf2e';
     await expect(
@@ -717,7 +1411,7 @@ describe('FoundryDataAccess — addFeaturesFromCompendium', () => {
   });
 
   it('skips a feature already on the actor (name-only dup check, any item type)', async () => {
-    // The on-actor item is a weapon, not a feat — yet the name-only check skips it.
+    // The on-actor item is a weapon, not a feat, yet the name-only check skips it.
     const existing = makeItem({ id: 'have1', name: 'Multiattack', type: 'weapon' });
     world.addActor({ id: 'a1', name: 'Ogre', type: 'npc', items: [existing] });
     addFeaturePack('world.feats', 'Monster Features', [{ id: 'ma1', name: 'Multiattack' }]);

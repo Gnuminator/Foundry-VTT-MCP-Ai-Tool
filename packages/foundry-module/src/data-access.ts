@@ -15,6 +15,7 @@ import { CharacterDataAccess } from './data-access/characters.js';
 import { ScenesTokensDataAccess } from './data-access/scenes-tokens.js';
 import { SceneFxDataAccess } from './data-access/scene-fx.js';
 import { CompendiumDataAccess } from './data-access/compendium.js';
+import type { PlayerReadDeps } from './player-read.js';
 import { RulesSearchDataAccess } from './data-access/rules-search.js';
 import type { RulesSearchParams, RulesSearchResult } from './data-access/rules-search.js';
 import { CombatDataAccess } from './data-access/combat.js';
@@ -93,7 +94,7 @@ export class FoundryDataAccess {
       return {
         success: true,
         totalCreatures: creatures.length,
-        message: `Enhanced creature index rebuilt: ${creatures.length} creatures indexed from all packs`,
+        message: `Creature index rebuilt: ${creatures.length} creatures indexed from all packs`,
       };
     } catch (error) {
       console.error(`[${this.moduleId}] Failed to rebuild enhanced creature index:`, error);
@@ -170,6 +171,16 @@ export class FoundryDataAccess {
 
   async searchRules(params: RulesSearchParams): Promise<RulesSearchResult> {
     return this.rulesSearch.searchRules(params);
+  }
+
+  /** The rules search alone, for the index warm-up after Foundry starts (player-read.ts). */
+  playerWarmDeps(): { rulesSearch: RulesSearchDataAccess } {
+    return { rulesSearch: this.rulesSearch };
+  }
+
+  /** The player-scoped read (player-read.ts) gets the real rules search and level-up readers here. */
+  playerReadDeps(): PlayerReadDeps {
+    return { rulesSearch: this.rulesSearch, levelUp: this.levelUp };
   }
 
   async listCreaturesByCriteria(criteria: {
@@ -382,6 +393,8 @@ export class FoundryDataAccess {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    dc?: number;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<{ success: boolean; message: string; error?: string }> {
     return this.playerRolls.requestPlayerRolls(data);
   }
@@ -430,7 +443,7 @@ export class FoundryDataAccess {
     return this.playerRolls.getRollState(buttonId);
   }
 
-  saveRollButtonMessageId(buttonId: string, messageId: string): void {
+  saveRollButtonMessageId(buttonId: string, messageId: string): Promise<void> {
     return this.playerRolls.saveRollButtonMessageId(buttonId, messageId);
   }
 
@@ -564,7 +577,7 @@ export class FoundryDataAccess {
 
   // ---------------------------------------------------------------------------
   // Add passive/descriptive feature to an existing actor (dnd5e-add-passive-feature)
-  // No activities, no mechanics — pure description displayed on the sheet.
+  // No activities, no mechanics, pure description displayed on the sheet.
   // ---------------------------------------------------------------------------
 
   async addPassiveFeatureToActor(
@@ -575,7 +588,7 @@ export class FoundryDataAccess {
 
   // ---------------------------------------------------------------------------
   // Add weapon attack + save effect to an existing actor
-  // (dnd5e-add-attack-with-save) — Tipo B
+  // (dnd5e-add-attack-with-save), Tipo B
   // Two activities: attack (sort:0) + save (sort:1)
   // ---------------------------------------------------------------------------
 
@@ -692,6 +705,7 @@ export class FoundryDataAccess {
     dc?: number;
     isPublic: boolean;
     reason?: string;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.playerRolls.requestAbilityCheck(data);
   }
@@ -700,6 +714,7 @@ export class FoundryDataAccess {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.playerRolls.requestAttackRoll(data);
   }
@@ -709,6 +724,7 @@ export class FoundryDataAccess {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.playerRolls.rollNpcCheck(data);
   }

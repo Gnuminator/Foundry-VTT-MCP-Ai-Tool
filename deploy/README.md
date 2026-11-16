@@ -33,6 +33,10 @@ deploy/
 │                                          and email allow-list, and how it maps to
 │                                          GM_EMAILS / CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD.
 │
+├── pi/                                  ← NOT a scaffold: tested, used on the Orange Pi.
+│                                          deployed-state.sh / .ps1 is the read-only check of what runs
+│                                          on the Pi (services, containers, env names, deployed ref).
+│
 └── windows/
     ├── install-service.md               ← Run the standalone bridge as a Windows service
     │                                     (NSSM or Task Scheduler). Already exists.
@@ -62,7 +66,6 @@ value. The complete list is in `docs/dev/REMOTE-ACCESS.md §5 (seams list)`. Sho
 - `<TUNNEL_UUID>` — from `cloudflared tunnel create cogm`
 - `<YOUR_DOMAIN>` — the domain on your Cloudflare account (e.g. `example.com`)
 - `<YOUR_LINUX_USER>` — the user account on the always-on host
-- `ANTHROPIC_API_KEY` — your Anthropic API key (runtime env/secret, never in the image)
 - `GM_EMAILS` — comma-separated email addresses that get the GM role
 - `GM_DASHBOARD_TOKEN` — a random secret for token-based GM auth (`openssl rand -hex 32`)
 

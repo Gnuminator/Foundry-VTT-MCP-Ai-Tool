@@ -8,6 +8,7 @@ import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { KitAssertion, EnvError, SkipError } from './errors.mjs';
 import { brief } from './dashboard.mjs';
+import { blamedOnBridge } from './console-errors.mjs';
 
 const DEFAULT_TIMEOUT_MS = 120000;
 const MODULE_ID = 'foundry-mcp-bridge';
@@ -349,7 +350,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
       );
       const ours = errors.filter(
         (/** @type {{message: string, source: string}} */ x) =>
-          (x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)) &&
+          blamedOnBridge(x, MODULE_ID) &&
           !known.some(re => re.test(x.message))
       );
       if (ours.length) {

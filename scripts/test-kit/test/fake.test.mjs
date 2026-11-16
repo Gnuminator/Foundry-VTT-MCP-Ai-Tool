@@ -185,6 +185,7 @@ test('the fake answers the canvas probe tools: scene reads, a template plan, and
       success: true,
       count: 0,
       targets: [],
+      selected: [],
     });
     const details = await client.tool('get-token-details', { tokenId: alpha.tokenId });
     assert.equal(details.name, 'Alpha');

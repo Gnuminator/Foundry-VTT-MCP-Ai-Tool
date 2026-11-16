@@ -3,20 +3,19 @@
 // PostToolUse (every tool) and UserPromptSubmit, so it must be fast: it reads only the last 512 KB
 // of the transcript (transcripts reach tens of MB), no network, no full-file read.
 //
-// Rule: plan the handover at 350k tokens, be out by 400k. While the weekly limit is above 50% the
-// lines are 200k and 250k (low mode: env CONTEXT_ALERT_LOW=1, or the file
-// ~/.foundry-ai-tool/context-thresholds.json = { "plan": n, "out": n }, which the planner writes;
-// the file wins over the env).
+// Rule (the user 2026-11-03, lanes eased 2026-11-04): plan the handover at 200k tokens, be out by
+// 250k; a lane (project dir under .claude/worktrees/, or a transcript in a worktree project folder) plans at 250k and is out by 300k.
 //
-// Context = input + cache read + cache creation tokens of the last main-thread assistant response.
+// Context = input + cache read + cache creation tokens of the last main-thread assistant response
+// (of its last sampling pass when the response has several, see contextOf), counted only when the
+// response before it was at least as big (a backstop, see confirmedContextIn).
 // Each line prints once per session (state: <tmp>/context-alert/<session_id>.json); the state
 // resets when the context drops under the plan line again (after a /compact or a new start).
 //
 // Output: JSON with `systemMessage` (shown to the user) and `hookSpecificOutput.additionalContext`
 // (for Claude), or nothing at all. Any failure prints nothing and exits 0: a hook must never block.
 //
-// Overrides (tests and checks): CONTEXT_ALERT_LOW, CONTEXT_ALERT_THRESHOLDS_FILE,
-// CONTEXT_ALERT_STATE_DIR.
+// Override (tests and checks): CONTEXT_ALERT_STATE_DIR.
 
 import {
   closeSync,
@@ -31,52 +30,58 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const PLAN_AT = 350_000;
-export const OUT_AT = 400_000;
-export const LOW_PLAN_AT = 200_000;
-export const LOW_OUT_AT = 250_000;
+export const PLAN_AT = 200_000;
+export const OUT_AT = 250_000;
+export const LANE_PLAN_AT = 250_000;
+export const LANE_OUT_AT = 300_000;
 export const TAIL_BYTES = 512 * 1024;
 
-// --- thresholds ----------------------------------------------------------------------------
-
-function validPair(plan, out) {
-  return Number.isFinite(plan) && Number.isFinite(out) && plan > 0 && out > plan
-    ? { plan, out }
-    : null;
-}
-
-export function thresholdsFile(env = process.env) {
-  return (
-    env.CONTEXT_ALERT_THRESHOLDS_FILE ||
-    path.join(os.homedir(), '.foundry-ai-tool', 'context-thresholds.json')
-  );
-}
-
-export function thresholdsFor(env = process.env) {
-  try {
-    const data = JSON.parse(readFileSync(thresholdsFile(env), 'utf8').replace(/^﻿/, ''));
-    const pair = validPair(Number(data?.plan), Number(data?.out));
-    if (pair) return pair;
-  } catch {
-    // no file, or unreadable: the env or the defaults
-  }
-  if (env.CONTEXT_ALERT_LOW === '1') return { plan: LOW_PLAN_AT, out: LOW_OUT_AT };
-  return { plan: PLAN_AT, out: OUT_AT };
+// A lane works in a worktree under .claude/worktrees/; the planner and other sessions in the main
+// checkout keep the lower lines. A path we cannot read as a lane gets the lower lines. Callers pass
+// only what is fixed for the whole session: CLAUDE_PROJECT_DIR and the transcript path, never the
+// payload cwd (it moves with every cd, so a planner that cds into a worktree would become a lane).
+// In a session the desktop app starts in a worktree, CLAUDE_PROJECT_DIR is the main checkout (the
+// hook command itself runs main's copy), but the transcript lives in a project folder named after
+// the worktree: `...-Foundry-VTT-AI-Tool--claude-worktrees-<name>`.
+const WORKTREE_DIR = /[\\/]\.claude[\\/]worktrees[\\/]/i;
+const WORKTREE_PROJECT = /--claude-worktrees-/i;
+export function limitsFor(projectDir, transcriptPath) {
+  const lane =
+    (typeof projectDir === 'string' && WORKTREE_DIR.test(projectDir)) ||
+    (typeof transcriptPath === 'string' && WORKTREE_PROJECT.test(transcriptPath));
+  return lane ? { plan: LANE_PLAN_AT, out: LANE_OUT_AT } : { plan: PLAN_AT, out: OUT_AT };
 }
 
 // --- the transcript tail -------------------------------------------------------------------
 
+// A response that called a server-side tool (the advisor) is sampled more than once, and its
+// top-level usage is the sum of those passes: a call at 164k reads 328k. `usage.iterations` lists
+// the passes; the last one of type "message" is the context the session now holds ("advisor_message"
+// entries are the advisor model's own read). All 210 multi-pass responses from 2026-10-23 to
+// 2026-10-31 were advisor calls (vault Design/Phantom context readings 2026-10-31). A pass with no
+// token counts at all is ignored, so an unknown shape falls back to the top level, never to 0.
+const FIELDS = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'];
+
+// scripts/dev/usage-week.mjs imports contextOf, so a change here changes the weekly usage report
+// as well as the hooks (they must read a response the same way).
 export function contextOf(usage) {
   const n = v => (Number.isFinite(v) ? v : 0);
-  return (
-    n(usage.input_tokens) + n(usage.cache_read_input_tokens) + n(usage.cache_creation_input_tokens)
-  );
+  const passes = Array.isArray(usage.iterations)
+    ? usage.iterations.filter(
+        it => it && it.type === 'message' && FIELDS.some(f => Number.isFinite(it[f]))
+      )
+    : [];
+  const u = passes.length ? passes[passes.length - 1] : usage;
+  return FIELDS.reduce((sum, f) => sum + n(u[f]), 0);
 }
 
-// The last main-thread assistant response with usage in the given text lines (a partial first
-// line is the caller's business). Returns the context in tokens, or null.
-export function lastContextIn(lines) {
-  for (let i = lines.length - 1; i >= 0; i--) {
+// The main-thread assistant responses with usage in the given text lines (a partial first line is
+// the caller's business), newest first, as context sizes in tokens, at most `max`. A response
+// written as several transcript lines shares one message id and counts once.
+export function recentContextsIn(lines, max = 2) {
+  const out = [];
+  const seen = new Set();
+  for (let i = lines.length - 1; i >= 0 && out.length < max; i--) {
     const line = lines[i];
     if (!line || !line.includes('"usage"')) continue;
     let j;
@@ -86,9 +91,35 @@ export function lastContextIn(lines) {
       continue;
     }
     if (j?.type !== 'assistant' || j.isSidechain || !j.message?.usage) continue;
-    return contextOf(j.message.usage);
+    const id = j.message.id;
+    if (id) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    const ctx = contextOf(j.message.usage);
+    if (ctx === 0 || j.message.model === '<synthetic>') continue; // an API error or interrupt note
+    out.push(ctx);
   }
-  return null;
+  return out;
+}
+
+// The last main-thread assistant response with usage in the given text lines.
+// Returns the context in tokens, or null.
+export function lastContextIn(lines) {
+  const [last] = recentContextsIn(lines, 1);
+  return last ?? null;
+}
+
+// The context to act on. An advisor call's top level reads about twice the real context (cache
+// read 161,654 then 327,920 then 164,453), which caused 38 false handovers from 2026-10-23 to
+// 2026-10-31 (and showed 574k and 607k for two that were due anyway); contextOf reads the last pass.
+// As a backstop for any other one-off spike, a reading counts only when the response before it was
+// also big, so the effective context is the smaller of the last two responses; with a single
+// response it is that one.
+export function confirmedContextIn(lines) {
+  const [last, prev] = recentContextsIn(lines, 2);
+  if (last === undefined) return null;
+  return prev === undefined ? last : Math.min(last, prev);
 }
 
 // Reads the last `tailBytes` of a file; when the read starts mid-file the first (partial) line is
@@ -115,7 +146,7 @@ export function readTailLines(file, tailBytes = TAIL_BYTES) {
 
 export function contextFromTranscript(file, tailBytes = TAIL_BYTES) {
   try {
-    return lastContextIn(readTailLines(file, tailBytes));
+    return confirmedContextIn(readTailLines(file, tailBytes));
   } catch {
     return null;
   }
@@ -154,14 +185,14 @@ function writeLevel(sessionId, level, env) {
 
 const k = tokens => `${Math.round(tokens / 1000)}k`;
 
-export function messageFor(level, context, { plan, out }, eventName) {
+export function messageFor(level, context, eventName, limits = limitsFor()) {
   const hookEventName = eventName || 'PostToolUse';
   if (level === 2) {
     return {
       systemMessage: `Context ${k(context)}: hand over now.`,
       hookSpecificOutput: {
         hookEventName,
-        additionalContext: `Context is ${k(context)} tokens (D-122 hard line ${k(out)}): stop taking new work and write the handover prompt now (lane skill), then stop.`,
+        additionalContext: `Context is ${k(context)} tokens (D-122 hard line ${k(limits.out)}): stop taking new work and write the handover prompt now (lane skill), then stop.`,
       },
     };
   }
@@ -169,7 +200,7 @@ export function messageFor(level, context, { plan, out }, eventName) {
     systemMessage: `Context ${k(context)}: plan the handover (lane skill).`,
     hookSpecificOutput: {
       hookEventName,
-      additionalContext: `Context is ${k(context)} tokens (D-122 handover line ${k(plan)}): finish the current step, then write the handover prompt and stop. Out by ${k(out)}.`,
+      additionalContext: `Context is ${k(context)} tokens (D-122 handover line ${k(limits.plan)}): finish the current step, then write the handover prompt and stop. Out by ${k(limits.out)}.`,
     },
   };
 }
@@ -180,12 +211,13 @@ export function run(input, env = process.env) {
     if (!input || typeof input !== 'object' || !input.transcript_path) return '';
     // A tool call inside a subagent carries agent_id and reads the parent's transcript: staying quiet
     // (and leaving the state alone) keeps the line for the main thread.
-    if (input.agent_id || input.agent_type) return '';
+    if (input.agent_id) return '';
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';
-    const thresholds = thresholdsFor(env);
-    const level = context >= thresholds.out ? 2 : context >= thresholds.plan ? 1 : 0;
+    // both are fixed for the session (see limitsFor)
+    const limits = limitsFor(env.CLAUDE_PROJECT_DIR, input.transcript_path);
+    const level = context >= limits.out ? 2 : context >= limits.plan ? 1 : 0;
     const announced = readLevel(sessionId, env);
     if (level === 0) {
       if (announced) writeLevel(sessionId, 0, env);
@@ -193,7 +225,7 @@ export function run(input, env = process.env) {
     }
     if (level <= announced) return '';
     writeLevel(sessionId, level, env);
-    return JSON.stringify(messageFor(level, context, thresholds, input.hook_event_name));
+    return JSON.stringify(messageFor(level, context, input.hook_event_name, limits));
   } catch {
     return '';
   }

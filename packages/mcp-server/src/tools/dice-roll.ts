@@ -12,6 +12,12 @@ interface DiceRollToolsOptions {
   rulesCheck?: Pick<RulesCheckTools, 'tryCheck'>;
 }
 
+/**
+ * The optional GM choice every d20 roll tool takes; absent lets dnd5e decide from conditions, and
+ * a choice combines with them. No description: the Play tool-set size budget is tight.
+ */
+const advantageChoice = { type: 'string', enum: ['advantage', 'disadvantage'] } as const;
+
 export class DiceRollTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -28,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.',
+          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -41,7 +47,7 @@ export class DiceRollTools {
             rollTarget: {
               type: 'string',
               description:
-                'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula',
+                'An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula',
               ...toolRef(['ability', 'skill'], 'id'),
             },
             targetPlayer: {
@@ -53,14 +59,13 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
-              description:
-                'Whether the roll should be public (true = visible to all players) or private (false = visible only to target player and GM).',
+              description: 'true: everyone sees the roll. false: only the target player and GM.',
             },
             userConfirmedVisibility: {
               type: 'boolean',
               const: true,
               description:
-                'REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question.',
+                'Must be true. Set it only when the user said "public" or "private" or answered your question about it.',
             },
             rollModifier: {
               type: 'string',
@@ -72,6 +77,9 @@ export class DiceRollTools {
               description: 'Optional flavor text to describe the roll context',
               default: '',
             },
+            // No description: the play tool set is at its size budget; the name says it.
+            dc: { type: 'integer' },
+            advantage: advantageChoice,
           },
           required: [
             'rollType',
@@ -85,7 +93,7 @@ export class DiceRollTools {
       {
         name: 'request-ability-check',
         description:
-          'Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".',
+          'Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".',
         inputSchema: {
           type: 'object',
           properties: {
@@ -114,6 +122,7 @@ export class DiceRollTools {
               type: 'string',
               description: 'Context for the check, e.g. "Perception check to notice the ambush".',
             },
+            advantage: advantageChoice,
           },
           required: ['targetPlayer', 'ability', 'isPublic'],
         },
@@ -121,7 +130,7 @@ export class DiceRollTools {
       {
         name: 'request-attack-roll',
         description:
-          'Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.',
+          'Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -144,6 +153,7 @@ export class DiceRollTools {
               description:
                 'Whether the roll is public (visible to all) or private (target player + GM only).',
             },
+            advantage: advantageChoice,
           },
           required: ['targetPlayer', 'weaponOrSpellName', 'isPublic'],
         },
@@ -151,7 +161,7 @@ export class DiceRollTools {
       {
         name: 'roll-npc-check',
         description:
-          'Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.',
+          'Direct write. Roll for an NPC actor with no player prompt and post the result to chat: ability check, saving throw, skill check or attack.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -175,6 +185,7 @@ export class DiceRollTools {
               type: 'boolean',
               description: 'Whether the result is public (true) or whispered to the GM (false).',
             },
+            advantage: advantageChoice,
           },
           required: ['actorName', 'rollType', 'rollTarget', 'isPublic'],
         },
@@ -191,6 +202,7 @@ export class DiceRollTools {
       dc: z.number().int().optional(),
       isPublic: z.boolean(),
       reason: z.string().optional(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
       const params = schema.parse(args);
@@ -216,6 +228,7 @@ export class DiceRollTools {
       targetPlayer: z.string(),
       weaponOrSpellName: z.string(),
       isPublic: z.boolean(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
       const params = schema.parse(args);
@@ -247,6 +260,7 @@ export class DiceRollTools {
       rollType: z.enum(['ability', 'save', 'skill', 'attack']),
       rollTarget: z.string(),
       isPublic: z.boolean(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
       const params = schema.parse(args);
@@ -276,6 +290,8 @@ export class DiceRollTools {
       userConfirmedVisibility: z.literal(true),
       rollModifier: z.string().default(''),
       flavor: z.string().default(''),
+      dc: z.number().int().min(1).max(99).optional(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
 
     try {
@@ -290,10 +306,18 @@ export class DiceRollTools {
         return 'You must determine the roll visibility before calling this function. Either: 1) The user already specified "public" or "private" in their request, or 2) You need to ask: "Do you want this to be a PUBLIC roll or PRIVATE roll?" Set userConfirmedVisibility to true only when you are confident about the visibility preference.';
       }
 
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.request-player-rolls',
-        params
-      )) as DiceRollBridgeReply;
+      // The module keeps the DC off the card unless it is in the flavor (request-ability-check does
+      // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
+      const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
+      const flavor =
+        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(params.flavor)
+          ? params.flavor
+          : [params.flavor, dcText].filter(Boolean).join(', ');
+
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {
+        ...params,
+        flavor,
+      })) as DiceRollBridgeReply;
 
       if (response.success) {
         return `Roll request sent successfully! ${response.message}`;

@@ -176,6 +176,21 @@ describe('reveal tools', () => {
     });
   });
 
+  it('plans a quest import from a note path (planId, summary)', async () => {
+    const { client: c, calls } = client(() => ({
+      status: 200,
+      json: { ok: true, result: { planId: 'plan-9', summary: 'Create the quest' } },
+    }));
+    await expect(c.planQuestImport('Campaigns/w/Prep/Quests/Q.md')).resolves.toEqual({
+      planId: 'plan-9',
+      summary: 'Create the quest',
+    });
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      name: 'plan-obsidian-quest-import',
+      args: { notePath: 'Campaigns/w/Prep/Quests/Q.md' },
+    });
+  });
+
   it('throws the tool error without the "Error: " prefix', async () => {
     const { client: c } = client(() => ({
       status: 500,

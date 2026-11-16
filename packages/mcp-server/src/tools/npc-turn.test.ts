@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { NpcTurnPlan } from '@gnuminator/shared';
 
 import { NpcTurnTools } from './npc-turn.js';
@@ -31,8 +31,8 @@ function reply(extra: Partial<NpcTurnPlan> = {}): NpcTurnPlan {
   return { context: CONTEXT, steps: [], attack: null, attacks: [], ...extra };
 }
 
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
 let enabled: boolean;
 let planReply: NpcTurnPlan;
 let tools: NpcTurnTools;

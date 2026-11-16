@@ -40,6 +40,10 @@ as READ (you opened the code) or INFERRED (you did not). Do not invent line numb
    dnd5e/Foundry class (a mocked method the real class never returns hid 501 M2).
 10. **Secrets.** Nothing printed or committed; no book or campaign text in the public repo.
 
+## Severity rule (D-101, amended 2026-11-12)
+
+A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.
+
 ## Output (the merge gate reads this)
 
 ```
@@ -56,4 +60,4 @@ file:line, what is wrong, a concrete failure, the fix.
 ```
 
 `Head reviewed:` is one line directly above `## Verdict`. The first bold text under Verdict is
-exactly one of the three phrases. A delta round (the caller sends you a new head sha) returns a full note again, with the new `Head reviewed:` line and its own `## Verdict`. Say "None" for an empty severity. Do not write em dashes.
+exactly one of the three phrases. A delta round (the caller sends you a new head sha) returns a full note again, with the new `Head reviewed:` line and its own `## Verdict`. Say "None" for an empty severity. Lows rule: if the PR itself only files lows (a lows or sweep PR), report mediums and highs but file no new lows. Do not write em dashes.

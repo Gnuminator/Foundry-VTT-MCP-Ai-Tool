@@ -7,12 +7,29 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The merge queue (main's ruleset) builds each queued PR on top of the ones ahead of it and runs
+  # CI on that commit; the queue merges only when the required checks are green (ci-all-green stands
+  # for every job). The path filters below run everything on a queue commit (not a pull_request):
+  # a diff against the first parent would miss entries ahead under a rebase or a larger group.
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
-# A new push to the same ref cancels the run still going for the old one.
+# A new push to a branch or PR ref cancels the run still going for the old one. A push to main gets
+# a group of its own (its sha): a group holds one running and one pending run, and a third push
+# cancels the pending one even without cancel-in-progress, so a shared group would still drop runs.
+# Every merge commit gets a finished run, so a red cannot be hidden by the next merge (57 of 97 main
+# runs were cancelled 2026-10-14 to 10-30). The repo is public, so the extra runner minutes, the ARM
+# job included, are free.
+# A hand-dispatched run (`npm run green -- --cloud` on a branch without a PR) names every job with a
+# " [dispatch]" suffix. Its checks then have their own keys in a PR's check rollup, so the gate
+# (latestChecks in scripts/lane-merge.mjs) never takes a dispatch run on the branch head for the
+# pull_request run on the merge ref: a red merge-ref run stays visible next to a green dispatch. The
+# other side: a red or cancelled "[dispatch]" check on the head blocks the gate on purpose; rerun that
+# dispatch run (gh run rerun <id> --failed) or push again to clear it.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Read-only token for every job: CI checks out and tests, it never writes to the repo
 # (upload-artifact uses the runner's own artifact token, not GITHUB_TOKEN).
@@ -22,299 +39,119 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 22: the release build. 24: what the Orange Pi runs (Foundry 14 requires Node 24,
-        # and the bridge, dashboard and bot share that Node on the Pi).
-        node: ['22', '24']
-    name: build-test (Node ${{ matrix.node }})
+    # Node 24 is the floor (decision 45): the release build, the installer, the Orange Pi and
+    # Foundry 14 all run it. This is the one full x64 job, so the bundle budget, the zip upload
+    # and the browser tests live here.
+    name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + lint ratchet)
-        # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. Every lint rule is an
-        # error now (D-109), so the lint ratchet fails on any finding; the baseline
-        # scripts/lint-baseline.json stays at 0.
-        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
+      # One step per group of scripts/checks.mjs (CI_GROUPS), in order of dependence. A group runs
+      # every check in it even after a red one, names each failure with an ::error line and writes
+      # a table of checks and seconds to the job summary. Adding a test is one line in checks.mjs;
+      # scripts/green.test.mjs fails on a test command written here instead.
+      - name: Static checks and docs (typecheck, ratchets, version, catalogue, changelog, docs)
+        run: node scripts/checks.mjs --run static
 
-      - name: Usage catalogue is current
-        # shared/src/usage-catalog.generated.ts lists every control that reports usage
-        # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
-        run: npm run usage:catalog:check
+      - name: Scripts, hooks and the merge gate
+        run: node scripts/checks.mjs --run scripts
 
-      - name: Docs lint and internal links
-        # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
-        # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
-        # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
-        run: npm run docs:lint && npm run docs:links
+      - name: Pi scripts
+        run: node scripts/checks.mjs --run pi
 
-      - name: Remote command guard
-        # The Pi safety hook (.claude/hooks/guard-remote-commands.mjs) against the real stage scripts.
-        run: node --test .claude/hooks/guard-remote-commands.test.mjs
-
-      - name: Start alerts hook
-        # The SessionStart hook (.claude/hooks/start-alerts.mjs, D-102 line 3): silent when clean,
-        # one line per forced alert.
-        run: node --test .claude/hooks/start-alerts.test.mjs
-
-      - name: Drift check script
-        # scripts/drift-check.mjs, which lanes run before "PR ready": trial merge of main, guards,
-        # undo; against throwaway git repos.
-        run: node --test scripts/drift-check.test.mjs
-
-      - name: Context alert hook
-        # .claude/hooks/context-alert.mjs (D-122): one line at the 350k and 400k handover marks.
-        run: node --test .claude/hooks/context-alert.test.mjs
-
-      - name: Edit guard hooks
-        # .claude/hooks/guard-shell-edits.mjs (no shell edits of source files) and
-        # warn-control-bytes.mjs (control bytes in changed files); the second makes temp git repos.
-        # guard-model.mjs refuses Agent and start_session calls without a `model`.
-        run: node --test .claude/hooks/guard-shell-edits.test.mjs .claude/hooks/warn-control-bytes.test.mjs .claude/hooks/guard-model.test.mjs
-
-      - name: Merge gate and keep-green scripts
-        # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs
-
-      - name: Weekly usage report
-        # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
-        run: node --test scripts/dev/usage-week.test.mjs
-
-      - name: Game-night watch
-        # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
-        run: node --test scripts/gamenight-watch.test.mjs
-
-      - name: Pi space check
-        # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
-        # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels
-        # (the PowerShell part is skipped where pwsh 7 is missing).
-        run: node --test scripts/pi/space-check.test.mjs
-
-      - name: Pi backup copy record
-        # PB-06: stage 6's record-pull.sh (bash -n, the file the bot reads) and the PC's
-        # Send-PullRecord (record-pull.ps1; the PowerShell part is skipped where pwsh 7 is missing).
-        run: node --test scripts/pi/backup-pull-record.test.mjs
-
-      - name: Pi world bundle
-        # push-world.ps1 and stage 11 (docs/dev/PI-SETUP.md, "Licensed content"): the asset path
-        # scanner's pure functions (scripts/pi/world-refs.mjs) and bash -n on stage 11.
-        run: node --test scripts/pi/world-refs.test.mjs
-
-      - name: Pi Assistant GM
-        # assistant-gm.mjs: the service mode is unchanged, GM script mode takes only a local file and
-        # its dry run lets only known reads through; gm-script.sh refuses a real run without a passed
-        # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
-        run: node --test scripts/pi/assistant-gm.test.mjs
-
-      - name: Pi GM password check
-        # gm_password_check in scripts/pi/remote/lib-gm-passwords.sh (#273), against a fake classic-level: Gamemaster and
-        # Assistant GM users with no password in any world, gm-passwords.sh, and stage 12 refusing before it
-        # installs anything.
-        run: node --test scripts/pi/gm-passwords.test.mjs
-
-      - name: Pi stage 13 settings driver
-        # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
-        # every user. The stage itself runs in a container on the ARM runner (build-test-arm).
-        run: node --test scripts/pi/player-creation.test.mjs
-
-      - name: Pi kit session driver
-        # kit-session.mjs against a fake game: the settings character creation needs in strahd-kit, the Kit Player
-        # user, and the teardown that deletes only that user and the actors it owns. The stage itself runs in a
-        # container on the ARM runner (build-test-arm).
-        run: node --test scripts/pi/kit-session.test.mjs
-
-      - name: Pi kit login fetch
-        # scripts/pi/fetch-kit-login.ps1 (PowerShell 7) against a fake ssh: the Kit GM password lands in a file only the
-        # user can read, is never printed, and a wrong answer or a bad host or path changes nothing.
-        run: node --test scripts/pi/fetch-kit-login.test.mjs
-
-      - name: Pi health check kit-session line
-        # The "kit session" section of 1-health.sh in bash: a forgotten kit-session.env is a warning with its stamp
-        # and the world Foundry launches.
-        run: node --test scripts/pi/health-kit-line.test.mjs
-
-      - name: Pi runtime imports
-        # The services on the Pi run from a build that stage 5 prunes of its dev packages (#310): every package the bridge,
-        # the dashboard server, the Discord bot and shared import at run time must be a dependency of its workspace, and
-        # the lock keeps one copy of playwright-core (scripts/pi/runtime-imports.mjs).
-        run: node --test scripts/pi/runtime-imports.test.mjs
-
-      - name: Pi foundry-user write helpers
-        # lib.sh's foundry_edit_json, foundry_copy_file and foundry_can_write (temp file + rename as the foundry user) with
-        # a stand-in runuser, and a check that stages 5 check, 11, 12, 13 and the kit session use them (#332 review L3).
-        run: node --test scripts/pi/runuser-helper.test.mjs
-
-      - name: Pi stage 5 load check
-        # Stage 5 loads one module of each package from the pruned build before any service stops (#310 review M1): a fake
-        # build with a missing runtime package fails it, this repository's own build passes it.
-        run: node --test scripts/pi/stage5-load-check.test.mjs
-
-      - name: Pi stage 15 static checks
-        # 15-ssh-keys-only.sh (D-123): valid bash, reload and never restart, the three values in a drop-in, the main sshd_config
-        # only read, the checks before the first write. The stage itself runs in a container on the ARM runner (build-test-arm).
-        run: node --test scripts/pi/ssh-keys-only.test.mjs
-
-      - name: Pi stage 16 board status
-        # 16-board-status.sh: the hourly status script against a local server (payload, Access headers, 2xx only, the token file
-        # checks) and the stage as text. The stage itself runs in a container on the ARM runner (build-test-arm).
-        run: node --test scripts/pi/board-status.test.mjs
-
-      - name: Pi stage 17 GitHub runners
-        # 17-gh-runner.sh: the play-session gate against fake vaults (open, ended, past midnight, unknown, a running job) and the
-        # stage as text (pinned runner, token handling, the fence in the units).
-        run: node --test scripts/pi/gh-runner.test.mjs
-
-      - name: Pi stage 18 time sync
-        # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
-        # systemctl, timedatectl and dietpi-set_software.
-        run: node --test scripts/pi/time-sync.test.mjs
-
-      - name: Pi stage 12 control port check
-        # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
-        run: node --test scripts/pi/control-port-check.test.mjs
-
-      - name: Pi stage safety
-        # lib.sh's game-night guards (enable_unit restarts only on change, players online, active recording, snapshot from
-        # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
-        run: node --test scripts/pi/pi-stage-safety.test.mjs
-
-      - name: Tunnel client script
-        # installer/nsis/tunnel-client.ps1 (D-095): the order of the Install steps and the quoted -NoTask start.
-        run: node --test installer/nsis/tunnel-client.test.mjs
-
-      - name: Plan B scripts
-        # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
-        # newest-backup choice, the version match, the module port flag, the stop and clean decisions and
-        # the Claude Desktop connector switch (the PowerShell part is skipped where pwsh 7 is missing).
-        run: node --test scripts/plan-b/plan-b.test.mjs
-
-      - name: TV table viewer script
-        # scripts/tv/start-table-viewer.ps1 (tv-login, G1): the kiosk command and its refusals (needs pwsh 7; the command tests also need Edge or Chrome and are skipped where missing).
-        run: node --test scripts/tv/start-table-viewer.test.mjs
-
-      - name: Changelog fragments
-        # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
-        run: npm run changelog:check
-
-      - name: GM coach skill
-        # The GM's "Foundry GM coach" skill zip (D-097): tests, then a build kept as a download.
-        run: |
-          node --test tools/gm-coach/build.test.mjs
-          node tools/gm-coach/build.mjs
+      - name: Tools (skills, extension, recorder)
+        run: node scripts/checks.mjs --run tools
 
       - name: Keep the GM coach zip
-        if: matrix.node == '22'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: foundry-gm-coach
           path: tools/gm-coach/dist/foundry-gm-coach.zip
           retention-days: 30
 
-      - name: Build (all workspaces)
-        run: npm run build
+      - name: Build and dashboard bundle budget
+        run: node scripts/checks.mjs --run build
 
-      - name: Dashboard bundle budget
-        # UI-05: the React dashboard's first-load JS and each lazy chunk against their gzip limits
-        # (packages/cogm-dashboard/scripts/bundle-budget.mjs, limits recorded in the script). Fails
-        # when one grows past its limit; the table also goes to the job summary. Once per run.
-        if: matrix.node == '22'
-        run: npm run bundle:budget -w @gnuminator/cogm-dashboard
+      - name: Test kit
+        run: node scripts/checks.mjs --run kit
 
-      - name: Test kit engine tests
-        # The test kit's engine and its fake (scripts/test-kit): needs the build, the fake reads the tool catalog from it.
-        run: npm run kit:test
+      - name: Unit tests (every workspace)
+        run: node scripts/checks.mjs --run unit
 
-      - name: Test kit scenario check
-        # Every scenario file in scripts/test-kit/scenarios loads, validates and names only tools in tool-sets.ts.
-        run: node scripts/test-kit/kit.mjs check
+      # The dashboard browser tests (Playwright) run in their own filtered, sharded jobs below
+      # (dashboard-e2e-changes, dashboard-e2e-shard, dashboard-e2e).
+      - name: Smoke tests and manifest
+        run: node scripts/checks.mjs --run smoke
 
-      - name: Test kit fake run
-        # The whole kit (build, then every scenario) against the in-process fake: catches scenario and engine regressions without Foundry.
-        run: node scripts/test-kit/kit.mjs all --fake
-        env:
-          TEST_KIT_HOME: ${{ runner.temp }}/test-kit
-
-      - name: Unit tests (shared)
-        # Parity + frozen-wire-contract guard for the @gnuminator/shared package.
-        run: npm test -w @gnuminator/shared
-
-      - name: Unit tests (foundry module)
-        # Scoped to the module suite by workspace name (npm scope is @gnuminator/*).
-        run: npm test -w @gnuminator/foundry-module
-
-      - name: Unit tests (mcp-server)
-        # Tool-layer + lock suites. vitest auto-runs once in CI (non-TTY).
-        run: npm test -w @gnuminator/mcp-server
-
-      - name: Unit tests (cogm-dashboard)
-        # Player/GM split: auth role-resolution + server-side redaction.
-        run: npm test -w @gnuminator/cogm-dashboard
-
-      - name: Unit tests (discord-bot)
-        # Recorder file format, Ogg writer and the silence-padding timeline.
-        run: npm test -w @gnuminator/discord-bot
-
-      - name: MCP schema smoke test
-        run: node scripts/mcp-schema-smoke-test.mjs
-
-      - name: Standalone bridge smoke test
-        # Spawns the standalone entrypoint in control-only mode on a free port
-        # (never 31414/31415/31416) and asserts ping + list_tools over the wire.
-        run: node scripts/standalone-smoke-test.mjs
-
-      - name: Player/GM split smoke test
-        # Runs the dashboard against a mock bridge and asserts server-side
-        # redaction (GM vs player) + the write-surface auth gate over HTTP.
-        run: node scripts/cogm-split-smoke-test.mjs
-
-      - name: Install Chromium for the dashboard browser tests
-        if: matrix.node == '22'
-        run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
-
-      - name: Dashboard browser tests (React dashboard)
-        # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
-        # the real server with no bridge, the /api routes faked in the browser. Once per run.
-        if: matrix.node == '22'
-        run: npm run test:e2e -w @gnuminator/cogm-dashboard
-
-      - name: Keep the browser test report
-        if: failure() && matrix.node == '22'
-        uses: actions/upload-artifact@v4
+  studio-pin:
+    # Downloads the Actor Studio release that Pi stage 13 pins and compares its sha256 with PINNED_SHA256, so a
+    # typo in a pin fails here instead of on the Pi. About 7 MB, so it runs only when stage 13 or the check
+    # itself changed (same plain-git diff as visual-changes: on a pull request the checkout is the merge
+    # commit, and its first parent is the base). A push to main or a manual run always checks. The same check
+    # by hand: npm run studio:pin-check. No npm ci: the script needs nothing installed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    name: studio-pin (stage 13 checksum)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          name: dashboard-playwright-report
-          path: |
-            packages/cogm-dashboard/playwright-report
-            packages/cogm-dashboard/test-results
-          retention-days: 14
+          fetch-depth: 2
 
-      - name: Validate Foundry module manifest
-        run: node scripts/validate-manifest.js
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Did the stage 13 pin change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: check the pin."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          if echo "$changed" | grep -qE '^(scripts/pi/remote/13-player-creation\.sh|scripts/pi/check-studio-pin\.mjs|\.github/workflows/ci\.yml)$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Stage 13 did not change: skip the download."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pinned checksum matches the published release
+        if: steps.filter.outputs.run == 'true'
+        run: node scripts/pi/check-studio-pin.mjs
 
   visual-changes:
-    # Decides whether dashboard-visual is worth its 2.5 minutes and image pull: only when the
+    # Decides whether dashboard-visual is worth its 5 minutes and image pull: only when the
     # dashboard package, the lockfile or this workflow changed. A job inside one workflow cannot
     # use `on.paths` (that would skip the whole workflow), so this job reads the diff itself, with
     # plain git and no third-party action. On a pull request the checkout is the merge commit, and
     # its first parent is the base branch. Anything that is not a pull request (push to main,
     # manual run) always runs the screenshots.
     runs-on: ubuntu-latest
-    name: visual-changes (path filter)
+    name: visual-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     outputs:
       run: ${{ steps.filter.outputs.run }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
+
+      - name: The shard list (VISUAL_SHARDS in scripts/checks.mjs)
+        id: matrix
+        run: |
+          matrix=$(node scripts/checks.mjs --matrix visual)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
       - name: Did the dashboard, the lockfile or this workflow change?
         id: filter
@@ -334,13 +171,17 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
-  dashboard-visual:
-    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, two themes)
-    # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
-    # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
-    # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
+  dashboard-visual-shard:
+    # UI-01: page shots of the React dashboard and player pages (every moment and drawer, three
+    # widths, neutral theme) are rendered and uploaded as the artifact dashboard-page-shots-N, not
+    # compared (nothing is committed for them), plus an axe accessibility check (both themes), and
+    # (UI-03) a compared shot and an axe check of every Storybook story, under
+    # web/visual/__screenshots__/stories. The story baselines are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
-    # step checks it). Not a required check in the ruleset, but a diff fails the job (no
+    # step checks it). It runs as 4 parallel shards (--shard=i/4; fullyParallel splits the tests
+    # evenly by count; about 835 shots took 14 minutes in one job, the shards about 5). The summary
+    # job below keeps one check under the old name `dashboard-visual (screenshots)` for people and
+    # the lane skill; the gate judges every check, shards included. Not a required check in the ruleset, but a diff fails the job (no
     # continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses any check that is not
     # green, so a red dashboard-visual blocks the merge. The report with the diff images is kept as an artifact. Refresh the
     # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
@@ -348,18 +189,22 @@ jobs:
     needs: visual-changes
     if: needs.visual-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
-    name: dashboard-visual (screenshots)
+    name: dashboard-visual shard ${{ matrix.shard }}/4${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    strategy:
+      # Every shard reports, so one red shard does not hide another's diffs.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.visual-changes.outputs.matrix) }}
     container:
       image: mcr.microsoft.com/playwright:v1.64.0-noble
     env:
       # Playwright's browsers read HOME; a container job runs as root.
       HOME: /root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -389,18 +234,172 @@ jobs:
         run: npm run build-storybook -w @gnuminator/cogm-dashboard
 
       - name: Screenshot tests and axe
-        run: npm run test:visual:ci -w @gnuminator/cogm-dashboard
+        run: npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/4
+
+      - name: Keep the page shots
+        # The full-page shots of this shard, for the reviewer to look at (not compared with
+        # anything). Kept even when a story shot fails.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dashboard-page-shots-${{ matrix.shard }}
+          path: packages/cogm-dashboard/page-shots
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Keep the visual report
         # The HTML report and the diff images (expected, actual, diff) of a failed run.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: dashboard-visual-report
+          name: dashboard-visual-report-${{ matrix.shard }}
           path: |
             packages/cogm-dashboard/playwright-report/visual
             packages/cogm-dashboard/test-results/visual
           retention-days: 14
+
+  dashboard-visual:
+    # One summary check under the old name: green when every shard passed or the path filter
+    # skipped them (a skipped check counts as green in scripts/lane-merge.mjs), red when a shard
+    # failed or was cancelled. !cancelled() so it still runs, and fails, after a red shard.
+    needs: [visual-changes, dashboard-visual-shard]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: dashboard-visual (screenshots)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    steps:
+      - name: Every shard passed, or was skipped by the filter
+        run: |
+          echo "visual-changes: ${{ needs.visual-changes.result }}"
+          echo "shards: ${{ needs.dashboard-visual-shard.result }}"
+          if [ "${{ needs.visual-changes.result }}" != "success" ]; then
+            echo "The path filter did not finish."
+            exit 1
+          fi
+          case "${{ needs.dashboard-visual-shard.result }}" in
+            success|skipped) ;;
+            *) echo "A visual shard failed or was cancelled: see the dashboard-visual-report-N artifacts."; exit 1 ;;
+          esac
+
+  dashboard-e2e-changes:
+    # Decides whether the dashboard browser tests are worth their minutes: only when the dashboard,
+    # shared, the lockfile, the Chromium install script or this workflow changed. Same plain-git
+    # filter as visual-changes (on a pull request the checkout is the merge commit, its first
+    # parent is the base); a push to main and a manual run always run them. The patterns are pinned
+    # by scripts/ci-e2e-filter.test.mjs: the specs import only from the dashboard and shared.
+    runs-on: ubuntu-latest
+    name: dashboard-e2e-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
+
+      - name: The shard list (E2E_SHARDS in scripts/checks.mjs)
+        id: matrix
+        run: |
+          matrix=$(node scripts/checks.mjs --matrix e2e)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+      - name: Did the dashboard, shared or their tooling change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: run the dashboard browser tests."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
+          echo "Changed files against the base:"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(packages/cogm-dashboard/|shared/|docs/(gm|foundry|da/gm)/|scripts/(tsc7|check-links|ci-install-chromium)\.(mjs|sh)$|package\.json$|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the dashboard browser tests depend on changed: skip them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  dashboard-e2e-shard:
+    # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109): the real
+    # server with no bridge, the /api routes faked in the browser. Three parallel shards
+    # (--shard=i/3; fullyParallel splits the tests evenly by count). The summary job below is the
+    # single check people look at; the gate judges every check, shards included.
+    needs: dashboard-e2e-changes
+    if: needs.dashboard-e2e-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    name: dashboard-e2e shard ${{ matrix.shard }}/3${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 20
+    strategy:
+      # Every shard reports, so one red shard does not hide another's failures.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.dashboard-e2e-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # HUSKY=0: the git hook setup of the root `prepare` script is not needed here.
+        run: npm ci
+        env:
+          HUSKY: '0'
+
+      - name: Build the dashboard
+        run: |
+          npm run build:shared
+          npm run build -w @gnuminator/cogm-dashboard
+
+      - name: Cache Playwright's browser download
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium for the dashboard browser tests
+        # Retries the apt/browser install on a runner DNS blip; see the script.
+        timeout-minutes: 35
+        run: bash scripts/ci-install-chromium.sh
+
+      - name: Dashboard browser tests (React dashboard)
+        run: npm run test:e2e -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/3
+
+      - name: Keep the browser test report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dashboard-playwright-report-${{ matrix.shard }}
+          path: |
+            packages/cogm-dashboard/playwright-report
+            packages/cogm-dashboard/test-results
+          retention-days: 14
+
+  dashboard-e2e:
+    # One summary check: green when every shard passed or the path filter skipped them (a skipped
+    # check counts as green in scripts/lane-merge.mjs), red when a shard failed or was cancelled.
+    # !cancelled() so it still runs, and fails, after a red shard. Same shape as dashboard-visual.
+    needs: [dashboard-e2e-changes, dashboard-e2e-shard]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: dashboard-e2e (browser tests)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Every shard passed, or was skipped by the filter
+        run: |
+          echo "dashboard-e2e-changes: ${{ needs.dashboard-e2e-changes.result }}"
+          echo "shards: ${{ needs.dashboard-e2e-shard.result }}"
+          if [ "${{ needs.dashboard-e2e-changes.result }}" != "success" ]; then
+            echo "The path filter did not finish."
+            exit 1
+          fi
+          case "${{ needs.dashboard-e2e-shard.result }}" in
+            success|skipped) ;;
+            *) echo "A browser test shard failed or was cancelled: see the dashboard-playwright-report-N artifacts."; exit 1 ;;
+          esac
 
   python-tests:
     # The Python tools under tools/ (narration, session notes, session pipeline, transcriber), D-109.
@@ -409,12 +408,12 @@ jobs:
     # for claude -p. Every tools/<name>/ with a pyproject.toml and a tests/ folder runs, so a new
     # tool is picked up without editing this job.
     runs-on: ubuntu-latest
-    name: python-tests (Python 3.12)
+    name: python-tests (Python 3.12)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -445,12 +444,15 @@ jobs:
   build-test-arm:
     # The Orange Pi is ARM (aarch64) and runs Node 24: the same steps on an ARM runner
     # catch native-module or architecture problems before the tool moves there.
+    # The Pi container tests are the pi-container matrix; the job build-test-arm-summary at the end
+    # of this file reports the required check `build-test (ARM, Node 24)` for both.
     runs-on: ubuntu-24.04-arm
-    name: build-test (ARM, Node 24)
+    name: build-test-arm (steps)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -458,94 +460,137 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + lint ratchet)
-        # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. Every lint rule is an
-        # error now (D-109), so the lint ratchet fails on any finding; the baseline
-        # scripts/lint-baseline.json stays at 0.
-        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
+      # The ARM checks are the named group `arm` of scripts/checks.mjs (NAMED_GROUPS): usage
+      # catalogue (stays on purpose, a few seconds, guards the generated file the build imports),
+      # build, the unit tests of the five packages, the Pi cut-over guard in an ARM64 container, the
+      # three smoke tests and the manifest check.
+      # The Pi container tests (Debian 13 ARM64, scripts/pi/container-test/*-scenarios.sh) are the
+      # `pi-container` matrix job below, not steps here.
+      - name: ARM checks
+        run: node scripts/checks.mjs --run arm
 
-      - name: Usage catalogue is current
-        # shared/src/usage-catalog.generated.ts lists every control that reports usage
-        # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
-        run: npm run usage:catalog:check
+  pi-changes:
+    # Decides whether the Pi container tests are worth their minutes: only when something they mount
+    # or read changed. Same plain-git filter as visual-changes (on a pull request the checkout is the
+    # merge commit, its first parent is the base). A push to main and a manual run always run them.
+    # The patterns are pinned by scripts/pi/ci-pi-filter.test.mjs: every path the container tests
+    # mount or read must match one, so a new input cannot slip past the filter.
+    runs-on: ubuntu-latest
+    name: pi-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
 
-      - name: Docs lint and internal links
-        # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
-        # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
-        # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
-        run: npm run docs:lint && npm run docs:links
+      - name: The matrix of Pi container tests (PI_CONTAINER_MATRIX in scripts/checks.mjs)
+        id: matrix
+        run: |
+          matrix=$(node scripts/checks.mjs --matrix pi)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
-      - name: Build (all workspaces)
-        run: npm run build
+      - name: Did a Pi input change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: run the Pi container tests."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
+          echo "Changed files against the base:"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|scripts/checks\.mjs$|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the Pi container tests depend on changed: skip them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Unit tests (shared)
-        # Parity + frozen-wire-contract guard for the @gnuminator/shared package.
-        run: npm test -w @gnuminator/shared
+  pi-container:
+    # One shard per container test (scripts/pi/*.test.mjs with its PI_*_CONTAINER switch, which runs
+    # scripts/pi/container-test/*-scenarios.sh in Debian 13 ARM64 with stand-ins for systemd). They
+    # run in parallel and only when pi-changes says so. A new scenario is one line in the matrix; the
+    # `build-test (ARM, Node 24)` summary below goes red when any shard fails or is cancelled.
+    needs: pi-changes
+    if: needs.pi-changes.outputs.run == 'true'
+    runs-on: ubuntu-24.04-arm
+    name: pi-container (${{ matrix.name }})${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.pi-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Unit tests (foundry module)
-        # Scoped to the module suite by workspace name (npm scope is @gnuminator/*).
-        run: npm test -w @gnuminator/foundry-module
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
 
-      - name: Unit tests (mcp-server)
-        # Tool-layer + lock suites. vitest auto-runs once in CI (non-TTY).
-        run: npm test -w @gnuminator/mcp-server
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Unit tests (cogm-dashboard)
-        # Player/GM split: auth role-resolution + server-side redaction.
-        run: npm test -w @gnuminator/cogm-dashboard
+      - name: ${{ matrix.name }} in an ARM64 container
+        run: ${{ matrix.env }}=1 node --test scripts/pi/${{ matrix.test }}
 
-      - name: Unit tests (discord-bot)
-        # Recorder file format, Ogg writer and the silence-padding timeline.
-        run: npm test -w @gnuminator/discord-bot
+  build-test-arm-summary:
+    # The required check keeps its old name, `build-test (ARM, Node 24)` (the ruleset names it):
+    # green when the ARM steps passed and every Pi container shard passed or was skipped by the
+    # filter, red when either failed or was cancelled. !cancelled() so it still runs, and fails,
+    # after a red job. Same shape as dashboard-visual.
+    needs: [build-test-arm, pi-changes, pi-container]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: build-test (ARM, Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: The ARM steps passed, and so did every Pi container shard (or the filter skipped them)
+        run: |
+          echo "build-test-arm: ${{ needs.build-test-arm.result }}"
+          echo "pi-changes: ${{ needs.pi-changes.result }}"
+          echo "pi-container: ${{ needs.pi-container.result }}"
+          if [ "${{ needs.build-test-arm.result }}" != "success" ]; then
+            echo "The ARM build and tests did not pass."
+            exit 1
+          fi
+          if [ "${{ needs.pi-changes.result }}" != "success" ]; then
+            echo "The Pi path filter did not finish."
+            exit 1
+          fi
+          case "${{ needs.pi-container.result }}" in
+            success|skipped) ;;
+            *) echo "A Pi container shard failed or was cancelled: see the pi-container jobs."; exit 1 ;;
+          esac
 
-      - name: Pi stage 13 in an ARM64 container
-        # scripts/pi/container-test/stage13-scenarios.sh: stage 13 on Debian 13 ARM64 with stand-ins for systemd
-        # (the downgrade guard, an unreadable /api/status, services that were off, a failed GM browser start).
+  ci-all-green:
+    # One check for the merge queue: the queue merges when the REQUIRED checks pass, and only three
+    # of ci.yml's checks are required, so this one stands for all of them. Green when every job above
+    # succeeded or was skipped by its filter; red when any failed or was cancelled. The ruleset
+    # requires it together with the merge queue, and the merge gate refuses to enqueue without it.
+    needs:
+      - build-test
+      - studio-pin
+      - dashboard-visual
+      - dashboard-e2e
+      - python-tests
+      - build-test-arm-summary
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: ci-all-green${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Every CI job passed or was skipped by its filter
         env:
-          PI_STAGE13_CONTAINER: 1
-        run: node --test scripts/pi/player-creation.test.mjs
-
-      - name: Pi kit session in an ARM64 container
-        # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins
-        # for systemd (the refusals, a failed driver putting everything back, a second run).
-        env:
-          PI_KIT_SESSION_CONTAINER: 1
-        run: node --test scripts/pi/kit-session.test.mjs
-
-      - name: Pi stage 11 in an ARM64 container
-        # scripts/pi/container-test/stage11-scenarios.sh: stage 11 on Debian 13 ARM64 with stand-ins for systemd
-        # and the Assistant GM (the training world with an extra GM, a rerun, the refusals before anything stops).
-        env:
-          PI_STAGE11_CONTAINER: 1
-        run: node --test scripts/pi/stage11-world.test.mjs
-
-      - name: Pi stage 15 in an ARM64 container
-        # scripts/pi/container-test/ssh-keys-only-scenarios.sh: stage 15 on Debian 13 ARM64 with the real OpenSSH server (sshd -t,
-        # sshd -T) and stand-ins for systemd (the drop-in, every refusal and rollback, the reload and the safety timer).
-        env:
-          PI_SSH_KEYS_ONLY_CONTAINER: 1
-        run: node --test scripts/pi/ssh-keys-only.test.mjs
-
-      - name: Pi stage 16 in an ARM64 container
-        # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic
-        # (every token file refusal, the install and first report, a rerun, a board that answers 403).
-        env:
-          PI_STAGE16_CONTAINER: 1
-        run: node --test scripts/pi/board-status.test.mjs
-
-      - name: MCP schema smoke test
-        run: node scripts/mcp-schema-smoke-test.mjs
-
-      - name: Standalone bridge smoke test
-        # Spawns the standalone entrypoint in control-only mode on a free port
-        # (never 31414/31415/31416) and asserts ping + list_tools over the wire.
-        run: node scripts/standalone-smoke-test.mjs
-
-      - name: Player/GM split smoke test
-        # Runs the dashboard against a mock bridge and asserts server-side
-        # redaction (GM vs player) + the write-surface auth gate over HTTP.
-        run: node scripts/cogm-split-smoke-test.mjs
-
-      - name: Validate Foundry module manifest
-        run: node scripts/validate-manifest.js
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "A CI job did not pass ($r): see the jobs above."; exit 1 ;;
+            esac
+          done

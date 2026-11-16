@@ -7,7 +7,7 @@ import { Button } from '../ui';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './AdvancedMenu';
 
-// The Advanced ▾ menu of the header: a non-modal Radix dropdown whose entries are the old page's
+// The Advanced ▾ menu of the header: a non-modal Radix dropdown whose entries are
 // buttons. The play step opens it, as a click would.
 const meta = {
   title: 'Components/AdvancedMenu',
@@ -47,6 +47,16 @@ export const Closed: Story = {};
 
 export const Open: Story = {
   play: async ({ canvasElement }) => {
+    // The menu is a lazy chunk with a stand-in button until it arrives, and a click that lands as
+    // the two swap is lost: wait for the real button, as the e2e fromMenu helper does.
+    await waitFor(
+      () =>
+        expect(within(canvasElement).getByRole('button', { name: /Advanced/ })).toHaveAttribute(
+          'aria-haspopup',
+          'menu'
+        ),
+      { timeout: 10_000 }
+    );
     await userEvent.click(within(canvasElement).getByRole('button', { name: /Advanced/ }));
     await waitFor(() => expect(within(document.body).getByRole('menu')).toBeVisible());
   },

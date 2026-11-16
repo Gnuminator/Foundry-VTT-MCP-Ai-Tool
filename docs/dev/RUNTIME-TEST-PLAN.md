@@ -57,8 +57,8 @@ Reads are mostly done; finish the skips and systematically exercise writes on
 fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 
 - [ ] **Reads — finish the 4 skipped**: `get-character-entity` (entityIdentifier from a real item), `get-compendium-item` + `get-compendium-entry-full` (packId/itemId), `search-journals` (a query).
-- [ ] **Characters/items**: `get-character` (full name, partial — after fix, id, ambiguous), `search-character-items` (query/type/category combos), `use-item`, `manage-world-items`, `create-world-items`/`list`/`update`.
-- [ ] **Actor creation**: `create-actor-from-compendium` (1 + quantity + addToScene), `get-compendium-entry-full`, `add-actors-to-scene` — on a **test scene**.
+- [ ] **Characters/items**: `get-character` (full name, partial — after fix, id, ambiguous), `search-character-items` (query/type/category combos), `use-item`, `manage-world-items` (create, list, update).
+- [ ] **Actor creation**: `create-actor-from-compendium` (1 + quantity + addToScene), `get-compendium-entry-full`, on a **test scene**.
 - [ ] **dnd5e authoring**: `dnd5e-create-npc`, `dnd5e-add-feature`, `dnd5e-add-features-from-compendium`, attack/aura/passive/save-feature, spellcasting, add-spells — on a **throwaway test actor**, then delete it.
 - [ ] **Token manipulation**: `plan-token-change` move and update (apply, then undo), `get-token-details`, `plan-actor-change` condition (apply, then undo: **verify fix A: no dup events**), `plan-token-change` delete (test token only; undo restores its combatant).
 - [ ] **Combat tracker**: `get-combat-state`, `advance-combat-turn`, `set-initiative`, `roll-initiative-for-npcs` — in a test encounter.
@@ -90,42 +90,32 @@ Spot-check that tool output matches what Foundry shows:
 
 ## 5. Dashboard UI review
 
-> Legacy page: the Commentary, Ask and Settings lines below, and the `public/styles.css`
-> breakpoints, describe the old dashboard at `/legacy/`. The page at `/` is the React dashboard
-> (`packages/cogm-dashboard/web`); it has no commentary, Ask box, pause, tone or model.
+> The page at `/` is the React dashboard (`packages/cogm-dashboard/web`). It has no AI commentary,
+> Ask box, pause, tone or model.
 
-**GM view (`/legacy/`; the Live feed, Combat, Tool Runner and SSE lines also apply to `/`):**
+**GM view (`/`):**
 
-- [ ] Live feed: events render correctly, in order, **no duplicates** (fix A), buffer cap respected.
-- [ ] Combat panel: initiative/turn/HP track the game. `/legacy/` only: quick-actions (roll-init) work when GM Actions on. At `/` the strip has Damage / Heal, Condition and Clear (GM Actions and Combat buttons on).
-- [ ] Commentary: auto-comments trigger on event bursts, respect min-interval + debounce + pause; tone/model switches apply.
-- [ ] Ask: question → streamed answer; latest-wins preempt; "Post to chat" works; (fix C: can it see character data?).
+- [ ] Live Feed: events render correctly, in order, **no duplicates** (fix A), buffer cap respected.
+- [ ] Combat panel: initiative/turn/HP track the game. The strip has Damage / Heal, Condition and Clear (GM Actions on).
 - [ ] Tool Runner: search, schema-driven forms, read vs write vs destructive gating, confirm + destructive double-confirm, results in drawer, error display.
-- [ ] Settings: pause, tone, model, diagnostics toggle, GM Actions master switch — all persist + broadcast.
+- [ ] Settings: diagnostics, GM Actions master switch — persist + broadcast.
 - [ ] SSE: stream survives reconnect; status/world/combat/events/errors snapshots on connect.
-- [ ] Error states: bridge down → "offline" banner; AI disabled (no key) → ask returns a clean message; tool error → readable toast.
+- [ ] Error states: bridge down → "Connection lost, reconnecting…" mark; tool error → readable toast.
 
 **Responsiveness / layout:**
 
-- [ ] Narrow widths (the live game showed a 525px Foundry window) — does the dashboard degrade gracefully? Review breakpoints in `public/styles.css`.
+- [ ] Narrow widths (the live game showed a 525px Foundry window) — does the dashboard degrade gracefully? Review the breakpoints in `packages/cogm-dashboard/web/src`.
 - [ ] Player view layout on tablet/phone widths.
 - [ ] Visual polish: spacing, contrast, truncation, long names (705-actor world has long names), empty states.
 
-## 6. AI commentary behavior (legacy page only)
-
-- [ ] Commentary is useful + grounded in the snapshot (no hallucinated state).
-- [ ] Ask answers are accurate; when it lacks data it says so (today it can't see inventory — fix C).
-- [ ] Error commentary on new module errors is sensible + rate-limited.
-- [ ] Token usage / cache behavior is reasonable (watch "cache hit/miss · N out").
-
-## 7. Performance & scale
+## 6. Performance & scale
 
 - [ ] Large world (705 actors, 160 scenes): `list-characters`/`list-scenes` latency + payload size; consider a `type=character` filter default for the dashboard.
 - [ ] Polling load: the dashboard's combined event/combat/error polls vs backend contention; tune intervals.
 - [ ] Event/error/chat buffer caps hold under a long session; no memory growth.
 - [ ] No per-poll world-info storm.
 
-## 8. Regression after the queued fixes
+## 7. Regression after the queued fixes
 
 Re-run the relevant slice after each fix lands + the module is rebuilt/reinstalled:
 

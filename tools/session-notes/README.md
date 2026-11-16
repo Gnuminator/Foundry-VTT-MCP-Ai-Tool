@@ -44,12 +44,45 @@ again later; finished scenes are kept in `notes/.work/` and are not redone.
 writes notes where they are missing and publishes finished notes to the bridge (below). It never
 deletes audio (D-097). It does nothing when nothing is due, never runs twice at once (a lock
 file), and logs to `<sessions>\auto.log`. Try it with `pwsh tools/session-notes/auto.ps1 -DryRun`.
+When a pass cannot do its job it also posts one short line to the GM bot channel (`DISCORD_GM_BOT_CHANNEL_ID`,
+else `GAMENIGHT_WATCH_CHANNEL_ID`, in `discord-bot.env`) through `announce.mjs gm-bot`: the notes run paused
+(usage limit, or Claude logged out), a session skipped for missing recording consent, a failed transcription, notes run or publish, and notes
+published with raw-text scenes. The line names the session folder and the event, never what was said. Each event
+is posted once (a paused or failed step once per day), tracked in `<sessions>\.notes-tells.json`; a post that fails
+is only logged and tried again on the next pass. `-DryRun` prints what it would post.
 With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
 (normally `foundry-pi`): the pass first runs `pull.ps1`, which copies finished recordings from the
 Pi over SSH, checks every file's SHA-256 and marks them pulled there (the Pi deletes them 7 days
 later; see the bot's README). Set `MCP_CONTROL_HOST` to the Pi's Tailscale name so `publish`
-reaches the bridge there. A scheduled task in the Claude desktop app runs it
-every hour while the PC is on, so the notes are ready the morning after a session with no clicks.
+reaches the bridge there. A Windows scheduled task runs it every hour and at logon, so the notes are ready by the Monday
+after a game night with no clicks (a pass cut short by the usage limit continues the next hour; a
+pass missed while the PC was off starts when it is back). Register it once, on the PC that records:
+`pwsh tools/session-notes/register-auto.ps1` (`-WhatIf` shows it, `-Remove` takes it away). The task
+sees the user environment, not a shell profile: `python`, `claude` and `pwsh` on the user PATH,
+`FVTT_SESSIONS_DIR` and the other variables as user environment variables, Docker running for the
+transcription. Its output goes to `<sessions>\auto-task.log`.
+
+### Consent comes first (D-097)
+
+Nothing is transcribed, written or published for a session unless **every speaker in
+`raw/session.json` has a recorded yes** in `<sessions>\consent.json` (kept on the PC, never in the
+repo; keyed by Discord user id). Record each reply under the consent message:
+
+```bash
+python -m session_notes consent set <discord user id> yes --name Ann
+python -m session_notes consent list
+python -m session_notes consent check <session>   # exit 77 and the reason when blocked
+```
+
+`consent check` prints the id of every speaker still missing. A "no" passes only once that
+speaker's audio track is deleted from the session folder (by hand; this tool never deletes audio).
+A recorded answer covers every session, past and future, until it is changed: a later "no" also
+blocks sessions whose notes are written but not yet approved (it does not retract what was already
+published). A folder without `raw/session.json` (an import, an old test folder) cannot be checked
+and stays blocked until it has one with a `tracks` list. Before the first pass on a real sessions
+folder, run `pwsh tools/session-notes/auto.ps1 -DryRun` and move test recordings aside: every
+folder whose speakers all have a yes is processed. A blocked session shows as "waiting" with the reason in `notes/status.json`, so the After view says
+why nothing happened.
 
 ## What it writes
 
@@ -63,6 +96,28 @@ In `<session>/notes/`, for `da` and `en` each:
 | `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                    |
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
+
+### The three Danish layers (I-066)
+
+With `--layers`, a run also writes, in Danish only:
+
+| File            | Layer    | What                                                                                                                                                     |
+| --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw.da.md`     | raw      | the recogniser's text exactly as it came, by scene and time, words it was unsure about as `[ord?]`; no Claude call (word times stay in `timeline.jsonl`) |
+| `depth.da.md`   | in-depth | per scene a detailed account in beats (who said and did what, rulings, names, numbers said aloud), each beat linked to transcript lines; GM only         |
+| `summary.da.md` | summary  | the existing summary                                                                                                                                     |
+| `index.da.md`   |          | links the three layers, with the cleaned transcript and scene notes between them                                                                         |
+
+The in-depth layer is one more Claude call per scene (`--depth-model`, `--depth-effort`, default
+Sonnet at medium), checked (at least one beat, citations of real lines only, not too thin for a
+long scene) and cached per scene in `notes/.work/depth-NNN.json`, so a usage limit only pauses.
+Until every scene has its in-depth notes the run exits 76 (75 when paused) and `depth.da.md` says
+so at the top; `notes.json` gets `layers.depth_complete`. `auto.ps1` runs with `--layers` (the
+user's OK 2026-11-14) and counts a session as done only when `layers.depth_complete` is true (notes
+written before the layers existed have no `layers` part and stay done), so a pass cut short by the
+usage limit finishes the in-depth notes on the next hourly pass. A scene whose in-depth notes fail
+the checks on three runs at least 30 minutes apart is accepted without them (`depth.da.md` says
+so); to try it again, delete `notes/.work/depth-NNN.json` and `depth-NNN.fail.json`.
 
 ## Into Foundry (D-087)
 

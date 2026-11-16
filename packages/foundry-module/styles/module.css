@@ -53,10 +53,10 @@
 
 .mcp-bridge-status.connecting .mcp-bridge-status-indicator {
   background-color: #ff8c00;
-  animation: pulse 1.5s ease-in-out infinite;
+  animation: mcp-bridge-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse {
+@keyframes mcp-bridge-pulse {
   0% {
     opacity: 1;
   }
@@ -331,22 +331,13 @@
   line-height: 1.4;
 }
 
-/* Form Footer */
-.form-footer {
+/* Form Footer of our Enhanced Creature Index window only; never Foundry's own form footers. */
+.eci-settings .form-footer {
   display: flex;
   justify-content: flex-end;
   padding-top: 1rem;
   border-top: 1px solid var(--color-border-dark, #444);
   margin-top: 1.5rem;
-}
-
-/* Dynamic visibility for service type fields */
-[data-service-type] {
-  display: block;
-}
-
-[data-service-type].hidden {
-  display: none;
 }
 /* Changes window (I-108, I-109). Colours come from Foundry's theme variables or from
    currentColor, so the window reads the same in the dark and the light theme. */
@@ -674,4 +665,142 @@
   display: block;
   height: 100%;
   background: var(--color-level-success, #2e9d4a);
+}
+
+/* Party window: the quick roll bar and the results of the last ask. */
+.fmb-gm-rollbar,
+.fmb-gm-round {
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.fmb-gm-roll-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.fmb-gm-roll-fields input[type='text'] {
+  width: 3rem;
+  text-align: center;
+}
+
+.fmb-gm-roll-public {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.fmb-gm-ask-all {
+  width: 100%;
+}
+
+.fmb-gm-roll-off {
+  margin: 0.35rem 0 0;
+}
+
+.fmb-gm-round-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.fmb-gm-round-head .fmb-ai-btn {
+  margin-left: auto;
+}
+
+.fmb-gm-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.fmb-gm-result.fmb-gm-pass span {
+  color: var(--color-level-success, #2e9d4a);
+}
+
+.fmb-gm-result.fmb-gm-fail span {
+  color: var(--color-level-error, #ce0707);
+}
+
+.fmb-gm-result.fmb-ai-error span {
+  color: var(--color-level-error, #ce0707);
+}
+
+.fmb-gm-ask {
+  align-self: center;
+}
+
+/* Live screen B: the dashboard live strip in a frame, and the pin that opens it. */
+.fmb-live-window .window-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.fmb-live-window .fmb-live-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.fmb-live-window .fmb-live-note {
+  margin: 0.75rem;
+}
+
+.fmb-live-pin {
+  position: fixed;
+  right: 0;
+  top: 40%;
+  z-index: 60;
+  width: 1.75rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: 6px 0 0 6px;
+  cursor: pointer;
+}
+
+/* The Live window explains a frame that stays blank. */
+.fmb-live-window .window-content {
+  position: relative;
+}
+
+.fmb-live-window .fmb-live-why {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  background: var(--color-cool-5, #222);
+  color: var(--color-light-1, #eee);
+}
+
+.fmb-live-window .fmb-live-why[hidden] {
+  display: none;
+}
+
+.fmb-live-window .fmb-live-why p {
+  margin: 0 0 0.5rem;
+}
+
+/* Roll request chat card: Foundry's own colours, so it follows the theme. */
+.mcp-roll-request {
+  margin: 8px 0;
+  padding: 10px 12px;
+  /* Tints of the inherited text colour, so it reads on a light or a dark chat. */
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  color: inherit;
+}
+.mcp-roll-request p {
+  margin: 0 0 4px 0;
+}
+.mcp-roll-request .mcp-roll-actions {
+  text-align: center;
+  margin-top: 8px;
 }

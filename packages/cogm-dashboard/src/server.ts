@@ -2,21 +2,18 @@ import { config } from './config.js';
 import { Logger } from './logger.js';
 import { McpControlClient } from './feed/mcp-control-client.js';
 import { PollingGameFeed } from './feed/polling-feed.js';
-import { CoGm } from './ai/anthropic-co-gm.js';
 import { bindRefusal } from './bind-policy.js';
 import { createDashboard } from './app.js';
 
 /**
  * Co-GM dashboard server. Pulls the live game feed off the MCP control channel,
- * keeps a bounded view of state, streams AI commentary, and serves the browser
- * dashboard plus its SSE streams. Read-only against the game except for the
- * explicit "post to chat" endpoint and the confirmed GM Actions. The app itself
- * (routes, state, player projection) lives in `app.ts`; this file wires the
- * real control client, feed and listener.
+ * keeps a bounded view of state, and serves the browser dashboard plus its SSE
+ * streams. Read-only against the game except for the confirmed GM Actions. The
+ * app itself (routes, state, player projection) lives in `app.ts`; this file
+ * wires the real control client, feed and listener.
  */
 
 const logger = new Logger(config.logLevel, 'cogm');
-const coGm = new CoGm(config.anthropicApiKey, logger);
 const client = new McpControlClient({
   host: config.mcpHost,
   port: config.mcpPort,
@@ -27,7 +24,7 @@ const client = new McpControlClient({
   stalenessThresholdMs: config.controlStalenessThresholdMs,
 });
 
-const dashboard = createDashboard({ config, logger, client, coGm });
+const dashboard = createDashboard({ config, logger, client });
 
 const feed = new PollingGameFeed(client, dashboard.handlers, {
   pollIntervalMs: config.pollIntervalMs,
@@ -44,14 +41,18 @@ if (refusal) {
   process.exit(1);
 }
 
+dashboard.onFeed({ pollNow: () => feed.pollNow(), resync: () => feed.resync() });
 feed.start();
 dashboard.start();
 
-const server = dashboard.app.listen(config.port, config.host, () => {
+const server = dashboard.app.listen(config.port, config.host, (error?: Error) => {
+  // Express 5 hands a failed listen (a taken port) to this callback instead of throwing.
+  if (error) {
+    logger.error(`Dashboard could not listen on ${config.host}:${config.port}: ${error.message}`);
+    process.exit(1);
+  }
   logger.info(`Dashboard listening on http://${config.host}:${config.port}`, {
     mcp: `${config.mcpHost}:${config.mcpPort}`,
-    model: config.anthropicModel,
-    aiEnabled: coGm.enabled,
     playerGmSplit: config.auth.splitEnabled
       ? 'enabled (GM auth required; /player is read-only)'
       : 'disabled (single-user GM)',

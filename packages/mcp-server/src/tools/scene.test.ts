@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SceneTools } from './scene.js';
 
 /**
- * Tests for SceneTools — a thin, deterministic layer over FoundryClient.query.
+ * Tests for SceneTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures (always throw) → transform / shape the result.
  *
@@ -13,7 +13,7 @@ import { SceneTools } from './scene.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: SceneTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

@@ -7,38 +7,63 @@ description: What players see, what the tool records during play, which parts re
 
 Hi! Your GM uses Foundry AI Tool next to Foundry. For you, Foundry works exactly as usual. This
 page explains the extra bits: what you can see, what gets recorded, and what an AI reads. Short
-how-tos are in the [player cookbook](cookbook.md).
+how-tos are in [Using the player page](player-page.md). The player page and My character are
+optional extras next to Foundry, never a replacement.
 
 New to the table? Start with [Join the game](join.md) (the address, logging in, Discord), then
-[Make your character](make-a-character.md).
+[Make your character](make-a-character.md). Want an AI helper for your own character and the
+rules? See [The D&D helper for players](dnd-helper.md), and its ready-made requests in the
+[D&D helper cookbook](cookbook.md).
 
 ## What you see
 
 **The player page.** A read-only web page. It is live on the table's home server, behind the same
 kind of email-code login as the game (Cloudflare Access), so only addresses on the GM's list get
-in. The GM sends you its address. It has three parts:
+in. The GM sends you its address. During a session it shows the fight first; between sessions it
+leads with the last recap, the handouts and the quests. The header names the scene, with its time of
+day and weather when the scene has them. It has these parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
-  bar. Monsters and NPCs show no HP numbers, only standard conditions (like prone or frightened),
+  bar. Monsters and NPCs show no HP numbers and no health word (the person who runs the tool can switch a rough
+  one on: healthy, bloodied, critical or down), only standard conditions (like prone or frightened),
   and appear under the name you know them by, or as "Unknown creature".
-- **Session feed:** public rolls and what your characters could see happen, for example "Mira
+- **Live Feed:** public rolls and what your characters could see happen, for example "Mira
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither
   does anything about a creature whose name you cannot see.
-- **Handouts:** journal pages the GM revealed to you, such as a letter or a map note.
+- **Handouts:** journal pages the GM revealed to you, such as a letter or a map note. A handout
+  revealed since the session started (or, between sessions, since the last one ended) shows a "New" mark.
+- **Last recap and Quests:** the newest revealed page with "recap" in its title, and revealed
+  pages with "quest" in their title, each in its own box.
+- **You:** if you opened your private link (see My character below), the top of the page says
+  "Your turn" or "You are up next", shows each of your characters with HP and conditions, and
+  reminds you of the Constitution save when your concentrating character takes damage.
+- **Roll buttons (optional extra):** you roll in Foundry as usual, from your character sheet or
+  the chat. If you opened your private link, a roll the GM asks you for also shows as a button on
+  this page (and on My character) as a shortcut. Skip it whenever you like: rolling in Foundry
+  does the same. You only see requests meant for you.
 
 The page is built only from what players are allowed to see. Hidden creatures, true names you have
 not learned, enemy HP, GM notes and secrets never reach it.
 
 **My character.** Your own character sheet on your phone or laptop, read-only, and up to date
-during play. Your GM sends you a private link; open it once and the page remembers it on that
+during play. Gnuminator sends you a private link; open it once and the page remembers it on that
 device (bookmark it or add it to your home screen). Keep the link to yourself: anyone with it can
 read your sheet. It shows only the characters your Foundry user owns. Pick a view at the top:
 **At the table** (HP, AC, slots, conditions and resources at a glance), **Paper 2024** or
-**Paper 2014** (the printed sheet's order, to copy or print). Like the player page, it is live
+**Paper 2014** (the printed sheet's order, to copy or print), or **Paper night** (a sheet to print
+and write on when the table plays on paper). Like the player page, it is live
 behind the email-code login.
 
-**Handouts in Foundry.** When the GM reveals a handout, you can also open that page in Foundry's
+> **Not sure? Ask Claude.** Ask the D&D helper: "What do the numbers on my character sheet mean, and what do I click when it is my turn?" ([how to set up the D&D helper](dnd-helper.md))
+
+**Handouts in Foundry.** When the GM reveals a handout, you get a whisper from "Handout" in
+Foundry's chat with its name; click the name to open the page. You can also open it in Foundry's
 Journal tab.
+
+**Your notes in Obsidian (optional).** If you keep notes in Obsidian, the server can keep a
+read-only folder of your handouts, recaps, character, stats and the session log up to date on your
+computer. Nothing you do there goes back. If you skip it, you install nothing. See
+[Your notes in Obsidian](obsidian.md).
 
 ## What the tool records during play
 
@@ -51,6 +76,7 @@ of whoever caused them, when Foundry says who. It records:
 - conditions and effects;
 - short and long rests;
 - combat: start, turns and end;
+- roll requests (who was asked for what);
 - token moves, scene changes, XP, level and currency;
 - who joined and left the game;
 - chat messages with their text, including in-character, out-of-character and whispers.
@@ -65,9 +91,7 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
   app. Claude then reads what it needs from the game through the tool: character sheets, chat,
   the session log or the play stats. That goes to Anthropic under the GM's Claude account. Nothing
   is sent when nobody asks.
-- **Dashboard commentary, only if an API key is set.** The GM's dashboard can comment on the game
-  by itself, but only with a separate paid API key. Then recent game events and the combat state go
-  to Anthropic automatically. It is off unless the GM turns it on.
+- **The dashboard does not call an AI.** It only shows the game. It sends nothing to Anthropic on its own.
 - **Session recordings, only with your yes, and only when started.** See
   [Recording and your consent](#recording-and-your-consent) below. A session is recorded only when
   someone types `/record start` in Discord. The bot then joins the voice channel and posts a
@@ -86,14 +110,18 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
 ## Recording and your consent
 
 Before the first recorded session, the player who runs the tool posts a message in Discord that
-says exactly what is recorded, and each player replies yes or no in writing. No reply counts as
-no. In short: your own voice track is recorded; it passes through Discord and the Pi (deleted there
-7 days after the PC copies it) and is kept on that player's PC; transcripts and notes go into the
-GM's notes, which also reach the GM's PC; the recordings are kept to train and test the table's own
-speech tools until you ask for yours to be deleted. You can say no: then your track is deleted
-after each session, before anything is turned into text, and the notes are written without you.
-You can also change your mind later: your tracks are deleted and the transcripts and notes written
-again without you.
+says exactly what is recorded, and each player replies yes or no in writing. No reply counts as no.
+
+**If you say yes:** your own voice track is recorded, and only while your microphone sends sound. It
+passes through Discord and the Pi (deleted there 7 days after the PC copies it) and is kept on that
+player's PC. Transcripts and notes go into the GM's notes, which also reach the GM's PC.
+
+**Training:** the recordings are also kept to train and test the table's own
+speech tools, until you ask for yours to be deleted.
+
+**If you say no:** your track is deleted after each session, before anything is turned into text, and
+the notes are written without you. You can change your mind later: your tracks are deleted and the
+transcripts and notes written again without you.
 
 ## How long it is kept
 
@@ -104,7 +132,7 @@ The transcript and the notes stay with the rest of the campaign notes.
 ## Having your data removed
 
 Ask the GM at any time, for example for the chat you wrote or everything recorded under your user
-name. One command removes it from the play log, and the GM then rebuilds the session notes without
-it. For a recorded session, the GM can delete your audio track and have the transcript and notes
+name. The GM passes it on to whoever runs the tool, and one command removes it from the play log;
+the session notes are then rebuilt without it. For a recorded session, the GM can delete your audio track and have the transcript and notes
 written again without it. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
 pulled back by the GM.

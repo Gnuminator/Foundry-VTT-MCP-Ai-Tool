@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  blamedOnBridge,
   consoleCounts,
   consoleErrorId,
   consoleSummaryLines,
@@ -215,4 +216,83 @@ test('keepChatNotificationsQuiet registers a script for every new page document'
     globalThis.setInterval = saved.setInterval;
     globalThis.clearInterval = clearSaved;
   }
+});
+
+test('blamedOnBridge follows the first stack frame that is not our diagnostics wrapper', () => {
+  const diag = 'http://localhost:30001/modules/foundry-mcp-bridge/dist/diagnostics.js:150';
+  const frame = (mod, file) => `    at fn (http://localhost:30001/modules/${mod}/${file}:10:5)`;
+  const wrapped = (...lines) => ({
+    message: ['Error: boom', frame('foundry-mcp-bridge', 'dist/diagnostics.js'), ...lines].join(
+      '\n'
+    ),
+    source: diag,
+  });
+  // The wrapper is the top frame of every console error: another module's frame decides.
+  assert.equal(
+    blamedOnBridge(wrapped(frame('monks-player-settings', 'a.js')), 'foundry-mcp-bridge'),
+    false
+  );
+  assert.equal(
+    blamedOnBridge(wrapped(frame('foundry-mcp-bridge', 'dist/main.js')), 'foundry-mcp-bridge'),
+    true
+  );
+  // A bridge path quoted in the message text is not a frame.
+  assert.equal(
+    blamedOnBridge(
+      { message: 'Failed in /modules/foundry-mcp-bridge/x.js', source: diag },
+      'foundry-mcp-bridge'
+    ),
+    false
+  );
+  // No frame: our log tag, or a source that is ours and not the wrapper.
+  assert.equal(
+    blamedOnBridge({ message: '[foundry-mcp-bridge] oops', source: diag }, 'foundry-mcp-bridge'),
+    true
+  );
+  assert.equal(
+    blamedOnBridge(
+      { message: 'x', source: 'http://h/modules/foundry-mcp-bridge/dist/main.js:3' },
+      'foundry-mcp-bridge'
+    ),
+    true
+  );
+  assert.equal(blamedOnBridge({ message: 'x', source: 'pageerror' }, 'foundry-mcp-bridge'), false);
+  // Our tag wins over a foreign top frame of the error it carries.
+  assert.equal(
+    blamedOnBridge(
+      {
+        message: ['[foundry-mcp-bridge] failed Error: x', frame('foundry', 'core.js')].join('\n'),
+        source: diag,
+      },
+      'foundry-mcp-bridge'
+    ),
+    true
+  );
+  // A frame without a function name (anonymous code) is still a frame.
+  assert.equal(
+    blamedOnBridge(
+      {
+        message: [
+          'Error: x',
+          '    at http://localhost:30001/modules/foundry/core.js:1:2',
+          frame('foundry-mcp-bridge', 'dist/main.js'),
+        ].join('\n'),
+        source: diag,
+      },
+      'foundry-mcp-bridge'
+    ),
+    false
+  );
+  // An untagged string through the wrapper, and prose that starts with "at ", are not ours.
+  assert.equal(
+    blamedOnBridge({ message: 'Error in a handler', source: diag }, 'foundry-mcp-bridge'),
+    false
+  );
+  assert.equal(
+    blamedOnBridge(
+      { message: 'at least 3 retries failed, see /modules/foundry-mcp-bridge/x', source: diag },
+      'foundry-mcp-bridge'
+    ),
+    false
+  );
 });

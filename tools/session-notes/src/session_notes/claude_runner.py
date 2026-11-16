@@ -22,12 +22,22 @@ SYSTEM_PROMPT = (
 _LIMIT = re.compile(r"usage limit|rate limit|limit reached|limit will reset|overloaded|429", re.I)
 
 
+_AUTH = re.compile(
+    r"failed to authenticate|oauth session expired|not logged in|please run /login", re.I
+)
+LOGIN_HINT = "Claude is not logged in on this PC (open a terminal, run claude, then /login)"
+
+
 class ClaudeError(RuntimeError):
     """The call failed; retrying the same input may or may not help."""
 
 
 class UsageLimitError(ClaudeError):
     """The subscription limit is reached: stop now and resume later."""
+
+
+class AuthError(UsageLimitError):
+    """The claude CLI is not logged in: every scene would fail the same way, so stop like a limit."""
 
 
 class Runner(Protocol):
@@ -74,6 +84,14 @@ class ClaudeCli:
             "--no-session-persistence",
             "--system-prompt",
             SYSTEM_PROMPT,
+            # A plain text job: without these the call loads the user's connectors, skills and
+            # settings, about 180k tokens of context per call (measured 2026-10-28: 543 without).
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            "--disable-slash-commands",
+            "--setting-sources",
+            "",
         ]
         try:
             proc = subprocess.run(
@@ -93,11 +111,15 @@ class ClaudeCli:
             data = json.loads(stdout)
         except json.JSONDecodeError:
             text = (stderr or stdout).strip()[:500]
+            if _AUTH.search(text):
+                raise AuthError(f"{LOGIN_HINT}: {text}") from None
             if _LIMIT.search(text):
                 raise UsageLimitError(text) from None
             raise ClaudeError(f"claude -p exit {code}: {text}") from None
         if data.get("is_error") or data.get("subtype") != "success":
             text = str(data.get("result") or data.get("subtype") or "unknown error")[:500]
+            if _AUTH.search(text):
+                raise AuthError(f"{LOGIN_HINT}: {text}")
             if _LIMIT.search(text) or data.get("api_error_status") == 429:
                 raise UsageLimitError(text)
             raise ClaudeError(text)

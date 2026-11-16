@@ -15,7 +15,7 @@
 #  Secrets:
 #    The .env file approach is shown here for clarity. In a real deployment,
 #    prefer Docker Secrets (secrets: block) or a secrets manager so plaintext
-#    API keys do not sit on disk. The key must NEVER be baked into the image.
+#    API keys do not sit on disk. No secret may be baked into the image.
 #
 #  See deploy/README.md for an index of all templates in this folder.
 # =============================================================================
@@ -65,7 +65,6 @@ services:
       DASHBOARD_HOST: "0.0.0.0"
 
       # !! Runtime secrets — do NOT hardcode here; pass via .env or Docker Secrets !!
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
       GM_DASHBOARD_TOKEN: "${GM_DASHBOARD_TOKEN}"
       PLAYER_DASHBOARD_TOKEN: "${PLAYER_DASHBOARD_TOKEN}"
       GM_EMAILS: "${GM_EMAILS}"
@@ -134,7 +133,6 @@ services:
 #
 # Create a file named `.env` next to this compose file and populate:
 #
-#   ANTHROPIC_API_KEY=sk-ant-...
 #   GM_DASHBOARD_TOKEN=<openssl rand -hex 32>
 #   PLAYER_DASHBOARD_TOKEN=<openssl rand -hex 32>
 #   GM_EMAILS=you@example.com,cogm@example.com

@@ -169,7 +169,9 @@ export function renderSessionNote(
   group: SessionGroupInput,
   stats: SessionStats,
   /** Links to this day's recorded session notes in Foundry (D-087), as list lines. */
-  sessionNotes: readonly string[] = []
+  sessionNotes: readonly string[] = [],
+  /** Which Changes/ note (file name without .md) holds a change, when a month is split into parts. */
+  changeNotes: ReadonlyMap<string, string> = new Map()
 ): string {
   const sorted = [...group.events].sort((a, b) => eventTimeMs(a) - eventTimeMs(b));
   const types = [...new Set(sorted.map(e => e.eventType ?? 'event'))].sort();
@@ -241,7 +243,7 @@ export function renderSessionNote(
     return `| ${cell(shortTime(time).slice(11))} | ${cell(e.eventType)} | ${cell(e.actorName)} | ${cell(`${what}${change}`)} |`;
   });
   const changeLinks = uniqueChangeIds.map(
-    id => `- [${id}](../Changes/${changeMonths.get(id) ?? ''}.md#^${id})`
+    id => `- [${id}](../Changes/${changeNotes.get(id) ?? changeMonths.get(id) ?? ''}.md#^${id})`
   );
 
   return withGeneratedHash(
@@ -353,9 +355,44 @@ function renderSessionStatsSection(stats: SessionStats): string[] {
 
 export type { ChangeEntry };
 
-/** One note per month of applied and undone guarded changes, newest first;
- * each change block ends with a `^<changeId>` block id line. */
-export function renderChangesNote(worldId: string, month: string, entries: ChangeEntry[]): string {
+/** The most changes one Changes/ note holds. A month with more rolls over to `<month>-p2.md`,
+ * `-p3`, ...: the oldest changes stay in `<month>.md`, so a note's content and name never move once
+ * it is full. A single 2.9 MB note of 6,864 changes made Obsidian run out of memory. */
+export const CHANGES_NOTE_MAX_ENTRIES = 400;
+/** The most diff lines one change shows in the note; the rest is counted. */
+export const CHANGES_NOTE_MAX_DIFF_LINES = 40;
+
+export interface ChangeNotePart {
+  /** File name without `.md`: `2026-10`, `2026-10-p2`, ... */
+  name: string;
+  entries: ChangeEntry[];
+}
+
+/** Split one month of changes into notes of at most CHANGES_NOTE_MAX_ENTRIES, oldest first. */
+export function splitChangeNotes(month: string, entries: readonly ChangeEntry[]): ChangeNotePart[] {
+  const asc = [...entries].sort(
+    (x, y) => x.appliedAt.localeCompare(y.appliedAt) || x.changeId.localeCompare(y.changeId)
+  );
+  const parts: ChangeNotePart[] = [];
+  for (let i = 0; i < asc.length; i += CHANGES_NOTE_MAX_ENTRIES) {
+    const n = i / CHANGES_NOTE_MAX_ENTRIES + 1;
+    parts.push({
+      name: n === 1 ? month : `${month}-p${n}`,
+      entries: asc.slice(i, i + CHANGES_NOTE_MAX_ENTRIES),
+    });
+  }
+  return parts;
+}
+
+/** Notes of applied and undone guarded changes, newest first inside each; a month is one note up to
+ * CHANGES_NOTE_MAX_ENTRIES changes. Each change block ends with a `^<changeId>` block id line.
+ * `part` names this note when the month is split (see splitChangeNotes). */
+export function renderChangesNote(
+  worldId: string,
+  month: string,
+  entries: ChangeEntry[],
+  part?: { name: string; all: readonly string[] }
+): string {
   const sorted = [...entries].sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
   const newest = sorted[0]?.appliedAt ?? null;
   const props = generatedProps(
@@ -363,6 +400,8 @@ export function renderChangesNote(worldId: string, month: string, entries: Chang
     worldId,
     {
       month,
+      // 1 for `<month>`, 2 for `<month>-p2`, ...: the Changes base sorts a split month by it.
+      part: Number(part?.name.match(/-p(\d+)$/)?.[1] ?? 1),
       changes: sorted.length,
       applied: sorted.filter(e => e.mode === 'apply').length,
       undone: sorted.filter(e => e.mode === 'apply' && e.undoneBy).length,
@@ -383,11 +422,12 @@ export function renderChangesNote(worldId: string, month: string, entries: Chang
       `- Change \`${e.changeId}\` · feature **${neutralizeTemplater(e.feature)}** · ${e.mode} · risk ${e.risk} · written to ${e.target}`,
       `- State: ${state}`,
       '',
-      callout(
-        'note',
-        `Diff (${e.diff.length} line(s), GM only)`,
-        e.diff.map(d => `- ${d}`)
-      ),
+      callout('note', `Diff (${e.diff.length} line(s), GM only)`, [
+        ...e.diff.slice(0, CHANGES_NOTE_MAX_DIFF_LINES).map(d => `- ${d}`),
+        ...(e.diff.length > CHANGES_NOTE_MAX_DIFF_LINES
+          ? [`- ... ${e.diff.length - CHANGES_NOTE_MAX_DIFF_LINES} more line(s) not shown`]
+          : []),
+      ]),
       '',
       `^${e.changeId}`,
       '',
@@ -402,6 +442,14 @@ export function renderChangesNote(worldId: string, month: string, entries: Chang
       '',
       'Every change the AI Tool applied or undid through guarded writes (times in UTC). Undo from the dashboard (Recent Changes).',
       '',
+      ...(part && part.all.length > 1
+        ? [
+            `This month is split into notes of ${CHANGES_NOTE_MAX_ENTRIES} changes: ${part.all
+              .map(n => (n === part.name ? `**${n}**` : `[[${n}]]`))
+              .join(', ')} (oldest first).`,
+            '',
+          ]
+        : []),
       ...blocks,
     ].join('\n')
   );
@@ -707,11 +755,14 @@ export function renderChangesBase(worldId: string): string {
       '    order:',
       '      - file.name',
       '      - month',
+      '      - part',
       '      - changes',
       '      - applied',
       '      - undone',
       '    sort:',
       '      - property: month',
+      '        direction: DESC',
+      '      - property: part',
       '        direction: DESC',
     ])
   );
@@ -962,6 +1013,8 @@ export interface ExportStatusInput {
   /** GM-owned notes kept as the GM edited them (an edited Home): a standing note. */
   kept?: Array<{ path: string; reason: string }>;
   errors: Array<{ path: string; error: string }>;
+  /** `AI Tool/Foundry/_status.md` exists: link it; otherwise the line is plain text (no dead link). */
+  mirrorStatusNote?: boolean;
 }
 
 /** `AI Tool/_status.md`: how many notes the tool manages, the GM's own notes it keeps as
@@ -990,7 +1043,9 @@ export function renderStatusNote(worldId: string, status: ExportStatusInput): st
       '',
       `The AI Tool manages ${status.notesManaged} note(s) here. Notes it no longer produces go to the vault trash.`,
       '',
-      'The Foundry mirror keeps its own status in [Foundry/_status.md](Foundry/_status.md); that note exists only when the mirror is on.',
+      status.mirrorStatusNote === false
+        ? 'The Foundry mirror keeps its own status in `Foundry/_status.md`; that note exists only when the mirror is on.'
+        : 'The Foundry mirror keeps its own status in [Foundry/_status.md](Foundry/_status.md); that note exists only when the mirror is on.',
       '',
       ...(kept.length
         ? [
@@ -1019,11 +1074,19 @@ export function renderStatusNote(worldId: string, status: ExportStatusInput): st
 // ---------------------------------------------------------------------------
 
 /**
- * The campaign's Home note: written when missing, and over an older template the GM never
- * edited (`campaign-home-legacy.ts`); an edited Home is never overwritten.
+ * The campaign's Home note, the GM's start page: written in plain words and sorted by what the GM
+ * is doing (before, during and after a session, the campaign, his own prep, rules lookups, help).
+ * Written when missing, and over an older template the GM never edited
+ * (`campaign-home-legacy.ts`); an edited Home is never overwritten.
  */
 export function renderCampaignHome(worldId: string): string {
-  const base = (folder: string, name: string, columns: string[], sortBy: string): string =>
+  const table = (
+    folder: string,
+    name: string,
+    columns: string[],
+    sortBy: string,
+    direction: 'ASC' | 'DESC' = 'DESC'
+  ): string =>
     [
       '```base',
       'filters:',
@@ -1036,68 +1099,74 @@ export function renderCampaignHome(worldId: string): string {
       ...columns.map(c => `      - ${c}`),
       '    sort:',
       `      - property: ${sortBy}`,
-      '        direction: DESC',
+      `        direction: ${direction}`,
       '```',
     ].join('\n');
   return [
     frontmatter({ type: 'campaign-home', world: worldId }),
-    `# ${worldId}`,
+    `# ${worldId}: start here`,
     '',
-    'Home of this campaign in Obsidian. This note is yours: the AI Tool created it, and once you edit it the tool never rewrites it.',
+    'This is your front door. The lists below keep themselves up to date, so you never need to browse the folders. This note is yours: the AI Tool created it, and once you edit it the tool never rewrites it. Tip: right-click this tab and choose Pin, or add it to your bookmarks, so it is one click away.',
     '',
-    '- `AI Tool/` is written by the bridge (session logs, change log, Tarokka). Read-only view; rebuilt on export.',
-    '- `Prep/` is yours: session plans, NPCs, locations, ideas. The tool never writes there.',
+    '## Before a session',
     '',
-    '## Adventures',
+    '- Your plan and ideas: the `Prep/` folder (start with [Prep/README](Prep/README.md)). Ready-made prep note templates are in `Prep/Templates/`.',
+    '- What happened last time: the newest note under *Play log* below.',
+    '- Quests, handouts and story items: [Journals](AI%20Tool/Bases/Journals.base) and [Story items](AI%20Tool/Bases/Story%20items.base).',
+    '- Where the story stands: [Tarokka reading](AI%20Tool/Tarokka/Current%20reading.md).',
+    '- First time here? Some of these links stay empty until the Foundry mirror has run and a session has been played. That is normal; they fill in by themselves.',
     '',
-    'One hub note per adventure (a Foundry folder with chapters and scenes), linking its chapters, scenes, NPCs and story items. The hubs appear once the Foundry mirror has run.',
+    '## During a session',
     '',
-    [
-      '```base',
-      'filters:',
-      '  and:',
-      `    - file.inFolder("Campaigns/${worldId}/AI Tool/Foundry/Adventures")`,
-      'views:',
-      '  - type: table',
-      '    name: Adventures',
-      '    order:',
-      '      - file.name',
-      '      - book',
-      '    sort:',
-      '      - property: file.name',
-      '        direction: ASC',
-      '```',
-    ].join('\n'),
+    '- Run the table from the co-GM dashboard in your browser, not from here. Obsidian is for looking things up.',
+    '- Quick lookups: [NPCs](AI%20Tool/Bases/NPCs.base), [Scenes](AI%20Tool/Bases/Scenes.base), [the party](AI%20Tool/Bases/PCs.base).',
     '',
-    '## Sessions',
+    '## After a session',
     '',
-    base('Sessions', 'Session logs', ['file.name', 'date', 'events', 'changes', 'actors'], 'date'),
+    '- The play log writes itself. Read it below, and check what the AI changed in [Changes](AI%20Tool/Bases/Changes.base).',
+    '- Put what you want to remember in `Prep/`, or ask Claude to write a recap.',
+    '',
+    '## The campaign',
+    '',
+    '### Adventures',
+    '',
+    'One hub note per adventure, linking its chapters, scenes, NPCs and story items. They appear once the Foundry mirror has run.',
+    '',
+    table('Foundry/Adventures', 'Adventures', ['file.name', 'book'], 'file.name', 'ASC'),
+    '',
+    '### People, places and things',
+    '',
+    '- [NPCs](AI%20Tool/Bases/NPCs.base)',
+    '- [Scenes and places](AI%20Tool/Bases/Scenes.base)',
+    '- [Journals and quests](AI%20Tool/Bases/Journals.base)',
+    '- [Story items](AI%20Tool/Bases/Story%20items.base)',
+    '- [Player characters](AI%20Tool/Bases/PCs.base)',
+    '- [What the players can see](AI%20Tool/Bases/Player%20visible.base)',
+    '',
+    '## Play log',
+    '',
+    table(
+      'Sessions',
+      'Session notes',
+      ['file.name', 'date', 'events', 'changes', 'actors'],
+      'date'
+    ),
+    '',
+    '- [All sessions as a table](AI%20Tool/Bases/Sessions.base)',
+    '- [Tarokka readings](AI%20Tool/Bases/Tarokka%20readings.base)',
     '',
     '## Change log',
     '',
-    base('Changes', 'Changes by month', ['file.name', 'changes', 'applied', 'undone'], 'month'),
+    table('Changes', 'Changes by month', ['file.name', 'changes', 'applied', 'undone'], 'month'),
     '',
-    '## Tarokka',
+    '## Rules lookups',
     '',
-    '- [Current reading](AI%20Tool/Tarokka/Current%20reading.md)',
+    'Spells, monsters, items, classes and the books you own are under `AI Tool/Library/`, one note per entry, grouped by book. Press Ctrl+O (the quick switcher) and type a name.',
     '',
-    '## Foundry',
+    '## Help',
     '',
-    'When the Foundry mirror is on, `AI Tool/Foundry/` holds one note per PC, NPC, scene, journal and story item, rebuilt from Foundry. The bases below and the status note appear once the mirror has run.',
-    '',
-    '- [PCs](AI%20Tool/Bases/PCs.base)',
-    '- [NPCs](AI%20Tool/Bases/NPCs.base)',
-    '- [Scenes](AI%20Tool/Bases/Scenes.base)',
-    '- [Journals](AI%20Tool/Bases/Journals.base)',
-    '- [Story items](AI%20Tool/Bases/Story%20items.base)',
-    '- [Player visible](AI%20Tool/Bases/Player%20visible.base)',
-    '- [Mirror status](AI%20Tool/Foundry/_status.md)',
-    '',
-    '## Bases',
-    '',
-    '- [Sessions](AI%20Tool/Bases/Sessions.base)',
-    '- [Changes](AI%20Tool/Bases/Changes.base)',
-    '- [Tarokka readings](AI%20Tool/Bases/Tarokka%20readings.base)',
+    '- Something looks wrong or empty: [Mirror status](AI%20Tool/Foundry/_status.md) shows what the Foundry mirror last did.',
+    '- `AI Tool/` is written by the tool and rebuilt on its own; do not type into it. `Prep/` is yours and the tool never writes there.',
     '',
   ].join('\n');
 }

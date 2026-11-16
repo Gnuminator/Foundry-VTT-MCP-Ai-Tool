@@ -9,7 +9,25 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runDriftCheck, pickRemote } from './drift-check.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runDriftCheck, pickRemote, entryDecision } from './drift-check.mjs';
+import { entryDecision as checksEntryDecision } from './checks.mjs';
+
+test('entryDecision (drift-check.mjs and checks.mjs): run, mismatch for a same-named file, import', () => {
+  for (const [fn, name] of [
+    [entryDecision, 'drift-check.mjs'],
+    [checksEntryDecision, 'checks.mjs'],
+  ]) {
+    const self = fileURLToPath(new URL(`./${name}`, import.meta.url));
+    assert.equal(fn(self, self), 'run');
+    if (process.platform === 'win32') assert.equal(fn(self.toUpperCase(), self), 'run');
+    assert.equal(fn(path.join(os.tmpdir(), 'nope', name), self), 'mismatch');
+    assert.equal(fn(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
+    assert.equal(fn(undefined, self), 'import');
+    // lane-merge's `node -e` fallback passes the module's file: URL as argv[1].
+    assert.equal(fn(pathToFileURL(self).href, self), 'import');
+  }
+});
 
 /** @param {string} cwd @param {...string} args */
 const git = (cwd, ...args) =>
@@ -332,7 +350,7 @@ test('main changed shared/ (the #397 then #399 case): the merged tree gets its o
       sharedBuild: buildShared,
     });
     assert.equal(code, 0, out);
-    assert.match(out, /merge changed shared\/; building shared/);
+    assert.match(out, /building shared in the worktree/);
     assert.equal(git(lane, 'rev-parse', 'HEAD'), head);
     assert.equal(
       fs.readFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'utf8'),
@@ -350,17 +368,17 @@ test('main changed shared/ (the #397 then #399 case): the merged tree gets its o
   }
 });
 
-test('main left shared/ alone: no build runs and the borrowed workspace is used', () => {
+test('main left shared/ alone: the worktree still gets its own shared build (generated catalogue, own links)', () => {
   const { tmp, lane, other } = lanesShared();
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
     const { code, out } = runWith(lane, {
       checks: [readsSharedDist('v1')],
-      sharedBuild: 'node -e "process.exit(9)"',
+      sharedBuild: buildShared,
     });
     assert.equal(code, 0, out);
-    assert.doesNotMatch(out, /building shared/);
+    assert.match(out, /building shared in the worktree/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -384,6 +402,86 @@ test('a failing shared build fails the check with its output, and the lane is un
   }
 });
 
+test('shared/dist missing: the lane checkout builds shared before the guards run', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
+    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(code, 0, out);
+    assert.match(out, /shared\/dist is missing; building shared/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a lane that already has main, with no shared/dist: built before the guards, once', () => {
+  const { tmp, lane } = lanesShared();
+  try {
+    fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
+    const first = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(first.code, 0, first.out);
+    assert.match(first.out, /already contains/);
+    assert.match(first.out, /shared\/dist is missing; building shared/);
+    // The stamp keeps an up-to-date dist from being rebuilt on the next run.
+    const second = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: 'node -e "process.exit(9)"',
+    });
+    assert.equal(second.code, 0, second.out);
+    assert.doesNotMatch(second.out, /building shared/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a build that exits 0 but emits no package entry fails with a clear line, no stamp', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    commit(
+      lane,
+      'shared/package.json',
+      '{"name":"@gnuminator/shared","main":"dist/index.js"}\n',
+      'shared names its entry'
+    );
+    const { code, out } = runWith(lane, {
+      checks: [passes('never')],
+      sharedBuild: 'node -e "process.exit(0)"',
+    });
+    assert.equal(code, 2, out);
+    assert.match(out, /emitted no shared\/dist\/index\.js/);
+    assert.doesNotMatch(out, /never/);
+    assert.equal(fs.existsSync(path.join(lane, 'shared', 'dist', '.built-stamp')), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('shared/dist older than shared/src: rebuilt; a failing build stops with its output', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const old = new Date(Date.now() - 3600_000);
+    fs.utimesSync(path.join(lane, 'shared', 'dist', 'api.txt'), old, old);
+    const failing = runWith(lane, {
+      checks: [passes('never')],
+      sharedBuild: 'node -e "console.error(\'tsc exploded\');process.exit(2)"',
+    });
+    assert.equal(failing.code, 2, failing.out);
+    assert.match(failing.out, /shared\/dist is older than shared\/src; building shared/);
+    assert.match(failing.out, /building it failed:\r?\ntsc exploded/);
+    assert.doesNotMatch(failing.out, /never/);
+    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(code, 0, out);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('a passing guard that prints tool-set headroom lines has them shown, other output is not', () => {
   const { tmp, lane } = repos();
   try {
@@ -399,5 +497,126 @@ test('a passing guard that prints tool-set headroom lines has them shown, other 
     assert.doesNotMatch(r.out, /noise/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+/** A stand-in for the bundle budget: fits with one file under dash/, over with two. */
+const dashBudget = {
+  name: 'dash budget',
+  command: "node -e \"process.exit(require('fs').readdirSync('dash').length > 1 ? 4 : 0)\"",
+  when: 'dash/',
+};
+const alwaysFails = { ...dashBudget, command: 'node -e "process.exit(9)"' };
+
+test('two branches each under the budget fail together once main is merged in', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    fs.mkdirSync(path.join(lane, 'dash'));
+    commit(lane, 'dash/a.txt', 'a\n', 'lane adds to the dashboard');
+    fs.mkdirSync(path.join(other, 'dash'));
+    commit(other, 'dash/b.txt', 'b\n', 'other lane adds to the dashboard');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = run(lane, [dashBudget]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard with `when` is skipped when neither side touched that path', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    commit(other, 'main.txt', 'unrelated\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = run(lane, [alwaysFails]);
+    assert.equal(code, 0, out);
+    assert.match(out, /skip dash budget \(nothing under dash\/ changed\)/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard with `when` runs when only main touched that path', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    fs.mkdirSync(path.join(other, 'dash'));
+    commit(other, 'dash/b.txt', 'b\n', 'other lane adds to the dashboard');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = run(lane, [alwaysFails]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard whose `when` is a list runs when a file under any entry changed, even a non-ASCII name', () => {
+  const { tmp, lane } = repos();
+  try {
+    fs.mkdirSync(path.join(lane, 'dash'));
+    commit(lane, 'dash/ø.txt', 'a\n', 'non-ASCII name under the path');
+    const { code, out } = run(lane, [{ ...alwaysFails, when: ['other/', 'dash/'] }]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard with `when` is skipped on a branch that already has main and did not touch the path', () => {
+  const { tmp, lane } = repos();
+  try {
+    const { code, out } = run(lane, [alwaysFails]);
+    assert.equal(code, 0, out);
+    assert.match(out, /already contains/);
+    assert.match(out, /skip dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard that needs a failed guard is skipped, not counted as a second failure', () => {
+  const { tmp, lane } = repos();
+  try {
+    const { code, out } = run(lane, [
+      { name: 'build', command: 'node -e "process.exit(1)"' },
+      { name: 'budget', command: 'node -e "process.exit(1)"', needs: 'build' },
+    ]);
+    assert.equal(code, 1, out);
+    assert.match(out, /skip budget \(build failed\)/);
+    assert.match(out, /1 guard\(s\) fail/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ---- the shared unit tests guard ----
+
+test('the real shared unit tests guard: runs when shared/ changed, a failing run refuses, skipped otherwise', async () => {
+  const { CHECKS } = await import('./drift-check.mjs');
+  const real = CHECKS.find(c => c.name === 'shared unit tests');
+  assert.ok(real, 'drift-check holds a shared unit tests guard');
+  assert.deepEqual(real.when, ['shared/']);
+  assert.equal(real.command, 'npm test -w @gnuminator/shared');
+  // same name and `when`, with a stand-in command that fails like a broken shared test would
+  const failing = { name: real.name, when: real.when, command: 'node -e "process.exit(1)"' };
+  const touched = repos();
+  try {
+    fs.mkdirSync(path.join(touched.lane, 'shared'));
+    commit(touched.lane, 'shared/x.txt', 'changed\n', 'lane changes shared');
+    const { code, out } = run(touched.lane, [failing]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL shared unit tests/);
+  } finally {
+    fs.rmSync(touched.tmp, { recursive: true, force: true });
+  }
+  const untouched = repos();
+  try {
+    const { code, out } = run(untouched.lane, [failing]);
+    assert.equal(code, 0, out);
+    assert.match(out, /skip shared unit tests \(nothing under shared\/ changed\)/);
+  } finally {
+    fs.rmSync(untouched.tmp, { recursive: true, force: true });
   }
 });

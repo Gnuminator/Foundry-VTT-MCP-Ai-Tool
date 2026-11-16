@@ -4,14 +4,17 @@ The same steps as the connector's `rules-question` prompt, so the answers look a
 
 1. `list-compendium-packs` to see which books are installed, and which look like 2024 and which
    2014 rules. If you cannot tell, say "version unknown".
-2. Pick the search terms: the exact name of the spell, condition, feature, action or rule.
-   `search-compendium` matches **names only**; search the exact name first, then close variants.
-   `search-journals` (search type both; rules terms only, skip and do not open adventure or
-   campaign journals) covers rules text that sits in **world** journals, such as
-   a book imported into the world. Text inside compendium journals cannot be searched yet: say so
-   if that is where the rule would be, and answer from general knowledge labelled as such.
-3. Read the best hits in full: `get-compendium-item` for a compendium entry, `list-journals` (only with a journal id from a search hit, never to browse all titles) with
-   the journal and page for a journal page. Answer from the text itself, never from a title alone.
+2. Pick the search terms: the name of the spell, condition, feature, action or rule. Call
+   `search-rules` with `query` first: it reads the text of the rulebook chapters and of item, spell
+   and feature descriptions in the rules packs, and returns the page or item id with a short
+   snippet. `search-compendium` matches **names only**, so use it for an exact spell or item name.
+   `search-journals` (rules terms only, skip and do not open adventure or campaign journals) covers
+   rules text that sits in **world** journals, such as a book imported into the world.
+3. Read the best hits in full. For a journal page, call `search-rules` again with `limit` 3 and
+   `excerptChars` 3000: that returns the matching page text, while a whole journal is far too long
+   to open. For a compendium item or spell use `get-compendium-item` with the hit's ids; for a page
+   of a world journal use `list-journals` (only with a journal id from a search hit, never to browse
+   all titles) with the journal and page. Answer from the text itself, never from a title alone.
 4. Prefer the 2024 rules. If a 2014 version also exists, add one line on how it differs only when
    that changes the answer.
 5. Answer in this shape: the answer first (one or two sentences); then **How it works** in a few

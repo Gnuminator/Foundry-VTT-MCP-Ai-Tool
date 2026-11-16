@@ -80,7 +80,9 @@ if ($Only -in 'all', 'foundry') {
     $foundryArgs = @("`"$main`"", "--dataPath=`"$($TestEnv.DataDir)`"", "--port=$($TestEnv.FoundryPort)", '--noupnp', '--noupdate')
     $worldId = if ($World) { $World } else { $TestEnv.WorldId }
     $worldDir = Join-Path $TestEnv.DataDir 'Data' 'worlds' $worldId
-    if (-not $NoWorld -and (Test-Path $worldDir)) { $foundryArgs += "--world=$worldId" }
+    if (-not $NoWorld -and (Test-Path $worldDir)) {
+      $foundryArgs += "--world=$worldId"
+    }
     # Foundry locks its data folder (Config/options.json.lock) and refreshes the
     # lock while running; right after a stop it is still fresh and a new start
     # fails with "already locked". Wait until it has gone stale.
@@ -88,6 +90,13 @@ if ($Only -in 'all', 'foundry') {
     $deadline = (Get-Date).AddSeconds(30)
     while ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalSeconds -lt 12 -and (Get-Date) -lt $deadline) {
       Start-Sleep -Seconds 1
+    }
+    # After a Foundry point update the world's verified build is older than the app and Foundry
+    # refuses to auto-launch it; bump it (only while nothing listens on this server's port, and
+    # after the data-folder lock wait, so a stopping Foundry has let go of world.json).
+    if ($foundryArgs -contains "--world=$worldId" -and -not (Test-NetConnection -ComputerName 127.0.0.1 -Port $TestEnv.FoundryPort -InformationLevel Quiet -WarningAction SilentlyContinue)) {
+      $bumped = Update-WorldVerified $worldDir (Get-FoundryAppVersion $TestEnv.AppDir)
+      if ($bumped) { Write-Host "foundry : world '$worldId' verified build bumped to $bumped (copy: world.json.bak-verified)" }
     }
     $appRoot = Split-Path $main
     $foundryNode = Get-FoundryNodeExe $appRoot
@@ -119,6 +128,10 @@ if ($Only -in 'all', 'dashboard') {
     MCP_CONTROL_HOST = '127.0.0.1'
     MCP_CONTROL_PORT = $TestEnv.ControlPort
     FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
+    # The initiative ribbon shows portraits from Foundry's address as the browser reaches it.
+    # TEST_FOUNDRY_FRAME_URL: the address of scripts/test-env/foundry-frame-proxy.mjs, so the GM page
+    # (/gm) can frame this Foundry (dev only; the Pi uses a Cloudflare header rule instead).
+    DASHBOARD_FOUNDRY_URL = if ($env:TEST_FOUNDRY_FRAME_URL) { $env:TEST_FOUNDRY_FRAME_URL } else { "http://localhost:$($TestEnv.FoundryPort)" }
     # Each test dashboard keeps its own player links and prefs: server A uses the default
     # ~/.foundry-ai-tool, the others a folder under their root (two dashboards on one links file
     # overwrite each other's saves).

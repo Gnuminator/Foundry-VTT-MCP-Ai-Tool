@@ -3,6 +3,10 @@
 Goal: the player ends up with a **build card** (a short list they follow in Actor Studio) and then
 a checked sheet. You advise; they click.
 
+**Our table starts at level 3** (the GM's decision, 2026-10-29; characters end at 13). Actor
+Studio builds a level-1 character, so the build card has a level-1 part (the tabs) and a level-up
+part (levels 2 and 3, with the subclass at 3). The build card must name both.
+
 ## 1. Ask first (two or three short questions, then wait)
 
 - What do you want to play: a fantasy, a role at the table, a character you liked? (If they have
@@ -29,12 +33,20 @@ Write it as a short list the player can follow, in this order (it matches Actor 
 2. **Species** (with the lineage, e.g. "Elf, High").
 3. **Background:** the entry; which scores it can raise (+2/+1 or +1/+1/+1) and your pick; the feat
    it gives; the two skills it grants.
-4. **Class** (the subclass comes at level 3, not now).
+4. **Class** (no subclass in the builder tabs; the subclass is picked at the level 3 level-up).
 5. **Choices Actor Studio will ask for, with your pick:** species skill (one the background does
    NOT give), languages, class skills (list), cantrips, level-1 spells, feat choices (e.g. Magic
    Initiate spells: PHB 2024 copies, only the named class's list).
 6. **Equipment:** which Starting Gold options (background and class), whether to take gold.
 7. **Name** (never leave the player's own name in the box).
+8. **Level 2 and 3 (the level-up part):** the subclass for level 3 (look it up with
+   `search-compendium`; the Actor Studio list holds only what the GM allowed, often fewer than the
+   book), hit points (Take Average is the safe default), and the choices each level asks for (a
+   wizard's level-2 Scholar skill for Expertise, an elf's spellcasting ability at level 3, a fighting
+   style swap left as "No Replacement"). For a caster, also which spells they will add at levels 2
+   and 3: the level-up raises how many they may prepare but does not ask which new spells they
+   learn, so agree them on the card and tell them to add them on the sheet's Spells tab (or ask
+   the GM).
 
 Then tell them to follow `references/player/make-a-character.md` for the clicking, and to come back
 when the sheet opens.
@@ -45,9 +57,24 @@ Run the sheet check (`references/sheet-check.md`): read the character with `get-
 to the build card, and tell them anything that differs or looks wrong, as a short list with the fix
 to click. The card matches the sheet when every line above is true on the sheet.
 
+## Level 3 level-up snags
+
+Tell the player before they hit them:
+
+- **No Level Up button.** It shows only when Milestone Levelling is on (a GM setting) or the sheet
+  has enough XP. Without it, the player asks the GM.
+- **Click the "+" at the right end of the class row**, not the row. At level 3 the **Choose
+  Subclass** list appears under it; it may need a second click to open.
+- **Take Average** must be ticked (or HP rolled) before Next moves on from the Hit Points step.
+- **Two Completes at level 3.** After the last step's **Complete**, a second window lists the
+  subclass's features (e.g. "Champion, Level 2 -> 3, Step 1 of 1"); its **Complete** is what adds
+  the subclass to the sheet. Skipped, the sheet says level 3 with no subclass.
+- **Counters:** a skipped choice (the wizard's Scholar Expertise) is silently lost, because Next lets the player through.
+- **Spells learned** at levels 2 and 3 are not asked for (see the build card, point 8).
+
 ## The ten level-1 snags (checklist for you and the player)
 
-Found in a real run on Foundry 14 / dnd5e 6 / Actor Studio 2.10.5. Mention the ones that apply
+Seen on Foundry 14 with dnd5e 6 and the Actor Studio module; the words on screen may differ a little in other versions. Mention the ones that apply
 before they hit them, and re-check after:
 
 1. **Character Name starts as the player's own name**, and the bar says 100% before any name is
@@ -61,8 +88,12 @@ before they hit them, and re-check after:
    times (SRD 5.1, SRD 5.2, PHB, **PHB 2024**; pick PHB 2024), and Cleric, Druid and Wizard lists
    are mixed (pick only the class named after Magic Initiate). The class Spells tab still offers
    cantrips already given by the feat: avoid doubles.
-5. **Equipment tab:** the items turn green by themselves; the gold amounts stay black until
-   clicked. Click each until the bar says 100%, then **Confirm**.
+5. **Equipment tab:** the items turn green by themselves, but some tiles are choices you must
+   click: the dark gold tile at the bottom of the left pane (the background's "8 GP" or similar),
+   the class gold tile ("7 GP"), and the **Select focus** list for "any holy focus" (pick Amulet,
+   Emblem or Reliquary). Never stop at 75%: the bar reaches 100% only when every one is done, and
+   then a **Confirm** button appears. Closing before Confirm drops the equipment picks (Studio now
+   asks first). After Confirm, body armor and a shield are equipped; other gear is not.
 6. **Wizards have no Spellbook** in the starting kit. The GM adds one from the item compendium.
 7. **Cosmetic only:** the raw key `GAS.Spells.Cantrip` under chosen cantrips, class steps headed
    "Level 1 -> 2", a spell card lingering at the bottom right.

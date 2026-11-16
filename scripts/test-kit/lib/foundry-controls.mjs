@@ -71,6 +71,13 @@ export const FOUNDRY_CONTROLS = [
     how: 'open',
     player: 'hidden',
   },
+  {
+    name: 'foundry.scene.tarokkaTable',
+    area: 'scene',
+    label: 'Scene tool "Tarokka table"',
+    how: 'open',
+    player: 'hidden',
+  },
 
   // --- Changes window ----------------------------------------------------------------------------
   {
@@ -208,7 +215,7 @@ export const FOUNDRY_CONTROLS = [
   {
     name: 'foundry.settings.feature-switches',
     area: 'settings',
-    label: 'The nine "AI Tool: ..." feature switches',
+    label: 'The "AI Tool: ..." feature switches (a sample)',
     how: 'open',
     player: 'hidden',
   },
@@ -229,21 +236,21 @@ export const FOUNDRY_CONTROLS = [
   {
     name: 'module.settings.enhanced-index-open',
     area: 'settings',
-    label: 'Settings menu: Configure Enhanced Index',
+    label: 'Settings menu: Configure creature index',
     how: 'open',
     player: 'hidden',
   },
   {
     name: 'module.settings.enhanced-index-save',
     area: 'settings',
-    label: 'Enhanced Index: Save Settings (put back)',
+    label: 'Creature index: Save Settings (put back)',
     how: 'toggle',
     player: 'hidden',
   },
   {
     name: 'module.settings.enhanced-index-rebuild',
     area: 'settings',
-    label: 'Enhanced Index: Rebuild Creature Index',
+    label: 'Creature index: Rebuild Creature Index',
     how: 'click',
     player: 'hidden',
   },
@@ -287,20 +294,6 @@ export const FOUNDRY_CONTROLS = [
     label: 'Chat: the roll request button (the player rolls, the card says who did)',
     how: 'write',
     player: 'works',
-  },
-  {
-    name: 'module.tarokka.offer-confirm',
-    area: 'tarokka',
-    label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (Yes)',
-    how: 'click',
-    player: 'none',
-  },
-  {
-    name: 'module.tarokka.offer-decline',
-    area: 'tarokka',
-    label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (No)',
-    how: 'click',
-    player: 'none',
   },
 
   // --- A player -----------------------------------------------------------------------------------

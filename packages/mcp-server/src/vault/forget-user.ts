@@ -12,6 +12,8 @@
  * player wrote) and leaves the usage log alone (it holds no text). Lines that do not parse (a torn
  * last line) are kept as they are. Nothing is written in a dry run.
  */
+import { asRecord } from '@gnuminator/shared';
+
 import type { VaultStore } from './store.js';
 
 export interface ForgetUserOptions {
@@ -37,12 +39,6 @@ export interface ForgetUserResult {
 
 const PLAY_LOG = /\.play\.jsonl$/;
 const USAGE_LOG = /\.usage\.jsonl$/;
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
 
 function sameName(value: unknown, wanted: string): boolean {
   return typeof value === 'string' && value.trim().toLowerCase() === wanted.toLowerCase();

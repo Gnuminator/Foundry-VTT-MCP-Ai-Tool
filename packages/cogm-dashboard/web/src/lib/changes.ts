@@ -2,8 +2,7 @@
 // bridge answers (`list-recent-changes`, the AI's guarded changes, and `list-changes`, everyone's),
 // the state a row shows, the person filter, the redo rule, and the undo choice (just this,
 // everything since, rewind the table) as the dialogs it walks through. No React here, so the rules
-// have unit tests; panels/RecentChanges.tsx draws them and makes the calls. A typed port of the old
-// page's changes-everyone.js and the AI tab in public/app.js.
+// have unit tests; panels/RecentChanges.tsx draws them and makes the calls.
 
 /** How many changes the AI tab asks for. */
 export const AI_LIMIT = 20;
@@ -46,6 +45,8 @@ export interface AiChange {
   diff: string[];
   /** Set only for a change a GM made from the AI changes or Handouts window in Foundry. */
   requestedBy: string;
+  /** The Obsidian Changes/ note that holds it (`2026-10-p2`), when the bridge says. */
+  notePart?: string;
 }
 
 /** The AI changes of a list-recent-changes answer; entries without an id are dropped. */
@@ -67,6 +68,7 @@ export function readAiChanges(result: unknown): AiChange[] {
       canUndo: c['canUndo'] === true,
       diff: strings(c['diff']),
       requestedBy: str(c['requestedBy']),
+      ...(/^\d{4}-\d{2}(-p\d+)?$/.test(str(c['notePart'])) ? { notePart: str(c['notePart']) } : {}),
     });
   }
   return changes;
@@ -85,9 +87,12 @@ export function changeState(c: Pick<AiChange, 'mode' | 'undoneBy' | 'risk'>): Ch
  * The note an AI change is filed in, by UTC month of `appliedAt` (obsidian/export.ts files them by
  * `appliedAt.slice(0, 7)`): the path under the world's folder of the vault, or null without a month.
  */
-export function obsidianChangePath(c: Pick<AiChange, 'appliedAt'>): string | null {
+export function obsidianChangePath(c: Pick<AiChange, 'appliedAt' | 'notePart'>): string | null {
   const month = c.appliedAt.slice(0, 7);
-  return /^\d{4}-\d{2}$/.test(month) ? `AI Tool/Changes/${month}` : null;
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  // A long month rolls over to -p2, -p3 (the bridge names the part); the month's own note otherwise.
+  const note = c.notePart?.startsWith(month) ? c.notePart : month;
+  return `AI Tool/Changes/${note}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +117,8 @@ export interface EveryoneChange {
   /** How many changes an undo entry took back, when the backend says. */
   covers: number | null;
   things: { uuid: string; name: string | null }[];
+  /** Set by `foldTokenMoves` on the newest of a run of moves: how many moves the row stands for. */
+  moves?: number;
 }
 
 /** What list-changes answers: the changes and an optional note ("older changes are not kept"). */
@@ -175,6 +182,8 @@ function whoOf(change: EveryoneChange): string {
 
 /** Undoing an undo is a redo: "Undo: Undo: 4 damage" reads "Redo: 4 damage". */
 function summaryOf(change: EveryoneChange): string {
+  const name = change.moves && change.moves > 1 ? tokenMoveOf(change) : null;
+  if (name !== null) return `${name} moved ${change.moves} times`;
   const twice = /^Undo:\s*Undo:\s*/;
   return twice.test(change.summary) ? `Redo: ${change.summary.replace(twice, '')}` : change.summary;
 }
@@ -184,14 +193,28 @@ export interface FilterOption {
   label: string;
 }
 
-/** The choices of the person filter: Everyone, AI, then everyone seen in the list, A to Z. */
-export function filterOptions(changes: readonly EveryoneChange[]): FilterOption[] {
+/** The three lists of the Recent Changes card, in tab order (the user, 2026-11-02). */
+export type ChangesTab = 'tool' | 'game' | 'everything';
+
+export const CHANGES_TABS: readonly ChangesTab[] = ['tool', 'game', 'everything'];
+
+/** The Game tab: what players and the GM did directly in Foundry, not through the AI Tool. */
+export function gameChanges(changes: readonly EveryoneChange[]): EveryoneChange[] {
+  return changes.filter(c => c.kind === 'human');
+}
+
+/**
+ * The choices of the person filter: Everyone, Tool, then everyone seen in the list, A to Z. The
+ * Game tab has no Tool choice (`withTool` false): nothing there came through the AI Tool.
+ */
+export function filterOptions(changes: readonly EveryoneChange[], withTool = true): FilterOption[] {
   const names = new Set<string>();
   for (const c of changes) if (c.kind === 'human' || isPersonUndo(c)) names.add(whoOf(c));
   const people = [...names]
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     .map(name => ({ value: personFilter(name), label: name }));
-  return [{ value: FILTER_ALL, label: 'Everyone' }, { value: FILTER_AI, label: 'AI' }, ...people];
+  const head = [{ value: FILTER_ALL, label: 'Everyone' }];
+  return [...head, ...(withTool ? [{ value: FILTER_AI, label: 'Tool' }] : []), ...people];
 }
 
 /** The changes a filter value keeps (an unknown value keeps all; see `validFilter`). */
@@ -207,9 +230,59 @@ export function filterChanges(
   return [...changes];
 }
 
+const MOVED_SUFFIX = ' moved';
+
+/**
+ * A person's move of one token (the bridge words it "<token> moved": x and/or y changed, with or
+ * without the rotation a Foundry 14 drag adds; see `describeRecord`), as the name of what moved;
+ * null for any other change.
+ */
+function tokenMoveOf(c: EveryoneChange): string | null {
+  if (c.kind !== 'human' || c.undone || c.lines.length !== 1) return null;
+  const line = c.lines[0] ?? '';
+  if (!line.endsWith(MOVED_SUFFIX) || c.summary !== line) return null;
+  return line.slice(0, -MOVED_SUFFIX.length);
+}
+
+/**
+ * Folds a run of moves of the same token by the same person into one row, the newest one, with
+ * `moves` set: a drag across the map is dozens of moves and drowned the real changes (David,
+ * 2026-10-29). The list is newest first; any other change in between ends a run.
+ */
+export function foldTokenMoves(changes: readonly EveryoneChange[]): EveryoneChange[] {
+  const out: EveryoneChange[] = [];
+  let run: { head: EveryoneChange; key: string; count: number } | null = null;
+  const flush = (): void => {
+    if (run && run.count > 1) {
+      const i = out.indexOf(run.head);
+      out[i] = { ...run.head, moves: run.count };
+    }
+    run = null;
+  };
+  for (const c of changes) {
+    const name = tokenMoveOf(c);
+    // A move that cannot be undone ends the run, so the folded row's Undo is the newest move's.
+    const key =
+      name === null ? null : `${c.by}\u0000${c.things[0]?.uuid ?? name}\u0000${c.canUndo}`;
+    if (run && key !== null && run.key === key) {
+      run.count += 1;
+      continue;
+    }
+    flush();
+    out.push(c);
+    if (key !== null) run = { head: c, key, count: 1 };
+  }
+  flush();
+  return out;
+}
+
 /** The filter to use for a list: the chosen one while it still exists, else all. */
-export function validFilter(changes: readonly EveryoneChange[], filter: string): string {
-  return filterOptions(changes).some(o => o.value === filter) ? filter : FILTER_ALL;
+export function validFilter(
+  changes: readonly EveryoneChange[],
+  filter: string,
+  withTool = true
+): string {
+  return filterOptions(changes, withTool).some(o => o.value === filter) ? filter : FILTER_ALL;
 }
 
 /** The change that undid `change`, when it is in the list. */
@@ -263,15 +336,20 @@ export interface RowView {
   undoneText: string;
   redoId: string | null;
   thing: string;
+  /** The Undo button's name: a folded run of moves undoes only the newest, and says so. */
+  undoLabel: string;
 }
 
 export function rowView(change: EveryoneChange, all: readonly EveryoneChange[]): RowView {
   const redo = redoTarget(change, all);
+  const folded = change.moves !== undefined && change.moves > 1;
+  const summary = summaryOf(change);
   return {
+    undoLabel: folded ? `Undo the latest move: ${change.summary}` : `Undo: ${summary}`,
     id: change.id,
     who: whoOf(change),
     at: change.at,
-    summary: summaryOf(change),
+    summary,
     lines: change.lines,
     canUndo: change.canUndo && !change.undone,
     ownData: change.ownData,

@@ -9,14 +9,15 @@ Short recipes for things you will want to do. Each one says what to type (in a C
 or click (on the dashboard), what happens, and one tip. Copy the words in quotes and change the
 names to yours.
 
-The recipes use the Claude Desktop chat with **core** and **prep** switched on (see
+Before and after the session you want **core** and **prep** switched on in the Claude Desktop chat; at
+the table, **core** and **play** (see
 [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)). A recipe that needs another
 set says so.
 
 ## Four habits that make every request better
 
-1. **Name the exact thing.** "Wolf 2", "the page 'Old letter' in the journal 'Handouts'", "Ireena
-   Kolyana". Several tokens can share a name; Foundry's names are what Claude searches for.
+1. **Name the exact thing.** "Wolf 2", "the page 'Old letter' in the journal 'Handouts'", "Thorin
+   Ironfoot". Several tokens can share a name; Foundry's names are what Claude searches for.
 2. **Say what you want back.** "A list of three", "one paragraph I can read aloud", "a table with
    HP and AC".
 3. **Ask for a plan before changes.** "Show me the plan first and wait for my OK." Guarded changes
@@ -33,8 +34,9 @@ set says so.
   queued, the bosses on your scenes and the pre-flight result.
 - **Or say:** use the ready-made prompt `prep-next-session` (in the message box's **+** menu). Add a
   focus if you have one, for example "the Vallaki festival".
-- **What happens:** Claude reads the same facts in one go (`get-prep-digest`) and helps you plan
-  the next session.
+- **What happens:** Claude reads the same facts in one go (`get-prep-digest`), opens with a short
+  "Previously on" from the GM summary of your newest recorded session, and helps you plan the next
+  session. [The prep drawer](dashboard.md#the-prep-drawer--prep) says where that summary is read from.
 - **Tip:** keep your prep notes in a journal named "Next session" that only you can see. The Prep
   drawer and Claude both read it. Ask for a short list of loose threads at the end: "End with the
   five open threads, one line each."
@@ -71,8 +73,8 @@ set says so.
 
 - **Say:** "Find three undead of CR 1 to 3 in my compendiums for four level 3 characters. A table
   with name, CR and why it fits."
-- **What happens:** Claude searches your compendiums (`search-compendium`, `list-creatures-by-criteria`
-  in the **build** set).
+- **What happens:** Claude searches your compendiums (`search-compendium` is always on, `list-creatures-by-criteria`
+  is in the **build** set).
 - **Tip:** to put one in the world, switch **build** on and ask: "Add a Ghoul from the compendium
   to the world. Show me first."
 
@@ -97,7 +99,7 @@ set says so.
 ### Draft a letter or an invitation from a villain
 
 - **Say:** "Draft a letter from Strahd to the party, in his voice, from these points: invites them
-  to dinner, mentions Ireena by name, polite but threatening. Around 120 words. Plain text."
+  to dinner, mentions Thorin by name, polite but threatening. Around 120 words. Plain text."
 - **What happens:** Claude writes the draft in the chat. Nothing changes in Foundry.
 - **Tip:** paste the final text into a page in a GM-only journal, then reveal it as a handout (next
   recipe). Before that, ask: "Check this text for secret terms" (`check-secret-terms`).
@@ -117,6 +119,19 @@ set says so.
 - **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka** (under **Advanced ▾**).
 - **Tip:** keep **Show cards** unticked on the dashboard while players can see your screen.
 
+### Use a Tarokka reading you chose yourself
+
+- **Say:** "Store this Tarokka reading: the tome is `swords-7` (Seven of Swords), the holy symbol `glyphs-master` (Master of Glyphs), the sunsword `coins-1` (One of Coins), the ally `raven` and Strahd's location `donjon`."
+  Or open **🃏 Tarokka**, tick **Show cards** (the picks are on screen), press **Choose the cards**, pick the five cards and press **Store this reading**.
+- **Card ids:** the tool takes ids, not names: a suit and a value (`swords-7`, `glyphs-master`, `coins-1`) for the common deck,
+  or one word for the high deck (`raven`, `donjon`, `broken-one`). A name gets an error that shows the format.
+- **What happens:** nothing is dealt. Each card must come from the right deck
+  (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
+- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal to players** on one position and write what the players may read.
+  Nothing reaches the players until you do that, and the other four stay hidden.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What should I prepare before a session, and in what order?" ([how to add the GM coach](gm-coach.md))
+
 ## During the session
 
 ### Answer a rules question
@@ -133,10 +148,23 @@ set says so.
   `list-characters`).
 - **Tip:** the dashboard's combat tracker shows HP bars without asking.
 
+### Start and end a fight
+
+- **In Foundry:** pick the tokens that fight (select them on the map, or drag a box around them),
+  right-click one and click the crossed swords (**Enter Combat**) in its token menu. That adds
+  every selected token to a new combat. Open the **Combat Encounters** tab and click **Roll All**
+  (or **Roll NPCs**) for the initiative, then **Start Combat**. When the fight is over, click **End
+  Combat** at the bottom of the tab and confirm.
+- **In the dashboard:** with **GM Actions** on (**Turn on for tonight** does it), click **Start
+  combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
+  the hostile ones, and starts the fight at round 1 with an Undo. **End combat** shows once a fight runs. See [Combat Tracker](dashboard.md#combat-tracker).
+- **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
+  need GM Actions on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "GM Actions on".
+
 ### Run a boss fight
 
-- **Click:** **👑 Boss prompts** in the combat tracker's top line (it shows when a creature with
-  legendary actions or a lair is in the fight).
+- **Click:** **👑 Boss prompts** in the combat tracker's top line to turn it on (it shows when a
+  creature with legendary actions or a lair is in the fight, and starts off).
 - **What happens:** pips for legendary actions and resistances, a reminder when the lair acts, and
   an **R** mark per creature for its reaction this round.
 - **Tip:** tick "in lair" on the creature's sheet in Foundry, so the lair reminder and the extra
@@ -196,11 +224,13 @@ These need the **play** set switched on.
 
 ### Record the session in Discord
 
-- **Type** in the Discord text channel: `/record start` when play begins, `/record stop` when it
+- **Type** (or ask the person who runs the tool to type) in the Discord text channel: `/record start` when play begins, `/record stop` when it
   ends.
 - **What happens:** the recording bot records each speaker. For now the builder starts the bot
   before the session.
 - **Tip:** tell the players at the start that the session is recorded.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What can Claude do for me during a fight, and what should I still do myself?"
 
 ## After the session
 
@@ -228,7 +258,7 @@ These need the **play** set switched on.
 
 - **Do:** nothing. After `/record stop` the recording is turned into text on the table's PC and
   Claude writes the notes. For now the builder starts this; from the first campaign session it
-  runs by itself every hour. In Claude Code, `/session-notes` does it by hand.
+  runs by itself every hour. If it did not run, ask the builder to run it.
 - **What happens:** in the session's folder, under `notes`, in Danish and English: the cleaned
   transcript, notes per scene (what happened, NPCs, loot, open threads, a "GM only" part), a
   summary for you and a draft recap for the players. With the switch "AI Tool: Session notes
@@ -237,15 +267,18 @@ These need the **play** set switched on.
   happens as soon as Foundry is open with writes on, so notes made overnight land when you next
   press "Turn on for tonight". The Live Feed and Recent Changes show it, with an Undo.
 - **Tip:** read the Recap page before anyone else does. It waits in the reveal queue; press
-  **Reveal next** when it is fine, and the players get it in "Handouts". Revealing it, or
+  **Reveal next** when it is fine, and the players see it as "Last recap" on the player page.
+  Revealing it, or
   **Approve without revealing** on the dashboard, marks the session approved. The recorded audio
   stays on the PC (D-097); it is only deleted if a player asks for theirs to be.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What do I do after a session to get the recap and notes into Foundry?"
 
 ## When a recipe goes wrong
 
 - **"Switch on the play set"** (or another set): Claude needs a tool that is off. Switch it on in
   the **+** menu, **Connectors**, and ask again.
-- **Claude picks the wrong token:** name it exactly ("Wolf 2") or pick it in the tool runner.
+- **Claude picks the wrong token:** name it exactly ("Wolf 2") or pick it in the Tool Runner.
 - **A plan is refused:** its feature switch is off, the plan is older than 15 minutes, or the thing
   changed in Foundry since. Ask for a new plan.
 - **Anything else:** [Troubleshooting](troubleshooting.md).

@@ -42,7 +42,7 @@ export interface RibbonLair {
 export type RibbonItem = RibbonCreature | RibbonRoundBreak | RibbonLair;
 
 /** How many creatures after the current one read clearly before the rest fade. */
-export const NEXT_COUNT = 2;
+const NEXT_COUNT = 2;
 
 /** Up to two letters: the first letters of the first two words, or the first two of one word. */
 export function initialsOf(name: string): string {
@@ -146,7 +146,7 @@ export function ribbonSummary(items: readonly RibbonItem[]): string {
   const creatures = items.filter((i): i is RibbonCreature => i.kind === 'creature');
   const current = creatures.find(c => c.role === 'current');
   const next = creatures.filter(c => c.role === 'next').map(c => c.name);
-  if (!current) return 'Turn order';
+  if (!current) return 'Combat order';
   if (next.length === 0) return `${current.name} is up`;
   return `${current.name} is up, then ${next.join(' and ')}`;
 }

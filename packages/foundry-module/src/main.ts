@@ -1,8 +1,8 @@
 import { MODULE_ID } from './constants.js';
 import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
 import { registerAiToolControls } from './ai-tool-controls.js';
-import { setBridgeLink } from './bridge-link.js';
-import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
+import { registerLatestRecapButton } from './latest-recap.js';
+import { BridgeLinkLifecycle, type BridgeLinkStatus } from './bridge-link-lifecycle.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
@@ -11,31 +11,40 @@ import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
+import { installCombatCreateGuard } from './combat-create-guard.js';
+import { applySelectionColor } from './token-selection-color.js';
+import { installBloodiedRing, refreshRingsOfEffect } from './token-ring-bloodied.js';
 import { diagnostics } from './diagnostics.js';
-import {
-  registerGmHelperQueries,
-  sendTarokkaOffer,
-  unregisterGmHelperQueries,
-} from './gm-helper-queries.js';
+import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
+import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
+import { ACTOR_IMAGE_FEATURE_ID } from './actor-image.js';
+import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
+import { PC_CREATION_FEATURE_ID } from './pc-creation.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
-import { PARTY_FEATURE_ID } from './party-scan.js';
+import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
+import { registerLiveWindowSettings, restoreLiveWindow } from './live-window.js';
+import { registerPartyAuto, registerPartyAutoSettings } from './party-auto.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
-import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
+import { TAROKKA_FEATURE_ID } from './tarokka.js';
+import {
+  onTableSettingChanged,
+  registerTarokkaTableSettings,
+  startTableWatch,
+} from './tarokka-table-window.js';
 import { logInfo } from './log.js';
+import { warmPlayerIndexes } from './player-read.js';
+import { toGmMessage } from './gm-message.js';
 // Connection control now handled through settings menu
-
-/** How long the "MCP server not found" notice stays quiet after it was shown (per browser). */
-const SERVER_NOTICE_THROTTLE_MS = 10 * 60 * 1000;
 
 // Install diagnostic error capture as early as possible (module evaluation),
 // so the earliest console/uncaught errors from other modules are caught.
@@ -47,7 +56,7 @@ interface BridgeStatus {
   enabled: boolean;
   connected: boolean;
   connectionState: string;
-  connectionInfo: BridgeConnectionInfo | undefined;
+  connectionInfo: BridgeLinkStatus['connectionInfo'];
   settings: Record<string, unknown>;
   registeredMethods: string[];
   lastConnectionState: string;
@@ -77,20 +86,28 @@ class FoundryMCPBridge {
   private settings: ModuleSettings;
   private queryHandlers: QueryHandlers;
   private campaignHooks: CampaignHooks;
-  private socketBridge: SocketBridge | null = null;
   private isInitialized = false;
-  private heartbeatInterval: number | null = null;
-  private lastActivity: Date = new Date();
-  private isConnecting = false;
-  /** In memory only: writing these to world settings on every reconnect wrote to the world. */
-  private lastConnectionState = 'disconnected';
-  private lastServerNoticeAt = 0;
-  private heartbeatWarned = false;
+  /** The bridge link (bridge-link-lifecycle.ts): start, stop, its state and the GM link toasts. */
+  private link: BridgeLinkLifecycle;
+
+  /** Shows the holder's link notices in this GM browser (the link lifecycle owns them). */
+  watchLinkState(): void {
+    this.link.watchLinkState();
+  }
+
+  /** The stored link state changed (or was read when this GM joined). */
+  applyStoredLinkState(): void {
+    this.link.applyStoredLinkState();
+  }
 
   constructor() {
     this.settings = new ModuleSettings();
     this.queryHandlers = new QueryHandlers();
     this.campaignHooks = new CampaignHooks(this);
+    this.link = new BridgeLinkLifecycle({
+      settings: this.settings,
+      isInitialized: (): boolean => this.isInitialized,
+    });
   }
 
   /**
@@ -107,7 +124,7 @@ class FoundryMCPBridge {
    * browser into an AI control surface.
    */
   private isBridgeAllowedForUser(): boolean {
-    return this.isGMUser() || this.settings.getSetting('allowNonGmAccess') === true;
+    return this.link.isBridgeAllowedForUser();
   }
 
   /**
@@ -115,13 +132,19 @@ class FoundryMCPBridge {
    */
   async initialize(): Promise<void> {
     try {
-      logInfo(`[${MODULE_ID}] Initializing Foundry MCP Bridge...`);
+      logInfo(`[${MODULE_ID}] Initializing Foundry AI Tool...`);
 
       // Register module settings
       this.settings.registerSettings();
       registerSettingsUsageHooks();
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
+      registerLiveWindowSettings();
+      // Player characters go into the dnd5e party by themselves (active GM's client only).
+      registerPartyAutoSettings();
+      registerPartyAuto();
+      // The Tarokka card table (D-130): the public table every client reads, players included.
+      registerTarokkaTableSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
       registerDiceThemes();
 
@@ -142,6 +165,11 @@ class FoundryMCPBridge {
         hint: "Lets the AI Tool change which Foundry documents it mirrors into the GM's Obsidian vault (the mirror settings).",
       });
       registerGuardedFeature({
+        id: 'obsidian-import',
+        name: 'AI Tool: Obsidian import (writes)',
+        hint: "Lets the AI Tool create a GM-only quest journal from a quest prep note in the GM's Obsidian vault, after you confirm the plan.",
+      });
+      registerGuardedFeature({
         id: PARTY_FEATURE_ID,
         name: 'AI Tool: Party (writes)',
         hint: "Lets the dashboard's Party drawer and the AI change the party's travel pace, add the party to combat and post a party rest request.",
@@ -149,17 +177,17 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: LIVE_PLAY_FEATURE_ID,
         name: 'AI Tool: Live play (writes)',
-        hint: 'Lets the dashboard and the AI apply damage, healing, temporary hit points, conditions and resources (spell slots, class resources, item uses), move, change or delete tokens, and dress the scene (area templates, darkness and light, map notes, loot).',
+        hint: 'Lets the dashboard and the AI change hit points, conditions, resources, tokens and the scene during play.',
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',
-          hint: "Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step. The dashboard's Damage and Condition buttons apply at once without it. Each one still shows an Undo and is listed in Recent Changes.",
+          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step, each with an Undo in Changes.',
         },
       });
       registerGuardedFeature({
         id: 'session-notes',
         name: 'AI Tool: Session notes (writes)',
-        hint: 'Puts the notes of a recorded session (Recap, GM summary, Scenes) into a GM-only journal in Foundry automatically, without asking, as soon as Foundry is open with writes on. Each one shows in Recent Changes with an Undo. Players see the Recap only when you reveal it.',
+        hint: 'Puts the notes of a recorded session into a GM-only journal automatically, without asking; each one shows in Changes with an Undo.',
       });
       registerGuardedFeature({
         id: OWNERSHIP_FEATURE_ID,
@@ -168,52 +196,81 @@ class FoundryMCPBridge {
         defaultEnabled: true,
       });
       registerGuardedFeature({
+        id: SETUP_FEATURE_ID,
+        name: 'AI Tool: Foundry setup (writes)',
+        hint: 'Lets the AI change Foundry settings, turn modules on or off, change user roles and who can open a compendium pack, journal or scene, after you confirm; never passwords, a Gamemaster or these switches.',
+      });
+      registerGuardedFeature({
+        id: 'player-portrait',
+        name: 'AI Tool: Player portraits (writes)',
+        hint: "Lets a player change the picture of their own character from the dashboard's player page, and the tokens of that character already placed on scenes when they pick the token picture too (the file goes into their own folder under assets/players).",
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: ACTOR_IMAGE_FEATURE_ID,
+        name: 'AI Tool: Actor images (writes)',
+        hint: "Lets the AI set an actor's portrait and token picture from a file in an allowed folder on the GM's PC, after you confirm (the file goes into assets/ai-art).",
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
         id: 'table-viewer',
         name: 'AI Tool: Table viewer (writes)',
-        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Recent Changes with an Undo.',
+        hint: 'Lets the AI create the Table user that the TV at the table signs in as, after you confirm.',
         defaultEnabled: true,
       });
       registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
-        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Recent Changes with an Undo.",
+        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a world backup, after you confirm.",
+      });
+      registerGuardedFeature({
+        id: PC_CREATION_FEATURE_ID,
+        name: 'AI Tool: Character creation (writes)',
+        hint: 'Lets the AI create a player character and copy pack items onto it, after you confirm.',
       });
       registerGuardedFeature({
         id: ROOM_SETUP_FEATURE_ID,
         name: 'AI Tool: Room setup (writes)',
-        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Recent Changes with an Undo.',
+        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm.',
       });
       registerGuardedFeature({
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
-        hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Recent Changes with an Undo.",
+        hint: "Lets the AI set a scene's darkness, light, weather and playlists, after you confirm.",
+      });
+      registerGuardedFeature({
+        id: TOKEN_RINGS_FEATURE_ID,
+        name: 'AI Tool: Token rings (writes)',
+        hint: "Lets the AI turn the dynamic token ring on or off on the actors' default tokens or on tokens already placed on scenes, in batches, after you confirm.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
-        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm the plan. Each turn shows in Recent Changes with an Undo. The attacks and saves are rolled first, separately.',
+        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm.',
       });
       registerGuardedFeature({
         id: PAPER_SYNC_FEATURE_ID,
         name: 'AI Tool: Paper sync (writes)',
-        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Recent Changes with an Undo. XP, level and class are never changed.',
+        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper, one plan per character after you confirm.',
+      });
+      registerGuardedFeature({
+        id: WHO_NOTICES_FEATURE_ID,
+        name: 'AI Tool: Who would notice',
+        hint: "Adds a row to the dashboard's Party drawer that shows which characters would notice a DC (GM only).",
+        readOnly: true,
       });
       registerGuardedFeature({
         id: RULES_CHECK_FEATURE_ID,
         name: 'AI Tool: Rules check',
-        hint: 'Lets the AI check whether an attack, spell or item looks legal right now (turn, cost, range, spell slots, uses left) and say why.',
+        hint: 'Lets the AI check whether an attack, spell or item looks legal right now and say why.',
         readOnly: true,
+        defaultEnabled: true,
       });
       registerGuardedFeature({
         id: 'change-undo',
         name: 'AI Tool: Undo for everything',
-        hint: "Lets the AI Tool undo and redo anyone's changes (players', yours and the AI's) from the Changes list: one change, or everything since on the same thing. Each undo is confirmed first and logged, and can be undone again.",
+        hint: "Lets the AI Tool undo and redo anyone's changes from the Changes list, each one confirmed first.",
         defaultEnabled: true,
-      });
-      Hooks.on('clientSettingChanged', (key: string) => {
-        void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {
-          console.warn(`[${MODULE_ID}] Tarokka offer failed:`, error);
-        });
       });
 
       // Register bridge handlers (module-private table, dispatched only by the
@@ -224,6 +281,7 @@ class FoundryMCPBridge {
 
       // The GM-only "AI Tool" group in the scene controls (the Changes window, I-108).
       registerAiToolControls();
+      registerLatestRecapButton();
 
       // Register campaign hooks for interactive dashboards
       this.campaignHooks.register();
@@ -253,7 +311,7 @@ class FoundryMCPBridge {
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to initialize:`, error);
       trackUsage('error', 'module.error.init', { code: 'init-failed' });
-      ui.notifications.error('Failed to initialize Foundry MCP Bridge');
+      ui.notifications.error(toGmMessage('start the AI Tool', error));
       throw error;
     }
   }
@@ -280,20 +338,29 @@ class FoundryMCPBridge {
       const validation = this.settings.validateSettings();
       if (!validation.valid) {
         console.warn(`[${MODULE_ID}] Invalid settings:`, validation.errors);
-        ui.notifications.warn(
-          `MCP Bridge settings validation failed: ${validation.errors.join(', ')}`
-        );
+        ui.notifications.warn(`AI Tool settings need a look: ${validation.errors.join(', ')}`);
       }
 
       // Auto-connect when enabled (always automatic)
       const enabled = this.settings.getSetting('enabled');
 
       if (enabled) {
-        await this.start();
+        try {
+          await this.start();
+        } catch (error) {
+          // A first connect that fails or times out (the backend restarting beside Foundry, for
+          // example at the daily restart) is not a failed ready: start() already warned, the
+          // reconnect timer keeps dialling (unless auto-reconnect is off), and the index warm-ups below must still run.
+          console.warn(
+            `[${MODULE_ID}] The first connect to the AI Tool server did not work (if it was the server, the bridge keeps dialling in the background unless auto-reconnect is off):`,
+            error
+          );
+        }
       }
 
       // Rebuild a missing or stale creature index in the background.
       this.warmEnhancedIndex();
+      this.warmPlayerIndexes();
 
       logInfo(`[${MODULE_ID}] Module ready`);
     } catch (error) {
@@ -328,229 +395,72 @@ class FoundryMCPBridge {
   }
 
   /**
+   * Build the player book indexes in the background after start, so the first player search
+   * after a restart answers in seconds (a cold build is 20 to 30 s on the Pi, over the query
+   * timeout). Same client rule as the creature index: the bridge user's browser only.
+   */
+  private warmPlayerIndexes(): void {
+    if (!this.isGMUser()) return;
+    if (!isBridgeUser(this.settings.getSetting('bridgeUserId'), game.user?.id)) return;
+    if (game.system.id !== 'dnd5e') return;
+
+    const started = Date.now();
+    void warmPlayerIndexes(this.queryHandlers.dataAccess.playerWarmDeps())
+      .then(built => {
+        logInfo(
+          `[${MODULE_ID}] Player book indexes ready (${built} packs, ${Date.now() - started} ms)`
+        );
+      })
+      .catch(error => {
+        console.warn(`[${MODULE_ID}] Failed to warm the player book indexes:`, error);
+      });
+  }
+
+  /**
    * Start the MCP bridge connection
    */
-  async start(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Module not initialized');
-    }
-
-    // SECURITY: double-check access (safety measure). GM-only unless allowNonGmAccess is on.
-    if (!this.isBridgeAllowedForUser()) {
-      console.warn(`[${MODULE_ID}] Attempted to start bridge without access`);
-      return;
-    }
-
-    // One bridge user holds the link (PB-02). Other GMs skip it quietly.
-    const bridgeUserId = this.settings.getSetting('bridgeUserId');
-    if (!isBridgeUser(bridgeUserId, game.user?.id)) {
-      logInfo(`[${MODULE_ID}] Not the bridge user; this browser does not start the link`);
-      return;
-    }
-
-    if (this.socketBridge?.isConnected() || this.isConnecting) {
-      logInfo(`[${MODULE_ID}] Bridge already running or connecting`);
-      return;
-    }
-
-    // Never leave an old bridge (and its reconnect timer) running beside a new one.
-    if (this.socketBridge) {
-      this.socketBridge.disconnect();
-      this.socketBridge = null;
-      setBridgeLink(null);
-    }
-
-    this.isConnecting = true;
-    let dialled = false;
-
-    try {
-      logInfo(`[${MODULE_ID}] Starting MCP bridge...`);
-
-      const config = this.settings.getBridgeConfig();
-
-      // Validate configuration
-      const validation = this.settings.validateSettings();
-      if (!validation.valid) {
-        throw new Error(`Invalid configuration: ${validation.errors.join(', ')}`);
-      }
-
-      // Create and connect socket bridge
-      this.socketBridge = new SocketBridge(config);
-      setBridgeLink(this.socketBridge);
-      dialled = true;
-      await this.socketBridge.connect();
-
-      // Log connection details for debugging
-      const connectionInfo = this.socketBridge.getConnectionInfo();
-      logInfo(
-        `[${MODULE_ID}] Bridge started successfully - Type: ${connectionInfo.type}, State: ${connectionInfo.state}`
-      );
-
-      this.lastConnectionState = 'connected';
-      this.updateLastActivity();
-
-      // Update settings display with connection status
-      this.settings.updateConnectionStatusDisplay(true, 75); // MCP tools exposed by the bridge
-
-      // Start heartbeat monitoring if enabled
-      this.startHeartbeat();
-
-      // Show connection notification based on user preference
-      if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('🔗 MCP Bridge connected successfully');
-      }
-      logInfo(
-        `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
-      );
-    } catch (error) {
-      // Log as warning instead of error for initial connection failures
-      console.warn(`[${MODULE_ID}] Failed to start bridge:`, error);
-
-      // Show helpful message for GM users when MCP server isn't available
-      if (dialled && this.isGMUser()) {
-        // A browser WebSocket error never says why (no ECONNREFUSED), so the first
-        // failed start is the signal. Throttled in memory so a long outage does not spam.
-        const now = Date.now();
-        if (now - this.lastServerNoticeAt >= SERVER_NOTICE_THROTTLE_MS) {
-          this.lastServerNoticeAt = now;
-          ui.notifications?.warn(
-            'MCP Server not found. Install it from https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool'
-          );
-        }
-      }
-
-      this.lastConnectionState = 'error';
-      throw error;
-    } finally {
-      this.isConnecting = false;
-    }
+  start(): Promise<void> {
+    return this.link.start();
   }
 
   /**
    * Stop the MCP bridge connection
    */
   stop(): Promise<void> {
-    this.stopNow();
-    return Promise.resolve();
-  }
-
-  private stopNow(): void {
-    if (!this.socketBridge) {
-      logInfo(`[${MODULE_ID}] Bridge not running`);
-      return;
-    }
-
-    try {
-      logInfo(`[${MODULE_ID}] Stopping MCP bridge...`);
-
-      // Stop heartbeat monitoring
-      this.stopHeartbeat();
-
-      this.socketBridge.disconnect();
-      this.socketBridge = null;
-      setBridgeLink(null);
-
-      this.lastConnectionState = 'disconnected';
-
-      // Update settings display with disconnected status
-      this.settings.updateConnectionStatusDisplay(false, 0);
-
-      logInfo(`[${MODULE_ID}] Bridge stopped`);
-
-      // Show disconnection notification based on user preference
-      if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('MCP Bridge disconnected');
-      }
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error stopping bridge:`, error);
-    }
+    return this.link.stop();
   }
 
   /**
    * Restart the bridge with current settings
    */
-  async restart(): Promise<void> {
-    logInfo(`[${MODULE_ID}] Restarting bridge...`);
-
-    await this.stop();
-
-    // Small delay to ensure clean disconnect
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (this.settings.getSetting('enabled')) {
-      await this.start();
-    }
+  restart(): Promise<void> {
+    return this.link.restart();
   }
 
   /**
    * Get current bridge status
    */
   getStatus(): BridgeStatus {
+    const link = this.link.getStatus();
     return {
       initialized: this.isInitialized,
       enabled: this.settings.getSetting('enabled'),
-      connected: this.socketBridge?.isConnected() ?? false,
-      connectionState: this.socketBridge?.getConnectionState() ?? 'disconnected',
-      connectionInfo: this.socketBridge?.getConnectionInfo(),
+      connected: link.connected,
+      connectionState: link.connectionState,
+      connectionInfo: link.connectionInfo,
       settings: this.settings.getAllSettings(),
       registeredMethods: this.queryHandlers.getRegisteredMethods(),
-      lastConnectionState: this.lastConnectionState,
-      lastActivity: this.lastActivity.toISOString(),
-      heartbeatActive: this.heartbeatInterval !== null,
+      lastConnectionState: link.lastConnectionState,
+      lastActivity: link.lastActivity,
+      heartbeatActive: link.heartbeatActive,
     };
-  }
-
-  /**
-   * Start heartbeat monitoring
-   */
-  private startHeartbeat(): void {
-    this.stopHeartbeat(); // Ensure no duplicate intervals
-
-    const interval = this.settings.getSetting('heartbeatInterval') * 1000; // Convert to milliseconds
-
-    this.heartbeatInterval = window.setInterval(() => {
-      this.performHeartbeat();
-    }, interval);
-
-    logInfo(`[${MODULE_ID}] Heartbeat monitoring started (${interval}ms interval)`);
-  }
-
-  /**
-   * Stop heartbeat monitoring
-   */
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-      logInfo(`[${MODULE_ID}] Heartbeat monitoring stopped`);
-    }
-  }
-
-  /**
-   * Perform heartbeat check. Light on purpose: the socket bridge owns
-   * reconnecting (forever, with backoff), so this only notes the state. It never
-   * restarts the bridge and never switches `autoReconnectEnabled` off.
-   */
-  private performHeartbeat(): void {
-    if (this.socketBridge?.isConnected()) {
-      this.lastConnectionState = 'connected';
-      this.heartbeatWarned = false;
-      this.updateLastActivity();
-      return;
-    }
-    this.lastConnectionState = 'disconnected';
-    // Log once per disconnection to avoid spam
-    if (!this.heartbeatWarned && new Date().getTime() - this.lastActivity.getTime() > 60000) {
-      this.heartbeatWarned = true;
-      console.warn(`[${MODULE_ID}] Heartbeat: connection is down, the bridge keeps retrying`);
-    }
   }
 
   /**
    * Update last activity timestamp
    */
   updateLastActivity(): void {
-    this.lastActivity = new Date();
+    this.link.updateLastActivity();
   }
 
   /**
@@ -594,12 +504,73 @@ Hooks.once('init', async () => {
   }
 });
 
+// The error buffer is kept in browser storage, which every world on this server shares: drop the
+// previous world's errors once the world id is known.
+Hooks.once('ready', () => {
+  try {
+    const worldId = (game as { world?: { id?: string } }).world?.id;
+    if (worldId) diagnostics.bindWorld(worldId);
+    else console.warn(`[${MODULE_ID}] No world id at ready: the error buffer is not saved.`);
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not tie the error buffer to the world:`, error);
+  }
+});
+
+// A fight created already begun must not throw in Combat#_onCreate on any client. Own try block.
+Hooks.once('ready', () => {
+  try {
+    if (!installCombatCreateGuard()) {
+      console.warn(`[${MODULE_ID}] Combat class has no _onCreate to guard`);
+    }
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not guard Combat creation:`, error);
+  }
+});
+
+// Selected tokens look different from the turn marker (test 3), on every client. Its own hook and
+// try block: a colour change must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    applySelectionColor();
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set the token selection colour:`, error);
+  }
+});
+
+// A bloodied token shows a red ring (I-093), on every client. Own hook and try block: a ring
+// colour must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    if (!installBloodiedRing()) console.warn(`[${MODULE_ID}] No token document class for rings`);
+    Hooks.on('createActiveEffect', (effect: unknown) =>
+      refreshRingsOfEffect(effect as Parameters<typeof refreshRingsOfEffect>[0])
+    );
+    Hooks.on('deleteActiveEffect', (effect: unknown) =>
+      refreshRingsOfEffect(effect as Parameters<typeof refreshRingsOfEffect>[0])
+    );
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set up bloodied token rings:`, error);
+  }
+});
+
 Hooks.once('ready', async () => {
   try {
     // Usage log (I-084): every client batches its own events every 10 s.
     usageRecorder.start();
 
+    // A player who joins while the GM shows the Tarokka table sees it at once.
+    onTableSettingChanged();
+    startTableWatch();
+
     await foundryMCPBridge.onReady();
+
+    // The link holder (the Assistant GM's browser) shares its lost/back notices through a world
+    // setting; a GM browser that does not hold the link shows them too, also when it joins mid-outage.
+    // (The setting's onChange fires for the first write, a create, as well as for later updates.)
+    foundryMCPBridge.watchLinkState();
+
+    // Live screen B: the pinned button, and the live window if it was open before the reload.
+    restoreLiveWindow();
 
     // Register socket listener for roll state management (after game.user is available)
 
@@ -638,9 +609,7 @@ Hooks.once('ready', async () => {
               // Notify GM about the failure
               if (game.user?.isGM) {
                 trackUsage('error', 'module.error.roll-update', { code: 'update-failed' });
-                ui.notifications?.error(
-                  `Failed to update player roll message: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                ui.notifications?.error(toGmMessage("update a player's roll in chat", error));
               }
             }
           }
@@ -665,9 +634,7 @@ Hooks.once('ready', async () => {
               // Notify GM about the failure so they can take action
               if (game.user?.isGM) {
                 trackUsage('error', 'module.error.roll-state', { code: 'save-failed' });
-                ui.notifications?.error(
-                  `Failed to save player roll state: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                ui.notifications?.error(toGmMessage("remember a player's roll", error));
               }
             }
           }

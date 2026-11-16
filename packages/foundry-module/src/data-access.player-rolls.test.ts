@@ -30,18 +30,24 @@
  *     `updateRollButtonMessage`; the harness already provides a no-op socket.
  *
  * NOT characterized here (and why):
- *   - `attachRollButtonHandlers` — operates purely on a live jQuery object and the
+ *   - `attachRollButtonHandlers`: operates purely on a live jQuery object and the
  *     DOM (`html.find(...).on('click', ...)`, `button.css/show/hide/prop`). The
  *     `rollButtonProcessingStates` map is private and only mutated inside those DOM
  *     click handlers, so it is not observable without a DOM/jQuery harness, which
  *     would require editing shared test support. Skipped.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ERROR_MESSAGES, MODULE_ID } from './constants.js';
-import { createTestWorld, makeItem, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeItem,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import { eventTracker } from './session-events.js';
+import { changeJournal } from './change-journal.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -86,8 +92,8 @@ function addPlayerCharacter(opts: {
 
 /** Override `globalThis.Roll` with a spy-able mock that records `toMessage`. */
 function installRollSpy(total = 14): {
-  toMessage: ReturnType<typeof vi.fn>;
-  evaluate: ReturnType<typeof vi.fn>;
+  toMessage: Mock;
+  evaluate: Mock;
   ctorArgs: any[];
 } {
   const toMessage = vi.fn(() => Promise.resolve({}));
@@ -113,7 +119,7 @@ function installRollSpy(total = 14): {
 // requestPlayerRolls
 // ===========================================================================
 
-describe('FoundryDataAccess — requestPlayerRolls', () => {
+describe('FoundryDataAccess: requestPlayerRolls', () => {
   it('creates a public roll-button chat message for an online player and returns success', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
@@ -147,6 +153,8 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     // button HTML + flavor surfaced in content
     expect(msg.content).toContain('mcp-roll-button');
     expect(msg.content).toContain('DEX Ability Check (Public)');
+    expect(msg.content).toContain('Roll for Silvera: DEX check');
+    expect(msg.content).not.toContain('style=');
     expect(msg.content).toContain('Perception sweep');
 
     // the module flags carry a single rollButtons entry, unrolled, with formula 1d20+3
@@ -262,6 +270,112 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     expect(buttons[buttonId].targetUserId).toBe(''); // no user for GM-only characters
   });
 
+  it('rolls for the character assigned to the player, not the first actor they own', async () => {
+    const user = world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({
+      id: 'a0',
+      name: 'Alt Familiar',
+      ownerUserId: 'u1',
+      rollData: { abilities: { dex: { mod: -2 } } },
+    });
+    const main = addPlayerCharacter({
+      id: 'a1',
+      name: 'Silvera',
+      ownerUserId: 'u1',
+      rollData: { abilities: { dex: { mod: 3 } } },
+    });
+    user.character = main;
+
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    const buttons = msg.flags[MODULE_ID].rollButtons;
+    const button = buttons[Object.keys(buttons)[0]];
+    expect(button.characterId).toBe('a1');
+    expect(button.rollFormula).toBe('1d20+3');
+  });
+
+  it('an exact character name beats a partial player name (character "Mira", player "Miranda")', async () => {
+    world.addUser({ id: 'u1', name: 'Miranda', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Mira', ownerUserId: 'u2' });
+    addPlayerCharacter({ id: 'a2', name: 'Miranda Jr', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Mira',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain('Roll request sent to Tom');
+  });
+
+  it('refuses several partial player names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Alice Smith', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Alice Jones', active: true, isGM: false });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Multiple players or characters match "Alice"/);
+    expect(result.error).toContain('Alice Smith (u1)');
+    expect(result.error).toContain('Alice Jones (u2)');
+  });
+
+  it('refuses several partial character names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Aria Stormwind', ownerUserId: 'u1' });
+    addPlayerCharacter({ id: 'a2', name: 'Aria Brightwood', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Aria',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Aria Stormwind (a1)');
+    expect(result.error).toContain('Aria Brightwood (a2)');
+  });
+
+  it('refuses several partial matches among characters nobody owns', async () => {
+    world.addActor({ id: 'n1', name: 'Goblin Archer', type: 'npc' });
+    world.addActor({ id: 'n2', name: 'Goblin Boss', type: 'npc' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Goblin',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Goblin Archer (n1)');
+  });
+
   it('appends a custom rollModifier to the formula', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
@@ -292,6 +406,154 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 // requestAbilityCheck / requestAttackRoll (wrappers)
 // ===========================================================================
 
+describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => {
+  function installFight(combatants: Array<{ id: string; actorId: string }>): {
+    rollInitiative: Mock;
+  } {
+    const rollInitiative = vi.fn(() => Promise.resolve());
+    world.setCombat({ combatants: { contents: combatants }, rollInitiative });
+    return { rollInitiative };
+  }
+
+  it('rolls the actor’s combatant in the running fight', async () => {
+    const { rollInitiative } = installFight([
+      { id: 'c1', actorId: 'a1' },
+      { id: 'c2', actorId: 'a2' },
+    ]);
+    const done = await (da as any).playerRolls.rollTrackerInitiative({ id: 'a2' });
+    expect(done).toBe(true);
+    expect(rollInitiative).toHaveBeenCalledWith(['c2'], expect.any(Object));
+  });
+
+  it('breaks the change group just before the tracker roll, and not when it falls back', async () => {
+    const order: string[] = [];
+    const spy = vi
+      .spyOn(changeJournal, 'breakGroup')
+      .mockImplementation(() => void order.push('break'));
+    const rollInitiative = vi.fn(() => {
+      order.push('roll');
+      return Promise.resolve();
+    });
+    world.setCombat({ combatants: { contents: [{ id: 'c1', actorId: 'a1' }] }, rollInitiative });
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(order).toEqual(['break', 'roll']);
+    spy.mockClear();
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a9' });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('falls back (false) when the actor is in no fight, or there is none', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a9' })).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+    world.currentCombat = null;
+    for (const c of [...world.combats.contents]) world.combats.delete(c.id);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+  });
+
+  it('asks for a public card, whatever chat mode the roller has', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(rollInitiative.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining(
+        'messageMode' in (rollInitiative.mock.calls[0]?.[1] as object)
+          ? { messageMode: 'public' }
+          : { messageOptions: expect.any(Object) }
+      )
+    );
+  });
+
+  it('refuses to overwrite an initiative that is already there', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', initiative: 18 } as any]);
+    await expect((da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).rejects.toThrow(
+      /already in the tracker/
+    );
+    expect(rollInitiative).not.toHaveBeenCalled();
+  });
+
+  it('leaves a request made before this fight began to the plain roll', async () => {
+    const rollInitiative = vi.fn(() => Promise.resolve());
+    world.setCombat({
+      combatants: { contents: [{ id: 'c1', actorId: 'a1' }] },
+      rollInitiative,
+      _stats: { createdTime: 2000 },
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 1000)).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 3000)).toBe(true);
+    // An unknown time (NaN) is no reason to skip the tracker or to refuse.
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, NaN)).toBe(true);
+  });
+
+  it('does not roll twice when Foundry wrote the number and then threw', async () => {
+    const combatant: { id: string; actorId: string; initiative?: number } = {
+      id: 'c1',
+      actorId: 'a1',
+    };
+    world.setCombat({
+      combatants: {
+        contents: [combatant],
+        get: (id: string) => (id === 'c1' ? combatant : undefined),
+      },
+      rollInitiative: vi.fn(() => {
+        combatant.initiative = 14;
+        return Promise.reject(new Error('card failed'));
+      }),
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(true);
+  });
+
+  it('leaves a hidden combatant to Foundry’s own card rule', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', hidden: true } as any]);
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(rollInitiative).toHaveBeenCalledWith(['c1'], {});
+  });
+
+  it('plain-rolls when the combatant is not the caller’s to roll', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', isOwner: false } as any]);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a plain roll when Foundry will not roll it', async () => {
+    const plain = { id: 'c1', actorId: 'a1' };
+    world.setCombat({
+      combatants: { contents: [plain], get: () => plain },
+      rollInitiative: vi.fn(() => Promise.reject(new Error('no'))),
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+  });
+
+  it('takes the tracker only for a public, unmodified initiative card', async () => {
+    const { toMessage } = installRollSpy();
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
+    const base = {
+      rollLabel: 'Initiative',
+      rollType: 'initiative',
+      rollTarget: 'initiative',
+      characterId: 'a1',
+      targetUserId: 'u1',
+      dc: null,
+      isGmRoll: false,
+    };
+    const roll = (over: object): Promise<void> =>
+      (da as any).playerRolls.rollForButton({
+        ...base,
+        isPublic: true,
+        rollFormula: '1d20+2',
+        ...over,
+      });
+    await roll({});
+    expect(rollInitiative).toHaveBeenCalledTimes(1);
+    await roll({ isPublic: false });
+    await roll({ rollFormula: '1d20+2+1d4' });
+    expect(rollInitiative).toHaveBeenCalledTimes(1);
+    expect(toMessage).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('FoundryDataAccess: roll request event', () => {
   it('a private request is a roll-request event naming who may see it; a public one names no one', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
@@ -320,9 +582,41 @@ describe('FoundryDataAccess: roll request event', () => {
     expect(events[1].details.isPublic).toBe(true);
     expect(events[1].details.whisperTo).toEqual([]);
   });
+
+  it('names the player the request is for, so the dashboard can tell who still owes a roll', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+    const event = eventTracker.getSessionLog({ eventType: 'roll-request' }).slice(-1)[0];
+    expect(event.details.targetUserId).toBe('u1');
+  });
+
+  it('has no player id for a GM-owned character with no user, and still logs the request', async () => {
+    const actor = world.addActor({ id: 'npc1', name: 'Goblin Boss', type: 'npc' });
+    actor.hasPlayerOwner = false;
+    actor.testUserPermission = (): boolean => false;
+    actor.getRollData = (): Record<string, unknown> => ({});
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Goblin Boss',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+    const event = eventTracker.getSessionLog({ eventType: 'roll-request' }).slice(-1)[0];
+    expect(event.details.targetUserId).toBeNull();
+  });
 });
 
-describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
+describe('FoundryDataAccess: requestAbilityCheck (wrapper)', () => {
   it('builds an ability roll request and folds reason + DC into the flavor', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
@@ -343,9 +637,26 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
     expect(result.success).toBe(true);
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
-    expect(msg.content).toContain('Spot the trap — DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content).not.toContain('Spot the trap — DC 15');
     // The click handler reads the DC from the button and rolls against it.
     expect(msg.content).toContain('data-dc="15"');
+  });
+
+  it('shows the DC once on the card: the heading has it, the folded flavor does not repeat it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'wis',
+      dc: 15,
+      isPublic: true,
+      reason: 'Spot the trap',
+    });
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    expect(msg.content).toContain('Roll for Silvera: WIS check, DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content.match(/DC 15/g)).toHaveLength(1);
   });
 
   it('puts no data-dc on a request without a DC', async () => {
@@ -357,7 +668,7 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
   });
 });
 
-describe('FoundryDataAccess — requestAttackRoll (wrapper)', () => {
+describe('FoundryDataAccess: requestAttackRoll (wrapper)', () => {
   it('builds an attack roll request with a "<weapon> attack" flavor and attack label', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
@@ -379,7 +690,7 @@ describe('FoundryDataAccess — requestAttackRoll (wrapper)', () => {
 // rollNpcCheck
 // ===========================================================================
 
-describe('FoundryDataAccess — rollNpcCheck', () => {
+describe('FoundryDataAccess: rollNpcCheck', () => {
   it('throws CHARACTER_NOT_FOUND for an unknown actor', async () => {
     await expect(
       da.rollNpcCheck({
@@ -421,7 +732,143 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
       formula: '1d20+2',
       total: 17,
       isPublic: true,
+      mode: 'normal',
     });
+  });
+
+  it('rolls through dnd5e when the actor can, passing the GM choice and reporting the mode', async () => {
+    const actor = world.addActor({ id: 'npc9', name: 'Ghoul', type: 'npc' });
+    actor.rollSavingThrow = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kl1 + 2', total: 8, options: { advantageMode: -1 } }])
+    );
+    const spy = installRollSpy();
+
+    const result = await da.rollNpcCheck({
+      actorName: 'Ghoul',
+      rollType: 'save',
+      rollTarget: 'con',
+      isPublic: false,
+      advantage: 'disadvantage',
+    });
+
+    const [config, dialog, message] = actor.rollSavingThrow.mock.calls[0];
+    expect(config).toEqual({ ability: 'con', disadvantage: true });
+    expect(dialog).toEqual({ configure: false });
+    expect(message.create).toBe(true);
+    expect(message.data).toBeUndefined();
+    expect(spy.ctorArgs).toEqual([]);
+    expect(result).toMatchObject({ formula: '2d20kl1 + 2', total: 8, mode: 'disadvantage' });
+  });
+
+  it('rolls an NPC attack through its attack activity without spending ammunition', async () => {
+    const rollAttack = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kh + 4', total: 19, options: { advantageMode: 1 } }])
+    );
+    world.addActor({
+      id: 'npc12',
+      name: 'Archer',
+      type: 'npc',
+      items: [{ name: 'Longbow', system: { activities: [{ type: 'attack', rollAttack }] } }] as any,
+    });
+    const spy = installRollSpy();
+    const result = await da.rollNpcCheck({
+      actorName: 'Archer',
+      rollType: 'attack',
+      rollTarget: 'Longbow',
+      isPublic: false,
+      advantage: 'advantage',
+    });
+    const [config, , message] = rollAttack.mock.calls[0] as any[];
+    expect(config).toMatchObject({ advantage: true, ammunition: '' });
+    expect(message.rollMode).toBeDefined();
+    expect(spy.ctorArgs).toEqual([]);
+    expect(result).toMatchObject({ total: 19, mode: 'advantage' });
+  });
+
+  it('keeps an NPC attack off the thrown mode, and rolls a throw-only weapon plain', async () => {
+    const rollAttack = vi.fn(() =>
+      Promise.resolve([{ formula: '1d20 + 4', total: 11, options: { advantageMode: 0 } }])
+    );
+    const modes = [{ value: 'thrown' }, { rule: true }, { value: 'oneHanded' }];
+    const javelin = {
+      id: 'jv1',
+      name: 'Javelin',
+      system: {
+        activities: [{ type: 'attack', rollAttack, item: { system: { attackModes: modes } } }],
+      },
+    };
+    const dart = {
+      id: 'dt1',
+      name: 'Dart',
+      system: {
+        activities: [
+          {
+            type: 'attack',
+            rollAttack,
+            item: { system: { attackModes: [{ value: 'thrown' }] } },
+          },
+        ],
+      },
+    };
+    const actor = world.addActor({
+      id: 'npc14',
+      name: 'Skirmisher',
+      type: 'npc',
+      items: [javelin, dart] as any,
+    });
+    actor.getRollData = (): Record<string, never> => ({});
+    const spy = installRollSpy();
+    const check = { actorName: 'Skirmisher', rollType: 'attack' as const, isPublic: true };
+
+    await da.rollNpcCheck({ ...check, rollTarget: 'Javelin' });
+    expect(rollAttack.mock.calls[0][0]).toMatchObject({ ammunition: '', attackMode: 'oneHanded' });
+
+    await da.rollNpcCheck({ ...check, rollTarget: 'Dart' });
+    expect(rollAttack).toHaveBeenCalledTimes(1);
+    expect(spy.ctorArgs).toHaveLength(1);
+  });
+
+  it('never posts a second card when dnd5e returns rolls of an odd shape', async () => {
+    const actor = world.addActor({ id: 'npc13', name: 'Wisp', type: 'npc' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{}]));
+    const spy = installRollSpy();
+    await da.rollNpcCheck({
+      actorName: 'Wisp',
+      rollType: 'ability',
+      rollTarget: 'dex',
+      isPublic: true,
+    });
+    expect(spy.ctorArgs).toEqual([]);
+  });
+
+  it('reports the mode dnd5e settled on when no choice was made (a condition decided)', async () => {
+    const actor = world.addActor({ id: 'npc10', name: 'Orc', type: 'npc' });
+    actor.rollAbilityCheck = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kl1', total: 4, options: { advantageMode: -1 } }])
+    );
+    const result = await da.rollNpcCheck({
+      actorName: 'Orc',
+      rollType: 'ability',
+      rollTarget: 'str',
+      isPublic: true,
+    });
+    expect(actor.rollAbilityCheck.mock.calls[0][0]).toEqual({ ability: 'str' });
+    expect(result.mode).toBe('disadvantage');
+  });
+
+  it('keeps the GM choice in the plain fallback by rewriting the leading 1d20', async () => {
+    const roll = installRollSpy(12);
+    const actor = world.addActor({ id: 'npc11', name: 'Imp', type: 'npc' });
+    actor.getRollData = (): Record<string, unknown> => ({ abilities: { dex: { mod: 3 } } });
+    const result = await da.rollNpcCheck({
+      actorName: 'Imp',
+      rollType: 'ability',
+      rollTarget: 'dex',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(roll.ctorArgs[0][0]).toBe('2d20kh+3');
+    expect(result.mode).toBe('advantage');
   });
 
   it('uses gmroll rollMode for a private (non-public) roll', async () => {
@@ -479,19 +926,41 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
 // saveRollButtonMessageId / getRollButtonMessageId
 // ===========================================================================
 
-describe('FoundryDataAccess — roll button↔message id mapping', () => {
-  it('round-trips a buttonId→messageId mapping through settings', () => {
-    da.saveRollButtonMessageId('btn-1', 'msg-1');
+describe('FoundryDataAccess: roll button↔message id mapping', () => {
+  it('round-trips a buttonId→messageId mapping through settings', async () => {
+    await da.saveRollButtonMessageId('btn-1', 'msg-1');
     expect(da.getRollButtonMessageId('btn-1')).toBe('msg-1');
+  });
+
+  it('keeps every mapping when saves overlap with a slow settings write', async () => {
+    const settings = (globalThis as any).game.settings;
+    const original = settings.set;
+    // A slow write: the stored value changes only after a tick, as a server round trip does.
+    settings.set = async (...args: any[]): Promise<unknown> => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return original.apply(settings, args);
+    };
+    try {
+      await Promise.all([
+        da.saveRollButtonMessageId('slow-a', 'msg-a'),
+        da.saveRollButtonMessageId('slow-b', 'msg-b'),
+        da.saveRollButtonMessageId('slow-c', 'msg-c'),
+      ]);
+    } finally {
+      settings.set = original;
+    }
+    expect(da.getRollButtonMessageId('slow-a')).toBe('msg-a');
+    expect(da.getRollButtonMessageId('slow-b')).toBe('msg-b');
+    expect(da.getRollButtonMessageId('slow-c')).toBe('msg-c');
   });
 
   it('returns null for an unknown button id', () => {
     expect(da.getRollButtonMessageId('missing')).toBeNull();
   });
 
-  it('accumulates multiple mappings in the same settings object', () => {
-    da.saveRollButtonMessageId('btn-a', 'msg-a');
-    da.saveRollButtonMessageId('btn-b', 'msg-b');
+  it('accumulates multiple mappings in the same settings object', async () => {
+    await da.saveRollButtonMessageId('btn-a', 'msg-a');
+    await da.saveRollButtonMessageId('btn-b', 'msg-b');
     expect(da.getRollButtonMessageId('btn-a')).toBe('msg-a');
     expect(da.getRollButtonMessageId('btn-b')).toBe('msg-b');
   });
@@ -501,7 +970,7 @@ describe('FoundryDataAccess — roll button↔message id mapping', () => {
 // getRollState
 // ===========================================================================
 
-describe('FoundryDataAccess — getRollState', () => {
+describe('FoundryDataAccess: getRollState', () => {
   it('returns the persisted roll state for a button id', () => {
     world.setSetting(MODULE_ID, 'rollStates', {
       'btn-1': { rolled: true, rolledBy: 'u1', rolledByName: 'Alice', timestamp: 123 },
@@ -524,7 +993,7 @@ describe('FoundryDataAccess — getRollState', () => {
 // getRollStateFromMessage
 // ===========================================================================
 
-describe('FoundryDataAccess — getRollStateFromMessage', () => {
+describe('FoundryDataAccess: getRollStateFromMessage', () => {
   it('reads the rollButtons[buttonId] entry from a message flag', () => {
     const chatMessage = {
       getFlag: (scope: string, key: string): Record<string, { rolled: boolean }> | undefined =>
@@ -553,7 +1022,7 @@ describe('FoundryDataAccess — getRollStateFromMessage', () => {
 // updateRollButtonMessage
 // ===========================================================================
 
-describe('FoundryDataAccess — updateRollButtonMessage', () => {
+describe('FoundryDataAccess: updateRollButtonMessage', () => {
   it('throws when no message id is mapped for the button', async () => {
     await expect(da.updateRollButtonMessage('unknown-btn', 'gm', 'Roll')).rejects.toThrow(
       'No message ID found for button unknown-btn'
@@ -561,7 +1030,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
   });
 
   it('throws when the mapped message no longer exists', async () => {
-    da.saveRollButtonMessageId('btn-1', 'gone');
+    await da.saveRollButtonMessageId('btn-1', 'gone');
     await expect(da.updateRollButtonMessage('btn-1', 'gm', 'Roll')).rejects.toThrow(
       'ChatMessage gone not found'
     );
@@ -574,19 +1043,68 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: { 'btn-1': { rolled: false } } } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-1', 'm1');
+    await da.saveRollButtonMessageId('btn-1', 'm1');
 
     await da.updateRollButtonMessage('btn-1', 'gm', 'DEX Check');
 
     // game.user is the GM 'Gamemaster'; rolledByName comes from game.users.get(userId)
     // ('gm' is not in world.users here) → falls back to 'Unknown'
-    expect(msg.content).toContain('Roll Request:</strong> DEX Check');
+    // No stored heading or character: the label stands in for the heading.
+    expect(msg.content).toContain('<strong>DEX Check</strong>');
+    expect(msg.content).not.toContain('Roll Request:');
     expect(msg.content).toContain('Completed by Unknown');
     const updated = msg.flags[MODULE_ID].rollButtons['btn-1'];
     expect(updated.rolled).toBe(true);
     expect(updated.rolledBy).toBe('gm');
     expect(updated.rolledByName).toBe('Unknown');
     expect(typeof updated.timestamp).toBe('number');
+  });
+
+  it('heads the completed card like the request card (stored heading)', async () => {
+    const msg = world.addMessage({
+      id: 'm-h',
+      content: 'x',
+      flags: {
+        [MODULE_ID]: {
+          rollButtons: { 'btn-h': { rolled: false, heading: 'Roll for Mara: Perception, DC 12' } },
+        },
+      },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    await da.saveRollButtonMessageId('btn-h', 'm-h');
+
+    await da.updateRollButtonMessage('btn-h', 'gm', 'Perception Skill Check (Public)');
+
+    expect(msg.content).toContain('mcp-roll-heading');
+    expect(msg.content).toContain('Roll for Mara: Perception, DC 12');
+    expect(msg.content).not.toContain('Roll Request:');
+  });
+
+  it('rebuilds the heading for an older card from its stored roll and character', async () => {
+    world.actors.add(makeActor({ id: 'mara1', name: 'Mara', type: 'character' }));
+    const msg = world.addMessage({
+      id: 'm-old',
+      content: 'x',
+      flags: {
+        [MODULE_ID]: {
+          rollButtons: {
+            'btn-old': {
+              rolled: false,
+              rollType: 'save',
+              rollTarget: 'dex',
+              characterId: 'mara1',
+              dc: 14,
+            },
+          },
+        },
+      },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    await da.saveRollButtonMessageId('btn-old', 'm-old');
+
+    await da.updateRollButtonMessage('btn-old', 'gm', 'DEX Saving Throw (Public)');
+
+    expect(msg.content).toContain('Roll for Mara: DEX saving throw, DC 14');
   });
 
   it('uses the resolved user name for rolledByName when the user is registered', async () => {
@@ -597,7 +1115,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-2', 'm2');
+    await da.saveRollButtonMessageId('btn-2', 'm2');
 
     await da.updateRollButtonMessage('btn-2', 'u1', 'STR Save');
 
@@ -615,7 +1133,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => false;
-    da.saveRollButtonMessageId('btn-3', 'm3');
+    await da.saveRollButtonMessageId('btn-3', 'm3');
 
     const emitSpy = vi.spyOn((globalThis as any).game.socket, 'emit');
 
@@ -643,7 +1161,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => false;
-    da.saveRollButtonMessageId('btn-4', 'm4');
+    await da.saveRollButtonMessageId('btn-4', 'm4');
 
     await expect(da.updateRollButtonMessage('btn-4', 'u1', 'Roll')).rejects.toThrow(
       'No Game Master is online to update the chat message'
@@ -655,7 +1173,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
 // saveRollState / requestRollStateSave (legacy redirects)
 // ===========================================================================
 
-describe('FoundryDataAccess — legacy roll-state redirects', () => {
+describe('FoundryDataAccess: legacy roll-state redirects', () => {
   it('saveRollState redirects to updateRollButtonMessage and rewrites the message', async () => {
     const msg = world.addMessage({
       id: 'm5',
@@ -663,12 +1181,12 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-5', 'm5');
+    await da.saveRollButtonMessageId('btn-5', 'm5');
 
     await da.saveRollState('btn-5', 'gm');
 
     // legacy label is the generic 'Legacy Roll'
-    expect(msg.content).toContain('Roll Request:</strong> Legacy Roll');
+    expect(msg.content).toContain('<strong>Legacy Roll</strong>');
     expect(msg.flags[MODULE_ID].rollButtons['btn-5'].rolled).toBe(true);
   });
 
@@ -676,14 +1194,14 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
     await expect(da.saveRollState('no-map', 'gm')).resolves.toBeUndefined();
   });
 
-  it('requestRollStateSave returns void and triggers the same redirect', () => {
+  it('requestRollStateSave returns void and triggers the same redirect', async () => {
     const msg = world.addMessage({
       id: 'm6',
       content: 'x',
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-6', 'm6');
+    await da.saveRollButtonMessageId('btn-6', 'm6');
 
     expect(da.requestRollStateSave('btn-6', 'gm')).toBeUndefined();
   });
@@ -693,7 +1211,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
 // broadcastRollState (legacy no-op)
 // ===========================================================================
 
-describe('FoundryDataAccess — broadcastRollState', () => {
+describe('FoundryDataAccess: broadcastRollState', () => {
   it('is a no-op that returns undefined', () => {
     expect(da.broadcastRollState('btn-1', { rolled: true })).toBeUndefined();
   });
@@ -703,7 +1221,7 @@ describe('FoundryDataAccess — broadcastRollState', () => {
 // cleanOldRollStates
 // ===========================================================================
 
-describe('FoundryDataAccess — cleanOldRollStates', () => {
+describe('FoundryDataAccess: cleanOldRollStates', () => {
   it('removes roll states older than 30 days and persists the pruned set', async () => {
     const now = Date.now();
     const old = now - 31 * 24 * 60 * 60 * 1000;
@@ -748,6 +1266,13 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     ...extra,
   });
 
+  // The helper stays synchronous for its many callers; the saves are awaited after each test, so
+  // a rejected save fails the test instead of becoming an unhandled rejection.
+  const saves: Array<Promise<void>> = [];
+  afterEach(async () => {
+    await Promise.all(saves.splice(0));
+  });
+
   function addRequest(
     buttonId: string,
     messageId: string,
@@ -761,7 +1286,7 @@ describe('FoundryDataAccess: player page roll buttons', () => {
       flags: { [MODULE_ID]: { rollButtons: { [buttonId]: state } } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId(buttonId, messageId);
+    saves.push(da.saveRollButtonMessageId(buttonId, messageId));
     return msg;
   }
 
@@ -820,6 +1345,74 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(actor.rollSavingThrow.mock.calls[0][2].data).toBeUndefined();
     // No plain `new Roll` was made for any of them.
     expect(spy.ctorArgs).toEqual([]);
+  });
+
+  it('passes a stored advantage choice to dnd5e, and to the plain formula', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{ total: 12 }]));
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'ability', rollTarget: 'str', advantage: 'advantage' }));
+    addRequest('b2', 'm2', btn({ advantage: 'disadvantage' }));
+    addRequest(
+      'b3',
+      'm3',
+      btn({ rollType: 'custom', rollFormula: '1d20+1', advantage: 'advantage' })
+    );
+    addRequest('b4', 'm4', btn({ advantage: 'sideways' }));
+    for (const id of ['b1', 'b2', 'b3', 'b4']) {
+      expect((await da.executePlayerRoll('u1', id)).success).toBe(true);
+    }
+    expect(actor.rollAbilityCheck.mock.calls[0][0]).toEqual({ ability: 'str', advantage: true });
+    // plain fallback: only a d20 roll takes the choice, an unknown value is ignored
+    expect(spy.ctorArgs.map(a => a[0])).toEqual(['2d20kl+3', '1d20+1', '1d20+3']);
+  });
+
+  it('refuses an advantage choice on a custom roll instead of dropping it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const before = world.messages.size;
+    const result = await da.requestPlayerRolls({
+      rollType: 'custom',
+      rollTarget: '1d20+5',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+      advantage: 'advantage',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('custom');
+    expect(world.messages.size).toBe(before);
+    const init = await da.requestPlayerRolls({
+      rollType: 'initiative',
+      rollTarget: 'initiative',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+      advantage: 'disadvantage',
+    });
+    expect(init.success).toBe(false);
+    expect(init.error).toContain('initiative');
+  });
+
+  it('puts the chosen mode on the request card and in the stored state', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const result = await da.requestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'dex',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(result.success).toBe(true);
+    const msg = world.messages.contents[world.messages.contents.length - 1] as any;
+    expect(msg.content).toContain('data-advantage="advantage"');
+    expect(msg.content).toContain('(advantage)');
+    expect(Object.values(msg.flags[MODULE_ID].rollButtons)[0]).toMatchObject({
+      advantage: 'advantage',
+    });
   });
 
   it('rolls an attack through the weapon attack activity', async () => {
@@ -926,5 +1519,60 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     const again = await da.executePlayerRoll('u1', 'b1');
     expect(again.success).toBe(false);
     expect(spy.toMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('FoundryDataAccess: a failed roll button click', () => {
+  function clickWith(isGM: boolean): { error: Mock } {
+    const g2 = globalThis as any;
+    const error = vi.fn();
+    g2.ui = { notifications: { error, warn: vi.fn(), info: vi.fn() } };
+    g2.game.user = { id: 'u1', name: 'Alice', isGM };
+    const data: Record<string, unknown> = { 'button-id': 'b-fail', 'target-user-id': 'u1' };
+    const attrs: Record<string, string> = {
+      'data-roll-formula': '1d20',
+      'data-roll-label': 'Check',
+    };
+    const button: any = {
+      prop: (_name: string, value?: unknown): unknown => (value === undefined ? false : button),
+      text: (value?: string): unknown => (value === undefined ? 'Roll' : button),
+      data: (key: string): unknown => data[key],
+      attr: (key: string): string | undefined => attrs[key],
+      css: () => button,
+      show: () => button,
+      hide: () => button,
+    };
+    g2.$ = (el: unknown): unknown => el;
+    let handler: ((event: unknown) => unknown) | undefined;
+    const html: any = {
+      find: () => ({
+        length: 1,
+        each: (cb: (i: number, el: unknown) => void) => cb(0, button),
+        on: (_name: string, fn: (event: unknown) => unknown): void => {
+          handler = fn;
+        },
+      }),
+    };
+    vi.spyOn((da as any).playerRolls, 'rollForButton').mockRejectedValue(
+      new Error('x is undefined')
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    da.attachRollButtonHandlers(html);
+    handler?.({ currentTarget: button });
+    return { error };
+  }
+
+  it('tells a player to ask the GM, not to open the console', async () => {
+    const { error } = clickWith(false);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(String(error.mock.calls[0][0])).toContain('tell your GM');
+    expect(String(error.mock.calls[0][0])).not.toContain('F12');
+  });
+
+  it('tells a GM where to look in the console', async () => {
+    const { error } = clickWith(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(String(error.mock.calls[0][0])).toContain('F12');
   });
 });

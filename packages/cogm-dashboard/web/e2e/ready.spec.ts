@@ -1,10 +1,12 @@
 // Turn on for tonight inside Pre-flight: the switch chips (/api/session/switches, faked here except
-// in the last test), turning them on and off with the toasts the old page shows, GM Actions from
+// in the last test), turning them on and off with their toasts, GM Actions from
 // the stream's settings event, the pre-flight row following, and Start the session log. With no
 // session open the page shows Before, where Pre-flight (and Ready inside it) sits in the page.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, toast } from './support';
+import type { ApiBodies, SessionSwitchesPostBody } from '../../src/api-bodies';
+import type { SessionSwitches } from '../../src/session-switches';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, preflightBody, toast } from './support';
 
 const OFF = [
   { id: 'writes', name: 'AI Tool: Changes from the tool', on: false },
@@ -13,7 +15,7 @@ const OFF = [
 const ON = OFF.map(s => ({ ...s, on: true }));
 const READY_AT = new Date(2026, 9, 10, 19, 5).getTime();
 
-const switches = (list: typeof OFF, extra: Record<string, unknown> = {}): unknown => ({
+const switches = (list: typeof OFF, extra: Partial<SessionSwitches> = {}): SessionSwitches => ({
   switches: list,
   ready: null,
   changed: [],
@@ -21,11 +23,16 @@ const switches = (list: typeof OFF, extra: Record<string, unknown> = {}): unknow
   ...extra,
 });
 
-const READY_ROW = { id: 'ready', label: 'Turn on for tonight', status: 'warn', detail: 'Off.' };
+const READY_ROW: ApiBodies['/api/preflight']['checks'][number] = {
+  id: 'ready',
+  label: 'Turn on for tonight',
+  status: 'warn',
+  detail: 'Off.',
+};
 
 interface FakeAnswer {
   status?: number;
-  json: unknown;
+  json: SessionSwitchesPostBody;
 }
 
 interface Fakes {
@@ -40,7 +47,7 @@ interface Fakes {
  */
 async function fakeReady(
   page: Page,
-  read: unknown,
+  read: ApiBodies['/api/session/switches'],
   post: (action: string) => FakeAnswer = (): FakeAnswer => ({ json: {} }),
   sessionOpen: () => boolean = (): boolean => false
 ): Promise<Fakes> {
@@ -48,7 +55,7 @@ async function fakeReady(
   let preflight = 0;
   await page.route('**/api/preflight', route => {
     preflight += 1;
-    return route.fulfill({ json: { ready: false, checks: [READY_ROW], scan: null } });
+    return route.fulfill({ json: preflightBody([READY_ROW], false) });
   });
   await page.route('**/api/session/switches', (route, request: Request) => {
     if (request.method() === 'GET') return route.fulfill({ json: read });
@@ -144,7 +151,7 @@ test('Ready turns them on, says what changed, and the pre-flight row follows', a
 
 test('Turn them off again says what it turned off', async ({ page }) => {
   await fakeStream(page, []);
-  const read = {
+  const read: ApiBodies['/api/session/switches'] = {
     switches: switches(ON, { ready: { at: READY_AT, turnedOn: ['handouts'] } }),
     gmActionsEnabled: true,
     error: null,
@@ -207,13 +214,13 @@ test('GM Actions follow the stream, and a failed read shows in the note', async 
   await fakeReady(page, {
     switches: null,
     gmActionsEnabled: false,
-    error: 'Foundry is not connected.',
+    error: 'Could not read the switches from Foundry.',
   });
   const block = await openReady(page);
 
   await expect(chips(block)).toHaveText(['✓ GM Actions']);
   await expect(block.locator('#ready-note')).toHaveText(
-    'Could not read the switches: Foundry is not connected.'
+    'Could not read the switches from Foundry.'
   );
   // GM Actions on is enough to offer turning off.
   await expect(block.locator('#btn-ready-off')).toBeVisible();
@@ -247,9 +254,8 @@ test('Start the session log starts it and then hides', async ({ page }) => {
 test('the real route answers with the bridge down', async ({ page }) => {
   // Nothing faked but the stream and the pre-flight run: the dashboard's own switches route.
   await fakeStream(page, []);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: false, checks: [], scan: null } })
-  );
+  await page.unroute('**/api/session/switches');
+  await page.route('**/api/preflight', route => route.fulfill({ json: preflightBody([], false) }));
   const block = await openReady(page);
   await expect(chips(block)).toHaveText(['○ GM Actions']);
   await expect(block.locator('#btn-ready')).toBeEnabled();
@@ -275,7 +281,7 @@ test('while a change is out both buttons wait, and a double click sends once', a
         switches: switches(ON, { changed: ['writes', 'handouts'] }),
         gmActionsEnabled: true,
         gmActionsChanged: false,
-      },
+      } satisfies SessionSwitchesPostBody,
     });
   });
   const block = await openReady(page);

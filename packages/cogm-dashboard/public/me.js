@@ -193,6 +193,15 @@ function render() {
           : renderFancy(s);
 }
 
+/** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */
+function showClientUpdate(update) {
+  const box = $('me-update');
+  const ok = update && typeof update.da === 'string' && typeof update.en === 'string';
+  box.hidden = !ok;
+  $('me-update-da').textContent = ok ? update.da : '';
+  $('me-update-en').textContent = ok ? update.en : '';
+}
+
 async function load() {
   if (!key) {
     $('me-main').innerHTML = '<p class="me-empty">Open the link your GM sent you.</p>';
@@ -201,20 +210,171 @@ async function load() {
   try {
     const res = await fetch('/api/me', { headers: { 'X-CoGM-Me': key } });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(body.error || 'Could not load your sheet. Ask your GM.');
     data = body;
     applyTheme(body.theme);
+    showClientUpdate(body.clientUpdate);
     render();
     $('me-updated').textContent =
       `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   } catch (err) {
-    if (!data)
-      $('me-main').innerHTML = `<p class="me-empty">${esc(String(err.message || err))}</p>`;
+    if (!data) {
+      const text =
+        err instanceof TypeError ? 'Could not load your sheet. Ask your GM.' : err.message;
+      $('me-main').innerHTML = `<p class="me-empty">${esc(String(text))}</p>`;
+    }
     $('me-updated').textContent = 'Not updated: the table may be offline.';
   }
 }
 
+let connectorLoaded = false;
+let connectorLoading = false;
+
+function setConnectorError(text) {
+  const box = $('mc-error');
+  $('mc-error-text').textContent = text;
+  box.hidden = !text;
+  $('mc-fields').hidden = !!text;
+}
+
+/** An earlier failure may have shown the error card: a later "not set up" answer takes it away. */
+function hideConnector() {
+  setConnectorError('');
+  $('me-connector').hidden = true;
+}
+
+/** "Your Claude connector" (D-136): the player's own pair, read once; hidden when not set up. */
+async function loadConnector() {
+  if (!key || connectorLoaded || connectorLoading) return;
+  connectorLoading = true;
+  try {
+    const res = await fetch('/api/me/connector', { headers: { 'X-CoGM-Me': key } });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && !body.enabled) {
+      connectorLoaded = true; // not set up for this player: the card stays hidden
+      hideConnector();
+      return;
+    }
+    // A 4xx (no world yet, a bad link) is not a broken connector: the card stays hidden. Only a
+    // server error or a lost connection gets the error state with a retry.
+    if (res.status >= 400 && res.status < 500) {
+      hideConnector();
+      return;
+    }
+    if (!res.ok) throw new Error('bad status');
+    $('mc-endpoint').value = body.endpoint || '';
+    $('mc-id').value = body.clientId || '';
+    $('mc-secret').value = body.clientSecret || '';
+    $('mc-hint').hidden = !!body.endpoint;
+    $('mc-download-row').hidden = !body.endpoint;
+    // The remote connector (a web address and your own email) comes first; the extension below is
+    // for a player who has a pair and prefers or needs it.
+    $('mc-remote-url').value = body.remoteUrl || '';
+    $('mc-remote').hidden = !body.remoteUrl;
+    setConnectorError('');
+    $('mc-fields').hidden = !body.clientId; // after the reset above: no pair, no extension block
+    connectorLoaded = true;
+    $('me-connector').hidden = false;
+  } catch {
+    // The card is shown with a retry, so a player is not left with nothing to try.
+    setConnectorError('Could not load your connector values. Check your connection and try again.');
+    $('me-connector').hidden = false;
+    $('me-connector').open = true; // an alert inside a closed details is not announced
+  } finally {
+    connectorLoading = false;
+  }
+}
+
+/**
+ * "Download my helper": the key is sent as a header (never in the address), so the page fetches the
+ * file and saves the bytes itself. The file holds the player's login and is never kept here.
+ */
+async function downloadHelper() {
+  const button = $('mc-download');
+  const live = $('mc-live');
+  if (!key || button.disabled) return;
+  button.disabled = true;
+  live.textContent = '';
+  try {
+    const res = await fetch('/api/me/helper.mcpb', { headers: { 'X-CoGM-Me': key } });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      live.textContent = body.error || 'Could not make your helper file. Ask your GM.';
+      return;
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'foundry-player.mcpb';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    live.textContent = 'Downloaded. Open the file, then restart Claude Desktop.';
+  } catch {
+    live.textContent = 'Could not download. Check your connection and try again.';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/** Copy `input`'s value; plain http has no clipboard API, so fall back to a selected copy command. */
+async function copyValue(input) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(input.value);
+      return true;
+    }
+  } catch {
+    /* fall through to the old way */
+  }
+  const wasType = input.type;
+  if (wasType === 'password') input.type = 'text'; // a hidden field cannot be selected for copy
+  input.focus();
+  input.select();
+  let ok;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  if (wasType === 'password') input.type = 'password';
+  return ok;
+}
+
+let copiedTimer = null;
+function announce(text) {
+  const live = $('mc-live');
+  live.textContent = text;
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => (live.textContent = ''), 1500);
+}
+
 document.addEventListener('click', e => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    const input = $(copy.dataset.copy);
+    void copyValue(input).then(ok => {
+      copy.textContent = ok ? 'Copied' : 'Copy';
+      announce(
+        ok
+          ? 'Copied'
+          : input.type === 'password'
+            ? 'Could not copy. Press Show, then select the value and copy it.'
+            : 'Could not copy. The value is selected: press Ctrl+C.'
+      );
+      setTimeout(() => (copy.textContent = 'Copy'), 1500);
+    });
+  }
+  if (e.target.closest('#mc-retry')) void loadConnector();
+  if (e.target.closest('#mc-download')) void downloadHelper();
+  if (e.target.closest('#mc-show')) {
+    const secret = $('mc-secret');
+    const show = secret.type === 'password';
+    secret.type = show ? 'text' : 'password';
+    $('mc-show').textContent = show ? 'Hide' : 'Show';
+    $('mc-show').setAttribute('aria-pressed', String(show));
+  }
   const v = e.target.closest('[data-view]');
   if (v) {
     view = v.dataset.view;
@@ -230,10 +390,14 @@ document.addEventListener('click', e => {
 });
 $('me-print').addEventListener('click', () => window.print());
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) void load();
+  if (!document.hidden) {
+    void load();
+    void loadConnector();
+  }
 });
 setInterval(() => {
   if (!document.hidden) void load();
 }, REFRESH_MS);
 render();
 void load();
+void loadConnector();

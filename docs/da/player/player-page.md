@@ -1,0 +1,68 @@
+---
+source: player/player-page.md
+sourceHash: fd180d40997d
+title: Brug player page
+description: Korte how-tos om den valgfri player page ved siden af Foundry, med at vælge dit navn, følge combaten, handouts til dig, roll-knapper og hvordan du spørger GM'en om det, værktøjet ved.
+---
+
+# Brug player page
+
+Korte how-tos til de ekstra ting omkring Foundry. Alt i selve Foundry virker som altid: player page
+og My character er valgfrie ekstraer ved siden af, aldrig en erstatning. Hvad værktøjet optager, og
+hvilke dele der når en AI, står i [spillerguiden](README.md). Vil du have færdige forespørgsler til
+D&D-hjælperen (planlæg en karakter, level op, regler)? Se
+[D&D-hjælperens kogebog](cookbook.md).
+
+Player page er live bag login med e-mailkode. GM'en sender dig adressen.
+
+## Vælg dit navn på player page
+
+- **Gør:** første gang du åbner player page, så klik på dit navn øverst. Så står der
+  "Playing as ...". Klikkede du på det forkerte? Klik på **Not you? Change** og vælg igen.
+- **Hvorfor:** handouts, der kun er til dig, vises først, når du har valgt dit navn. Valget fortæller
+  også GM'en, hvilke handouts du har åbnet.
+- **Tip:** dit valg huskes i den browser. På en ny computer eller i en ny browser skal du vælge igen.
+
+## Følg combaten
+
+- **Se på:** **Combat order** på player page: hvem der handler hvornår, hvis turn det er, og rounden.
+- **Godt at vide:** dit party har HP-bars. Monsters viser ingen tal og intet helbredsord (spørg GM'en,
+  hvem der er såret; den, der kører værktøjet, kan slå et groft ord til), og en skabning, hvis navn
+  du ikke har lært, hedder "Unknown creature". Skjulte skabninger er slet ikke på listen.
+
+## Læs en handout
+
+- **Gør:** åbn **Handouts** på player page og klik på en titel. Du kan også finde den samme side i
+  Foundrys Journal tab.
+- **"just for you":** GM'en har kun vist den for dig (eller nogle få af jer). Andre spillere ser den
+  ikke på deres side, og i Foundry kan kun du åbne den. Del den ved bordet, hvis din karakter ville.
+- **Tip:** er der ikke noget nyt? Handouts dukker op inden for få sekunder efter, at GM'en har vist
+  dem. Genindlæs siden, hvis en ser ud til at mangle.
+
+## Vid, hvornår sessionen bliver optaget
+
+- **Godt at vide:** når den, der kører værktøjet, skriver `/record start` i Discord, bliver
+  voice-chatten optaget til `/record stop`, og botten skriver en besked, når den starter. Hvis du
+  sagde nej, bliver dit spor slettet efter hver session, og noterne skrives uden dig.
+- **Tip:** vil du have noget slettet eller holdt uden for optagelsen? Spørg GM'en, se
+  [få dine data slettet](README.md#få-dine-data-slettet).
+
+## Spørg GM'en om historien og bordet
+
+Til din egen karakter og reglerne bruger du selv [D&D-hjælperen](dnd-helper.md). Til historien eller
+noget, værktøjet holder styr på ved bordet, spørger du GM'en, som kan slå det op. Gode spørgsmål:
+
+- "Hvor meget damage gav jeg sidste session?" (play-statistikken pr. karakter)
+- "Hvilke handouts har vi indtil videre?"
+- "Kan du sende os et recap af sidste session?" (et recap uden spoilers, lavet til spillere)
+- "Hvad stod der i brevet fra i sidste uge igen?"
+
+## Roll, når GM'en beder om det
+
+Slå roll i Foundry som altid: klik på rollet på din character sheet, eller skriv det i chatten.
+Mere skal du ikke.
+
+Som en valgfri genvej vises et roll, GM'en beder om, også som en knap på player page og på My
+character, hvis du har åbnet dit private link. Den bruger Foundrys eget roll, så conditions og
+advantage på din karakter gælder, og resultatet er det samme som at slå roll i Foundry. Ignorer
+knappen, hvis du hellere vil slå roll i Foundry.

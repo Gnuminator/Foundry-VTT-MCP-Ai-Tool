@@ -15,10 +15,15 @@
 // PROVISION_GM_USER, PROVISION_GM_PASSWORD (empty for a fresh world's Gamemaster) and
 // PROVISION_GM_NEW_PASSWORD (set on that user afterwards), and optionally PROVISION_EXTRA_GM_USER plus
 // PROVISION_EXTRA_GM_PASSWORD (a second GM with its own password). Passwords are never printed.
+//
+// The next line tells the Pi stages what this driver can do (stage 11 checks it before it needs a feature).
+// Add a word when a stage must tell a new driver from an old one; never remove one.
+// assistant-gm features: extra-gm link-check page-ping page-armed-log
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { lstatSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import net from 'node:net';
+import { lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -43,10 +48,210 @@ const ASSISTANT_ROLE = 3; // CONST.USER_ROLES.ASSISTANT: a GM, but the human GM 
 const CHECK_EVERY_MS = 60_000;
 const WAIT_FOR_WORLD_MS = 30_000;
 
+const LINK_POLL_MS = 15_000;
+const LINK_GRACE_MS = 120_000;
+// A link restart that does not bring the socket back (another GM is the bridge user, the module is broken) would
+// repeat every few minutes all night. At most LINK_MAX_RESTARTS in LINK_WINDOW_MS; after that the watcher only logs.
+const LINK_MAX_RESTARTS = 3;
+const LINK_WINDOW_MS = 6 * 3_600_000;
+// The page ping: a frozen page (renderer stuck, tab hung) keeps its module socket for a while and answers nothing, so the
+// link check above never sees it. The driver asks the page for a trivial value every PAGE_POLL_MS; no answer within
+// PAGE_PING_TIMEOUT_MS counts as silent, and PAGE_GRACE_MS of silence restarts the browser. GM_PAGE_WATCH=0 turns it off.
+// The GM_PAGE_*_MS variables exist for the tests (a frozen-page run in seconds); a stage never sets them.
+const envMs = (name, fallback) => (Number(process.env[name]) > 0 ? Number(process.env[name]) : fallback);
+const PAGE_POLL_MS = envMs('GM_PAGE_POLL_MS', 15_000);
+const PAGE_PING_TIMEOUT_MS = envMs('GM_PAGE_PING_TIMEOUT_MS', 10_000);
+const PAGE_GRACE_MS = envMs('GM_PAGE_GRACE_MS', 120_000);
+const PAGE_CLOSE_WAIT_MS = envMs('GM_PAGE_CLOSE_WAIT_MS', 5_000);
+
 const log = msg => console.log(`[assistant-gm] ${msg}`);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Asks the bridge's control port whether the Foundry module's socket is connected (method link_status).
+ * Resolves 'connected', 'disconnected' (the bridge answers, no module socket) or 'unreachable' (the bridge
+ * does not answer: a browser restart cannot fix that, so it is never a reason to restart).
+ */
+export function probeLink(port, host = '127.0.0.1', timeoutMs = 5000) {
+  return new Promise(resolve => {
+    const socket = net.createConnection({ host, port });
+    let buffer = '';
+    const done = state => {
+      socket.destroy();
+      resolve(state);
+    };
+    socket.setTimeout(timeoutMs, () => done('unreachable'));
+    socket.on('connect', () => socket.write('{"id":"link","method":"link_status"}\n'));
+    socket.on('data', chunk => {
+      buffer += chunk.toString('utf8');
+      if (!buffer.includes('\n')) return;
+      try {
+        const reply = JSON.parse(buffer.split('\n')[0]);
+        // Only an explicit answer counts: an older bridge or an error reply is "unreachable", never a reason to restart.
+        const module = reply?.result?.module;
+        done(module === 'connected' || module === 'disconnected' ? module : 'unreachable');
+      } catch {
+        done('unreachable');
+      }
+    });
+    socket.on('error', () => done('unreachable'));
+  });
+}
+
+/**
+ * The link check's decision. `since` is when the module socket was first seen missing (null while it is
+ * there or the bridge is down). Restart only when the bridge listens but has had no module socket for
+ * graceMs, which covers a page reload or a short world restart.
+ */
+export function linkVerdict(state, since, now, graceMs = LINK_GRACE_MS) {
+  if (state !== 'disconnected') return { restart: false, since: null };
+  const first = since ?? now;
+  return { restart: now - first >= graceMs, since: first };
+}
+
+/**
+ * Whether another link restart is allowed. `history` is the times (ms) of earlier ones; returns the verdict and the
+ * history to store (old entries dropped, `now` added when allowed).
+ */
+export function linkRestartBudget(history, now, max = LINK_MAX_RESTARTS, windowMs = LINK_WINDOW_MS) {
+  const recent = (Array.isArray(history) ? history : []).filter(
+    t => Number.isFinite(t) && now - t < windowMs
+  );
+  if (recent.length >= max) return { allowed: false, history: recent };
+  return { allowed: true, history: [...recent, now] };
+}
+
+// The restart times live in the browser profile (it survives a restart); a missing or broken file counts as empty.
+function readRestartHistory(file) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+async function watchLink(port, context, historyFile) {
+  let since = null;
+  for (;;) {
+    await sleep(LINK_POLL_MS);
+    const verdict = linkVerdict(await probeLink(port), since, Date.now());
+    since = verdict.since;
+    if (verdict.restart) {
+      const budget = linkRestartBudget(readRestartHistory(historyFile), Date.now());
+      if (!budget.allowed) {
+        log(
+          `no module socket for ${LINK_GRACE_MS / 1000} s, but ${LINK_MAX_RESTARTS} link restarts happened in the last ${LINK_WINDOW_MS / 3_600_000} h: not restarting again (is this user the bridge user?)`
+        );
+        since = Date.now(); // look again after another grace period
+        continue;
+      }
+      try {
+        writeFileSync(historyFile, JSON.stringify(budget.history));
+      } catch {
+        // the profile is not writable: restart anyway, the cap then cannot hold
+      }
+      log(`the bridge has had no module socket for ${LINK_GRACE_MS / 1000} s; restarting the browser`);
+      await context.close().catch(() => {});
+      process.exit(1);
+    }
+  }
+}
+
+/**
+ * Asks the page for a trivial value. Resolves true when it answers within timeoutMs, false when it does not (a frozen page
+ * never settles the evaluate, so the race is what ends the wait) or the call fails.
+ */
+export async function pingPage(page, timeoutMs = PAGE_PING_TIMEOUT_MS) {
+  let timer;
+  const silent = new Promise(resolve => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  try {
+    return await Promise.race([page.evaluate(() => 1).then(v => v === 1, () => false), silent]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The page ping's decision. `since` is when the page was first seen silent (null while it answers). Restart once it has
+ * been silent for graceMs.
+ */
+export function pageVerdict(answered, since, now, graceMs = PAGE_GRACE_MS) {
+  if (answered) return { restart: false, since: null };
+  const first = since ?? now;
+  return { restart: now - first >= graceMs, since: first };
+}
+
+async function watchPage(page, context, historyFile) {
+  let since = null;
+  for (;;) {
+    await sleep(PAGE_POLL_MS);
+    const verdict = pageVerdict(await pingPage(page), since, Date.now());
+    since = verdict.since;
+    if (!verdict.restart) continue;
+    const budget = linkRestartBudget(readRestartHistory(historyFile), Date.now());
+    if (!budget.allowed) {
+      log(
+        `the page has not answered for ${PAGE_GRACE_MS / 1000} s, but ${LINK_MAX_RESTARTS} restarts happened in the last ${LINK_WINDOW_MS / 3_600_000} h: not restarting again`
+      );
+      since = Date.now();
+      continue;
+    }
+    try {
+      writeFileSync(historyFile, JSON.stringify(budget.history));
+    } catch {
+      // the profile is not writable: restart anyway, the cap then cannot hold
+    }
+    log(`the page has not answered a ping for ${PAGE_GRACE_MS / 1000} s; restarting the browser`);
+    // A frozen browser may not close: give it a moment, then exit anyway (the service manager restarts the driver).
+    await Promise.race([context.close().catch(() => {}), sleep(PAGE_CLOSE_WAIT_MS)]);
+    process.exit(1);
+  }
+}
+
+/**
+ * Whether the signed-in user is the module's bridge user, by the module's own rule (isBridgeUser in
+ * packages/foundry-module/src/settings.ts): an empty setting ("Any GM", the default) or a non-string means every GM
+ * connects, otherwise only the user it names.
+ */
+export function isBridgeUser(bridgeUserId, userId) {
+  return typeof bridgeUserId !== 'string' || bridgeUserId === '' || bridgeUserId === userId;
+}
+
+const PROFILE_LOCKS = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+
+/**
+ * Chromium leaves SingletonLock, SingletonCookie and SingletonSocket (symbolic links tied to the host name and the process
+ * id) in the profile; a container killed mid-run keeps them in the persistent profile, and a restarted container (new
+ * host name, same fixed process ids under tini) can then refuse to start the browser. Only one browser ever uses the
+ * profile, so removing them before the launch is safe. Returns the names it removed.
+ */
+export function clearProfileLocks(profile) {
+  const removed = [];
+  if (!profile) return removed;
+  for (const name of PROFILE_LOCKS) {
+    const file = join(profile, name);
+    try {
+      lstatSync(file);
+    } catch {
+      continue; // not there
+    }
+    try {
+      rmSync(file, { force: true });
+      removed.push(name);
+    } catch {
+      // not removable: the launch then fails and says so
+    }
+  }
+  return removed;
+}
+
 async function launch(profile, extra = {}) {
+  if (process.env.GM_CLEAR_PROFILE_LOCKS === '1') {
+    const removed = clearProfileLocks(profile);
+    if (removed.length) log(`removed the stale browser profile lock(s): ${removed.join(', ')}`);
+  }
   const context = await browserType().launchPersistentContext(profile, {
     executablePath: env('CHROMIUM', '/usr/bin/chromium'),
     headless: true,
@@ -164,20 +369,41 @@ async function run() {
       user: game.user.name,
       isGM: game.user.isGM,
       module: game.modules.get(id)?.active ?? false,
+      userId: game.user.id,
+      // The module dials the bridge only from the browser of the user in its bridgeUserId setting (empty: any GM).
+      bridgeUserSetting: game.modules.get(id)?.active ? game.settings.get(id, 'bridgeUserId') : undefined,
     }),
     MODULE_ID
   );
+  info.bridgeUser = info.module && isBridgeUser(info.bridgeUserSetting, info.userId);
   log(
-    `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module})`
+    `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module}, bridge user: ${info.bridgeUser})`
   );
   if (!info.module) log(`the ${MODULE_ID} module is not active in this world; enable it as a GM`);
+  // The link check runs only where GM_LINK_WATCH=1 (the compose service sets it; the systemd unit does not, it is
+  // left as it was), only when the module is active in this world (a kit or trial world without it would loop) and
+  // only as the module's bridge user (any other user cannot fix the socket by restarting). Restarts are capped
+  // (linkRestartBudget): Docker's unless-stopped policy has no start limit either.
+  const linkPort = Number(process.env.MCP_CONTROL_PORT);
+  if (process.env.GM_LINK_WATCH === '1' && linkPort > 0 && info.module && info.bridgeUser) {
+    watchLink(linkPort, context, join(env('GM_BROWSER_PROFILE'), 'link-restarts.json'));
+  }
+  if (process.env.GM_PAGE_WATCH !== '0') {
+    // Stage 28 reads this line from the journal to prove the watchdog is armed, not only that the browser joined.
+    log(`page watchdog armed (ping every ${PAGE_POLL_MS / 1000} s, restart after ${PAGE_GRACE_MS / 1000} s of silence)`);
+    watchPage(page, context, join(env('GM_BROWSER_PROFILE'), 'page-restarts.json'));
+  }
   // Stay. Foundry sends a client back to /join when the world stops or the user is kicked;
   // exit then and let systemd start a fresh browser.
   for (;;) {
     await sleep(CHECK_EVERY_MS);
-    const ok = await page
-      .evaluate(() => globalThis.game?.ready === true && location.pathname.endsWith('/game'))
-      .catch(() => false);
+    // A frozen page never settles this evaluate; the page ping (watchPage) restarts it, so a hang here is not an answer.
+    const ok = await Promise.race([
+      page
+        .evaluate(() => globalThis.game?.ready === true && location.pathname.endsWith('/game'))
+        .catch(() => false),
+      sleep(PAGE_PING_TIMEOUT_MS).then(() => true),
+    ]);
     if (!ok) {
       log('left the game (world stopped, kicked or the page broke); restarting');
       await context.close().catch(() => {});

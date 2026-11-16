@@ -14,7 +14,8 @@ import {
 } from '../storybook/fixtures/preflight';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
-import { PreflightButton, PreflightDrawer, VersionBanner } from './Preflight';
+import { PreflightButton, VersionBanner } from './Preflight';
+import { PreflightDrawer } from './PreflightDrawer';
 
 // Pre-flight: the checks before the players join, with "Turn on for tonight" (the switches that
 // turn the AI Tool's writes on for the night) at the top. Both are read each time it opens.

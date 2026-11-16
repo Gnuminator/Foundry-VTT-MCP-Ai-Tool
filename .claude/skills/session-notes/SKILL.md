@@ -6,7 +6,9 @@ description: Write the notes for a recorded play session - cleaned transcript, p
 # Session notes (manual run)
 
 The normal path is automatic: after `/record stop` the bot converts the audio, the transcriber and
-the session pipeline build `timeline/timeline.jsonl`, and a scheduled task runs the notes writer.
+the session pipeline build `timeline/timeline.jsonl`, and the hourly Windows task (`tools/session-notes/register-auto.ps1`) runs `auto.ps1`, which
+transcribes and writes the notes. It does nothing for a session unless every speaker has a recorded
+yes (`python -m session_notes consent check <session>`; `consent set <id> yes` records one).
 Use this skill when that did not happen or stopped half way.
 
 ## Steps
@@ -24,8 +26,10 @@ Use this skill when that did not happen or stopped half way.
 5. When it ends:
    - exit 0: report where the notes are (`<session>/notes/`), how many scenes kept raw text
      (`audit.jsonl`: `scene_fallback`), and show the first lines of `summary.en.md`.
-   - exit 75: the subscription usage limit was reached. Nothing is lost; say when to run the same
-     command again (the limit message says when it resets).
+   - exit 75: paused, either the subscription usage limit was reached or `claude` is logged out.
+     Nothing is lost; for the limit say when to run the same command again (the message says when
+     it resets); for a logout ask the user to log in to `claude`, then run it again.
+   - exit 76: some scenes are still raw text. Run the same command again to finish them.
    - exit 1: show the error from the output and `notes/audit.jsonl`.
 6. The player recap (`recap.player.<lang>.md`) is a draft. Never post it to players, Discord or
    Foundry from this skill; the GM approves it first.

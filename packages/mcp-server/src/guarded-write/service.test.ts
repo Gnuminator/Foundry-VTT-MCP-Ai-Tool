@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { GuardedOp } from '@gnuminator/shared';
 
@@ -9,6 +9,7 @@ import { AUDIT_INLINE_DELETED_LIMIT, AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { GuardedWriteService, PLAN_TTL_MS, type PlanView } from './service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 // ---------------------------------------------------------------------------
 
@@ -43,8 +44,7 @@ beforeEach(async () => {
   store = new VaultStore({ dataDir });
   audit = new AuditLog(store);
   now = Date.parse('2026-09-28T10:00:00.000Z');
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   service = makeService();
   foundry.add('Actor.ilvara', 'Actor', {
     name: 'Ilvara',
@@ -264,7 +264,7 @@ describe('createPlan (Foundry ops)', () => {
       ],
       [
         { feature: 'test-feature', summary: 's', ops: [{ kind: 'delete', uuid: 'Actor.gone' }] },
-        /document not found: Actor.gone/,
+        /document Actor.gone not found\. Use list-characters/,
       ],
       [
         {
@@ -272,7 +272,7 @@ describe('createPlan (Foundry ops)', () => {
           summary: 's',
           ops: [{ kind: 'create', documentName: 'Item', parentUuid: 'Actor.gone', data: {} }],
         },
-        /parent not found/,
+        /parent Actor.gone not found/,
       ],
     ];
     for (const [input, message] of cases) {
@@ -290,7 +290,9 @@ describe('createPlan (Foundry ops)', () => {
   it('expires plans after 15 minutes and caps how many are kept', async () => {
     const p = await plan([HP_UPDATE]);
     now += PLAN_TTL_MS;
-    expect(() => service.getPlan(p.planId)).toThrow(/No pending plan/);
+    expect(() => service.getPlan(p.planId)).toThrow(
+      /No pending plan.*list-recent-changes.*get-planned-change/
+    );
 
     service = makeService({ maxPlans: 2 });
     const a = await plan([HP_UPDATE]);
@@ -351,6 +353,40 @@ describe('applyPlan (Foundry ops)', () => {
     expect(() => service.getPlan(p.planId)).toThrow(/No pending plan/);
     const [recent] = await service.listRecentChanges();
     expect(recent).toMatchObject({ changeId: applied.changeId, canUndo: true });
+    // The Obsidian note part is only worked out when asked (it reads the whole history file).
+    expect(recent?.notePart).toBeUndefined();
+    // The Obsidian Changes/ note that holds it (a small month is one note, named by the month).
+    const [withPart] = await service.listRecentChanges(20, { noteParts: true });
+    expect(withPart?.notePart).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('names the -pN Obsidian note for a month with more than 400 changes, and survives an unreadable history', async () => {
+    const line = (i: number): Record<string, unknown> => ({
+      v: 1,
+      changeId: `big-${i}`,
+      planId: null,
+      feature: 'actor',
+      summary: `Change ${i}`,
+      risk: 'low',
+      target: 'Actor.abc',
+      mode: 'apply',
+      appliedAt: new Date(Date.UTC(2026, 8, 28, 8, 0, i)).toISOString(),
+      diff: ['hp: 1 -> 2'],
+    });
+    const lines = Array.from({ length: 401 }, (_, i) => line(i));
+    await store.appendLines('curse-of-strahd', 'gm', 'audit-log.jsonl', lines);
+    await store.write('curse-of-strahd', 'gm', 'audit.json', {
+      entries: [lines[0], lines[400]].map(l => ({ ...l, mode: 'apply' })),
+    });
+    const rows = await service.listRecentChanges(20, { noteParts: true });
+    expect(rows.find(r => r.changeId === 'big-400')?.notePart).toBe('2026-09-p2');
+    expect(rows.find(r => r.changeId === 'big-0')?.notePart).toBe('2026-09');
+
+    vi.spyOn(store, 'readLines').mockRejectedValue(new Error('EACCES'));
+    const again = await service.listRecentChanges(20, { noteParts: true });
+    expect(again).toHaveLength(2);
+    expect(again[0]?.notePart).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalled();
   });
 
   it('keeps the plan and records nothing when Foundry refuses or conflicts', async () => {
@@ -684,7 +720,7 @@ describe('undo (Foundry ops)', () => {
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
-      /"test-feature" feature is switched off/
+      /"Test" is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Test"\./
     );
     foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
     const redoPlan = await plan([HP_UPDATE], {
@@ -692,7 +728,7 @@ describe('undo (Foundry ops)', () => {
       undoes: { changes: [undone.changeId] },
     });
     await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
-      /"test-feature" feature is switched off/
+      /"Test" is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Test"\./
     );
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
@@ -766,6 +802,38 @@ describe('undo (Foundry ops)', () => {
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(1);
     expect((await service.listRecentChanges())[0].canUndo).toBe(true);
     expect((await service.listRecentChanges())[0]).not.toHaveProperty('ownData');
+  });
+
+  it('round-trips a nested prototypeToken.ring.enabled: snapshot, apply, conflict, undo', async () => {
+    foundry.add('Actor.hero', 'Actor', {
+      name: 'Hero',
+      prototypeToken: { name: 'Hero', ring: { enabled: false, colors: { ring: '#ffffff' } } },
+    });
+    const RING: GuardedOp = {
+      kind: 'update',
+      uuid: 'Actor.hero',
+      changes: { 'prototypeToken.ring.enabled': true },
+    };
+    const p = await plan([RING]);
+    expect(p.diff.map(d => d.text)).toEqual([
+      expect.stringContaining('prototypeToken.ring.enabled: false → true'),
+    ]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(foundry.docs.get('Actor.hero')!.source.prototypeToken.ring).toEqual({
+      enabled: true,
+      colors: { ring: '#ffffff' },
+    });
+
+    // Someone changes the ring by hand after the apply: the undo must not clobber that.
+    foundry.edit('Actor.hero', { path: 'prototypeToken.ring.enabled', present: true, value: 'x' });
+    await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(/Conflict/);
+
+    foundry.edit('Actor.hero', { path: 'prototypeToken.ring.enabled', present: true, value: true });
+    await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.hero')!.source.prototypeToken.ring).toEqual({
+      enabled: false,
+      colors: { ring: '#ffffff' },
+    });
   });
 
   it('round-trips create and a big delete (snapshot kept in backups/)', async () => {
@@ -842,6 +910,31 @@ describe('vault ops', () => {
     });
   });
 
+  it('bookkeepingDeletes excuses a vault delete only, a Foundry delete stays destructive', async () => {
+    const created = await vaultPlan([
+      { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },
+    ]);
+    await service.applyPlan(created.planId, { confirm: true });
+    const ops = [{ kind: 'vault-delete', file: 'npc-secrets.json', path: 'sorvan' }] as never;
+    const bookkeeping = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Queue entry goes',
+      vaultOps: ops,
+      bookkeepingDeletes: true,
+    });
+    expect(bookkeeping.risk).toBe('write');
+    expect(bookkeeping.requires.confirmDestructive).toBe(false);
+    foundry.add('Actor.ilvara', 'Actor', { name: 'Ilvara' });
+    const mixed = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Both',
+      vaultOps: ops,
+      ops: [{ kind: 'delete', uuid: 'Actor.ilvara' }] as never,
+      bookkeepingDeletes: true,
+    });
+    expect(mixed.risk).toBe('destructive');
+  });
+
   it('creates a missing file, and a delete makes the plan destructive', async () => {
     const created = await vaultPlan([
       { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },
@@ -885,7 +978,7 @@ describe('vault ops', () => {
     const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);
     foundry.features[0].writesAllowed = false;
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
-      /Write operations are disabled/
+      /Write operations are disabled in the module settings\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Allow Write Operations"\./
     );
     expect(await store.read('curse-of-strahd', 'gm', 'a.json')).toBeNull();
 
@@ -1304,7 +1397,7 @@ describe('showToPlayers (Show it now, I-110)', () => {
     uuid: PAGE,
     changes: { 'ownership.default': 2 },
   };
-  let show: ReturnType<typeof vi.fn>;
+  let show: Mock;
 
   beforeEach(() => {
     foundry.add(PAGE, 'JournalEntryPage', { name: 'The letter', ownership: { default: 0 } });
@@ -1397,5 +1490,99 @@ describe('showToPlayers (Show it now, I-110)', () => {
     await expect(bad({ uuid: PAGE, users: 'u1' })).rejects.toThrow(/user ids/);
     await expect(bad({ uuid: PAGE, users: [''] })).rejects.toThrow(/user ids/);
     await expect(bad({ uuid: PAGE, users: Array(51).fill('u') })).rejects.toThrow(/at most 50/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mutation survivors of the safety core (Stryker run 2026-11-11, top picks)
+// ---------------------------------------------------------------------------
+
+describe('safety-core mutation survivors', () => {
+  const W = 'curse-of-strahd';
+
+  it('checks the switch of the asked feature, not the first one in the list', async () => {
+    const p = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Raise attention',
+      vaultOps: [{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }] as never,
+    });
+    // A neighbour that is on comes first; the asked feature is off.
+    foundry.features.find(f => f.id === 'test-feature')!.enabled = false;
+    foundry.features.unshift({ id: 'other', name: 'Other', hint: '', enabled: true });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /"Test" is switched off/
+    );
+    expect(await store.read(W, 'gm', 'a.json')).toBeNull();
+  });
+
+  it('refuses a redo whose original change left the history, and sends nothing to Foundry', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    // A planned undo (its feature is not the original's), so its target cannot be guessed later.
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const undoPlan = await plan(
+      [{ kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 10 } }],
+      {
+        feature: 'change-undo',
+        undoes: { changes: [applied.changeId] },
+      }
+    );
+    const undone = await service.applyPlan(undoPlan.planId, { confirm: true });
+    // The original change falls out of the ring; only the undo is left.
+    await store.update<{ entries: { changeId: string }[] }>(W, 'gm', 'audit.json', 1, current => ({
+      entries: (current?.data.entries ?? []).filter(e => e.changeId !== applied.changeId),
+    }));
+    const sent = foundry.calls.length;
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      /Its feature switches cannot be checked.*Nothing was written/
+    );
+    expect(foundry.calls.slice(sent).filter(([m]) => m.endsWith('applyGuardedOps'))).toEqual([]);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+  });
+
+  it('rolls back every real result in reverse order, deletes included, when the vault write fails', async () => {
+    foundry.add('Actor.ilvara.ActiveEffect.conc', 'ActiveEffect', {
+      _id: 'conc',
+      name: 'Concentrating',
+    });
+    const p = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Hurt and clear',
+      ops: [HP_UPDATE, { kind: 'delete', uuid: 'Actor.ilvara.ActiveEffect.conc' }],
+      vaultOps: [{ kind: 'vault-set', file: 'reveals.json', path: 'p', value: 1 }],
+    } as never);
+    vi.spyOn(store, 'update').mockRejectedValueOnce(new Error('disk full'));
+    await expect(
+      service.applyPlan(p.planId, { confirm: true, confirmDestructive: true })
+    ).rejects.toThrow(/vault write failed \(disk full\); the Foundry part was rolled back/);
+
+    const applies = foundry.calls.filter(([m]) => m.endsWith('applyGuardedOps'));
+    expect(applies).toHaveLength(2);
+    const rollback = applies[1][1] as { changeId: string; ops: { kind: string }[] };
+    expect(rollback.changeId).toMatch(/-rollback$/);
+    // The delete came last, so its inverse (a create) goes first, then the update's inverse.
+    expect(rollback.ops.map(o => o.kind)).toEqual(['create', 'update']);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+    expect(foundry.docs.has('Actor.ilvara.ActiveEffect.conc')).toBe(true);
+  });
+
+  it('refuses a vault write when the file changes inside the lock after the check', async () => {
+    await store.write(W, 'gm', 'a.json', { x: 1 });
+    const p = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Set x',
+      vaultOps: [{ kind: 'vault-set', file: 'a.json', path: 'x', value: 2 }] as never,
+    });
+    // Someone writes between the conflict check and the lock: the callback sees other data.
+    vi.spyOn(store, 'update').mockImplementationOnce((async (
+      _w: string,
+      _s: string,
+      _f: string,
+      _schema: number,
+      fn: (envelope: unknown) => unknown
+    ) => fn({ schema: 1, data: { x: 5 } })) as never);
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /a\.json changed during the write/
+    );
+    expect((await store.read<{ x: number }>(W, 'gm', 'a.json'))!.data.x).toBe(1);
   });
 });

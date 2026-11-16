@@ -5,7 +5,15 @@
 // a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok } from './support';
+import {
+  GM_TOKEN,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  SPACE_UNAVAILABLE,
+  fakeCommonRoutes,
+  fakeTools,
+  ok,
+} from './support';
 
 const STARTED = '2026-10-10T18:00:00.000Z';
 
@@ -87,11 +95,9 @@ async function setup(
   { layout = 'layered', initial = [] }: Options = {}
 ): Promise<Fakes> {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await page.route('**/api/tools', route =>
     route.fulfill({ json: { tools: [], gmActionsEnabled: true } })
   );
@@ -131,7 +137,6 @@ async function setup(
       data: {
         duringLayout: layout,
         duringFull: false,
-        combatButtons: false,
         layoutPicked: true,
         hintDismissed: true,
         hintSessions: [],
@@ -217,6 +222,24 @@ test.describe('the list', () => {
     await expect(page.getByRole('region', { name: 'Live Feed' })).toBeVisible();
     await expect(meta(page)).toHaveText('3 events');
     await expect(feed(page).locator('.pane-meta')).toContainText('3 events');
+  });
+
+  test('a change made in Foundry is chipped with its feature, never "gm-change"', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [
+        events(
+          [
+            raw('g1', 1, 'gm-change', 'Applied: Ilvara HP 10 -> 5', { feature: 'actor-change' }),
+            raw('g2', 2, 'gm-change', 'Applied: moved the Ogre token'),
+          ],
+          true
+        ),
+      ],
+    });
+    await load(page);
+    await expect(rows(page).locator('.event-type')).toHaveText(['change', 'actor change']);
   });
 
   test('the count says "1 event" for one', async ({ page }) => {
@@ -448,7 +471,7 @@ test.describe('keyboard and screen reader', () => {
     await setup(page, { initial: [events(many(60), true)] });
     await load(page);
 
-    const list = page.getByRole('list', { name: 'Live feed events, newest first' });
+    const list = page.getByRole('list', { name: 'Live Feed events, newest first' });
     await expect(list).toBeVisible();
     await expect(list.getByRole('listitem')).toHaveCount(60);
     await expect(list).toHaveAttribute('tabindex', '0');
@@ -470,7 +493,7 @@ test.describe('keyboard and screen reader', () => {
   }) => {
     const { push } = await setup(page, { initial: [events(THREE, true)] });
     await load(page);
-    const list = page.getByRole('list', { name: 'Live feed events, newest first' });
+    const list = page.getByRole('list', { name: 'Live Feed events, newest first' });
     await expect(list.getByRole('listitem')).toHaveCount(3);
     expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(false);
     await expect(list).not.toHaveAttribute('tabindex', /.*/);

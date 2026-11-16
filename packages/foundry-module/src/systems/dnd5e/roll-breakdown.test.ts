@@ -374,6 +374,8 @@ describe('describeRoll', () => {
       { kind: 'dice', formula: '2d20kh', results: [20], dropped: [3] },
     ]);
     expect(breakdown.natural).toBe(20);
+    expect(breakdown.droppedD20).toEqual([3]);
+    expect(breakdown.advantage).toBe('advantage');
     expect(breakdown.text).toContain('natural 20');
     expect(breakdown.text).toContain('(advantage)');
   });

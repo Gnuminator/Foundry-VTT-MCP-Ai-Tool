@@ -3,7 +3,7 @@
  * service are stubs; the tests check the request the module gets, the plan the service gets and
  * when the result says `autoApply`.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   LIVE_ACTOR_ACTIONS,
@@ -36,9 +36,9 @@ function built(extra: Partial<LiveChangePlan> = {}): LiveChangePlan {
   };
 }
 
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
-let autoApplyEnabled: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
+let autoApplyEnabled: Mock;
 let tools: LivePlayTools;
 
 beforeEach(() => {
@@ -89,9 +89,9 @@ describe('definitions', () => {
     expect(query.mock.calls[0][1]).not.toHaveProperty('active');
   });
 
-  it('tells the caller about autoApply and apply-planned-change', () => {
+  it('tells the caller about apply-planned-change (the autoApply rule lives there)', () => {
     const def = tools.getToolDefinitions()[0];
-    expect(def.description).toContain('autoApply: true');
+    expect(def.description).not.toContain('autoApply');
     expect(def.description).toContain('apply-planned-change');
     expect(def.description).toContain('undo-change');
   });
@@ -133,6 +133,7 @@ describe('plan-actor-change', () => {
       condition: 'exhaustion',
       active: true,
       level: 3,
+      rounds: 1,
       conditions: ['prone'],
       resource: 'spell3',
       value: 2,
@@ -148,6 +149,7 @@ describe('plan-actor-change', () => {
       condition: 'exhaustion',
       active: true,
       level: 3,
+      rounds: 1,
       conditions: ['prone'],
       resource: 'spell3',
       value: 2,

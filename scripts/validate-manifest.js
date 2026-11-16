@@ -120,7 +120,7 @@ try {
 
   // Compatibility validation
   if (manifest.compatibility) {
-    const { minimum, verified, maximum } = manifest.compatibility;
+    const { minimum, verified } = manifest.compatibility;
     if (!minimum || !verified) {
       errors.push('Compatibility must include minimum and verified versions');
       console.log('   ❌ compatibility: Missing minimum or verified versions');

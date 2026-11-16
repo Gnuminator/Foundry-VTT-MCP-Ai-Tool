@@ -1,13 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { TokenManipulationTools } from './token-manipulation.js';
 
 /**
- * Tests for TokenManipulationTools — a thin, deterministic layer over
+ * Tests for TokenManipulationTools: a thin, deterministic layer over
  * FoundryClient.query. Pattern: validate args → dispatch correct
  * `foundry-mcp-bridge.*` method → propagate query-level failures → shape result.
  *
- * All handlers use `schema.parse(args)` (Zod) — validation failures throw a
+ * All handlers use `schema.parse(args)` (Zod), validation failures throw a
  * ZodError (no {success:false} guard). Query-level errors are caught and
  * re-thrown as `new Error('Failed to ...: <message>')`.
  *
@@ -16,7 +16,7 @@ import { TokenManipulationTools } from './token-manipulation.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: TokenManipulationTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;

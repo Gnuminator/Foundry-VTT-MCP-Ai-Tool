@@ -30,6 +30,7 @@ const WRITES = [
   'manage-rest',
   'manage-world-items',
   'mark-play-session',
+  'plan-actor-image', // a plan tool, but it stores the picture file in the world when planned
   'play-playlist',
   'request-ability-check',
   'request-attack-roll',
@@ -70,7 +71,9 @@ const WRITE_VERBS = [
 
 /** Name prefixes a read-only tool may have (a plan only stages a change). */
 const READ_VERBS = [
+  'wait-for-',
   'check-',
+  'find-',
   'get-',
   'list-',
   'measure-',

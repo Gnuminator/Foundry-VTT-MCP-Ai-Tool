@@ -111,7 +111,7 @@ Use only what is in the notes. Leave out table talk that did not happen in the g
 """
 
 
-def _roster_block(roster: Roster) -> str:
+def roster_block(roster: Roster) -> str:
     rows = []
     for p, c in roster.players.items():
         if is_gm(c):
@@ -131,7 +131,7 @@ def scene_prompt(scene: Scene, roster: Roster) -> str:
         hint = f"  [unsure: {', '.join(line.uncertain)}]" if line.uncertain else ""
         body.append(f"{line.id} [{clock(line.start)}] {who}: {line.text}{hint}")
     return (
-        f"{SCENE_RULES}\n{_roster_block(roster)}\n"
+        f"{SCENE_RULES}\n{roster_block(roster)}\n"
         f"Scene {scene.index}, {clock(scene.start)} to {clock(scene.end)}:\n" + "\n".join(body)
     )
 
@@ -139,6 +139,6 @@ def scene_prompt(scene: Scene, roster: Roster) -> str:
 def session_prompt(scene_notes: list[dict[str, Any]], roster: Roster) -> str:
     slim = [{k: v for k, v in n.items() if k != "lines"} for n in scene_notes]
     return (
-        f"{SESSION_RULES}\n{_roster_block(roster)}\nScene notes (JSON):\n"
+        f"{SESSION_RULES}\n{roster_block(roster)}\nScene notes (JSON):\n"
         + json.dumps(slim, ensure_ascii=False, indent=1)
     )

@@ -1,13 +1,12 @@
 # The dashboard
 
-A standalone live **dashboard with AI commentary** for the Foundry VTT MCP bridge. It watches the
-running game, streams an AI Game Master's-assistant commentary to a browser
-dashboard, and can optionally post a chosen comment back to Foundry chat.
+A standalone live **co-GM dashboard** for the Foundry VTT MCP bridge. It watches the running game
+and shows it in the browser. It does not call the Anthropic API: AI work happens when someone asks
+Claude through the MCP tools.
 
 > **Why a separate app?** MCP / Claude Desktop can only respond when _you_
-> prompt it — it cannot react to the game on its own. To get genuinely live,
-> autonomous reactions, this dashboard **pulls** the game feed off the bridge's
-> control channel and drives the **Anthropic Messages API** itself.
+> prompt it — it cannot react to the game on its own. This dashboard **pulls**
+> the game feed off the bridge's control channel and shows it live.
 
 ## What it does
 
@@ -15,18 +14,8 @@ dashboard, and can optionally post a chosen comment back to Foundry chat.
   using the returned `latestTimestamp` as an incremental cursor.
 - **Combat tracker** — initiative order, HP bars, conditions, and death saves
   from `get-combat-state`.
-- **Streaming AI commentary** — when something significant happens (damage,
-  death, conditions, combat start/turn, resource spend), the AI streams one
-  short tactical or narrative comment. Comments are **batched and rate-limited**,
-  never one-per-event.
-- **Ask the AI** — type a question and get a streamed answer grounded in the
-  current game state.
-- **Post to chat** _(the only thing that mutates the game)_ — push a chosen
-  comment into Foundry as a GM whisper.
 - **Live module diagnostics** — polls `get-module-errors` and streams other
-  modules' errors/warnings to a diagnostics pane; the AI can offer a likely
-  cause/fix on new errors (toggleable "Diag AI", rate-capped, and deferred so it
-  never preempts combat commentary).
+  modules' errors/warnings to a diagnostics pane.
 
 Everything else is strictly read-only.
 
@@ -37,8 +26,6 @@ Everything else is strictly read-only.
   (browser)        (bridge)              control channel                   │
                                                                            ├─ PollingGameFeed  (get-recent-events / get-combat-state / get-module-errors)
                                                                            ├─ GameState        (bounded rolling window + combat snapshot)
-                                                                           ├─ CoGm             (@anthropic-ai/sdk, streaming + prompt caching)
-                                                                           ├─ CommentaryEngine + ErrorCommentaryEngine (batch / debounce / cap)
                                                                            └─ Express + SSE    ──►  browser dashboard (4 panes)
 ```
 
@@ -48,19 +35,15 @@ without touching the rest of the app.
 
 ### Files
 
-| Path                             | Role                                                                        |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel                      |
-| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling                        |
-| `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot)                 |
-| `src/ai/prompt.ts`               | Persona / 5e reference, event-significance rules, prompt assembly           |
-| `src/ai/anthropic-co-gm.ts`      | Streaming Messages API wrapper with prompt caching                          |
-| `src/ai/commentary.ts`           | Batches/debounces events into paced comments                                |
-| `src/ai/error-commentary.ts`     | Batches module errors into paced diagnostics comments                       |
-| `src/sse.ts`                     | Server-Sent Events hub                                                      |
-| `src/server.ts`                  | Express wiring, REST + SSE endpoints                                        |
-| `public/`                        | Vanilla-JS pages: the old dashboard (`/legacy/`), `/player`, `/me`, `/open` |
-| `web/`                           | The React dashboard (the page at `/`, built by Vite)                        |
+| Path                             | Role                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel      |
+| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling        |
+| `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot) |
+| `src/sse.ts`                     | Server-Sent Events hub                                      |
+| `src/server.ts`                  | Express wiring, REST + SSE endpoints                        |
+| `public/`                        | Vanilla-JS pages: `/player`, `/me`, `/open`; shared styles  |
+| `web/`                           | The React dashboard (the page at `/`, built by Vite)        |
 
 ## Setup
 
@@ -75,7 +58,7 @@ Then configure this package:
 ```bash
 cd packages/cogm-dashboard
 cp .env.example .env
-# edit .env and set ANTHROPIC_API_KEY
+# edit .env only if you need to change a default
 ```
 
 ## Run
@@ -99,23 +82,22 @@ built server), `npm run typecheck`, `npm run lint`.
 ## The React dashboard (the page at `/`)
 
 The dashboard pages moved to React + TypeScript (D-109), one panel at a time. The page lives in
-`web/` and is served at **`/`** (D-126, the default from 2026-11-01). The old page stays at
-**`/legacy/`** until after G1 (its files are `public/index.html` and `public/app.js`); `/next/`
-(the old preview address) redirects to `/`, and the React build's own files still load from
+`web/` and is served at **`/`** (D-126). The retired page addresses
+redirect to `/`, and the React build's own files still load from
 `/next/assets/`. `/?plan=<planId>` (the Obsidian plugin's plan link) opens the plan's confirm
 window. `/player`, `/me` and `/open` are separate pages and did not move.
 
 The React page uses Radix UI primitives (unstyled), TanStack Query for the
-data, and the old stylesheets and themes as they are (it links `styles.css`, `moments.css` and
-`themes/` from `public/`), so it looks the same. It talks to the same routes with the same GM
+data, and the old stylesheets and themes as they are (`web/src/styles/` bundles `styles.css`, `moments.css` and
+the shared `public/themes/`), so it looks the same. It talks to the same routes with the same GM
 token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),
-Prep, Party, Handouts, Tarokka, the Tool runner, the Advanced menu (its panel, During screen and
+Prep, Party, Handouts, Tarokka, the Tool Runner, the Advanced menu (its panel, During screen and
 tool entries; Pre-flight stays in the header with its status) and the Before / During / After
 views, with Pre-flight, Prep, Party and Handouts docked in them, the During layouts (the
 switch, the layout trial and the hint), the During folds, the Combat Tracker (the combat strip and
 the initiative ribbon above it), Live Feed, Recent Changes,
 the After stats and session notes, and the header's session marker, GM Actions switch and theme
-picker. Still on the old page only (`/legacy/`): the feature cards and the AI commentary.
+picker.
 
 - `npm run build` also builds it (Vite) into `dist/web`; the server serves its page at `/` and its
   files under `/next/`. The Docker image and the Pi get it with the rest of `dist/`.
@@ -124,9 +106,9 @@ picker. Still on the old page only (`/legacy/`): the feature cards and the AI co
   `http://127.0.0.1:3100`).
 - `npm run test:e2e` runs the Playwright browser tests in `web/e2e` against the built server
   (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
-  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
+  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 24.
 - `npm run test:visual` runs the screenshot tests in Docker; see "Screenshot tests" below.
-- Usage names go in `data-track="..."` as string literals, as on the old page;
+- Usage names go in `data-track="..."` as string literals;
   `npm run usage:catalog` scans `web/src` too.
 
 ### Building a panel
@@ -170,8 +152,8 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
   numbers; never write a `z-index` number in a component or in `next.css`.
 - **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
-  built in) and reads the tokens. Do not edit `public/styles.css` or `public/moments.css`: the old
-  page shares them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
+  built in) and reads the tokens. Only delete rules from `web/src/styles/styles.css` or `moments.css`
+  when nothing renders them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
   `.empty`, `.btn`, ...), so those files still style them.
 - **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
   selector depends on it, every element `id`, every `data-track="dash...."` name (written out as a
@@ -193,8 +175,8 @@ production dependencies only) and the bundle budget do not change.
 - `npm run build-storybook -w @gnuminator/cogm-dashboard` writes the static site to
   `storybook-static/` (not committed). The wiki workflow builds it and publishes it under
   `/storybook/` next to the wiki.
-- The preview loads the same stylesheets as the real page, in the same order (`styles.css`,
-  `moments.css`, `themes/brand.css`, `themes/veil.css`, `next.css`), so a story looks as the panel
+- The preview loads the same stylesheets as the real page, in the same order (`web/src/styles/index.css`: `styles.css`,
+  `moments.css`, `themes/brand.css`, `themes/veil.css`, `themes/light.css`, `next.css`), so a story looks as the panel
   does in the dashboard. The toolbar's **Theme** sets `data-theme` (neutral or veil) on `<html>`
   and **Mist** sets `data-mist` (calm, drift, clear), as `theme.ts` does.
 - Every story runs inside the providers of `main.tsx` and `App.tsx` (TanStack Query, tooltips,
@@ -250,7 +232,8 @@ export const BridgeDown: StoryObj<typeof meta> = {
 
 **Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and, for each
 story, takes one screenshot (cropped to the story's content and anything open over it) in the
-story's own theme and size, then runs axe on it. A new story gets a baseline the next time
+story's own theme and size, then runs axe on it. Veil stories get a screenshot only when they
+are `ui-` primitives, phone stories or the heal form; the rest only get axe. A new story gets a baseline the next time
 `npm run test:visual:update` runs; there is no list to edit. They run in the `stories` project of
 the same Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual`
 cover them; build the Storybook first (`npm run build-storybook`), and rebuild it after a
@@ -260,20 +243,31 @@ Serious and critical axe findings fail; the ones already there are listed with t
 
 ### Screenshot tests
 
-`web/visual` photographs the React page with Playwright's `toHaveScreenshot`: the three moments
+`web/visual` photographs the React page with Playwright: the three moments
 (Before, During, After), every ported drawer and pane open over the page, the Advanced menu and
-the version banner, each in the neutral and the Veil theme (mist calm) at 1440, 1080 and 390 pixels
-wide. That is 78 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fakes are the e2e
+the version banner, each in the neutral theme at 1440, 1080 and 390 pixels wide (axe checks the Veil theme
+too, at 1440). These are page shots: every run renders them (54 PNGs, written to `page-shots/<project>/`, which git
+ignores) and CI uploads them as the artifacts `dashboard-page-shots-N` (one per shard that ran page tests; today shard 1 holds all 54), but nothing compares them and no PNG
+of a page is committed, so adding a control to a page changes no committed file. Look at the artifact to see the
+page. The pixel guard is the story shots (see "Stories"); `src/visual-page-shots.test.ts` fails if a page PNG
+returns to `web/visual/__screenshots__/`. The fakes are the e2e
 helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
 fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
 screens also go through axe at 1440 (serious and critical violations fail; the ones already there
 are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails; an entry that
 no longer matches on its screen and theme also fails, so the list shrinks as causes are fixed).
-The comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
+The story comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
 default is 0.2, which lets a nudged grey pass; at 0 the rounded edge of one pill, the Player links
-header, flickered between runs). No `mask` is used today because the clock is fixed and all data
-is faked; a port with values that move on their own (Combat Tracker, Live Feed) adds a `mask`
-helper for those elements.
+header, flickered between runs). The dashboard screens use no `mask` because the clock is fixed and all data
+is faked (a port with values that move on their own, such as Combat Tracker or Live Feed, adds a
+`mask` helper for those elements); the player pages mask only the `#status` pill, which reads
+"Reconnecting" once the faked stream ends.
+
+The player pages are in the run too (`web/visual/player.spec.ts`, screens in `player-screens.ts`):
+`/player` with no personal link, with one (the character and an open roll request), with a handout
+meant for one player, and with a fight running, plus `/me`. They are plain pages, so their own fake
+(the player stream and `/api/me`) stands in for the bridge. Screenshots are taken at 1080 and 390
+wide in the neutral theme; axe runs on them at 1440 with no known-violations list.
 
 - **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
   image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
@@ -284,7 +278,7 @@ helper for those elements.
   `storybook-static/` from the repo; the Storybook is for the story shots, see "Stories"), then
   `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
   Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
-- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
+- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new story baselines after a change
   you meant. Look at the PNGs in the diff, then commit them with the change.
 - The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
   volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
@@ -293,9 +287,12 @@ helper for those elements.
   Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
   written into the repo.
 - `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
-  `dashboard-visual`). A diff fails that job. The report with the expected, actual and diff
-  images is the artifact `dashboard-visual-report` on the run's summary page (kept 14 days). The
-  job is advisory: it is not in the required checks. After a Playwright bump, change the image
+  `dashboard-visual-shard`, 4 parallel shards; the check `dashboard-visual (screenshots)` sums
+  them up). A story diff fails a shard. The report with the expected, actual and diff
+  images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days);
+  the page shots are `dashboard-page-shots-N` there (only a shard that ran page tests uploads one). The
+  checks are not in the ruleset's required list, but the merge gate refuses any red check, so a
+  red shard blocks the merge. After a Playwright bump, change the image
   tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
   differ) and refresh the baselines.
 
@@ -314,37 +311,29 @@ without the hash; an unlisted one gets a default limit. It fails when one is ove
 after the build and writes the table to the job summary. To raise a limit on purpose, change the
 constant in the same pull request and say why.
 
-The dashboard runs **without** an API key too — you still get the live feed and
-combat tracker; only the AI panes are disabled until a key is set.
+The dashboard needs no API key; it does not call the Anthropic API.
 
 ## Configuration
 
 All via `.env` (see `.env.example`):
 
-| Variable                                | Default               | Purpose                                             |
-| --------------------------------------- | --------------------- | --------------------------------------------------- |
-| `ANTHROPIC_API_KEY`                     | —                     | Enables AI commentary / ask (never committed)       |
-| `ANTHROPIC_MODEL`                       | `claude-opus-5-5`     | Default model (switchable live in the UI)           |
-| `POLL_INTERVAL_MS`                      | `4000`                | Event-delta poll cadence                            |
-| `COMBAT_POLL_INTERVAL_MS`               | = poll interval       | Combat-state poll cadence                           |
-| `COMMENT_MIN_INTERVAL_MS`               | `20000`               | Minimum spacing between auto-comments               |
-| `COMMENT_DEBOUNCE_MS`                   | `1500`                | Window that batches an event burst into one comment |
-| `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel                              |
-| `PORT`                                  | `3000`                | Dashboard HTTP/SSE port                             |
-| `COGM_TONE`                             | `tactical`            | Starting tone (`tactical` \| `narrative`)           |
+| Variable                                | Default               | Purpose                   |
+| --------------------------------------- | --------------------- | ------------------------- |
+| `POLL_INTERVAL_MS`                      | `4000`                | Event-delta poll cadence  |
+| `COMBAT_POLL_INTERVAL_MS`               | = poll interval       | Combat-state poll cadence |
+| `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel    |
+| `PORT`                                  | `3000`                | Dashboard HTTP/SSE port   |
 
 Additional knobs (all optional — defaults shown; see `.env.example`):
 
-| Variable                        | Default | Purpose                                                |
-| ------------------------------- | ------- | ------------------------------------------------------ |
-| `ERROR_POLL_INTERVAL_MS`        | `6000`  | Module-diagnostics poll cadence                        |
-| `COGM_MAX_ERRORS`               | `100`   | Rolling module-error buffer size                       |
-| `COGM_COMMENT_ON_ERRORS`        | `true`  | AI auto-comments on new module errors (UI: "Diag AI")  |
-| `ERROR_COMMENT_MIN_INTERVAL_MS` | `60000` | Minimum spacing between diagnostics comments           |
-| `MCP_REQUEST_TIMEOUT_MS`        | `15000` | Per-request timeout (a timeout forces a reconnect)     |
-| `MCP_CONNECT_TIMEOUT_MS`        | `5000`  | TCP connect timeout                                    |
-| `MCP_HEARTBEAT_INTERVAL_MS`     | `10000` | Heartbeat ping cadence (half-open detection)           |
-| `MCP_STALENESS_THRESHOLD_MS`    | `30000` | Window after last reply before the channel reads stale |
+| Variable                     | Default | Purpose                                                |
+| ---------------------------- | ------- | ------------------------------------------------------ |
+| `ERROR_POLL_INTERVAL_MS`     | `6000`  | Module-diagnostics poll cadence                        |
+| `COGM_MAX_ERRORS`            | `100`   | Rolling module-error buffer size                       |
+| `MCP_REQUEST_TIMEOUT_MS`     | `15000` | Per-request timeout (a timeout forces a reconnect)     |
+| `MCP_CONNECT_TIMEOUT_MS`     | `5000`  | TCP connect timeout                                    |
+| `MCP_HEARTBEAT_INTERVAL_MS`  | `10000` | Heartbeat ping cadence (half-open detection)           |
+| `MCP_STALENESS_THRESHOLD_MS` | `30000` | Window after last reply before the channel reads stale |
 
 ## Player vs GM split (Phase 6)
 
@@ -357,42 +346,25 @@ GM-only data filtered **server-side** (never just hidden in the browser).
   `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
 - **Player view** (`/player`) — public **combat order** + public **event feed** only. Filtered
   server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
-  (which carry HP before/after) are stripped, and module diagnostics, settings, the AI commentary,
-  and the entire write/GM-action surface are never sent. Players still see the party's HP and the
-  public feed.
+  (which carry HP before/after) are stripped, and module diagnostics, settings, and the entire
+  write/GM-action surface are never sent. Players still see the party's HP and the public feed.
 - **Auth.** GM identity is proven by a token (header `X-CoGM-Token`, `?token=` query, or `cogm_token`
-  cookie) **or** a Cloudflare Access email in `GM_EMAILS`. The write endpoints (`/api/ask`,
-  `/api/control`, `/api/post-chat`, `/api/tools`, `/api/tool`) return 403 for non-GMs. The Anthropic
-  key always stays server-side.
+  cookie) **or** a Cloudflare Access email in `GM_EMAILS`. The write endpoints (`/api/control`,
+  `/api/tools`, `/api/tool`) return 403 for non-GMs.
 
 Configure via `.env` (see `.env.example`): `GM_DASHBOARD_TOKEN`, `PLAYER_DASHBOARD_TOKEN`,
 `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `PLAYER_SHOW_ENEMY_CONDITIONS`, `PLAYER_SHOW_ENEMY_HP_BANDS`.
 For exposing this to a remote GM/players behind Cloudflare Access, see
 [`docs/dev/REMOTE-ACCESS.md`](../../docs/dev/REMOTE-ACCESS.md).
 
-## Cost control
+## Cost
 
-- **Prompt caching.** The large static persona + 5e reference + campaign context
-  carries a `cache_control` breakpoint and is byte-identical every request, so
-  it is served from Anthropic's prompt cache after the first call. Tone and live
-  game state live in the (uncached) user turn, so the cache stays warm across
-  tone switches and turns. The UI shows `cache ✓` / `cache miss` and token counts
-  per generation. (Note: prompt caching only kicks in once the cached prefix
-  clears the model's minimum cacheable size — ~4 K tokens on Opus, ~2 K on
-  Sonnet; the static block is sized with this in mind.)
-- **Bounded context.** Each request is independent (no growing conversation) and
-  includes only a combat snapshot plus a rolling window of recent events — never
-  the full session history.
-- **Batched, capped commentary.** Bursts are debounced into a single comment and
-  spaced by `COMMENT_MIN_INTERVAL_MS`. Short `max_tokens` keep outputs tight.
-- **Pause** stops auto-commentary entirely; **Haiku/Sonnet** in the model picker
-  trade some quality for lower cost/latency.
+The dashboard makes no paid API calls. AI work happens when someone asks Claude (Claude Desktop or
+Claude Code) through the MCP tools, under that person's subscription.
 
 ## Guardrails
 
-- **Read-mostly.** The only call that changes the game is the explicit
-  _Post to chat_ button (a GM whisper via `send-chat-message`).
+- **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo. Three act at once: the combat turn button, **Ask for a roll** (it posts the roll request in chat, which has no undo) and the strip's **Damage / Heal** form (it plans and applies in one click; the toast and Recent Changes have Undo).
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
   and retries — it never crashes the dashboard.
-- **Bounded model context** as described above.

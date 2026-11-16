@@ -5,22 +5,32 @@ description: The world setup before players make their characters at session 0 (
 
 # Prepare session 0
 
-At session 0 each player makes a level-1 character in Foundry from home, with the builder
+At session 0 each player makes a level-3 character in Foundry from home, with the builder
 **Actor Studio** (the player side is in [Make your character](../player/make-a-character.md)).
-Out of the box players can't do that: they may not create characters, and Actor Studio reads the
-older free rules instead of the 2024 Player's Handbook. This page sets both up, once, a week or so
+The builder always makes a level-1 character, so the players build it and then level it up twice,
+and they pick their subclass at the second level-up.
+Out of the box players can't do that: they may not create characters, Actor Studio reads the
+older free rules instead of the 2024 Player's Handbook, and the **Level Up** button does not show
+until a character has the experience points for it. This page sets all three up, once, a week or so
 before session 0. It takes about 30 minutes.
 
-**On our server part of it is done already.** The admin has already set up character creation:
-players may create characters, Actor Studio gives starting equipment, and it takes that equipment
-from the Player's Handbook. So step 2 is a check, and so are the equipment settings in step 3.
-The other settings in step 3 may still be the defaults: compare each window with the picture and
-the table, and set what differs. The ability score method (step 3, item 2) is your choice. Steps 1
-and 4 are yours to do.
+**On our server part of it is done already.** The admin's setup script sets four things for characters:
+players may create characters, Actor Studio gives starting equipment, the equipment comes from
+the Player's Handbook, and the ability scores come from the standard array or point buy. So step 2
+is a check, and so are the equipment row and the ability score methods in step 3.
+**Everything else in step 3 is yours**: the other Compendium Sources rows and Enable Spell Selection.
+The script does not touch them, and until you set them a player may see
+the older free species list and no Spells step (look at what the world shows). Compare each window with the picture and the
+table, and set what differs. Steps 1 and 4 are yours too.
 
 All of it is normal Foundry settings, done as Gamemaster in your browser. Nothing here needs the
 command line or Claude. What session 0 itself holds is yours to plan; [Prep and
 expectations](prep-and-expectations.md) has an agenda you can change.
+
+:::tip
+**Do this as a quest.** [Quest: prepare session 0](prepare-session-0-quest.md) is this page as
+five stages to tick off, without the pictures.
+:::
 
 ## 0. Collect the players' emails
 
@@ -55,32 +65,54 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
 
 ![The Actor Studio category in Game Settings with its Configure buttons](../images/guides/studio-settings.png)
 
-1. **Compendium Sources**, **Select sources**. The window opens with **Show Selected Only**
-   ticked, so it lists only the packs already in use: untick it to see them all. Tick only the
+1. **Compendium Sources**, **Select sources**. The window lists every pack in each row;
+   ticking **Show Selected Only** at the top narrows it to the packs already in use. Tick only the
    packs of the Player's Handbook module (their names end in `[dnd-players-handbook]`):
 
-   | Row                                           | Tick              |
-   | --------------------------------------------- | ----------------- |
-   | Species Compendia, Species Features Compendia | Character Origins |
-   | Background Compendia                          | Character Origins |
-   | Class Compendia, Subclass Compendia           | Character Classes |
-   | Spell Compendia                               | Spells            |
-   | Feat Compendia                                | Feats             |
-   | Equipment Compendia                           | Equipment         |
+   | Row                                           | Tick              | Done on our server?   |
+   | --------------------------------------------- | ----------------- | --------------------- |
+   | Species Compendia, Species Features Compendia | Character Origins | Not set by the script |
+   | Background Compendia                          | Character Origins | Not set by the script |
+   | Class Compendia, Subclass Compendia           | Character Classes | Not set by the script |
+   | Spell Compendia                               | Spells            | Not set by the script |
+   | Feat Compendia                                | Feats             | Not set by the script |
+   | Equipment Compendia                           | Equipment         | Yes, check it         |
+
+   The ability score methods (item 2 below) are set by the script too.
 
    Untick the D&D 5e system's own packs (the older free rules), or every list shows each choice
    twice. Click **Save**, then **Yes** when Foundry asks to reload.
 
    ![Compendium Sources with the Player's Handbook packs ticked in every row](../images/guides/studio-sources.png)
 
-2. **Configure ability scores**: tick the method you and the players agreed on (**Allow standard
-   array**, **Allow point buy**, **Allow rolling**, **Allow manual input**), so the builder offers
-   only that one. If you haven't had the talk yet ([The ability score
-   talk](prep-and-expectations.md#the-ability-score-talk)), you can change this on the night before
-   the players open the builder. Manual input lets a player type any number; leave it off unless
-   you want that.
+2. **Configure ability scores**: the admin's script sets **Allow standard array** and **Allow point
+   buy** on and **Allow rolling** and **Allow manual input** off, so each player picks the standard
+   array or point buy and nobody can type any number. Check that these four are as described. If
+   you want a different set after the talk ([The ability score
+   talk](prep-and-expectations.md#the-ability-score-talk)), change it here before the players open
+   the builder, and tell the admin: running the script again puts our two methods back.
 3. **Configure equipment & gold**: **Enable Equipment Selection** is ticked.
-4. **Configure spells**: tick **Enable Spell Selection**.
+4. **Configure spells**: tick **Enable Spell Selection**. The admin's script does not set this, so
+   it may be off until you tick it. With it off, a spellcaster may get no **Spells** tab and has to add
+   cantrips and spells by hand on the finished sheet, which is easy to get wrong. With it on, the
+   builder asks for them and shows how many are allowed.
+
+   The Spell Compendia row (item 1) decides which spells that Spells tab offers, so tick only the
+   Player's Handbook there. Feats such as Magic Initiate are different: they open Foundry's own
+   spell window (from Actor Studio 2.10.5-aitool.5), which offers the Player's Handbook spells of
+   every class, each once. It does not limit them to the feat's class, so the player picks from
+   the feat's class list themselves (the guide tells them how).
+
+5. **Configure progression**, under **Level Up Options**: tick **Enable Level Up** and **Milestone
+   Levelling**. **Without Milestone Levelling a player sees no gold Level Up button on their
+   sheet until the character has 300 XP (for level 2) and then 900 XP (for level 3).** With it on,
+   the button is always there and players can level up without any XP, which is what we want at
+   session 0. (The alternative is to give each character 900 XP yourself.) After session 0 you can
+   untick it if you would rather hand out levels by XP.
+
+After setting it all, a quick sign that the packs are right: the species list shows only the 2024
+species, a Cleric gets a **Spells** tab, and a new character's sheet has a **Level Up** button.
+Step 5 is the full test.
 
 Leave usage tracking off: our copy of Actor Studio has it off for everyone.
 
@@ -89,6 +121,8 @@ game open, ask them to reload (F5) before they open the builder.
 
 Our table keeps to the 2024 Player's Handbook. If you ever allow more (for example older species
 in our own content module), tick those packs too and tell the players.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Why does Actor Studio need these settings, and which ones do I have to change myself?" ([how to add the GM coach](gm-coach.md))
 
 ## 4. Give the join page the campaign look (optional)
 
@@ -124,7 +158,7 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
 
 - Post the link to [Make your character](../player/make-a-character.md) in Discord, plus your
   answers: which ability score method, which options are allowed, anything about the campaign.
-- Players build at the same time; it takes them about 45 minutes. Stay in voice for questions.
+- Players build at the same time; it takes them about an hour, the level-ups included. Stay in voice for questions.
 - When a player says they are done, open their sheet and go through the checklist in step 10 with
   them. The most common miss: a choice skipped with **Next** (a missing skill or spell). Fix it by
   hand, or delete the character and let them redo it.
@@ -134,8 +168,18 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
   sheet.
 - Check each player picked their character in **User Configuration** (the Players list shows
   `Name [Character]`).
-- Add portraits: players can't upload pictures, so they send them to you. Open the sheet, click
-  the portrait and pick the image.
+- **Check each finished character is in the Party.** "Ask the party" roll requests outside combat
+  (for example "everyone roll Perception") go to the Party. Characters join it by themselves once a
+  player owns them (the setting "AI Tool: Add player characters to the party", on by default), so
+  open the Party actor and check each one is listed. If the setting is off, or one is missing, drag
+  the character onto the Party sheet. Following NPCs join the same way: drag the NPC onto the Party
+  sheet, and set its token to **Friendly** so "all friendly NPCs" roll requests include it.
+- Portraits: players put their own art on their character with **Upload my portrait** on the
+  player page (step 12 of their guide). Each picture lands in their own folder under
+  `assets/players/` and shows in Changes with an Undo. For a picture sent to you on Discord, open
+  the sheet, click the portrait and pick the image.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What should I do during session 0 while the players build their characters?"
 
 ## Afterwards
 

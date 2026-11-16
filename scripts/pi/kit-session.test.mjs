@@ -60,6 +60,7 @@ import {
   teardownMismatches,
   teardownProblems,
 } from './remote/kit-session.mjs';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ARGS = {
@@ -246,7 +247,7 @@ describe('kit-session.mjs setup (the in-browser part)', () => {
       'compendiumSources (races, racialFeatures, backgrounds, classes, subclasses, spells, feats, equipment)',
       'allowStandardArray = true',
       'allowManualInput = false',
-      'allowPointBuy = false',
+      'allowPointBuy = true',
       'allowRolling = false',
       'enableSpellSelection = true',
       'enableEquipmentSelection = true',
@@ -275,7 +276,7 @@ describe('kit-session.mjs setup (the in-browser part)', () => {
     assert.deepEqual(FLAGS, {
       allowStandardArray: true,
       allowManualInput: false,
-      allowPointBuy: false,
+      allowPointBuy: true,
       allowRolling: false,
       enableSpellSelection: true,
       enableEquipmentSelection: true,
@@ -1431,26 +1432,10 @@ const containerReason = saved
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
-// Debian 13 (trixie), pinned by digest like the stage 13 test, so a new upstream image cannot change a check overnight.
-const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
-// About 10 minutes under QEMU emulation on a PC (the apt-get is most of it), well under a minute on an ARM runner.
+// About 10 minutes under QEMU emulation on a PC (every node start is slow), well under a minute on an ARM runner.
 function runContainer() {
-  const res = spawnSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '-v',
-      `${repo}:/repo:ro`,
-      IMAGE,
-      'bash',
-      '/repo/scripts/pi/container-test/kit-session-scenarios.sh',
-    ],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
-  );
+  const res = runStageContainer('kit-session-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 
@@ -1694,6 +1679,49 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /Foundry already launches strahd-kit/);
     assert.deepEqual(r.calls, []);
     assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('up while a dnd5e trial is open on strahd-kit: it goes through and records strahd-kit as the world to put back', () => {
+    const r = run('up-already-kit-trial');
+    assert.equal(r.exit, 0, r.output);
+    assert.equal(r.world, 'strahd-kit');
+    assert.ok(r.state.includes('ORIG_WORLD=strahd-kit'), r.state.join('\n'));
+    assert.match(r.output, /Foundry runs strahd-kit \(it launched strahd-kit before\)/);
+  });
+
+  test('up refused during a trial when Foundry launches a campaign world (MODE=down would refuse it later)', () => {
+    const r = run('up-trial-campaign');
+    untouched(r, 'curse-of-strahd');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /a dnd5e system trial is open .*the kit session \(MODE=up\)/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('up refused while a stage 14 rollback is halfway (phase rolling-back)', () => {
+    const r = run('up-trial-rolling-back');
+    untouched(r, 'curse-of-strahd');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /phase rolling-back/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('down after such an up leaves Foundry on strahd-kit, not on a campaign world', () => {
+    const r = run('down-trial-kit-orig');
+    assert.equal(r.exit, 0, r.output);
+    assert.equal(r.world, 'strahd-kit');
+    assert.deepEqual(r.state, ['absent']);
+    assert.match(r.output, /Foundry launches: strahd-kit/);
+  });
+
+  test('down refused during a trial when the original world is a campaign world; nothing changes', () => {
+    const r = run('down-trial-campaign-orig');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /a dnd5e system trial is open .*the kit session \(MODE=down\)/);
+    assert.deepEqual(r.calls, []);
+    assert.equal(r.world, 'strahd-kit');
+    assert.ok(r.state.includes('ORIG_WORLD=curse-of-strahd'), 'the state file stays');
   });
 
   test('up refused with someone online (the Assistant GM browser comes back, no state file, no Kit GM file)', () => {

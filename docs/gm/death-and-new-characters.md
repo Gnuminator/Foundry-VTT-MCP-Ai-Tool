@@ -36,7 +36,7 @@ The tool follows hit points, not life and death:
   death saves begin" (an NPC: "Goblin Archer is down (0 HP)"). The players' page words it for
   players: "Kasimir dropped to 0 HP." for a character, "went down" for an NPC. Getting back above 0
   is logged too: "recovered above 0 HP" in your Live Feed, "is back up" on the players' page.
-- **Death saving throws** show in Foundry's Combat Tracker, the dashboard's turn-order strip and in the **🛡 Party** drawer while a
+- **Death saving throws** show in Foundry's Combat Tracker, the dashboard's Combat order strip and in the **🛡 Party** drawer while a
   character is at 0 HP ("Death saves: 1 saved, 2 failed"). They are recorded in the play log.
 - **Death itself is not detected.** Three failed death saves, massive damage or a disintegrate
   look the same to the tool as any other 0 HP. Whether a character is dead is your call, and you
@@ -44,6 +44,8 @@ The tool follows hit points, not life and death:
 - **The 📋 Prep drawer lists who went down last session**: player characters and NPCs apart. It
   means dropped to 0 HP, so a character who got back up is listed too.
 - **Nothing is deleted by the tool.** No tool deletes an actor.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What does the tool notice when a character drops to 0 HP, and what do I have to decide myself?" ([how to add the GM coach](gm-coach.md))
 
 ## At the table: the moment of death
 
@@ -63,6 +65,8 @@ The tool follows hit points, not life and death:
 
 Do not delete the actor. The play stats, the session notes in Obsidian and the death log all point
 at it, and a later resurrection needs the sheet as it was.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "A player character just died at the table. What do I do right now?"
 
 ## After the session: tidy up
 
@@ -104,15 +108,18 @@ is built.
    Ownership**, set the player to Owner. Or, with **admin** on: "Make Anna the owner of Vasil." (`plan-ownership-change`).
 3. **Make it the player's character.** In the **Players** list (bottom left), right-click the
    player, **User Configuration**, and pick the new character. The tool does not do this step.
-4. **Add it to the party.** Open the party's group actor (the sheet called "The Party" or what you
-   named it) and drag the new actor onto it. The tool cannot add or remove party members; once the
-   character is in the group, the **🛡 Party** drawer and `get-party` include it.
+4. **The party takes it by itself.** Once a player owns the new character, Foundry adds it to the
+   primary party (see Recent Changes), and the **🛡 Party** drawer and `get-party`
+   include it. Nothing to do, unless "AI Tool: Add player characters to the party" is switched off:
+   then open the party's group actor and drag the new actor onto it.
 5. **Place the token.** Drag the actor from the **Actors** tab onto the scene. To move it after that,
    "Move Vasil next to Kasimir's token, go ahead." works with **play** on (`plan-token-change`).
 6. **Give the player one handout.** A short page for the new character: what they know about the
    party and Barovia, why they are here, one thing they want. Write it as a page in your handouts
    journal and reveal it to that player only: "Reveal the page 'Vasil' in 'Handouts' to Anna."
    (`plan-page-reveal`, prep set). Keep secrets out of it; the player reads every word.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I bring a new character into the game after a death?"
 
 ## Hooks for a new character
 

@@ -58,6 +58,13 @@ export const CHANGE_JOURNAL_MAX_RECORD_BYTES = 256 * 1024;
 export const CHANGE_JOURNAL_ACTION_GAP_MS = 300;
 
 /**
+ * The same gap after a guarded (AI) write in the group: dnd5e's follow-ups of it (Unconscious and
+ * Prone at 0 HP, Bloodied removed by an undo) are unawaited server round trips and may start
+ * later than 300 ms on a slow link, and must stay in the AI change's group.
+ */
+export const CHANGE_JOURNAL_GUARDED_GAP_MS = 3000;
+
+/**
  * A steady stream of changes (a module or macro that updates a document several times a second)
  * never leaves a gap: the browser starts a new `actionId` once its current one is this old, or
  * after this many operations, so one action never grows without end.

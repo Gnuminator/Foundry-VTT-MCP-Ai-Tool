@@ -8,6 +8,7 @@ import { useState, type JSX } from 'react';
 
 import { callTool, errorText } from '../lib/api';
 import { NO_VALUE, hpTone, type CombatState } from '../lib/combat';
+import { displayNames } from '../lib/liveStrip';
 import { ribbonItems, ribbonSummary, type RibbonCreature } from '../lib/ribbon';
 
 import styles from './InitiativeRibbon.module.css';
@@ -94,8 +95,13 @@ function Creature({ c }: { c: RibbonCreature }): JSX.Element {
 }
 
 export function InitiativeRibbon({ combat }: { combat: CombatState | null }): JSX.Element | null {
-  const items = ribbonItems(combat);
-  if (!items) return null;
+  const found = ribbonItems(combat);
+  if (!found || !combat) return null;
+  // Two goblins read "Goblin 1" and "Goblin 2" here as they do in the rows.
+  const names = displayNames(combat.combatants);
+  const items = found.map(item =>
+    item.kind === 'creature' ? { ...item, name: names.get(item.id) ?? item.name } : item
+  );
   return (
     <ol
       className={styles['ribbon']}

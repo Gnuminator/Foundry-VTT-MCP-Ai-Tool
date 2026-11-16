@@ -1,0 +1,695 @@
+// The live strip (item live-strip-component): the one component live screen A (the dashboard) and
+// screen B (a Foundry window) both draw. One combat row of creature cards with the portrait
+// leading each, an always-present pick bar (Damage / Heal inline, condition chips), the roll bar,
+// Show next handout, and Next turn / End combat / Undo in the header. Every write goes through the
+// guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool Runner.
+// The words and small rules are in lib/liveStrip.ts.
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+} from 'react';
+
+import { callTool, errorText } from '../lib/api';
+import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone } from '../lib/combat';
+import type { Combatant } from '../lib/combat';
+import { AI_LIMIT, readAiChanges } from '../lib/changes';
+import { useEndCombat } from '../lib/endCombat';
+import { useGuardedTools } from '../lib/guarded';
+import { useLivePlay } from '../lib/livePlay';
+import { useMapPick } from '../lib/mapPick';
+import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import {
+  CONDITIONS,
+  StripUndoContext,
+  chipText,
+  chipTitle,
+  conditionArgs,
+  displayNames,
+  downWords,
+  lastUndoable,
+  pickText,
+  removeConditionArgs,
+  turnText,
+  undoLabel,
+} from '../lib/liveStrip';
+import { initialsOf } from '../lib/ribbon';
+import { sideOf } from '../lib/combat';
+import {
+  CHANGES_KEY,
+  HANDOUTS_KEY,
+  useBridgeAway,
+  useBridgeStatus,
+  useCombat,
+  useDashboardSettings,
+  refreshCombat,
+} from '../lib/stream';
+import { Button } from '../ui';
+import { focusedElement, useConfirm } from './ConfirmDialog';
+import { QuickRollBar, useQuickRoll } from './QuickRoll';
+import { useToast } from './Toasts';
+import { TurnOnNote } from './TurnOnNote';
+import { loadHandouts, nextQueued } from '../panels/Handouts';
+import styles from './LiveStrip.module.css';
+
+// The picker and the Damage / Heal form are lazy chunks, as on the combat strip (bundle budget).
+const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+
+const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
+/** The header buttons that say they are busy while their own write runs. */
+type BusyKey = 'next' | 'end' | 'undo';
+
+function Card({
+  c,
+  name,
+  picked,
+  selectable,
+  stale,
+  pending,
+  canRemove,
+  offNote,
+  onPick,
+  onRemove,
+}: {
+  c: Combatant;
+  name: string;
+  picked: boolean;
+  selectable: boolean;
+  stale: boolean;
+  /** A write on this creature is running: the card says so until Foundry answers. */
+  pending: boolean;
+  /** Chips take their condition off on a click (a write is allowed and none is running). */
+  canRemove: boolean;
+  /** Why a chip cannot be clicked now (a switch is off, the bridge is away), or nothing. */
+  offNote: string | undefined;
+  onPick: () => void;
+  onRemove: (condition: string) => void;
+}): JSX.Element {
+  const toast = useToast();
+  const [broken, setBroken] = useState<string | null>(null);
+  const side = sideOf(c);
+  const down = downWords(c);
+  const pan = (): void => {
+    if (!c.tokenUuid) return;
+    callTool('open-in-foundry', { uuid: c.tokenUuid, pan: true }).catch((err: unknown) =>
+      toast(`✗ Could not pan to ${name}: ${errorText(err)}`, 'err')
+    );
+  };
+  const face =
+    c.img && broken !== c.img ? (
+      <img src={c.img} alt="" loading="lazy" draggable={false} onError={() => setBroken(c.img)} />
+    ) : (
+      initialsOf(name)
+    );
+  const tone = hpTone(c.hp);
+  return (
+    <li
+      className={styles['card']}
+      data-id={c.id}
+      data-side={side}
+      data-current={c.isCurrentTurn ? 'true' : undefined}
+      data-picked={picked ? 'true' : undefined}
+      data-down={down ? 'true' : undefined}
+      data-pending={pending ? 'true' : undefined}
+      aria-busy={pending ? 'true' : undefined}
+      {...(c.isCurrentTurn ? { 'aria-current': 'true' as const } : {})}
+    >
+      {c.isCurrentTurn && (
+        <span className={styles['turnBadge']} aria-hidden="true">
+          ▶<span className={styles['turnWord']}> Turn</span>
+        </span>
+      )}
+      {c.tokenUuid ? (
+        <button
+          type="button"
+          className={styles['portrait']}
+          onClick={pan}
+          aria-label={`Pan to ${name}`}
+          data-track="dash.live.pan"
+        >
+          {face}
+        </button>
+      ) : (
+        <span className={styles['portrait']} aria-hidden="true">
+          {face}
+        </span>
+      )}
+      {selectable ? (
+        <button
+          type="button"
+          className={styles['pick']}
+          aria-pressed={picked}
+          aria-disabled={stale ? 'true' : undefined}
+          data-track="dash.live.pick"
+          onClick={() => {
+            if (!stale) onPick();
+          }}
+        >
+          {name}
+        </button>
+      ) : (
+        <span className={styles['pick']}>{name}</span>
+      )}
+      <span className={styles['hpText']}>
+        {c.initiative ?? NO_VALUE} · {hpText(c.hp)}
+      </span>
+      <span
+        className={styles['hpBar']}
+        role="meter"
+        aria-label={`Hit points of ${name}`}
+        aria-valuemin={0}
+        aria-valuemax={Math.max(0, c.hp.max)}
+        aria-valuenow={Math.max(0, Math.min(c.hp.value, c.hp.max))}
+      >
+        <span
+          className={`${styles['hpFill']} ${tone ? styles[tone] : ''}`}
+          style={{ width: `${hpPercent(c.hp)}%` }}
+        />
+      </span>
+      <span className={styles['chips']}>
+        {down && <span className={`${styles['tag']} ${styles['down']}`}>{down}</span>}
+        {c.conditions.map(cond => {
+          const left = c.timed?.[cond];
+          const ended = typeof left === 'number' && left <= 0;
+          const classes = `${styles['tag']} ${ended ? styles['ended'] : ''}`;
+          // Only the conditions the picker offers come off with a click: Exhaustion levels and
+          // spell effects are not one write away, so they stay plain text.
+          const removable = (CONDITIONS as readonly string[]).includes(cond.toLowerCase());
+          if (!selectable || !removable) {
+            return (
+              <span key={cond} className={classes}>
+                {chipText(cond, left)}
+              </span>
+            );
+          }
+          return (
+            <button
+              key={cond}
+              type="button"
+              className={`${classes} ${styles['chip']}`}
+              data-track="dash.live.remove-condition"
+              data-condition={cond}
+              aria-disabled={canRemove && !stale ? undefined : 'true'}
+              aria-label={`${chipText(cond, left)}, take off`}
+              title={canRemove && !stale ? chipTitle(cond, left) : offNote}
+              onClick={() => {
+                if (canRemove && !stale) onRemove(cond);
+              }}
+            >
+              {chipText(cond, left)}
+              {ended ? ' ×' : ''}
+            </button>
+          );
+        })}
+      </span>
+    </li>
+  );
+}
+
+export function LiveStrip(): JSX.Element {
+  const combat = useCombat();
+  const away = useBridgeAway();
+  const bridgeStatus = useBridgeStatus();
+  const live = useLivePlay();
+  const liveOff = live.off();
+  const settings = useDashboardSettings();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const askConfirm = useConfirm();
+  const showUndo = useContext(StripUndoContext);
+  const { plan, gated, call } = useGuardedTools();
+  const planEnd = useEndCombat();
+  const roll = useQuickRoll();
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [lastAsked, setLastAsked] = useState<string[]>([]);
+  // False when idle; true while a write runs; a key when the write came from a header button that
+  // then says what it is doing.
+  const [busyState, setBusy] = useState<false | true | BusyKey>(false);
+  const busy = busyState !== false;
+  // The creatures a running condition write is on: their cards show it until Foundry answers.
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
+  const cardsRef = useRef<HTMLOListElement>(null);
+  // "1 round": the next condition lasts one round. Cleared with the pick, so a failed add keeps it.
+  const [oneRound, setOneRound] = useState(false);
+  const busyRef = useRef(false);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  const stale = away && combat !== null;
+  const awayRef = useRef(false);
+  awayRef.current = away;
+  const rows = combat?.combatants ?? [];
+  const selectable = canSelect({
+    gmActions: settings?.gmActionsEnabled === true,
+    fightActive: combat !== null,
+    sample: false,
+  });
+  const names = displayNames(rows);
+  // Ids that left the fight, or a switch going off, drop out of the pick.
+  const kept = selectable ? new Set([...picked].filter(id => names.has(id))) : new Set<string>();
+  if (kept.size !== picked.size) setPicked(kept);
+  // 1 round belongs to a pick: with nobody picked (deselected, left the fight) it goes off.
+  if (kept.size === 0 && oneRound) setOneRound(false);
+  // Live screen B: the tokens the GM controls on the map (sent by the Foundry window) are the pick.
+  const mapPick = useMapPick();
+  const hasRows = rows.length > 0;
+  useEffect(() => {
+    if (!selectable || mapPick === null) return;
+    setOneRound(false);
+    setPicked(new Set(rows.filter(c => c.tokenId && mapPick.includes(c.tokenId)).map(c => c.id)));
+    // Only a new map pick (or the fight appearing) replaces the pick; a card click stays until then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapPick, hasRows, selectable]);
+  const pickedRows = rows.filter(c => kept.has(c.id));
+  const pickedNames = pickedRows.map(c => names.get(c.id) ?? c.name);
+  const targets = pickedRows.map(c => c.tokenId ?? c.name);
+  const party = rows.filter(c => c.isPC && !c.defeated);
+  const pickedPcs = pickedRows.filter(c => c.isPC);
+
+  // A single-row strip scrolls the creature whose turn it is into view when the turn changes.
+  const currentId = rows.find(c => c.isCurrentTurn)?.id;
+  useEffect(() => {
+    if (!currentId) return;
+    // Only the card row moves, never the page (a GM may be reading Party below the strip).
+    const row = cardsRef.current;
+    const el = row?.querySelector<HTMLElement>('[data-current="true"]');
+    if (!row || !el || row.scrollWidth <= row.clientWidth) return;
+    const left = el.offsetLeft - row.offsetLeft;
+    if (left < row.scrollLeft || left + el.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollTo({ left: Math.max(0, left - 8) });
+    }
+  }, [currentId]);
+
+  const changes = useQuery({
+    queryKey: AI_KEY,
+    queryFn: async () => readAiChanges(await callTool('list-recent-changes', { limit: AI_LIMIT })),
+    retry: false,
+  });
+  const handouts = useQuery({
+    queryKey: HANDOUTS_KEY,
+    queryFn: loadHandouts,
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  /** One write at a time: a second click while one runs does nothing. */
+  const once = useCallback(
+    async (work: () => Promise<void>, key?: BusyKey): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(key ?? true);
+      try {
+        await work();
+      } finally {
+        // Read the fight at once: the card shows the change now, not at the next 4 s poll.
+        if (!awayRef.current) await refreshCombat(queryClient);
+        busyRef.current = false;
+        setBusy(false);
+        setPendingIds(new Set());
+      }
+    },
+    [queryClient]
+  );
+
+  /** Clears the pick and hands keyboard focus to the pick bar, whose Clear / form just went. */
+  const clearPick = useCallback((): void => {
+    setPicked(new Set());
+    setOneRound(false);
+    requestAnimationFrame(() => barRef.current?.focus());
+  }, []);
+
+  const nextTurn = (): Promise<void> =>
+    once(async () => {
+      await call(
+        'advance-combat-turn',
+        {},
+        { confirm: true },
+        { label: 'Next turn', checkIn: 'the tracker' }
+      );
+    }, 'next');
+
+  // Busy on the button only once the write runs, not while the GM answers the question.
+  const endCombat = (): Promise<void> =>
+    once(async () => {
+      await planEnd(() => setBusy('end'));
+    });
+
+  const addCondition = (condition: string): Promise<void> =>
+    once(async () => {
+      if (targets.length === 0) return;
+      setPendingIds(new Set(kept));
+      const done = await plan(
+        'plan-actor-change',
+        conditionArgs(targets, condition, oneRound ? 1 : undefined)
+      );
+      if (done.status === 'done') clearPick();
+    });
+
+  const removeCondition = (c: Combatant, condition: string): Promise<void> =>
+    once(async () => {
+      setPendingIds(new Set([c.id]));
+      await plan('plan-actor-change', removeConditionArgs(c.tokenId ?? c.name, condition));
+    });
+
+  const undoable = lastUndoable(changes.data ?? []);
+  const undo = (): Promise<void> =>
+    once(async () => {
+      if (!undoable || gated('undo-change')) return;
+      const from = focusedElement();
+      const destructive = undoable.risk === 'destructive';
+      const ok = await askConfirm({
+        title: 'Undo',
+        summary: `Undo ${undoable.summary}?`,
+        diff: [],
+        compact: true,
+        confirmLabel: 'Undo',
+        destructive,
+        returnTo: from,
+      });
+      if (!ok) return;
+      setBusy('undo');
+      const done = await call(
+        'undo-change',
+        { changeId: undoable.changeId },
+        { confirm: true, confirmDestructive: true },
+        { checkIn: 'Recent Changes' }
+      );
+      if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
+    });
+
+  const nextHandout = handouts.data ? nextQueued(handouts.data) : null;
+  const showHandout = (): Promise<void> =>
+    once(async () => {
+      const s = handouts.data;
+      if (!s || !nextHandout) return;
+      const who = nextHandout.players?.length
+        ? nextHandout.players
+            .map(id => s.players.find(p => p.userId === id)?.name ?? 'a player')
+            .join(', ')
+        : 'every player';
+      const confirmLine = {
+        title: 'Show page to players',
+        question: `Show "${nextHandout.title || 'Untitled'}" to ${who}?`,
+        confirmLabel: 'Show page to players',
+        pageUuid: nextHandout.uuid,
+      };
+      await plan(
+        'plan-page-reveal',
+        { action: 'reveal-next', ...(s.activeSceneId ? { sceneId: s.activeSceneId } : {}) },
+        { confirmLine }
+      );
+      await handouts.refetch({ cancelRefetch: false });
+    });
+
+  const off = stale || busy;
+  // Writes wait for their switches, so a click never plans and asks only to be refused at apply.
+  // Damage, conditions and End combat are live-play writes (GM Actions, writes, live play); Next
+  // turn is a plain gated write (`advance-combat-turn`): GM Actions and writes only.
+  const plainOff = live.off(ROLL_NEEDS);
+  const writeOff = off || liveOff.length > 0 || !selectable;
+  const nextOff = off || plainOff.length > 0 || !selectable;
+  const titleFor = (names: string[]): string | undefined =>
+    stale ? 'The bridge is away' : names.length > 0 ? offReason(names) : undefined;
+  const offTitle = titleFor(liveOff);
+  const handoutOff = off || live.off(HANDOUT_NEEDS).length > 0;
+  const rollOff = off || roll.busy || live.off(ROLL_NEEDS).length > 0;
+  const ask = (who: Combatant[]): void => {
+    if (rollOff) return;
+    const list = who.map(c => c.name);
+    setLastAsked(list);
+    void roll.ask(list);
+  };
+
+  return (
+    <section className={styles['strip']} id="live-strip" aria-label="Live strip">
+      <div className={styles['header']}>
+        <h2 className={styles['title']}>Live</h2>
+        <span className={styles['meta']} id="live-meta" role="status">
+          {combat !== null
+            ? turnText(combat, names)
+            : away
+              ? bridgeStatus?.controlChannel === 'connected'
+                ? 'Foundry is away.'
+                : 'The bridge is away.'
+              : 'No fight.'}
+        </span>
+        {combat !== null && (
+          <>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              id="live-next-turn"
+              data-track="dash.live.next-turn"
+              aria-disabled={nextOff ? 'true' : undefined}
+              busy={busyState === 'next'}
+              busyLabel="Next turn..."
+              title={titleFor(plainOff)}
+              onClick={() => {
+                if (!nextOff) void nextTurn();
+              }}
+            >
+              Next turn
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              id="live-end-combat"
+              data-track="dash.live.end-combat"
+              aria-disabled={writeOff ? 'true' : undefined}
+              busy={busyState === 'end'}
+              busyLabel="Ending..."
+              title={offTitle}
+              onClick={() => {
+                if (!writeOff) void endCombat();
+              }}
+            >
+              End combat
+            </Button>
+          </>
+        )}
+        {showUndo && (
+          <Button
+            type="button"
+            size="sm"
+            id="live-undo"
+            data-track="dash.live.undo"
+            aria-disabled={undoable && !off ? undefined : 'true'}
+            busy={busyState === 'undo'}
+            busyLabel="Undoing..."
+            title={
+              changes.isPending || !undoable
+                ? undefined
+                : undoable.summary.trim()
+                  ? `Undo: ${undoable.summary.trim()}`
+                  : 'Undo last change'
+            }
+            onClick={() => {
+              if (undoable && !off) void undo();
+            }}
+          >
+            {changes.isPending ? 'Loading changes' : undoLabel(undoable)}
+          </Button>
+        )}
+      </div>
+      <p className={styles['away']} id="live-away" role="status">
+        {stale ? AWAY_TEXT : ''}
+      </p>
+
+      {combat !== null && liveOff.length > 0 && (
+        <div className={styles['handout']} id="live-gated" role="status">
+          <TurnOnNote live={live} off={liveOff} />
+        </div>
+      )}
+
+      {combat === null ? (
+        liveOff.length === 0 ? (
+          <Suspense fallback={null}>
+            <StartCombat />
+          </Suspense>
+        ) : (
+          <div className={styles['handout']} data-gated="Start combat">
+            <Button type="button" aria-disabled="true" title={offReason(liveOff)}>
+              Start combat
+            </Button>
+            <TurnOnNote live={live} off={liveOff} />
+          </div>
+        )
+      ) : (
+        <ol className={styles['cards']} aria-label="Combat order" ref={cardsRef}>
+          {rows.map(c => (
+            <Card
+              key={c.id}
+              c={c}
+              name={names.get(c.id) ?? c.name}
+              picked={kept.has(c.id)}
+              selectable={selectable}
+              stale={stale}
+              pending={pendingIds.has(c.id)}
+              canRemove={!writeOff}
+              offNote={offTitle ?? (busy ? 'A change is on its way' : undefined)}
+              onRemove={cond => void removeCondition(c, cond)}
+              onPick={() =>
+                setPicked(old => {
+                  const next = new Set(old);
+                  if (!next.delete(c.id)) next.add(c.id);
+                  return next;
+                })
+              }
+            />
+          ))}
+        </ol>
+      )}
+
+      {combat !== null && (
+        <div className={styles['actions']}>
+          <div
+            className={styles['bar']}
+            role="group"
+            aria-label="Picked creatures"
+            id="live-pick"
+            ref={barRef}
+            tabIndex={-1}
+          >
+            <div className={styles['barRow']}>
+              <span className={styles['who']} data-empty={kept.size === 0 ? 'true' : undefined}>
+                {pickText(pickedNames)}
+              </span>
+              {kept.size > 0 && (
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="sm"
+                  data-track="dash.live.clear"
+                  onClick={clearPick}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+            {kept.size > 0 && liveOff.length === 0 && (
+              <Suspense fallback={null}>
+                <DamageForm
+                  targets={targets}
+                  names={pickedNames}
+                  stale={stale}
+                  locked={busy}
+                  once={once}
+                  onClose={clearPick}
+                />
+              </Suspense>
+            )}
+            <div className={styles['barRow']} role="group" aria-label="Condition">
+              <button
+                type="button"
+                className={`${styles['cond']} ${oneRound ? styles['on'] : ''}`}
+                data-track="dash.live.one-round"
+                aria-pressed={oneRound}
+                aria-disabled={kept.size === 0 || writeOff ? 'true' : undefined}
+                title={
+                  kept.size === 0
+                    ? 'Pick a creature first'
+                    : (offTitle ?? 'The next condition lasts 1 round')
+                }
+                onClick={() => {
+                  if (kept.size > 0 && !writeOff) setOneRound(on => !on);
+                }}
+              >
+                {oneRound ? '✓ 1 round' : '1 round'}
+              </button>
+              {CONDITIONS.map(cond => (
+                <button
+                  key={cond}
+                  type="button"
+                  className={styles['cond']}
+                  data-track="dash.live.condition"
+                  data-condition={cond}
+                  data-busy={busy ? 'true' : undefined}
+                  aria-disabled={kept.size === 0 || writeOff ? 'true' : undefined}
+                  title={kept.size === 0 ? 'Pick a creature first' : offTitle}
+                  onClick={() => {
+                    if (kept.size > 0 && !writeOff) void addCondition(cond);
+                  }}
+                >
+                  {cond}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {party.length > 0 && (
+            <QuickRollBar roll={roll} idPrefix="live-roll">
+              {pickedPcs.length > 0 && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  id="live-roll-picked"
+                  data-track="dash.quickroll.picked"
+                  aria-disabled={rollOff ? 'true' : undefined}
+                  onClick={() => ask(pickedPcs)}
+                >
+                  {pickedPcs.length === 1
+                    ? `Ask ${pickedPcs[0]?.name}`
+                    : `Ask ${pickedPcs.length} picked`}
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                id="live-roll-party"
+                data-track="dash.quickroll.party"
+                aria-disabled={rollOff ? 'true' : undefined}
+                onClick={() => ask(party)}
+              >
+                Ask the party
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                id="live-roll-again"
+                data-track="dash.quickroll.again"
+                aria-disabled={rollOff || lastAsked.length === 0 ? 'true' : undefined}
+                title={
+                  lastAsked.length === 0 ? 'Nothing asked yet' : `Ask ${lastAsked.join(', ')} again`
+                }
+                onClick={() => {
+                  if (!rollOff && lastAsked.length > 0) void roll.ask(lastAsked);
+                }}
+              >
+                Again
+              </Button>
+            </QuickRollBar>
+          )}
+        </div>
+      )}
+
+      <div className={styles['handout']} id="live-handout">
+        <Button
+          type="button"
+          size="sm"
+          id="live-show-handout"
+          data-track="dash.live.show-handout"
+          aria-disabled={nextHandout && !handoutOff ? undefined : 'true'}
+          title={
+            live.off(HANDOUT_NEEDS).length > 0 ? offReason(live.off(HANDOUT_NEEDS)) : undefined
+          }
+          onClick={() => {
+            if (nextHandout && !handoutOff) void showHandout();
+          }}
+        >
+          Show next handout
+        </Button>
+        <span className={styles['hint']}>
+          {nextHandout ? (nextHandout.title ?? 'Untitled') : 'Nothing queued.'}
+        </span>
+      </div>
+    </section>
+  );
+}

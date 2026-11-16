@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -20,7 +21,7 @@ import {
 } from './lock.js';
 
 // ---------------------------------------------------------------------------
-// evaluateLockFile — the four core scenarios from the bug report
+// evaluateLockFile: the four core scenarios from the bug report
 // ---------------------------------------------------------------------------
 
 describe('evaluateLockFile', () => {
@@ -44,7 +45,7 @@ describe('evaluateLockFile', () => {
     expect(result).toBe('valid');
   });
 
-  // Test 3: PID does not exist — process.kill throws ESRCH → caught upstream,
+  // Test 3: PID does not exist, process.kill throws ESRCH → caught upstream,
   // this path is never reached. evaluateLockFile is only called AFTER
   // process.kill(pid, 0) succeeds. We verify the function handles a
   // "non-existent PID" gracefully if checkProcessName returns false.
@@ -87,7 +88,7 @@ describe('evaluateLockFile', () => {
 });
 
 // ---------------------------------------------------------------------------
-// isLockStale — real filesystem, controlled mtime
+// isLockStale: real filesystem, controlled mtime
 // ---------------------------------------------------------------------------
 
 describe('isLockStale', () => {
@@ -132,7 +133,7 @@ describe('isLockStale', () => {
 });
 
 // ---------------------------------------------------------------------------
-// isNodeProcess — mocks getProcessName via vi.mock
+// isNodeProcess: mocks getProcessName via vi.mock
 // ---------------------------------------------------------------------------
 
 describe('isNodeProcess', () => {
@@ -161,14 +162,25 @@ describe('isNodeProcess', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getProcessName — current process is always node
+// getProcessName: current process is always node
 // ---------------------------------------------------------------------------
 
 describe('getProcessName', () => {
-  it('returns a node-related name for the current process PID', () => {
-    const name = getProcessName(process.pid);
-    // The test runner is Node.js; the process name must be node/node.exe/nodejs
-    expect(name).toMatch(/^node/i);
+  it('returns a node-related name for a running Node.js process', async () => {
+    // A child process, not process.pid: under Vitest 5 on Linux the test process was seen to report
+    // "mainthread" instead of "node" (cause not found; the pool is not threads), so the name is
+    // read from a plain child.
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
+      stdio: 'ignore',
+    });
+    try {
+      await new Promise(resolve => child.once('spawn', resolve));
+      const name = getProcessName(child.pid!);
+      // node/node.exe/nodejs
+      expect(name).toMatch(/^node/i);
+    } finally {
+      child.kill();
+    }
   });
 
   it('returns null for a non-existent PID', () => {

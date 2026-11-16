@@ -117,7 +117,6 @@
 /* Labels: quiet Spectral italics in sentence case, never tracked capitals (the design's
    rule). Small tags keep their weight so they still read at a glance. */
 :root[data-theme='veil'] .pane-head h2,
-:root[data-theme='veil'] .control-label,
 :root[data-theme='veil'] .preflight-h,
 :root[data-theme='veil'] .tool-cat,
 :root[data-theme='veil'] .ref-group,
@@ -135,12 +134,8 @@
   font-size: 1.12rem;
   color: var(--text-mid);
 }
-:root[data-theme='veil'] .control-label {
-  font-size: var(--fs-xs);
-}
 :root[data-theme='veil'] .combatant-name .side,
 :root[data-theme='veil'] .event-type,
-:root[data-theme='veil'] .comment-badge,
 :root[data-theme='veil'] .diag-level,
 :root[data-theme='veil'] .tool-kind,
 :root[data-theme='veil'] .ref-warn,

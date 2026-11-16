@@ -1,78 +1,110 @@
-// The GM Actions master switch in the header: its state from the stream's `settings` event, a click
-// through toggle-gm-actions on POST /api/control, and a refusal that leaves it as it was.
+// The GM Actions line in the header (#btn-gm): its state from the
+// stream's `settings` event and the module's switches (/api/session/switches), the list it opens,
+// and the one Turn on that sets everything, the same call Start session makes.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, toast } from './support';
+import type { ApiBodies } from '../../src/api-bodies';
+import type { SessionSwitch } from '../../src/session-switches';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, switchesBody } from './support';
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await holdPlaySession(page);
 });
 
-/** Answers POST /api/control like the server: it flips the switch and says what it is now. */
-async function fakeControl(page: Page, { fails = false } = {}): Promise<unknown[]> {
-  const bodies: unknown[] = [];
-  let on = false;
-  await page.route('**/api/control', route => {
-    bodies.push(route.request().postDataJSON());
-    if (fails) return route.fulfill({ status: 500, json: { error: 'server is away' } });
-    on = !on;
-    return route.fulfill({ json: { gmActionsEnabled: on } });
+const list = (on: boolean): SessionSwitch[] => [
+  { id: 'writes', name: 'Allow Write Operations', on: true },
+  { id: 'handouts', name: 'AI Tool: Handouts (writes)', on },
+  { id: 'live-play', name: 'AI Tool: Live play (writes)', on: true },
+];
+
+const read = (on: boolean, gmActionsEnabled: boolean): ApiBodies['/api/session/switches'] =>
+  switchesBody(gmActionsEnabled, list(on));
+
+/** GET answers `first`; a POST turns everything on and answers like the server. */
+async function fakeSwitches(
+  page: Page,
+  first: ApiBodies['/api/session/switches']
+): Promise<unknown[]> {
+  const posts: unknown[] = [];
+  let answer = first;
+  await page.route('**/api/session/switches', (route, request) => {
+    if (request.method() === 'GET') return route.fulfill({ json: answer });
+    posts.push(request.postDataJSON());
+    answer = read(true, true);
+    return route.fulfill({
+      json: {
+        switches: { switches: list(true), ready: null, changed: ['handouts'], failed: [] },
+        gmActionsEnabled: true,
+        gmActionsChanged: true,
+      },
+    });
   });
-  return bodies;
+  return posts;
 }
 
-test('the button follows the stream and starts off before the first settings event', async ({
-  page,
-}) => {
+test('everything on reads "GM Actions on" and is lit', async ({ page }) => {
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: true } }]);
+  await fakeSwitches(page, read(true, true));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('⚔ GM Actions: on');
+  await expect(button).toHaveText('GM Actions on');
   await expect(button).toHaveClass(/\bon\b/);
-  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(button).toHaveAttribute('data-gm-actions', 'on');
 });
 
-test('a click asks the server to toggle and shows its answer, both ways', async ({ page }) => {
+test('a switch that is off is named, and the list turns everything on', async ({ page }) => {
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
-  const bodies = await fakeControl(page);
+  const posts = await fakeSwitches(page, read(false, false));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('⚔ GM Actions: off');
+  await expect(button).toHaveText('GM Actions off: Turn on');
+  await expect(button).toHaveAttribute('data-gm-actions', 'off');
+  await expect(button).toHaveAttribute('title', /^GM Actions and Handouts are off./);
   await button.click();
-  await expect(button).toHaveText('⚔ GM Actions: on');
-  await expect(button).toHaveClass(/\bon\b/);
-  await button.click();
-  await expect(button).toHaveText('⚔ GM Actions: off');
+  const switches = page.getByRole('list', { name: 'GM Actions switches' });
+  await expect(switches.getByRole('listitem')).toHaveCount(4);
+  await expect(switches.locator('[data-switch="handouts"]')).toHaveAttribute('data-on', 'false');
+  await page.getByRole('button', { name: 'Turn on', exact: true }).click();
+  await expect(button).toHaveText('GM Actions on');
+  await expect(button).toHaveAttribute('data-gm-actions', 'on');
+  expect(posts).toEqual([{ action: 'ready' }]);
+});
+
+test('GM Actions off alone is named too', async ({ page }) => {
+  await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
+  await fakeSwitches(page, read(true, false));
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  await expect(page.locator('#btn-gm')).toHaveText('GM Actions off: Turn on');
+  await expect(page.locator('#btn-gm')).toHaveAttribute('title', /^GM Actions is off./);
+  await expect(page.locator('#btn-gm')).toHaveAttribute('data-gm-actions', 'off');
+});
+
+test('switches that could not be read do not read "on"', async ({ page }) => {
+  await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: true } }]);
+  // What the route answers when the bridge is away: 200 with no switches and the reason.
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({ json: switchesBody(true, null, 'The bridge is away') })
+  );
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  const button = page.locator('#btn-gm');
+  await expect(button).toHaveText("GM Actions: can't read");
   await expect(button).not.toHaveClass(/\bon\b/);
-  expect(bodies).toEqual([{ action: 'toggle-gm-actions' }, { action: 'toggle-gm-actions' }]);
+  await expect(button).toHaveAttribute('data-gm-actions', 'on');
 });
 
-test('a refused click toasts the reason and leaves the switch as it was', async ({ page }) => {
+test('unreadable switches still say when GM Actions is off', async ({ page }) => {
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
-  await fakeControl(page, { fails: true });
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({ status: 502, json: { error: 'The bridge is away' } })
+  );
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
-  const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('⚔ GM Actions: off');
-  await button.click();
-  await expect(toast(page, '✗ GM Actions: server is away')).toBeVisible();
-  await expect(button).toHaveText('⚔ GM Actions: off');
-  await expect(button).toBeEnabled();
-});
-
-test('the keyboard focus is still on the button once the click has settled', async ({ page }) => {
-  await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
-  await fakeControl(page);
-  await page.goto(`/next/?token=${GM_TOKEN}`);
-
-  const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('⚔ GM Actions: off');
-  await button.focus();
-  await page.keyboard.press('Enter');
-  await expect(button).toHaveText('⚔ GM Actions: on');
-  await expect(button).toBeEnabled();
-  await expect(button).toBeFocused();
+  await expect(page.locator('#btn-gm')).toHaveText('GM Actions off: Turn on');
+  await expect(page.locator('#btn-gm')).toHaveAttribute('title', /^GM Actions is off./);
+  await expect(page.locator('#btn-gm')).toHaveAttribute('data-gm-actions', 'off');
 });

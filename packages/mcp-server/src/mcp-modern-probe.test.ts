@@ -326,19 +326,43 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
       failing?.server.close();
     });
 
-    it('answers an empty list with ttlMs 0 for a 2026-07-28 client', async () => {
+    it('answers an error, which no client caches, for a 2026-07-28 client', async () => {
       const w = start(failing?.port);
       const res = await w.request('tools/list', { _meta: MODERN_META });
-      expect(res.error).toBeUndefined();
-      expect(res.result).toMatchObject({ tools: [], ttlMs: 0, cacheScope: 'private' });
+      expect(res.error).toBeTruthy();
+      expect(res.result).toBeUndefined();
     });
 
-    it('answers an empty list with no cache fields for a 2025-11-25 client', async () => {
+    it('answers an error for a 2025-11-25 client', async () => {
       const w = start(failing?.port);
       await w.initialize();
       const res = await w.request('tools/list');
-      expect(res.error).toBeUndefined();
-      expect(res.result).toEqual({ tools: [] });
+      expect(res.error).toBeTruthy();
+      expect(res.result).toBeUndefined();
+    });
+  });
+
+  describe('when the bridge lists no tools', () => {
+    let empty: { server: net.Server; port: number } | undefined;
+
+    beforeAll(async () => {
+      empty = await startFakeBridge({ emptyList: true });
+    });
+
+    afterAll(() => {
+      empty?.server.close();
+    });
+
+    it('is an error, not an empty list, in either era', async () => {
+      const legacy = start(empty?.port);
+      await legacy.initialize();
+      const a = await legacy.request('tools/list');
+      expect(a.error).toBeTruthy();
+      expect(a.result).toBeUndefined();
+      const modern = start(empty?.port);
+      const b = await modern.request('tools/list', { _meta: MODERN_META });
+      expect(b.error).toBeTruthy();
+      expect(b.result).toBeUndefined();
     });
   });
 });

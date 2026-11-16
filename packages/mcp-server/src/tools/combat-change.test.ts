@@ -2,7 +2,7 @@
  * `plan-combat-change`: Foundry and the guarded-write service are stubs; the tests check the
  * request the module gets, the plan the service gets and what the result carries.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   COMBAT_CHANGE_ACTIONS,
@@ -11,13 +11,9 @@ import {
   type CombatChangePlan,
 } from '@gnuminator/shared';
 
-import { CombatChangeTools } from './combat-change.js';
+import { makeTools } from '../test-support/make-tool-harness.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { CombatChangeTools } from './combat-change.js';
 
 const BUILT: CombatChangePlan = {
   summary: 'End combat on "Field" (round 3, 4 combatants)',
@@ -26,13 +22,12 @@ const BUILT: CombatChangePlan = {
   warning: 'Undo does not bring back effects.',
 };
 
-let query: ReturnType<typeof vi.fn>;
-let createPlan: ReturnType<typeof vi.fn>;
-let autoApplyEnabled: ReturnType<typeof vi.fn>;
+let query: Mock;
+let createPlan: Mock;
+let autoApplyEnabled: Mock;
 let tools: CombatChangeTools;
 
 beforeEach(() => {
-  query = vi.fn(() => Promise.resolve(BUILT));
   createPlan = vi.fn((input: { feature: string; summary: string }) =>
     Promise.resolve({
       planId: 'plan-1',
@@ -43,11 +38,12 @@ beforeEach(() => {
     })
   );
   autoApplyEnabled = vi.fn(() => Promise.resolve(true));
-  tools = new CombatChangeTools({
-    foundryClient: { query },
-    guardedWrites: { createPlan, autoApplyEnabled },
-    logger: logger(),
+  const harness = makeTools(CombatChangeTools, {
+    queryImpl: () => Promise.resolve(BUILT),
+    extra: { guardedWrites: { createPlan, autoApplyEnabled } },
   });
+  query = harness.query;
+  tools = harness.tools;
 });
 
 describe('definitions', () => {

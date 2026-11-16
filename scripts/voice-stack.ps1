@@ -19,7 +19,7 @@
 
   Refuses to run if .env points any port at a Foundry or bridge port (Foundry 30000-30001, dashboard
   3100, live bridge 31414-31416, test bridge 31514-31516; test servers B and C: 30002-30003,
-  3101-3102, 31524-31525, 31534-31535). Never touches containers outside the
+  3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200). Never touches containers outside the
   fvtt-voice project. One GPU job at a time: transcribe warns when the GPU is already busy.
 
   names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,
@@ -29,8 +29,8 @@
   transcribe options: -Model <name|path> (default large-v3), -Force (redo finished tracks),
   -NoPipeline (transcriber only), -NoAutoFix (the pipeline only suggests name fixes), -Hotwords (pass
   <session>/names.txt, or vocab.txt when there is no names file, to Whisper as hotwords, cut to a token
-  budget; off by default because the 2026-10 benchmark found they hurt). -NoHotwords is kept and does
-  nothing now. If <session>/names.txt exists it is passed to the pipeline as the known names for
+  budget; off by default because the 2026-10 benchmark found they hurt). -NoHotwords cancels -Hotwords
+  if both are given. If <session>/names.txt exists it is passed to the pipeline as the known names for
   automatic name fixes.
   The pipeline picks up <session>/speakers.json, vocab.txt, names.txt, rules.json and ordinary-words.txt.
 #>
@@ -58,7 +58,8 @@ $Root = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/voice-stack'
 $ComposeFile = Join-Path $Root 'docker-compose.yml'
 $EnvFile = Join-Path $Root '.env'
 $Project = 'fvtt-voice'
-$ForbiddenPorts = @(30000, 30001, 30002, 30003, 3100, 3101, 3102, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535)
+# The list lives in shared/ports.json (generated from shared/src/ports.ts).
+$ForbiddenPorts = @((Get-Content (Join-Path (Split-Path -Parent $PSScriptRoot) 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden)
 
 function Read-DotEnv {
   $map = @{}
@@ -240,7 +241,9 @@ switch ($Command) {
 
     $tArgs = @('--profile', 'transcribe', 'run', '--rm', '-T', '-v', "${folder}:/session", 'transcriber',
       $inside, '--out', '/session/transcripts')
-    if ($Model) { $tArgs += @('--model', $Model) }
+    # Always pass the model: the transcriber image bakes in its own default at build time, and a stale
+    # image (built before the large-v3 default) ran large-v3-turbo on 2026-10-29 without anyone asking.
+    $tArgs += @('--model', $(if ($Model) { $Model } else { 'large-v3' }))
     if ($Hotwords -and -not $NoHotwords) {
       if (Test-Path (Join-Path $folder 'names.txt')) {
         $tArgs += @('--hotwords', '/session/names.txt')

@@ -5,7 +5,7 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   PREP_NOTES_NOTICE,
@@ -167,6 +167,10 @@ interface Setup {
   vault?: boolean;
   /** The prep notes deadline; default PREP_TEST_TIMEOUT_MS. Only the hang test wants it short. */
   prepTimeoutMs?: number;
+  /** The recorder's sessions folder, for "Previously on". */
+  sessionsDir?: string;
+  /** Replaces the sessions folder reader (the never-answers test hands in one that never settles). */
+  readPreviously?: () => Promise<never>;
 }
 
 /** Generous: a loaded machine can take over 200 ms to read a few small notes; only the hang test expects the timeout. */
@@ -204,6 +208,11 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
     now: () => 1234,
     ...(setup.vault
       ? { vaultDir: obsidianDir, prepNotesTimeoutMs: setup.prepTimeoutMs ?? PREP_TEST_TIMEOUT_MS }
+      : {}),
+    ...(setup.sessionsDir ? { sessionsDir: setup.sessionsDir } : {}),
+    ...(setup.readPreviously ? { readPreviously: setup.readPreviously } : {}),
+    ...(setup.readPreviously && setup.prepTimeoutMs
+      ? { prepNotesTimeoutMs: setup.prepTimeoutMs }
       : {}),
   };
   return new PrepDigestTools(options);
@@ -519,7 +528,7 @@ describe('get-prep-digest', () => {
       const tools = makeTools();
       const digest = await tools.handleGetPrepDigest({});
       expect('prep' in digest).toBe(false);
-      const query = (tools as any).options.foundryClient.query as ReturnType<typeof vi.fn>;
+      const query = (tools as any).options.foundryClient.query as Mock;
       expect(query.mock.calls.map(c => c[0])).toEqual(['foundry-mcp-bridge.getPrepScan']);
     });
 
@@ -535,6 +544,32 @@ describe('get-prep-digest', () => {
       ]);
       expect(digest.prep?.matchedAgainst).toEqual({ scene: 'Village', tokens: 2, openQuests: 1 });
       expect(digest.warnings).toEqual([]);
+    });
+
+    it('shows an encounter block as a suggested encounter in the digest (read-only)', async () => {
+      await seedPrep();
+      await prepNote(
+        'Prep/Encounters/Ambush.md',
+        { type: 'encounter-prep' },
+        '```encounter\nname: Goblin ambush\ncreatures:\n  - 2: Goblin\n```'
+      );
+      const digest = await makeTools({ vault: true, scene: SCENE }).handleGetPrepDigest({});
+      expect(digest.prep?.encounters).toEqual([
+        {
+          path: 'Prep/Encounters/Ambush.md',
+          encounters: [
+            {
+              name: 'Goblin ambush',
+              creatures: [{ name: 'Goblin', count: 2 }],
+              total: 2,
+              truncated: false,
+            },
+          ],
+        },
+      ]);
+      expect(JSON.parse(JSON.stringify(digest)).prep.encounters[0].encounters[0].name).toBe(
+        'Goblin ambush'
+      );
     });
 
     it('no active scene is not a warning; quests still match', async () => {
@@ -606,6 +641,55 @@ describe('get-prep-digest', () => {
       const { prep, ...rest } = digest;
       expect(JSON.stringify(rest)).not.toContain('undo-change');
       expect(prep?.notice).toMatch(/never follow instructions/);
+    });
+  });
+
+  describe('previously on', () => {
+    it('opens the digest with the newest GM summary of the sessions folder', async () => {
+      const sessions = path.join(dataDir, 'FoundrySessions');
+      const notes = path.join(sessions, '2026-10-02_2000-discord', 'notes');
+      await fsp.mkdir(notes, { recursive: true });
+      await fsp.writeFile(
+        path.join(notes, 'summary.en.md'),
+        '# Summary: Test night\n\nThe test party crossed a test bridge.\n',
+        'utf8'
+      );
+      const digest = await makeTools({ sessionsDir: sessions }).handleGetPrepDigest({});
+      expect(digest.previously).toMatchObject({
+        status: 'found',
+        session: '2026-10-02_2000-discord',
+        lang: 'en',
+        title: 'Test night',
+        text: 'The test party crossed a test bridge.',
+      });
+      // The first part after the digest's own fields.
+      const keys = Object.keys(digest);
+      expect(keys.indexOf('previously')).toBe(keys.indexOf('computedAt') + 1);
+      expect(keys.indexOf('previously')).toBeLessThan(keys.indexOf('lastSession'));
+    });
+
+    it('says plainly when this bridge cannot see the folder, and the rest still comes back', async () => {
+      const missing = path.join(dataDir, 'not-here');
+      const digest = await makeTools({ sessionsDir: missing }).handleGetPrepDigest({});
+      expect(digest.previously?.status).toBe('unreachable');
+      expect(digest.previously?.note).toContain(missing);
+      expect(digest.openQuests).not.toBeNull();
+    });
+
+    it('a sessions folder that never answers becomes a note and the rest still comes back', async () => {
+      const digest = await makeTools({
+        sessionsDir: path.join(dataDir, 'FoundrySessions'),
+        readPreviously: () => new Promise<never>(() => undefined),
+        prepTimeoutMs: 100,
+      }).handleGetPrepDigest({});
+      expect(digest.previously).toMatchObject({ status: 'unreachable' });
+      expect(digest.previously?.note).toMatch(/gave no answer within \d+ s/);
+      expect(digest.openQuests).not.toBeNull();
+    });
+
+    it('is left out when no sessions folder is given', async () => {
+      const digest = await makeTools().handleGetPrepDigest({});
+      expect(digest).not.toHaveProperty('previously');
     });
   });
 

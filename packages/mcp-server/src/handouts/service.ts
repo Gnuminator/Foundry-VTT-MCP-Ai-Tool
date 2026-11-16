@@ -33,6 +33,7 @@
  * fine).
  */
 import {
+  errorMessage,
   type GuardedOp,
   type GuardedUpdateOp,
   MODULE_ID,
@@ -248,14 +249,23 @@ function assertSceneId(value: unknown): string | null {
 
 /**
  * "Show it now" (I-110): the plan option that pops the page up on the players' screens after the
- * reveal, for the players it is revealed to (every player when `players` is not set).
+ * reveal, for the players it is revealed to (every player when `players` is not set). Every
+ * reveal also asks for a chat notice (test 3: Foundry alone must be enough to play): a whisper
+ * with the page's title and a link, no page text.
  */
 function showPlayers(
   showNow: boolean,
   uuid: string,
   players: string[] | undefined
-): { showToPlayers?: { uuid: string; users: string[] } } {
-  return showNow ? { showToPlayers: { uuid, users: players ?? [] } } : {};
+): {
+  showToPlayers?: { uuid: string; users: string[] };
+  noticeToPlayers: { uuid: string; users: string[] };
+} {
+  const users = players ?? [];
+  return {
+    ...(showNow ? { showToPlayers: { uuid, users } } : {}),
+    noticeToPlayers: { uuid, users },
+  };
 }
 
 /** A player-facing sentence: "to every player" or "to 2 chosen players". */
@@ -671,7 +681,7 @@ export class HandoutsService {
         extraVaultOps: [{ kind: 'vault-delete', file: QUEUE_FILE, path: `entries.${entryId}` }],
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       throw new Error(
         `${message} (the next queued page is ${entry.uuid}; remove it with action "unqueue" to go on)`,
         { cause: error }
@@ -831,7 +841,7 @@ export class HandoutsService {
       summary: `Reveal page "${title}" to ${audience(players)}`,
       ...(ops.length > 0 ? { ops } : {}),
       vaultOps,
-      risk: 'destructive',
+      bookkeepingDeletes: true,
       ...showPlayers(showNow, pageUuid, players),
     });
     return { ...plan, pageUuid };
@@ -942,7 +952,7 @@ export class HandoutsService {
       summary: `Reveal page "${title}" to ${audience(players)} again (updates its copy in ${HANDOUTS_JOURNAL_NAME})`,
       ops: [updateOpFor(entry.uuid, changed)],
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
-      risk: 'destructive',
+      bookkeepingDeletes: true,
       ...showPlayers(showNow, entry.uuid, players),
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy) };
@@ -1051,7 +1061,7 @@ export class HandoutsService {
       summary: `Reveal page "${title}" to ${audience(players)} (copied into ${HANDOUTS_JOURNAL_NAME})`,
       ops,
       vaultOps,
-      risk: 'destructive',
+      bookkeepingDeletes: true,
       ...showPlayers(showNow, copyUuid, players),
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy, warning) };

@@ -9,11 +9,15 @@ Do these in order, about 15 minutes before the players join. Each item is one ac
 dashboard runs on the table's home server (the Orange Pi), so there is nothing to start and no
 terminal to open. You need two addresses from the tool admin: the game's and the dashboard's.
 
+:::tip
+**Do this as a quest.** [Quest: before a session](before-session-quest.md) is this checklist as
+four stages with times.
+:::
+
 ## Start everything
 
 - [ ] Start **Claude Desktop**. It connects to the bridge on the Pi.
 - [ ] Open Foundry in your browser, launch the world, and join as your GM user.
-- [ ] Wait for the Foundry message "MCP Bridge connected successfully" (top of the screen).
 - [ ] Open the dashboard address on your second screen. Cloudflare may ask for an emailed code
       first, the same as when you join the game.
 - [ ] Look at the header of the dashboard: the **✈ Pre-flight** button should say "ready" or "N to fix", and no
@@ -23,20 +27,31 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 ## Run the pre-flight check
 
 - [ ] In the dashboard header, click **✈ Pre-flight** (in the Before view the panel is
-      already on the page). Fix everything marked ✗ and look at each **!**. The rest of this page
-      is also in the Pre-flight panel's "Check by hand" list.
+      already on the page). Fix everything marked ✗ and look at each **!**. Most of the rest of
+      this page is also in the Pre-flight panel's "Check by hand" list (not the GM windows check).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What does the Pre-flight check look at, and what should I do about a ! or a ✗?" ([how to add the GM coach](gm-coach.md))
 
 ## Turn on what tonight needs
 
 - [ ] In the Pre-flight panel, click **Turn on for tonight**. One click turns on "Allow Write
       Operations", "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party
       (writes)", "AI Tool: Tarokka (writes)" and **GM Actions**. The chips under the button show
-      each switch; a message says what it turned on. **End session** turns off again what Ready
-      turned on.
+      each switch; a message says what it turned on. **End session** turns off again what Turn on for
+      tonight turned on, and **GM Actions**.
 
-- [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
-      Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's **Configure Dice Roles**,
-      **Basic** row, **Theme** column. See [Themed dice](features.md#themed-dice).
+- [ ] Check the [GM windows](gm-windows.md) are on: in Foundry, open the **Settings** tab, **Game
+      Settings**, category **Foundry AI Tool**, and tick **AI Tool: GM windows** if it is not
+      ticked, then **Save Changes**. The Combat, Party, Session, Scene and Loot buttons then show in the AI Tool group
+      of the scene controls. A world that was saved earlier may have it off.
+
+- [ ] Once, before session 1 (only with the module Dice So Nice): pick your own dice, **AI
+      Tool: The Veil (campaign look)** or **AI Tool: Neutral**: **Game Settings**, **3D Dice
+      Settings**, tab
+      **Appearance**, **Theme**, **Save**. Every player picks their own the same way; there is no
+      table-wide default. See [Themed dice](features.md#themed-dice).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What does Turn on for tonight switch on, and is it safe to leave on during play?"
 
 ## Check what players will see
 
@@ -57,6 +72,8 @@ terminal to open. You need two addresses from the tool admin: the game's and the
       [Revealing a handout](dashboard.md#revealing-a-handout).
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), make sure **Show cards** is not ticked.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make sure my players only see what they should before the game starts?"
+
 ## Prepare
 
 - [ ] In Claude Desktop, run the prompt `prep-next-session` (add a `focus` if you have one).
@@ -66,7 +83,7 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 
 ## When play begins
 
-- [ ] Click **Start the session log** (in the Pre-flight panel) or **Start session** in the
+- [ ] Click **Start the session log and GM Actions** (in the Pre-flight panel) or **Start session** in the
       dashboard header. It should now say "Session since" and the time.
 
 Next: [after each session](after-session.md).

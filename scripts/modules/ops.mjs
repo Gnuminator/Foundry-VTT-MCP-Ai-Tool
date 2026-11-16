@@ -52,6 +52,7 @@ export function serverInfo(name) {
 /** The Foundry app folder of a server: the machine-wide <A Root>/appdir.txt (as config.ps1), else its local file's AppDir, else (B, C) server A's, else <Root>/app. */
 export function appDirOf(name, all) {
   try {
+    // eslint-disable-next-line no-irregular-whitespace -- the regex strips a literal BOM (U+FEFF)
     const shared = readFileSync(path.join(all.A.Root, 'appdir.txt'), 'utf8').split(/\r?\n/)[0].replace(/^﻿/, '').trim();
     if (shared) return path.resolve(shared);
   } catch {
@@ -60,6 +61,7 @@ export function appDirOf(name, all) {
   const local = n => {
     const file = path.join(REPO_ROOT, 'scripts', 'test-env', n === 'A' ? 'local.json' : `local.${n}.json`);
     try {
+      // eslint-disable-next-line no-irregular-whitespace -- the regex strips a literal BOM (U+FEFF)
       return JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')).AppDir ?? null;
     } catch {
       return null;
@@ -87,6 +89,7 @@ export function lockHolder(srv) {
   const file = path.join(srv.Root, 'lock.json');
   if (!existsSync(file)) return null;
   try {
+    // eslint-disable-next-line no-irregular-whitespace -- the regex strips a literal BOM (U+FEFF)
     const l = JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, ''));
     return l?.holder ? { holder: String(l.holder), session: l.session ? String(l.session) : '' } : null;
   } catch {
@@ -153,7 +156,7 @@ export function unsafeEntryName(name) {
 
 /**
  * The entry names of a zip file, read from its central directory. Anything that cannot be read
- * exactly (no end record, ZIP64 markers, a directory shorter than its count, a comment that runs
+ * exactly (no end record, ZIP64 markers, a directory shorter or longer than its count, a comment that runs
  * past the file) throws, so a zip that hides its names never passes as clean. A file that does not
  * start with "PK" is not a zip: it gives no names (see {@link entryNames}).
  * @param {string} zip
@@ -171,7 +174,9 @@ export function zipEntryNames(zip) {
   }
   if (eocd < 0) throw new Error(`${path.basename(zip)}: no zip end record; refusing to read it`);
   const count = buf.readUInt16LE(eocd + 10);
+  const cdSize = buf.readUInt32LE(eocd + 12);
   let pos = buf.readUInt32LE(eocd + 16);
+  const cdStart = pos;
   if (count === 0xffff || pos === 0xffffffff) throw new Error(`${path.basename(zip)}: a ZIP64 archive; refusing to read it`);
   const names = [];
   for (let n = 0; n < count; n++) {
@@ -180,6 +185,8 @@ export function zipEntryNames(zip) {
     names.push(buf.toString('utf8', pos + 46, pos + 46 + nameLen));
     pos += 46 + nameLen + buf.readUInt16LE(pos + 30) + buf.readUInt16LE(pos + 32);
   }
+  // libarchive reads entries until the signature stops, so a count below the real number hides names
+  if (pos !== cdStart + cdSize) throw new Error(`${path.basename(zip)}: the central directory does not match its stated size; refusing to read it`);
   return names;
 }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { LiveTargetPreview } from '@gnuminator/shared';
 
 import { RulesCheckTools, findActivityData, itemRangeLabel } from './rules-check.js';
@@ -46,7 +46,7 @@ function tools(opts: {
   combat?: unknown;
   distance?: unknown;
   spent?: unknown;
-}): { t: RulesCheckTools; query: ReturnType<typeof vi.fn> } {
+}): { t: RulesCheckTools; query: Mock } {
   const query = vi.fn(async (method: string) => {
     switch (method) {
       case 'foundry-mcp-bridge.listGuardedFeatures':
@@ -291,7 +291,7 @@ describe('check-action', () => {
   it('is one read-only tool', () => {
     const defs = tools({}).t.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['check-action']);
-    expect(defs[0]?.description).toMatch(/off by default/);
+    expect(defs[0]?.description).toMatch(/on by default/);
   });
 
   it('refuses while the switch is off and reads nothing else', async () => {
@@ -356,6 +356,57 @@ describe('check-action', () => {
     const { t } = tools({ combat: { success: true, active: false } });
     const r = await t.handleToolCall('check-action', { actor: 'Ilvara', item: 'Magic Missile' });
     expect(r.checks[0]?.status).toBe('info');
+  });
+
+  it('notes the 2014 and 2024 difference for a Grapple activity on Unarmed Strike', async () => {
+    const unarmed = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Unarmed Strike',
+        type: 'weapon',
+        activities: [
+          { id: 'a', name: 'Attack', activation: 'Action', range: '5 ft' },
+          { id: 'g', name: 'Grapple', activation: 'Action', range: '5 ft' },
+        ],
+        system: {},
+      },
+    };
+    const { t } = tools({ entity: unarmed });
+    const plain = await t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Unarmed Strike',
+    });
+    expect(plain.checks.find(c => c.check === 'rules-differences')).toBeUndefined();
+    const r = await t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Unarmed Strike',
+      activity: 'Grapple',
+    });
+    expect(r.checks.find(c => c.check === 'rules-differences')?.reason).toContain('Grapple');
+  });
+
+  it('finds the activity by id as well as by name', async () => {
+    const entity = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Unarmed Strike',
+        type: 'weapon',
+        activities: [
+          { id: 'a', name: 'Attack', activation: 'Action', range: '5 ft' },
+          { id: 'g', name: 'Grapple', activation: 'Action', range: '5 ft' },
+        ],
+        system: {},
+      },
+    };
+    const { t } = tools({ entity });
+    const r = await t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Unarmed Strike',
+      activity: 'g',
+    });
+    expect(r.checks.find(c => c.check === 'rules-differences')?.reason).toContain('Grapple');
   });
 
   it('names the activities when the requested one is missing', async () => {

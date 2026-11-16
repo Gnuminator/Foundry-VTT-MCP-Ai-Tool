@@ -74,7 +74,8 @@ export interface ObsidianMirrorView extends ObsidianMirrorEnv {
   status: MirrorStatus | null;
 }
 
-const DEFAULT_ENV: ObsidianMirrorEnv = {
+/** What the tools assume when no env is passed; also the stub default in test-support. */
+export const DEFAULT_ENV: ObsidianMirrorEnv = {
   vaultDirSet: false,
   openBase: DEFAULT_OPEN_BASE,
   pollMs: DEFAULT_POLL_MS,

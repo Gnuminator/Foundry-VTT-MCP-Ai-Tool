@@ -29,7 +29,7 @@ import {
 
 describe('control-channel contract (§3a)', () => {
   it('exposes exactly the control verbs', () => {
-    expect(CONTROL_METHODS).toEqual(['ping', 'list_tools', 'call_tool', 'record_usage']);
+    expect(CONTROL_METHODS).toEqual(['ping', 'hello', 'list_tools', 'call_tool', 'record_usage']);
   });
 });
 

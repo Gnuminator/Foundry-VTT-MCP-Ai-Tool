@@ -6,11 +6,15 @@ description: The GM's Obsidian vault on your own PC, what to edit in it, and how
 # Your Obsidian vault
 
 The tool writes your world into an Obsidian vault on the server, and Syncthing copies it to your
-PC. You read it in Obsidian like any notes. It is the GM's vault: it has the secrets and the book
+PC ([One-time setup: your vault on your PC](setup-obsidian-sync.md)). You read it in Obsidian like any notes. It is the GM's vault: it has the secrets and the book
 text, so it stays on your PC. The players get vaults of their own without the secrets.
 
 ## What is in it
 
+- **Home:** your start page for the campaign, `Home.md` in the world's folder. It is sorted by what
+  you are doing (before, during and after a session) with links and live tables to NPCs, scenes,
+  quests, story items and the session notes. The tool creates it once and never rewrites it after
+  you edit it. The 📓 button next to Start session in the dashboard opens it.
 - **The AI Tool folder:** notes the tool writes. Characters, NPCs, scenes, journals, quests, the
   Library (monsters, spells, rules), session notes and stats, and under `Everyone` one note per
   day with every change the players, you and the AI made in Foundry (who, when, what; undo it in
@@ -21,6 +25,8 @@ text, so it stays on your PC. The players get vaults of their own without the se
   notes on NPCs, places and quests go here, and Claude reads them when you prepare a session (see
   the [cookbook](cookbook.md), "Tip for Obsidian"). Prep/Templates has a template for an NPC, a
   location, a quest and a session plan.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What is Obsidian for in my game, and which notes should I write myself?" ([how to add the GM coach](gm-coach.md))
 
 ## Seen in
 
@@ -47,6 +53,9 @@ A session plan is new each time, named after today's date (for example Prep/Sess
 2026-11-29.md), and Claude reads the newest one. Its date property is today too: change it to the
 game night when you plan ahead. This works without the dashboard.
 
+To keep a prep note away from Claude, open it and run **Toggle: Claude may read this prep note**.
+It sets the property `ai_context` to false (or back to true).
+
 A template's grey line between %% marks is a hint for you; Claude skips it. To use the templates
 for notes you start yourself, point Obsidian's Templates (or Templater) template folder at
 Prep/Templates. Edit the templates as you like: the tool writes them only when the folder is
@@ -55,34 +64,67 @@ missing.
 Changes you make in Obsidian never reach Foundry by themselves. Things that change the game
 (revealing a handout, for example) are planned from Obsidian and confirmed in the dashboard.
 
+**A quest from Obsidian into Foundry:** a quest note in your `Prep` folder with the property
+`type` set to `quest-prep` and an empty `fvtt_uuid` can become a GM-only quest journal. Open the
+note and run **Import this quest prep note into Foundry (confirm in the dashboard)**, then confirm
+the plan in the dashboard. It needs the switch "AI Tool: Obsidian import (writes)" (off until you
+turn it on in Foundry's Game Settings, category **Foundry AI Tool**). **Undo** in Recent Changes
+removes the journal, and the same note cannot be imported twice until you do. A note with
+`ai_context` set to false is refused.
+
+**An encounter idea for Claude:** a code block marked `encounter` (the Initiative Tracker block)
+in a prep note, for example one with `type` set to `encounter-prep` or in a session plan, shows
+up for Claude as a suggested encounter, so you can ask "what do I have prepared for the
+goblins?" Claude only reads it; nothing is made in Foundry. Write the block like this:
+
+````markdown
+```encounter
+name: Goblin ambush
+creatures:
+  - 2: Goblin
+  - Bugbear
+```
+````
+
+A line is `name`, `count: name` or `name, hit points, armor class` (the numbers after the name are
+ignored). Claude reads up to 3 blocks per note, 12 creatures per block and 5 notes. A note with
+`ai_context` set to false is skipped, and only the block's name and creatures are passed on, never
+the rest of the note.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make a prep note for an NPC and keep Claude from reading it?"
+
+## Can I rename things?
+
+- **In Foundry, yes, freely.** Rename scenes, journals, actors and the rest as you like, for
+  example to give a map a clearer name. The tool finds each note by an id inside it (`fvtt_uuid`),
+  never by its name or place, so the vault follows by itself. After you rename a scene or a
+  journal, its note keeps its file name, but the `name` property, the first heading and the alias
+  inside it change to the new name within a minute. When a document is moved into
+  another Foundry folder, its note moves to the matching folder and takes the current name as its
+  file name.
+- **In the AI Tool folder, don't rename, move or edit anything.** That folder is the tool's. A note
+  you edit stops updating and is listed in `_status.md`.
+- **Prep and Home are yours.** Rename, move and edit them as you like.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Can I rename or move things without breaking my vault?"
+
+## The graph
+
+Every adventure gets one hub note, and the graph shows it as its own cluster. Journals, scenes and
+NPCs that sit in no adventure folder in Foundry are listed in **Without an adventure**, so none of
+them floats loose. Each day of changes is linked from the campaign home too.
+
+To colour the adventures, press Ctrl+P and run **Apply AI Tool graph colours**. If the Library
+(spells, monsters, items, books) crowds the graph, run **Hide the Library in the graph**; **Show the
+Library in the graph** puts it back. Both buttons are also in the plugin's settings. They change only
+the graph's colour groups and one search term, and your own groups and search text stay.
+
 ## Connect the plugin (once)
 
-The AI Tool plugin adds **Open in Foundry**, the reveal status of handouts and the shared theme. It
-talks only to the dashboard. When the dashboard runs on the server, Cloudflare guards it, and the
-plugin needs three values to get through. The builder pastes them in with you during setup, on
-your PC; they never go in chat or in a note.
-
-1. In Obsidian: Settings, Community plugins, **Foundry AI Tool**, the gear icon.
-2. **Dashboard address:** the dashboard's https address.
-3. **GM token:** click it, then **Add secret** (below), and paste the dashboard's GM token.
-4. **Cloudflare Access Client ID:** add a secret and paste the Client ID.
-5. **Cloudflare Access Client Secret:** add another secret and paste the Client Secret.
-
-**Obsidian's Add secret dialog** has two fields. **ID** is only a name for you to pick the secret by
-later, never the value itself; use `foundry-gm-token`, `cf-access-client-id` and
-`cf-access-client-secret`. **Secret** is the value. Paste only the value: Cloudflare's copy buttons
-copy the header name too (`CF-Access-Client-Id: ...`), and the plugin drops that for you, but
-cleaner is better. Back in the plugin's settings, pick each secret by its ID.
-
-**Where the GM token comes from:** it is the `token=` part of the link the dashboard setup script
-printed (`http://<name>:3000/?token=<token>`: everything after `token=`), or the builder reads it
-from `dashboard-access.env` on the server in their own SSH window.
-
-The three values stay in Obsidian's secret storage on your PC. They are not in the vault, so
-Syncthing never copies them anywhere. The Cloudflare values are sent only to https addresses.
-
-**Check it:** open an NPC note and click **Open in Foundry** in the status bar; the sheet opens on
-your Foundry screen.
+The AI Tool plugin adds **Open in Foundry** and the reveal status of handouts. Installing it and
+connecting it to the dashboard is on its own page: [One-time setup: the Obsidian
+plugin](setup-obsidian-plugin.md). The three values it needs never go in the vault, so Syncthing never
+copies them.
 
 ## When it does not work
 

@@ -7,7 +7,7 @@ import { HandoutsDrawer } from '../panels/Handouts';
 import RecentChangesPane from '../panels/RecentChanges';
 import { AI_CHANGES, TOOLS_WITH_EVERYONE } from '../storybook/fixtures/changes';
 import { PartyDrawer } from '../panels/Party';
-import { PreflightDrawer } from '../panels/Preflight';
+import { PreflightDrawer } from '../panels/PreflightDrawer';
 import { PrepDrawer } from '../panels/Prep';
 import { reply, toolOk } from '../storybook/fakeApi';
 import { HANDOUTS, PLAYERS, SCENES } from '../storybook/fixtures/handouts';

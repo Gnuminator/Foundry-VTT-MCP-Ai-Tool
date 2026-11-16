@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PREP_KINDS,
+  aiContextAllowed,
+  aiContextNotice,
   campaignRootOf,
   fillPrepNote,
   findPrepNote,
   isPrepType,
+  isQuestImportable,
   localDate,
   prepFileName,
   prepKindsFor,
@@ -38,6 +41,35 @@ const NPC_TEMPLATE = [
   '## What they know',
   '',
 ].join('\n');
+
+describe('isQuestImportable', () => {
+  it('is true only for a quest prep note without an fvtt_uuid', () => {
+    expect(isQuestImportable({ type: 'quest-prep' })).toBe(true);
+    expect(isQuestImportable({ type: 'quest-prep', fvtt_uuid: null })).toBe(true);
+    expect(isQuestImportable({ type: 'quest-prep', fvtt_uuid: '' })).toBe(true);
+    expect(isQuestImportable({ type: 'quest-prep', fvtt_uuid: 'JournalEntry.a' })).toBe(false);
+    expect(isQuestImportable({ type: 'npc-prep' })).toBe(false);
+    expect(isQuestImportable(undefined)).toBe(false);
+  });
+});
+
+describe('aiContextAllowed', () => {
+  it('keeps a note out only on false, as a boolean or the text', () => {
+    expect(aiContextAllowed(false)).toBe(false);
+    expect(aiContextAllowed('false')).toBe(false);
+    expect(aiContextAllowed(' False ')).toBe(false);
+    expect(aiContextAllowed('off')).toBe(false);
+    expect(aiContextAllowed(0)).toBe(false);
+    expect(aiContextAllowed(true)).toBe(true);
+    expect(aiContextAllowed(undefined)).toBe(true);
+    expect(aiContextAllowed(null)).toBe(true);
+    expect(aiContextAllowed('true')).toBe(true);
+  });
+  it('words the notice for both states', () => {
+    expect(aiContextNotice(false)).toContain('ai_context: false');
+    expect(aiContextNotice(true)).toContain('may read');
+  });
+});
 
 describe('prepKindsFor', () => {
   it('offers the likely kind first, by the mirror type, else the Foundry type', () => {

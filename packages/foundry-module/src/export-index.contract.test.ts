@@ -22,7 +22,7 @@ import {
   FOUNDRY_UUID_MAX_LENGTH as SHARED_UUID_MAX,
   FOUNDRY_UUID_SOURCE as SHARED_UUID_SOURCE,
   isFoundryUuid,
-} from '../../../shared/src/export-index.js';
+} from '@gnuminator/shared';
 
 describe('export-index wire contract', () => {
   it('module and shared agree on the query name and schema version', () => {

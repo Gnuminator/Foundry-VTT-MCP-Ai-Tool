@@ -13,6 +13,7 @@ import type { PageForPlayers } from '@gnuminator/shared';
 
 import { GuardedWriteService } from '../guarded-write/service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { QUEUE_FILE } from './queue.js';
@@ -77,8 +78,7 @@ beforeEach(async () => {
   }): { pages: PageForPlayers[] } => ({ pages: data.uuids.map(pageForPlayers) });
   store = new VaultStore({ dataDir });
   now = Date.parse('2026-09-30T20:00:00.000Z');
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const worldIds = { current: (): Promise<string> => Promise.resolve(WORLD) };
   guarded = new GuardedWriteService({
     foundryClient: foundry,
@@ -255,6 +255,8 @@ describe('reveal queue', () => {
     await handouts.queuePage({ pageUuid: PAGE2, sceneId: SCENE });
     const plan = await handouts.planPageReveal({ action: 'reveal-next', sceneId: SCENE });
     expect(plan.pageUuid).toBe(PAGE2);
+    // The queue entry leaving is bookkeeping with an Undo: an ordinary write, not a destructive one.
+    expect(plan.risk).toBe('write');
     // Planning changes nothing yet.
     expect((await handouts.listQueue()).map(q => q.uuid)).toEqual([PAGE1, PAGE2]);
     const changeId = await apply(plan.planId);
@@ -383,6 +385,21 @@ describe('reveal-next with show it now (I-110)', () => {
     expect(foundry.calls.filter(([m]) => m.endsWith('showJournalPage')).map(([, d]) => d)).toEqual([
       { uuid: PAGE1, userIds: [ANNA] },
     ]);
+  });
+
+  it('whispers a chat notice for the next queued page, to the players it was queued for', async () => {
+    foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => ({ posted: true });
+    await handouts.queuePage({ pageUuid: PAGE1, players: [ANNA] });
+    const plan = await handouts.planPageReveal({ action: 'reveal-next' });
+    expect(plan.diff.find(d => d.kind === 'notice')).toMatchObject({ target: PAGE1 });
+    const applied = await guarded.applyPlan(plan.planId, {
+      confirm: true,
+      confirmDestructive: true,
+    });
+    expect(applied.noticed).toEqual({ ok: true });
+    expect(
+      foundry.calls.filter(([m]) => m.endsWith('postHandoutNotice')).map(([, d]) => d)
+    ).toEqual([{ uuid: PAGE1, userIds: [ANNA] }]);
   });
 
   it('plans no popup without showNow', async () => {

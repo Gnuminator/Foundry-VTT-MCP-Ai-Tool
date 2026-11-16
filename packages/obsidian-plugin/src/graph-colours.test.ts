@@ -3,14 +3,19 @@ import { describe, expect, it } from 'vitest';
 import {
   ADVENTURE_PALETTE,
   GRAPH_SETTLE_MS,
+  LIBRARY_FILTER_TERM,
   LIBRARY_GREY,
   applyGraphColoursTo,
   campaignRootOf,
   graphColoursNotice,
   isOurGroup,
+  libraryFilterNotice,
+  libraryHidden,
   libraryRootOf,
   mergeGraphColourGroups,
   ourGroups,
+  setLibraryHiddenTo,
+  withLibraryFilter,
   type GraphHost,
   type HubInfo,
 } from './graph-colours.js';
@@ -260,7 +265,10 @@ function fakeHost(state: {
     },
     setGraphOptions: (options): Promise<boolean> => {
       calls.push('set');
-      if (state.live) state.live.colorGroups = options.colorGroups;
+      if (state.live) {
+        state.live.colorGroups = options.colorGroups;
+        if ('search' in options) state.live.search = options.search;
+      }
       if (state.setWorks === false) return Promise.resolve(false);
       saved.push(options);
       return Promise.resolve(true);
@@ -364,6 +372,87 @@ describe('applyGraphColoursTo', () => {
     await expect(applyGraphColoursTo(host, [sorvan], [])).rejects.toThrow('graph.json is locked');
     expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore']);
     expect(host.calls).not.toContain('wait');
+  });
+});
+
+describe('withLibraryFilter and libraryHidden', () => {
+  it('adds our term after the GM search text and removes only that term again', () => {
+    const hidden = withLibraryFilter({ search: 'tag:#npc "Count von"', showTags: true }, true);
+    expect(hidden.search).toBe(`tag:#npc "Count von" ${LIBRARY_FILTER_TERM}`);
+    expect(hidden.showTags).toBe(true);
+    expect(libraryHidden(hidden)).toBe(true);
+    const shown = withLibraryFilter(hidden, false);
+    expect(shown.search).toBe('tag:#npc "Count von"');
+    expect(libraryHidden(shown)).toBe(false);
+  });
+
+  it('keeps the rest of the search text exactly as typed, spacing included', () => {
+    const typed = 'tag:#npc   "Count von"  line:(a b)';
+    const hidden = withLibraryFilter({ search: typed }, true);
+    expect(hidden.search).toBe(`${typed} ${LIBRARY_FILTER_TERM}`);
+    expect(withLibraryFilter(hidden, false).search).toBe(typed);
+    expect(withLibraryFilter({ search: typed }, false).search).toBe(typed);
+  });
+
+  it('is idempotent in both directions', () => {
+    const once = withLibraryFilter({ search: 'a' }, true);
+    expect(withLibraryFilter(once, true)).toEqual(once);
+    const off = withLibraryFilter(once, false);
+    expect(withLibraryFilter(off, false)).toEqual(off);
+  });
+
+  it('works on an empty or unreadable graph.json and keeps the colour groups', () => {
+    expect(withLibraryFilter({}, true)).toEqual({ search: LIBRARY_FILTER_TERM });
+    expect(withLibraryFilter(null, true)).toEqual({ search: LIBRARY_FILTER_TERM });
+    expect(withLibraryFilter([1], false)).toEqual({ search: '' });
+    const withGroups = withLibraryFilter({ colorGroups: [userGroup] }, true);
+    expect(groupsOf(withGroups)).toEqual([userGroup]);
+  });
+
+  it('leaves the GM own path terms alone, also a longer Library path', () => {
+    const search = '-path:"AI Tool/Library/Books" -path:"Campaigns/w1/AI Tool/Library"';
+    const result = withLibraryFilter({ search }, true);
+    expect(result.search).toBe(`${search} ${LIBRARY_FILTER_TERM}`);
+    expect(withLibraryFilter(result, false).search).toBe(search);
+  });
+});
+
+describe('setLibraryHiddenTo', () => {
+  it('sets the term through the live options, keeping the colour groups, and checks search once more', async () => {
+    const host = fakeHost({
+      openViews: 1,
+      live: { search: 'tag:#npc', colorGroups: [userGroup] },
+      disk: { search: 'stale' },
+    });
+    const result = await setLibraryHiddenTo(host, true);
+    // The last 'options' is the settle check, then the check that the live graph kept the search.
+    expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options', 'options']);
+    expect(host.saved[0]?.search).toBe(`tag:#npc ${LIBRARY_FILTER_TERM}`);
+    expect(groupsOf(host.saved[0])).toEqual([userGroup]);
+    expect(result).toEqual({ hidden: true, reopened: 1, live: true, reapplied: false });
+  });
+
+  it('sets it again when a closing view saved its old search late', async () => {
+    const host = fakeHost({
+      openViews: 1,
+      live: { search: '', colorGroups: [] },
+      duringWait: live => {
+        live.search = '';
+      },
+    });
+    const result = await setLibraryHiddenTo(host, true);
+    expect(host.saved).toHaveLength(2);
+    expect(result.reapplied).toBe(true);
+  });
+
+  it('writes graph.json when there is no live graph plugin, and shows the Library again', async () => {
+    const host = fakeHost({ live: null, disk: { search: `x ${LIBRARY_FILTER_TERM}` } });
+    const result = await setLibraryHiddenTo(host, false);
+    expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore', 'options']);
+    expect((host.written[0] as { search: string }).search).toBe('x');
+    expect(result.hidden).toBe(false);
+    expect(libraryFilterNotice(result)).toContain('shows in the graph again');
+    expect(libraryFilterNotice(result)).toContain('Close and reopen');
   });
 });
 

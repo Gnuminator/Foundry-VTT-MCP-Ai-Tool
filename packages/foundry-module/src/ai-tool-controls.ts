@@ -8,15 +8,18 @@
  * active tool. "Changes", "Handouts" and "Tarokka" are the buttons; a later one is one more
  * entry in {@link AI_TOOL_BUTTONS}.
  */
+import { toGmMessage } from './gm-message.js';
 import { openAiChangesWindow } from './ai-changes-window.js';
 import { openCombatWindow } from './combat-window.js';
 import { MODULE_ID } from './constants.js';
 import { gmWindowsEnabled } from './gm-windows.js';
 import { openHandoutsWindow } from './handouts-window.js';
+import { liveWindowEnabled, toggleLiveWindow } from './live-window.js';
 import { openLootWindow } from './loot-window.js';
 import { openPartyWindow } from './party-window.js';
 import { openSceneWindow } from './scene-window.js';
 import { openSessionWindow } from './session-window.js';
+import { openTarokkaTableWindow } from './tarokka-table-window.js';
 import { openTarokkaWindow } from './tarokka-window.js';
 
 /** One button of the group. */
@@ -27,6 +30,8 @@ export interface AiToolButton {
   open: () => void | Promise<unknown>;
   /** A button of the GM windows (I-134): added only while the world switch is on. */
   gmWindow?: boolean;
+  /** The live window button (live screen B): added only while its own world switch is on. */
+  liveWindow?: boolean;
 }
 
 /** The group's buttons, in toolbar order. */
@@ -48,6 +53,12 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     title: 'Tarokka',
     icon: 'fa-solid fa-cards',
     open: () => openTarokkaWindow(),
+  },
+  {
+    name: 'tarokkaTable',
+    title: 'Tarokka table',
+    icon: 'fa-solid fa-table-cells-large',
+    open: () => openTarokkaTableWindow(),
   },
   {
     name: 'combat',
@@ -84,6 +95,13 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     open: () => openLootWindow(),
     gmWindow: true,
   },
+  {
+    name: 'live',
+    title: 'Live',
+    icon: 'fa-solid fa-bolt',
+    open: () => toggleLiveWindow(),
+    liveWindow: true,
+  },
 ];
 
 /** The group's key in the controls record; after the core groups, which use orders 1 to 10. */
@@ -101,8 +119,9 @@ export function addAiToolControls(
   if (!game.user?.isGM) return;
   const tools: Record<string, unknown> = {};
   const windowsOn = gmWindowsEnabled();
+  const liveOn = liveWindowEnabled();
   buttons
-    .filter(button => !button.gmWindow || windowsOn)
+    .filter(button => (!button.gmWindow || windowsOn) && (!button.liveWindow || liveOn))
     .forEach((button, index) => {
       tools[button.name] = {
         name: button.name,
@@ -114,9 +133,7 @@ export function addAiToolControls(
         onChange: (): void => {
           void Promise.resolve(button.open()).catch((error: unknown) => {
             console.error(`[${MODULE_ID}] Could not open "${button.title}":`, error);
-            ui.notifications.error(
-              `Could not open "${button.title}": ${error instanceof Error ? error.message : String(error)}`
-            );
+            ui.notifications.error(toGmMessage(`open "${button.title}"`, error));
           });
         },
       };

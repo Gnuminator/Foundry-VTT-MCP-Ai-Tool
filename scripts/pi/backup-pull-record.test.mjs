@@ -195,7 +195,7 @@ describe('PC scripts', () => {
       dry > 0 && elseAt > dry && send > elseAt,
       'the record is inside the non-dry-run branch'
     );
-    assert.match(restic, /if \(\$sftpHost\) \{ \[void\]\(Send-PullRecord/);
+    assert.match(restic, /if \(\$sftpHost\) \{\n\s+if \(\$newest -and \(Get-NewestSnapshotAgeDays \$newest\) -le \$WarnAfterDays\) \{\n\s+\[void\]\(Send-PullRecord -Kind restic/);
     assert.ok(
       restic.indexOf('} catch {', send) > send,
       'and inside the try block, so a failed copy never records'
@@ -205,7 +205,9 @@ describe('PC scripts', () => {
   test('pull-snapshot tells the Pi after its success file, not in a dry run, and not on a skip while dietpi-backup runs', () => {
     assert.match(snapshot, /record-pull\.ps1/);
     const send = snapshot.indexOf('Send-PullRecord -Kind snapshot');
-    const guard = snapshot.indexOf('if (-not $DryRun) {\n    Set-Content -Path $successFile');
+    const guard = snapshot.indexOf('if (-not $DryRun) {\n    # Tell the Pi');
+    const success = snapshot.indexOf('Set-Content -Path $successFile', guard);
+    assert.ok(guard > 0 && success > guard && success < send, 'the success file is written before the record is sent');
     const skip = snapshot.indexOf('skip: dietpi-backup is running');
     assert.ok(guard > 0 && send > guard, 'inside the not-a-dry-run block');
     assert.ok(

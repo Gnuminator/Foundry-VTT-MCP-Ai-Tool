@@ -17,7 +17,8 @@
 # Assistant GM and the spare tunnel's route need no changes.
 #
 # The functions above the "processes" line are pure (no files, no network) and are tested by
-# scripts/plan-b/plan-b.test.mjs.
+# scripts/plan-b/plan-b.test.mjs; the two folder-move helpers (Move-WithRetry, Install-AppFolder) touch only
+# the folders they are given and are tested there on temporary folders.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -25,22 +26,28 @@ $ErrorActionPreference = 'Stop'
 $PlanBRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $PlanBModuleId = 'foundry-mcp-bridge'
 
+# Machine paths (drives and folders) for Plan B, pull-restic.ps1 and the module archive live in
+# scripts/machine-paths.json. The scheduled-task registrars and the other pull scripts under
+# scripts/pi still carry the backup drive letter themselves.
+$MachinePaths = Get-Content (Join-Path $PlanBRepoRoot 'scripts/machine-paths.json') -Raw | ConvertFrom-Json
+
 $PlanBDefaults = [ordered]@{
-  Root     = if ($IsWindows) { 'C:\FoundryPlanB' } else { Join-Path $HOME 'foundry-plan-b' }
+  Root     = if ($IsWindows) { $MachinePaths.planBRoot } else { Join-Path $HOME 'foundry-plan-b' }
   World    = 'curse-of-strahd'
-  Repo     = 'E:\PiBackup\restic'
-  PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'restic-pc.pass' } else { '' }
+  # String concatenation, not Join-Path: Join-Path throws when the drive (an unplugged E:) is absent.
+  Repo     = ($MachinePaths.backupDestination.TrimEnd('\') + '\restic')
+  PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA $MachinePaths.secretsFolderUnderAppData 'restic-pc.pass' } else { '' }
   # Where the Pi answers when it is up (Tailscale name and address, and its home network address
   # from the SSH config; scripts/pi/find-pi.ps1 finds it if it moves). start.ps1 -GameNight refuses
   # while Foundry answers on one of them, so two copies of the world never run at once.
   PiAddresses = @('foundry-pi.tailf949aa.ts.net', '100.110.82.102', '192.168.1.191')
   # Folders Plan B's root must stay out of: the test server (Test-PlanBRoot adds the home folder
   # and the repo).
-  ForbiddenRoots = @(if ($IsWindows) { 'C:\FoundryTest' })
+  ForbiddenRoots = @(if ($IsWindows) { $MachinePaths.testServerRoot })
   # The test server's licence: bound to this PC's host name, so it works for Plan B too (the
   # Pi's own licence is bound to the Pi). Only read, never changed.
-  LicenseFrom = if ($IsWindows) { 'C:\FoundryTest\data\Config\license.json' } else { '' }
-  TunnelTokenFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'plan-b-tunnel.token' } else { '' }
+  LicenseFrom = if ($IsWindows) { Join-Path $MachinePaths.testServerRoot 'data\Config\license.json' } else { '' }
+  TunnelTokenFile = if ($env:APPDATA) { Join-Path $env:APPDATA $MachinePaths.secretsFolderUnderAppData 'plan-b-tunnel.token' } else { '' }
 }
 
 # The ports per mode. Game night = the Pi's (stage 3 and 5): Foundry 30000, bridge control 31414,
@@ -53,26 +60,33 @@ function Get-PlanBPorts([switch]$GameNight) {
 }
 
 # Ports other parts of this PC own. The live bridge ports belong to Plan B only on game night.
-# A plain hashtable: an ordered one reads an int index as a position.
-$PlanBReservedPorts = @{
-  30001 = 'the test server''s Foundry'
-  31514 = 'the test bridge'
-  31515 = 'the test bridge''s Foundry link'
-  31516 = 'the test bridge'
-  3100  = 'the test dashboard'
-  30002 = 'test server B''s Foundry'
-  31524 = 'test server B''s bridge'
-  31525 = 'test server B''s Foundry link'
-  3101  = 'test server B''s dashboard'
-  30003 = 'test server C''s Foundry'
-  31534 = 'test server C''s bridge'
-  31535 = 'test server C''s Foundry link'
-  3102  = 'test server C''s dashboard'
-  3200  = 'the Control Center'
-  31414 = 'the live bridge (Plan B uses it only with -GameNight)'
-  31415 = 'the live bridge (Plan B uses it only with -GameNight)'
-  31416 = 'the live bridge (Plan B uses it only with -GameNight)'
+# A plain hashtable: an ordered one reads an int index as a position. Built in a function so its
+# loop variables do not leak into the scripts that dot-source this file.
+function New-PlanBReservedPorts {
+  $table = Get-Content (Join-Path $PlanBRepoRoot 'shared/ports.json') -Raw | ConvertFrom-Json  # generated from shared/src/ports.ts
+  $reserved = @{}
+  foreach ($server in 'A', 'B', 'C') {
+    $row = $table.ports."test$server"
+    if ($server -eq 'A') {
+      $reserved[[int]$row.foundry] = "the test server's Foundry"
+      $reserved[[int]$row.control] = 'the test bridge'
+      $reserved[[int]$row.link] = "the test bridge's Foundry link"
+      $reserved[[int]$row.dashboard] = 'the test dashboard'
+    } else {
+      $reserved[[int]$row.foundry] = "test server $server's Foundry"
+      $reserved[[int]$row.control] = "test server $server's bridge"
+      $reserved[[int]$row.link] = "test server $server's Foundry link"
+      $reserved[[int]$row.dashboard] = "test server $server's dashboard"
+    }
+  }
+  $reserved[[int]$table.extra.testReserved] = 'the test bridge'
+  $reserved[[int]$table.extra.controlCenter] = 'the Control Center'
+  foreach ($livePort in $table.ports.live.control, $table.ports.live.link, $table.extra.liveReserved) {
+    $reserved[[int]$livePort] = 'the live bridge (Plan B uses it only with -GameNight)'
+  }
+  return $reserved
 }
+$PlanBReservedPorts = New-PlanBReservedPorts
 
 # Why these ports cannot be used, as one line each; empty when they can. IsOpen is a scriptblock
 # that takes a port and says whether something listens there already.
@@ -195,6 +209,77 @@ function Test-WorldVersion([string]$AppBuild, [string]$WorldCoreVersion) {
   $world = if ($WorldCoreVersion -match '^(\d+)\.(\d+)') { "$($Matches[1]).$($Matches[2])" } else { $WorldCoreVersion }
   if ($world -eq $AppBuild) { return @{ Ok = $true; Message = "Foundry $AppBuild matches the world" } }
   return @{ Ok = $false; Message = "Foundry here is $AppBuild, the world was last opened with ${world}: install Foundry $world into the app folder (restore.ps1 -FoundryZip <FoundryVTT-Node-$world.zip>)" }
+}
+
+# Whether unpacking the Foundry zip worked. Windows tar.exe cannot create the node_modules/.bin
+# links in the zip (exit 1, "Invalid argument") although every real file is unpacked, and the app
+# never starts anything through them on Windows. So a non-zero exit is fine when every complaint
+# names a .bin path; any other complaint, or none, is a failure.
+function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
+  $lines = @($ErrorLines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+  if ($ExitCode -eq 0) {
+    # Exit 0 with output is unusual for tar -x (no -v): show it, do not fail on it.
+    $warn = if ($lines.Count) { "tar printed $($lines.Count) line(s) although it exited 0; the first: $($lines[0])" } else { $null }
+    return @{ Ok = $true; Skipped = 0; Message = 'unpacked'; Warning = $warn }
+  }
+  # A .bin line is only tolerated when it is the known complaint: the link could not be created.
+  $isBin = { param($l) $l -match '[\\/]\.bin([\\/]|[''"\s:]|$)' -and $l -match "Can't create|Cannot create|Invalid argument" }
+  $binLines = @($lines | Where-Object { & $isBin $_ })
+  # bsdtar ends a run with per-entry errors with this summary line, which names no path.
+  $summary = 'Error exit delayed from previous errors\.?$'
+  $other = @($lines | Where-Object { -not (& $isBin $_) -and $_ -notmatch $summary })
+  if ($binLines.Count -eq 0 -or $other.Count -gt 0) {
+    $first = if ($other.Count) { $other[0] } elseif ($lines.Count) { $lines[0] } else { 'no error text' }
+    return @{ Ok = $false; Skipped = 0; Message = "could not unpack the Foundry zip (tar exit ${ExitCode}): $first"; Warning = $null }
+  }
+  return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)"; Warning = $null }
+}
+
+function Move-WithRetry([string]$From, [string]$To, [int]$Tries = 3, [int]$PauseSeconds = 2) {
+  # Move-Item that tries again after a pause (antivirus or an indexer can hold a folder right after a big unpack).
+  # Returns $null on success, else the last error message.
+  $err = $null
+  for ($try = 1; $try -le $Tries; $try++) {
+    try { Move-Item -LiteralPath $From -Destination $To -ErrorAction Stop; return $null }
+    catch { $err = $_.Exception.Message; if ($try -lt $Tries) { Start-Sleep -Seconds $PauseSeconds } }
+  }
+  return $err
+}
+
+function Install-AppFolder([string]$NewApp, [string]$AppDir, [string]$Old, [int]$PauseSeconds = 2) {
+  # Swap the unpacked Foundry ($NewApp) in for $AppDir; the old app folder moves to $Old first (when there was one).
+  # Every failure throws a message that says which folder is where.
+  $hadApp = Test-Path -LiteralPath $AppDir
+  if ($hadApp) {
+    $e = Move-WithRetry $AppDir $Old 3 $PauseSeconds
+    if ($e) { throw "could not move the old app folder aside to $Old ($e); the old app folder is still in $AppDir; the unpacked new one is in $NewApp" }
+  }
+  $e = Move-WithRetry $NewApp $AppDir 3 $PauseSeconds
+  if (-not $e) { return }
+  if (-not $hadApp) { $state = "there was no app folder before, so $AppDir does not exist" }
+  elseif (Test-Path -LiteralPath $AppDir) { $state = "something is in $AppDir now and the old app folder is in $Old" }
+  else {
+    $e2 = Move-WithRetry $Old $AppDir 3 $PauseSeconds
+    $state = if ($e2) { "the old app folder could not be moved back ($e2) and is in $Old" } else { 'the old app folder is back' }
+  }
+  throw "could not move the new app folder into place ($e); $state; the unpacked new one is in $NewApp"
+}
+
+# Runs the unpack with native stderr captured and neither the error preference nor
+# $PSNativeCommandUseErrorActionPreference (an experimental feature in pwsh 7.3, a normal but
+# off-by-default variable from 7.4) turning a non-zero exit into a throw, then judges it with
+# Test-FoundryUnpack.
+# $LASTEXITCODE is cleared first, so an exit code left by an earlier native call never counts as
+# this run's; a run that leaves none (the program did not start) is a failure.
+function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
+  $run = & {
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    $global:LASTEXITCODE = $null
+    $out = & $Tar @TarArgs 2>&1
+    @{ Code = $(if ($null -eq $LASTEXITCODE) { -1 } else { [int]$LASTEXITCODE }); Lines = @($out | ForEach-Object { "$_" }) }
+  }
+  return Test-FoundryUnpack ([int]$run.Code) $run.Lines
 }
 
 # The module manifest text with the default bridge port flag set (rehearsal) or removed (game
@@ -495,6 +580,25 @@ function Get-PlanBStartTime([int]$ProcessId) {
   } catch {
     return $null
   }
+}
+
+# The spare tunnel's CURRENT state from the lines of cloudflared's log. Each connection (connIndex=N) is up after
+# "Registered tunnel connection" and down after a later "Unregistered tunnel connection", "Connection terminated" or
+# "Retrying connection", so a tunnel that dropped an hour ago is not reported as connected because the log once said
+# so. Connected = at least one connection is up now.
+function Get-PlanBTunnelState([string[]]$Lines) {
+  $conn = @{}
+  foreach ($line in @($Lines)) {
+    if ($line -notmatch 'connIndex=(\d+)') { continue }
+    $idx = $Matches[1]
+    if ($line -match 'Registered tunnel connection') { $conn[$idx] = $true }
+    elseif ($line -match 'Unregistered tunnel connection|Connection terminated|Retrying connection') { $conn[$idx] = $false }
+  }
+  $up = @($conn.Values | Where-Object { $_ }).Count
+  $message = if ($conn.Count -eq 0) { 'no connection to Cloudflare registered yet' }
+  elseif ($up -gt 0) { "$up of $($conn.Count) connection(s) to Cloudflare are up" }
+  else { 'all connections to Cloudflare are down (the last log lines say it dropped)' }
+  return [pscustomobject]@{ Connected = ($up -gt 0); Up = $up; Seen = $conn.Count; Message = $message }
 }
 
 # Make a file or folder readable and writable by the current user only.

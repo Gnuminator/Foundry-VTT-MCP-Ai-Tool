@@ -1,16 +1,17 @@
-// The folds of the During cards (D-092, I-107), ported from the old page: Live Feed, Recent
+// The folds of the During cards (D-092, I-107): Live Feed, Recent
 // Changes, Handouts and Party each have a fold button first in their head, and a folded card
 // shows only its head. The rules are in lib/duringFolds.ts; moments.css draws the button and hides
 // what is inside a card with `.is-folded`.
 //
-// What is new: a card the GM folded or opened keeps that choice for the same layout, fight and
-// width class (the old page started over at every fight and breakpoint), the button has a name
+// A card the GM folded or opened keeps that choice for the same layout, fight and
+// width class; the button has a name
 // ("Fold Party") and points at the card's body, and its usage names are literals so the usage
 // catalogue lists them.
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   useSyncExternalStore,
   type JSX,
@@ -19,7 +20,7 @@ import {
 
 import {
   FOLD_TITLES,
-  NO_CHOICES,
+  readFoldChoices,
   foldBodyId,
   foldsFor,
   openFold,
@@ -30,6 +31,7 @@ import {
   type FoldSituation,
 } from '../lib/duringFolds';
 import type { DuringScreen } from '../lib/duringTrial';
+import { REMEMBER, readJson, writeJson } from '../lib/remember';
 
 /** moments.css switches to one column under 900 px, and the feed folds on a phone under 600 px. */
 const WIDE_QUERY = '(min-width: 900px)';
@@ -58,14 +60,17 @@ export interface DuringFolds {
 }
 
 /**
- * The folds for the screen on show. The GM's choices stay in memory for as long as the page is
- * open, per layout, fight and width class, so leaving During and coming back finds them as they
- * were (the cards stay mounted, so their data stays too).
+ * The folds for the screen on show. The GM's choices are kept in this browser, per layout,
+ * fight and width class, so leaving During (or reloading) and coming back finds them as they were (the cards stay mounted, so their data stays too).
  */
 export function useDuringFolds(screen: Pick<DuringScreen, 'layout' | 'context'>): DuringFolds {
   const wide = useMediaQuery(WIDE_QUERY);
   const phone = useMediaQuery(PHONE_QUERY);
-  const [choices, setChoices] = useState<FoldChoices>(NO_CHOICES);
+  const [choices, setChoices] = useState<FoldChoices>(() =>
+    readFoldChoices(readJson(REMEMBER.foldChoices))
+  );
+  // The folds come back as the GM left them, also after a reload (lib/remember.ts).
+  useEffect(() => writeJson(REMEMBER.foldChoices, choices), [choices]);
   const { layout, context } = screen;
   const width = widthClass(wide, phone);
   const situation: FoldSituation = { layout, context, width };
@@ -133,7 +138,7 @@ export interface CardFold {
 }
 
 /** Set around a panel that docks in During (Handouts, Party); Drawer reads it when docked. */
-export const FoldContext = createContext<CardFold | null>(null);
+const FoldContext = createContext<CardFold | null>(null);
 
 export function useCardFold(): CardFold | null {
   return useContext(FoldContext);

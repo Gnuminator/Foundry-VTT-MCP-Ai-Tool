@@ -1,12 +1,13 @@
-// The Pick… button next to a Tool runner field that names something (x-foundry-ref): a list of
-// what exists now from list-ref-choices, with a filter box. Port of the old page's buildRefPicker
-// (public/app.js) on its markup and styles (.ref-picker, .ref-menu, .ref-item, ...). The field
+// The Pick from list button next to a Tool Runner field that names something (x-foundry-ref): a list of
+// what exists now from list-ref-choices, with a filter box. Styled by the shared
+// web/src/styles/styles.css (.ref-picker, .ref-menu, .ref-item, ...). The field
 // still takes typed text; the hint under it names what the value points at, also for a prefilled
-// value (the old page showed the name only after a pick or typing).
+// value.
 import { useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { callTool, errorText } from '../lib/api';
+import { fetchFoundryTargets, targetPairs, targetsNote } from '../lib/foundryTargets';
 import { fieldValues, refValue, type RefChoice, type ToolRef } from '../lib/toolForm';
 import { usage } from '../lib/usage';
 import { Button } from '../ui';
@@ -66,7 +67,7 @@ async function loadChoices(
 }
 
 export interface RefPickerProps {
-  /** The control's id; the Pick… button is `${fieldId}-pick`. */
+  /** The control's id; the Pick from list button is `${fieldId}-pick`. */
   fieldId: string;
   refSpec: ToolRef;
   /** A list parameter: several rows can be ticked, one value per line. */
@@ -210,6 +211,31 @@ export function RefPicker({
     document.getElementById(fieldId)?.focus();
   };
 
+  // Token and actor fields can take whatever the GM has targeted (else selected) in Foundry.
+  // A uuid field needs a full uuid, which the target list does not carry, and a player field
+  // (kind user) wants a player or character name, not a token: no button on either.
+  const takesTokens =
+    (kinds.includes('token') || kinds.includes('actor')) &&
+    ref.value !== 'uuid' &&
+    !kinds.includes('user');
+  const [targetNote, setTargetNote] = useState('');
+  const useTargets = (): void => {
+    usage().track('action', 'dash.tools.foundry-targets');
+    setTargetNote('Reading Foundry…');
+    void fetchFoundryTargets().then(
+      found => {
+        setTargetNote(targetsNote(found));
+        const pairs = targetPairs(found.tokens, ref.value, kinds);
+        const next = pairs.map(p => p.value);
+        if (next.length === 0) return;
+        if (multiple) onChange(next.join('\n'));
+        else if (next[0] !== undefined) onChange(next[0]);
+        for (const p of pairs) if (p.name) names.set(p.value, p.name);
+      },
+      (err: unknown) => setTargetNote(`✗ ${errorText(err)}`)
+    );
+  };
+
   const counts = new Map<string, number>();
   for (const { choice } of rows) counts.set(choice.name, (counts.get(choice.name) ?? 0) + 1);
   const q = needsSearch ? '' : filter.trim().toLowerCase();
@@ -245,9 +271,26 @@ export function RefPicker({
           aria-controls={open ? `${fieldId}-menu` : undefined}
           onClick={toggle}
         >
-          Pick…
+          Pick from list
         </Button>
+        {takesTokens && (
+          <Button
+            type="button"
+            size="sm"
+            className="ref-open"
+            id={`${fieldId}-targets`}
+            title="Fill from the tokens targeted (or selected) in Foundry"
+            onClick={useTargets}
+          >
+            Use Foundry targets
+          </Button>
+        )}
       </div>
+      {targetNote && (
+        <div className="ref-hint" id={`${fieldId}-targets-note`} role="status">
+          {targetNote}
+        </div>
+      )}
       <div className="ref-hint" id={`${fieldId}-hint`} aria-live="polite">
         {hint}
       </div>

@@ -120,41 +120,16 @@ export class DnD5eAddFeatureTool {
       {
         name: 'dnd5e-add-feature',
         description:
-          '[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. ' +
-          'Set featureType to select the mode; each mode uses only its own parameters:\n\n' +
-          '• passive: descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n' +
-          '  Required: actorIdentifier, featureName\n' +
-          '  Optional: description, sourceRules, sourceBook, sourcePage\n\n' +
-          '• save: feature that forces a saving throw (breath weapon, cone of cold, etc.).\n' +
-          '  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n' +
-          '  Optional: description, activationType, halfOnSave, areaType, areaSize ' +
-          '(required if areaType set), areaUnits, affectsType\n\n' +
-          '• attack: weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n' +
-          '  Required: actorIdentifier, featureName, attackType, damageParts\n' +
-          '  Required when ranged: rangeFt\n' +
-          '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
-          'proficient, equipped, reachFt, longRangeFt, properties, sourceRules, sourceBook, sourcePage\n\n' +
-          '• attack-with-save: attack roll on hit + forced save for bonus damage ' +
-          '(e.g. Stinger: piercing hit + CON save or poison damage).\n' +
-          '  Required: actorIdentifier, featureName, attackType, damageParts, ' +
-          'saveAbility, saveDC, saveDamageParts\n' +
-          '  Required when ranged: rangeFt\n' +
-          '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
-          'proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, ' +
-          'sourceRules, sourceBook, sourcePage\n\n' +
-          '• aura: automatic-damage area, no to-hit, no save (all creatures in range take damage).\n' +
-          '  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n' +
-          '  Optional: description, activationType, areaUnits, affectsType, ' +
-          'sourceRules, sourceBook, sourcePage\n\n' +
-          '• spellcasting: configure spell slots and casting ability. ' +
-          'Run this BEFORE featureType "spells".\n' +
-          '  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n' +
-          '  Optional: spellcastingAbility (default per class: wizard/artificer→INT, ' +
-          'cleric/druid/ranger→WIS, sorcerer/warlock/bard/paladin→CHA), sourceRules\n\n' +
-          '• spells: import named spells from compendium. Names must be in English.\n' +
-          '  Required: actorIdentifier, spellNames (max 50)\n' +
-          '  Optional: compendiumPacks (default ["dnd5e.spells"])\n\n' +
-          'Use list-characters or get-character first to find the actorIdentifier.',
+          'Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. ' +
+          'featureType picks the mode; each parameter says which modes use it. Required besides actorIdentifier:\n' +
+          '- passive: a trait with no roll (Magic Resistance): featureName\n' +
+          '- save: forces a saving throw (breath weapon): featureName, saveAbility, saveDC, damageParts\n' +
+          '- attack: weapon attack (Claw, Bite): featureName, attackType, damageParts (rangeFt when ranged)\n' +
+          '- attack-with-save: a hit plus a save for bonus damage (Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts\n' +
+          '- aura: damage to all in range, no roll: featureName, damageParts, areaType, areaSize\n' +
+          '- spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel\n' +
+          '- spells: import named spells from the compendium: spellNames (English, max 50)\n' +
+          'Find the actorIdentifier with list-characters or get-character.',
 
         inputSchema: {
           type: 'object',
@@ -171,15 +146,14 @@ export class DnD5eAddFeatureTool {
                 'spellcasting',
                 'spells',
               ],
-              description:
-                'Mode selector: determines which parameters are used and which Foundry handler is called.',
+              description: 'Mode: decides which parameters are used.',
             },
 
             // ── Common ────────────────────────────────────────────────────────
             actorIdentifier: {
               type: 'string',
               description:
-                'Name or ID of the target actor (partial name match supported). Required for all featureTypes.',
+                'Name or ID of the target actor (partial name match works). Always required.',
               ...toolRef('actor', 'id', { filter: NPCS_ONLY }),
             },
             featureName: {
@@ -318,15 +292,12 @@ export class DnD5eAddFeatureTool {
             proficient: {
               type: 'boolean',
               description:
-                'Whether the actor is proficient with this weapon (adds proficiency bonus to to-hit). ' +
-                'Used by: attack, attack-with-save. Default: true.',
+                'Adds the proficiency bonus to hit. Used by: attack, attack-with-save. Default: true.',
               default: true,
             },
             equipped: {
               type: 'boolean',
-              description:
-                'Whether the weapon is equipped and available for attack rolls. ' +
-                'Used by: attack, attack-with-save. Default: true.',
+              description: 'Weapon is equipped. Used by: attack, attack-with-save. Default: true.',
               default: true,
             },
             reachFt: {
@@ -353,9 +324,8 @@ export class DnD5eAddFeatureTool {
             properties: {
               type: 'array',
               description:
-                'Weapon property codes (e.g. ["fin", "lgt"]). ' +
-                'Canonical 2014 codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. ' +
-                'Used by: attack, attack-with-save. Default: [].',
+                'Weapon property codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. ' +
+                'Used by: attack, attack-with-save.',
               items: { type: 'string' },
               default: [],
             },
@@ -389,8 +359,8 @@ export class DnD5eAddFeatureTool {
               type: 'string',
               enum: ['str', 'dex', 'con', 'int', 'wis', 'cha'],
               description:
-                'Override the casting ability. Omit to use the class default. ' +
-                'Used by: spellcasting.',
+                'Casting ability. Omit for the class default (wizard, artificer INT; cleric, druid, ranger WIS; ' +
+                'sorcerer, warlock, bard, paladin CHA). Used by: spellcasting.',
             },
 
             // ── Spells parameters ─────────────────────────────────────────────
@@ -537,7 +507,7 @@ export class DnD5eAddFeatureTool {
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Feature:** ${result.item.name} (id: \`${result.item.id}\`)`,
       `**Type:** passive / descriptive (no activity)`,
-      `**Rules:** ${params.sourceRules}${params.sourceBook ? ` — ${params.sourceBook}` : ''}`,
+      `**Rules:** ${params.sourceRules}${params.sourceBook ? `, ${params.sourceBook}` : ''}`,
     ].join('\n');
     return {
       summary,
@@ -631,7 +601,7 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Feature:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Save:** ${saveDesc} — ${onSaveDesc}`,
+      `**Save:** ${saveDesc}, ${onSaveDesc}`,
       `**Damage:** ${damageDesc}${areaDesc}`,
       `**Activation:** ${params.activationType}`,
     ].join('\n');
@@ -703,14 +673,14 @@ export class DnD5eAddFeatureTool {
     const warnings: string[] = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
-        const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${part.type}", verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value: part.type });
       }
     }
     for (const prop of parsed.properties) {
       if (!ATTACK_PROPERTY_CANONICAL.has(prop)) {
-        const msg = `Unknown weapon property "${prop}" — verify it matches dnd5e system values`;
+        const msg = `Unknown weapon property "${prop}", verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value: prop });
       }
@@ -766,7 +736,7 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Item:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Attack:** ${params.attackType} — ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}`,
+      `**Attack:** ${params.attackType}, ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}`,
       `**Damage:** ${damageDesc}`,
       `**Range/Reach:** ${rangeDesc}`,
       `**Weapon class:** ${params.weaponClass}`,
@@ -848,7 +818,7 @@ export class DnD5eAddFeatureTool {
     const warnings: string[] = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
-        const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${part.type}", verify it matches dnd5e system values`;
         if (!warnings.includes(msg)) warnings.push(msg);
         this.logger.warn(msg, { value: part.type });
       }
@@ -911,9 +881,9 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Item:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Attack:** ${params.attackType} — ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}, ${rangeDesc}`,
+      `**Attack:** ${params.attackType}, ${String(params.effectiveAbility).toUpperCase()} modifier${bonusStr}, ${rangeDesc}`,
       `**Attack damage:** ${attackDamageDesc}`,
-      `**Save:** DC ${params.saveDC} ${String(params.saveAbility).toUpperCase()} — ${saveDamageDesc} (${params.saveOnSave === 'half' ? 'half on save' : 'no damage on save'})`,
+      `**Save:** DC ${params.saveDC} ${String(params.saveAbility).toUpperCase()}, ${saveDamageDesc} (${params.saveOnSave === 'half' ? 'half on save' : 'no damage on save'})`,
     ].join('\n');
     const warningSection =
       warnings.length > 0
@@ -957,7 +927,7 @@ export class DnD5eAddFeatureTool {
     const warnings: string[] = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
-        const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
+        const msg = `Unknown damage type "${part.type}", verify it matches dnd5e system values`;
         warnings.push(msg);
         this.logger.warn(msg, { value: part.type });
       }
@@ -1009,7 +979,7 @@ export class DnD5eAddFeatureTool {
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
       `**Feature:** ${result.item.name} (id: \`${result.item.id}\`)`,
-      `**Damage:** ${damageDesc} (automatic — no attack roll, no saving throw)`,
+      `**Damage:** ${damageDesc} (automatic, no attack roll, no saving throw)`,
       `**Area:** ${areaDesc}, affects: ${params.affectsType || 'any'}`,
       `**Activation:** ${params.activationType}`,
     ].join('\n');
@@ -1095,10 +1065,10 @@ export class DnD5eAddFeatureTool {
           .filter(([, n]) => n > 0)
           .map(([k, n]) => `L${k.replace('spell', '')}: ${n}`)
           .join(', ') || 'no slots';
-    const summary = `✅ Spellcasting configured on "${result.actor.name}" — ${params.spellcastingClass} level ${params.spellcastingLevel}`;
+    const summary = `✅ Spellcasting configured on "${result.actor.name}", ${params.spellcastingClass} level ${params.spellcastingLevel}`;
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
-      `**Class:** ${params.spellcastingClass} — level ${params.spellcastingLevel}`,
+      `**Class:** ${params.spellcastingClass}, level ${params.spellcastingLevel}`,
       `**Ability:** ${String(params.effectiveAbility).toUpperCase()}`,
       `**Slots:** ${slotsDesc}`,
     ].join('\n');
@@ -1178,11 +1148,11 @@ export class DnD5eAddFeatureTool {
     if (failed.length > 0) parts.push(`${failed.length} failed`);
 
     const icon = failed.length > 0 ? '⚠️' : notFound.length > 0 ? '🔍' : '✅';
-    const summary = `${icon} Spells imported to "${result.actor.name}" — ${parts.length > 0 ? parts.join(', ') : 'nothing changed'}`;
+    const summary = `${icon} Spells imported to "${result.actor.name}", ${parts.length > 0 ? parts.join(', ') : 'nothing changed'}`;
 
     const lines: string[] = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
-      `**Requested:** ${total} — Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
+      `**Requested:** ${total}, Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
     ];
     if (added.length > 0) {
       lines.push('\n✅ **Added:**');
@@ -1190,7 +1160,7 @@ export class DnD5eAddFeatureTool {
     }
     if (skipped.length > 0) {
       lines.push('\n⏭️ **Skipped:**');
-      for (const s of skipped) lines.push(`  - ${s.name} — *${s.reason}*`);
+      for (const s of skipped) lines.push(`  - ${s.name}, *${s.reason}*`);
     }
     if (notFound.length > 0) {
       lines.push('\n❌ **Not found in compendium:**');
@@ -1198,7 +1168,7 @@ export class DnD5eAddFeatureTool {
     }
     if (failed.length > 0) {
       lines.push('\n⚠️ **Failed during import:**');
-      for (const f of failed) lines.push(`  - ${f.name} — *${f.error}*`);
+      for (const f of failed) lines.push(`  - ${f.name}, *${f.error}*`);
     }
     if (warnings.length > 0) {
       lines.push('\n⚠️ **Warnings:**');

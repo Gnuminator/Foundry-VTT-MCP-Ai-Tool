@@ -1,6 +1,6 @@
 // Serious and critical axe violations that were already in the stories when the story axe check
-// was added (UI-03). They come from the old page's shared CSS (a fix would change pixels on the old
-// page too), as the ones in axe-known.ts do, or from a component that needs its own fix; they are
+// was added (UI-03). They come from the shared CSS (a fix would change its pixels
+// everywhere), as the ones in axe-known.ts do, or from a component that needs its own fix; they are
 // recorded here instead of fixed. stories.spec.ts fails on anything not listed, and on an entry
 // that no longer occurs in one of its stories: remove the entry (or the story) when its cause is
 // fixed. All of them are in the neutral theme: the Veil stories have none.
@@ -23,7 +23,6 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     stories: [
       'components-advancedmenu--open',
       'components-advancedmenu--open-phone',
-      'components-during-layouts--menu-combat-buttons-on',
       'components-during-layouts--menu-open',
       'components-during-layouts--menu-open-phone',
       'components-during-layouts--menu-waiting-for-the-world',
@@ -69,17 +68,5 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     target: '.tool-cat',
     reason: 'Muted text #6b7385 on the drawer #171a21 is 3.66:1 (needs 4.5:1), neutral theme.',
     stories: ['panels-tools--gm-actions-off', 'panels-tools--tool-list'],
-  },
-  {
-    rule: 'color-contrast',
-    target: '.field-hint',
-    reason: 'Muted text #6b7385 on the drawer #171a21 is 3.66:1 (needs 4.5:1), neutral theme.',
-    stories: [
-      'panels-tools--form-prefilled',
-      'panels-tools--form-with-picker-open',
-      'panels-tools--missing-required-field',
-      'panels-tools--phone',
-      'panels-tools--read-result',
-    ],
   },
 ];

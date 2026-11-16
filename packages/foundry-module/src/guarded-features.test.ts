@@ -2,10 +2,17 @@
  * Tests for the guarded-write feature switches: one world setting per feature,
  * default OFF; unknown features and unreadable settings count as off.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  WRITES_OFF_MESSAGE as sharedWritesOff,
+  featureOffMessage as sharedFeatureOff,
+} from '@gnuminator/shared';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
+  WRITES_OFF_MESSAGE,
   autoApplySettingKey,
+  featureName,
+  featureOffMessage,
   featureSettingKey,
   isAutoApplyEnabled,
   isFeatureEnabled,
@@ -20,7 +27,7 @@ const g = globalThis as any;
 
 let world: TestWorld;
 let restore: () => void;
-let register: ReturnType<typeof vi.fn>;
+let register: Mock;
 
 const ATTITUDES = {
   id: 'npc-attitudes',
@@ -63,13 +70,27 @@ describe('registerGuardedFeature', () => {
 
   it('words the hint of a read-only switch without the confirm and undo promise', () => {
     registerGuardedFeature({
+      id: 'who-notices',
+      name: 'AI Tool: Who would notice',
+      hint: 'Shows.',
+      readOnly: true,
+    });
+    const config = register.mock.calls.at(-1)?.[2];
+    expect(config.hint).toBe('Shows. Off by default; it only reads and changes nothing.');
+  });
+
+  it('registers the read-only rules check on by default, as main.ts does', () => {
+    registerGuardedFeature({
       id: 'rules-check',
       name: 'AI Tool: Rules check',
       hint: 'Checks.',
       readOnly: true,
+      defaultEnabled: true,
     });
-    const config = register.mock.calls.at(-1)?.[2];
-    expect(config.hint).toBe('Checks. Off by default; it only reads and changes nothing.');
+    const [, key, config] = register.mock.calls.at(-1) ?? [];
+    expect(key).toBe('feature.rules-check.enabled');
+    expect(config).toMatchObject({ default: true });
+    expect(config.hint).toBe('Checks. On by default; it only reads and changes nothing.');
   });
 
   it('registers a switch that starts on with defaultEnabled (D-082)', () => {
@@ -92,6 +113,30 @@ describe('registerGuardedFeature', () => {
       expect(() => registerGuardedFeature({ ...ATTITUDES, id })).toThrow(/Invalid feature id/);
     }
     expect(register).not.toHaveBeenCalled();
+  });
+});
+
+describe('refusal wording', () => {
+  it('names the switch as Game Settings shows it and where it is', () => {
+    expect(featureOffMessage('AI Tool: Handouts (writes)')).toBe(
+      '"AI Tool: Handouts (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Handouts (writes)".'
+    );
+    expect(WRITES_OFF_MESSAGE).toBe(
+      'Write operations are disabled in the module settings. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Allow Write Operations".'
+    );
+  });
+
+  it('says what the shared switch-off sentences say (the module keeps a copy)', () => {
+    expect(WRITES_OFF_MESSAGE).toBe(sharedWritesOff);
+    expect(featureOffMessage('AI Tool: Party (writes)')).toBe(
+      sharedFeatureOff('AI Tool: Party (writes)')
+    );
+  });
+
+  it('uses the registered name, and the id for a feature that is not known', () => {
+    registerGuardedFeature({ id: 'handouts', name: 'AI Tool: Handouts (writes)', hint: 'h' });
+    expect(featureName('handouts')).toBe('AI Tool: Handouts (writes)');
+    expect(featureName('nope')).toBe('nope');
   });
 });
 

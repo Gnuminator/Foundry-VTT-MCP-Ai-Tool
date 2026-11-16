@@ -12,6 +12,7 @@ import {
   makeActor,
   makeEffect,
   makeItem,
+  makeToken,
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
@@ -116,7 +117,7 @@ function makeHero(): ReturnType<typeof makeActor> {
 // 1. Character-not-found error
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — character resolution', () => {
+describe('searchCharacterItems: character resolution', () => {
   it('throws "Character not found: <id>" when identifier matches no actor', async () => {
     await expect(da.searchCharacterItems({ characterIdentifier: 'Nobody' })).rejects.toThrow(
       'Character not found: Nobody'
@@ -135,13 +136,43 @@ describe('searchCharacterItems — character resolution', () => {
     const result = await da.searchCharacterItems({ characterIdentifier: 'aldric' });
     expect(result.characterId).toBe('actor1xxxxxxxxxxx');
   });
+
+  it("finds an unlinked token's own actor by token id", async () => {
+    const synthetic = makeActor({
+      id: 'wolf',
+      name: 'Wolf 2',
+      items: [makeItem({ id: 'bite1', name: 'Bite', type: 'weapon' })],
+    });
+    world.actors.add(makeActor({ id: 'wolf', name: 'Wolf', items: [] }));
+    world.setActiveScene(
+      world.addScene({
+        id: 'scene1',
+        active: true,
+        tokens: [
+          makeToken({
+            id: 'tok-w2',
+            name: 'Wolf 2',
+            actorId: 'wolf',
+            actorLink: false,
+            actor: synthetic,
+          }),
+        ],
+      }).id
+    );
+    const result = await da.searchCharacterItems({
+      characterIdentifier: 'tok-w2',
+      type: 'weapon',
+    });
+    expect(result.characterName).toBe('Wolf 2');
+    expect(result.matches.map(m => m.name)).toEqual(['Bite']);
+  });
 });
 
 // ---------------------------------------------------------------------------
 // 2. Result envelope shape
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — result envelope', () => {
+describe('searchCharacterItems: result envelope', () => {
   it('returns characterId/characterName/matches/totalMatches; omits query/type/category when not supplied', async () => {
     world.actors.add(makeHero());
     const result = await da.searchCharacterItems({ characterIdentifier: 'Aldric', limit: 1 });
@@ -181,7 +212,7 @@ describe('searchCharacterItems — result envelope', () => {
 // 3. Type filter
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — type filter', () => {
+describe('searchCharacterItems: type filter', () => {
   it('returns only spells when type="spell"', async () => {
     world.actors.add(makeHero());
     const result = await da.searchCharacterItems({ characterIdentifier: 'Aldric', type: 'spell' });
@@ -220,7 +251,7 @@ describe('searchCharacterItems — type filter', () => {
 // 4. Query filter (name OR description, case-insensitive)
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — query filter', () => {
+describe('searchCharacterItems: query filter', () => {
   it('matches items by name substring (case-insensitive)', async () => {
     world.actors.add(makeHero());
     const result = await da.searchCharacterItems({ characterIdentifier: 'Aldric', query: 'SWORD' });
@@ -268,7 +299,7 @@ describe('searchCharacterItems — query filter', () => {
 // 5. Spell-specific fields
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — spell fields (dnd5e)', () => {
+describe('searchCharacterItems: spell fields (dnd5e)', () => {
   it('populates level, actionCost, range, area, and description for a dnd5e spell', async () => {
     world.actors.add(makeHero());
     const result = await da.searchCharacterItems({
@@ -404,7 +435,7 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
 // 6. Equipment-specific fields
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — equipment fields', () => {
+describe('searchCharacterItems: equipment fields', () => {
   it('includes quantity and equipped for a weapon item', async () => {
     world.actors.add(makeHero());
     const result = await da.searchCharacterItems({
@@ -423,9 +454,9 @@ describe('searchCharacterItems — equipment fields', () => {
 // 7. limit parameter
 // ---------------------------------------------------------------------------
 
-describe('searchCharacterItems — limit', () => {
+describe('searchCharacterItems: limit', () => {
   it('respects the limit parameter (default 20)', async () => {
-    // Actor with many items — 5 identical feats
+    // Actor with many items, 5 identical feats
     const actor = makeActor({
       id: 'limitActorxxxxxxx',
       name: 'Limiter',

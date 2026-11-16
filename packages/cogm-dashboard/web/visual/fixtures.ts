@@ -7,7 +7,17 @@
 // The /api fakes are the e2e helpers (../e2e/support); only the data is new.
 import type { Page } from '@playwright/test';
 
-import { fakeCommonRoutes, fakeStream, fakeTools, ok, type ToolCall } from '../e2e/support';
+import type { ApiBodies } from '../../src/api-bodies';
+import {
+  SPACE_UNAVAILABLE,
+  apiBody,
+  fakeCommonRoutes,
+  fakeStream,
+  fakeTools,
+  ok,
+  preflightBody,
+  type ToolCall,
+} from '../e2e/support';
 
 /** 2026-10-10 20:00 UTC: "now" for every screenshot. */
 export const NOW = Date.UTC(2026, 9, 10, 20, 0);
@@ -28,7 +38,87 @@ export interface Setup {
   versionMismatch?: boolean;
   /** The module errors the stream brings (Module diagnostics). */
   moduleErrors?: boolean;
+  /** The Live screen: a fight on the strip, the AI changes list and the bridge's list-changes. */
+  live?: boolean;
 }
+
+/** One combatant as the stream's combat event sends it (made-up names). */
+const fighter = (
+  id: string,
+  name: string,
+  initiative: number,
+  hp: number,
+  max: number,
+  over: Record<string, unknown> = {}
+): Record<string, unknown> => ({
+  id,
+  name,
+  initiative,
+  isCurrentTurn: false,
+  hp: { value: hp, max, temp: 0 },
+  conditions: [],
+  isPC: false,
+  category: 'enemy',
+  defeated: false,
+  deathSaves: null,
+  tokenId: `tk-${id}`,
+  ...over,
+});
+
+const LIVE_FIGHT = [
+  fighter('f1', 'Brenna', 19, 21, 24, { isCurrentTurn: true, isPC: true, category: 'pc' }),
+  fighter('f2', 'Harbor thug', 15, 9, 30),
+  fighter('f3', 'Harbor thug', 12, 22, 30, { conditions: ['Prone'] }),
+  fighter('f4', 'Tobias', 8, 12, 27, { isPC: true, category: 'pc' }),
+];
+
+/** The AI's changes behind the Live screen's header Undo and "What just happened". */
+const LIVE_AI_CHANGES = [
+  {
+    changeId: 'ch2',
+    summary: 'Harbor thug 1: 7 fire damage',
+    canUndo: true,
+    appliedAt: iso(NOW - 120_000),
+  },
+  {
+    changeId: 'ch1',
+    summary: 'Harbor thug 2 is Prone',
+    canUndo: true,
+    appliedAt: iso(NOW - 300_000),
+  },
+];
+
+const LIVE_EVERYONE = {
+  changes: [
+    {
+      kind: 'ai',
+      id: 'ch2',
+      at: iso(NOW - 120_000),
+      by: 'Claude',
+      summary: 'Harbor thug 1: 7 fire damage',
+      lines: [],
+      canUndo: true,
+    },
+    {
+      kind: 'human',
+      id: 'h1',
+      at: iso(NOW - 180_000),
+      by: 'Mara',
+      summary: 'Moved Mara',
+      lines: [],
+      canUndo: false,
+    },
+    {
+      kind: 'ai',
+      id: 'ch1',
+      at: iso(NOW - 300_000),
+      by: 'Claude',
+      summary: 'Harbor thug 2 is Prone',
+      lines: [],
+      canUndo: true,
+    },
+  ],
+};
 
 // ---------------------------------------------------------------- the bridge's answers
 
@@ -38,7 +128,7 @@ const SESSIONS: Record<Moment, { open: boolean; endedAt: string | null }> = {
   after: { open: false, endedAt: iso(NOW - 2 * HOUR) },
 };
 
-const PREFLIGHT_CHECKS = (versionMismatch: boolean): unknown[] => [
+const PREFLIGHT_CHECKS = (versionMismatch: boolean): ApiBodies['/api/preflight']['checks'] => [
   {
     id: 'versions',
     label: 'Versions match',
@@ -47,28 +137,45 @@ const PREFLIGHT_CHECKS = (versionMismatch: boolean): unknown[] => [
       ? 'The Foundry module is 0.20.2 but the bridge is 0.21.0. Update the module.'
       : 'Bridge 0.21.0, module 0.21.0.',
   },
-  { id: 'scene', label: 'Starting scene', status: 'ok', detail: 'Harbor Market is active.' },
   {
-    id: 'hidden',
+    id: 'world-settings',
+    label: 'Starting scene',
+    status: 'ok',
+    detail: 'Harbor Market is active.',
+  },
+  {
+    id: 'visible-names',
     label: 'Hidden tokens',
     status: 'warn',
     detail: 'One token on the active scene is hidden.',
   },
-  { id: 'journals', label: 'Handout pages', status: 'ok', detail: 'All set to None.' },
+  { id: 'modules', label: 'Handout pages', status: 'ok', detail: 'All set to None.' },
 ];
 
-const PREFLIGHT_SCAN = {
-  settings: [{ setting: 'core.worldTitle', masked: 'shown', reason: 'names the harbor' }],
-  names: [{ kind: 'Actor', name: 'Old Gull', terms: ['gull'] }],
+const PREFLIGHT_SCAN: NonNullable<ApiBodies['/api/preflight']['scan']> = {
+  computedAt: at(19),
+  settingsChecked: 12,
+  settings: [
+    {
+      setting: 'core.worldTitle',
+      namespace: 'core',
+      rule: 'key-name',
+      severity: 'warn',
+      reason: 'names the harbor',
+      masked: 'shown',
+    },
+  ],
+  namesChecked: 40,
+  names: [{ kind: 'actor', id: 'a1', name: 'Old Gull', terms: ['gull'] }],
   modules: [],
 };
 
-const SWITCHES = {
+const SWITCHES = apiBody('/api/session/switches', {
   switches: {
     switches: [
       { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
       { id: 'party', name: 'AI Tool: Party (writes)', on: true },
-      { id: 'live', name: 'AI Tool: Live play (writes)', on: false },
+      { id: 'live-play', name: 'AI Tool: Live play (writes)', on: false },
     ],
     ready: null,
     changed: [],
@@ -76,18 +183,18 @@ const SWITCHES = {
   },
   gmActionsEnabled: true,
   error: null,
-};
+});
 
-const PLAYERS = [
+const PLAYERS = apiBody('/api/player/names', [
   { userId: 'u1', name: 'Mara' },
   { userId: 'u2', name: 'Tobias' },
   { userId: 'u3', name: 'Nell' },
-];
+]);
 
-const PLAYER_LINKS = [
-  { userId: 'aaaaaaaaaaaaaaaa', name: 'Mara', link: '/me?k=maraKey', createdAt: at(18) },
+const PLAYER_LINKS: ApiBodies['/api/player-links']['players'] = [
+  { userId: 'aaaaaaaaaaaaaaaa', name: 'Mara', link: '/me?k=maraKey', createdAt: iso(at(18)) },
   { userId: 'bbbbbbbbbbbbbbbb', name: 'Tobias', link: null, createdAt: null },
-  { userId: 'cccccccccccccccc', name: 'Nell', link: '/me?k=nellKey', createdAt: at(19) },
+  { userId: 'cccccccccccccccc', name: 'Nell', link: '/me?k=nellKey', createdAt: iso(at(19)) },
 ];
 
 const SCENES = [
@@ -450,6 +557,9 @@ const PLAY_STATS = {
     rolls: 142,
     crits: 3,
     fumbles: 2,
+    publicRolls: 131,
+    publicCrits: 3,
+    publicFumbles: 2,
     highestRoll: { total: 27, name: 'Mara', label: 'Perception' },
     combats: [
       { damageDealt: { Brenna: 31, Tobias: 12, 'Harbor thug': 40 }, downs: ['Brenna'] },
@@ -478,9 +588,13 @@ const SESSION_NOTES = {
 };
 
 /** Answers POST /api/tool for the screen's moment. */
-function bridge(moment: Moment): (call: ToolCall) => { json: unknown } {
+function bridge(moment: Moment, live: boolean): (call: ToolCall) => { json: unknown } {
   return call => {
     switch (call.name) {
+      case 'list-recent-changes':
+        return ok({ changes: live ? LIVE_AI_CHANGES : [] });
+      case 'list-changes':
+        return ok(live ? LIVE_EVERYONE : { changes: [] });
       case 'get-play-session':
         return ok({ success: true, worldId: 'harbor-test', ...SESSIONS[moment] });
       case 'get-prep-digest':
@@ -520,18 +634,14 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
   await page.clock.setFixedTime(NOW);
 
   await fakeCommonRoutes(page, setup.theme);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await page.route('**/api/player/names', route => route.fulfill({ json: PLAYERS }));
   await page.route('**/api/player-links**', route =>
-    route.fulfill({ json: { players: PLAYER_LINKS } })
+    route.fulfill({ json: apiBody('/api/player-links', { players: PLAYER_LINKS }) })
   );
   await page.route('**/api/preflight', route =>
     route.fulfill({
-      json: {
-        ready: !versionMismatch,
-        checks: PREFLIGHT_CHECKS(versionMismatch),
-        scan: PREFLIGHT_SCAN,
-      },
+      json: preflightBody(PREFLIGHT_CHECKS(versionMismatch), !versionMismatch, PREFLIGHT_SCAN),
     })
   );
   await page.route('**/api/session/switches', route => route.fulfill({ json: SWITCHES }));
@@ -559,7 +669,6 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
       data: {
         duringLayout: 'layered',
         duringFull: false,
-        combatButtons: false,
         layoutPicked: true,
         hintDismissed: true,
         hintSessions: [],
@@ -569,6 +678,33 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
     ...(setup.moduleErrors
       ? [{ event: 'errors', data: { errors: MODULE_ERRORS, initial: true } }]
       : []),
+    ...(setup.live
+      ? [
+          {
+            event: 'combat',
+            data: {
+              combat: {
+                active: true,
+                round: 3,
+                turn: 0,
+                current: LIVE_FIGHT[0],
+                combatants: LIVE_FIGHT,
+              },
+            },
+          },
+        ]
+      : []),
   ]);
-  await fakeTools(page, bridge(setup.moment), { playSession: true });
+  if (setup.live) {
+    // The bridge has list-changes: "What just happened" is the one list with the AI only box.
+    await page.route('**/api/tools', route =>
+      route.fulfill({
+        json: {
+          tools: [...TOOLS, { name: 'list-changes' }, { name: 'list-recent-changes' }],
+          gmActionsEnabled: true,
+        },
+      })
+    );
+  }
+  await fakeTools(page, bridge(setup.moment, setup.live === true), { playSession: true });
 }

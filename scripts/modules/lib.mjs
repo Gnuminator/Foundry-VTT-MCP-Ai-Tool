@@ -17,7 +17,10 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_ARCHIVE = 'C:\\FoundryAI\\module-archive';
+const MACHINE_PATHS = JSON.parse(
+  readFileSync(new URL('../machine-paths.json', import.meta.url), 'utf8'),
+);
+export const DEFAULT_ARCHIVE = MACHINE_PATHS.moduleArchive;
 /** Where the Pi mirror of the archive lives (a path on the Pi; the Pi plan, not run here). */
 export const PI_MIRROR_PATH = '/home/dietpi/module-archive';
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$/;
@@ -102,6 +105,18 @@ export function scanInstalled(dataDir) {
 
 /** @returns {Pinned} */
 export const emptyPinned = () => ({ updated: '', foundry: null, systems: {}, modules: {} });
+
+/**
+ * Removes the pins of modules the Strahd list dropped, so the Pi stage never installs them. The
+ * archived files stay on disk (a rollback may want them); only the pin goes. Returns the ids removed.
+ * @param {Pinned} pinned @param {string[]} dropped
+ * @returns {string[]}
+ */
+export function dropPins(pinned, dropped) {
+  const removed = dropped.filter(id => Object.hasOwn(pinned.modules, id));
+  for (const id of removed) delete pinned.modules[id];
+  return removed;
+}
 
 /** Reads pinned.json; a missing file is an empty list, a broken one throws. @param {string} root */
 export function readPinned(root) {

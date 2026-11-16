@@ -83,7 +83,7 @@ export class FoundryClient {
   async query(method: string, data?: unknown, options?: QueryOptions): Promise<unknown> {
     if (!this.connector.isConnected()) {
       throw new Error(
-        'Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.'
+        'Foundry VTT module not connected. Please ensure Foundry is running and the Foundry AI Tool module is enabled.'
       );
     }
 

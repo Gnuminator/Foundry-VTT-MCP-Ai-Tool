@@ -43,7 +43,7 @@ export class CharacterTools {
   /**
    * Resolve the active SystemAdapter, if any. Looks up by the raw
    * Foundry system id first (so adapters whose id isn't part of the
-   * narrow `GameSystem` enum — e.g. 'dsa5', 'cosmere-rpg' — still
+   * narrow `GameSystem` enum: e.g. 'dsa5', 'cosmere-rpg', still
    * resolve), then falls back to the normalised GameSystem.
    */
   private async getAdapter(): Promise<SystemAdapter | null> {
@@ -118,7 +118,7 @@ export class CharacterTools {
       {
         name: 'use-item',
         description:
-          'Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Use get-character or search-character-items first to see available items/spells.',
+          'Direct write. Use an item on a character (cast a spell, use an ability or feature, consume an item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Targets are optional. A slot spell with no slot at its level is cast at the lowest higher slot; with no slot left it is refused and nothing is used. Otherwise returns "initiated" at once. Find items with get-character or search-character-items first.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -146,8 +146,13 @@ export class CharacterTools {
               description: 'Whether to consume charges/uses (default: true)',
             },
             spellLevel: {
-              type: 'number',
+              type: 'integer',
               description: 'For spells: cast at a higher level than base (D&D 5e upcasting)',
+            },
+            rollAttack: {
+              type: 'boolean',
+              description:
+                "D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.",
             },
           },
           required: ['actorIdentifier', 'itemIdentifier'],
@@ -156,7 +161,7 @@ export class CharacterTools {
       {
         name: 'manage-world-items',
         description:
-          'Manage Item documents in Foundry VTT. Specify the operation with "action":\n' +
+          'Direct write. Manage Item documents in Foundry VTT. Specify the operation with "action":\n' +
           '- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.\n' +
           '- "list": List world-level Items with optional type/folder/name filters.\n' +
           '- "update": Update existing world-level Items by ID. GM-only.\n' +
@@ -386,12 +391,20 @@ export class CharacterTools {
       itemIdentifier: z.string().min(1, 'Item identifier cannot be empty'),
       targets: z.array(z.string()).optional(),
       consume: z.boolean().optional(),
-      spellLevel: z.number().optional(),
+      spellLevel: z.number().int().min(1).max(9).optional(),
       skipDialog: z.boolean().optional(),
+      rollAttack: z.boolean().optional(),
     });
 
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } =
-      schema.parse(args);
+    const {
+      actorIdentifier,
+      itemIdentifier,
+      targets,
+      consume,
+      spellLevel,
+      skipDialog,
+      rollAttack,
+    } = schema.parse(args);
 
     this.logger.info('Using item', {
       actorIdentifier,
@@ -423,6 +436,7 @@ export class CharacterTools {
           consume: consume ?? true,
           spellLevel,
           skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
+          ...(rollAttack ? { rollAttack } : {}),
         },
       })) as Rec;
 

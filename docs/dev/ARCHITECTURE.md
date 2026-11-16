@@ -103,9 +103,12 @@ This is the only component with direct access to Foundry's live API (`game`, `ca
 is to be a **disciplined gateway**: expose exactly the operations the tools need, enforce
 who's allowed to call them, and make writes safe and reversible.
 
-### Lifecycle (`main.ts`)
+### Lifecycle (`main.ts` and `bridge-link-lifecycle.ts`)
 
-The module hooks Foundry's lifecycle:
+The module hooks Foundry's lifecycle in `main.ts`. The link itself (starting and stopping the
+socket bridge, its state, the heartbeat, the "server not found" notice and the GM link toasts with
+their `linkState` relay) lives in `bridge-link-lifecycle.ts`; `main.ts` hands over to it, and a
+test keeps it that way.
 
 - **`init`** — register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
@@ -113,9 +116,11 @@ The module hooks Foundry's lifecycle:
   activity — see §7's feed). Diagnostics error-capture is installed even earlier, at module
   evaluation time, so it catches the earliest console/uncaught errors from _other_ modules.
 - **`ready`** — **the GM gate.** If the current user is not a GM (and the
-  `allowNonGmAccess` world setting, default off, is not on), the module returns
-  immediately and silently: no connection, no notifications, nothing. Only for a GM does it
-  read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
+  `allowNonGmAccess` world setting, default off, is not on), the bridge start
+  (`onReady()`) returns immediately and silently: no connection, no notifications. The same
+  `ready` hook has already started the usage recorder and the Tarokka table watch on every
+  client, and it goes on to register the roll socket listener, so those run for players too. Only
+  for a GM does the bridge read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
   if needed, and begin heartbeat monitoring + reconnect.
 
 The connection is **outbound**: the module dials the backend, not the other way around. This
@@ -152,8 +157,13 @@ fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
 
 ### Safety (`permissions.ts`, `transaction-manager.ts`)
 
-See §6. Briefly: writes are classified by risk and gated by settings; multi-step writes can
-be wrapped in a transaction that knows how to roll itself back.
+See §6. These two files are the older safety layer. Today they guard actor creation and journals
+only (actor creation includes placing the new actors on a scene; the `validateWritePermissions`
+query is an advisory check on the same two operations): `permissions.ts` classifies those writes
+by risk and checks quantity limits, and
+`transaction-manager.ts` wraps the multi-step actor creation in a transaction that rolls itself
+back. Every other write is guarded by the write gate and by guarded writes (§4). Retiring the
+older layer is a parked backlog item (`permission-path-retirement`).
 
 ---
 
@@ -178,7 +188,7 @@ run as a `call_tool`.
 **Request:**
 
 ```json
-{"id":"<caller-generated>","method":"<ping|list_tools|call_tool>","params":{...}}
+{"id":"<caller-generated>","method":"<ping|hello|list_tools|call_tool|record_usage>","params":{...}}
 ```
 
 **Response:**
@@ -189,16 +199,35 @@ run as a `call_tool`.
 {"id":"<same id>","error":{"message":"..."}}
 ```
 
-Three methods, and only three:
+The five core verbs (`CONTROL_METHODS` in `shared/src/protocol.ts`). The backend also answers
+methods outside that list; they are listed below the table.
 
-| Method       | `params`                          | `result`                                                                     |
-| ------------ | --------------------------------- | ---------------------------------------------------------------------------- |
-| `ping`       | _(none)_                          | `{ "ok": true }`                                                             |
-| `list_tools` | _(none)_                          | `{ "tools": [ <MCP tool definitions> ] }`                                    |
-| `call_tool`  | `{ "name": "...", "args": {...}}` | MCP tool result: `{ "content": [{"type":"text","text":"..."}], "isError"? }` |
+| Method         | `params`                                                                                     | `result`                                                                     |
+| -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ping`         | _(none)_                                                                                     | `{ "ok": true }`                                                             |
+| `hello`        | wrapper: `{ "version", "build", "sets" }`; dashboard: `{ "client": "dashboard", "version" }` | `{ "ok": true }`                                                             |
+| `list_tools`   | _(none)_                                                                                     | `{ "tools": [ <MCP tool definitions> ] }`                                    |
+| `call_tool`    | `{ "name": "...", "args": {...}}`                                                            | MCP tool result: `{ "content": [{"type":"text","text":"..."}], "isError"? }` |
+| `record_usage` | `{ "events": [...] }` (dashboard only)                                                       | `{ "accepted": n, "dropped": n }`                                            |
 
-A `call_tool` result always wraps the tool's output as MCP content: a single text block whose
-`text` is either a plain string or a JSON-serialized object. Errors are returned **in-band** as
+`hello` is the first line a client sends on a new connection. A backend from before it answers
+"Unknown method", and both clients send it with no pending request, so that reply is dropped. The
+wrapper's `build` is a hash of its tool-set lists (`build-id.ts`); `get-preflight` warns when a
+connected wrapper is older than the bridge, sends no version, or has the bridge's version from a
+different build. A wrapper that sends no `build` is compared by version only. There is no control
+call in the list above that returns the wrapper list: `get-preflight` reads it in-process, and the
+read-only `wrapper_status` call (no params; result `{ current, build, wrappers: [{ version, build,
+sets }], behind }`, names and versions only) hands the same object to the dashboard. A connector
+older than the backend also gets one outdated line appended to a successful `call_tool` answer, at
+most once per connection every 6 hours. The backend also answers
+calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
+health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
+switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
+`live_sweep` and the player connector's `list_player_tools` and `player_tool`; see `backend.ts`.
+
+A `call_tool` result always wraps the tool's output as MCP content: the first text block holds the
+tool's output, either a plain string or a JSON-serialized object; the backend may append one
+outdated-version line as a later block (section 3a). Errors are returned **in-band** as
 a successful frame with `isError: true` and the message in the text block — not as a transport
 `error`. (A transport-level `error` is reserved for malformed requests / unknown methods.)
 Callers unwrap `content[0].text` and `JSON.parse` it opportunistically.
@@ -243,7 +272,8 @@ once when the link opens, so the backend knows which Foundry user holds it: lane
 the backend to run one tool for a GM's "Changes", "Handouts" or "Tarokka" window inside Foundry
 (I-108). Only the tools in `MODULE_REQUEST_TOOLS` (`list-recent-changes`, `undo-change`,
 `list-revealed-pages`, `plan-page-reveal`, `apply-planned-change`, `get-tarokka-reading`,
-`plan-tarokka-reveal`, `list-changes`, `plan-undo-changes`; later lanes add more) are
+`plan-tarokka-reveal`, `list-changes`, `plan-undo-changes`, `get-play-session`,
+`mark-play-session`) are
 accepted, and only from the currently active module socket; anything else gets a
 `module-reply` with `success: false` (a socket that is not the active link gets the shared
 `MODULE_NOT_ACTIVE_LINK_ERROR`, and the module treats that like "not connected": it asks the next
@@ -251,7 +281,7 @@ GM client instead of giving up). The `args` object may not exceed 20 kB as UTF-8
 runs the tool through the same in-process dispatch table as the control channel's `call_tool`
 (the connector gets it as a callback, so it never imports the tool router) and answers on the same
 socket with the same `id`. The module times a request out after 30 seconds (120 seconds for an
-undo) and rejects it when the link closes. A GM whose own browser does not hold the link reaches
+undo or an apply) and rejects it when the link closes. A GM whose own browser does not hold the link reaches
 it through Foundry's GM-only `user.query` to the browser that does, which forwards the request
 (`gm-helper-queries.ts`, the `aiToolRequest` helper query); with "Any GM" a browser whose link is
 not the active one takes the same route. An undo from the window carries the GM's name into the
@@ -303,7 +333,7 @@ stdio** and does almost nothing itself:
 - It registers two relaying MCP handlers: `ListTools` relays to control-channel `list_tools`;
   `CallTool` relays to control-channel `call_tool`. The wrapper is a thin MCP↔TCP shim. The one
   thing it answers itself is the static prompt list (`prompts/list`, `prompts/get`, §4e).
-- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`:
+- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`, derived from the modules:
   core, play, prep, build, admin; unset means all). Claude Desktop runs one wrapper per set, each
   its own config entry with its own on/off switch, so a chat carries only the definitions it
   needs. The filter lives in the wrapper only: the backend's `list_tools` still returns every tool,
@@ -311,6 +341,11 @@ stdio** and does almost nothing itself:
   `instructions` naming the sets it serves and the ones that are off. Several wrappers start at
   once and may each spawn a backend; a spawned backend that loses the lock exits (code 3) and its
   wrapper connects to the one that won.
+- **Version hello.** On connect the wrapper sends `hello` `{version, build, sets}`; the dashboard
+  sends `hello` `{client: 'dashboard', version}`. The backend (`wrapper-registry.ts`) lists the
+  wrappers connected, and `get-preflight` warns when one is older than the bridge, too old to say
+  hello, or has the bridge's version from a different build (§3a). A tool no set lists passes
+  through in the entry that serves core, and an empty `list_tools` reply is an MCP error.
 - It owns the backend's lifecycle: when stdin closes (the client exits) or it receives
   SIGTERM/SIGINT, it kills the child backend and exits.
 
@@ -338,8 +373,14 @@ The long-lived workhorse. Responsibilities:
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
-   class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
-   belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
+   class's `getToolDefinitions()`; that union is what `list_tools` returns. Each class is
+   wired in by a small tool module (`tools/modules/<family>.ts`: how to build it, its
+   definitions, its routes), and `tools/index.ts` lists every module once, in `list_tools`
+   order. The backend, the router, the tool list and the test stub are all built from that
+   list, so a new tool family is one module file plus one line in the index. Every tool also
+   belongs to exactly one tool set, named by the `set` field of its entry in the module's `tools`
+   map next to its title and read/write kind (`tool-sets.ts` and `tool-hints.ts` derive their
+   lists from the modules; the tool catalog test checks both); a new
    feature gets one tool with an `action` parameter rather than several small tools.
 4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts`).
    The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`,
@@ -374,10 +415,10 @@ refuses to write while a bridge backend holds its lock.
 **The write gate (module `write-gate.ts`, P-036).** Every bridge handler is classified as a write
 (it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
 unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
-operations are disabled in the module settings" while "Allow Write Operations" is off, whoever
-calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` adds
-the older per-operation checks (quantity limits, and `requiresGM` for deletes and world
-structure).
+operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
+calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` is the
+older per-operation layer (quantity limits, and `requiresGM` for deletes and world structure); it
+checks actor creation and journals only.
 
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
 New features change game state through one flow: a read-only `plan-*` tool builds a plan →
@@ -386,8 +427,9 @@ confirmation → `list-recent-changes` / `undo-change`. The **backend** owns pla
 15 minutes), confirmation (`confirm`, plus `confirmDestructive` when the plan deletes
 anything) and the **audit ring** (`gm/audit.json`, 500 entries, big deleted-document
 snapshots in `backups/`). The **module** only snapshots targets (`snapshotGuardedOps`) and
-executes (`applyGuardedOps`), re-checking on its own: a GM client, "Allow Write Operations",
-the feature's own switch (`feature.<id>.enabled`, default off; not needed for undo), and that
+executes (`applyGuardedOps`), re-checking on its own: a GM client, "AI Tool: Allow Write Operations",
+the feature's own switch (`feature.<id>.enabled`, off unless the feature registers `defaultEnabled`; live play, ownership,
+player portrait, table viewer, rules check and change undo start on; not needed for undo), and that
 every target still matches the plan-time snapshot — otherwise nothing is written. Actors and
 Items it touches get the 2014/2024 rules tag; a failing op rolls back the ones before it;
 success is logged as a GM-only `gm-change` session event. Undo sends the inverse ops
@@ -399,8 +441,8 @@ conflicts are checked before anything is written, and if the vault write fails a
 part, the Foundry part is rolled back. A feature can raise a plan to destructive (`risk`).
 
 **Tarokka (`tarokka/`, module `tarokka.ts`).** The first feature on this flow: readings (built-in
-crypto roll or the `tarokka-reading` module) live in `gm/tarokka.json`, links in
-`gm/tarokka-config.json`, published player pages in `gm/reveals.json`. The module side is read-only.
+crypto roll or cards the GM chose) live in `gm/tarokka.json`, links in
+`gm/tarokka-config.json`, published player pages in `gm/reveals.json`. The module's card table writes two world settings (the public table and the optional card pictures); a flip goes through `plan-tarokka-reveal` and `apply-planned-change`, like any reveal.
 
 **Event pump (`event-pump.ts`).** The module's session-event buffer is in memory and lost on
 reload, so the backend polls `getRecentEvents` (cursor minus 1 ms, id de-duplication, cursor
@@ -413,7 +455,7 @@ control method `record_usage` (handled in `backend.ts`, never a tool, never forw
 wrapper); the usage pump polls the module's `getUsageRecords`. `UsageLog` de-duplicates by `key` and
 appends to `sessions/<local-date>.usage.jsonl`. The Obsidian note `AI Tool/Usage/Dashboard usage.md`
 (GM vault only) is built from it. `FOUNDRY_AI_USAGE_LOG=off` disables it. The control catalogue
-(`shared/src/usage-catalog.generated.ts`) comes from `npm run usage:catalog`; CI checks it.
+(`shared/src/usage-catalog.generated.ts`) comes from `npm run usage:catalog` (generated by `npm ci` and the shared scripts, not committed); CI checks that the sources produce a valid one.
 
 ### 4e. MCP prompts (`prompts/`)
 
@@ -451,7 +493,7 @@ exact catalog names, and rules. The rules carry the safety model:
   once per character, shows each plan with a CHECK mark on changes that rest on an unsure reading,
   lists every unsure or unreadable field before asking which plans to apply, and applies only
   the plans the GM said yes to.
-- The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (play stats, session
+- The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (the play session, play stats, session
   log, revealed page titles, `check-secret-terms`). It follows the `/player` page projection
   (§7): every line is written fresh from the event type and the `visibility` block, an event's
   `description`, `details` and `actorName` are never copied (only a player character's public roll
@@ -524,9 +566,11 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 
 **Defense in depth, in layers:**
 
-1. **The `ready`-hook gate (module).** On `ready`, a non-GM user causes the module to return
-   immediately — no socket bridge, no query handlers doing work, no UI. This is silent by
-   design: a player gets no error, no hint the bridge exists.
+1. **The `ready`-hook gate (module).** On `ready`, a non-GM user makes the bridge start (`onReady()`)
+   return immediately: no socket bridge, no query handlers doing work, no bridge UI. This is
+   silent by design: a player gets no error, no hint the bridge exists. Only `onReady()` returns
+   early. The usage recorder, the Tarokka table watch and the roll listener start in the same
+   `ready` hook and still run on player clients.
 2. **Per-handler GM validation (module).** Every query handler calls `validateGMAccess()`,
    which returns a silent failure unless `game.user.isGM` (or the opt-in `allowNonGmAccess`,
    default off). So even if a handler were reachable some other way, it does nothing for a
@@ -536,7 +580,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 3. **Socket-message GM checks (module).** The game-socket listener that syncs player roll
    state only performs world-writing actions (`ChatMessage.update`, settings writes) when
    `game.user.isGM` — so a player client receiving the broadcast can't be tricked into writing.
-4. **Risk-classified write permissions (`permissions.ts`).** Write operations are catalogued
+4. **Risk-classified write permissions (`permissions.ts`, older layer: actor creation and journals only).** Write operations are catalogued
    with a risk level — **low** (auto-allowed, e.g. create actor), **medium** (confirmation
    suggested, e.g. modify scene / bulk ops), **high** (confirmation + GM required, e.g. delete
    data, modify world). A master `allowWriteOperations` setting can disable writes entirely;
@@ -544,14 +588,12 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    threshold. Parameters are validated/sanitized per operation.
 5. **Guarded writes (new features).** Off per feature by default, confirmed with a diff,
    audited off-Foundry, conflict-checked and undoable (§4d).
-6. **Reversible writes (`transaction-manager.ts`).** Multi-step mutations can run inside a
+6. **Reversible writes (`transaction-manager.ts`, older layer: actor creation only).** Multi-step mutations can run inside a
    transaction that records each create/update/delete with enough information to undo it
    (delete what was created, restore originals, recreate what was deleted). On failure the
    transaction rolls back in reverse order; a bounded history is kept for after-the-fact undo.
 
-**Secrets.** The Anthropic API key used by the AI commentary lives **only** on the dashboard's Node
-server, read from the environment. It is never sent to the browser and never crosses the
-control channel.
+**Secrets.** No Anthropic API key is used anywhere: the dashboard makes no paid API calls.
 
 ---
 
@@ -559,17 +601,16 @@ control channel.
 
 A standalone product that turns the same bridge into a **live session companion**. It is
 original work (not derived from upstream) and has **no Claude Desktop dependency at runtime** —
-it talks to the backend's control channel directly and calls the Anthropic API itself.
+it talks to the backend's control channel directly and makes no Anthropic API calls.
 
 **Two halves:**
 
-- **A Node/Express server (`server.ts`).** It owns the secrets and the control-channel client.
-  It serves the static browser UI, exposes a REST + **Server-Sent Events** API, and is the only
-  thing that ever holds the Anthropic key.
-- **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
-  streamed AI commentary, and the GM-action surface. It only ever talks to its own server.
-  The pages were rewritten in React + TypeScript + Vite (D-109, `web/`). React is the page at `/`
-  (D-126, the default from 2026-11-01); the old page stays at `/legacy/` until after G1, and `/next/` redirects
+- **A Node/Express server (`server.ts`).** It owns the control-channel client and the GM and
+  player tokens. It serves the static browser UI and exposes a REST + **Server-Sent Events** API.
+- **A pure browser client.** HTML/CSS/JS that renders the Live Feed, the combat tracker,
+  and the GM-action surface. It only ever talks to its own server.
+  The page is React + TypeScript + Vite (D-109, `web/`) and is served at `/`
+  (D-126); the retired addresses redirect
   to `/` (package README, "The React dashboard").
 
 **The live feed (`feed/`).** `McpControlClient` is a hardened, **read-only, never-spawning**
@@ -585,14 +626,8 @@ failure doesn't flap the "Foundry reachable" badge. It distinguishes channel-dow
 `unknown`) from "backend up, Foundry module not connected" (report `unreachable`) using the
 typed errors from §4b.
 
-**The AI commentary (`ai/`).** `CoGm` is a thin wrapper over the Anthropic **Messages API** with
-streaming. The large persona/rules/world block carries a `cache_control` breakpoint and is
-byte-identical every call (served from the prompt cache after the first request); the volatile
-game state goes in the user turn and is never cached. Each request is independent (no growing
-conversation), keeping context bounded. Concurrency is **latest-wins**: a direct question
-aborts any in-flight auto-comment. Commentary engines auto-generate comments on new events,
-combat changes, and (optionally) module errors, debounced and rate-limited. If no API key is
-present, the AI is disabled gracefully and the _feed still runs_.
+**No AI in the dashboard.** The dashboard makes no Anthropic API calls and holds no API key.
+AI work happens when someone asks Claude through the MCP tools (subscription-first, D-066).
 
 **The GM-action surface (the write half).** The dashboard can invoke **any** bridge tool via
 `POST /api/tool`, but with server-side gating that mirrors the module's risk model:
@@ -609,8 +644,6 @@ present, the AI is disabled gracefully and the _feed still runs_.
 - **Reads are always free.** Writes require a master **GM Actions** switch (off by default) to
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
   Gating is enforced on the **server**, not in CSS — a hostile browser can't bypass it.
-- `send-chat-message` is the one always-available write the AI commentary uses to whisper the GM (it
-  targets the world's GM names, derived from `get-world-info`).
 
 This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
 role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the
@@ -648,10 +681,10 @@ correlating its own id.
 
 ```text
 Browser → POST /api/tool {name:"advance-combat-turn", confirm:true}
-        → server.ts classifyTool() → "write" → checks gmActionsEnabled ✓ and confirm ✓
+        → app.ts classifyTool() (defined in tool-policy.ts) → "write" → checks gmActionsEnabled ✓ and confirm ✓
         → McpControlClient.callTool("advance-combat-turn", args)
         → (control 31414: call_tool) → backend → CombatTools.handleAdvanceCombatTurn
-        → foundryClient.query("foundry-mcp-bridge.<advanceTurn>") → module → Foundry combat API
+        → foundryClient.query("foundry-mcp-bridge.advanceCombatTurn") → module → Foundry combat API
         → response climbs back → server replies {ok:true, ...}
         ── meanwhile ──
         PollingGameFeed's get-combat-state poll picks up the new turn
@@ -682,17 +715,23 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 - **Built to survive a flaky backend.** Half-open detection, heartbeats, request timeouts that
   reconnect, cursor re-seeding, and reachability hysteresis — because the backend cycles and the
   Foundry tab is just a browser tab.
+- **Naming.** "co-GM" in prose (docs, UI text, comments); `cogm` in ids, paths, packages and
+  environment variables (`packages/cogm-dashboard`, `COGM_*`); `CoGM` only inside a camelCase
+  identifier and in the `X-CoGM-Token` request header. "Legacy" in the dashboard server means one thing, the retired `/legacy/` page
+  address that redirects to `/`; the no-split mode is called single-user mode.
 
 ---
 
 ## Appendix — package map
 
-| Package                   | Role                                                                              | Runs in           |
-| ------------------------- | --------------------------------------------------------------------------------- | ----------------- |
-| `packages/mcp-server`     | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
-| `packages/foundry-module` | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
-| `packages/cogm-dashboard` | standalone dashboard (Node SSE server + browser client)                           | Node.js + browser |
-| `shared`                  | shared types/vocabulary                                                           | both              |
+| Package                    | Role                                                                              | Runs in           |
+| -------------------------- | --------------------------------------------------------------------------------- | ----------------- |
+| `packages/mcp-server`      | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
+| `packages/foundry-module`  | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
+| `packages/cogm-dashboard`  | standalone dashboard (Node SSE server + browser client)                           | Node.js + browser |
+| `packages/discord-bot`     | Discord bot (voice recording, session-over post)                                  | Node.js           |
+| `packages/obsidian-plugin` | Obsidian plugin (open notes in Foundry)                                           | Obsidian          |
+| `shared`                   | shared types/vocabulary                                                           | both              |
 
 The end-to-end test kit (a known world, scenarios, a report, and a fake for CI) is described in
 [TEST-KIT.md](TEST-KIT.md).

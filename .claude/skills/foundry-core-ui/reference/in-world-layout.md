@@ -70,8 +70,9 @@ Not covered elsewhere in this skill — full detail here.
 
 - **Scene Navigation** (`<nav id="scene-navigation">`, `#ui-left-column-2`, immediately to the
   right of the control-icon column — **not** centered across the top of the screen in v14)
-  lists scene "tabs": the currently active scene plus any other scene with **Navigation**
-  enabled and visible ownership, sorted by `navOrder`. Clicking a tab views that scene for you
+  lists scene "tabs". Always shown: the scene you are viewing, the active scene, and any other
+  navigation-enabled scene a user is viewing. The other scenes with **Navigation** enabled and visible ownership (sorted
+  by `navOrder`) stay hidden until you click the expand arrow. Clicking a tab views that scene for you
   (does not change what others see). GM and player. Reversible (click another tab).
   Automation: each tab is `li.scene[data-scene-id]` with `data-action="viewScene"`, tooltip =
   the scene's nav name. [unverified]
@@ -313,30 +314,30 @@ These are the **default** core key bindings relevant to the in-world screen (nam
 `core`); see `configuration-menus.md` for the **Controls Configuration** editor that changes
 them. All are per-client and player-editable unless marked GM-only.
 
-| Key(s) | Action | Notes |
-|---|---|---|
-| `Escape` | Toggle Menu / Dismiss All Windows | see cascading behavior below; uneditable |
-| `Space` | Pause Game | **GM/Assistant GM only** |
-| `Tab` | Cycle Canvas View or Movement Action | repeatable |
-| `Delete` / `Backspace` | Delete Objects | selected placeables on the active layer |
-| `Ctrl+A` | Select All Objects | active layer; uneditable |
-| `Ctrl+Z` | Undo Last Action | uneditable |
-| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / Copy / Paste Objects | uneditable |
-| `Alt` (hold) | Highlight Objects | shows/hides layer highlight while held |
-| `[` / `]` | Send to Back / Bring to Front | selected placeables |
-| `T` | Target Token | hovered token; Shift = keep other targets |
-| `R` | Toggle Distance Ruler | Token layer only |
-| `U` | Toggle Unconstrained Movement | GM-oriented (tool hidden for players) |
-| `C` | Toggle Character Sheet | your assigned actor or selected token |
-| `Shift+C` | Focus Chat | switches to Chat tab and focuses the input |
-| `W A S D` (+ diagonals) | Move controlled token | Shift = rotate instead of move; repeatable |
-| `E` / `Q` | Ascend / Descend Vertically | repeatable |
-| Arrow keys / Numpad | Pan Canvas | Shift = half-speed pan; repeatable |
-| `PageUp`/`+` , `PageDown`/`-` | Zoom In / Out | Shift = finer zoom step; repeatable |
-| `F` | Place Ruler Waypoint | while dragging a token or the ruler is active |
-| `1`-`9`, `0` | Execute Hotbar Slot _n_ | current hotbar page |
-| `Alt+1`...`Alt+5` | Swap to Hotbar Page _n_ | |
-| `` ` `` (backquote) | Push-to-Talk / Push-to-Mute | only if world voice mode uses PTT |
+| Key(s)                         | Action                               | Notes                                         |
+| ------------------------------ | ------------------------------------ | --------------------------------------------- |
+| `Escape`                       | Toggle Menu / Dismiss All Windows    | see cascading behavior below; uneditable      |
+| `Space`                        | Pause Game                           | **GM/Assistant GM only**                      |
+| `Tab`                          | Cycle Canvas View or Movement Action | repeatable                                    |
+| `Delete` / `Backspace`         | Delete Objects                       | selected placeables on the active layer       |
+| `Ctrl+A`                       | Select All Objects                   | active layer; uneditable                      |
+| `Ctrl+Z`                       | Undo Last Action                     | uneditable                                    |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / Copy / Paste Objects           | uneditable                                    |
+| `Alt` (hold)                   | Highlight Objects                    | shows/hides layer highlight while held        |
+| `[` / `]`                      | Send to Back / Bring to Front        | selected placeables                           |
+| `T`                            | Target Token                         | hovered token; Shift = keep other targets     |
+| `R`                            | Toggle Distance Ruler                | Token layer only                              |
+| `U`                            | Toggle Unconstrained Movement        | GM-oriented (tool hidden for players)         |
+| `C`                            | Toggle Character Sheet               | your assigned actor or selected token         |
+| `Shift+C`                      | Focus Chat                           | switches to Chat tab and focuses the input    |
+| `W A S D` (+ diagonals)        | Move controlled token                | Shift = rotate instead of move; repeatable    |
+| `E` / `Q`                      | Ascend / Descend Vertically          | repeatable                                    |
+| Arrow keys / Numpad            | Pan Canvas                           | Shift = half-speed pan; repeatable            |
+| `PageUp`/`+` , `PageDown`/`-`  | Zoom In / Out                        | Shift = finer zoom step; repeatable           |
+| `F`                            | Place Ruler Waypoint                 | while dragging a token or the ruler is active |
+| `1`-`9`, `0`                   | Execute Hotbar Slot _n_              | current hotbar page                           |
+| `Alt+1`...`Alt+5`              | Swap to Hotbar Page _n_              |                                               |
+| `` ` `` (backquote)            | Push-to-Talk / Push-to-Mute          | only if world voice mode uses PTT             |
 
 Sources: `C:/FoundryTest/app/client/helpers/interaction/client-keybindings.mjs`,
 `C:/FoundryTest/app/public/lang/en.json` (`KEYBINDINGS.*`),
@@ -362,7 +363,7 @@ Source: `C:/FoundryTest/app/client/helpers/interaction/client-keybindings.mjs` (
 - **Styles**: plain long-press = pulsing circle in your user color (**Pulse**); **Alt**+hold =
   a red pulsing triangle, an attention/warning ping (**Alert**); **Shift**+hold = a circle with
   a downward arrow (**Pull**) that also recenters the canvas — but only the GM's Pull ping
-  recenters *other* players' cameras; a player's own Pull ping only recenters their own view.
+  recenters _other_ players' cameras; a player's own Pull ping only recenters their own view.
   [unverified]
 - **Off-screen pings** from other users draw a small arrow at the edge of your viewport
   pointing toward the ping's real location instead of the ping itself. [unverified]
@@ -422,21 +423,21 @@ UI overhaul, collapsible sidebar), https://foundryvtt.com/article/player-orienta
 Read-only console checks (run in the client's dev console, F12) — none of these change state:
 
 ```js
-ui.controls.control.name      // active scene-control group, e.g. "tokens"
-ui.controls.tool.name         // active tool, e.g. "select"
-ui.nav.expanded                // scene navigation expanded?
-ui.sidebar.expanded            // sidebar panel open?
-ui.sidebar.tabGroups.primary   // active sidebar tab id
-ui.players.expanded            // inactive-players tray open?
-ui.hotbar.page                 // current hotbar page, 1-5
-game.paused                    // pause state
-ui.menu.rendered               // is the Esc main menu open?
-game.user.isGM                 // GM vs player
-canvas.ready                   // is a scene loaded?
-canvas.stage.scale.x           // current zoom
-canvas.stage.pivot             // current pan center {x, y}
-game.settings.get("core", "hotbarLock")
-game.webrtc.hidden             // camera dock auto-hidden?
+ui.controls.control.name; // active scene-control group, e.g. "tokens"
+ui.controls.tool.name; // active tool, e.g. "select"
+ui.nav.expanded; // scene navigation expanded?
+ui.sidebar.expanded; // sidebar panel open?
+ui.sidebar.tabGroups.primary; // active sidebar tab id
+ui.players.expanded; // inactive-players tray open?
+ui.hotbar.page; // current hotbar page, 1-5
+game.paused; // pause state
+ui.menu.rendered; // is the Esc main menu open?
+game.user.isGM; // GM vs player
+canvas.ready; // is a scene loaded?
+canvas.stage.scale.x; // current zoom
+canvas.stage.pivot; // current pan center {x, y}
+game.settings.get('core', 'hotbarLock');
+game.webrtc.hidden; // camera dock auto-hidden?
 ```
 
 Stable selectors/labels for accessibility-tree search (role/name pairs a browser-automation

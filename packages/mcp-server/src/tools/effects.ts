@@ -26,7 +26,7 @@ export class EffectsTools {
       {
         name: 'get-active-effects',
         description:
-          'List all active effects on an actor: name and icon, whether each is a condition (Blinded, Poisoned, etc.) vs a buff/debuff (Mage Armor, Haste, etc.), remaining duration (rounds/turns/seconds) where tracked, which attributes it modifies and by how much, and whether it requires concentration.',
+          'Active effects on an actor: name, icon, condition or buff/debuff, remaining duration where tracked, what it modifies and by how much, and whether it needs concentration.',
         inputSchema: {
           type: 'object',
           properties: {

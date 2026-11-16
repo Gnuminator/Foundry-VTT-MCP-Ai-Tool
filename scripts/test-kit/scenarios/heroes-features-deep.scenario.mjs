@@ -13,7 +13,7 @@
  */
 import { FAILURE_KINDS, problemText } from '../lib/advancement.mjs';
 import { DEEP_CHECKS, runDeepCheck } from '../lib/features.mjs';
-import { builtHeroes } from '../lib/helpers.mjs';
+import { bridgeProbe, builtHeroes } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -23,13 +23,14 @@ export default {
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: ['heroes'],
-  tools: [],
+  tools: ['get-world-info'],
   gmActions: ['inspectFeatures', 'exerciseActor'],
   // Last: thousands of chat cards fill the play log, and a big log can overflow the control channel.
   order: 100,
   timeoutMs: 60 * 60 * 1000,
 
   async run(t) {
+    await bridgeProbe(t);
     const heroes = builtHeroes(t.kit);
     /** @type {Map<string, Promise<any>>} */
     const cache = new Map();

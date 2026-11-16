@@ -178,6 +178,17 @@ export interface PlayerHandout {
   players?: string[];
 }
 
+/**
+ * I-111: whether a play session is running (the session marker), so the player page can put
+ * live parts first during a session and campaign parts between sessions. Only the open flag
+ * and the last end time; nothing else of the marker reaches a player.
+ */
+export interface PlayerSession {
+  open: boolean;
+  /** When the last session ended (ISO); null when none has or it is unknown. */
+  endedAt: string | null;
+}
+
 /** `/api/player/state` and the player stream's `state` frame. */
 export interface PlayerState {
   status: 'live' | 'foundry-offline' | 'disconnected' | 'connecting';
@@ -188,6 +199,8 @@ export interface PlayerState {
   combat: PlayerCombat | null;
   events: PlayerEvent[];
   handouts: PlayerHandout[];
+  /** Null when the bridge has no session marker (older bridge, or not read yet). */
+  session: PlayerSession | null;
 }
 
 /**

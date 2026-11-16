@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES } from '../constants.js';
+import { AMBIGUOUS_ACTOR_PREFIX, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import type {
   CharacterEffect,
@@ -12,6 +12,7 @@ import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version
 import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
 import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
 import { itemEntityDetails } from './item-entity.js';
+import { findAttackActivity } from './attack-activity.js';
 
 /** One `searchCharacterItems` match: an item, a spell or an effect. */
 interface SearchMatch {
@@ -34,21 +35,23 @@ interface SearchMatch {
   invested?: boolean;
   // For actions
   actionType?: string;
+  /** dnd5e weapon or spell with a usable attack activity (use-item rollAttack works on it). */
+  hasAttack?: boolean;
 }
 
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
  *
  * Three read surfaces an AI model uses to reason about a single actor:
- *   - {@link getCharacterInfo} — the full dossier (system data, items, effects,
+ *   - {@link getCharacterInfo}, the full dossier (system data, items, effects,
  *     toggles, and dnd5e spellcasting), sanitized for tool output.
- *   - {@link searchCharacterItems} — a token-efficient filtered slice of an
+ *   - {@link searchCharacterItems}, a token-efficient filtered slice of an
  *     actor's items/spells/actions/effects (by query, type, and category).
- *   - {@link getCharacterEntity} — one specific item or effect in full.
+ *   - {@link getCharacterEntity}, one specific item or effect in full.
  *
  * Foundry documents are duck-typed throughout (`game.actors`, `actor.items`,
  * `actor.effects` are Collections; `system` is system-specific), so reads use
- * defensive `?.`/`||` fallbacks. This is a dnd5e-only build — the extraction
+ * defensive `?.`/`||` fallbacks. This is a dnd5e-only build, the extraction
  * logic targets the dnd5e schema (spell level/preparation, equipped-item
  * toggles, class-based spellcasting), and the characterization nets pin the
  * paths that matter.
@@ -99,13 +102,13 @@ export class CharacterDataAccess {
   }
 
   /**
-   * Search within a character's items, spells, actions, and effects — a
+   * Search within a character's items, spells, actions, and effects, a
    * token-efficient alternative to {@link getCharacterInfo} when only specific
    * entries are needed.
    *
    * Filters (all optional, AND-combined): `query` (case-insensitive substring on
    * name or description), `type` (exact item/entry type), `category` (dnd5e
-   * spell: cantrip/prepared; equipment: equipped — any other value is inert).
+   * spell: cantrip/prepared; equipment: equipped, any other value is inert).
    * `limit` (default 20) caps the total matches across all three sources. The
    * supplied query/type/category are echoed back into the envelope only when
    * provided.
@@ -142,6 +145,7 @@ export class CharacterDataAccess {
       invested?: boolean;
       // For actions
       actionType?: string;
+      hasAttack?: boolean;
     }>;
     totalMatches: number;
   }> {
@@ -149,7 +153,10 @@ export class CharacterDataAccess {
 
     const { characterIdentifier, query, type, category, limit = 20 } = params;
 
-    const actor = shared.findActorByIdentifier(characterIdentifier);
+    // A token id (a combatant has only that) finds an unlinked NPC token's own actor.
+    const actor =
+      shared.findActorByIdentifier(characterIdentifier) ??
+      shared.findSceneTokenActor(characterIdentifier);
     if (!actor) {
       throw new Error(`Character not found: ${characterIdentifier}`);
     }
@@ -193,6 +200,11 @@ export class CharacterDataAccess {
           continue;
       } else if (this.isEquipmentType(item.type)) {
         if (!this.applyEquipmentFields(result, itemSystem, searchCategory)) continue;
+      }
+
+      // dnd5e: a weapon or spell with a usable attack activity can be rolled as an attack.
+      if (systemId === 'dnd5e' && (item.type === 'weapon' || item.type === 'spell')) {
+        if (findAttackActivity(item)) result.hasAttack = true;
       }
 
       matches.push(result);
@@ -280,9 +292,9 @@ export class CharacterDataAccess {
   /**
    * Resolve an actor by identifier, forgivingly. Order:
    *   1. a 16-character identifier is tried as an actor id;
-   *   2. exact name match (case-insensitive) — wins even with duplicate names
+   *   2. exact name match (case-insensitive), wins even with duplicate names
    *      (returns the first), preserving the original behavior;
-   *   3. a *unique* case-insensitive partial (substring) match — so "Silvera"
+   *   3. a *unique* case-insensitive partial (substring) match, so "Silvera"
    *      resolves to "Silvera Frostmantle" without the caller knowing the full name;
    *   4. if a partial matches more than one actor it's ambiguous: throw a
    *      "did you mean …" error listing the candidates (name + id) so the caller
@@ -309,7 +321,7 @@ export class CharacterDataAccess {
         .join(', ');
       const more = partial.length > 10 ? `, …(+${partial.length - 10} more)` : '';
       throw new Error(
-        `Multiple characters match "${identifier}": ${shown}${more}. ` +
+        `${AMBIGUOUS_ACTOR_PREFIX} "${identifier}": ${shown}${more}. ` +
           `Use the exact name or the 16-character id.`
       );
     }

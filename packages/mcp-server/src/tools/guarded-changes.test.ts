@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { GuardedChangeTools } from './guarded-changes.js';
 
 function makeTools(): {
   tools: GuardedChangeTools;
-  guardedWrites: Record<string, ReturnType<typeof vi.fn>>;
-  query: ReturnType<typeof vi.fn>;
+  guardedWrites: Record<string, Mock>;
+  query: Mock;
   logger: any;
 } {
   const guardedWrites = {
@@ -41,6 +41,14 @@ describe('GuardedChangeTools definitions', () => {
     expect(byName['apply-planned-change'].required).toEqual(['planId', 'confirm']);
     expect(byName['undo-change'].required).toEqual(['changeId', 'confirm']);
     expect(byName['open-in-foundry'].required).toEqual(['uuid']);
+  });
+
+  it('lets the same-turn go-ahead cover write plans only; a destructive plan waits for the GM', () => {
+    const apply = makeTools()
+      .tools.getToolDefinitions()
+      .find(d => d.name === 'apply-planned-change');
+    expect(apply?.description).toContain('apply a "write" plan in the same turn');
+    expect(apply?.description).toContain('a "destructive" plan waits for the GM to say yes');
   });
 });
 
@@ -84,9 +92,9 @@ describe('GuardedChangeTools handlers', () => {
   it('lists recent changes with a bounded limit', async () => {
     const { tools, guardedWrites } = makeTools();
     expect(await tools.handleListRecentChanges({})).toEqual({ changes: [{ changeId: 'c1' }] });
-    expect(guardedWrites.listRecentChanges).toHaveBeenCalledWith(20);
+    expect(guardedWrites.listRecentChanges).toHaveBeenCalledWith(20, { noteParts: true });
     await tools.handleListRecentChanges({ limit: 5 });
-    expect(guardedWrites.listRecentChanges).toHaveBeenLastCalledWith(5);
+    expect(guardedWrites.listRecentChanges).toHaveBeenLastCalledWith(5, { noteParts: true });
     await expect(tools.handleListRecentChanges({ limit: 501 })).rejects.toThrow();
   });
 

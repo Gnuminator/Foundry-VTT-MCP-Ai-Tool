@@ -8,8 +8,8 @@
  * scope: the sweep reports them as skipped ("inside Foundry: the foundry-controls scenario", which
  * sweeps them in the Foundry client).
  *
- * The facts come from the front end itself: packages/cogm-dashboard/public/index.html, app.js,
- * player.html and player.js. A control is marked in the page with `data-track="<name>"`; the few that
+ * The facts come from the front end itself: the React dashboard in packages/cogm-dashboard/web/src
+ * (served at /) and, for the player page, public/player.html and player.js. A control is marked in the page with `data-track="<name>"`; the few that
  * are drawn without that attribute (pickers, the AI post button, the player's name buttons) have an
  * explicit `selector`.
  *
@@ -85,20 +85,19 @@ const TAROKKA = [ADV, 'dash.header.tarokka'];
 const PREFLIGHT = [MOMENT_DURING, ADV, 'dash.header.preflight']; // overlay in During and After
 const PREP = [MOMENT_DURING, ADV, 'dash.header.prep']; // overlay in During
 /** The Prep drawer has finished loading (its Refresh button is disabled while it loads). */
-const PREP_IDLE = '#prep-refresh:not([disabled])';
+const PREP_IDLE = '[data-track="dash.prep.refresh"]:not([disabled])';
 // Opening the drawer starts a run that redraws the findings (closed) when it ends; on a big world it
 // ends after the click, so wait for it first.
-const PREFLIGHT_IDLE = '#preflight-run:not([disabled])';
+const PREFLIGHT_IDLE = '[data-track="dash.preflight.run"]:not([disabled])';
 const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before and After
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
-/** After a paper night is only in the new dashboard (/next); this sweep drives the old page. */
-const NEW_ONLY = 'only in the new dashboard (/next); checked by hand on a test server (paper-form)';
-const AI = [ADV, 'dash.header.show-ai'];
+/** The paper-form flow changes the world: checked by hand on a test server, never driven. */
+const NOT_DRIVEN = 'checked by hand on a test server (paper-form); the sweep does not drive it';
 const PLAYER_LINKS = [ADV, 'dash.header.player-links'];
-const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everyone'];
-/** The undo window of the Everyone tab, open on the first change that can still be undone. */
+const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everything'];
+/** The undo window of the Everything tab, open on the first change that can still be undone. */
 const UNDO_WINDOW = [...EVERYONE, 'dash.changes.everyone-undo'];
-const UNDO_APPLY = '#undo-actions [data-undo-key="apply"]';
+const UNDO_APPLY = '#undo-actions #undo-apply';
 const PICKER = [...TOOLS];
 const PICKER_OPEN = [...TOOLS, 'dash.tools.pick-open'];
 const LAYOUT_TOUR = [ADV, 'dash.header.layout-tour'];
@@ -109,7 +108,6 @@ const WRITE_FLOW = 'a write flow: it changes the game or the world, so the write
 /** @type {ControlRow[]} the run order: groups (second part of the name) run in order of first appearance */
 export const DASHBOARD_CONTROLS = [
   // --- the page ---
-  { name: 'dash.main.view', how: 'view', expect: '.topbar' },
   { name: MOMENT_BEFORE, how: 'toggle', restore: false, expect: '#moment-before' },
   { name: MOMENT_DURING, how: 'toggle', restore: false, expect: '#moment-during' },
   { name: MOMENT_AFTER, how: 'toggle', restore: false, expect: '#moment-after' },
@@ -122,12 +120,45 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.party', how: 'open', reach: [ADV], expect: '#party-drawer' },
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
-  { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.header.combat-buttons', how: 'toggle', reach: [ADV], changes: true },
+  { name: 'dash.header.paper', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.header.twin', how: 'open', reach: [ADV], expect: '#twin-drawer' },
+  // The Reload button that stands in for the combat strip when its chunk fails to load.
+  { name: 'dash.strip.reload', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.crash.reload', how: 'skip', why: NOT_DRIVEN },
+
+  // --- the live strip (/next?strip=1; the e2e spec live-strip.spec.ts and the live check cover it) ---
+  ...[
+    'dash.live.clear',
+    'dash.live.condition',
+    'dash.live.end-combat',
+    'dash.live.next-turn',
+    'dash.live.one-round',
+    'dash.live.pan',
+    'dash.live.pick',
+    'dash.live.remove-condition',
+    'dash.live.show-handout',
+    'dash.live.undo',
+    'dash.quickroll.again',
+  ].map(name => ({
+    name,
+    how: 'skip',
+    why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
+  })),
+  ...[
+    'dash.changes.ai-only',
+    'dash.header.live-views',
+    'dash.live.back',
+    'dash.live.header-undo',
+    'dash.live.how-do-i',
+  ].map(name => ({
+    name,
+    how: 'skip',
+    why: 'only on live screen A (/next/?live=1) or its opt-in link; the e2e spec live-screen.spec.ts covers it',
+  })),
   {
     name: 'dash.header.version-tracker',
     how: 'skip',
-    why: 'new dashboard only (I-127); the old page has no such switch, and a Storybook story covers it',
+    why: 'not driven by the sweep (I-127); a Storybook story covers it',
   },
   {
     name: 'dash.header.show-versions',
@@ -141,39 +172,18 @@ export const DASHBOARD_CONTROLS = [
   },
   { name: 'dash.header.layout-tour', how: 'open', reach: [ADV], expect: '#layout-tour' },
   { name: 'dash.header.tools', how: 'open', reach: [ADV], expect: '#tools-drawer' },
-  { name: 'dash.header.show-ai', how: 'open', reach: [ADV], expect: '#pane-ai' },
   { name: 'dash.header.show-diagnostics', how: 'open', reach: [ADV], expect: '#pane-diagnostics' },
-  { name: 'dash.header.player-links', how: 'open', reach: [ADV], expect: '#pane-links' },
   {
-    name: 'dash.header.pause',
-    how: 'toggle',
+    name: 'dash.header.player-links',
+    how: 'open',
     reach: [ADV],
-    changes: true,
-    optional: true,
-    why: 'disabled while the AI commentary is off (no API key)',
+    expect: 'button[aria-label="Close player links"]',
   },
-  {
-    name: 'dash.header.diag-ai',
-    how: 'toggle',
-    reach: [ADV],
-    changes: true,
-    optional: true,
-    why: 'disabled while the AI commentary is off (no API key)',
-  },
-  { name: 'dash.header.tone', how: 'toggle', reach: [ADV] },
-  { name: 'dash.header.model', how: 'toggle', reach: [ADV] },
   { name: 'dash.header.theme', how: 'toggle' },
-  {
-    name: 'dash.header.mist',
-    how: 'toggle',
-    theme: 'veil',
-    optional: true,
-    why: 'only shown with the Veil theme',
-  },
   {
     name: 'dash.header.gm-actions',
     how: 'write',
-    why: 'flips the master switch for game-changing actions; the write checks cover it',
+    why: 'opens the live play switch list (header line); the write checks cover it',
   },
 
   // --- the During layout trial (before the layout buttons: picking a layout hides the trial card) ---
@@ -188,7 +198,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.trial.view', how: 'view', reach: LAYOUT_TOUR, expect: '#layout-tour' },
   { name: 'dash.trial.next', how: 'open', reach: LAYOUT_TOUR, changes: '#layout-tour-step' },
   { name: 'dash.trial.stop', how: 'open', reach: LAYOUT_TOUR, gone: '#layout-tour' },
-  { name: 'dash.during.layout-tour', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.during.layout-tour', how: 'skip', why: NOT_DRIVEN },
   {
     name: 'dash.trial.use',
     how: 'write',
@@ -267,10 +277,10 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.help.wiki',
     how: 'skip',
-    why: 'a link in the help pane of the React dashboard (/); the old page the sweep drives has none',
+    why: 'a link in the help pane that leaves the page',
   },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
-  // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
+  // The "?" after each panel heading; the diagnostics one stands for all.
   {
     name: 'dash.help.panel',
     how: 'open',
@@ -280,12 +290,17 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- Recent Changes ---
-  { name: 'dash.changes.refresh', how: 'read', reach: [MOMENT_DURING], expect: '#changes-body' },
+  {
+    name: 'dash.changes.refresh',
+    how: 'read',
+    reach: [MOMENT_DURING],
+    expect: '#pane-changes-body',
+  },
   {
     name: 'dash.changes.show-diff',
     how: 'toggle',
     reach: [MOMENT_DURING],
-    expect: '#changes-body .change-diff',
+    expect: '#pane-changes-body .change-diff',
     optional: true,
     why: 'needs a recent change with diff lines',
   },
@@ -297,19 +312,27 @@ export const DASHBOARD_CONTROLS = [
     why: 'opens Obsidian; shown only with a recent change and a known vault',
   },
   { name: 'dash.changes.undo', how: 'write', why: WRITE_FLOW },
-  // The Everyone tab (I-109): the toolbar shows once the bridge serves list-changes; the person
-  // select shows with the Everyone tab. Undo opens the undo window (a plan, nothing changes before
-  // Apply); Redo asks in the confirm window first, like Undo in the AI tab. The sweep puts the AI tab
-  // back before every row (resetDashboard).
+  // The Game and Everything tabs (I-109): the toolbar shows once the bridge serves list-changes; the
+  // person select shows with either. Undo opens the undo window (a plan, nothing changes before
+  // Apply); Redo asks in the confirm window first, like Undo in the Tool tab. The sweep puts the
+  // Tool tab back before every row (resetDashboard).
   {
-    name: 'dash.changes.tab-everyone',
+    name: 'dash.changes.tab-everything',
     how: 'open',
     reach: [MOMENT_DURING],
     expect: '#changes-person',
     optional: true,
-    why: 'the Everyone tab shows only when the bridge serves list-changes',
+    why: 'the Everything tab shows only when the bridge serves list-changes',
   },
-  { name: 'dash.changes.tab-ai', how: 'open', reach: EVERYONE, gone: '#changes-person' },
+  {
+    name: 'dash.changes.tab-game',
+    how: 'open',
+    reach: [MOMENT_DURING],
+    expect: '#changes-person',
+    optional: true,
+    why: 'the Game tab shows only when the bridge serves list-changes',
+  },
+  { name: 'dash.changes.tab-tool', how: 'open', reach: EVERYONE, gone: '#changes-person' },
   {
     name: 'dash.changes.person',
     how: 'toggle',
@@ -320,7 +343,7 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.changes.everyone-show-lines',
     how: 'toggle',
     reach: EVERYONE,
-    expect: '#changes-body .change-diff',
+    expect: '#pane-changes-body .change-diff',
     optional: true,
     why: 'needs a change in the last 7 days with diff lines',
   },
@@ -339,7 +362,7 @@ export const DASHBOARD_CONTROLS = [
     why: 'puts an undone change back after the confirm window; dashboard-write-flows (i) clicks it',
   },
 
-  // --- the combat strip (only with a live combat; the buttons need GM Actions and Combat buttons on) ---
+  // --- the combat strip (only with a live combat; the buttons need GM Actions on) ---
   {
     name: 'dash.combat.boss-prompts',
     how: 'toggle',
@@ -363,7 +386,7 @@ export const DASHBOARD_CONTROLS = [
     reach: [MOMENT_DURING],
     expect: '.combatant.selected',
     optional: true,
-    why: 'only with a combat, GM Actions on and Combat buttons on',
+    why: 'only with a combat and GM Actions on',
   },
   {
     name: 'dash.combat.selection-clear',
@@ -378,32 +401,140 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.combat.selection-condition',
     how: 'open',
     reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
-    expect: '#tool-detail',
+    expect: '#condition-form',
     optional: true,
-    why: 'needs a selected combatant (opens the tool form, runs nothing)',
+    why: 'needs a selected combatant (opens the Condition picker, applies nothing until a chip and the confirm)',
+  },
+  {
+    name: 'dash.combat.condition',
+    how: 'write',
+    why: 'plans a condition for the picked tokens, asks once, then applies it in Foundry (with Undo)',
+  },
+  {
+    name: 'dash.combat.condition-cancel',
+    how: 'skip',
+    why: 'inside the Condition picker: needs a fight and a picked combatant',
   },
   {
     name: 'dash.combat.selection-damage',
     how: 'open',
     reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
-    expect: '#tool-detail',
+    expect: '[data-track="dash.damage.apply"]',
     optional: true,
-    why: 'needs a selected combatant (opens the tool form, runs nothing)',
+    why: 'needs a selected combatant (opens the Damage / Heal form, applies nothing until its button)',
+  },
+  {
+    name: 'dash.damage.mode-damage',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.mode-heal',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.amount',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.type',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.cancel',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.apply',
+    how: 'write',
+    why: 'changes the HP of the picked tokens in Foundry (with Undo)',
+  },
+  {
+    name: 'dash.combat.attack',
+    how: 'open',
+    reach: [MOMENT_DURING],
+    expect: '[data-track="dash.attack.go"]',
+    optional: true,
+    why: 'needs a running fight (opens the Attack form, rolls nothing until its button)',
+  },
+  {
+    name: 'dash.attack.attacker',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.weapon',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.target',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.cancel',
+    how: 'skip',
+    why: 'inside the Attack form: needs a fight',
+  },
+  {
+    name: 'dash.attack.go',
+    how: 'write',
+    why: 'rolls an attack from the picked token against the target in Foundry (the roll shows in chat)',
+  },
+  {
+    name: 'dash.quickroll.what',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.dc',
+    how: 'skip',
+    why: 'field in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.visibility',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.advantage',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.picked',
+    how: 'write',
+    why: 'asks the picked players for a roll (shows on their screens)',
+  },
+  {
+    name: 'dash.quickroll.party',
+    how: 'write',
+    why: 'asks the whole party for a roll (shows on their screens)',
+  },
+  {
+    name: 'dash.quickroll.member',
+    how: 'write',
+    why: 'asks one player for a roll (shows on their screen)',
   },
   {
     name: 'dash.combat.start',
     how: 'skip',
-    why: 'new dashboard only (david-start-combat-picker, only with no fight running); an e2e test covers it',
+    why: 'not driven by the sweep (david-start-combat-picker, only with no fight running); an e2e test covers it',
   },
   {
     name: 'dash.during.start-combat',
     how: 'skip',
-    why: 'new dashboard only (the During bar button that opens the Start combat picker, only with no fight running); an e2e test covers it',
+    why: 'not driven by the sweep (the During bar button that opens the Start combat picker, only with no fight running); an e2e test covers it',
   },
   {
     name: 'dash.combat.start-cancel',
     how: 'skip',
-    why: 'new dashboard only (the token list of Start combat); an e2e test covers it',
+    why: 'not driven by the sweep (the token list of Start combat); an e2e test covers it',
   },
   {
     name: 'dash.combat.start-go',
@@ -411,15 +542,63 @@ export const DASHBOARD_CONTROLS = [
     why: 'plans and applies a combat on the scene; the unit and e2e tests and the live check cover it',
   },
   {
+    name: 'dash.during.conditions',
+    how: 'skip',
+    why: 'not driven by the sweep (the During bar button that opens the Conditions panel); the helper unit tests and the live check cover it',
+  },
+  {
+    name: 'dash.conditions.pick',
+    how: 'skip',
+    why: 'not driven by the sweep (picks a condition in the Conditions panel, changes nothing)',
+  },
+  {
+    name: 'dash.conditions.rules',
+    how: 'skip',
+    why: 'not driven by the sweep (opens dnd5e rules page for the condition in Foundry, changes nothing)',
+  },
+  {
+    name: 'dash.conditions.close',
+    how: 'skip',
+    why: 'not driven by the sweep (closes the Conditions panel)',
+  },
+  {
+    name: 'dash.conditions.add',
+    how: 'write',
+    why: 'plans and applies a condition on the picked tokens (with Undo); the helper unit tests and the live check cover it',
+  },
+  {
+    name: 'dash.conditions.remove',
+    how: 'write',
+    why: 'plans and applies removing a condition from the picked tokens (with Undo); the helper unit tests and the live check cover it',
+  },
+  {
+    name: 'dash.during.scene-mood',
+    how: 'skip',
+    why: 'not driven by the sweep (the During bar button that opens the Scene mood panel); the e2e spec scene-mood.spec.ts and the live check cover it',
+  },
+  {
+    name: 'dash.mood.apply',
+    how: 'write',
+    why: 'plans, confirms and applies a saved mood preset on the viewed scene (with Undo); the helper unit tests, the e2e spec and the live check cover it',
+  },
+  {
+    name: 'dash.mood.close',
+    how: 'skip',
+    why: 'not driven by the sweep (closes the Scene mood panel)',
+  },
+  {
     name: 'dash.combat.end',
-    how: 'open',
-    // Only the After page (web/src) has it; the old page's files do not, so the data-track
+    how: 'write',
+    // Only the After page (web/src) has it; the files under public/ do not, so the data-track
     // test cannot look it up there.
     selector: '[data-track="dash.combat.end"]',
-    reach: [MOMENT_DURING],
-    expect: '#tool-detail',
-    optional: true,
-    why: 'needs a combat, GM Actions on and Combat buttons on (opens the tool form, runs nothing)',
+    why: 'plans ending the fight, asks once, then ends it in Foundry (with Undo); the e2e spec and the live check cover it',
+  },
+
+  {
+    name: 'dash.combat.foundry-targets',
+    how: 'skip',
+    why: 'not driven by the sweep (the combat strip button that picks the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
 
   // --- the Tool Runner ---
@@ -453,7 +632,7 @@ export const DASHBOARD_CONTROLS = [
     needs: 'picker-tool',
     selector: '#tool-form .ref-open',
     expect: '#tool-form .ref-menu',
-    // Required: the tool runner always has tools with a Pick button (plan-actor-change and more).
+    // Required: the Tool Runner always has tools with a Pick button (plan-actor-change and more).
   },
   {
     name: 'dash.tools.pick-choice',
@@ -463,6 +642,11 @@ export const DASHBOARD_CONTROLS = [
     selector: '#tool-form .ref-item',
     optional: true,
     why: 'needs a picker with at least one choice (fills the field, runs nothing)',
+  },
+  {
+    name: 'dash.tools.foundry-targets',
+    how: 'skip',
+    why: 'not driven by the sweep (the Pick menu button that fills a field from the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
   {
     name: 'dash.tools.show-all-actors',
@@ -498,13 +682,13 @@ export const DASHBOARD_CONTROLS = [
   // --- Prep ---
   { name: 'dash.prep.view', how: 'view', reach: PREP, expect: '#prep-drawer' },
   { name: 'dash.prep.close', how: 'open', reach: PREP, gone: '#prep-drawer' },
-  { name: 'dash.prep.refresh', how: 'read', reach: PREP, expect: '#prep-last' },
+  { name: 'dash.prep.refresh', how: 'read', reach: PREP, expect: '#prep-drawer h3.preflight-h' },
   {
     name: 'dash.prep.all-beats',
     idle: PREP_IDLE,
     how: 'read',
     reach: PREP,
-    expect: '#prep-last',
+    expect: '#prep-drawer h3.preflight-h',
     optional: true,
     why: 'only shown when the last session has beats',
   },
@@ -513,7 +697,7 @@ export const DASHBOARD_CONTROLS = [
     idle: PREP_IDLE,
     how: 'toggle',
     reach: PREP,
-    expect: '#prep-last .prep-beats ul',
+    expect: '#prep-drawer .prep-beats ul',
     optional: true,
     why: 'only shown when the last session has beats',
   },
@@ -534,14 +718,18 @@ export const DASHBOARD_CONTROLS = [
     why: 'only shown when the digest has a pre-flight result',
   },
 
+  // --- 2024 twin of a monster ---
+  { name: 'dash.twin.close', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.twin.open', how: 'skip', why: NOT_DRIVEN },
+
   // --- After a paper night (Paper nights B) ---
-  { name: 'dash.paper.close', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.refresh', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.add-item', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.remove-item', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.plan', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.reset', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.log-night', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.close', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.refresh', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.add-item', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.remove-item', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.plan', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.reset', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.log-night', how: 'skip', why: NOT_DRIVEN },
 
   // --- Party ---
   { name: 'dash.party.view', how: 'view', reach: PARTY, expect: '#party-drawer' },
@@ -553,6 +741,13 @@ export const DASHBOARD_CONTROLS = [
     reach: PARTY,
     optional: true,
     why: 'only shown when the world has more than one party',
+  },
+  {
+    name: 'dash.party.notice-skill',
+    how: 'toggle',
+    reach: PARTY,
+    optional: true,
+    why: 'only shown with the AI Tool: Who would notice switch on',
   },
   {
     name: 'dash.party.open-actor',
@@ -574,7 +769,7 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.preflight.run',
     how: 'read',
     reach: PREFLIGHT,
-    expect: '#preflight-summary',
+    expect: '#preflight-drawer .preflight-summary',
     slow: true,
   },
   { name: 'dash.preflight.manual-tick', how: 'toggle', reach: PREFLIGHT },
@@ -583,14 +778,14 @@ export const DASHBOARD_CONTROLS = [
     how: 'toggle',
     reach: [...PREFLIGHT, 'dash.preflight.manual-tick'],
     restore: false,
-    gone: '#preflight-manual input:checked',
+    gone: '#preflight-drawer .preflight-list[aria-label="Check by hand"] input:checked',
   },
   {
     name: 'dash.preflight.show-findings',
     idle: PREFLIGHT_IDLE,
     how: 'toggle',
     reach: PREFLIGHT,
-    expect: '#preflight-findings li',
+    expect: '#preflight-drawer .preflight-findings li',
     optional: true,
     why: 'only shown when the scan has findings',
   },
@@ -600,6 +795,11 @@ export const DASHBOARD_CONTROLS = [
     why: 'only on the React dashboard (/), while Show cards is ticked; e2e tarokka.spec covers it',
   },
   { name: 'dash.ready.turn-on', how: 'write', why: 'turns the module switches and GM Actions on' },
+  {
+    name: 'dash.live.turn-on',
+    how: 'write',
+    why: 'turns the module switches and GM Actions on, the same call as dash.ready.turn-on',
+  },
   {
     name: 'dash.ready.turn-off',
     how: 'write',
@@ -616,8 +816,13 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.tarokka.close', how: 'open', reach: TAROKKA, gone: '#tarokka-drawer' },
   { name: 'dash.tarokka.refresh', how: 'read', reach: TAROKKA, expect: '#tarokka-body' },
   { name: 'dash.tarokka.show-cards', how: 'toggle', reach: TAROKKA },
-  { name: 'dash.tarokka.import', how: 'write', why: 'stores a reading from tarokka-reading' },
   { name: 'dash.tarokka.roll', how: 'write', why: 'deals and stores a new reading' },
+  {
+    name: 'dash.tarokka.choose',
+    how: 'write',
+    why: 'opens the five-card form, only while Show cards is ticked; choose-save stores it',
+  },
+  { name: 'dash.tarokka.choose-save', how: 'write', why: 'stores the five cards the GM picked' },
   {
     name: 'dash.tarokka.open-obsidian',
     how: 'external',
@@ -671,11 +876,10 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- the Before screen's feature cards ---
-  { name: 'dash.features.read-more', how: 'open', reach: [MOMENT_BEFORE], expect: '#pane-help' },
 
   // --- the After screen ---
   { name: 'dash.after.refresh', how: 'read', reach: [MOMENT_AFTER], expect: '#stat-cards' },
-  { name: 'dash.after.paper', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.after.paper', how: 'skip', why: NOT_DRIVEN },
   {
     name: 'dash.after.copy-stats',
     how: 'external',
@@ -739,28 +943,6 @@ export const DASHBOARD_CONTROLS = [
   },
   { name: 'dash.links.remove', how: 'write', why: 'removes a player link' },
 
-  // --- AI commentary ---
-  {
-    name: 'dash.ai.ask',
-    how: 'ai',
-    reach: AI,
-    expect: '#ask-form',
-    why: 'asking needs Claude through the API; the sweep only checks the form is there',
-  },
-  {
-    name: 'dash.ai.post-to-chat',
-    how: 'ai',
-    reach: AI,
-    selector: '#ai-body .btn-post',
-    optional: true,
-    why: 'posts a comment to the Foundry chat; shown only under a finished AI comment',
-  },
-  {
-    name: 'dash.ai.error',
-    how: 'error',
-    why: 'the message under an AI comment that failed; cannot be clicked',
-  },
-
   // --- help ---
   { name: 'dash.help.view', how: 'view', reach: [ADV, 'dash.header.guides'], expect: '#pane-help' },
 
@@ -813,7 +995,7 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.undo.advanced',
     how: 'toggle',
     reach: UNDO_WINDOW,
-    expect: '.undo-advanced [data-undo-key="rewind"]',
+    expect: '.undo-advanced #undo-rewind',
     optional: true,
     why: 'the Advanced fold shows only when the change is the latest on its thing or asks to choose',
   },
@@ -821,7 +1003,7 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.undo.rewind',
     how: 'open',
     reach: [...UNDO_WINDOW, 'dash.undo.advanced'],
-    expect: '#undo-actions [data-undo-key="next"]',
+    expect: '#undo-actions #undo-next',
     optional: true,
     slow: true,
     why: 'under Advanced in the undo window; it only plans the rewind',
@@ -954,15 +1136,21 @@ export const PLAYER_CONTROLS = [
   },
   {
     name: 'player.mine.sheet',
-    how: 'toggle',
+    how: 'external',
     optional: true,
-    why: 'only shown to a player who opened their own /me link on this device',
+    why: 'a link that leaves the page for the character sheet (/me): the sweep checks the link and its address',
   },
   {
     name: 'player.mine.roll',
     how: 'toggle',
     optional: true,
     why: 'only shown to a player with an open roll request',
+  },
+  {
+    name: 'player.mine.portrait',
+    how: 'external',
+    optional: true,
+    why: 'opens the browser file picker and writes a picture into the Foundry world; checked by hand on the test server and in the unit tests',
   },
   {
     name: 'player.footer.mist',

@@ -3,10 +3,11 @@
  * to an older bridge, the undo, choice, rewind and redo flows) with fake deps, and the window
  * class on a fake `ApplicationV2` (escaped HTML in the content, singleton, live refresh).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   AiChangesController,
+  foundryDeps,
   openAiChangesWindow,
   resetAiChangesWindowForTests,
   type AiChangesDeps,
@@ -67,10 +68,10 @@ function planView(over: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 type Deps = AiChangesDeps & {
-  request: ReturnType<typeof vi.fn>;
-  ask: ReturnType<typeof vi.fn>;
-  notifyInfo: ReturnType<typeof vi.fn>;
-  notifyError: ReturnType<typeof vi.fn>;
+  request: Mock;
+  ask: Mock;
+  notifyInfo: Mock;
+  notifyError: Mock;
 };
 
 /**
@@ -842,5 +843,27 @@ describe('the window class on a fake ApplicationV2', () => {
     const html = rendered[0].content.innerHTML as string;
     expect(html).toContain('data-change-id="old1"');
     expect(html).not.toContain('data-fmb-filter');
+  });
+});
+
+describe('foundryDeps: Foundry without DialogV2', () => {
+  it('warns in plain words and answers nothing, so nothing is changed', async () => {
+    const world = createTestWorld({ foundryVersion: '14.368' });
+    const restore = world.install();
+    try {
+      (globalThis as any).foundry.applications = { api: {} };
+      const spec: DialogSpec = { title: 'Undo change', content: '<p>Undo?</p>', buttons: [] };
+      expect(await foundryDeps().ask(spec)).toBeNull();
+      expect(world.notifications).toEqual([
+        {
+          level: 'warn',
+          message:
+            'Foundry could not show the confirmation window, so nothing was changed. Reload the page and try again.',
+        },
+      ]);
+    } finally {
+      delete (globalThis as any).foundry.applications;
+      restore();
+    }
   });
 });

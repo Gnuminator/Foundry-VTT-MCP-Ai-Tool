@@ -10,9 +10,9 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
+import { testWebDir } from './test-web-dir.js';
 import { HOST_NOT_ALLOWED, HOST_NOT_ALLOWED_MESSAGE, parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
 import { OPEN_PAGE_CSP } from './open-route.js';
@@ -29,7 +29,7 @@ const SPLIT_OFF: AuthConfig = {
 };
 const SPLIT_ON: AuthConfig = { ...SPLIT_OFF, splitEnabled: true, gmToken: GM_TOKEN };
 const MODES: Array<[string, AuthConfig]> = [
-  ['split off (legacy: every caller is the GM)', SPLIT_OFF],
+  ['split off (single-user mode: every caller is the GM)', SPLIT_OFF],
   ['split on', SPLIT_ON],
 ];
 
@@ -62,13 +62,6 @@ class CapturingLogger extends Logger {
   }
 }
 
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 interface Harness {
   port: number;
   bridge: FakeBridge;
@@ -87,12 +80,13 @@ async function start(auth: AuthConfig, overrides: Partial<Config> = {}): Promise
   const logger = new CapturingLogger();
   const testConfig: Config = {
     ...config,
+    webDir: testWebDir(),
     host: '127.0.0.1',
     allowedHosts: parseAllowedHosts(''),
     ...overrides,
     auth,
   };
-  const dashboard = createDashboard({ config: testConfig, logger, client: bridge, coGm: fakeCoGm });
+  const dashboard = createDashboard({ config: testConfig, logger, client: bridge });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
   const harness: Harness = {
@@ -260,8 +254,6 @@ describe.each(MODES)('the Host guard with the %s', (_label, auth) => {
       ['GET', '/api/player/stream', {}, undefined],
       ['GET', '/api/tools', GM_JSON, undefined],
       ['POST', '/api/control', GM_JSON, JSON.stringify({ action: 'set-gm-actions', value: true })],
-      ['POST', '/api/post-chat', GM_JSON, JSON.stringify({ text: 'hello' })],
-      ['POST', '/api/ask', GM_JSON, JSON.stringify({ question: 'what now?' })],
       ['POST', '/api/open', openHeaders, JSON.stringify({ uuid: ACTOR })],
       ['OPTIONS', '/api/open', { 'access-control-request-method': 'POST' }, undefined],
       ['PUT', '/api/tool', GM_JSON, READ_TOOL],

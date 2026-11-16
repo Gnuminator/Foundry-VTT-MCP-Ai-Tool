@@ -32,7 +32,7 @@ export class CampaignManagementTools {
       {
         name: 'create-campaign-dashboard',
         description:
-          'Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management',
+          'Direct write. Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management',
         inputSchema: {
           type: 'object',
           properties: {

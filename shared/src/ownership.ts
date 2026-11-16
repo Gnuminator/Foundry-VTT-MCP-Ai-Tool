@@ -7,6 +7,13 @@
  * remove-actor-ownership.
  */
 
+/**
+ * How every "several actors match this partial name" error starts. The module throws it from
+ * findActorByIdentifier; the server looks for it so the candidates reach the caller instead of
+ * turning into "no actor".
+ */
+export const AMBIGUOUS_ACTOR_PREFIX = 'Multiple characters match';
+
 /** The guarded feature switch ("AI Tool: Ownership (writes)"), on by default. */
 export const OWNERSHIP_FEATURE_ID = 'ownership';
 

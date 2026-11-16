@@ -26,27 +26,35 @@ currently shaped around a Curse of Strahd campaign.
 > **[player guide](docs/player/README.md)**. Everything else is in the
 > **[documentation index](docs/README.md)**.
 
-<p align="center">
-  <img src="docs/images/brand/demo.gif" alt="Foundry AI Tool: the dashboard in action, with the live combat tracker, the GM tool runner, confirm-gated actions and the brand lockup" width="100%">
-</p>
+Demo: the dashboard in action, with the live combat tracker, the GM Tool Runner and confirm-gated actions.
+
+<!-- markdownlint-disable MD034 -->
+
+https://github.com/user-attachments/assets/81971414-3296-4b41-aebc-116c1dc0bdfb
+
+<!-- markdownlint-enable MD034 -->
 
 ## What it does
 
-- **AI access to the game.** 97 tools let Claude read characters, combat, scenes, journals,
+- **AI access to the game.** The tools let Claude read characters, combat, scenes, journals,
   compendiums, chat and the session log, and act on them: roll for NPCs, apply damage, move tokens,
-  add NPCs from compendiums, write journals. Most of these act at once and have no undo; keep
-  Claude Desktop's tool approval on for them. The tools come in five sets (core, play, prep, build,
+  add NPCs from compendiums, write journals. Changes made through the guarded writes below can be
+  undone; the older direct tools apply at once, so keep Claude Desktop's tool approval on for
+  them. The tools come in five sets (core, play, prep, build,
   admin) that you switch on per chat, so Claude only reads the ones the chat needs.
 - **Guarded AI writes with undo.** New features change the game in three steps: plan, confirm with a
-  diff, apply. Each feature has its own switch in the module settings (off by default). A change is
+  diff, apply. Each feature has its own switch in the module settings; most start off, and Allow Write
+  Operations, Live play, Ownership, the table viewer and Undo for everything start on. A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
-- **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or import one dealt
-  in the `tarokka-reading` module. The cards are kept GM-only, outside Foundry's world data. Link
+- **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or choose the five
+  cards yourself, and lay them out on a card table on the canvas. The cards are kept GM-only, outside Foundry's world data. Link
   each card to a journal page, scene or actor, and reveal a card to players with only the text you
   write.
 - **Spoiler-safe player page.** `/player` is built by projection from what players can see in
   Foundry: hidden creatures never appear, unknown names read "Unknown creature", enemies show no HP
-  numbers, and private, blind and GM rolls stay out.
+  numbers (only a coarse health band), and private, blind and GM rolls stay out. During a session it
+  leads with the combat order and the feed; between sessions with the last recap, the handouts and
+  the quests the party knows.
 - **Handouts.** Reveal a journal page to the players. It appears on the player page with GM secrets,
   inline rolls and links to unrevealed pages removed, and becomes readable in Foundry.
 - **Play log and stats.** The GM's client records rolls (with a full breakdown), HP (credited to the
@@ -54,8 +62,9 @@ currently shaped around a Curse of Strahd campaign.
   and per PC.
 - **Obsidian notes.** One note per play session, the change history, the Tarokka reading, stats,
   and an optional mirror of the Foundry world (PCs, NPCs, scenes, journals, items) with links back
-  into Foundry. Notes you edit are never overwritten.
-- **The dashboard.** Live combat tracker and event feed, combat controls, a tool runner for every
+  into Foundry. Notes you edit are never overwritten. A quest note in your `Prep` folder can be
+  imported back as a GM-only quest journal, after you confirm the plan.
+- **The dashboard.** Live combat tracker and Live Feed, combat controls, a Tool Runner for every
   tool, Recent Changes with Undo, a Tarokka drawer and play session markers.
 
 ## The parts
@@ -80,35 +89,41 @@ currently shaped around a Curse of Strahd campaign.
 
 A live session control surface that runs in a browser tab on a second screen.
 
-![Dashboard overview during combat](docs/images/cogm/overview.png)
+![The During screen: the combat tracker as an initiative ribbon with portraits and a combat order strip, the Live Feed and the party card](docs/images/cogm/overview.png)
+
+Before a session the page opens on Pre-flight and Prep; the same page runs the session and writes it up afterwards:
+
+![The Before screen: the Pre-flight checks with Turn on for tonight, and the Prep summary of the last session](docs/images/cogm/before.png)
 
 - **Live combat tracker:** initiative order, current turn, HP bars, conditions and death saves, in
-  real time.
-- **Live event feed:** damage, healing, deaths, conditions, spell slots and dice rolls with their
+  real time, with a ribbon of portraits for who is up and who is next (click one to pan Foundry to
+  its token).
+- **Live Feed:** damage, healing, deaths, conditions, spell slots and dice rolls with their
   breakdown, as they happen.
 - **Recent Changes:** every guarded change, with Undo.
 - **Play sessions:** Start and End session in the header; Obsidian notes follow these markers.
 - **Tarokka drawer:** the reading (cards hidden until you choose to show them), links, reveals.
-- **AI commentary (optional, old dashboard page only):** streaming call-outs and an Ask box, on
-  `/legacy/`, not yet on the page at `/`. This uses the paid Anthropic API and only runs when an
-  `ANTHROPIC_API_KEY` is set; everything else works without it.
+- **Inside Foundry and at the table:** an optional [GM windows](docs/gm/gm-windows.md) switch adds
+  Combat, Party, Session, Scene and Loot windows next to the map, and
+  [the TV at the table](docs/gm/tv-table-viewer.md) shows the map to an in-person group.
 
-![Multi-select combatants and act on them as a group](docs/images/cogm/combat-control.png)
+![The Combat order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
 
-**Damage and conditions from the dashboard:** with **GM Actions** and **⚔ Combat buttons** on
-(both off by default), select combatants in the turn-order strip and apply damage, healing or a
-condition to them as a group. Turns, initiative and saving throws stay in Foundry. (The screenshot
-above shows the old page's wider controls.)
+**Damage and conditions from the dashboard:** with **GM Actions** on (Start session turns them on)
+(both off by default), select combatants in the combat order strip and **Damage / Heal**
+opens a small form that applies at once (with Undo) and **Condition** opens condition chips: pick
+one, confirm one plain question, and it applies (with Undo). The strip can also start and
+end a fight. Turns, initiative and saving throws stay in Foundry.
 
-![The Tool Runner exposes every Foundry bridge tool](docs/images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](docs/images/cogm/tool-runner.png)
 
-**Tool runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
-something (an actor, a token, a journal page, a plan) has **Pick…**, a list of what exists now.
+**Tool Runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
+something (an actor, a token, a journal page, a plan) has **Pick from list**, a list of what exists now.
 
-![Every game-changing action asks for confirmation](docs/images/cogm/confirm.png)
+![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](docs/images/cogm/confirm.png)
 
-**Safe by default:** watching is always read-only; game-changing actions stay off until you flip the
-**GM Actions** switch; every write asks for confirmation, a planned change shows its diff, and
+**Safe by default:** watching is always read-only; game-changing actions stay off until you press
+**Start session**; every write asks for confirmation, a planned change shows its diff, and
 destructive actions need a second confirmation.
 
 > Full tour for GMs: **[docs/gm/dashboard.md](docs/gm/dashboard.md)**.
@@ -128,28 +143,29 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 - **Player vs GM split.** With a GM token (or a Cloudflare Access email allow-list) the GM surface
   needs GM credentials and everyone else gets the read-only player view. The player endpoints
   always project, even when a GM token is presented.
-- **Home server.** The plan is to run Foundry, the bridge and the dashboard on an Orange Pi 5 Pro at
-  home: see [docs/dev/PI-SETUP.md](docs/dev/PI-SETUP.md). Remote access templates (Cloudflare
-  Tunnel and Access, Docker) are in [docs/dev/REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md) and
-  [`deploy/`](deploy/); they are templates, not a one-click deploy, and the exposure method is
-  settled during the Pi setup.
+- **Home server.** Foundry, the bridge and the dashboard run on an Orange Pi 5 Pro at home: see
+  [docs/dev/PI-SETUP.md](docs/dev/PI-SETUP.md). It is reached through Cloudflare Tunnel and Access
+  ([docs/dev/REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md)); if the Pi is down on game night, see
+  [docs/dev/PLAN-B.md](docs/dev/PLAN-B.md). The Docker and Windows files in
+  [`deploy/`](deploy/) are templates, not a one-click deploy.
 
 ---
 
 ## MCP tools
 
-97 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
-**Search and tools** menu; all 97 tools are about 112,300 characters of definitions that Claude
-would otherwise read at the start of every chat. The dashboard always has every tool. Details and
-the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
+The tools come in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
+**Search and tools** menu, so Claude does not read every tool definition at the start of every chat.
+The dashboard always has every tool. Tool counts, sizes and the full lists are generated:
+[docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md) and
+[docs/reference/tools.md](docs/reference/tools.md).
 
-| Set       | Tools | What it covers                                                                                                                           |
-| --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **core**  | 24    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
-| **play**  | 36    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
-| **prep**  | 20    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
-| **build** | 8     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells; room setup                               |
-| **admin** | 9     | Modules and their errors, actor ownership, the Obsidian mirror                                                                           |
+| Set       | What it covers                                                                                                                           |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **core**  | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
+| **play**  | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
+| **prep**  | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
+| **build** | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells; room setup                               |
+| **admin** | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror                                               |
 
 ---
 
@@ -176,7 +192,7 @@ Enable it in your world (requires Foundry **v14** with the dnd5e 6 system).
 
 ### 2. Set up the bridge (MCP server)
 
-Requires Node.js 22+.
+Requires Node.js 24+.
 
 ```bash
 git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git
@@ -185,8 +201,9 @@ npm install
 npm run build
 ```
 
-Add the server to your Claude Desktop config (`claude_desktop_config.json`), one entry per tool
-set, then restart Claude Desktop. Two of the five entries:
+Add the server to your Claude Desktop config (`claude_desktop_config.json`; the Store version of
+Claude Desktop reads `%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json`,
+older versions `%APPDATA%\Claude\`), one entry per tool set, then restart Claude Desktop. Two of the five entries:
 
 ```json
 {
@@ -206,7 +223,7 @@ set, then restart Claude Desktop. Two of the five entries:
 ```
 
 [`claude_desktop_config.example.json`](claude_desktop_config.example.json) has all five (core, play,
-prep, build, admin). One entry without `FOUNDRY_AI_TOOL_SETS` serves all 97 tools, as before.
+prep, build, admin). One entry without `FOUNDRY_AI_TOOL_SETS` serves every tool, as before.
 
 The bridge links the AI client and the Foundry module over local sockets (control channel on
 `127.0.0.1:31414`; Foundry link on `31415`). Foundry must be open in a GM's browser with
@@ -215,9 +232,9 @@ the `env` of every entry.
 
 **Windows PC with the bridge on a home server.** If the bridge runs on another machine, the
 `FoundryMCPServer-Setup-vX.Y.Z.exe` installer from the release page is all a GM's PC needs: it
-installs a portable Node.js and the client, asks for the bridge address (for now the server's
-name on your private network, for example its Tailscale name; a Cloudflare route is planned) and
-writes the five entries for you. Quit Claude Desktop first. It does not install Foundry, the
+installs a portable Node.js and the client, asks for the bridge address (the server's
+name on your private network, or a Cloudflare tunnel name with a service token the owner hands
+you) and writes the five entries for you. Quit Claude Desktop first. It does not install Foundry, the
 module or a bridge. Silent install: `/S /HOST=<name or IP>`. See
 [docs/dev/DEPLOYMENT.md](docs/dev/DEPLOYMENT.md).
 
@@ -227,9 +244,8 @@ module or a bridge. Silent install: `/S /HOST=<name or IP>`. See
 npm run dev:cogm              # → http://localhost:3000 (the player page is /player)
 ```
 
-The dashboard works without an API key: live feed, combat tracker, tool runner, Recent Changes,
-Tarokka and the player page all function. Only the optional AI commentary (old page only) needs
-`ANTHROPIC_API_KEY` (see `packages/cogm-dashboard/.env.example`). For the dashboard's Open in
+The dashboard needs no API key: Live Feed, combat tracker, Tool Runner, Recent Changes,
+Tarokka and the player page all function. For the dashboard's Open in
 Obsidian links, set `OBSIDIAN_VAULT_NAME` (or `FOUNDRY_AI_OBSIDIAN_DIR`) in
 `packages/cogm-dashboard/.env`. To run it with Claude Desktop
 closed, start the bridge standalone first: `npm run bridge:standalone`.

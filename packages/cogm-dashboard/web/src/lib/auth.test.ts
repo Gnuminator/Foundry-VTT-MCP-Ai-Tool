@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // auth.ts reads the token from the page's address and storage when it loads, so each case stubs
 // those first and loads a fresh copy.
@@ -50,6 +50,33 @@ describe('playerPageUrl', () => {
     const auth = await load('http://127.0.0.1/');
     expect(auth.playerPageUrl()).toBe('/player');
     expect(items.size).toBe(0);
+  });
+});
+
+describe('the token in the address bar', () => {
+  /** The URL replaceState was last called with. */
+  function replaced(): string | undefined {
+    const spy = (history as unknown as { replaceState: Mock }).replaceState;
+    return spy.mock.calls.at(-1)?.[2] as string | undefined;
+  }
+
+  it('saves the token and takes it out of the address, keeping other parameters and the hash', async () => {
+    const items = storage();
+    await load('http://127.0.0.1/?token=t1&plan=p9#top');
+    expect(items.get('cogm_token')).toBe('t1');
+    expect(replaced()).toBe('/?plan=p9#top');
+  });
+
+  it('keeps the token in the address when storage is refused', async () => {
+    storage({}, true);
+    await load('http://127.0.0.1/?token=t1');
+    expect(replaced()).toBeUndefined();
+  });
+
+  it('leaves the address alone without a token', async () => {
+    storage();
+    await load('http://127.0.0.1/?plan=p9');
+    expect(replaced()).toBeUndefined();
   });
 });
 

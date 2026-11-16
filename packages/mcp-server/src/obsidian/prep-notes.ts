@@ -17,17 +17,22 @@
  * is the GM's own: callers mark it as data (PREP_NOTES_NOTICE).
  */
 import { promises as fsp } from 'fs';
+import * as path from 'path';
 
 import {
+  PREP_ENCOUNTERS_MAX,
   PREP_NOTE_MAX_LINE_CHARS,
   PREP_NOTE_MAX_LINES,
   PREP_NOTES_MAX,
   PREP_NOTES_MAX_TOTAL_LINES,
   PREP_NOTES_NOTICE,
+  type PrepEncounterNote,
   type PrepNote,
   type PrepNoteReason,
   type PrepNotesPart,
 } from '@gnuminator/shared';
+
+import { parseEncounterBlocks } from './encounter-blocks.js';
 
 import { MIRROR_ROOT } from './mirror-common.js';
 import {
@@ -48,6 +53,8 @@ export const PREP_NOTE_READ_BYTES = 65_536;
 const UUID_READ_BYTES = 16_384;
 
 const READ_CONCURRENCY = 16;
+/** Notes opened to look for encounter blocks. */
+const ENCOUNTER_SCAN_MAX_NOTES = 100;
 /** The tool's own folder (mirror, session notes, stats): never the GM's prep. */
 const TOOL_FOLDER = MIRROR_ROOT.split('/')[0] ?? MIRROR_ROOT;
 const SYNC_CONFLICT = /\.sync-conflict-/i;
@@ -91,6 +98,8 @@ export interface ReadPrepNotesResult {
   part: PrepNotesPart;
   /** Folders or notes that could not be read (campaign-relative path: error). */
   errors: string[];
+  /** Not failures: what the read left out on purpose (the encounter scan's note limit). */
+  notices: string[];
 }
 
 interface Candidate {
@@ -357,6 +366,7 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     for (const { note, index } of matches) {
       if (isOff(note.head.ai_context)) {
         keptOut++;
+        keptOutPaths.add(note.path);
         continue;
       }
       const wanted = input.wanted[index];
@@ -397,14 +407,45 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     });
   }
 
+  // Suggested encounters: `encounter` blocks in any prep note the GM lets the AI read, the
+  // encounter-prep notes first (a block may sit in a session plan too).
+  const encounters: PrepEncounterNote[] = [];
+  const rank = (c: Candidate): number => (c.head.type === 'encounter-prep' ? 0 : 1);
+  const encounterNotes = [...candidates].sort(
+    (a, b) => rank(a) - rank(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+  );
+  const notices: string[] = [];
+  let looked = 0;
+  for (const note of encounterNotes) {
+    // keptOut keeps its meaning (matching notes only): a kept-out note is just skipped here.
+    if (isOff(note.head.ai_context)) continue;
+    if (encounters.length >= PREP_ENCOUNTERS_MAX) break;
+    if (looked >= ENCOUNTER_SCAN_MAX_NOTES) {
+      notices.push(
+        `the encounter scan stopped at ${ENCOUNTER_SCAN_MAX_NOTES} notes, so some encounter blocks were not looked at`
+      );
+      break;
+    }
+    looked++;
+    try {
+      const { text } = await readHead(`${walked.root}/${note.path}`, PREP_NOTE_READ_BYTES);
+      const found = parseEncounterBlocks(text, path.posix.basename(note.path, '.md'));
+      if (found.length > 0) encounters.push({ path: note.path, encounters: found });
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') errors.push(`${note.path}: ${errorMessage(error)}`);
+    }
+  }
+
   return {
     part: {
       notice: PREP_NOTES_NOTICE,
       notes,
       omitted,
       keptOut,
+      ...(encounters.length > 0 ? { encounters } : {}),
       matchedAgainst: input.matchedAgainst,
     },
     errors,
+    notices,
   };
 }

@@ -22,8 +22,6 @@ import {
   lairTurnIndex,
   livingBosses,
   metaText,
-  planRequest,
-  endCombatRequest,
   pruneSelection,
   reactionLabel,
   reactionsFor,
@@ -353,11 +351,10 @@ describe('the reaction ticks', () => {
 });
 
 describe('selecting combatants and the action bar', () => {
-  const on = { combatButtons: true, gmActions: true, fightActive: true, sample: false };
+  const on = { gmActions: true, fightActive: true, sample: false };
 
-  it('needs Combat buttons, GM Actions and a real fight', () => {
+  it('needs GM Actions and a real fight', () => {
     expect(canSelect(on)).toBe(true);
-    expect(canSelect({ ...on, combatButtons: false })).toBe(false);
     expect(canSelect({ ...on, gmActions: false })).toBe(false);
     expect(canSelect({ ...on, fightActive: false })).toBe(false);
     expect(canSelect({ ...on, sample: true })).toBe(false);
@@ -383,7 +380,7 @@ describe('selecting combatants and the action bar', () => {
     expect(pruneSelection(empty, combat, false)).toBe(empty);
   });
 
-  it('targets the picked combatants in the bridge order, and asks the Tool runner for a plan', () => {
+  it('targets the picked combatants in the bridge order, and asks the Tool Runner for a plan', () => {
     const combat = fight([who({ id: 'a', name: 'Alder' }), who({ id: 'b', name: 'Bram' })]);
     expect(selectedTargets(combat, new Set(['b', 'a']))).toEqual(['Alder', 'Bram']);
     expect(selectedTargets(null, new Set(['a']))).toEqual([]);
@@ -394,20 +391,6 @@ describe('selecting combatants and the action bar', () => {
       who({ id: 'c3', name: 'Bram' }),
     ]);
     expect(selectedTargets(wolves, new Set(['c2', 'c3']))).toEqual(['tok2', 'Bram']);
-    expect(planRequest('damage', ['Alder'])).toEqual({
-      name: 'plan-actor-change',
-      prefill: { action: 'damage', targets: ['Alder'] },
-    });
-    expect(planRequest('condition', ['A', 'B']).prefill).toEqual({
-      action: 'condition',
-      targets: ['A', 'B'],
-    });
-  });
-});
-
-describe('ending the fight', () => {
-  it('opens the tool runner on plan-combat-change with the end action', () => {
-    expect(endCombatRequest()).toEqual({ name: 'plan-combat-change', prefill: { action: 'end' } });
   });
 });
 

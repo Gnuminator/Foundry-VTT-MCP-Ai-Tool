@@ -15,15 +15,37 @@
  *   op rolls back the ops before it. Success is logged to the GM-only session
  *   feed as a `gm-change` event.
  *
- * Wire types mirror `shared/src/guarded-write.ts` (the module does not import
- * the shared package); `GUARDED_OP_KINDS` is compared in a test.
+ * Wire types mirror `shared/src/guarded-write.ts`; `GuardedOp` is the shared type (type-only).
  */
+import type { GuardedOp } from '@gnuminator/shared';
 import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
-import { isFeatureEnabled, isKnownFeature, isReadOnlyFeature } from '../guarded-features.js';
-import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
+import {
+  WRITES_OFF_MESSAGE,
+  featureName,
+  featureOffMessage,
+  isFeatureEnabled,
+  isKnownFeature,
+  isReadOnlyFeature,
+} from '../guarded-features.js';
+import { assertUserCreateAllowed, assertUserDeleteAllowed } from '../table-viewer-user.js';
+import { assertUserRoleChange, assertUserUpdate } from '../user-role.js';
 import { unsetKeyUpdate } from '../systems/core.js';
+import {
+  assertSetupFeature,
+  MODULE_LIST_TOO_LARGE_MESSAGE,
+  clearModuleReload,
+  executeVirtualUpdate,
+  flushModuleReload,
+  isModuleListOp,
+  isVirtualUuid,
+  moduleClosureProblem,
+  moduleListTooLarge,
+  noteIncompleteRollback,
+  snapshotVirtual,
+  virtualSource,
+} from './virtual-targets.js';
 import {
   RULES_FLAG_PATH,
   rulesTagForCreate,
@@ -43,6 +65,10 @@ export interface GuardedUpdateOp {
   uuid: string;
   changes: Record<string, unknown>;
   unset?: string[];
+  /** A damage plan's dnd5e damage type; carried in the write's marker, never written. */
+  damageType?: string;
+  /** A damage or healing plan op (the apply marks the write so the feed can fold its row). */
+  hpLine?: boolean;
 }
 
 /** Create a document: top-level (`documentName` only) or embedded (`parentUuid`). */
@@ -60,7 +86,7 @@ export interface GuardedDeleteOp {
   uuid: string;
 }
 
-export type GuardedOp = GuardedUpdateOp | GuardedCreateOp | GuardedDeleteOp;
+export type { GuardedOp };
 
 /** A value at a path; JSON cannot carry `undefined`, so absence is explicit. */
 export interface PathValue {
@@ -79,6 +105,11 @@ export interface OpSnapshot {
   values?: PathValue[];
   /** delete: `_stats.modifiedTime`, compared when the expected snapshot has one. */
   modifiedTime?: number | null;
+  /**
+   * An effect's content without Foundry's own bookkeeping (`_stats`, `duration.expired`).
+   * When both sides have one it replaces the `modifiedTime` check: a turn passing is not an edit.
+   */
+  contentHash?: string;
   /** create with keepId: a document with that id already exists. */
   idTaken?: boolean;
   /**
@@ -117,6 +148,8 @@ export interface GuardedOpResult {
   alreadyGone?: true;
   /** create: `_stats.modifiedTime` of the new document (undo conflict check). */
   modifiedTime?: number | null;
+  /** create of an ActiveEffect: its content hash (see OpSnapshot.contentHash). */
+  contentHash?: string;
 }
 
 export interface GuardedApplyResult {
@@ -213,6 +246,34 @@ function modifiedTimeOf(source: Record<string, unknown>): number | null {
   return typeof stats?.modifiedTime === 'number' ? stats.modifiedTime : null;
 }
 
+/**
+ * A fingerprint (FNV-1a of the stable JSON) of an ActiveEffect without what Foundry rewrites by
+ * itself as turns pass (its `_stats` and the `duration.expired` flag; `start` stays in, a later
+ * revive stamps a new one), so Undo of a timed condition still
+ * works after a turn, while a real edit (name, statuses, changes, duration value) still conflicts.
+ * Other document types have none.
+ */
+function contentHashOf(doc: FoundryDocument | null | undefined): string | undefined {
+  if (doc?.documentName !== 'ActiveEffect') return undefined;
+  const { _stats, ...rest } = sourceOf(doc);
+  void _stats;
+  const duration = rest.duration;
+  if (duration && typeof duration === 'object') {
+    const { expired, ...kept } = duration as Record<string, unknown>;
+    void expired;
+    rest.duration = kept;
+  }
+  const text = stableStringify(rest);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(16);
+}
+
+function hashField(doc: FoundryDocument): { contentHash?: string } {
+  const contentHash = contentHashOf(doc);
+  return contentHash === undefined ? {} : { contentHash };
+}
+
 function nameOf(doc: FoundryDocument): string | null {
   const name = (doc as { name?: unknown }).name;
   if (typeof name === 'string') return name;
@@ -306,8 +367,26 @@ function countOnLevel(level: FoundryDocument): number {
 async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
   switch (op.kind) {
     case 'update': {
+      if (isVirtualUuid(op.uuid)) {
+        const paths = updatePaths(op);
+        const virtual = snapshotVirtual(op.uuid, paths, op.changes);
+        if (!virtual.exists) return { exists: false };
+        return {
+          exists: true,
+          documentName: virtual.documentName,
+          name: virtual.name,
+          values: paths.map(path => readPath(virtual.source, path)),
+        };
+      }
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
+      // A role plan is checked before the GM sees it (the feature is checked again at apply).
+      if (doc.documentName === 'User') {
+        assertUserRoleChange(doc, {
+          ...op.changes,
+        });
+      }
       const source = sourceOf(doc);
       return {
         exists: true,
@@ -319,6 +398,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
     case 'delete': {
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const parent = parentOf((doc as { parent?: FoundryDocument | null }).parent ?? null);
       const levelContents = doc.documentName === 'Level' ? countOnLevel(doc) : undefined;
       return {
@@ -326,11 +406,13 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
         documentName: doc.documentName,
         name: nameOf(doc),
         modifiedTime: modifiedTimeOf(sourceOf(doc)),
+        ...hashField(doc),
         ...(parent ? { parent } : {}),
         ...(levelContents === undefined ? {} : { levelContents }),
       };
     }
     case 'create': {
+      if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const parent = op.parentUuid ? await resolve(op.parentUuid) : null;
       const parentLabel = parentOf(parent);
       return {
@@ -402,6 +484,11 @@ function conflictReason(
     if ((current.levelContents ?? 0) > 0) {
       return `${current.levelContents} thing(s) sit on this level and Foundry would delete them with it`;
     }
+    if (expected.contentHash !== undefined && current.contentHash !== undefined) {
+      return expected.contentHash === current.contentHash
+        ? null
+        : 'the document was modified since';
+    }
     if (
       expected.modifiedTime !== undefined &&
       expected.modifiedTime !== null &&
@@ -427,7 +514,7 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
   } catch {
     writesAllowed = false;
   }
-  if (!writesAllowed) throw new Error('Write operations are disabled in the module settings');
+  if (!writesAllowed) throw new Error(WRITES_OFF_MESSAGE);
   // Foundry refuses sound changes until the browser has unlocked audio (a click); a reload locks
   // it again, so an apply or undo of music would fail half way.
   const audio = (game as unknown as { audio?: { locked?: boolean } }).audio;
@@ -449,7 +536,7 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
       throw new Error(`The "${req.feature}" feature is read-only and takes no plans`);
     }
     if (!isFeatureEnabled(req.feature)) {
-      throw new Error(`The "${req.feature}" feature is switched off in the module settings`);
+      throw new Error(featureOffMessage(featureName(req.feature)));
     }
   }
 }
@@ -513,10 +600,18 @@ async function executeUpdate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (isVirtualUuid(op.uuid)) return executeVirtual(op, index, req);
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
+  if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (doc.documentName === 'User') {
-    assertUserUpdateAllowed(Object.keys(op.changes ?? {}), op.unset ?? []);
+    assertUserUpdate(
+      doc,
+      Object.keys(op.changes ?? {}),
+      op.unset ?? [],
+      op.changes ?? {},
+      req.feature
+    );
   }
   const changes: Record<string, unknown> = { ...op.changes };
   if (req.mode === 'apply' && isRulesTagged(doc.documentName) && !(RULES_FLAG_PATH in changes)) {
@@ -532,7 +627,15 @@ async function executeUpdate(
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
   if (Object.keys(update).length > 0) {
-    await doc.update(update, writeOptions(doc, update, req, changeMode));
+    const options = writeOptions(doc, update, req, changeMode);
+    // Only a damage apply: an undo restores HP and is no damage.
+    if (op.damageType && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).damageType = op.damageType;
+    }
+    if (op.hpLine && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).hpLine = true;
+    }
+    await doc.update(update, options);
   }
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);
@@ -570,6 +673,40 @@ async function executeUpdate(
     );
   }
   return result;
+}
+
+const SETTING_DOCUMENT_REFUSAL =
+  'Settings are changed through GameSetting.<namespace>.<key>, not as documents';
+
+/** An update of a setting or a pack's configuration (virtual-targets.ts). */
+async function executeVirtual(
+  op: GuardedUpdateOp,
+  index: number,
+  req: GuardedApplyRequest
+): Promise<GuardedOpResult> {
+  assertSetupFeature(req.feature);
+  const unset = op.unset ?? [];
+  const paths = [...Object.keys(op.changes ?? {}), ...unset];
+  const target = snapshotVirtual(op.uuid, paths, op.changes);
+  if (!target.exists) {
+    if (isModuleListOp(op.uuid) && moduleListTooLarge()) {
+      throw new Error(MODULE_LIST_TOO_LARGE_MESSAGE);
+    }
+    throw new Error(`Target not found: ${op.uuid}`);
+  }
+  const before = paths.map(path => readPath(target.source, path));
+  await executeVirtualUpdate(op.uuid, { ...op.changes }, unset, req.changeId);
+  const after = virtualSource(op.uuid);
+  return {
+    index,
+    kind: 'update',
+    uuid: op.uuid,
+    documentName: target.documentName,
+    name: target.name,
+    parentUuid: null,
+    before,
+    after: paths.map(path => readPath(after, path)),
+  };
 }
 
 /** Token geometry: the paths Foundry 14 can drop without an error. */
@@ -629,6 +766,7 @@ async function executeCreate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (op.documentName === 'User') assertUserCreateAllowed(req.feature, op.data);
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
@@ -657,6 +795,7 @@ async function executeCreate(
     name: nameOf(created),
     parentUuid: op.parentUuid ?? null,
     modifiedTime: modifiedTimeOf(sourceOf(created)),
+    ...hashField(created),
   };
 }
 
@@ -673,6 +812,8 @@ async function executeDelete(
     if (req.mode === 'undo') return goneResult(op, index);
     throw new Error(`Document not found: ${op.uuid}`);
   }
+  if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
+  if (doc.documentName === 'User') assertUserDeleteAllowed(req.feature, doc);
   const deleted = sourceOf(doc);
   const result: GuardedOpResult = {
     index,
@@ -846,10 +987,12 @@ export async function applyGuardedOps(request: unknown): Promise<GuardedApplyRes
   try {
     const result = await runGuardedApply(req, ops);
     rememberOutcome({ changeId: req.changeId, status: 'applied', result });
+    flushModuleReload(req.changeId);
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     rememberOutcome({ changeId: req.changeId, status: 'failed', error: message });
+    clearModuleReload(req.changeId);
     throw error;
   }
 }
@@ -862,8 +1005,25 @@ async function runGuardedApply(
   const current = await snapshotGuardedOps(ops);
   const conflicts: string[] = [];
   ops.forEach((op, i) => {
-    const reason = conflictReason(op, req.expected[i], current[i], req.mode);
+    // A module list that grew past what a plan can read back snapshots as missing: say so.
+    const tooLarge =
+      op.kind === 'update' &&
+      isModuleListOp(op.uuid) &&
+      current[i]?.exists === false &&
+      moduleListTooLarge();
+    const reason = tooLarge
+      ? MODULE_LIST_TOO_LARGE_MESSAGE
+      : conflictReason(op, req.expected[i], current[i], req.mode);
     if (reason) conflicts.push(`op ${i} (${op.kind}): ${reason}`);
+    // The modules a flag drags along are worked out again here: the world may have changed.
+    if (req.mode === 'apply' && op.kind === 'update') {
+      const problem = moduleClosureProblem(op.uuid, op.changes ?? {}, op.unset ?? []);
+      if (problem) {
+        conflicts.push(
+          `op ${i} (update): the modules involved changed since the plan was made (${problem}); plan it again`
+        );
+      }
+    }
   });
   if (conflicts.length > 0) {
     throw new Error(`Conflict, nothing was written: ${conflicts.join('; ')}`);
@@ -877,10 +1037,11 @@ async function runGuardedApply(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const failures = await rollback(done, req);
+      const reloads = failures.length > 0 && noteIncompleteRollback(req.changeId);
       const rolled =
         failures.length === 0
           ? `the ${done.length} earlier op(s) were rolled back`
-          : `rollback incomplete: ${failures.join('; ')}`;
+          : `rollback incomplete: ${failures.join('; ')}${reloads ? ' (the module list may have changed, so the windows reload to match)' : ''}`;
       throw new Error(`Op ${index} (${op.kind}) failed: ${message}; ${rolled}`, {
         cause: error,
       });

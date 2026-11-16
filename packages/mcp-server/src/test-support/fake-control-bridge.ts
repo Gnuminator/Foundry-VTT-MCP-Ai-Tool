@@ -17,9 +17,12 @@ export const FAKE_TOOLS = [
   inputSchema: { type: 'object', properties: {} },
 }));
 
-/** `failList` answers `list_tools` with an error, to exercise the wrapper's failure path. */
+/**
+ * `failList` answers `list_tools` with an error and `emptyList` with no tools, to exercise the
+ * wrapper's failure path. Like an old backend, it does not know the wrapper's `hello`.
+ */
 export function startFakeBridge(
-  opts: { failList?: boolean } = {}
+  opts: { failList?: boolean; emptyList?: boolean } = {}
 ): Promise<{ server: net.Server; port: number }> {
   return new Promise(resolve => {
     const server = net.createServer(sock => {
@@ -39,13 +42,17 @@ export function startFakeBridge(
           } catch {
             continue;
           }
+          if (req.method === 'hello') {
+            sock.write(`${JSON.stringify({ id: req.id, error: { message: 'Unknown method' } })}\n`);
+            continue;
+          }
           if (opts.failList && req.method === 'list_tools') {
             sock.write(`${JSON.stringify({ id: req.id, error: { message: 'bridge down' } })}\n`);
             continue;
           }
           const result =
             req.method === 'list_tools'
-              ? { tools: FAKE_TOOLS }
+              ? { tools: opts.emptyList ? [] : FAKE_TOOLS }
               : { content: [{ type: 'text', text: 'fake result' }] };
           sock.write(`${JSON.stringify({ id: req.id, result })}\n`);
         }

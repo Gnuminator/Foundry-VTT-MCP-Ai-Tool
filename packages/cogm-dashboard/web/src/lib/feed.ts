@@ -3,10 +3,9 @@
 // reads for an event, the pane's count, which face the pane shows and what a screen reader is
 // told. No React here, so the rules have unit tests; components/LiveFeed.tsx does the rest.
 //
-// Differences from the old page, on purpose: events are ordered by their time rather than by
-// when they arrived (a replay after a reconnect cannot put old events on top), "1 event" is
-// singular, the class an event gets is made safe, a feed shown while the bridge is away says so,
-// and a screen reader hears new events (the old list was silent).
+// Events are ordered by their time rather than by when they arrived (a replay after a reconnect
+// cannot put old events on top), "1 event" is singular, the class an event gets is made safe, a
+// feed shown while the bridge is away says so, and a screen reader hears new events.
 
 /** One session event as the live feed shows it: what to print and what sorts it. */
 export interface FeedEvent {
@@ -16,6 +15,27 @@ export interface FeedEvent {
   eventType: string;
   /** The line the GM reads: a roll's full breakdown when there is one, else the description. */
   text: string;
+  /** The guarded change that made the event (damage, healing, gm-change), when the module says. */
+  changeId?: string;
+  /** The feature behind a gm-change (`actor-change`, `page-reveal`, ...), when the module says. */
+  feature?: string;
+  /** A roll's parts for the roll box: who, what, the total, the DC verdict and the d20s. */
+  roll?: RollBox;
+}
+
+/** What the feed's roll box shows; every field but who, what and the total is optional. */
+export interface RollBox {
+  who: string;
+  label: string;
+  total: number;
+  /** An attack is judged against AC (hit or miss); a check or save against a DC (pass or fail). */
+  attack: boolean;
+  dc?: number;
+  passed?: boolean;
+  /** The d20 that counts, and the ones that did not on advantage or disadvantage. */
+  natural?: number;
+  dropped?: number[];
+  advantage?: 'advantage' | 'disadvantage';
 }
 
 /** The events this page has seen. */
@@ -28,7 +48,7 @@ export interface FeedLog {
   seen: ReadonlySet<string>;
 }
 
-/** The old page keeps 120 entries on screen; the server keeps the newest 80 (COGM_MAX_EVENTS). */
+/** The feed keeps 120 entries on screen; the server keeps the newest 80 (COGM_MAX_EVENTS). */
 export const MAX_FEED_ENTRIES = 120;
 
 /** How many added ids are remembered; far more than the server ever replays. */
@@ -45,6 +65,39 @@ function lineOf(description: string, details: unknown): string {
   return typeof breakdown === 'string' && breakdown ? breakdown : description;
 }
 
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** The roll box of a roll event, or undefined when the module did not send the parts. */
+function rollBoxOf(type: string, actorName: unknown, details: unknown): RollBox | undefined {
+  if (type !== 'roll' && type !== 'gm-roll') return undefined;
+  if (!isRecord(details)) return undefined;
+  const { total, label, natural, droppedD20: dropped, advantage, dc, outcome, rollType } = details;
+  if (!isNum(total) || typeof label !== 'string' || label === '') return undefined;
+  const box: RollBox = {
+    who: typeof actorName === 'string' && actorName ? actorName : 'Someone',
+    label,
+    total,
+    attack: rollType === 'attack',
+  };
+  if (isNum(dc) && (outcome === 'success' || outcome === 'failure')) {
+    box.dc = dc;
+    box.passed = outcome === 'success';
+  }
+  if (isNum(natural)) box.natural = natural;
+  if (Array.isArray(dropped) && dropped.every(isNum) && dropped.length > 0) box.dropped = dropped;
+  if (advantage === 'advantage' || advantage === 'disadvantage') box.advantage = advantage;
+  return box;
+}
+
+/**
+ * The screen-reader label of the two-d20 marker: "advantage: 17 counts, 4 dropped". Undefined when
+ * there is nothing to show (no natural d20, or no dropped die), so no marker is drawn.
+ */
+export function d20sLabel(roll: RollBox): string | undefined {
+  if (roll.natural === undefined || !roll.dropped || roll.dropped.length === 0) return undefined;
+  return `${roll.advantage ?? 'two d20s'}: ${roll.natural} counts, ${roll.dropped.join(', ')} dropped`;
+}
+
 /** One event off the wire (feed/types.ts SessionEvent), or null when it cannot be shown. */
 export function readFeedEvent(v: unknown): FeedEvent | null {
   if (!isRecord(v)) return null;
@@ -57,7 +110,19 @@ export function readFeedEvent(v: unknown): FeedEvent | null {
   }
   if (typeof type !== 'string') return null;
   const description = typeof v['description'] === 'string' ? v['description'] : '';
-  return { id, timestampMs: ms, eventType: type, text: lineOf(description, v['details']) || type };
+  const details = v['details'];
+  const changeId = isRecord(details) ? details['changeId'] : undefined;
+  const feature = isRecord(details) ? details['feature'] : undefined;
+  const roll = rollBoxOf(type, v['actorName'], details);
+  return {
+    id,
+    timestampMs: ms,
+    eventType: type,
+    text: lineOf(description, details) || type,
+    ...(roll ? { roll } : {}),
+    ...(typeof changeId === 'string' && changeId ? { changeId } : {}),
+    ...(typeof feature === 'string' && feature ? { feature } : {}),
+  };
 }
 
 /** The events of a stream message (`events` array), in the order sent; unreadable ones dropped. */
@@ -92,14 +157,20 @@ export function addFeedEvents(log: FeedLog, batch: readonly FeedEvent[]): FeedLo
   }
   // Array.prototype.sort is stable: of two events with the same time, the one listed first stays
   // first, and that is the one that arrived last.
-  const entries = [...fresh.reverse(), ...log.entries]
-    .sort((a, b) => b.timestampMs - a.timestampMs)
+  const merged = [...fresh.reverse(), ...log.entries].sort((a, b) => b.timestampMs - a.timestampMs);
+  // A damage or healing apply logs its own line ("Wolf 1 took 5 fire damage (HP 11 to 6)") and
+  // then an "Applied: ..." row of the same change: the GM reads the first, not both.
+  const described = new Set(
+    merged.filter(e => e.eventType !== GM_CHANGE_EVENT && e.changeId).map(e => e.changeId)
+  );
+  const entries = merged
+    .filter(e => !(e.eventType === GM_CHANGE_EVENT && e.changeId && described.has(e.changeId)))
     .slice(0, MAX_FEED_ENTRIES);
   return { entries, total: log.total + fresh.length, seen };
 }
 
 /** The event kind a guarded change made in Foundry leaves (Recent Changes reloads on it). */
-export const GM_CHANGE_EVENT = 'gm-change';
+const GM_CHANGE_EVENT = 'gm-change';
 
 /** Whether a batch has a gm-change event the log has not seen: a replay after a reconnect has none. */
 export function hasNewGmChange(log: FeedLog, batch: readonly FeedEvent[]): boolean {
@@ -126,17 +197,31 @@ export function severityClass(eventType: string): string {
 }
 
 /**
- * The chip an event shows: the module's kind, except where that name means nothing to a GM. A
- * whispered or blind roll is a `gm-roll` to the module; the GM reads "private roll".
+ * A feature id in words ("actor change", "page reveal"), else "change": the chip of a gm-change
+ * event, whose line says what changed and on whom, and the feature on an AI row of Recent Changes.
  */
-export function eventLabel(eventType: string): string {
+export function gmChangeLabel(feature?: string): string {
+  const words = (feature ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  return words || 'change';
+}
+
+/**
+ * The chip an event shows: the module's kind, except where that name means nothing to a GM. A
+ * whispered or blind roll is a `gm-roll` to the module; the GM reads "private roll". A gm-change
+ * reads as the feature behind it.
+ */
+export function eventLabel(eventType: string, feature?: string): string {
+  if (eventType === GM_CHANGE_EVENT) return gmChangeLabel(feature);
   if (eventType === 'gm-roll') return 'private roll';
   if (eventType === 'roll-request') return 'roll request';
   if (eventType === 'death') return 'down';
   return eventType;
 }
 
-/** The time an event shows: the browser's own time format, as the old page did. */
+/** The time an event shows: the browser's own time format. */
 export function eventTime(timestampMs: number): string {
   return new Date(timestampMs).toLocaleTimeString();
 }

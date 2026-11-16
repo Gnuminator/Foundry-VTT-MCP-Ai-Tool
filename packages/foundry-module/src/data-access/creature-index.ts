@@ -1,6 +1,7 @@
 import { MODULE_ID } from '../constants.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logInfo } from '../log.js';
+import { toGmMessage } from '../gm-message.js';
 import { num, plainText, rec, str } from '../character-sheet-fields.js';
 import type {
   DnD5eCreatureIndex,
@@ -654,9 +655,7 @@ export class PersistentCreatureIndex {
       const creatures: DnD5eCreatureIndex[] = [];
       const packFingerprints = new Map<string, PackFingerprint>();
 
-      ui.notifications?.info(
-        `Starting enhanced creature index build from ${actorPacks.length} packs...`
-      );
+      ui.notifications?.info(`Building the creature index from ${actorPacks.length} packs...`);
 
       for (let i = 0; i < actorPacks.length; i++) {
         const pack = actorPacks[i];
@@ -685,13 +684,13 @@ export class PersistentCreatureIndex {
 
           const percent = Math.round(((i + 1) / actorPacks.length) * 100);
           notifier.show(
-            `Building creature index... ${percent}% (${i + 1}/${actorPacks.length}) — ` +
+            `Building creature index... ${percent}% (${i + 1}/${actorPacks.length}), ` +
               `${creatures.length} creatures indexed`
           );
         } catch (error) {
           console.warn(`[${this.moduleId}] Failed to process pack ${pack.metadata.label}:`, error);
           ui.notifications?.warn(
-            `Warning: Failed to index pack "${pack.metadata.label}" - continuing with other packs`
+            `The creature index skipped the pack "${pack.metadata.label}" because it could not be read. The other packs are still being indexed.`
           );
         }
       }
@@ -719,7 +718,7 @@ export class PersistentCreatureIndex {
       const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
       const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
       ui.notifications?.info(
-        `Enhanced creature index complete! ${creatures.length} creatures indexed from ` +
+        `The creature index is ready: ${creatures.length} creatures indexed from ` +
           `${actorPacks.length} packs in ${buildTimeSeconds}s${errorText}`
       );
 
@@ -731,7 +730,7 @@ export class PersistentCreatureIndex {
       }`;
       console.error(`[${this.moduleId}] ${errorMessage}`);
       trackUsage('error', 'module.error.creature-index', { code: 'build-failed' });
-      ui.notifications?.error(errorMessage);
+      ui.notifications?.error(toGmMessage('build the creature index', error));
       throw error;
     } finally {
       notifier.clear();

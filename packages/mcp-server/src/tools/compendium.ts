@@ -1,4 +1,4 @@
-import { toolRef } from '@gnuminator/shared';
+import { notFoundMessage, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -65,7 +65,7 @@ export class CompendiumTools {
       {
         name: 'search-compendium',
         description:
-          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
+          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria (Build) instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -81,7 +81,7 @@ export class CompendiumTools {
             filters: {
               type: 'object',
               description:
-                'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.',
+                'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria (Build) instead.',
               properties: {
                 challengeRating: {
                   oneOf: [
@@ -183,7 +183,7 @@ export class CompendiumTools {
       {
         name: 'get-compendium-item',
         description:
-          'Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.',
+          'Use this to read one item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -210,7 +210,7 @@ export class CompendiumTools {
       {
         name: 'list-creatures-by-criteria',
         description:
-          'CREATURE DISCOVERY (D&D 5e): Get a comprehensive list of creatures matching specific criteria (Challenge Rating, type, size, spellcasting, legendary actions). Perfect for encounter building - returns minimal data so Claude can use built-in monster knowledge to identify suitable creatures by name, then pull full details only for final selections. Features intelligent pack prioritization and high result limits for complete surveys.',
+          'List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-entry-full.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -415,7 +415,7 @@ export class CompendiumTools {
       );
 
       if (!raw) {
-        throw new Error(`Item ${itemId} not found in pack ${packId}`);
+        throw new Error(notFoundMessage(`Item ${itemId} in pack ${packId}`, 'search-compendium'));
       }
 
       const item = rec(raw);
@@ -560,10 +560,7 @@ export class CompendiumTools {
         const errorDetails = parseError.errors
           .map(err => `${err.path.join('.')}: ${err.message}`)
           .join('; ');
-        throw new Error(
-          `Parameter validation failed: ${errorDetails}. Received args: ${JSON.stringify(args)}`,
-          { cause: parseError }
-        );
+        throw new Error(`Parameter validation failed: ${errorDetails}`, { cause: parseError });
       }
       throw parseError;
     }

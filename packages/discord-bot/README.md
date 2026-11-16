@@ -22,7 +22,7 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
 
 2. Invite the bot with the scopes `bot` and `applications.commands` and the permissions View
    Channels, Connect, Send Messages and Use Slash Commands.
-3. Build and run (Node 22.12 or newer):
+3. Build and run (Node 24 or newer):
 
    ```bash
    npm run build -w @gnuminator/discord-bot
@@ -38,6 +38,21 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
 
 By default only members with Manage Server see `/record`; change that under Server Settings >
 Integrations. Ctrl+C in the bot window also stops and converts a running recording.
+
+## #changelog, #dashboard-changelog and #pr-log posts
+
+Read-only channels on the game server (#changelog and #pr-log in category Updates, and the
+GM-only #dashboard-changelog). `announce/announce.mjs` is a plain Node script with no build step: `node announce/announce.mjs pr <n> <title>` (the merge gate runs it after a merge),
+`changelog <text>` and `dashboard <text>` (the release steps) and `deploy <version>` (Pi stage 5).
+Every post carries no allowed mentions, except `dashboard`, which may ping the GM role
+(`DISCORD_GM_ROLE_ID`) and nobody else. In a `dashboard` text, `{gm}` becomes the role mention (and
+vanishes when no role id is set). The role needs "Allow anyone to @mention this role", else the
+post goes through without a ping. Posts to #pr-log also carry Discord's SUPPRESS_NOTIFICATIONS flag;
+posts to #changelog (rare) are normal. It reads `DISCORD_TOKEN`, `DISCORD_CHANGELOG_CHANNEL_ID`,
+`DISCORD_PRLOG_CHANNEL_ID`, `DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID` and `DISCORD_GM_ROLE_ID` from
+the environment or `discord-bot.env`; without them it prints one line and posts nothing. Exit 1
+means a post failed, which callers only warn about.
+To keep everyone's phones quiet, set the server default to "Only @mentions" (Server Settings, Overview).
 
 ## Storage space notices
 

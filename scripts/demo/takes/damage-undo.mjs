@@ -1,4 +1,4 @@
-// Take: damage on several targets at once from the During view's turn-order strip, one click
+// Take: damage on several targets at once from the During view's Combat Tracker, one click
 // with dnd5e working out a resistance (D-086), then Undo in Recent Changes. Something Foundry's
 // own UI does one token at a time (I-095).
 //
@@ -10,7 +10,6 @@ import {
   confirmModal,
   newestUndoButton,
   readConfirmModal,
-  setDashboardPrefsApi,
   setGmActions,
 } from '../lib/dashboard.mjs';
 import { DEMO_USERS } from '../lib/env.mjs';
@@ -58,7 +57,7 @@ export async function setup(t) {
     if (hp === null) throw new Error(`No token "${name}" with HP on the active scene.`);
   }
   // Show HP bars to the viewer and start a fight with the three (not saved: the world is reset
-  // next time). The dashboard's turn-order strip shows a running combat only.
+  // next time). The dashboard's Combat Tracker shows a running combat only.
   await gm.page.evaluate(async names => {
     const scene = globalThis.canvas.scene;
     const tokens = scene.tokens.filter(t => names.includes(t.name));
@@ -75,11 +74,9 @@ export async function setup(t) {
     );
     await combat.update({ round: 1, turn: 0 });
   }, TARGETS);
-  // The strip's combat buttons are off by default and switched on under Advanced (D-092).
-  await setDashboardPrefsApi(t.env.dashboardUrl, { combatButtons: true });
   const dash = await t.dashboard();
   await setGmActions(dash.page, false);
-  await dash.page.locator('#moments [data-moment="during"]').click();
+  await dash.page.locator('#tab-during').click();
   await dash.page
     .locator('#pane-combat .combatant[data-name="Wolf 1"]')
     .waitFor({ timeout: 20000 });
@@ -97,7 +94,7 @@ export async function run(t) {
     await t.pause(800);
   });
 
-  await t.step('select', 'Pick the three creatures in the turn-order strip', async () => {
+  await t.step('select', 'Pick the three creatures in the Combat Tracker', async () => {
     for (const name of TARGETS) {
       await humanClick(page.locator(`#pane-combat .combatant[data-name="${name}"]`));
       await t.pause(400);
@@ -109,12 +106,12 @@ export async function run(t) {
 
   await t.step('open-form', 'Damage / Heal: enter the amount and the damage type', async () => {
     await humanClick(page.locator('[data-sel="damage"]'));
-    const amount = page.locator('#tool-form .field[data-key="amount"] .field-control');
+    // The small Damage / Heal form on the strip (damage-form-simple): the amount, a type chip.
+    const amount = page.locator('#damage-amount');
     await amount.waitFor({ state: 'visible' });
     await humanType(amount, String(DAMAGE.amount));
-    await humanType(
-      page.locator('#tool-form .field[data-key="damageType"] .field-control'),
-      DAMAGE.damageType
+    await humanClick(
+      page.locator('#damage-form').getByRole('button', { name: DAMAGE.damageType, exact: true })
     );
     await t.pause(1000);
     await t.shot('Dashboard', 'damage-form');
@@ -124,7 +121,7 @@ export async function run(t) {
     'apply',
     'One click applies it to all three; dnd5e halves it for the Vampire',
     async () => {
-      await humanClick(page.locator('#tool-form button[type=submit]'));
+      await humanClick(page.locator('#damage-apply'));
       await page.locator('.toast-undo').first().waitFor({ state: 'visible', timeout: 20000 });
       await t.pause(2500);
       await t.shot('Dashboard', 'damage-applied');

@@ -2,7 +2,14 @@
 // counter, the empty state, the space note and the help "?".
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fromMenu } from './support';
+import {
+  GM_TOKEN,
+  SPACE_UNAVAILABLE,
+  apiBody,
+  fakeCommonRoutes,
+  fakeStream,
+  fromMenu,
+} from './support';
 
 const at = (minute: number): number => Date.UTC(2026, 9, 8, 19, minute);
 
@@ -43,7 +50,7 @@ async function openDiagnostics(page: Page): Promise<Locator> {
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
 });
 
 test('shows the streamed errors newest first, with the counter', async ({ page }) => {
@@ -70,10 +77,9 @@ test('shows the streamed errors newest first, with the counter', async ({ page }
   await expect(entries.locator('.diag-module')).toHaveText(['unknown', 'dnd5e', 'dice-so-nice']);
   await expect(entries.locator('.diag-level')).toHaveText(['error', 'warn', 'error']);
   await expect(entries.nth(1)).toHaveClass(/lvl-warn/);
-  await expect(entries.nth(2)).toHaveAttribute(
-    'title',
-    'Cannot read properties of undefined\n\nTypeError at module:dice-so-nice/main.js'
-  );
+  // The tooltip is the message only: the module is already its own column, and a stack is a
+  // developer detail that the plain-words rule keeps out of every tooltip.
+  await expect(entries.nth(2)).toHaveAttribute('title', 'Cannot read properties of undefined');
 });
 
 test('says so when no module has failed', async ({ page }) => {
@@ -96,7 +102,7 @@ test('a space check that stopped running is noted', async ({ page }) => {
   await page.unroute('**/api/space');
   await page.route('**/api/space', route =>
     route.fulfill({
-      json: {
+      json: apiBody('/api/space', {
         available: true,
         level: 'ok',
         stale: true,
@@ -104,7 +110,7 @@ test('a space check that stopped running is noted', async ({ page }) => {
         host: 'pi',
         thresholdPercent: 90,
         disks: [],
-      },
+      }),
     })
   );
   const pane = await openDiagnostics(page);

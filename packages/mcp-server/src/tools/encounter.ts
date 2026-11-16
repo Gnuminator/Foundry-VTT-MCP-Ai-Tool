@@ -26,7 +26,7 @@ export class EncounterTools {
       {
         name: 'suggest-balanced-encounter',
         description:
-          "Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria / search-compendium to pick actual creatures. D&D 5e only.",
+          "Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria (Build) / search-compendium to pick creatures. D&D 5e only.",
         inputSchema: {
           type: 'object',
           properties: {

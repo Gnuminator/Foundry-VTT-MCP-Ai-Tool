@@ -33,7 +33,12 @@ param(
     [string]$ConfigPath,
 
     # How long to wait for Claude Desktop to quit before giving up (exit 3). 0 = do not wait.
-    [int]$WaitSeconds = 0
+    [int]$WaitSeconds = 0,
+
+    # Print the config files this script would write (one per line, the one current Desktop reads
+    # first) and exit. Writes nothing and does not look for a running Claude (for tests).
+    [Parameter(ParameterSetName = 'List')]
+    [switch]$ListConfigFiles
 )
 
 $ErrorActionPreference = 'Stop'
@@ -163,13 +168,26 @@ function Wait-ForClaudeToQuit {
 }
 
 function Get-ClaudeConfigFiles {
-    # Every config file Claude Desktop may read: the classic %APPDATA%\Claude one and, for the
-    # Microsoft Store build, the virtualised copy under Packages\Claude_*\LocalCache\Roaming.
-    # Writes every one that exists. The classic file is created only when no Store package was
-    # found: %APPDATA%\Claude also exists on Store-only PCs (Claude Code lives there).
+    # Every config file a Claude Desktop build may read, the one current Desktop reads first:
+    #   1. %LOCALAPPDATA%\Claude-Data\claude_<package family>\ (Store build 4.x and later; a folder
+    #      there means Desktop keeps its data in it, so the file is written even when it does not
+    #      exist yet),
+    #   2. the Store package's older virtualised copy, Packages\Claude_*\LocalCache\Roaming\Claude,
+    #   3. the classic %APPDATA%\Claude one.
+    # Current Desktop ignores 2 and 3 (stale copies there), older builds read them, so every one
+    # that exists is written. The classic file is created only when neither 1 nor 2 was found:
+    # %APPDATA%\Claude also exists on Store-only PCs (Claude Code lives there).
     $files = [System.Collections.Generic.List[string]]::new()
     $classicFile = Join-Path (Join-Path $env:APPDATA 'Claude') 'claude_desktop_config.json'
     $store = [System.Collections.Generic.List[string]]::new()
+    $current = [System.Collections.Generic.List[string]]::new()
+
+    $dataRoot = Join-Path $env:LOCALAPPDATA 'Claude-Data'
+    if (Test-Path -LiteralPath $dataRoot) {
+        foreach ($dir in @(Get-ChildItem -LiteralPath $dataRoot -Directory -Filter 'claude_*' -ErrorAction SilentlyContinue | Sort-Object Name)) {
+            $current.Add((Join-Path $dir.FullName 'claude_desktop_config.json'))
+        }
+    }
 
     $packagesRoot = Join-Path $env:LOCALAPPDATA 'Packages'
     if (Test-Path $packagesRoot) {
@@ -180,8 +198,9 @@ function Get-ClaudeConfigFiles {
         }
     }
 
-    if ((Test-Path $classicFile) -or $store.Count -eq 0) { $files.Add($classicFile) }
+    foreach ($f in $current) { $files.Add($f) }
     foreach ($f in $store) { $files.Add($f) }
+    if ((Test-Path $classicFile) -or ($store.Count -eq 0 -and $current.Count -eq 0)) { $files.Add($classicFile) }
     return $files
 }
 
@@ -350,6 +369,10 @@ function Test-BridgeReachable {
 }
 
 try {
+    if ($ListConfigFiles) {
+        foreach ($f in @(Get-ClaudeConfigFiles)) { Write-Output $f }
+        exit 0
+    }
     Write-LogMessage '=============================================='
     Write-LogMessage ("Foundry AI Tool, Claude Desktop {0}" -f $(if ($Uninstall) { 'cleanup' } else { 'setup' }))
 
@@ -386,8 +409,12 @@ try {
 
     $files = if ($ConfigPath) { @($ConfigPath) } else { @(Get-ClaudeConfigFiles) }
     $failures = @()
+    $dataRootPrefix = (Join-Path $env:LOCALAPPDATA 'Claude-Data') + '\'
     foreach ($file in $files) {
-        Write-LogMessage "Config file: $file"
+        if (-not $ConfigPath -and $file.StartsWith($dataRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-LogMessage "Config file (the one current Claude Desktop reads): $file"
+        }
+        else { Write-LogMessage "Config file: $file" }
         try {
             if ($Uninstall) { Remove-FoundryEntries -Path $file }
             else { Set-FoundryEntries -Path $file -NodeExe $nodeExe -ClientScript $clientScript }

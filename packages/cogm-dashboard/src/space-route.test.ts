@@ -11,7 +11,6 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { parseAllowedHosts } from './host-allowlist.js';
@@ -34,13 +33,6 @@ const fakeBridge = {
   listTools: (): Promise<unknown[]> => Promise.resolve([]),
   callTool: <T>(): Promise<T> => Promise.resolve({} as T),
 };
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 function statusFile(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     version: 1,
@@ -92,7 +84,6 @@ async function start(spaceStatusFile: string): Promise<number> {
     config: testConfig,
     logger: new Logger('error', 'space-test'),
     client: fakeBridge,
-    coGm: fakeCoGm,
     spaceStatusFile,
     spaceNow: () => NOW,
   });

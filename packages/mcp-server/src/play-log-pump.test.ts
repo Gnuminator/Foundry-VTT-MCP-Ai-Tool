@@ -68,7 +68,10 @@ let foundry: FakeModule;
 let logger: any;
 
 function makePump(
-  extra: Partial<{ onAppended: (worldId: string, count: number) => void }> = {}
+  extra: Partial<{
+    onAppended: (worldId: string, count: number) => void;
+    onRecords: (worldId: string, records: readonly PlayRecord[]) => void;
+  }> = {}
 ): PlayLogPump {
   return new PlayLogPump({
     foundryClient: foundry,
@@ -101,6 +104,17 @@ afterEach(async () => {
   vi.useRealTimers();
   await fsp.rm(dataDir, { recursive: true, force: true });
 });
+
+async function gapMarkers(): Promise<Array<Record<string, any>>> {
+  const out: Array<Record<string, any>> = [];
+  for (const file of await store.list('w1', 'sessions')) {
+    if (!/^\d{4}-\d{2}-\d{2}\.jsonl$/.test(file)) continue;
+    for (const line of await store.readLines('w1', 'sessions', file)) {
+      if ((line as { eventType?: string }).eventType === 'pump-gap') out.push(line as never);
+    }
+  }
+  return out;
+}
 
 describe('playLogSettings', () => {
   it('is on by default and shares the event pump interval', () => {
@@ -227,6 +241,122 @@ describe('PlayLogPump.pollOnce', () => {
     );
   });
 
+  it('writes a gap marker with the exact loss when the ring buffer wraps', async () => {
+    foundry.add({ key: 'a' });
+    foundry.add({ key: 'b' });
+    foundry.add({ key: 'c' });
+    await makePump().pollOnce();
+    foundry.add({ key: 'd' });
+    foundry.add({ key: 'e' });
+    foundry.evictOldest(4);
+    const pump = makePump();
+    await pump.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({
+      eventType: 'pump-gap',
+      details: { pump: 'play', reason: 'ring-wrap', lost: 1 },
+    });
+    expect(pump.health.snapshot()).toMatchObject({ lostCount: 1, gapCount: 1 });
+  });
+
+  it('does not repeat a marker every poll while the data append keeps failing', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.add({ key: 'a' });
+    const pump = makePump();
+    await pump.pollOnce();
+    foundry.clientId = 'client-2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'x' });
+    const real = store.appendLines.bind(store);
+    vi.spyOn(store, 'appendLines').mockImplementation(async (w, k, f, lines) => {
+      if ((lines as Array<{ eventType?: string }>)[0]?.eventType === 'pump-gap') {
+        return real(w, k, f, lines);
+      }
+      throw new Error('locked');
+    });
+    await pump.pollOnce();
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    vi.restoreAllMocks();
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(1);
+  });
+
+  it('counts the 3 h rule from the world own newest record, so a world switch writes none', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.add({ key: 'a' });
+    const pump = makePump();
+    await pump.pollOnce(); // w1 read fine just now
+    // w2 was last recorded 4 days ago, in another page load
+    await store.write('w2', 'sessions', PLAY_PUMP_STATE_FILE, {
+      clientId: 'old-client',
+      lastSeq: 7,
+      lastRecordMs: T0 - 4 * 86_400_000,
+    });
+    foundry.worldId = 'w2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'n', t: T0 + 50_000 });
+    await pump.pollOnce();
+    expect((await store.readLines('w2', 'sessions', `${localDateKey(T0)}.jsonl`)).length).toBe(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
+  it('writes a reload gap marker when the clientId changes, and none on a quiet run', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0 + 60_000);
+    foundry.add({ key: 'a' });
+    const quiet = makePump();
+    await quiet.pollOnce();
+    await quiet.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    foundry.clientId = 'client-2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'x' });
+    await quiet.pollOnce();
+    const markers = await gapMarkers();
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ details: { reason: 'foundry-reload' } });
+  });
+
+  it('writes no reload marker when Foundry reopens the next day', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    foundry.add({ key: 'a' });
+    const pump = makePump();
+    await pump.pollOnce();
+    vi.setSystemTime(T0 + 12 * 3_600_000);
+    foundry.clientId = 'client-2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add({ key: 'x' });
+    await pump.pollOnce();
+    expect(await gapMarkers()).toHaveLength(0);
+    expect(pump.health.snapshot().gapCount).toBe(0);
+  });
+
+  it('tracks health: last success, last error, and no recording while disconnected', async () => {
+    const pump = makePump();
+    foundry.add({ key: 'a' });
+    await pump.pollOnce();
+    expect(pump.health.snapshot().lastSuccessAt).not.toBeNull();
+    foundry.fail = 'boom';
+    await pump.pollOnce();
+    expect(pump.health.snapshot().lastError?.message).toBe('boom');
+    foundry.fail = null;
+    foundry.connected = false;
+    await pump.pollOnce();
+    expect(pump.health.snapshot().notRecordingSince).not.toBeNull();
+    foundry.connected = true;
+    await pump.pollOnce();
+    expect(pump.health.snapshot()).toMatchObject({ lastError: null, notRecordingSince: null });
+  });
+
   it('does not warn about loss across a clientId change', async () => {
     foundry.add({ key: 'a' });
     await makePump().pollOnce();
@@ -337,6 +467,35 @@ describe('PlayLogPump onAppended', () => {
     expect(onAppended).toHaveBeenCalledWith('w1', 1);
     expect(logger.warn).toHaveBeenCalledWith(
       'onAppended listener failed',
+      expect.objectContaining({ error: 'boom' })
+    );
+  });
+});
+
+describe('PlayLogPump onRecords', () => {
+  it('gets the records just written, once each, and not a replay on the next poll', async () => {
+    const onRecords = vi.fn();
+    const pump = makePump({ onRecords });
+    foundry.add({ key: 'a' });
+    foundry.add({ key: 'b' });
+    await pump.pollOnce();
+    expect(onRecords).toHaveBeenCalledTimes(1);
+    expect(onRecords.mock.calls[0][0]).toBe('w1');
+    expect(onRecords.mock.calls[0][1].map((r: PlayRecord) => r.key)).toEqual(['a', 'b']);
+
+    await pump.pollOnce();
+    expect(onRecords).toHaveBeenCalledTimes(1);
+  });
+
+  it('isolates a throwing listener: the poll still returns its count and logs the failure', async () => {
+    const onRecords = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const pump = makePump({ onRecords });
+    foundry.add({ key: 'a' });
+    expect(await pump.pollOnce()).toBe(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'onRecords listener failed',
       expect.objectContaining({ error: 'boom' })
     );
   });

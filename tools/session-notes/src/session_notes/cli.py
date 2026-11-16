@@ -3,7 +3,8 @@
 ``session-notes scenes <session>`` only shows how the session would be split (no Claude call).
 ``session-notes publish <session>`` hands the notes to the bridge, which puts them into Foundry.
 Exit codes: 0 done, 1 error, 3 the bridge cannot take the notes now (publish; try again later),
-75 paused by a usage limit (run the same command again later), 76 some scenes are still raw (run again).
+75 paused by a usage limit or a logged-out claude (run the same command again later), 76 some scenes are still raw (run again),
+77 (consent check) a speaker has no recorded yes.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import sys
 from pathlib import Path
 
 from .claude_runner import ClaudeCli, ClaudeError
+from .consent import EXIT_NO_CONSENT, check_consent, load_consent, set_consent
 from .model import clock, load_timeline
 from .publish import publish
 from .retention import approve, cleanup
@@ -51,6 +53,32 @@ def resolve_session(target: str) -> Path:
     raise SystemExit(f"Session not found: {target} (also looked in {sessions_root()})")
 
 
+def run_consent(args: argparse.Namespace) -> int:
+    if args.consent_cmd == "set":
+        try:
+            path = set_consent(sessions_root(), args.user_id, args.answer, args.name, args.date)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"Recorded {args.answer} for {args.user_id} in {path}.")
+        return 0
+    if args.consent_cmd == "list":
+        players = load_consent(sessions_root())
+        for uid, p in sorted(players.items()):
+            print(f"{uid}  {p.get('answer', '?'):3}  {p.get('date', '')}  {p.get('name', '')}")
+        if not players:
+            print("No consent recorded yet.")
+        return 0
+    session = resolve_session(args.session)
+    result = check_consent(session, sessions_root())
+    print(result.message)
+    if result.ok:
+        return 0
+    if args.write_status:
+        write_status(session, "waiting", f"Waiting for recording consent. {result.message}")
+    return EXIT_NO_CONSENT
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="session-notes", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -63,6 +91,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--scene-gap", type=float, default=90.0, help="seconds of silence per cut")
     run.add_argument("--only-scene", type=int, help="process one scene (for testing prompts)")
     run.add_argument("--workers", type=int, default=3, help="scenes written at the same time")
+    run.add_argument(
+        "--layers",
+        action="store_true",
+        help="also write the raw and in-depth Danish layers and an index (I-066)",
+    )
+    run.add_argument("--depth-model", default="sonnet")
+    run.add_argument("--depth-effort", default="medium")
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
@@ -88,8 +123,23 @@ def main(argv: list[str] | None = None) -> int:
         help="only sessions approved at least this many days ago (1 or more)",
     )
     clean.add_argument("--yes", action="store_true", help="really delete (default: only list)")
+    con = sub.add_parser("consent", help="recorded yes/no of each player (D-097)")
+    con_sub = con.add_subparsers(dest="consent_cmd", required=True)
+    con_set = con_sub.add_parser("set", help="record a player's answer in consent.json")
+    con_set.add_argument("user_id", help="Discord user id (digits)")
+    con_set.add_argument("answer", choices=["yes", "no"])
+    con_set.add_argument("--name", default="", help="a label for you, e.g. the display name")
+    con_set.add_argument("--date", help="the day they answered (default: today)")
+    con_sub.add_parser("list", help="show the recorded answers")
+    con_check = con_sub.add_parser("check", help="does every speaker of a session have a yes?")
+    con_check.add_argument("session")
+    con_check.add_argument(
+        "--write-status", action="store_true", help="when blocked, say so in notes/status.json"
+    )
     args = parser.parse_args(argv)
 
+    if args.cmd == "consent":
+        return run_consent(args)
     if args.cmd == "cleanup":
         items = cleanup(sessions_root(), days=args.days, apply=args.yes)
         for item in items:
@@ -145,6 +195,9 @@ def main(argv: list[str] | None = None) -> int:
         scene_gap=args.scene_gap,
         only_scene=args.only_scene,
         workers=args.workers,
+        layers=args.layers,
+        depth_model=args.depth_model,
+        depth_effort=args.depth_effort,
     )
     try:
         result = Writer(session, runner, opts).run()
@@ -157,13 +210,23 @@ def main(argv: list[str] | None = None) -> int:
         f"{result.scenes} scene(s) written to {session / 'notes'}, {result.fallbacks} kept raw; "
         f"{len(runner.records)} Claude call(s), {tokens_in} tokens in, {tokens_out} out."
     )
-    counts = {"scenes": result.scenes, "fallbacks": result.fallbacks, "pending": result.pending}
+    counts = {
+        "scenes": result.scenes,
+        "fallbacks": result.fallbacks,
+        "pending": result.pending + result.depth_missing,
+    }
     if result.paused:
-        print(f"Paused by a usage limit: {result.paused}\nRun the same command again later.")
-        write_status(session, "paused", f"Paused by a usage limit: {result.paused}", **counts)
+        why = "" if result.login_needed else "Paused by a usage limit: "
+        print(f"{why}{result.paused}\nRun the same command again later.")
+        write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
-    if result.pending:
-        msg = f"{result.pending} scene(s) could not be written and are kept raw for now."
+    if result.pending or result.depth_missing:
+        parts = []
+        if result.pending:
+            parts.append(f"{result.pending} scene(s) could not be written and are kept raw for now")
+        if result.depth_missing:
+            parts.append(f"{result.depth_missing} scene(s) have no in-depth notes yet")
+        msg = "; ".join(parts) + "."
         print(f"{msg} Run the same command again to try them again.")
         write_status(session, "incomplete", msg, **counts)
         return EXIT_INCOMPLETE

@@ -7,7 +7,7 @@
  *
  * Rules: names go through `canonicalUsageName` first (renamed controls keep
  * their history); an event counts `count ?? 1` times; `tool.<name>` events are
- * tool runs of the dashboard's tool runner, known when `<name>` is in the MCP
+ * tool runs of the dashboard's Tool Runner, known when `<name>` is in the MCP
  * tool list (when no list is given, every tool name counts as known and the
  * "tools never run" list is left out).
  */
@@ -95,7 +95,7 @@ export interface UsageModel {
   neverUsed: {
     /** Catalogue entries never seen, by surface (sorted by name). */
     bySurface: Record<UsageSurface, UsageNeverUsedEntry[]>;
-    /** MCP tools never run from the dashboard's tool runner; null when no tool list was given. */
+    /** MCP tools never run from the dashboard's Tool Runner; null when no tool list was given. */
     tools: string[] | null;
   };
   people: UsagePerson[];

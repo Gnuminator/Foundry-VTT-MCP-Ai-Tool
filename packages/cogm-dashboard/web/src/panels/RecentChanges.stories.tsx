@@ -32,7 +32,7 @@ import RecentChangesPane from './RecentChanges';
 
 // Recent Changes: the AI's guarded changes and, when the bridge has list-changes, everyone's, each
 // with Undo. The card docks in a view slot, as in During and After; the stories give it one. The
-// play steps do what a GM does: open the Everyone tab, press Undo, walk the undo window.
+// play steps do what a GM does: open the Everything tab, press Undo, walk the undo window.
 
 /** The slot the card docks in (the During view's changes slot, alone). */
 function Docked(): JSX.Element {
@@ -88,7 +88,7 @@ const screen = within(document.body);
 const body = (): typeof screen => screen;
 
 async function openEveryone(): Promise<void> {
-  await userEvent.click(await body().findByRole('button', { name: 'Everyone' }));
+  await userEvent.click(await body().findByRole('button', { name: 'Everything' }));
   await body().findByText('Brenna changed her Hit Points');
 }
 
@@ -115,21 +115,21 @@ export const EveryoneChanges: Story = { play: openEveryone };
 export const EveryoneEmpty: Story = {
   parameters: bridge({ everyone: toolOk(EVERYONE_CHANGES_EMPTY) }),
   play: async () => {
-    await userEvent.click(await body().findByRole('button', { name: 'Everyone' }));
+    await userEvent.click(await body().findByRole('button', { name: 'Everything' }));
     await body().findByText('No changes in the last 7 days.');
   },
 };
 export const EveryoneNote: Story = {
   parameters: bridge({ everyone: toolOk(EVERYONE_CHANGES_NOTE) }),
   play: async () => {
-    await userEvent.click(await body().findByRole('button', { name: 'Everyone' }));
+    await userEvent.click(await body().findByRole('button', { name: 'Everything' }));
     await body().findByText(EVERYONE_CHANGES_NOTE.note);
   },
 };
 export const EveryoneFailed: Story = {
   parameters: bridge({ everyone: fail(500, 'The bridge answered with an error.') }),
   play: async () => {
-    await userEvent.click(await body().findByRole('button', { name: 'Everyone' }));
+    await userEvent.click(await body().findByRole('button', { name: 'Everything' }));
     await body().findByText(/Couldn't load changes/);
   },
 };

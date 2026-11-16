@@ -1,0 +1,30 @@
+{
+  "kind": "Combat",
+  "foundry": "14.370",
+  "system": "dnd5e 6.0.6",
+  "samples": 1,
+  "paths": {
+    "_id": "string:1",
+    "_stats": "object:1",
+    "_stats.compendiumSource": "null:1",
+    "_stats.coreVersion": "string:1",
+    "_stats.createdTime": "number:1",
+    "_stats.duplicateSource": "null:1",
+    "_stats.exportSource": "null:1",
+    "_stats.lastModifiedBy": "string:1",
+    "_stats.modifiedTime": "number:1",
+    "_stats.systemId": "string:1",
+    "_stats.systemVersion": "string:1",
+    "active": "boolean:1",
+    "combatants": "array:1",
+    "flags": "object:1",
+    "groups": "array:1",
+    "name": "string:1",
+    "round": "number:1",
+    "scene": "string:1",
+    "sort": "number:1",
+    "system": "object:1",
+    "turn": "number:1",
+    "type": "string:1"
+  }
+}

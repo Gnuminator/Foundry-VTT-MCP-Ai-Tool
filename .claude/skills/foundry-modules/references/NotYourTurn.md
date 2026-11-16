@@ -1,10 +1,10 @@
 # Not Your Turn! (`NotYourTurn`)
 
-Verified on Foundry 14.368 / dnd5e 6.0.6, module 4.1.0, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
+Verified on Foundry 14.369 / dnd5e 6.0.6, module 4.1.0, 2026-10-28 and 2026-10-30 (test servers B and C). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** It is small (one script, no data written to actors or scenes), 4.0.0 was reworked for v14 and 4.1.0 is dated August 2026. It stops players wandering off in combat, and the AI Tool runs as a GM, for whom it only warns by default. The manifest says verified "14", not 14.368, and the README still says "tested on v13", but the move hook fires on 14.368 (see below). Player-side behaviour (the dialog, Request) was not tested (not verified).
+**Verdict: keep.** It is small (one script, no data written to actors or scenes), 4.0.0 was reworked for v14 and 4.1.0 is dated August 2026. It stops players wandering off in combat, and the AI Tool runs as a GM, for whom it only warns by default. The manifest says verified "14", not 14.368, and the README still says "tested on v13", but the move hook fires on 14.368 (see below). Player-side Autoblock was tested live on server C; the Dialog Box mode and Request were not (not verified).
 
-**For Danni's guides:** In a fight, a player who drags their token on someone else's turn gets a pop-up: they can undo the move or ask you to allow it.
+**For Danni's guides:** In a fight, a player who drags their token on someone else's turn simply cannot: the move is cancelled (Autoblock). There is no pop-up and no Request button for players; the GM moves the token for them, or turns off **Block Combat Movement** in the left scene controls.
 
 ## What it does
 
@@ -14,19 +14,19 @@ Version 4.1.0. It hooks `preMoveToken` (Foundry 14's token movement) and, when a
 
 - Scene controls, basic controls (left bar), GM only: two toggles, "Block Combat Movement" (setting `enable`, default on) and "Block Non-Combat Movement" (setting `nonCombat`, default off).
 - Game Settings, Configure Settings, Not Your Turn: the settings below.
-- Pop-ups: "It's not your turn!" for the player, "Movement Request" for the GM.
+- Pop-ups (Dialog Box mode, value 2, only; with Autoblock a player sees none): "It's not your turn!" for the player, "Movement Request" for the GM. Autoblock was checked live on test server C, 2026-10-30.
 
 ## Settings we use and why
 
-Key prefix `NotYourTurn.`; all settings are world scope, so one set for the whole table. Values seen live on server B (a fresh install): `BlockPlayer` 2, `BlockTrusted` 2, `BlockAssistant` 1, `BlockGM` 1, `IgnoreButton` 2, `RequestButton` on, `ChatMessages` on, `AlwaysBlock` off, `OnlyOncePerCombatTurn` off, hidden `nonCombat` off, `enable` on. The drop-downs store the 0-based option value; the labels offered for Ignore Button are Everyone, Trusted & Up, Assistants & Up, Gamemaster only, Nobody. The defaults column below comes from the source and matches these values.
+Recorded in `scripts/modules/strahd-modules.json` (`worldSettings`, checked by a test). Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. With Autoblock a player gets no dialog, so the Request button never shows for them; the move is just cancelled. Key prefix `NotYourTurn.`; all settings are world scope, so one set for the whole table. Values seen live on server B (a fresh install): `BlockPlayer` 2, `BlockTrusted` 2, `BlockAssistant` 1, `BlockGM` 1, `IgnoreButton` 2, `RequestButton` on, `ChatMessages` on, `AlwaysBlock` off, `OnlyOncePerCombatTurn` off, hidden `nonCombat` off, `enable` on. The drop-downs store the 0-based option value; the labels offered for Ignore Button are Everyone, Trusted & Up, Assistants & Up, Gamemaster only, Nobody. The defaults column below comes from the source and matches these values.
 
 | Label                            | Key                     | Default           | Our value                                                                                                  |
 | -------------------------------- | ----------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| Player                           | `BlockPlayer`           | Dialog Box        | leave                                                                                                      |
-| Trusted                          | `BlockTrusted`          | Dialog Box        | leave                                                                                                      |
-| Assistant                        | `BlockAssistant`        | Warning Only      | leave                                                                                                      |
+| Player                           | `BlockPlayer`           | Dialog Box        | **Autoblock** (3; Danni 2026-10-30: block completely)                                                      |
+| Trusted                          | `BlockTrusted`          | Dialog Box        | **Autoblock** (3)                                                                                          |
+| Assistant                        | `BlockAssistant`        | Warning Only      | leave (1)                                                                                                  |
 | Gamemaster                       | `BlockGM`               | Warning Only      | leave; do not set to Dialog Box or Autoblock (see AI Tool section)                                         |
-| Ignore Button                    | `IgnoreButton`          | Assistants and up | leave, so players must use Request                                                                         |
+| Ignore Button                    | `IgnoreButton`          | Assistants and up | leave (only matters in Dialog Box mode; Autoblock has no Request)                                          |
 | GM Request Button                | `RequestButton`         | on                | leave on                                                                                                   |
 | Chat Messages                    | `ChatMessages`          | on                | consider off: it whispers the GM (several copies seen) when a token moves out of turn in Warning Only mode |
 | Always Block Combat Movement     | `AlwaysBlock`           | off               | leave                                                                                                      |

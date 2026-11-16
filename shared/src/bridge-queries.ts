@@ -22,6 +22,8 @@ import type {
   PlayerRollRequestBody,
 } from './character-sheet.js';
 import type { ExportIndexRequest, ExportIndexResponse } from './export-index.js';
+import type { UploadActorImageReply, UploadActorImageRequest } from './actor-image.js';
+import type { UploadPlayerPortraitReply, UploadPlayerPortraitRequest } from './player-portrait.js';
 import type {
   GuardedApplyOutcome,
   GuardedApplyRequest,
@@ -38,8 +40,10 @@ import type {
 } from './library-index.js';
 import type { PlayRecordsResponse } from './play-log.js';
 import type { PageForPlayers } from './player-view.js';
+import type { PcCreationPlan, PcCreationRequest } from './pc-creation.js';
 import type { RoomSetupPlan, RoomSetupRequest } from './room-setup.js';
 import type { SceneMoodPlan, SceneMoodPlanRequest, SceneMoodsReply } from './scene-mood.js';
+import type { TokenRingsPlan, TokenRingsPlanRequest } from './token-rings.js';
 import type { NpcTurnPlan, NpcTurnRequest } from './npc-turn.js';
 import type { PaperSyncPlan, PaperSyncRequest } from './paper-sync.js';
 import type { SceneStateReply, SceneStateRequest } from './scene-restore.js';
@@ -114,6 +118,23 @@ export interface ShowJournalPageReply {
   users: string[];
 }
 
+/**
+ * Request of `postHandoutNotice`: whisper a short "handout revealed" chat message that names the
+ * page and links to it. `userIds` empty means every player who can see the page.
+ */
+export interface PostHandoutNoticeRequest {
+  uuid: string;
+  userIds: string[];
+}
+
+/** Reply of `postHandoutNotice`. */
+export interface PostHandoutNoticeReply {
+  posted: boolean;
+  uuid: string;
+  /** Foundry user ids the message was whispered to (empty when nobody could see the page). */
+  users: string[];
+}
+
 /** Reply of `ensureJournalFolder`. */
 export interface EnsureJournalFolderReply {
   folderId: string;
@@ -151,6 +172,10 @@ export interface BridgeQueryMap {
     request: ShowJournalPageRequest;
     reply: ShowJournalPageReply;
   };
+  'foundry-mcp-bridge.postHandoutNotice': {
+    request: PostHandoutNoticeRequest;
+    reply: PostHandoutNoticeReply;
+  };
   'foundry-mcp-bridge.listGuardedFeatures': { request: undefined; reply: GuardedFeatureState[] };
   'foundry-mcp-bridge.ensureJournalFolder': {
     request: { name: string };
@@ -172,10 +197,12 @@ export interface BridgeQueryMap {
   };
   'foundry-mcp-bridge.planSceneMood': { request: SceneMoodPlanRequest; reply: SceneMoodPlan };
   'foundry-mcp-bridge.getSceneMoods': { request: undefined; reply: SceneMoodsReply };
+  'foundry-mcp-bridge.planTokenRings': { request: TokenRingsPlanRequest; reply: TokenRingsPlan };
   'foundry-mcp-bridge.getSceneState': { request: SceneStateRequest; reply: SceneStateReply };
   'foundry-mcp-bridge.planNpcTurn': { request: NpcTurnRequest; reply: NpcTurnPlan };
   'foundry-mcp-bridge.planPaperSync': { request: PaperSyncRequest; reply: PaperSyncPlan };
   'foundry-mcp-bridge.planRoomSetup': { request: RoomSetupRequest; reply: RoomSetupPlan };
+  'foundry-mcp-bridge.planPcCreation': { request: PcCreationRequest; reply: PcCreationPlan };
   'foundry-mcp-bridge.characterSheet': {
     request: { userId: string };
     reply: CharacterSheetsResult;
@@ -183,6 +210,14 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.playerRoll': {
     request: PlayerRollRequestBody;
     reply: PlayerRollReply;
+  };
+  'foundry-mcp-bridge.uploadPlayerPortrait': {
+    request: UploadPlayerPortraitRequest;
+    reply: UploadPlayerPortraitReply;
+  };
+  'foundry-mcp-bridge.uploadActorImage': {
+    request: UploadActorImageRequest;
+    reply: UploadActorImageReply;
   };
   'foundry-mcp-bridge.getCharacterEntity': {
     request: { characterIdentifier: string; entityIdentifier: string };

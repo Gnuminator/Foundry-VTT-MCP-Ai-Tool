@@ -7,6 +7,7 @@ import {
   type LiveMoveFact,
   type LiveTargetPreview,
   type RulesCheckResult,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
@@ -33,8 +34,7 @@ const params = z.object({
   castLevel: z.number().int().min(1).max(9).optional(),
 });
 
-const SWITCH_OFF =
-  'The rules check is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Rules check".';
+const SWITCH_OFF = featureSwitchOff('The rules check', 'AI Tool: Rules check');
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v !== null && typeof v === 'object' ? (v as Rec) : {});
@@ -97,7 +97,7 @@ function usesFrom(v: unknown): UsesFact | null {
 /**
  * Rules check (I-126). `check-action` reads whether an item, spell or attack looks legal right now
  * (turn, activation cost, range to a target, spell slots and uses left) and says why. It writes
- * nothing and composes read queries (plus the module's `getSpentActions`, which an older module lacks). Off by
+ * nothing and composes read queries (plus the module's `getSpentActions`, which an older module lacks). On by
  * default (feature `rules-check`).
  */
 export class RulesCheckTools {
@@ -118,7 +118,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration. Read-only.',
+          'Rules check (on by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -162,7 +162,8 @@ export class RulesCheckTools {
 
   /**
    * The advisory pre-check other tools run before a roll or a use (`beforeUse`: the caller is about to post the usage card itself, so the ledger cannot hold this use yet): null when the switch is off or
-   * anything goes wrong, so it never blocks or fails the write it sits in front of.
+   * anything goes wrong, so it never blocks or fails the write it sits in front of. Callers pass no `activity`, so the
+   * Grapple and Shove notes (they live on an Unarmed Strike activity) appear only on a direct check-action call.
    */
   async tryCheck(args: unknown, beforeUse = false): Promise<RulesCheckResult | null> {
     try {
@@ -246,6 +247,7 @@ export class RulesCheckTools {
       );
     }
 
+    const activityName = text(activity?.name);
     const system = rec(entity.system);
     const isSpell = entity.type === 'spell';
     const properties: unknown[] = Array.isArray(system.properties) ? system.properties : [];
@@ -276,6 +278,7 @@ export class RulesCheckTools {
     return evaluateAction({
       actor: actorName,
       item: text(entity.name) ?? p.item,
+      ...(wanted && activityName ? { activityName } : {}),
       spellLevel: isSpell ? (typeof entity.level === 'number' ? entity.level : 0) : null,
       castLevel: p.castLevel ?? null,
       activation: text(activity?.activation) ?? text(rec(system.activation).type),

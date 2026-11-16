@@ -108,6 +108,69 @@ max_waits="${FOUNDRY_BACKUP_MAX_WAITS:-6}"
 unknown_seconds="${FOUNDRY_BACKUP_UNKNOWN_SECONDS:-60}"
 skip_marker="${FOUNDRY_BACKUP_SKIP_MARKER:-/var/lib/foundry-backup/skipped-last-night}"
 
+# After the cutover (stage 24 MODE=cutover) Foundry is the container "foundry" of compose project foundry-ai-tool-pi and
+# foundry.service is off, so the night's backup stops and starts that container instead. "stack" is systemd or containers.
+# Docker installed but silent is an unknown state, and an unknown state fails the night rather than copy a LevelDB a
+# container may be writing (the board and the bot see the failed unit), unless foundry.service runs (a cut-over Pi has the
+# units off) or systemd will not start docker (stage 24's FORCE=1 rollback switches it off on purpose).
+live_project=foundry-ai-tool-pi
+stack=systemd
+foundry_cid=""
+docker_off() { # 0 when systemd runs, docker.service and docker.socket are neither enabled nor active, and no container is left
+  local u
+  [ -d "$systemd_dir" ] || return 1
+  # live-restore (stage 23) keeps containers running under containerd when dockerd is stopped
+  # A missing pgrep (exit 127) is "cannot tell", never "no container": only exit 1 (no match) passes. Same rule as shim_state in lib.sh.
+  local shim_rc=0
+  command -v pgrep >/dev/null 2>&1 || return 1
+  pgrep -f containerd-shim >/dev/null 2>&1 || shim_rc=$?
+  [ "$shim_rc" = 1 ] || return 1
+  for u in docker.service docker.socket; do
+    if systemctl is-active --quiet "$u" 2>/dev/null; then return 1; fi
+    [ "$(systemctl is-enabled "$u" 2>/dev/null || true)" != enabled ] || return 1
+  done
+}
+if command -v docker >/dev/null 2>&1; then
+  if timeout 20 docker info >/dev/null 2>&1; then
+    # A failing docker ps is an unknown state, not "no containers" (a failure inside [ -n "$(...)" ] would be invisible).
+    if ! ids="$(docker ps -aq --filter "label=com.docker.compose.project=$live_project" 2>/dev/null)"; then
+      echo "ERROR: backup failed: docker ps failed, so it is unknown whether Foundry runs as a container that may be writing its data. Nothing was copied. Look at: systemctl status docker" >&2
+      exit 1
+    fi
+    [ -z "$ids" ] || stack=containers
+  elif [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
+    echo "WARNING: the Docker daemon does not answer, but foundry.service runs: backing up the unit's Foundry" >&2
+  elif ! docker_off; then
+    echo "ERROR: backup failed: the Docker daemon does not answer and foundry.service is not running, so it is unknown whether Foundry runs as a container that may be writing its data. Nothing was copied. Look at: systemctl status docker" >&2
+    exit 1
+  fi
+fi
+
+# foundry_running: 0 when Foundry runs now (and sets foundry_cid in the containers case).
+foundry_running() {
+  if [ "$stack" = containers ]; then
+    local ids
+    if ! ids="$(docker ps -q --filter "label=com.docker.compose.project=$live_project" --filter "label=com.docker.compose.service=foundry" 2>/dev/null)"; then
+      echo "ERROR: backup failed: docker ps failed, so it is unknown whether the foundry container runs. Nothing was copied" >&2
+      exit 1
+    fi
+    foundry_cid="$(printf '%s\n' "$ids" | head -n 1)"
+    [ -n "$foundry_cid" ]
+  else
+    [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service
+  fi
+}
+
+# gm_container_joined: 0 when the Assistant GM container joined the world in its current run (same rule as lib.sh).
+gm_container_joined() {
+  local cid started
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=$live_project" --filter "label=com.docker.compose.service=gm-browser" 2>/dev/null | head -n 1 || true)"
+  [ -n "$cid" ] || return 1
+  started="$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)"
+  [ -n "$started" ] || return 1
+  [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # browser_joined UNIT: 0 when the GM browser UNIT runs and has joined the world in its current run (matched on the
 # systemd invocation id, not on a time; the same as browser_joined in lib.sh).
 browser_joined() {
@@ -130,10 +193,11 @@ players_online() {
   for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
     if [ "$users" -gt 0 ] && browser_joined "$unit"; then users=$((users - 1)); fi
   done
+  if [ "$stack" = containers ] && [ "$users" -gt 0 ] && gm_container_joined; then users=$((users - 1)); fi
   printf '%s' "$users"
 }
 
-if [ -d "$systemd_dir" ] && [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && systemctl is-active --quiet foundry.service; then
+if [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && foundry_running; then
   waits=0
   unknown=0
   # Both dates are read now, not after the waits: a manual run that starts in the evening and waits past midnight
@@ -172,34 +236,154 @@ fi
 # Foundry keeps its worlds in LevelDB, which must not change while it is copied, so Foundry is
 # stopped for the backup. The trap starts it again whatever happens, including a failed backup.
 foundry_stopped=0
+we_stopped_foundry=0
+stopped_started_at=""
 start_foundry() {
   if [ "$foundry_stopped" = 1 ]; then
     foundry_stopped=0
-    systemctl start foundry.service </dev/null || echo "WARNING: could not start foundry.service" >&2
-    echo "foundry.service started again"
+    if [ "$stack" = containers ]; then
+      docker start "$foundry_cid" </dev/null >/dev/null || echo "WARNING: could not start the foundry container" >&2
+      echo "the foundry container started again"
+    else
+      systemctl start foundry.service </dev/null || echo "WARNING: could not start foundry.service" >&2
+      echo "foundry.service started again"
+    fi
   fi
 }
 trap start_foundry EXIT
 
-if [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
-  echo "stopping foundry.service for the backup"
-  systemctl stop foundry.service </dev/null
-  foundry_stopped=1
+world_before=""
+if foundry_running; then
+  # The world that runs now, so the wait after the restart can tell a world from the setup screen (which answers too).
+  world_before="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null | grep -o '"world" *: *"[A-Za-z0-9_.-]*"' | head -n 1 | sed 's/.*: *"\(.*\)"/\1/' || true)"
+  if [ "$stack" = containers ]; then
+    echo "stopping the foundry container for the backup"
+    # The flag first: a stop that fails halfway must still be followed by a start.
+    foundry_stopped=1
+    we_stopped_foundry=1
+    docker stop -t 90 "$foundry_cid" </dev/null >/dev/null
+    # The worlds are copied only while the container is stopped.
+    if [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || echo unknown)" != false ]; then
+      echo "ERROR: backup failed: the foundry container is still running after docker stop, so the worlds were not copied" >&2
+      exit 1
+    fi
+    # Its start time while stopped: restart: always (compose.yml) brings the container back when dockerd restarts (a
+    # package upgrade, say), and that must not go unnoticed while restic copies.
+    stopped_started_at="$(timeout 20 docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null || echo unknown)"
+  else
+    echo "stopping foundry.service for the backup"
+    systemctl stop foundry.service </dev/null
+    foundry_stopped=1
+    we_stopped_foundry=1
+  fi
+elif [ "$stack" = containers ]; then
+  echo "the foundry container is not running: backing up as it is"
 else
   echo "foundry.service is not running under systemd: backing up as it is"
 fi
 
 # Left out on purpose: Foundry's logs, the Chromium profiles of the Assistant GM and the kit session (rebuilt by logging in)
 # and the recordings (this PC pulls them separately and the Pi deletes them after 7 days).
-restic backup --tag nightly \
-  --exclude /var/lib/foundry/Logs \
-  --exclude /var/lib/foundry-ai-tool/gm-browser \
-  --exclude /var/lib/foundry-ai-tool/kit-gm-browser \
-  --exclude /var/lib/foundry-ai-tool/recordings \
-  /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
+# The id of the snapshot this run made comes from restic's own summary line (--json), never from a listing: the repository
+# holds snapshots of other path sets too, and "restic snapshots --latest 1" is per host and path set and lists oldest first.
+# One status line per minute (RESTIC_PROGRESS_FPS), so the output stays small. Only the summary line is printed (below);
+# a failed backup exits here (set -e).
+copy_began="$(date -u +%s)"
+backup_out="$(
+  RESTIC_PROGRESS_FPS=0.0166 restic backup --json --tag nightly \
+    --exclude /var/lib/foundry/Logs \
+    --exclude /var/lib/foundry-ai-tool/gm-browser \
+    --exclude /var/lib/foundry-ai-tool/kit-gm-browser \
+    --exclude /var/lib/foundry-ai-tool/recordings \
+    /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
+)"
+backup_id="$(printf '%s\n' "$backup_out" | grep '"message_type": *"summary"' | grep -o '"snapshot_id": *"[0-9a-f]*"' | grep -o '[0-9a-f]\{8,\}' | tail -n 1 || true)"
+# restic's own summary (files, bytes, duration) for the journal: --json replaced its text summary.
+printf '%s\n' "$backup_out" | grep '"message_type": *"summary"' | tail -n 1 || true
+if [ -n "$backup_id" ]; then
+  echo "restic made snapshot ${backup_id:0:8}"
+else
+  echo "WARNING: could not read the snapshot id from restic's summary" >&2
+fi
+
+# The container must have stayed down for the whole copy; if it came back, the snapshot may be torn: fail the night (the
+# next night copies again; the EXIT trap leaves Foundry running). A daemon that does not answer here is not "it came back":
+# it is unknown, and the snapshot is kept (this run's id is not forgotten on a guess) with a note to look at it by hand.
+if [ "$stack" = containers ] && [ "$we_stopped_foundry" = 1 ]; then
+  running_now=unknown
+  started_now=unknown
+  # A timeout, so a hung daemon cannot hold the night here.
+  running_now="$(timeout 20 docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null)" || running_now=unknown
+  started_now="$(timeout 20 docker inspect -f '{{.State.StartedAt}}' "$foundry_cid" 2>/dev/null)" || started_now=unknown
+  if [ "$running_now" = unknown ] || [ "$started_now" = unknown ] || [ -z "$running_now" ] || [ -z "$started_now" ]; then
+    # inspect fails for a container that is gone too: a daemon that answers docker info means the container was removed.
+    if timeout 20 docker info </dev/null >/dev/null 2>&1; then
+      echo "ERROR: backup failed: the foundry container is gone after the copy (the Docker daemon answers, but inspect finds no container), so it is unknown whether it stayed down while the worlds were copied. The snapshot${backup_id:+ ${backup_id:0:8}} was kept: do not restore it until you have looked (docker ps -a; restic forget it if in doubt). The next night copies again" >&2
+      exit 1
+    fi
+    echo "ERROR: backup failed: the Docker daemon did not answer after the copy, so it is unknown whether the foundry container stayed down while the worlds were copied. The snapshot${backup_id:+ ${backup_id:0:8}} was kept: do not restore it until you have looked (systemctl status docker; restic forget it if in doubt). The next night copies again" >&2
+    exit 1
+  fi
+  # With no start time from before the copy, the container counts as started again when its StartedAt is unreadable or not
+  # before the copy began.
+  restarted=0
+  if [ "$stopped_started_at" != unknown ]; then
+    [ "$started_now" = "$stopped_started_at" ] || restarted=1
+  else
+    started_epoch="$(date -d "$started_now" +%s 2>/dev/null || echo 0)"
+    [ "$started_epoch" -gt 0 ] && [ "$started_epoch" -lt "$copy_began" ] || restarted=1
+  fi
+  if [ "$running_now" != false ] || [ "$restarted" = 1 ]; then
+    # The snapshot is already in the repository (and may be what "restic restore latest" picks): drop this run's own.
+    if [ -n "$backup_id" ] && restic forget "$backup_id" </dev/null >/dev/null 2>&1; then
+      torn_note="the torn snapshot ${backup_id:0:8} was removed from the repository"
+    else
+      torn_note="the torn snapshot${backup_id:+ ${backup_id:0:8}} could not be removed: do not restore the newest nightly (restic forget it)"
+    fi
+    echo "ERROR: backup failed: the foundry container started again while the worlds were being copied (restart policy after a Docker restart?), so the snapshot may be torn; $torn_note. The next night copies again" >&2
+    exit 1
+  fi
+fi
 
 start_foundry
 rm -f "$skip_marker"
+
+# A backup that left Foundry down is a failed night, not a success. foundry.service is Type=simple, so systemd calls it
+# active the moment the process starts, before Node has had time to crash on a world that will not open. So "active" is
+# not enough: Foundry must also answer /api/status, and when a world ran before the backup, the status must name some
+# world (Foundry answers on the setup screen too, which is what a world that will not open leaves; a world switched by hand
+# during the day is fine, Foundry launches the one in options.json). Give it up to FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES (60)
+# tries of about 2 s each, so about 120 s like the other world waits (a curl that hangs takes up to 5 s more per try,
+# so a dead Foundry can take several minutes), else exit 1 with an ERROR line (the hourly board report and the bot see
+# the failed unit). The clean-up below is left for the next night. For tests only: FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES.
+foundry_answers() {
+  local json
+  json="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null)" || return 1
+  [ -z "$world_before" ] || printf '%s' "$json" | grep -q '"world" *: *"[A-Za-z0-9_.-][A-Za-z0-9_.-]*"'
+}
+foundry_up() {
+  if [ "$stack" = containers ]; then
+    [ "$(docker inspect -f '{{.State.Running}}' "$foundry_cid" 2>/dev/null || true)" = true ]
+  else
+    systemctl is-active --quiet foundry.service
+  fi
+}
+if [ "$we_stopped_foundry" = 1 ]; then
+  active_wait="${FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES:-60}"
+  active_tries=0
+  until foundry_up && foundry_answers; do
+    if [ "$active_tries" -ge "$active_wait" ]; then
+      if [ "$stack" = containers ]; then
+        echo "ERROR: the backup is done, but the foundry container is not running, not answering, or not back on a world${world_before:+ (world $world_before ran before the backup; Foundry may be on the setup screen)} after its restart. Look at: docker logs $foundry_cid; start it with: docker start $foundry_cid" >&2
+      else
+        echo "ERROR: the backup is done, but foundry.service is not active, not answering, or not back on a world${world_before:+ (world $world_before ran before the backup; Foundry may be on the setup screen)} after its restart. Look at: journalctl -u foundry -n 50; start it with: systemctl start foundry.service" >&2
+      fi
+      exit 1
+    fi
+    active_tries=$((active_tries + 1))
+    sleep 2 </dev/null
+  done
+fi
 
 # Foundry is back up before the slow clean-up starts.
 restic forget --keep-daily 7 --prune </dev/null

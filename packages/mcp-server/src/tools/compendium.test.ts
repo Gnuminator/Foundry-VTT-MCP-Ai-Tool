@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { CompendiumTools } from './compendium.js';
 import { clearSystemCache } from '../utils/system-detection.js';
 
 /**
- * Characterization tests for CompendiumTools — a thin, deterministic layer over
+ * Characterization tests for CompendiumTools: a thin, deterministic layer over
  * FoundryClient.query.  Pattern: validate args → dispatch the correct
  * `foundry-mcp-bridge.*` method → propagate foundry-side failures (always throw)
  * → shape / transform the result via private helpers.
@@ -23,13 +23,13 @@ import { clearSystemCache } from '../utils/system-detection.js';
 /**
  * Build a CompendiumTools instance with a mocked FoundryClient.
  *
- * `queryImpl` receives every call — use a Jest-style conditional if you need
+ * `queryImpl` receives every call: use a Jest-style conditional if you need
  * different responses per method (e.g., first call returns world info, second
  * returns the payload).
  */
 function makeTools(queryImpl?: (method: string, data?: unknown) => unknown): {
   tools: CompendiumTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
@@ -44,7 +44,7 @@ function makeTools(queryImpl?: (method: string, data?: unknown) => unknown): {
   logger.child = (): unknown => logger;
 
   // systemRegistry is optional; we pass undefined here (handlers don't use it
-  // for their core dispatch logic — they rely on detectGameSystem instead).
+  // for their core dispatch logic, they rely on detectGameSystem instead).
   return { tools: new CompendiumTools({ foundryClient, logger }), query };
 }
 
@@ -115,7 +115,7 @@ describe('CompendiumTools.getToolDefinitions', () => {
   it('list-creatures-by-criteria has an empty required array (all fields optional)', () => {
     const { tools } = makeTools();
     const def = tools.getToolDefinitions().find(d => d.name === 'list-creatures-by-criteria')!;
-    // The source schema declares required: [] (empty array — no required fields).
+    // The source schema declares required: [] (empty array, no required fields).
     expect((def.inputSchema as any).required).toEqual([]);
   });
 
@@ -316,7 +316,7 @@ describe('CompendiumTools.handleSearchCompendium', () => {
     await expect(tools.handleSearchCompendium({})).rejects.toThrow();
   });
 
-  it('accepts string args (MCP fallback) — wraps string as { query }', async () => {
+  it('accepts string args (MCP fallback): wraps string as { query }', async () => {
     const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
     // handleSearchCompendium catches ZodError and retries when args is a plain string
     const result = await tools.handleSearchCompendium('goblin');
@@ -496,7 +496,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
     const { tools } = makeTools(() => null);
     await expect(
       tools.handleGetCompendiumItem({ packId: 'dnd5e.monsters', itemId: 'missing-id' })
-    ).rejects.toThrow('Item missing-id not found in pack dnd5e.monsters');
+    ).rejects.toThrow('Item missing-id in pack dnd5e.monsters not found. Use search-compendium');
   });
 
   it('throws (wraps message) when the Foundry client throws', async () => {

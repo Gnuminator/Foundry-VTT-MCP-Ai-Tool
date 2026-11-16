@@ -1,2 +1,2 @@
 [ -f scripts/pre-push.mjs ] || exit 0
-node scripts/pre-push.mjs
+node scripts/pre-push.mjs "$@"

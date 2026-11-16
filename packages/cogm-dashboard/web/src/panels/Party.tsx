@@ -6,9 +6,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
+import { QuickRollBar, askLabel, useQuickRoll } from '../components/QuickRoll';
 import { useToast } from '../components/Toasts';
+import { TurnOnNote } from '../components/TurnOnNote';
 import { callTool, errorText } from '../lib/api';
 import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
+import { useLivePlay } from '../lib/livePlay';
+import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import { noticed } from '../lib/notice';
+import { REMEMBER, readChoice, readText, writeChoice } from '../lib/remember';
 import { usage } from '../lib/usage';
 import { Button, Pill, QueryState } from '../ui';
 
@@ -25,6 +31,12 @@ interface PartyMember {
   hp: { value: number; max: number; temp: number } | null;
   ac: number | null;
   passivePerception: number | null;
+  /** Null while the "Who would notice" switch is off. */
+  passives?: {
+    perception: number | null;
+    investigation: number | null;
+    insight: number | null;
+  } | null;
   exhaustion: number;
   hitDice: { value: number; max: number } | null;
   deathSaves: { success: number; failure: number } | null;
@@ -69,17 +81,30 @@ function MemberRow({
   m,
   sceneName,
   onOpen,
+  onAsk,
+  askLabel: askText,
+  askBusy,
+  askLocked,
+  askOff,
 }: {
   m: PartyMember;
   sceneName: string;
   onOpen: (uuid: string) => void;
+  onAsk: () => void;
+  askLabel: string;
+  askBusy: boolean;
+  /** Another ask is running: the button does nothing until it is done. */
+  askLocked: boolean;
+  /** Names of the live play switches that are off; the button is disabled with them as the reason. */
+  askOff: string[];
 }): JSX.Element {
   const facts: string[] = [];
   if (m.level != null) facts.push(`Level ${m.level}`);
   if (m.ac != null) facts.push(`AC ${m.ac}`);
   if (m.passivePerception != null) facts.push(`Passive Perception ${m.passivePerception}`);
   if (m.hitDice) facts.push(`Hit dice ${m.hitDice.value}/${m.hitDice.max}`);
-  const chips = list(m.conditions);
+  // A copy: unshift on the query data itself added one more Exhaustion chip on every render.
+  const chips = [...list(m.conditions)];
   if (m.exhaustion > 0) chips.unshift(`Exhaustion ${m.exhaustion}`);
   const tokens = list(m.tokens);
   let tokenText = sceneName ? `No token on ${sceneName}` : '';
@@ -135,6 +160,21 @@ function MemberRow({
       <Button
         type="button"
         size="sm"
+        data-track="dash.quickroll.member"
+        aria-label={askBusy ? `Asking ${m.name} for a roll...` : askText}
+        title={askOff.length > 0 ? offReason(askOff) : askText}
+        aria-disabled={askOff.length > 0 || askLocked ? 'true' : undefined}
+        busy={askBusy}
+        busyLabel="Asking..."
+        onClick={() => {
+          if (askOff.length === 0) onAsk();
+        }}
+      >
+        Ask roll
+      </Button>
+      <Button
+        type="button"
+        size="sm"
         data-track="dash.party.open-actor"
         onClick={() => onOpen(m.uuid)}
       >
@@ -145,6 +185,94 @@ function MemberRow({
 }
 
 type Act = (args: PartyActionArgs) => void;
+
+const NOTICE_SKILLS = [
+  { key: 'perception', label: 'Perception' },
+  { key: 'investigation', label: 'Investigation' },
+  { key: 'insight', label: 'Insight' },
+] as const;
+
+const NOTICE_CHOICES = ['all', 'perception', 'investigation', 'insight'] as const;
+type NoticeChoice = (typeof NOTICE_CHOICES)[number];
+
+/** I-078: who would notice a hidden thing at a typed DC. GM only; nothing is rolled or sent. */
+function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null {
+  const [dcText, setDcTextState] = useState(() => readText(REMEMBER.partyNoticeDc, ''));
+  const setDcText = (next: string): void => {
+    setDcTextState(next);
+    writeChoice(REMEMBER.partyNoticeDc, next);
+  };
+  const [skill, setSkillState] = useState<NoticeChoice>(() =>
+    readChoice(REMEMBER.partyNoticeSkill, NOTICE_CHOICES, 'all')
+  );
+  const setSkill = (next: NoticeChoice): void => {
+    setSkillState(next);
+    writeChoice(REMEMBER.partyNoticeSkill, next);
+  };
+  if (!members.some(m => m.passives)) return null;
+  const parsed = dcText.trim() === '' ? NaN : Number(dcText);
+  const dc = Number.isFinite(parsed) ? parsed : null;
+  const shown = NOTICE_SKILLS.filter(s => skill === 'all' || s.key === skill);
+  return (
+    <div id="party-notice">
+      <h3 className="preflight-h">Who would notice</h3>
+      <label className="pf-detail">
+        DC{' '}
+        <input
+          type="number"
+          id="party-notice-dc"
+          className="party-control"
+          aria-label="Notice DC"
+          value={dcText}
+          onChange={e => setDcText(e.target.value)}
+        />
+      </label>{' '}
+      <label className="pf-detail">
+        Skill{' '}
+        <select
+          id="party-notice-skill"
+          className="party-control"
+          aria-label="Notice skill"
+          data-track="dash.party.notice-skill"
+          value={skill}
+          onChange={e => {
+            const next = NOTICE_CHOICES.find(c => c === e.target.value);
+            if (next) setSkill(next);
+          }}
+        >
+          <option value="all">All three</option>
+          {NOTICE_SKILLS.map(s => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <ul className="preflight-list" aria-label="Who would notice">
+        {members
+          .filter(m => m.passives)
+          .map(m => (
+            <li key={m.actorId || m.uuid} className="preflight-item">
+              <span className="pf-text">
+                <span className="pf-label">{m.name}</span>
+                <div className="conditions">
+                  {shown.map(s => {
+                    const score = m.passives?.[s.key];
+                    const hit = noticed(score, dc);
+                    return (
+                      <Pill key={s.key} {...(hit === null ? {} : { tone: hit ? 'on' : 'off' })}>
+                        {`${s.label} ${score ?? '-'}${hit === null ? '' : hit ? ' ✓' : ' ✗'}`}
+                      </Pill>
+                    );
+                  })}
+                </div>
+              </span>
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
 
 function Pace({
   g,
@@ -281,6 +409,9 @@ export function PartyDrawer({
 }): JSX.Element {
   const toast = useToast();
   const runChange = useGuardedChange();
+  const roll = useQuickRoll();
+  const live = useLivePlay();
+  const rollOff = live.off(ROLL_NEEDS);
   // Loads on every opening (stale at once) and after a change or undo while open; nothing in
   // the stream says the party moved, so a change made in Foundry shows on Refresh.
   const party = useQuery({
@@ -294,7 +425,13 @@ export function PartyDrawer({
     staleTime: 0,
     retry: false,
   });
-  const [groupId, setGroupId] = useState<string | null>(null);
+  const [groupId, setGroupIdState] = useState<string | null>(
+    () => readText(REMEMBER.partyGroup, '') || null
+  );
+  const setGroupId = (next: string): void => {
+    setGroupIdState(next);
+    writeChoice(REMEMBER.partyGroup, next);
+  };
   // One change at a time; the ref also catches a double click before the re-render.
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -305,7 +442,7 @@ export function PartyDrawer({
     return (): void => usage().endView('dash.party.view');
   }, [open]);
 
-  // A failed load empties the sections and says why under Members, as on the old page.
+  // A failed load empties the sections and says why under Members.
   const s = party.isError ? undefined : party.data;
   const groups = list(s?.groups);
   const g = groups.find(x => x.actorId === groupId) ?? groups[0];
@@ -324,7 +461,7 @@ export function PartyDrawer({
   const openActor = (uuid: string): void => {
     callTool('open-in-foundry', { uuid }).then(
       () => toast('Opened in Foundry', 'ok'),
-      (err: unknown) => toast(`✗ open-in-foundry: ${errorText(err)}`, 'err')
+      (err: unknown) => toast(`✗ Open in Foundry: ${errorText(err)}`, 'err')
     );
   };
 
@@ -353,7 +490,17 @@ export function PartyDrawer({
       {() => (
         <ul className="preflight-list" aria-label="Members">
           {members.map(m => (
-            <MemberRow key={m.actorId || m.uuid} m={m} sceneName={sceneName} onOpen={openActor} />
+            <MemberRow
+              key={m.actorId || m.uuid}
+              m={m}
+              sceneName={sceneName}
+              onOpen={openActor}
+              onAsk={() => void roll.ask([m.name])}
+              askLabel={askLabel(roll, m.name)}
+              askBusy={roll.asking.length === 1 && roll.asking[0] === m.name}
+              askLocked={roll.busy}
+              askOff={rollOff}
+            />
           ))}
         </ul>
       )}
@@ -385,7 +532,7 @@ export function PartyDrawer({
           {groups.length > 1 && g && (
             <select
               id="party-group"
-              className="party-group"
+              className="party-control party-group"
               aria-label="Party group"
               data-track="dash.party.group"
               value={g.actorId}
@@ -408,8 +555,37 @@ export function PartyDrawer({
           </div>
         ))}
       </div>
+      {g && members.length > 0 && (
+        <div id="party-roll">
+          <h3 className="preflight-h">Ask for a roll</h3>
+          <QuickRollBar roll={roll} idPrefix="party-roll">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              id="party-roll-all"
+              data-track="dash.quickroll.party"
+              aria-disabled={rollOff.length > 0 || roll.busy ? 'true' : undefined}
+              busy={roll.asking.length > 1 || (roll.asking.length === 1 && members.length === 1)}
+              busyLabel="Asking..."
+              title={rollOff.length > 0 ? offReason(rollOff) : undefined}
+              onClick={() => {
+                if (!roll.busy && rollOff.length === 0) void roll.ask(members.map(m => m.name));
+              }}
+            >
+              Ask the whole party
+            </Button>
+            <TurnOnNote live={live} off={rollOff} />
+          </QuickRollBar>
+          <p className="pf-detail">
+            Sends the request to each player&apos;s chat and player page. The result lands in the
+            play log. Ask one character with the button on its row.
+          </p>
+        </div>
+      )}
       <h3 className="preflight-h">Members</h3>
       <div id="party-members">{memberBlock}</div>
+      <WhoNotices members={members} />
       {s && g && (
         <div id="party-actions">
           <h3 className="preflight-h">Travel pace</h3>

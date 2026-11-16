@@ -93,7 +93,9 @@ test('every Foundry page SKILL.md names exists', () => {
   const out = mkdtempSync(path.join(tmpdir(), 'gm-coach-'));
   try {
     const { files } = build(out);
-    const named = [...skill.matchAll(/`(references\/foundry\/[^`]+\.md)`/g)].map(m => m[1]);
+    const named = [...skill.matchAll(/`(references\/(?:foundry|gm|player)\/[^`]+\.md)`/g)].map(
+      m => m[1]
+    );
     assert.ok(named.length >= 10);
     for (const name of named) assert.ok(files.has(name), `${name} is in the skill`);
   } finally {

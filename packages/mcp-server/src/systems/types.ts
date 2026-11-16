@@ -134,7 +134,7 @@ export interface SystemAdapter {
 
   /**
    * Extract system-specific "basic info" from actor data
-   * (e.g. resources/HP, AC, level, deflect — anything that belongs in
+   * (e.g. resources/HP, AC, level, deflect, anything that belongs in
    * the top-level `basicInfo` block of the get-character response).
    *
    * Optional: if not implemented, the get-character tool falls back

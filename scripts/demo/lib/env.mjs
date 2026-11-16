@@ -48,6 +48,13 @@ function readJson(file) {
 /** The test environment, as config.ps1 resolves it. */
 export function testEnv() {
   const local = readJson(join(REPO_ROOT, 'scripts', 'test-env', 'local.json'));
+  // FOUNDRY_TEST_SERVER=B (or C) picks that server's root and ports from servers.json.
+  const server = process.env.FOUNDRY_TEST_SERVER?.toUpperCase();
+  if (server && server !== 'A') {
+    const entry = readJson(join(REPO_ROOT, 'scripts', 'test-env', 'servers.json'))[server];
+    if (!entry) throw new Error(`FOUNDRY_TEST_SERVER=${server}: not in servers.json.`);
+    Object.assign(local, entry);
+  }
   const root = local.Root ?? 'C:\\FoundryTest';
   const env = {
     root,

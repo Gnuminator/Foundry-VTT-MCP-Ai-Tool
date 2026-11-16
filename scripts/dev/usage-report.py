@@ -12,7 +12,7 @@ Cost analysis (this repo's project folder only, main thread and subagents apart,
 """
 import json, os, sys, glob, collections, statistics, datetime
 
-ROOT = os.path.expanduser(r"~\.claude\projects")
+ROOT = os.path.join(os.path.expanduser("~"), ".claude", "projects")
 _VAL = ("--json", "--since", "--project", "--reread")
 _A = sys.argv[1:]
 _POS = [a for i, a in enumerate(_A) if not a.startswith("--") and not (i and _A[i - 1] in _VAL)]
@@ -40,6 +40,25 @@ def cost(u, model):
     c = (u.get("input_tokens", 0) or 0) * 1 + (u.get("output_tokens", 0) or 0) * 5 \
         + (u.get("cache_read_input_tokens", 0) or 0) * 0.1 + w5m * 1.25 + w1h * 2
     return c * mult(model) / 1e6
+
+CTX_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+
+def ctx_of(u):
+    """The context a response holds. A response that called the advisor is sampled twice and its top-level
+    usage sums both executor passes (163,467 + 164,453 = 327,920); the last usage.iterations entry of type
+    "message" is what the session now holds. A pass with no token counts is ignored, so an unknown shape
+    falls back to the top level."""
+    its = [i for i in (u.get("iterations") or []) if isinstance(i, dict) and i.get("type") == "message"
+           and any(isinstance(i.get(k), (int, float)) for k in CTX_KEYS)] if isinstance(u.get("iterations"), list) else []
+    src = its[-1] if its else u
+    return sum(src.get(k, 0) or 0 for k in CTX_KEYS)
+
+def advisor_cost(u, model):
+    """The advisor's own passes (type "advisor_message"), which the top-level usage does not include."""
+    if not isinstance(u.get("iterations"), list):
+        return 0.0
+    return sum(cost(i, i.get("model") or "opus") for i in u["iterations"]
+               if isinstance(i, dict) and i.get("type") == "advisor_message")
 
 def parts(u, model):
     """Cost split into input/output/cache read/cache write, same weights as cost()."""
@@ -82,7 +101,7 @@ def load(project):
                     continue
                 model = msg.get("model", "?")
                 p, w5m, w1h = parts(u, model)
-                ctx = sum(u.get(k, 0) or 0 for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+                ctx = ctx_of(u)
                 if ctx == 0 and not u.get("output_tokens"):
                     st["empty_skipped"] += 1
                     continue
@@ -367,10 +386,10 @@ for path in glob.glob(os.path.join(ROOT, "**", "*.jsonl"), recursive=True):
                 continue
             s["seen"].add(mid)
             model = msg.get("model", "?")
-            c = cost(u, model)
+            c = cost(u, model) + advisor_cost(u, model)
             s["cost"] += c
             if not is_sub:
-                ctx = sum(u.get(k, 0) or 0 for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+                ctx = ctx_of(u)
                 s["n"] += 1; s["ctx"] += ctx; s["max"] = max(s["max"], ctx)
             if is_sub:
                 s["sub_cost"] += c

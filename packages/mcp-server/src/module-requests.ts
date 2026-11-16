@@ -5,9 +5,11 @@
  * Kept out of `backend.ts` so both can be tested without starting the backend.
  */
 import {
+  errorMessage,
   MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
   MODULE_REQUEST_TOOLS,
   type ModuleRequestData,
+  unknownToolMessage,
 } from '@gnuminator/shared';
 import type { GuardedWriteService } from './guarded-write/service.js';
 import { UNDO_FEATURE } from './guarded-write/undo-planner.js';
@@ -15,6 +17,7 @@ import { HANDOUTS_FEATURE } from './handouts/service.js';
 import type { ModuleRequestHandler } from './foundry-connector.js';
 import type { Logger } from './logger.js';
 import { TAROKKA_FEATURE } from './tarokka/service.js';
+import type { RepeatGuard } from './repeat-guard.js';
 import type { ToolHandler } from './tool-router.js';
 import type { GuardedChangeTools } from './tools/guarded-changes.js';
 
@@ -64,6 +67,11 @@ export interface ModuleRequestDeps {
    * may not plan it again (the window never offers it); Claude and the dashboard still can.
    */
   tarokkaPositionRevealed: (position: string) => Promise<boolean>;
+  /**
+   * The bridge's repeat guard (repeat-guard.ts): a double click on Undo or on a reveal's Apply in
+   * a Foundry window answers with the first result. Shared with the control channel's call_tool.
+   */
+  repeatGuard?: RepeatGuard;
 }
 
 /**
@@ -87,7 +95,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
     }
   };
 
-  return async (tool, args, requestedBy) => {
+  const dispatch: ModuleRequestHandler = async (tool, args, requestedBy) => {
     if (!(MODULE_REQUEST_TOOLS as readonly string[]).includes(tool)) {
       throw new Error(`Tool not allowed for module requests: ${tool}`);
     }
@@ -100,7 +108,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
         throw new Error('mark-play-session from the Foundry window needs action "start" or "end"');
       }
       const route = deps.toolRouter[tool];
-      if (!route) throw new Error(`Unknown tool: ${tool}`);
+      if (!route) throw new Error(unknownToolMessage(tool));
       // The marker line records who clicked: the GM's name when the window sent no note.
       const note =
         typeof args.note === 'string' && args.note.trim() !== ''
@@ -131,7 +139,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
         );
       }
       const route = deps.toolRouter[tool];
-      if (!route) throw new Error(`Unknown tool: ${tool}`);
+      if (!route) throw new Error(unknownToolMessage(tool));
       const result: unknown = await route(args);
       remember(result);
       return result;
@@ -153,9 +161,13 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
       return deps.guardedChangeTools.handleApplyPlannedChange(safe, requesterLabel(requestedBy));
     }
     const route = deps.toolRouter[tool];
-    if (!route) throw new Error(`Unknown tool: ${tool}`);
+    if (!route) throw new Error(unknownToolMessage(tool));
     return route(args);
   };
+  const guard = deps.repeatGuard;
+  if (!guard) return dispatch;
+  return (tool, args, requestedBy) =>
+    guard.run(tool, args, requesterLabel(requestedBy), () => dispatch(tool, args, requestedBy));
 }
 
 /**
@@ -177,7 +189,7 @@ export function createAiChangesAnnouncer(
     if (!foundry.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)) return;
     foundry.query(AI_CHANGES_UPDATED_QUERY, {}, { timeoutMs: ANNOUNCE_TIMEOUT_MS }).catch(error => {
       logger.debug('Could not announce the recorded change to the module', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     });
   };

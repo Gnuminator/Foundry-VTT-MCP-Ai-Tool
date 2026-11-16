@@ -77,6 +77,97 @@ describe('McpControlClient per-call timeout (lane 1, PB-04)', () => {
   });
 });
 
+describe('McpControlClient player methods', () => {
+  it('sends list_player_tools and player_tool with the user id, tool and arguments', async () => {
+    const seen: Array<{ method: string; params?: unknown }> = [];
+    const server = net.createServer(socket => {
+      let buffer = '';
+      socket.setEncoding('utf8');
+      socket.on('data', (chunk: string) => {
+        buffer += chunk;
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const req = JSON.parse(buffer.slice(0, idx)) as {
+            id: string;
+            method: string;
+            params?: unknown;
+          };
+          buffer = buffer.slice(idx + 1);
+          if (req.method === 'ping') {
+            socket.write(`${JSON.stringify({ id: req.id, result: { ok: true } })}\n`);
+            continue;
+          }
+          seen.push({ method: req.method, params: req.params });
+          socket.write(`${JSON.stringify({ id: req.id, result: { echo: req.method } })}\n`);
+        }
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    cleanup.push(() => server.close());
+    const client = await connectedClient((server.address() as net.AddressInfo).port, 2_000);
+
+    expect(await client.listPlayerTools()).toEqual({ echo: 'list_player_tools' });
+    expect(await client.playerTool('user1', 'get-my-character', { a: 1 })).toEqual({
+      echo: 'player_tool',
+    });
+    const player = seen.filter(s => s.method.includes('player_tool'));
+    expect(player.map(s => s.method)).toEqual(['list_player_tools', 'player_tool']);
+    expect(player[1]?.params).toEqual({
+      userId: 'user1',
+      tool: 'get-my-character',
+      args: { a: 1 },
+    });
+  });
+});
+
+describe('McpControlClient hello', () => {
+  /** Keeps every frame; answers hello like an old backend ("Unknown method") and pings. */
+  async function helloServer(): Promise<{
+    server: net.Server;
+    port: number;
+    frames: Array<{ id: string; method: string; params?: Record<string, unknown> }>;
+  }> {
+    const frames: Array<{ id: string; method: string; params?: Record<string, unknown> }> = [];
+    const server = net.createServer(socket => {
+      let buffer = '';
+      socket.setEncoding('utf8');
+      socket.on('data', (chunk: string) => {
+        buffer += chunk;
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const req = JSON.parse(buffer.slice(0, idx)) as (typeof frames)[number];
+          buffer = buffer.slice(idx + 1);
+          frames.push(req);
+          const reply =
+            req.method === 'ping'
+              ? { id: req.id, result: { ok: true } }
+              : { id: req.id, error: { message: 'Unknown method' } };
+          socket.write(`${JSON.stringify(reply)}\n`);
+        }
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    return { server, port: (server.address() as net.AddressInfo).port, frames };
+  }
+
+  it('says hello as the dashboard first, and an old backend\'s "Unknown method" is harmless', async () => {
+    const { server, port, frames } = await helloServer();
+    cleanup.push(() => server.close());
+    const client = await connectedClient(port, 1_000);
+    let disconnected = false;
+    client.on('disconnected', () => {
+      disconnected = true;
+    });
+
+    // The ping goes out after the hello, so its answer means the hello's reply came first.
+    expect(await client.ping()).toBe(true);
+    expect(frames[0]).toMatchObject({ method: 'hello', params: { client: 'dashboard' } });
+    expect(frames[1]?.method).toBe('ping');
+    expect(await client.ping()).toBe(true);
+    expect(disconnected).toBe(false);
+  });
+});
+
 describe('McpControlClient.recordUsage (I-084)', () => {
   const events = [
     {

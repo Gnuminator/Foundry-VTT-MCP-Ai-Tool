@@ -1,8 +1,8 @@
 // Tests for Pi stage 17 (scripts/pi/remote/17-gh-runner.sh, backlog board-local-deploy):
 //   node --test scripts/pi/gh-runner.test.mjs
 // - the gate script (the stage's GATE_SCRIPT_BODY heredoc) in bash with stand-ins for systemctl and pgrep: idle starts
-//   the runners, a marked play session stops them (a runner with a job is left alone), unknown holds them up to the
-//   ceiling, a stale or ended session counts as idle;
+//   the runners, a marked play session stops the board runner (a runner with a job is left alone; the vault runner is
+//   kept and started in every state), unknown holds the board runner up to the ceiling, a stale or ended session is idle;
 // - the stage and the PC helper as text: the token never reaches a command line or output, the runner is pinned.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const remote = path.join(repo, 'scripts', 'pi', 'remote');
@@ -108,6 +109,7 @@ function runGate(d, env = {}) {
       GATE_CGROUP_ROOT: posix(path.join(d, 'cg')),
       GATE_PROC_ROOT: posix(path.join(d, 'proc')),
       GATE_UNITS: UNITS,
+      GATE_KEEP_UNITS: undefined,
       ...env,
     },
   });
@@ -126,7 +128,7 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     const d = fakePi({ logs: { w: { '2026-11-14.jsonl': [] } } });
     const r = runGate(d);
     assert.equal(r.status, 0, r.out);
-    assert.match(r.calls, /start foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
     assert.match(r.calls, /start foundry-ai-tool-gh-runner-board\.service/);
   });
 
@@ -135,45 +137,44 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.doesNotMatch(runGate(d).calls, /start /);
   });
 
-  test('an open session stops the runners that run no job', () => {
+  test('an open session stops the board runner that runs no job, and never the vault runner', () => {
     const d = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
       active: UNITS.split(' '),
-    });
-    const r = runGate(d);
-    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
-    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
-    assert.equal(dry(d), 'state=playing decision=playing');
-  });
-
-  test('an open session leaves a runner with a job alone', () => {
-    const d = fakePi({
-      logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
-      active: UNITS.split(' '),
-      busy: ['foundry-ai-tool-gh-runner-vault.service'],
     });
     const r = runGate(d);
     assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault/);
     assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.equal(dry(d), 'state=playing decision=playing');
+  });
+
+  test('an open session leaves a held runner with a job alone', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
+      active: UNITS.split(' '),
+      busy: ['foundry-ai-tool-gh-runner-board.service'],
+    });
+    const r = runGate(d);
+    assert.doesNotMatch(r.calls, /stop /);
     assert.match(r.out, /runs a job, left alone/);
   });
 
   test('a runner waiting out its restart delay (activating) is stopped during a session, and not started when idle', () => {
-    const activating = ['foundry-ai-tool-gh-runner-vault.service=activating'];
+    const activating = ['foundry-ai-tool-gh-runner-board.service=activating'];
     const playing = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
       active: activating,
     });
-    assert.match(runGate(playing).calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(runGate(playing).calls, /stop foundry-ai-tool-gh-runner-board\.service/);
     const idle = fakePi({ logs: {}, active: activating });
-    assert.doesNotMatch(runGate(idle).calls, /start foundry-ai-tool-gh-runner-vault/);
+    assert.doesNotMatch(runGate(idle).calls, /start( --no-block)? foundry-ai-tool-gh-runner-board/);
   });
 
   test('a failing start of one runner does not hide the other, and the gate exits non-zero', () => {
     const d = fakePi({ logs: {} });
     writeFileSync(
       path.join(d, 'bin', 'systemctl'),
-      `#!/usr/bin/env bash\necho "systemctl $*" >>"${posix(d)}/calls"\ncase "$1" in is-active) echo inactive; exit 3 ;; start) case "$2" in *vault*) exit 1 ;; esac ;; esac\nexit 0\n`
+      `#!/usr/bin/env bash\necho "systemctl $*" >>"${posix(d)}/calls"\ncase "$1" in is-active) echo inactive; exit 3 ;; start) case "$*" in *vault*) exit 1 ;; esac ;; esac\nexit 0\n`
     );
     const r = runGate(d);
     assert.notEqual(r.status, 0);
@@ -205,11 +206,13 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.equal(dry(open), 'state=playing decision=playing');
   });
 
-  test('an open session does not start a stopped runner', () => {
+  test('an open session does not start a stopped board runner, but starts a stopped vault runner', () => {
     const d = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(1))] } },
     });
-    assert.doesNotMatch(runGate(d).calls, /start |stop /);
+    const r = runGate(d);
+    assert.doesNotMatch(r.calls, /start( --no-block)? foundry-ai-tool-gh-runner-board|stop /);
+    assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
   });
 
   test('the last marker wins: a start followed by an end is idle', () => {
@@ -233,6 +236,188 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.equal(dry(d), 'state=idle decision=idle');
   });
 
+  // Presence: an unmarked night. Records are PlayRecords in <date>.play.jsonl (kind, t, userId, data.isGM).
+  const rec = (kind, ms, userId, data = { isGM: false }) =>
+    JSON.stringify({ key: `${kind}:${userId}:${ms}`, t: ms, kind, userId, data });
+  const play = lines => fakePi({ logs: { w: { '2026-11-15.play.jsonl': lines } } });
+
+  test('a connected player without any session marker is playing, and the runners stop', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } },
+      active: UNITS.split(' '),
+    });
+    assert.equal(dry(d), 'state=playing decision=playing players=connected');
+    const r = runGate(d);
+    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault/);
+    assert.match(r.out, /playing \(players connected, no session marker\): stopped/);
+  });
+
+  test('with players connected the vault runner keeps running (even mid-job), only the board runner is held', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } },
+      active: UNITS.split(' '),
+      busy: ['foundry-ai-tool-gh-runner-vault.service'],
+    });
+    const r = runGate(d);
+    assert.equal(r.status, 0, r.out);
+    assert.doesNotMatch(
+      r.calls,
+      /stop foundry-ai-tool-gh-runner-vault|start( --no-block)? foundry-ai-tool-gh-runner-vault/
+    );
+    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.doesNotMatch(r.out, /foundry-ai-tool-gh-runner-vault/);
+  });
+
+  test('with players connected a stopped vault runner is started again, a stopped board runner is not', () => {
+    const d = fakePi({
+      logs: { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } },
+    });
+    const r = runGate(d);
+    assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
+    assert.doesNotMatch(r.calls, /start( --no-block)? foundry-ai-tool-gh-runner-board/);
+  });
+
+  test('GATE_KEEP_UNITS can name another kept unit, and an empty list holds both runners', () => {
+    const logs = { w: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] } };
+    const none = runGate(fakePi({ logs, active: UNITS.split(' ') }), { GATE_KEEP_UNITS: '' });
+    assert.match(none.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(none.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    const other = runGate(fakePi({ logs, active: UNITS.split(' ') }), {
+      GATE_KEEP_UNITS: 'foundry-ai-tool-gh-runner-board.service',
+    });
+    assert.match(other.calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    assert.doesNotMatch(other.calls, /stop foundry-ai-tool-gh-runner-board/);
+  });
+
+  test('a player who joined and left is idle; a rejoin counts again', () => {
+    const left = play([
+      rec('user-join', NOW - hours(3), 'p1'),
+      rec('user-leave', NOW - hours(1), 'p1'),
+    ]);
+    assert.equal(dry(left), 'state=idle decision=idle');
+    const back = play([
+      rec('user-join', NOW - hours(3), 'p1'),
+      rec('user-leave', NOW - hours(2), 'p1'),
+      rec('user-join', NOW - hours(1), 'p1'),
+    ]);
+    assert.match(dry(back), /state=playing/);
+  });
+
+  test('one player gone and another still connected is playing', () => {
+    const d = play([
+      rec('user-join', NOW - hours(3), 'p1'),
+      rec('user-join', NOW - hours(3), 'p2'),
+      rec('user-leave', NOW - hours(1), 'p1'),
+    ]);
+    assert.match(dry(d), /state=playing/);
+  });
+
+  test('a GM or the table viewer joining does not count', () => {
+    const gm = play([rec('user-join', NOW - hours(1), 'gm', { isGM: true })]);
+    assert.equal(dry(gm), 'state=idle decision=idle');
+    const tv = play([rec('user-join', NOW - hours(1), 'tv', { isGM: false, tableViewer: true })]);
+    assert.equal(dry(tv), 'state=idle decision=idle');
+  });
+
+  test('a join older than the newest session-end is ignored; a join after it counts', () => {
+    const ended = fakePi({
+      logs: {
+        w: {
+          '2026-11-15.jsonl': [marker('session-end', NOW - hours(1))],
+          '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(3), 'p1')],
+        },
+      },
+    });
+    assert.equal(dry(ended), 'state=idle decision=idle');
+    const rejoined = fakePi({
+      logs: {
+        w: {
+          '2026-11-15.jsonl': [marker('session-end', NOW - hours(3))],
+          '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(1), 'p1')],
+        },
+      },
+    });
+    assert.equal(dry(rejoined), 'state=playing decision=playing players=connected');
+  });
+
+  test('a player in world b is playing while world a is idle', () => {
+    const d = fakePi({
+      logs: {
+        a: { '2026-11-15.jsonl': [marker('session-end', NOW - hours(1))] },
+        b: { '2026-11-15.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')] },
+      },
+    });
+    assert.equal(dry(d), 'state=playing decision=playing players=connected');
+  });
+
+  test('a play log untouched for 28 hours is skipped', () => {
+    const d = play([rec('user-join', NOW - hours(2), 'p1')]);
+    const f = path.join(d, 'vault', 'w', 'sessions', '2026-11-15.play.jsonl');
+    utimesSync(f, (NOW - hours(29)) / 1000, (NOW - hours(29)) / 1000);
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('only the 3 newest play logs are read (a join in the 4th is not seen)', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-12.play.jsonl': [rec('user-join', NOW - hours(2), 'p1')],
+          '2026-11-13.play.jsonl': [],
+          '2026-11-14.play.jsonl': [],
+          '2026-11-15.play.jsonl': [],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('a join record without data.isGM counts as a player (the safe side)', () => {
+    const d = play([
+      JSON.stringify({ key: 'k', t: NOW - hours(1), kind: 'user-join', userId: 'p1', data: {} }),
+    ]);
+    assert.match(dry(d), /state=playing/);
+  });
+
+  test('a join older than 14 hours with no leave is stale (idle)', () => {
+    const d = play([rec('user-join', NOW - hours(15), 'p1')]);
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('a player who joined before midnight and left after is idle (two files)', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-14.play.jsonl': [rec('user-join', NOW - hours(6), 'p1')],
+          '2026-11-15.play.jsonl': [rec('user-leave', NOW - hours(1), 'p1')],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=idle decision=idle');
+  });
+
+  test('a marked session is not reported as players, and garbage play lines do not decide', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-15.jsonl': [marker('session-start', NOW - hours(1))],
+          '2026-11-15.play.jsonl': [
+            rec('user-join', NOW - hours(1), 'p1'),
+            '{"kind":"user-jo',
+            'nope',
+          ],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=playing decision=playing');
+    const junk = play([
+      '{"kind":"user-join"}',
+      'nope',
+      '{"kind":"user-join","userId":"p","t":"x"}',
+    ]);
+    assert.equal(dry(junk), 'state=idle decision=idle');
+  });
+
   test('a half-written last line does not decide', () => {
     const d = fakePi({
       logs: {
@@ -254,22 +439,40 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     assert.equal(dry(d), 'state=playing decision=playing');
   });
 
-  test('an unreadable vault folder is unknown and holds the runners', () => {
+  test('an unreadable vault folder is unknown and holds the board runner, never the vault runner', () => {
     const d = fakePi({ vault: false, active: UNITS.split(' ') });
     assert.equal(dry(d), 'state=unknown decision=unknown');
-    assert.match(runGate(d).calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    const r = runGate(d);
+    assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
+    assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault/);
+  });
+
+  test('unknown state: a stopped vault runner is started (kept), a stopped board runner is not', () => {
+    const r = runGate(fakePi({ vault: false }));
+    assert.match(r.calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
+    assert.doesNotMatch(r.calls, /start .*board/);
+    assert.match(r.out, /unknown \(kept\): start queued for foundry-ai-tool-gh-runner-vault/);
+  });
+
+  test('unknown state: a running vault runner, also mid-job, is left alone', () => {
+    const d = fakePi({
+      vault: false,
+      active: UNITS.split(' '),
+      busy: ['foundry-ai-tool-gh-runner-vault.service'],
+    });
+    const r = runGate(d);
+    assert.doesNotMatch(r.calls, /start |stop foundry-ai-tool-gh-runner-vault/);
   });
 
   test('unknown for longer than the ceiling lets the runners run again, and says so', () => {
     const d = fakePi({ vault: false });
     assert.equal(dry(d), 'state=unknown decision=unknown');
-    const later = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(7)) });
+    const later = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(15)) });
     assert.match(later.out, /state=unknown decision=idle/);
-    assert.match(later.out, /unknown for over 6 hours/);
-    assert.match(
-      runGate(d, { GATE_NOW_MS: String(NOW + hours(7)) }).calls,
-      /start foundry-ai-tool-gh-runner-vault\.service/
-    );
+    assert.match(later.out, /unknown for over 14 hours/);
+    const calls = runGate(d, { GATE_NOW_MS: String(NOW + hours(15)) }).calls;
+    assert.match(calls, /start --no-block foundry-ai-tool-gh-runner-vault\.service/);
+    assert.match(calls, /start foundry-ai-tool-gh-runner-board\.service/);
   });
 
   test('a known state resets the unknown clock', () => {
@@ -278,12 +481,23 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     mkdirSync(path.join(d, 'vault'));
     assert.equal(dry(d), 'state=idle decision=idle');
     rmSync(path.join(d, 'vault'), { recursive: true });
-    const again = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(7)) });
+    const again = runGate(d, { GATE_DRY: '1', GATE_NOW_MS: String(NOW + hours(15)) });
     assert.match(again.out, /state=unknown decision=unknown/);
   });
 });
 
 describe('the stage as text', () => {
+  test('the read-back warns when the vault runner is stopped, and only an idle board runner is accepted as stopped', () => {
+    const vaultBranch = /if \[ "\$unit" = foundry-ai-tool-gh-runner-vault\.service \]; then\n[^\n]*\n\s*warn "\$unit is stopped, but the gate never holds it/.exec(
+      stage
+    );
+    assert.ok(vaultBranch, 'a stopped vault unit ends in warn');
+    assert.ok(
+      stage.indexOf('is stopped (a play session is marked') > stage.indexOf(vaultBranch[0]),
+      'the board runner branch is the else of that warn'
+    );
+  });
+
   test('the runner release is pinned by version and sha256, and checked before it is used', () => {
     assert.match(stage, /^RUNNER_VERSION=\d+\.\d+\.\d+$/m);
     assert.match(stage, /^RUNNER_SHA256=[0-9a-f]{64}$/m);
@@ -303,43 +517,60 @@ describe('the stage as text', () => {
     return spawnSync('bash', [posix(file)], { encoding: 'utf8' });
   };
 
-  test('the allow list is the router plus the IPv4 nameservers of resolv.conf, without duplicates', { skip: !hasBash }, () => {
-    assert.ok(allowBlock, 'ALLOW block found');
-    const r = allowFor('nameserver 192.168.1.1\nnameserver 1.1.1.1\nnameserver 2606:4700::1111\n');
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /^ALLOW=192\.168\.1\.1\/32 1\.1\.1\.1\/32$/m);
-  });
+  test(
+    'the allow list is the router plus the IPv4 nameservers of resolv.conf, without duplicates',
+    { skip: !hasBash },
+    () => {
+      assert.ok(allowBlock, 'ALLOW block found');
+      const r = allowFor(
+        'nameserver 192.168.1.1\nnameserver 1.1.1.1\nnameserver 2606:4700::1111\n'
+      );
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /^ALLOW=192\.168\.1\.1\/32 1\.1\.1\.1\/32$/m);
+    }
+  );
 
-  test('a loopback nameserver stops the stage, names the address and is never allowed', { skip: !hasBash }, () => {
-    for (const ns of ['127.0.0.53', '127.0.0.1', '127.1.2.3']) {
-      const r = allowFor(`nameserver 1.1.1.1\nnameserver ${ns}\n`);
-      assert.notEqual(r.status, 0, ns);
-      assert.ok(r.stderr.includes(`loopback nameserver (${ns})`), r.stderr);
-      assert.ok(!r.stdout.includes('127.'), `${ns} left the allow list: ${r.stdout}`);
+  test(
+    'a loopback nameserver stops the stage, names the address and is never allowed',
+    { skip: !hasBash },
+    () => {
+      for (const ns of ['127.0.0.53', '127.0.0.1', '127.1.2.3']) {
+        const r = allowFor(`nameserver 1.1.1.1\nnameserver ${ns}\n`);
+        assert.notEqual(r.status, 0, ns);
+        assert.ok(r.stderr.includes(`loopback nameserver (${ns})`), r.stderr);
+        assert.ok(!r.stdout.includes('127.'), `${ns} left the allow list: ${r.stdout}`);
+      }
+      // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
+      assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
     }
-    // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
-    assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
-  });
+  );
 
-  test('a Tailscale nameserver or one of the Pi’s own addresses stops the stage too', { skip: !hasBash }, () => {
-    for (const ns of ['100.100.100.100', '100.64.0.1', '100.127.255.254']) {
-      const r = allowFor(`nameserver ${ns}\n`);
-      assert.notEqual(r.status, 0, ns);
-      assert.ok(r.stderr.includes(`Tailscale nameserver (${ns})`), r.stderr);
+  test(
+    'a Tailscale nameserver or one of the Pi’s own addresses stops the stage too',
+    { skip: !hasBash },
+    () => {
+      for (const ns of ['100.100.100.100', '100.64.0.1', '100.127.255.254']) {
+        const r = allowFor(`nameserver ${ns}\n`);
+        assert.notEqual(r.status, 0, ns);
+        assert.ok(r.stderr.includes(`Tailscale nameserver (${ns})`), r.stderr);
+      }
+      const own = allowFor('nameserver 192.168.1.50\n');
+      assert.notEqual(own.status, 0);
+      assert.ok(own.stderr.includes('own address as nameserver (192.168.1.50)'), own.stderr);
+      // Just outside 100.64.0.0/10, and another LAN host: allowed.
+      for (const ns of ['100.63.0.1', '100.128.0.1', '192.168.1.60']) {
+        const r = allowFor(`nameserver ${ns}\n`);
+        assert.equal(r.status, 0, `${ns}: ${r.stderr}`);
+        assert.ok(r.stdout.includes(`${ns}/32`), r.stdout);
+      }
     }
-    const own = allowFor('nameserver 192.168.1.50\n');
-    assert.notEqual(own.status, 0);
-    assert.ok(own.stderr.includes('own address as nameserver (192.168.1.50)'), own.stderr);
-    // Just outside 100.64.0.0/10, and another LAN host: allowed.
-    for (const ns of ['100.63.0.1', '100.128.0.1', '192.168.1.60']) {
-      const r = allowFor(`nameserver ${ns}\n`);
-      assert.equal(r.status, 0, `${ns}: ${r.stderr}`);
-      assert.ok(r.stdout.includes(`${ns}/32`), r.stdout);
-    }
-  });
+  );
 
   test('config.sh starts inside the runner folder (it runs `ldd ./bin/...`, relative to the cwd)', () => {
-    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env -C "\$dir" [^\n]*\.\/config\.sh --unattended/);
+    assert.match(
+      stage,
+      /runuser -u "\$RUNNER_USER" -- env -C "\$dir" [^\n]*\.\/config\.sh --unattended/
+    );
     assert.ok(!stage.includes('"$dir/config.sh"'));
   });
 
@@ -422,24 +653,14 @@ describe('the stage as text', () => {
 
 // With PI_STAGE17_CONTAINER=1 (needs Docker): the registration step in a Debian 13 ARM64 container, started from a
 // folder the runner user cannot enter.
-describe('stage 17 registration in the ARM64 container', { skip: process.env.PI_STAGE17_CONTAINER !== '1' }, () => {
-  test('scenarios', () => {
-    const r = spawnSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--platform',
-        'linux/arm64',
-        '-v',
-        `${repo}:/repo:ro`,
-        'debian:13-slim',
-        'bash',
-        '/repo/scripts/pi/container-test/stage17-scenarios.sh',
-      ],
-      { encoding: 'utf8', timeout: 600000 }
-    );
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-  });
-});
+describe(
+  'stage 17 registration in the ARM64 container',
+  { skip: process.env.PI_STAGE17_CONTAINER !== '1' },
+  () => {
+    test('scenarios', () => {
+      const r = runStageContainer('stage17-scenarios.sh', { timeout: 600000 });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+    });
+  }
+);

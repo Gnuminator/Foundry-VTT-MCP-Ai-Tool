@@ -10,7 +10,7 @@
  * journal note and one scene note. The hubs come from the mirror's own note map: no extra Foundry
  * query.
  */
-import { MIRROR_FOLDERS, pathKey } from './mirror-common.js';
+import { MIRROR_FOLDERS, MIRROR_ROOT, pathKey } from './mirror-common.js';
 import { safeFolderSegment } from './mirror-paths.js';
 
 /** The `type` property of an adventure hub note. */
@@ -155,6 +155,51 @@ export function collectAdventureHubs(notes: Iterable<HubSourceNote>): AdventureH
     );
   }
   return hubs.sort((a, b) => NUMERIC.compare(a.name, b.name) || (a.path < b.path ? -1 : 1));
+}
+
+/** The `type` property of the note that gathers the mirror notes no adventure hub links. */
+export const LOOSE_NOTES_TYPE = 'mirror-loose-notes';
+
+/** Where it goes: next to the mirror status, outside `Adventures/` (it is not an adventure). */
+export const LOOSE_NOTES_PATH = `${MIRROR_ROOT}/Without an adventure.md`;
+
+/** The kinds the note gathers; scenes, journals and NPCs are the ones that end up in no adventure. */
+export const LOOSE_SECTIONS = HUB_SECTIONS.filter(
+  s => s.type === 'journal' || s.type === 'scene' || s.type === 'npc'
+);
+
+export type LooseSectionType = (typeof LOOSE_SECTIONS)[number]['type'];
+
+/**
+ * The journal, scene and NPC notes that no adventure hub lists (a journal directly in the
+ * Journals folder, a folder with journals and no scene), so they are not loose in the graph.
+ * `subfolder` is the Foundry folder path below the kind folder, or ''. Notes outside the fence
+ * are left out; each list is sorted like a hub's.
+ */
+export function collectLooseNotes(
+  notes: Iterable<HubSourceNote>,
+  hubs: readonly AdventureHub[]
+): Record<LooseSectionType, HubMember[]> {
+  const inHub = new Set<string>();
+  for (const hub of hubs) {
+    for (const list of Object.values(hub.members)) for (const m of list) inHub.add(pathKey(m.path));
+  }
+  const loose: Record<LooseSectionType, HubMember[]> = { journal: [], scene: [], npc: [] };
+  for (const note of notes) {
+    if (!note.insideFence || inHub.has(pathKey(note.path))) continue;
+    const section = LOOSE_SECTIONS.find(s => s.type === note.type);
+    if (!section) continue;
+    const prefix = `${section.folder}/`;
+    if (!pathKey(note.path).startsWith(pathKey(prefix))) continue;
+    const rest = note.path.slice(prefix.length).split('/');
+    loose[section.type].push({
+      path: note.path,
+      name: note.name ?? (rest[rest.length - 1] ?? '').replace(/\.md$/i, ''),
+      subfolder: rest.slice(0, -1).join('/'),
+    });
+  }
+  for (const list of Object.values(loose)) list.sort(byFolderThenName);
+  return loose;
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   findingId,
   splitExpected,
   chooseHeroes,
+  conRiseExplains,
   classify,
   compareHeroes,
   comparablePicks,
@@ -147,6 +148,75 @@ test("the subclass pick is Actor Studio's own and is not compared", () => {
   assert.equal(comparablePicks(raw.picks).length, 3);
 });
 
+test('conRiseExplains: a shortfall is a sum of ability score increase levels, at most modifier + 1 terms', () => {
+  assert.equal(conRiseExplains(12, 17, 3), true); // 12 is one increase level
+  assert.equal(conRiseExplains(10, 10, 2), true); // the rogue's level 10
+  assert.equal(conRiseExplains(10, 9, 2), true); // 4 + 6
+  assert.equal(conRiseExplains(10, 9, 1), true); // two terms at modifier +1
+  assert.equal(conRiseExplains(18, 14, 1), true); // 4 + 14
+  assert.equal(conRiseExplains(32, 19, 1), false); // 4 + 12 + 16 needs three terms, modifier +1 allows two
+  assert.equal(conRiseExplains(9, 17, 3), false); // no sum of increase levels
+  assert.equal(conRiseExplains(8, 7, 3), false); // 8 is an increase level but the hero is level 7
+  assert.equal(conRiseExplains(4, 3, 3), false); // no increase level before 4
+  assert.equal(conRiseExplains(0, 17, 3), false); // no shortfall
+  assert.equal(conRiseExplains(12, 17, 0), false); // modifier not above zero
+  assert.equal(conRiseExplains(-4, 17, 3), false);
+});
+
+test('a Constitution shortfall on top of a per-level hit point effect keeps its own finding', () => {
+  const own =
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
+  const plain = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
+  const hero = (keys, value) => {
+    const c = pair();
+    c.studio.actor.level = 17;
+    c.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+    c.studio.actor.hp.max = 157;
+    c.studio.actor.hp.value = value;
+    c.studio.actor.hp.sources = [{ item: 'Draconic Resilience', keys }];
+    return compareHeroes(c).problems.find(p => p.category === 'current hit points');
+  };
+  const level = ['system.attributes.hp.bonuses.level'];
+  // the effect explains 17, the Constitution increase the other 12: both together are a STUDIO finding
+  assert.equal(hero(level, 157 - 17 - 12)?.id, own);
+  assert.equal(hero(level, 157 - 17 - 12)?.kind, 'STUDIO');
+  // the effect alone is the system's
+  assert.equal(hero(level, 140)?.id, plain);
+  assert.equal(hero(level, 140)?.kind, 'SYSTEM');
+  // a per-level bonus with no source behind it explains nothing: the 12 stay the Constitution's
+  const bare = pair();
+  bare.studio.actor.level = 17;
+  bare.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  bare.studio.actor.hp.max = 157;
+  bare.studio.actor.hp.value = 157 - 12;
+  bare.studio.actor.hp.bonuses = { level: 2, overall: 0 };
+  bare.studio.actor.hp.sources = [];
+  assert.equal(
+    compareHeroes(bare).problems.find(p => p.category === 'current hit points')?.id,
+    own
+  );
+  // a source of unknown shape explains any shortfall
+  assert.equal(hero([], 145)?.kind, 'SYSTEM');
+  // Tough gives two per level: at level 12 its 24 are the effect's, not a Constitution increase (12 would fit)
+  const tough = pair();
+  tough.studio.actor.level = 12;
+  tough.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  tough.studio.actor.hp.max = 157;
+  tough.studio.actor.hp.value = 157 - 24;
+  tough.studio.actor.hp.bonuses = { level: 2, overall: 0 };
+  tough.studio.actor.hp.sources = [{ item: 'Tough', keys: level }];
+  const t = compareHeroes(tough).problems.find(p => p.category === 'current hit points');
+  assert.equal(t?.id, plain);
+  assert.equal(t?.kind, 'SYSTEM');
+  // an overall bonus as well: the share is unknown, SYSTEM
+  tough.studio.actor.hp.bonuses = { level: 1, overall: 5 };
+  tough.studio.actor.hp.value = 157 - 12 - 12;
+  assert.equal(
+    compareHeroes(tough).problems.find(p => p.category === 'current hit points')?.kind,
+    'SYSTEM'
+  );
+});
+
 test('a different class level, hit point total or granted item is a STUDIO difference', () => {
   const { raw, studio } = pair();
   studio.actor.classes[0].levels = 4;
@@ -179,6 +249,55 @@ test('a new hero that cannot spend its spell slots or starts hurt is reported', 
   assert.deepEqual(
     compareHeroes(x).problems.map(p => p.kind),
     ['SYSTEM']
+  );
+  // A shortfall a Constitution increase explains (level 17, modifier +3, 12 missing) has its own id; a hero
+  // whose shortfall is no sum of ability score increase levels (at most modifier + 1 of them), or who has
+  // no increase level yet (level 3), stays a plain STUDIO finding.
+  const con = (level, mod, value) => {
+    const c = pair();
+    c.studio.actor.level = level;
+    c.studio.actor.abilities = { con: { value: 16, mod } };
+    c.studio.actor.hp.max = 157;
+    c.studio.actor.hp.value = value;
+    return compareHeroes(c).problems.find(p => p.category === 'current hit points');
+  };
+  assert.equal(
+    con(17, 3, 145)?.id,
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind'
+  );
+  assert.equal(con(17, 3, 145)?.kind, 'STUDIO');
+  // a sum of increase levels is explained (4 + 6 = 10), one level's hit points (7 to 10 missing) is not
+  const own =
+    'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
+  const plain = 'current-hit-points:a-new-hero-does-not-start-at-full-hit-points';
+  assert.equal(con(17, 3, 147)?.id, own);
+  assert.equal(con(17, 3, 150)?.id, plain); // 7 missing
+  assert.equal(con(17, 3, 148)?.id, plain); // 9 missing
+  assert.equal(con(17, 1, 145)?.id, own); // two terms are allowed at modifier +1: 12 is one
+  assert.equal(con(17, 1, 128)?.id, plain); // 29 would need more terms than modifier +1 allows
+  assert.equal(con(4, 2, 153)?.id, own); // level 4, 4 missing
+  // a hit point effect keeps the SYSTEM finding whatever the shortfall looks like
+  const s = pair();
+  s.studio.actor.level = 17;
+  s.studio.actor.abilities = { con: { value: 16, mod: 3 } };
+  s.studio.actor.hp.max = 157;
+  s.studio.actor.hp.value = 145;
+  s.studio.actor.hp.sources = [{ item: 'Draconic Resilience', keys: [] }];
+  assert.equal(
+    compareHeroes(s).problems.find(p => p.category === 'current hit points')?.kind,
+    'SYSTEM'
+  );
+  assert.equal(
+    con(3, 3, 145)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
+  assert.equal(
+    con(17, 3, 100)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
+  );
+  assert.equal(
+    con(17, 0, 145)?.id,
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points'
   );
   // The raw twin may have been hurt by an earlier scenario: that is not a difference.
   const w = pair();
@@ -723,7 +842,11 @@ const FORK_FIXED = [
   'feature-problems:no-slot-to-spend',
   'console:gas.captureAdvancement',
   'console:black-parchment.webp',
+  // a Constitution increase while levelling leaves the current hit points behind; fixed in aitool.6
+  'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind',
 ];
+const HP_STUDIO =
+  'current-hit-points:a-constitution-increase-while-levelling-leaves-the-current-hit-points-behind';
 // fixed one build later: 2.10.5-aitool.2 fills the slots on every level up; aitool.1 filled level 1 only
 const SLOTS = 'spell-slots-available:spell-slots-a-new-hero-can-spend';
 const ALWAYS = [
@@ -750,8 +873,13 @@ test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed 
 test('the expected list for the fork build drops what the fork fixed', () => {
   // aitool.1 still expects the slot finding (it fills level 1 only), aitool.2 and later do not
   const first = loadExpected(undefined, '2.10.5-aitool.1').map(e => e.id);
-  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS].sort(), '2.10.5-aitool.1');
-  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.6-aitool.1']) {
+  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS, HP_STUDIO].sort(), '2.10.5-aitool.1');
+  // the hit points of a levelled hero are filled from aitool.6 on
+  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.5-aitool.5']) {
+    const ids = loadExpected(undefined, version).map(e => e.id);
+    assert.deepEqual(ids.sort(), [...ALWAYS, HP_STUDIO].sort(), version);
+  }
+  for (const version of ['2.10.5-aitool.6', '2.10.6-aitool.1']) {
     const ids = loadExpected(undefined, version).map(e => e.id);
     assert.deepEqual(ids.sort(), [...ALWAYS].sort(), version);
   }
@@ -785,10 +913,12 @@ test('a fork build older than the fix does not get the entry dropped', () => {
 
 test('the installed version set by the scenario picks the list loadExpected() returns', () => {
   try {
-    setStudioVersion('2.10.5-aitool.2');
+    setStudioVersion('2.10.5-aitool.6');
     assert.equal(loadExpected().length, ALWAYS.length);
-    setStudioVersion('2.10.5-aitool.1');
+    setStudioVersion('2.10.5-aitool.2');
     assert.equal(loadExpected().length, ALWAYS.length + 1);
+    setStudioVersion('2.10.5-aitool.1');
+    assert.equal(loadExpected().length, ALWAYS.length + 2);
     setStudioVersion('2.10.5');
     assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length + 1);
     setStudioVersion(null);

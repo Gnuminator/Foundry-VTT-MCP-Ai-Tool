@@ -12,6 +12,13 @@ export {
   type PanelState,
   type QueryLike,
 } from './QueryState';
-export { EmptyState, ErrorState, LoadingState, Skeleton, type BlockTag } from './states';
+export {
+  DelayedLoading,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Skeleton,
+  type BlockTag,
+} from './states';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './Tabs';
 export { Tooltip, TooltipProvider } from './Tooltip';

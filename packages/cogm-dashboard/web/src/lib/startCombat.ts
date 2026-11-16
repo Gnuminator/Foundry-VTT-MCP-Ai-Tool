@@ -2,7 +2,15 @@
 // start. The rule is the module's (combat-plan.ts, no tokenIds): player characters and Hostile
 // tokens fight, Neutral and Friendly ones stay out until the GM ticks them. get-token-positions
 // gives the side as `category` (pc, enemy for Hostile, npc for the rest).
+import { createContext } from 'react';
+
 import { SIDE_LABEL, type Side } from './combat';
+
+/**
+ * True where Start combat also rolls initiative for the non-player combatants (live screen A, so
+ * the start is two clicks). Players roll their own. The default dashboard leaves it false.
+ */
+export const RollNpcInitiativeContext = createContext(false);
 
 /** One token of the viewed scene as get-token-positions lists it (the fields the picker reads). */
 export interface SceneToken {
@@ -43,6 +51,55 @@ export function defaultTicks(rows: readonly SceneToken[]): Set<string> {
 export function sideWords(token: SceneToken): string {
   if (token.category === 'enemy') return 'Hostile';
   return token.category === 'pc' ? SIDE_LABEL.pc : 'Neutral or Friendly';
+}
+
+/** The tokens of a start that are not player characters: the ones that roll for initiative. */
+export function npcTokenIds(rows: readonly SceneToken[], ticked: ReadonlySet<string>): Set<string> {
+  return new Set(
+    rows
+      .filter(t => ticked.has(t.tokenId) && canFight(t) && t.category !== 'pc')
+      .map(t => t.tokenId)
+  );
+}
+
+/**
+ * The ids of the combatants in `state` (get-combat-state) made from `tokenIds`, player characters
+ * left out. Empty when the fight the bridge resolves is not the one just started (an older
+ * encounter on another scene), so initiative is never rolled in the wrong fight.
+ */
+export function newNpcCombatantIds(state: unknown, tokenIds: ReadonlySet<string>): string[] {
+  const list = (state as { combatants?: unknown } | null)?.combatants;
+  if (!Array.isArray(list)) return [];
+  const ids: string[] = [];
+  for (const c of list as { id?: unknown; tokenId?: unknown; isPC?: unknown }[]) {
+    if (
+      typeof c?.id === 'string' &&
+      typeof c.tokenId === 'string' &&
+      tokenIds.has(c.tokenId) &&
+      c.isPC !== true
+    ) {
+      ids.push(c.id);
+    }
+  }
+  return ids;
+}
+
+/** The names of the ticked player characters, to ask each for initiative. */
+export function pcNames(rows: readonly SceneToken[], ticked: ReadonlySet<string>): string[] {
+  return rows
+    .filter(t => ticked.has(t.tokenId) && canFight(t) && t.category === 'pc')
+    .map(t => t.name);
+}
+
+/** request-player-rolls for one player character's initiative: a public roll, as at the table. */
+export function initiativeRequestArgs(name: string): Record<string, unknown> {
+  return {
+    rollType: 'initiative',
+    rollTarget: 'initiative',
+    targetPlayer: name,
+    isPublic: true,
+    userConfirmedVisibility: true,
+  };
 }
 
 /** The plan request for the ticked tokens, in the picker's order. */

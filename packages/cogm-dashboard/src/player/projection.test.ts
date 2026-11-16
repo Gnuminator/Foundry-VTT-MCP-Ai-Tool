@@ -7,6 +7,7 @@ import type { Combatant, CombatState, SessionEvent } from '../feed/types.js';
 import {
   projectEnvironment,
   buildPlayerState,
+  projectSession,
   projectCombat,
   projectEvent,
   projectEvents,
@@ -323,7 +324,19 @@ describe('buildPlayerState', () => {
       combat: null,
       events: [{ id: 'e1', timestampMs: 1000, type: 'damage', text: 'Ilvara took 7 damage.' }],
       handouts: [],
+      session: null,
     });
+  });
+
+  it('projects the session marker to the open flag and the end time (I-111)', () => {
+    expect(projectSession(undefined, 5)).toBeNull();
+    expect(projectSession(null, 5)).toBeNull();
+    expect(projectSession(true, null)).toEqual({ open: true, endedAt: null });
+    expect(projectSession(false, Date.parse('2026-09-28T22:00:00.000Z'))).toEqual({
+      open: false,
+      endedAt: '2026-09-28T22:00:00.000Z',
+    });
+    expect(projectSession(false, Number.NaN)).toEqual({ open: false, endedAt: null });
   });
 
   it('keeps the chosen players of a handout so the player page can filter (I-039, found live)', () => {

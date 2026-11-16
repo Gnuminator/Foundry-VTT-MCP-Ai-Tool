@@ -8,7 +8,7 @@ describe('PermissionManager.validateOperationParameters createActor quantity (P-
       quantity,
     });
 
-  it('accepts 1 to 50, the range of the Max Actors Per Request setting', () => {
+  it('accepts 1 to 50, the range of the "AI Tool: Max actors per request" setting', () => {
     for (const quantity of [1, 10, 11, 50]) {
       expect(validate(quantity)).toMatchObject({ valid: true, errors: [] });
     }

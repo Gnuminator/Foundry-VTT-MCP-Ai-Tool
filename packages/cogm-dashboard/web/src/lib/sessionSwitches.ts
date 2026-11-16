@@ -1,6 +1,6 @@
 // Turn on for tonight's switches (`/api/session/switches`): the module's write switches that one
 // click turns on for tonight, and the dashboard's GM Actions. Shared by the Ready block in
-// Pre-flight and by the header's End session, which turns them off again as the old page did.
+// Pre-flight and by the header's End session, which turns them off again.
 import type { QueryClient } from '@tanstack/react-query';
 
 import { SETTINGS_KEY, type DashboardSettings } from './stream';
@@ -40,7 +40,7 @@ export const SWITCHES_KEY = ['session-switches'] as const;
 /** "AI Tool: Handouts (writes)" reads "Handouts (writes)" on the chips and in toasts. */
 export const shortName = (name: string): string => name.replace(/^AI Tool: /, '');
 
-export function switchNames(list: SessionSwitch[], ids: string[]): string[] {
+function switchNames(list: SessionSwitch[], ids: string[]): string[] {
   return ids.map(id => shortName(list.find(s => s.id === id)?.name ?? id));
 }
 

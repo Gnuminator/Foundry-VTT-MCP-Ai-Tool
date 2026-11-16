@@ -38,6 +38,8 @@ export async function setup(t) {
   if (!start) throw new Error(`No token "${TOKEN}" on the active scene.`);
   const dash = await t.dashboard();
   await setGmActions(dash.page, false);
+  // The page opens on the view it was left on; the tool and Recent Changes are on During.
+  await dash.page.locator('#tab-during').click();
 }
 
 /** The recorded part. */

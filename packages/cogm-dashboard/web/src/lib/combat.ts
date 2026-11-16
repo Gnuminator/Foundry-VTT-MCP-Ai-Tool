@@ -3,10 +3,8 @@
 // prompts, the hit point bar, when the action bar shows, and when the strip is out of date. No
 // React here, so the rules have unit tests; components/CombatStrip.tsx does the rest.
 //
-// Three things differ from the old page, on purpose: the reaction button shows only on a living
-// boss (the old page gave every combatant one once Boss prompts was on, with no way to switch it
-// off in a fight without a boss), a fight is marked old when the bridge is away (the old page
-// kept showing it as live), and a fight with nobody in it says so.
+// The reaction button shows only on a living boss, a fight is marked old when the bridge is away,
+// and a fight with nobody in it says so.
 
 export interface CombatantHp {
   value: number;
@@ -36,6 +34,8 @@ export interface Combatant {
   isCurrentTurn: boolean;
   hp: CombatantHp;
   conditions: string[];
+  /** Rounds left on the timed conditions, by name (0 = time is up); empty from an older module. */
+  timed?: Record<string, unknown>;
   isPC: boolean;
   /** 'pc', 'npc' or 'enemy'. */
   category: string;
@@ -100,6 +100,7 @@ function readCombatant(v: unknown): Combatant | null {
     conditions: Array.isArray(v['conditions'])
       ? v['conditions'].filter((c): c is string => typeof c === 'string')
       : [],
+    timed: isRecord(v['timed']) ? v['timed'] : {},
     isPC: v['isPC'] === true,
     category: typeof v['category'] === 'string' ? v['category'] : 'npc',
     defeated: v['defeated'] === true,
@@ -322,14 +323,13 @@ export function reactionLabel(name: string, used: boolean): string {
 
 // --- Selection and the action bar -----------------------------------------------------------
 
-/** Rows can be picked and the action bar shows: Combat buttons and GM Actions on, a real fight. */
+/** Rows can be picked and the action bar shows: GM Actions on, a real fight. */
 export function canSelect(input: {
-  combatButtons: boolean;
   gmActions: boolean;
   fightActive: boolean;
   sample: boolean;
 }): boolean {
-  return input.combatButtons && input.gmActions && input.fightActive && !input.sample;
+  return input.gmActions && input.fightActive && !input.sample;
 }
 
 /** The picked ids that are still in the fight; the same set when none left. */
@@ -365,23 +365,8 @@ export function selectedTargets(
     : [];
 }
 
+/** What the action bar opens under itself: the Damage / Heal form or the Condition picker. */
 export type SelectionAction = 'damage' | 'condition';
-
-/** The tool runner's request for Damage / Heal or Condition on these targets (plan, then apply). */
-export function planRequest(
-  action: SelectionAction,
-  targets: string[]
-): { name: 'plan-actor-change'; prefill: { action: SelectionAction; targets: string[] } } {
-  return { name: 'plan-actor-change', prefill: { action, targets } };
-}
-
-/** The tool runner's request to end the fight (plan, confirm, then apply; Undo in Recent Changes). */
-export function endCombatRequest(): {
-  name: 'plan-combat-change';
-  prefill: { action: 'end' };
-} {
-  return { name: 'plan-combat-change', prefill: { action: 'end' } };
-}
 
 // --- The bridge --------------------------------------------------------------------------------
 

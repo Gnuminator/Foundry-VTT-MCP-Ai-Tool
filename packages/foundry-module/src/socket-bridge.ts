@@ -33,6 +33,8 @@ export interface BridgeConfig {
   autoReconnect?: () => boolean;
   /** Builds the `module-hello` frame sent right after the link opens (PB-02). */
   getHello?: () => ModuleHelloData;
+  /** Called when an open link opens (true) or is lost (false). Not called for a failed retry or `disconnect()`. */
+  onLinkChange?: (up: boolean) => void;
 }
 
 /**
@@ -85,8 +87,14 @@ export class SocketBridge {
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Rejects the connect() still waiting for its socket; `disconnect()` calls it so the caller is not left hanging. */
+  private cancelPendingConnect: ((error: Error) => void) | null = null;
   /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
   private stopped = false;
+  /** True from a successful open until the link is lost or closed on purpose. */
+  private linkUp = false;
+  /** Last link state written to the console by logLinkChange (null before the first change). */
+  private lastLoggedLinkUp: boolean | null = null;
   private activeConnectionType: 'websocket' | null = null;
   /** Module-initiated requests waiting for their `module-reply` (I-108). */
   private pendingRequests = new Map<string, PendingModuleRequest>();
@@ -123,7 +131,21 @@ export class SocketBridge {
 
     const wsUrl = `${protocol}://${host}:${this.config.serverPort}${this.config.namespace}`;
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolveConnect, rejectConnect) => {
+      // Clear the cancel handle only when it is still this connect's own: a newer connect may
+      // have registered its handle since, and an old promise must not take it away.
+      const settle = (): void => {
+        if (this.cancelPendingConnect === reject) this.cancelPendingConnect = null;
+      };
+      const resolve = (): void => {
+        settle();
+        resolveConnect();
+      };
+      const reject = (error: Error): void => {
+        settle();
+        rejectConnect(error);
+      };
+      this.cancelPendingConnect = reject;
       let ws!: WebSocket;
       // A socket that is no longer this bridge's current one must not touch its state.
       const isCurrent = (): boolean => this.ws === ws;
@@ -153,7 +175,10 @@ export class SocketBridge {
           this.connectionState = CONNECTION_STATES.CONNECTED;
           this.reconnectAttempts = 0;
           this.bridgeCapabilities = null;
+          this.linkUp = true;
+          this.notifyLinkChange(true);
           this.log('Connected to MCP server via WebSocket');
+          this.logLinkChange(true, 'Connected to the MCP server');
           this.setupEventHandlers();
           this.sendHello();
           resolve();
@@ -176,6 +201,10 @@ export class SocketBridge {
           clearTimeout(connectTimeout);
           if (!isCurrent()) return;
           this.log(`Disconnected: ${event.reason || 'Connection closed'}`);
+          this.logLinkChange(
+            false,
+            `Lost the MCP server link: ${event.reason || 'connection closed'}`
+          );
           // Error and close both fire for one failed connect: linkDown() keeps to a
           // single timer and a single count. A close we did not start (even a clean
           // one, such as the backend shutting down) is retried.
@@ -195,7 +224,9 @@ export class SocketBridge {
   }
 
   disconnect(): void {
+    this.cancelPendingConnect?.(new Error('Connection cancelled'));
     this.stopped = true;
+    this.linkUp = false;
     this.clearReconnectTimer();
 
     if (this.ws) {
@@ -210,6 +241,8 @@ export class SocketBridge {
     this.bridgeCapabilities = null;
     this.releaseBridgeHelloWaiters();
     this.log('Disconnected from MCP server');
+    // A deliberate disconnect resets the console log, so the next connect writes its line again.
+    this.lastLoggedLinkUp = null;
   }
 
   private setupEventHandlers(): void {
@@ -396,11 +429,23 @@ export class SocketBridge {
 
   /** The link is down: note it and plan the retry (a pending retry keeps its RECONNECTING state). */
   private linkDown(): void {
+    if (this.linkUp) {
+      this.linkUp = false;
+      this.notifyLinkChange(false);
+    }
     this.rejectPendingRequests('Connection closed');
     this.bridgeCapabilities = null;
     this.releaseBridgeHelloWaiters();
     if (!this.reconnectTimer) this.connectionState = CONNECTION_STATES.DISCONNECTED;
     this.scheduleReconnect();
+  }
+
+  private notifyLinkChange(up: boolean): void {
+    try {
+      this.config.onLinkChange?.(up);
+    } catch (error) {
+      this.log(`Link change handler failed: ${String(error)}`);
+    }
   }
 
   private clearReconnectTimer(): void {
@@ -495,6 +540,17 @@ export class SocketBridge {
         namespace: this.config.namespace,
       },
     };
+  }
+
+  /**
+   * Link up and down changes always reach the browser console, whatever the debug switch says, so a
+   * dropped link can be read back afterwards. One line per change, not one per retry.
+   */
+  private logLinkChange(up: boolean, message: string): void {
+    // A first connect that never opened is not a "lost" link: only up->down and down->up are changes.
+    if (this.lastLoggedLinkUp === up || (!up && this.lastLoggedLinkUp === null)) return;
+    this.lastLoggedLinkUp = up;
+    logInfo(`[${MODULE_ID}] Socket Bridge: ${message}`);
   }
 
   private log(message: string): void {

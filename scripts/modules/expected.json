@@ -72,6 +72,34 @@
       "why": "Actor Studio uses the deprecated V1 application framework; the warning shows on load. Our fork (I-116) does not change it."
     },
     {
+      "id": "actor-studio-levelup-fsm-trace",
+      "module": "*",
+      "match": "GAS_LEVELUP_FSM_TRACE",
+      "max": 200,
+      "why": "Actor Studio 2.10.5 logs its level-up state machine transitions through the error log. Debug tracing, informational; the heroes scenarios level up many characters (2026-11-06, 71 seen in a smoke run on server B)."
+    },
+    {
+      "id": "actor-studio-close-trace",
+      "module": "*",
+      "match": "GAS_CLOSE_TRACE_CONSOLE",
+      "max": 80,
+      "why": "Actor Studio 2.10.5 logs a trace line each time its window closes, through the error log. Informational (2026-11-06, 21 seen in a smoke run on server B)."
+    },
+    {
+      "id": "actor-studio-fsm-not-idle",
+      "module": "*",
+      "match": "FSM not in idle state after reset",
+      "max": 20,
+      "why": "Actor Studio logs a warning when a level-up window is reopened before its state machine has gone back to idle; the heroes scenarios open and close it fast (2026-11-06)."
+    },
+    {
+      "id": "dnd5e-advancement-title-deprecation",
+      "module": "*",
+      "match": "property on `Advancement` has been moved to `name`",
+      "max": 400,
+      "why": "dnd5e 6.0 deprecation notice for Advancement#title (removed in dnd5e 7.0), raised by dnd5e's own advancement flow and Actor Studio during level-ups, not by our module or the kit (their reads use name first). Remove the entry when Actor Studio and dnd5e stop reading title (2026-11-06, 51 seen in a smoke run on server B)."
+    },
+    {
       "id": "ddb-importer-403",
       "module": "ddb-importer",
       "match": "403",

@@ -38,7 +38,8 @@ import { buildUsageModel } from '../stats/usage.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
 
-import { mergeChangeHistory, type ChangeEntry } from './audit-merge.js';
+import { mergeChangeHistory } from './audit-merge.js';
+import { changeNoteNames, changeNoteParts } from './change-note-parts.js';
 import { isUntouchedLegacyHome } from './campaign-home-legacy.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, NoteWriter } from './note-writer.js';
@@ -277,7 +278,7 @@ export async function exportWorldToObsidian(options: {
     'Home.md',
     renderCampaignHome(worldId),
     text => isUntouchedLegacyHome(worldId, text),
-    'your own Home (edited in Obsidian), so the tool did not upgrade it to the new template; a new Home also has an Adventures section'
+    'your own Home (edited in Obsidian), so the tool did not upgrade it to the new template; a new Home is a start page sorted by what you are doing'
   );
   await writer.createOnce('Prep', null);
   await writer.createOnce('Prep/README.md', PREP_README);
@@ -291,6 +292,15 @@ export async function exportWorldToObsidian(options: {
   const stats = buildStats({ worldId, logEvents: events, playRecords });
   const groups = groupWithPlayRecords(events, playRecords);
   const notesLinks = await loadSessionNotesLinks(store, worldId, root);
+
+  // Change log: merge the append-only history with the audit ring, one note
+  // per month.
+  const ring: AuditEntry[] = await audit.list(worldId, 500);
+  const jsonl = await store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
+  const merged = mergeChangeHistory(ring, jsonl);
+  const changeParts = changeNoteParts(merged);
+  const changeNotes = changeNoteNames(changeParts);
+
   const sessionNotes = new Set<string>();
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i];
@@ -310,7 +320,8 @@ export async function exportWorldToObsidian(options: {
           endedBy: group.endedBy,
         },
         sessionStats,
-        sessionNotesLines(notesLinks.filter(link => link.date === sessionStats.date))
+        sessionNotesLines(notesLinks.filter(link => link.date === sessionStats.date)),
+        changeNotes
       ),
       checkMarkdownOwnership
     );
@@ -324,24 +335,15 @@ export async function exportWorldToObsidian(options: {
     await store.write(worldId, 'gm', SEEN_INDEX_FILE, seen);
   }
 
-  // Change log: merge the append-only history with the audit ring, one note
-  // per month.
-  const ring: AuditEntry[] = await audit.list(worldId, 500);
-  const jsonl = await store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
-  const merged = mergeChangeHistory(ring, jsonl);
-  const byMonth = new Map<string, ChangeEntry[]>();
-  for (const e of merged) {
-    const month = e.appliedAt.slice(0, 7);
-    const list = byMonth.get(month) ?? [];
-    list.push(e);
-    byMonth.set(month, list);
-  }
-  for (const [month, list] of byMonth) {
-    await writer.owned(
-      `AI Tool/Changes/${month}.md`,
-      renderChangesNote(worldId, month, list),
-      checkMarkdownOwnership
-    );
+  for (const [month, parts] of changeParts) {
+    const all = parts.map(p => p.name);
+    for (const part of parts) {
+      await writer.owned(
+        `AI Tool/Changes/${part.name}.md`,
+        renderChangesNote(worldId, month, part.entries, { name: part.name, all }),
+        checkMarkdownOwnership
+      );
+    }
   }
 
   // Tarokka (only when the world has used it).
@@ -437,6 +439,10 @@ export async function exportWorldToObsidian(options: {
   }
 
   // Status, written last, summarizing everything above (not itself).
+  const mirrorStatusNote = await fsp
+    .stat(path.join(root, 'AI Tool', 'Foundry', '_status.md'))
+    .then(stat => stat.isFile())
+    .catch(() => false);
   await writer.owned(
     'AI Tool/_status.md',
     renderStatusNote(worldId, {
@@ -444,6 +450,7 @@ export async function exportWorldToObsidian(options: {
       skipped: [...writer.skipped],
       kept: [...writer.kept],
       errors: [...writer.errors],
+      mirrorStatusNote,
     }),
     checkMarkdownOwnership
   );

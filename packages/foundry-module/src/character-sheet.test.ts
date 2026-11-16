@@ -10,6 +10,7 @@ import {
   spellPrepared,
   stripSecrets,
 } from './character-sheet-fields.js';
+import { plainText as rulesPlainText } from './data-access/rules-search.js';
 import { characterSheets, projectCharacterSheet, type SheetActor } from './character-sheet.js';
 
 const g = globalThis as any;
@@ -240,6 +241,32 @@ describe('stripSecrets and plainText', () => {
       '<!-- hidden --><p>kept</p>',
     ].join('');
     expect(plainText(html)).toBe('kept');
+  });
+
+  it('shows an enricher as its label, like a book entry does', () => {
+    const html =
+      '<p>Cast @UUID[Compendium.dnd5e.spells.Item.abc]{Fireball} or [[/damage 2d6 fire]] ' +
+      'and &Reference[Prone]; see @UUID[Item.xyz].</p>';
+    expect(plainText(html)).toBe('Cast Fireball or damage 2d6 fire and Prone; see (link).');
+  });
+
+  it('reads a keyed or multi-word reference by its name, in both plainText copies', () => {
+    const html =
+      '<p>&Reference[condition=prone] and &amp;Reference[Spell Scroll] and ' +
+      '&Reference[condition=prone apply=false] and &Reference[Prone]</p>';
+    const want = 'prone and Spell Scroll and prone and Prone';
+    expect(plainText(html)).toBe(want);
+    expect(rulesPlainText(html)).toBe(want);
+    expect(rulesPlainText('see @UUID[Item.xyz].')).toBe('see (link).');
+  });
+
+  it('reads reference options in any position, strips quotes and drops boolean or numeric ones', () => {
+    const html =
+      '<p>&Reference[apply=false condition=prone] and &Reference[rule="Difficult Terrain"] and ' +
+      "&Reference[condition='half cover' level=3] and &Reference[Prone=1]</p>";
+    const want = 'prone and Difficult Terrain and half cover and Prone';
+    expect(plainText(html)).toBe(want);
+    expect(rulesPlainText(html)).toBe(want);
   });
 
   it('keeps void and self-closing tags out of the depth count', () => {

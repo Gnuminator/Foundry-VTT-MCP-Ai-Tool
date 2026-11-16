@@ -14,12 +14,12 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import { FOUNDRY_UUID_MAX_LENGTH, FOUNDRY_UUID_SOURCE } from '@gnuminator/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as openPage from '../public/open.js';
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard, type DashboardDeps } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
+import { testWebDir } from './test-web-dir.js';
 import { ChannelError, TimeoutError, ToolError } from './feed/mcp-control-client.js';
 import { parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
@@ -113,13 +113,6 @@ class FakeBridge {
   }
 }
 
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 interface Harness {
   base: string;
   port: number;
@@ -142,12 +135,16 @@ async function start(
 ): Promise<Harness> {
   const bridge = new FakeBridge();
   const clock = { t: 1_000_000 };
-  const testConfig: Config = { ...config, ...overrides, auth: { ...config.auth, ...auth } };
+  const testConfig: Config = {
+    ...config,
+    webDir: testWebDir(),
+    ...overrides,
+    auth: { ...config.auth, ...auth },
+  };
   const dashboard = createDashboard({
     config: testConfig,
     logger: new Logger('error', 'open-route-test'),
     client: bridge,
-    coGm: fakeCoGm,
     openRoute: { now: () => clock.t, ...openRoute },
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
@@ -248,8 +245,6 @@ async function postOpen(h: Harness, body: unknown, opts: PostOptions = {}): Prom
   return answer;
 }
 
-const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
 function expectPageHeaders(answer: Answer): void {
   expect(answer.headers['content-security-policy']).toBe(OPEN_PAGE_CSP);
   expect(answer.headers['referrer-policy']).toBe('no-referrer');
@@ -267,9 +262,13 @@ describe('GET /open (the static confirm page)', () => {
       lastPollAt: null,
       foundryDownSince: null,
     });
-    await wait(150);
-    const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });
-    expect(gmState.text).toContain(WORLD_CANARY);
+    await vi.waitFor(
+      async () => {
+        const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });
+        expect(gmState.text).toContain(WORLD_CANARY);
+      },
+      { timeout: 5000 }
+    );
 
     const before = h.bridge.calls.length;
     for (const token of [undefined, PLAYER_TOKEN, GM_TOKEN]) {
@@ -340,8 +339,8 @@ describe('GET /open (the static confirm page)', () => {
     const otherRes = { setHeader: (name: string, value: string): string => (other[name] = value) };
     hook(
       otherRes as never,
-      path.join(PUBLIC_DIR, 'index.html'),
-      statSync(path.join(PUBLIC_DIR, 'index.html'))
+      path.join(PUBLIC_DIR, 'me.css'),
+      statSync(path.join(PUBLIC_DIR, 'me.css'))
     );
     expect(other).toEqual({});
   });
@@ -637,7 +636,7 @@ describe('POST /api/open with the player/GM split on', () => {
   });
 });
 
-describe('POST /api/open with the split off (legacy)', () => {
+describe('POST /api/open with the split off (single-user mode)', () => {
   it('acts for any caller, but the cross-site and header guards still refuse', async () => {
     const h = await start(SPLIT_OFF);
     expect((await postOpen(h, { uuid: ACTOR })).status).toBe(200);

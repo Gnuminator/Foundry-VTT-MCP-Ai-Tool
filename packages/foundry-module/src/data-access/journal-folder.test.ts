@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ensureJournalFolder } from './journal-folder.js';
 
@@ -11,7 +11,7 @@ interface FakeFolder {
 }
 
 let folders: FakeFolder[];
-let create: ReturnType<typeof vi.fn>;
+let create: Mock;
 
 beforeEach(() => {
   folders = [

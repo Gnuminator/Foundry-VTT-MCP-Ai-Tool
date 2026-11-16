@@ -34,10 +34,10 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Destination = 'E:\PiBackup',
+  [string]$Destination = '',
   [string]$SourceRepo = 'sftp:foundry-pi:/var/lib/foundry-backup/restic',
-  [string]$PiPasswordFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pi.pass'),
-  [string]$PcPasswordFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pc.pass'),
+  [string]$PiPasswordFile = '',
+  [string]$PcPasswordFile = '',
   # Where the Pi keeps the password, for the one-time fetch.
   [string]$PiHost = 'foundry-pi',
   [string]$PiPasswordPath = '/etc/foundry-ai-tool/restic-pi.pass',
@@ -57,6 +57,16 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'space-check.ps1')
 . (Join-Path $PSScriptRoot 'record-pull.ps1')
+. (Join-Path $PSScriptRoot 'pull-destination.ps1')
+
+# Machine paths: one file for the drive and the secrets folder (explicit parameters win).
+$machinePaths = Get-Content (Join-Path $PSScriptRoot '..\machine-paths.json') -Raw | ConvertFrom-Json
+if (-not $Destination) { $Destination = $machinePaths.backupDestination }
+if (-not $PiPasswordFile) { $PiPasswordFile = Join-Path $env:APPDATA "$($machinePaths.secretsFolderUnderAppData)\restic-pi.pass" }
+if (-not $PcPasswordFile) { $PcPasswordFile = Join-Path $env:APPDATA "$($machinePaths.secretsFolderUnderAppData)\restic-pc.pass" }
+
+# An unplugged drive is logged on this PC's own disk (the log below lives on the drive) and ends the run.
+if (-not (Test-PullDestination -Destination $Destination -Job 'pull-restic')) { exit 1 }
 
 $destRepo = Join-Path $Destination 'restic'
 $logDir = Join-Path $Destination 'logs'
@@ -234,7 +244,15 @@ try {
     }
     Write-Log 'ok'
     # Tell the Pi (its bot DMs you when no copy has arrived for 3 days). Only for the real Pi, never a test repository.
-    if ($sftpHost) { [void](Send-PullRecord -Kind restic -PiHost $sftpHost -Ssh $Ssh -Log ${function:Write-Log}) }
+    # Only a fresh newest snapshot counts: copying nothing new from a Pi that stopped backing up is not a sign that its
+    # backups run, so the record is left alone and the Pi's own stale-backup DM can fire.
+    if ($sftpHost) {
+      if ($newest -and (Get-NewestSnapshotAgeDays $newest) -le $WarnAfterDays) {
+        [void](Send-PullRecord -Kind restic -PiHost $sftpHost -Ssh $Ssh -Log ${function:Write-Log})
+      } else {
+        Write-Log 'WARNING: not recording this copy on the Pi: its newest snapshot is older than the limit (or missing)'
+      }
+    }
   }
 } catch {
   Write-Log "FAILED: $($_.Exception.Message)"

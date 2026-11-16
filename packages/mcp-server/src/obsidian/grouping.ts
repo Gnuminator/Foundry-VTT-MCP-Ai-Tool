@@ -225,7 +225,13 @@ export function groupWithPlayRecords(
   logEvents: SessionEvent[],
   playRecords: PlayRecord[]
 ): UnionSessionGroup[] {
-  const split = splitPaperSync(logEvents, playRecords);
+  // A recording-gap line (item play-log-gaps) is a note about the log, not play: it never opens or
+  // stretches a session. It is shown in the group whose span holds it, else dropped.
+  const gapLines = logEvents.filter(e => e.eventType === PUMP_GAP_EVENT);
+  const split = splitPaperSync(
+    gapLines.length > 0 ? logEvents.filter(e => e.eventType !== PUMP_GAP_EVENT) : logEvents,
+    playRecords
+  );
   const byEventId = new Map<string, PlayRecord>();
   for (const record of split.playRecords) byEventId.set(playRecordEventId(record), record);
   const union = [...split.logEvents, ...split.playRecords.map(playRecordAsEvent)];
@@ -250,6 +256,14 @@ export function groupWithPlayRecords(
     })
     .filter(group => !isAmbientOnly(group));
 
+  for (const gap of gapLines) {
+    const t = eventTimeMs(gap);
+    const home = groups.find(group => t >= groupStartMs(group) && t <= groupEndMs(group));
+    if (!home) continue;
+    home.events.push(gap);
+    home.events.sort((a, b) => eventTimeMs(a) - eventTimeMs(b));
+  }
+
   // A sync belongs to the newest paper night that started before it.
   const nights = groups
     .filter(group => group.paper)
@@ -263,6 +277,15 @@ export function groupWithPlayRecords(
   }
   for (const record of split.syncRecords) nightFor(record.t)?.paperSync.records.push(record);
   return groups;
+}
+
+const PUMP_GAP_EVENT = 'pump-gap';
+
+function groupEndMs(group: UnionSessionGroup): number {
+  let max = -Infinity;
+  for (const event of group.events) max = Math.max(max, eventTimeMs(event));
+  for (const record of group.playRecords) max = Math.max(max, record.t);
+  return max;
 }
 
 function groupStartMs(group: UnionSessionGroup): number {

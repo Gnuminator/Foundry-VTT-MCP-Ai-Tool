@@ -129,7 +129,7 @@ secret)` callouts); creates the campaign `Home.md` (Bases tables) and `Prep/` on
     deltas, not rolls. `combat-start` and `combat-end` carry `data.roster` (combatant names);
     combat stats list every participant (both rosters, turns taken, anyone whose HP changed);
     `combat-end` carries the ended combat's round and last turn (Foundry 14 nulls `combat.turn`
-    before the delete hook). The session feed's `damage` events use the same credit rule
+    before the delete hook). The Live Feed's `damage` events use the same credit rule
     (`details.sourceMessageId`, `sourceExact`; shared helpers in `hp-credit.ts`).
   - **Roll breakdowns as built:** public rolls are `roll` events (`damage-roll` for damage) whose
     `description` is a player-safe line such as "Wolf 1, Bite attack: 1d20 (15) +2 STR +2

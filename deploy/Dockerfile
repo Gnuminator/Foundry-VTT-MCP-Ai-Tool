@@ -14,7 +14,7 @@
 #    - cloudflared — use the sidecar in docker-compose.yml.template instead.
 #
 #  Runtime secrets:
-#    All secrets (ANTHROPIC_API_KEY, GM_DASHBOARD_TOKEN, GM_EMAILS, etc.) must
+#    All secrets (GM_DASHBOARD_TOKEN, GM_EMAILS, etc.) must
 #    be injected at runtime via environment variables or Docker secrets. They
 #    must NEVER be baked into this image or an image layer.
 #
@@ -22,7 +22,6 @@
 #    docker build -t foundry-ai-tool .
 #  Run (minimal):
 #    docker run -p 3000:3000 \
-#      -e ANTHROPIC_API_KEY=<YOUR_KEY> \
 #      -e GM_EMAILS=<YOU@EXAMPLE.COM> \
 #      foundry-ai-tool
 #  See deploy/docker-compose.yml.template for the full wired-up example.
@@ -33,7 +32,7 @@
 # Use a full node image for the build stage (needs npm workspace resolution and
 # TypeScript compilation). The result is copied to the lean runtime stage.
 
-FROM node:22.23.3-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build
+FROM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
 
 WORKDIR /app
 
@@ -55,17 +54,35 @@ COPY tsconfig*.json           ./
 # The dashboard's in-app help (I-064) is rendered from the GM guide pages at build time
 # (packages/cogm-dashboard/scripts/build-help.mjs, which reuses the docs link checker).
 COPY docs/gm/                 ./docs/gm/
+COPY docs/foundry/            ./docs/foundry/
+# The Danish twins of the GM guides, which the help shows when the browser language is Danish.
+COPY docs/da/gm/              ./docs/da/gm/
 COPY scripts/check-links.mjs  ./scripts/
+COPY scripts/tsc7.mjs         ./scripts/
+# The shared build writes the usage catalogue (shared/src/usage-catalog.generated.ts, not committed)
+# by scanning the dashboard and the Foundry module sources; the module sources are copied for that
+# scan only (they are not built here).
+COPY scripts/usage-catalog.mjs ./scripts/
+COPY packages/foundry-module/src/ ./packages/foundry-module/src/
+# The skill guides (get-skill-guide) are embedded into the bridge at build time from the skills'
+# sources (scripts/skill-guides.mjs); the build fails when one is missing.
+COPY docs/player/             ./docs/player/
+COPY tools/gm-coach/          ./tools/gm-coach/
+COPY tools/dnd-helper/        ./tools/dnd-helper/
+COPY .claude/skills/foundry-core-ui/reference/ ./.claude/skills/foundry-core-ui/reference/
+COPY scripts/skill-guides.mjs ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.
 # The cogm-dashboard build also puts the React dashboard (web/, Vite) in its dist/web.
-RUN npm run build
+# The shared build must really emit: tsc exits 0 without writing dist when a stale tsbuildinfo says it is up to date
+# (deploy/Dockerfile.dockerignore keeps the host's tsbuildinfo files out of the build context).
+RUN npm run build && test -f shared/dist/index.js && test -f shared/dist/index.d.ts
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
 #
 # Lean runtime image — no devDependencies, no TypeScript compiler.
 
-FROM node:22.23.3-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS runtime
+FROM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
 
 # Run as a non-root user for basic container hygiene.
 RUN groupadd --gid 1001 nodeapp && \
@@ -113,7 +130,7 @@ EXPOSE 31415
 # These are defaults suitable for the containerised topology. Override via
 # docker run -e, docker-compose env:, or Docker secrets at runtime.
 #
-# !! NEVER set ANTHROPIC_API_KEY, GM_DASHBOARD_TOKEN, GM_EMAILS here !!
+# !! NEVER set GM_DASHBOARD_TOKEN, GM_EMAILS here !!
 #    Inject them at runtime. Baking them into the image is a security risk.
 
 # DASHBOARD_HOST / FOUNDRY_LINK_HOST are 0.0.0.0 because a container must listen

@@ -5,14 +5,25 @@
 // The bridge and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok, toast } from './support';
+import {
+  GM_TOKEN,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  SPACE_UNAVAILABLE,
+  fakeCommonRoutes,
+  fakeTools,
+  fromMenu,
+  ok,
+  toast,
+  settle,
+  switchesBody,
+} from './support';
 
 const STARTED = '2026-10-10T18:00:00.000Z';
 
 interface Prefs {
   duringLayout: 'layered' | 'toggle' | 'auto';
   duringFull: boolean;
-  combatButtons: boolean;
   layoutPicked: boolean;
   hintDismissed: boolean;
   hintSessions: string[];
@@ -21,7 +32,6 @@ interface Prefs {
 const PREFS: Prefs = {
   duringLayout: 'layered',
   duringFull: false,
-  combatButtons: false,
   layoutPicked: false,
   hintDismissed: false,
   hintSessions: [],
@@ -66,20 +76,12 @@ async function setup(
   } = {}
 ): Promise<Fakes> {
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: {
-        switches: { switches: [], ready: null, changed: [], failed: [] },
-        gmActionsEnabled: false,
-        error: null,
-      },
-    })
+    route.fulfill({ json: switchesBody(false) })
   );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await fakeTools(
     page,
     call => {
@@ -206,7 +208,7 @@ test.describe('the layout switch', () => {
     await layoutButton(page, 'Auto').click();
     await expect(during(page)).toHaveAttribute('data-layout', 'auto');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.'
+      'Auto is showing Cards now, because no fight is running. A fight brings the combat order and the party forward.'
     );
     await expect(during(page)).not.toHaveAttribute('data-view', /.*/);
 
@@ -308,13 +310,13 @@ test.describe('the layout switch', () => {
     await load(page);
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.'
+      'Auto is showing Cards now, because no fight is running. A fight brings the combat order and the party forward.'
     );
 
     push([{ event: 'combat', data: { combat: { active: true, round: 1, combatants: [] } } }]);
     await expect(during(page)).toHaveAttribute('data-context', 'combat');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'Auto is showing Combat now: the turn order and the party come forward.'
+      'Auto is showing Combat now: the combat order and the party come forward.'
     );
   });
 
@@ -557,7 +559,7 @@ test.describe('the hint', () => {
     await expect.poll(() => changes).toEqual([{ hintSession: STARTED }]);
     // Counting changes nothing on screen, and it is not sent again.
     await expect(hint(page)).toBeVisible();
-    await page.waitForTimeout(400);
+    await settle(page);
     expect(changes).toEqual([{ hintSession: STARTED }]);
   });
 
@@ -632,116 +634,18 @@ test.describe('the hint', () => {
 });
 
 test.describe('the Advanced menu', () => {
-  test('has a During screen group with Combat buttons and the trial', async ({ page }) => {
+  test('has a During screen group with the trial', async ({ page }) => {
     await setup(page, { events: [picked()] });
     await load(page);
     await page.locator('#btn-advanced').click();
     const menu = page.getByRole('menu');
     await expect(menu.locator('.menu-label')).toHaveText(['Panels', 'During screen', 'Tools']);
     const items = menu.getByRole('menuitem');
-    await expect(items.nth(6)).toHaveText('⚔ Combat buttons: off');
     await expect(items.nth(7)).toHaveText('▦ Try the During layouts');
-    await expect(menu.locator('#btn-combat-buttons')).toHaveAttribute(
-      'data-track',
-      'dash.header.combat-buttons'
-    );
     await expect(menu.locator('#btn-layout-tour')).toHaveAttribute(
       'data-track',
       'dash.header.layout-tour'
     );
-  });
-
-  test('Combat buttons saves the choice, says so, and shows on or off', async ({ page }) => {
-    const { changes } = await setup(page, { events: [picked()] });
-    await load(page);
-    await page.locator('#btn-advanced').click();
-    await page.locator('#btn-combat-buttons').click();
-    await expect(
-      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
-    ).toBeVisible();
-    expect(changes).toEqual([{ combatButtons: true }]);
-    // The menu closed and the focus went back to its button.
-    await expect(page.getByRole('menu')).toBeHidden();
-    await expect(page.locator('#btn-advanced')).toBeFocused();
-
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
-    await expect(page.locator('#btn-combat-buttons')).toHaveClass(/\bon\b/);
-    await page.locator('#btn-combat-buttons').click();
-    expect(changes).toEqual([{ combatButtons: true }, { combatButtons: false }]);
-  });
-
-  test('Combat buttons are off until the prefs arrive, and the arrow keys skip them', async ({
-    page,
-  }) => {
-    await setup(page, { events: [] });
-    await load(page);
-    await page.locator('#btn-advanced').press('Enter');
-    await expect(page.locator('#btn-combat-buttons')).toBeDisabled();
-    await expect(page.locator('#btn-layout-tour')).toBeEnabled();
-  });
-});
-
-test.describe('overlapping saves', () => {
-  test('a failed older save does not undo a newer one that was saved', async ({ page }) => {
-    let failFirst: () => void = () => undefined;
-    const held = new Promise<void>(resolve => (failFirst = resolve));
-    const { changes } = await setup(page, {
-      events: [picked()],
-      answer: async change => {
-        if (change['duringLayout'] !== 'auto') return undefined;
-        await held;
-        return { status: 500, error: 'disk full' };
-      },
-    });
-    await load(page);
-    // The first save (Auto) is on its way and shown at once.
-    await layoutButton(page, 'Auto').click();
-    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
-    // A second one (Combat buttons on) is saved while the first is still out.
-    await page.locator('#btn-advanced').click();
-    await page.locator('#btn-combat-buttons').click();
-    await expect(
-      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
-    ).toBeVisible();
-
-    // Now the first one fails: its own field goes back, the second one stays.
-    failFirst();
-    await expect(toast(page, '✗ Could not save the screen choice: disk full')).toBeVisible();
-    await expect(during(page)).toHaveAttribute('data-layout', 'layered');
-    await expect(layoutButton(page, 'Cards')).toHaveAttribute('aria-pressed', 'true');
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
-    expect(changes).toEqual([
-      { duringLayout: 'auto', layoutPicked: true },
-      { combatButtons: true },
-    ]);
-  });
-
-  test('an older answer that arrives late does not overwrite a newer change', async ({ page }) => {
-    let answerFirst: () => void = () => undefined;
-    const held = new Promise<void>(resolve => (answerFirst = resolve));
-    await setup(page, {
-      events: [picked()],
-      lateAnswer: async change => {
-        if (change['duringLayout'] === 'auto') await held;
-      },
-    });
-    await load(page);
-    await layoutButton(page, 'Auto').click();
-    await page.locator('#btn-advanced').click();
-    await page.locator('#btn-combat-buttons').click();
-    await expect(
-      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
-    ).toBeVisible();
-    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
-
-    // The first answer (Auto, Combat buttons still off) comes in after the second one.
-    answerFirst();
-    await page.waitForTimeout(300);
-    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
   });
 });
 
@@ -810,16 +714,12 @@ test.describe('the trial and assistive technology', () => {
     await expect(page.locator('#during-not-ready')).toHaveCount(0);
   });
 
-  test('the Use button and Combat buttons say why they are off too', async ({ page }) => {
+  test('the Use button says why it is off too', async ({ page }) => {
     await setup(page, { events: [] });
     await load(page);
     await fromMenu(page, 'btn-layout-tour');
     await expect(page.locator('#layout-tour-use')).toBeDisabled();
     await expect(page.locator('#layout-tour-use')).toHaveAccessibleDescription(
-      /not told the dashboard/
-    );
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveAccessibleDescription(
       /not told the dashboard/
     );
   });
@@ -844,4 +744,94 @@ test.describe('Escape and popups', () => {
     await page.keyboard.press('Escape');
     await expect(guide(page)).toBeHidden();
   });
+});
+
+test.describe('the turn-order cards', () => {
+  const MARA = {
+    id: 'm',
+    name: 'Mara',
+    initiative: 19,
+    isCurrentTurn: true,
+    hp: { value: 38, max: 44, temp: 0 },
+    conditions: [],
+    isPC: true,
+    category: 'pc',
+    defeated: false,
+    deathSaves: null,
+    tokenId: 'tk-m',
+  };
+  const ORC = { ...MARA, id: 'o', name: 'Orc', isCurrentTurn: false, isPC: false, tokenId: 'tk-o' };
+  const fight: Event = {
+    event: 'combat',
+    data: { combat: { active: true, round: 1, turn: 0, current: MARA, combatants: [MARA, ORC] } },
+  };
+
+  /** The width and type size of a turn-order card in a layout, in a fight, at a window width. */
+  async function cardIn(
+    page: Page,
+    layout: 'layered' | 'toggle' | 'auto',
+    width: number
+  ): Promise<{ width: number; font: string }> {
+    await page.setViewportSize({ width, height: 900 });
+    await setup(page, { events: [picked({ duringLayout: layout, duringFull: true }), fight] });
+    await load(page);
+    await expect(during(page)).toHaveAttribute('data-layout', layout);
+    const card = page.locator('#pane-combat .combatant').first();
+    await expect(card).toBeVisible();
+    return card.evaluate(el => ({
+      width: Math.round(el.getBoundingClientRect().width),
+      font: getComputedStyle(el).fontSize,
+    }));
+  }
+
+  for (const width of [1280, 1440]) {
+    test(`are the same size in Auto, Cards and Simple/Full at ${width} px`, async ({ browser }) => {
+      const sizes: { width: number; font: string }[] = [];
+      for (const layout of ['auto', 'layered', 'toggle'] as const) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        sizes.push(await cardIn(page, layout, width));
+        await context.close();
+      }
+      expect(sizes[1]).toEqual(sizes[0]);
+      expect(sizes[2]).toEqual(sizes[0]);
+      expect(sizes[0]?.width).toBeGreaterThanOrEqual(192);
+    });
+  }
+});
+
+test('the Before, During or After tab you picked comes back after a reload in the same session', async ({
+  page,
+}) => {
+  await setup(page, { events: [picked()] });
+  await load(page);
+  await expect(during(page)).toBeVisible();
+  await page.locator('#tab-after').click();
+  await expect(page.locator('#moment-after')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#moment-after')).toBeVisible();
+  await expect(during(page)).toBeHidden();
+});
+
+test('a tab picked while no session was open is not kept once a session is open', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('cogm_moment_pin', '{"moment":"after","open":false,"at":1}')
+  );
+  await setup(page, { events: [picked()], open: true });
+  await load(page);
+  await expect(during(page)).toBeVisible();
+});
+
+test('a tab picked in this session but over 12 hours ago is forgotten', async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'cogm_moment_pin',
+      JSON.stringify({ moment: 'after', open: true, at: Date.now() - 13 * 3600_000 })
+    )
+  );
+  await setup(page, { events: [picked()], open: true });
+  await load(page);
+  await expect(during(page)).toBeVisible();
 });

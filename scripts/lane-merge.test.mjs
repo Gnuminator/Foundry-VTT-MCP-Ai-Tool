@@ -2,19 +2,24 @@
  * scripts/lane-merge.mjs: the merge gate. gh, git, node and npm are faked through the injectable
  * `run`; the vault and the merge train state are temp directories.
  */
-import { test } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { unblocksMainLine } from './lane-merge/main-red.mjs';
+import { REPO } from './lane-merge/constants.mjs';
 import {
   RISKY_CATEGORIES,
   TRAIN_PATTERNS,
   TRAIN_NOTE_PATH,
   TRAIN_SIZE,
   acquireLock,
+  announceSource,
+  carriedReviews,
+  defaultAnnounce,
   defaultRun,
   entryDecision,
   findReviewNotes,
@@ -24,18 +29,30 @@ import {
   isEntryModule,
   isTrainRelevant,
   judgeReviews,
+  liveCheckLine,
+  liveCheckProblem,
   main,
   matchesAny,
   parseArgs,
   parseNameStatus,
+  opusNotesForHead,
   parseReviewNote,
+  patchIdAt,
   publishTrainNote,
+  refusalBody,
+  refusedBecause,
+  releasePr,
+  reviewNamingRule,
+  reviewNoteCommand,
+  unreadPrNotes,
+  refusalCauses,
   readTrain,
   renderTrainNote,
   relaunchFromMain,
   runEntry,
   verdictLine,
   requiredContexts,
+  hasMergeQueue,
   riskyHits,
   rollupProblems,
   waitForCi,
@@ -44,6 +61,14 @@ import {
 const HEAD = '3d24f70a1b2c3d4e5f60718293a4b5c6d7e8f901';
 const OTHER = 'ffffffff00000000000000000000000000000000';
 const SELF = fileURLToPath(new URL('./lane-merge.mjs', import.meta.url));
+
+/** The gate modules of this checkout, by file name. */
+function ownModules() {
+  const dir = path.join(path.dirname(SELF), 'lane-merge');
+  return Object.fromEntries(
+    fs.readdirSync(dir).map(n => [n, fs.readFileSync(path.join(dir, n), 'utf8')])
+  );
+}
 const REPO_ROOT = path.resolve(path.dirname(SELF), '..');
 
 /** A review note in the vault format. */
@@ -77,13 +102,29 @@ const RULES = [
   { type: 'pull_request', parameters: {} },
 ];
 
+const MAIN_GREEN = {
+  databaseId: 1,
+  status: 'completed',
+  conclusion: 'success',
+  headSha: 'a'.repeat(40),
+  url: 'u',
+};
 const FAKE_DRIFT_SOURCE = `import fs from 'node:fs';\nexport function runDriftCheck() { return 0; }\n`;
+const FAKE_LOCK_SOURCE = `import fs from 'node:fs';\nexport function acquire() {}\n`;
+
+/** Is this call the drift run (wrapped in main's heavy-lock copy, or bare)? @param {string} cmd @param {string[]} args */
+const isDriftCall = (cmd, args) =>
+  cmd === 'node' &&
+  (args[0] === '--input-type=module' ||
+    (/heavy-lock\.mjs$/.test(args[0] ?? '') && args[1] === 'run'));
 
 /**
  * A gate run against fakes. Returns the output lines, the exit code, the calls and the state file.
  * @param {{ vault?: string, files?: string[], ghFiles?: string[], rollup?: any[], pr?: object,
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
+ *   lockSource?: string | null, mainTip?: string, tipFail?: boolean, prevConclusion?: string,
+ *   attemptFail?: boolean, attempts?: Record<number, string>,
  *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void, fetched?: boolean,
  *   mainGate?: string | null, prFor?: (viewIndex: number) => object }} o. `mainGate` is what
  *   aitool/main holds as lane-merge.mjs (default: this very file; null: none yet). `prFor` overrides fields of the PR for each
@@ -105,10 +146,12 @@ function gate(o = {}) {
     headRefOid: HEAD,
     mergeable: 'MERGEABLE',
     title: 'A thing',
+    body: o.body ?? 'Live check: test server A, real dnd5e data',
     files: (o.ghFiles ?? localPaths).map(p => ({ path: p })),
     statusCheckRollup: o.rollup ?? [
       { __typename: 'CheckRun', name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' },
       { __typename: 'CheckRun', name: 'codeql', status: 'COMPLETED', conclusion: 'SKIPPED' },
+      { __typename: 'CheckRun', name: 'ci-all-green', status: 'COMPLETED', conclusion: 'SUCCESS' },
     ],
     ...o.pr,
   };
@@ -119,15 +162,56 @@ function gate(o = {}) {
   let clockMs = 0;
   /** @type {number[]} */
   const sleeps = [];
-  const run = (cmd, args) => {
+  const run = (cmd, args, input) => {
     calls.push([cmd, ...args]);
     const key = `${cmd} ${args.slice(0, 2).join(' ')}`;
+    // the review carry (carriedReviews): `patchIds` maps a commit to its patch id; a commit not in
+    // it has no patch id (git patch-id fails), `missing` commits are not in the clone
+    if (key === 'git rev-parse --is-shallow-repository')
+      return ok(o.shallow ? 'true\n' : 'false\n');
+    if (key === 'git cat-file -e') {
+      const sha = args[2].replace('^{commit}', '');
+      return o.missing?.includes(sha) ? { status: 1, stdout: '', stderr: 'missing' } : ok();
+    }
+    if (key === 'git fetch -q') return { status: 128, stdout: '', stderr: 'not our ref' };
+    if (key === 'git merge-base aitool/main' && args[2] !== 'HEAD')
+      return ok(`${'b'.repeat(40)}\n`);
+    if (key === 'git diff --binary') return ok(`patch ${args.at(-1)}\n`);
+    if (key === 'git show -s') return ok(`${o.commitTimes?.[args[3]] ?? 1000}\n`);
+    if (key === 'git patch-id --verbatim') {
+      const id =
+        o.patchIds?.[
+          String(input)
+            .replace(/^patch /, '')
+            .trim()
+        ];
+      return id ? ok(`${id} ${'0'.repeat(40)}\n`) : { status: 1, stdout: '', stderr: 'no id' };
+    }
     // vault git calls (the merge train note): answered by `vaultRun`, a failure by default
     if (cmd === 'git' && args[0] === '-C') {
       return o.vaultRun?.(args.slice(2)) ?? { status: 1, stdout: '', stderr: 'no vault git' };
     }
     if (key === 'gh pr view') {
       return ok(JSON.stringify({ ...pr, ...o.prFor?.(views++) }));
+    }
+    if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+      // the merge queue state after `gh pr merge`; default: in the queue
+      const st = o.queueState ?? { state: 'OPEN', isInMergeQueue: true };
+      return ok(JSON.stringify({ data: { repository: { pullRequest: st } } }));
+    }
+    if (cmd === 'gh' && args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1])) {
+      // main's tip; default: the sha of the default main run
+      return o.tipFail
+        ? { status: 1, stdout: '', stderr: 'HTTP 502' }
+        : ok(`${o.mainTip ?? MAIN_GREEN.headSha}\n`);
+    }
+    if (cmd === 'gh' && args[0] === 'api' && /\/actions\/runs\/\d+\/attempts\/\d+$/.test(args[1])) {
+      // the conclusion of the attempt before a rerun; default: it failed
+      return o.attemptFail
+        ? { status: 1, stdout: '', stderr: 'HTTP 404' }
+        : ok(
+            `${o.attempts?.[Number(args[1].split('/').at(-1))] ?? o.prevConclusion ?? 'failure'}\n`
+          );
     }
     if (cmd === 'gh' && args[0] === 'api') {
       return o.rulesFail
@@ -140,7 +224,8 @@ function gate(o = {}) {
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
     if (key === 'git diff -z') {
       const nul = String.fromCharCode(0);
-      const entry = p => `${p.startsWith('changelog.d/') ? 'A' : 'M'}${nul}${p}${nul}`;
+      const entry = p =>
+        `${o.changeTypes?.[p] ?? (p.startsWith('changelog.d/') ? 'A' : 'M')}${nul}${p}${nul}`;
       return ok(localPaths.map(entry).join(''));
     }
     if (key === 'git rev-parse HEAD') return ok(`${o.localHead ?? HEAD}\n`);
@@ -150,37 +235,73 @@ function gate(o = {}) {
         ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
         : ok(o.mainGate ?? fs.readFileSync(SELF, 'utf8'));
     }
+    // Main's gate modules: this checkout's own unless the test gives others (`mainModules`).
+    if (cmd === 'git' && args[0] === 'ls-tree' && args.at(-1) === 'scripts/lane-merge/') {
+      const names = Object.keys(o.mainModules ?? ownModules());
+      return ok(names.map(n => `scripts/lane-merge/${n}`).join('\n'));
+    }
+    if (key.startsWith('git show aitool/main:scripts/lane-merge/')) {
+      const name = key.slice('git show aitool/main:scripts/lane-merge/'.length);
+      return ok((o.mainModules ?? ownModules())[name] ?? '');
+    }
     if (key === 'git show aitool/main:scripts/drift-check.mjs') {
       return o.driftSource === null
         ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
         : ok(o.driftSource ?? FAKE_DRIFT_SOURCE);
     }
-    if (cmd === 'node' && args[0] === '--input-type=module') {
+    if (key === 'git show aitool/main:scripts/heavy-lock.mjs') {
+      return o.lockSource === null
+        ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
+        : ok(o.lockSource ?? FAKE_LOCK_SOURCE);
+    }
+    // a file at the merge base (basesha) or the head, for the release PR check
+    if (cmd === 'git' && args[0] === 'show' && o.show && /^(basesha|[0-9a-f]{40}):/.test(args[1])) {
+      const [rev, ...rest] = args[1].split(':');
+      const text = o.show(rev === 'basesha' ? 'base' : 'head', rest.join(':'));
+      return text === null ? { status: 128, stdout: '', stderr: 'fatal: no such path' } : ok(text);
+    }
+    if (isDriftCall(cmd, args)) {
       o.onDrift?.(state);
       return {
         status: o.drift ?? 0,
         stdout: 'drift output\n',
-        stderr: o.drift ? 'guard failed\n' : '',
+        stderr: o.drift ? '  FAIL bundle budget\nguard failed\n' : '',
       };
     }
     if (key === 'npm run drift:check') {
       return { status: o.drift ?? 0, stdout: 'local drift\n', stderr: '' };
     }
+    if (key === 'gh run list') {
+      for (const flag of ['--branch main', '--workflow ci.yml', '-R aitool-repo']) {
+        const [f, v] = flag.split(' ');
+        const at = args.indexOf(f);
+        const want = v === 'aitool-repo' ? REPO : v;
+        if (at < 0 || args[at + 1] !== want) return { status: 1, stdout: '', stderr: `bad ${f}` };
+      }
+      return o.mainRuns === 'fail'
+        ? { status: 1, stdout: '', stderr: 'HTTP 502' }
+        : ok(JSON.stringify(o.mainRuns ?? [MAIN_GREEN]));
+    }
     if (key === 'gh pr merge') {
+      if (args.includes('--disable-auto')) return ok('');
       return { status: o.merge ?? 0, stdout: '', stderr: o.merge ? 'not allowed' : '' };
     }
     return { status: 1, stdout: '', stderr: `unexpected ${key}` };
   };
   const lines = [];
+  /** @type {string[]} */
+  const progress = [];
   const code = main({
     argv: ['312', '--vault', vault, '--state', state, ...(o.argv ?? [])],
     run,
     log: l => lines.push(l),
+    progress: l => progress.push(l),
     home,
     tmpdir: home,
     now: () => new Date('2026-10-10T12:00:00Z'),
     lockTimeoutMs: o.lockTimeoutMs ?? 300,
     selfPath: SELF,
+    ...(o.announce ? { announce: o.announce } : {}),
     ...(o.fetched === undefined ? {} : { fetched: o.fetched }),
     clock: () => clockMs,
     sleep: ms => {
@@ -192,6 +313,7 @@ function gate(o = {}) {
     code,
     sleeps,
     lines,
+    progress,
     calls,
     state,
     home,
@@ -254,6 +376,61 @@ test('parseReviewNote: every Verdict section counts, tied to the Head reviewed a
     parseReviewNote('312-review.md', same, 312).entries.map(e => e.merge),
     [true, false]
   );
+});
+
+test('judgeReviews: every refusal ends with the review-note helper command, the veto excepted', () => {
+  const cmd = /write it with: node scripts\/review-note\.mjs 312 --verdict <merge\|fixes\|no>/;
+  const parse = (name, opts) => parseReviewNote(name, note(opts), 312);
+  const ok = parse('312-review.md');
+  const short = parse('312-review-s.md', { head: '3d24f70a' });
+  const malformed = parseReviewNote(
+    '312-review-m.md',
+    `# t\n\n## Verdict\n\n**Merge.**\n\nHead reviewed: ${HEAD}\n`,
+    312
+  );
+  assert.ok(malformed.malformed.length > 0, 'fixture is malformed');
+  const refusals = {
+    malformed: judgeReviews([malformed], HEAD, false, {}, 312),
+    'short sha': judgeReviews([short], HEAD, false, {}, 312),
+    'no note': judgeReviews([], HEAD, false, {}, 312),
+    'other head': judgeReviews([parse('312-review-o.md', { head: OTHER })], HEAD, false, {}, 312),
+    'not carried': judgeReviews([ok], OTHER, false, { carried: [], carryError: 'x' }, 312),
+    sonnet: judgeReviews([ok], HEAD, true, {}, 312),
+  };
+  for (const [name, r] of Object.entries(refusals)) {
+    assert.equal(r.ok, false, name);
+    assert.match(r.detail, cmd, `${name}: ${r.detail}`);
+    assert.ok(r.detail.endsWith(reviewNoteCommand(312)), `${name} ends with the command`);
+  }
+  // The named exception: a verdict that is not Merge is the reviewer's call, not a missing note.
+  const veto = judgeReviews(
+    [parse('312-review-v.md', { verdict: '**Do not merge.**' })],
+    HEAD,
+    false,
+    {},
+    312
+  );
+  assert.equal(veto.ok, false);
+  assert.doesNotMatch(veto.detail, /review-note\.mjs/);
+  // Without a PR number the placeholder stands in.
+  assert.match(judgeReviews([], HEAD, false).detail, /review-note\.mjs <PR> --verdict/);
+});
+
+test('gate: a vault that exists but cannot be read refuses with the helper command', () => {
+  // a folder named like a note makes reading it throw (EISDIR) after the vault was found
+  const vault = vaultWith([{ name: '312-review.md', text: note() }]);
+  const dir = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff', 'Reviews 2026-10-10');
+  fs.mkdirSync(path.join(dir, '312-review-dir.md'));
+  const line = gate({ vault }).lines.find(l => l.startsWith('review: '));
+  assert.match(line, /review: cannot read the vault /);
+  assert.match(line, /review-note\.mjs 312 --verdict/);
+});
+
+test('gate: the vault refusal prints the helper command too', () => {
+  const r = gate({ vault: path.join(os.tmpdir(), 'no-such-vault-xyz') });
+  const line = r.lines.find(l => l.startsWith('review: '));
+  assert.match(line, /vault not found/);
+  assert.match(line, /review-note\.mjs 312 --verdict/);
 });
 
 test('parseReviewNote: a Head reviewed line after the last Verdict makes the note malformed (#314 L3)', () => {
@@ -428,10 +605,7 @@ test('risky categories: every category has patterns and the real paths match', (
   assert.deepEqual(category('packages/cogm-dashboard/web/src/lib/guarded.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/handouts/strip-secrets.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/obsidian/licensed-guard.ts'), ['security']);
-  assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), [
-    'security',
-    'the merge gate',
-  ]);
+  assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), ['security']);
   assert.deepEqual(category('scripts/pi/remote/5-tool.sh'), ['Pi scripts']);
   assert.deepEqual(category('scripts/plan-b/start.ps1'), ['Pi scripts']);
   assert.deepEqual(category('deploy/Dockerfile'), ['Pi scripts']);
@@ -441,6 +615,8 @@ test('risky categories: every category has patterns and the real paths match', (
     'scripts/lane-merge.mjs',
     'scripts/green.mjs',
     'scripts/drift-check.mjs',
+    'scripts/checks.mjs',
+    'scripts/ci-yaml.mjs',
     'scripts/heavy-lock.mjs',
     'scripts/pre-push.mjs',
     'scripts/lint-ratchet.mjs',
@@ -448,8 +624,37 @@ test('risky categories: every category has patterns and the real paths match', (
     '.claude/hooks/context-alert.mjs',
     '.claude/settings.json',
   ]) {
-    assert.ok(category(gateInput).includes('the merge gate'), gateInput);
+    // D-101 as narrowed by one-opus-pass: the gate, CI and hooks get a Sonnet review plus CI.
+    assert.deepEqual(category(gateInput), [], gateInput);
   }
+  assert.deepEqual(category('.claude/agents/review-pi-ci.md'), []);
+  // The narrowed shared list: contract files are risky, the rest of shared/src is not.
+  for (const f of [
+    'protocol',
+    'schemas',
+    'constants',
+    'bridge-queries',
+    'types',
+    'version',
+    'ports',
+  ]) {
+    assert.deepEqual(category(`shared/src/${f}.ts`), ['wire contracts'], f);
+  }
+  assert.deepEqual(category('shared/src/party.ts'), []);
+  // Tool modules, sets, budgets and the player tools are wire contracts (PR 848 slipped past).
+  for (const f of [
+    'packages/mcp-server/src/tools/modules/party.ts',
+    'packages/mcp-server/src/tool-sets.ts',
+    'packages/mcp-server/src/tool-budgets.ts',
+    'packages/mcp-server/src/tools/player.ts',
+  ]) {
+    assert.deepEqual(category(f), ['wire contracts'], f);
+  }
+  assert.deepEqual(category('packages/mcp-server/src/tools/modules/guarded-changes.ts'), [
+    'guarded writes',
+    'wire contracts',
+  ]);
+  assert.deepEqual(category('shared/src/guarded-write.ts'), ['guarded writes']);
   for (const calm of [
     'docs/guide.md',
     'packages/cogm-dashboard/web/src/App.tsx',
@@ -479,6 +684,139 @@ test('risky categories: every pattern still matches a tracked file (a rename can
     ({ p }) => !tracked.some(f => matchesAny(f, [p])) && !fs.existsSync(path.join(REPO_ROOT, p))
   );
   assert.deepEqual(dead, [], 'patterns that match no file in the repository');
+});
+
+/** shared/src files that are deliberately not wire contracts. A new file must be added here or to a risky pattern. */
+const NOT_CONTRACT = [
+  'actor-image',
+  'character-entity',
+  'character-sheet',
+  'client-versions',
+  'combat-change',
+  'export-index',
+  'foundry-setup',
+  'index',
+  'library-index',
+  'live-play',
+  'npc-turn',
+  'ownership',
+  'paper-sync',
+  'party',
+  'pc-creation',
+  'play-log',
+  'player-portrait',
+  'player-view',
+  'preflight',
+  'prep-digest',
+  'room-setup',
+  'rules-check',
+  'scene-change',
+  'scene-mood',
+  'scene-restore',
+  'sessions-dir',
+  'space-status',
+  'switch-off',
+  'table-viewer',
+  'token-rings',
+  'tool-refs',
+  'usage-catalog.generated',
+  'usage',
+  'util/async',
+  'util/errors',
+  'util/html',
+  'util/record',
+].map(n => `shared/src/${n}.ts`);
+
+function sharedSourceFiles(dir = path.join(REPO_ROOT, 'shared', 'src')) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) return sharedSourceFiles(full);
+    return /\.[cm]?[jt]sx?$/.test(e.name) && !/\.(test|spec)\./.test(e.name)
+      ? [path.relative(REPO_ROOT, full).replace(/\\/g, '/')]
+      : [];
+  });
+}
+
+test('shared/src: every file is a risky contract file or named in NOT_CONTRACT (a new file forces a decision)', () => {
+  const unclassified = sharedSourceFiles().filter(
+    f => riskyHits([f]).length === 0 && !NOT_CONTRACT.includes(f)
+  );
+  assert.deepEqual(
+    unclassified,
+    [],
+    'add each to a RISKY_CATEGORIES pattern in scripts/lane-merge.mjs or to NOT_CONTRACT in this test'
+  );
+  const files = sharedSourceFiles();
+  const stale = NOT_CONTRACT.filter(f => !files.includes(f) || riskyHits([f]).length > 0);
+  assert.deepEqual(stale, [], 'NOT_CONTRACT entries that are gone or are risky after all');
+});
+
+test('guard hooks stay registered: every .claude/hooks/guard-*.mjs is a command in settings.json (Sonnet-reviewed file, so CI pins it)', () => {
+  const settings = fs.readFileSync(path.join(REPO_ROOT, '.claude', 'settings.json'), 'utf8');
+  const guards = fs
+    .readdirSync(path.join(REPO_ROOT, '.claude', 'hooks'))
+    .filter(f => /^guard-.*\.mjs$/.test(f) && !f.endsWith('.test.mjs'));
+  assert.ok(guards.length >= 4, 'guard hooks found');
+  for (const g of guards) assert.ok(settings.includes(`.claude/hooks/${g}`), `${g} is registered`);
+});
+
+test('feature switch ids are pinned: they form the module setting keys, so a rename needs a migration (shared/src is Sonnet-reviewed outside the contract files)', () => {
+  const found = sharedSourceFiles()
+    .flatMap(f =>
+      [
+        ...fs
+          .readFileSync(path.join(REPO_ROOT, f), 'utf8')
+          .matchAll(/export const (\w+_FEATURE_ID) = '([^']+)'/g),
+      ].map(m => `${m[1]}=${m[2]}`)
+    )
+    .sort();
+  assert.deepEqual(found, [
+    'ACTOR_IMAGE_FEATURE_ID=actor-image',
+    'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
+    'LIVE_PLAY_FEATURE_ID=live-play',
+    'NPC_TURN_FEATURE_ID=npc-turn',
+    'OWNERSHIP_FEATURE_ID=ownership',
+    'PAPER_SYNC_FEATURE_ID=paper-sync',
+    'PARTY_FEATURE_ID=party',
+    'PC_CREATION_FEATURE_ID=pc-creation',
+    'PLAYER_PORTRAIT_FEATURE_ID=player-portrait',
+    'ROOM_SETUP_FEATURE_ID=room-setup',
+    'RULES_CHECK_FEATURE_ID=rules-check',
+    'SCENE_MOOD_FEATURE_ID=scene-mood',
+    'SCENE_RESTORE_FEATURE_ID=scene-restore',
+    'TABLE_VIEWER_FEATURE_ID=table-viewer',
+    'TOKEN_RINGS_FEATURE_ID=token-rings',
+    'WHO_NOTICES_FEATURE_ID=who-notices',
+  ]);
+});
+
+test('--risky-list prints every category and pattern and exits 0', () => {
+  const lines = [];
+  const code = runEntry({
+    argv: ['--risky-list'],
+    relaunch: () => assert.fail('must not relaunch'),
+    runMain: () => assert.fail('must not run the gate'),
+    log: l => lines.push(l),
+  });
+  assert.equal(code, 0);
+  for (const c of RISKY_CATEGORIES) {
+    assert.ok(lines.includes(`${c.name}:`), c.name);
+    for (const p of c.patterns) assert.ok(lines.includes(`  ${p}`), p);
+  }
+  assert.ok(!lines.some(l => l.includes('the merge gate:')));
+  assert.equal(
+    runEntry({
+      argv: ['--risky-list', '5'],
+      relaunch: () => assert.fail(),
+      runMain: () => assert.fail(),
+      log: () => {},
+    }),
+    2
+  );
+  assert.deepEqual(
+    riskyHits(['packages/discord-bot/announce/announce.mjs']).map(h => h.name),
+    ['Pi scripts']
+  );
 });
 
 test('globToRegExp: ** crosses folders, * does not', () => {
@@ -527,6 +865,248 @@ test('rollupProblems: check runs and commit statuses, failing, pending and missi
   assert.deepEqual(bad.missing, ['never-ran']);
 });
 
+test('rollupProblems: a newer run of the same check outvotes an old failure on the same head', () => {
+  const old = {
+    workflowName: 'CI',
+    name: 'build-test (Node 22)',
+    status: 'COMPLETED',
+    conclusion: 'FAILURE',
+    startedAt: '2026-10-31T07:56:17Z',
+  };
+  const fresh = { ...old, conclusion: 'SUCCESS', startedAt: '2026-10-31T09:24:42Z' };
+  assert.deepEqual(rollupProblems([old, fresh]).failing, []);
+  assert.deepEqual(rollupProblems([fresh, old]).failing, []);
+  // a newer run that failed still fails, and one still queued (no startedAt) is pending
+  assert.deepEqual(rollupProblems([fresh, { ...old, startedAt: '2026-10-31T10:00:00Z' }]).failing, [
+    'build-test (Node 22) (FAILURE)',
+  ]);
+  const queued = {
+    workflowName: 'CI',
+    name: 'build-test (Node 22)',
+    status: 'QUEUED',
+    conclusion: '',
+  };
+  assert.deepEqual(rollupProblems([old, fresh, queued]).pending, ['build-test (Node 22) (QUEUED)']);
+  // the same check name in another workflow is a different check
+  const other = { ...old, workflowName: 'Other' };
+  assert.deepEqual(rollupProblems([fresh, other]).failing, ['build-test (Node 22) (FAILURE)']);
+  // commit statuses: newest per context
+  assert.deepEqual(
+    rollupProblems([
+      { context: 'ci/legacy', state: 'FAILURE', startedAt: '2026-10-31T07:00:00Z' },
+      { context: 'ci/legacy', state: 'SUCCESS', startedAt: '2026-10-31T08:00:00Z' },
+    ]).failing,
+    []
+  );
+});
+
+test('latestChecks: unknown start times (Go zero time) rank by status, ties keep the worse', () => {
+  const base = { workflowName: 'CI', name: 'build-test (Node 22)' };
+  const ZERO = '0001-01-01T00:00:00Z';
+  const DAY = '2026-10-31T09:00:00Z';
+  const failed = {
+    ...base,
+    status: 'COMPLETED',
+    conclusion: 'FAILURE',
+    startedAt: '2026-10-31T07:56:17Z',
+  };
+  const passed = { ...failed, conclusion: 'SUCCESS' };
+  const queued = { ...base, status: 'QUEUED', conclusion: '', startedAt: ZERO };
+  const q = ['build-test (Node 22) (QUEUED)'];
+  const f = ['build-test (Node 22) (FAILURE)'];
+  // queued with the zero time is the newest, whatever the array order
+  assert.deepEqual(rollupProblems([failed, queued]), { failing: [], pending: q, missing: [] });
+  assert.deepEqual(rollupProblems([queued, failed]).pending, q);
+  assert.deepEqual(rollupProblems([passed, queued]).pending, q);
+  assert.deepEqual(rollupProblems([queued, passed]).pending, q);
+  // equal start times keep the worse entry, in either order
+  assert.deepEqual(rollupProblems([passed, failed]).failing, f);
+  assert.deepEqual(rollupProblems([failed, passed]).failing, f);
+  // a COMPLETED entry with the zero time is the oldest: a dated run replaces it
+  const zeroFailed = { ...failed, startedAt: ZERO };
+  assert.deepEqual(rollupProblems([zeroFailed, { ...passed, startedAt: DAY }]).failing, []);
+  assert.deepEqual(rollupProblems([{ ...passed, startedAt: DAY }, zeroFailed]).failing, []);
+  // two finished entries, both without a time: the failure stays
+  assert.deepEqual(rollupProblems([{ ...passed, startedAt: ZERO }, zeroFailed]).failing, f);
+});
+
+test('rollupProblems: a cancelled check of a superseded run does not block the newer green run', () => {
+  const url = id => `https://github.com/o/r/actions/runs/${id}/job/1`;
+  const check = (id, name, conclusion, extra = {}) => ({
+    workflowName: 'CI',
+    name,
+    status: 'COMPLETED',
+    conclusion,
+    startedAt: '2026-11-10T10:00:00Z',
+    detailsUrl: url(id),
+    ...extra,
+  });
+  const raw =
+    "dashboard-visual (screenshots)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}";
+  const older = [check(100, raw, 'CANCELLED'), check(100, 'lint', 'CANCELLED')];
+  const newer = [
+    check(200, 'dashboard-visual (screenshots)', 'SUCCESS'),
+    check(200, 'lint', 'SUCCESS'),
+  ];
+  assert.deepEqual(rollupProblems([...older, ...newer]).failing, []);
+  assert.deepEqual(rollupProblems([...newer, ...older]).failing, []);
+  // the unexpanded name shares a key with the expanded one even when the cancelled entry is the later start
+  const late = check(100, raw, 'CANCELLED', { startedAt: '2026-11-10T10:05:00Z' });
+  assert.deepEqual(rollupProblems([late, check(100, 'lint', 'CANCELLED'), ...newer]).failing, []);
+  // nothing newer: the cancelled check still blocks
+  assert.deepEqual(rollupProblems(older).failing, [raw + ' (CANCELLED)', 'lint (CANCELLED)']);
+  // a newer run that is itself cancelled does not excuse an older failure, and a newer failure still fails
+  assert.deepEqual(
+    rollupProblems([check(100, 'lint', 'FAILURE'), check(200, 'lint', 'CANCELLED')]).failing,
+    ['lint (CANCELLED)']
+  );
+  assert.deepEqual(rollupProblems([...older, ...newer, check(200, 'lint', 'FAILURE')]).failing, [
+    'lint (FAILURE)',
+  ]);
+  // a newer run that has not reported that very check yet (the screenshot summary comes after its
+  // shards) does not excuse the old cancelled one: no screenshot result must never pass
+  assert.deepEqual(rollupProblems([...older, check(200, 'lint', 'SUCCESS')]).failing, [
+    raw + ' (CANCELLED)',
+  ]);
+  // the newer run's same check, still running, replaces it and is reported as pending
+  assert.deepEqual(
+    rollupProblems([
+      ...older,
+      check(200, 'dashboard-visual (screenshots)', '', { status: 'IN_PROGRESS' }),
+      check(200, 'lint', 'SUCCESS'),
+    ]),
+    { failing: [], pending: ['dashboard-visual (screenshots) (IN_PROGRESS)'], missing: [] }
+  );
+  // an older cancelled dispatch check still blocks next to a newer green pull_request run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, 'python-tests [dispatch]', 'CANCELLED'),
+      check(100, 'lint [dispatch]', 'SUCCESS'),
+      check(200, 'python-tests', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    ['python-tests [dispatch] (CANCELLED)']
+  );
+  // a dispatch run whose only other check is a raw name does not supersede a cancelled pull_request check
+  assert.deepEqual(
+    rollupProblems([
+      check(200, 'python-tests', 'CANCELLED'),
+      check(300, 'lint [dispatch]', 'SUCCESS'),
+      check(300, raw, 'CANCELLED'),
+    ]).failing,
+    ['python-tests (CANCELLED)', raw + ' (CANCELLED)']
+  );
+  // a raw cancelled dispatch check without a start time is not hidden by the pull_request run's green check
+  assert.deepEqual(
+    rollupProblems([
+      check(300, 'lint [dispatch]', 'SUCCESS'),
+      check(300, raw, 'CANCELLED', { startedAt: '0001-01-01T00:00:00Z' }),
+      check(200, 'dashboard-visual (screenshots)', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    [raw + ' (CANCELLED)']
+  );
+  // an unclassified older run (only raw cancelled names) may be a dispatch run: it keeps blocking
+  const rawBuild =
+    "build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}";
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawBuild, 'CANCELLED'),
+      check(200, 'build-test (Node 24)', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    [rawBuild + ' (CANCELLED)']
+  );
+  // a mixed run (one expanded job with [dispatch], one without) is not purely normal: its cancelled
+  // check keeps blocking next to a newer green pull_request run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, 'lint [dispatch]', 'SUCCESS'),
+      check(100, 'python-tests', 'SUCCESS'),
+      check(100, 'build-test', 'CANCELLED'),
+      check(200, 'build-test', 'SUCCESS'),
+    ]).failing,
+    ['build-test (CANCELLED)']
+  );
+  // a raw name that starts with the expression has no text to match and keeps blocking
+  assert.deepEqual(
+    rollupProblems([
+      check(100, '${{ x }}', 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    ['${{ x }} (CANCELLED)']
+  );
+  // a raw matrix name is replaced by a newer run's expanded leg of the same job
+  const rawShard = 'dashboard-visual shard ${{ matrix.shard }}/4${{ x }}';
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, 'dashboard-visual shard 1/4', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    []
+  );
+  // a matrix leg skipped by `if:` in the newer run (raw name, SKIPPED) clears the older raw shard check
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, rawShard, 'SKIPPED'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    []
+  );
+  // the SKIPPED clause needs a newer run known to be a normal run: an unclassified one (only a raw
+  // name) does not clear the cancelled raw shard
+  assert.deepEqual(
+    rollupProblems([check(100, rawShard, 'CANCELLED'), check(200, rawShard, 'SKIPPED')]).failing,
+    [rawShard + ' (CANCELLED)']
+  );
+  // a SKIPPED raw leg of a dispatch run does not clear it either
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, rawShard, 'SKIPPED'),
+      check(200, 'lint [dispatch]', 'SUCCESS'),
+    ]).failing,
+    [rawShard + ' (CANCELLED)', 'lint (CANCELLED)']
+  );
+  // nor does a SKIPPED leg of an older run
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawShard, 'CANCELLED'),
+      check(50, rawShard, 'SKIPPED'),
+      check(50, 'lint', 'SUCCESS'),
+      check(100, 'lint', 'SUCCESS'),
+    ]).failing,
+    [rawShard + ' (CANCELLED)']
+  );
+  // only a run of the same check supersedes: a newer dispatch run leaves the cancelled pull_request check blocking
+  const dispatch = check(300, 'lint [dispatch]', 'SUCCESS');
+  assert.deepEqual(rollupProblems([check(100, 'lint', 'CANCELLED'), dispatch]).failing, [
+    'lint (CANCELLED)',
+  ]);
+  // another workflow's newer run supersedes nothing here
+  assert.deepEqual(
+    rollupProblems([
+      check(100, 'lint', 'CANCELLED'),
+      check(900, 'x', 'SUCCESS', { workflowName: 'Other' }),
+    ]).failing,
+    ['lint (CANCELLED)']
+  );
+  // no run id: unchanged behaviour
+  assert.deepEqual(
+    rollupProblems([
+      { workflowName: 'CI', name: 'a', status: 'COMPLETED', conclusion: 'CANCELLED' },
+      ...newer,
+    ]).failing,
+    ['a (CANCELLED)']
+  );
+});
+
 test('requiredContexts: reads the ruleset answer, nothing else counts', () => {
   assert.deepEqual(requiredContexts(JSON.stringify(RULES)), ['build-test']);
   assert.equal(requiredContexts('not json'), null);
@@ -540,6 +1120,43 @@ test('hasChangelogFragment: added or changed fragments only', () => {
   assert.ok(!hasChangelogFragment([{ path: 'changelog.d/README.md' }]));
   assert.ok(!hasChangelogFragment([{ path: 'CHANGELOG.md' }, { path: 'docs/changelog.d/x.md' }]));
   assert.ok(!hasChangelogFragment([{ path: 'changelog.d/x.md', changeType: 'DELETED' }]));
+});
+
+test('liveCheckProblem: Module and Pi PRs need a Live check line in the description', () => {
+  const mod = [{ path: 'packages/foundry-module/src/main.ts' }];
+  const pi = [{ path: 'scripts/pi/remote/stage.sh' }];
+  assert.match(liveCheckProblem(mod, 'Backlog: x') ?? '', /Module code .*test server A/);
+  assert.match(liveCheckProblem(pi, '') ?? '', /Pi code .*ARM64.*deployed-state\.ps1/);
+  assert.match(liveCheckProblem([...mod, ...pi], '') ?? '', /Module code .* and Pi code/);
+  assert.equal(
+    liveCheckProblem(mod, 'Live check: server A, real dnd5e actors, roundtrip ok'),
+    null
+  );
+  assert.equal(liveCheckProblem(pi, 'text\r\n- **Live check:** none, comment-only change'), null);
+  assert.equal(liveCheckProblem(mod, undefined), liveCheckProblem(mod, ''));
+  // Empty, placeholder and mid-sentence mentions do not count.
+  for (const body of [
+    'Live check:',
+    'Live check: <fill in>',
+    'Live check: <!-- run -->',
+    'Live check: <!-- unclosed\nmore -->',
+    'we had no live check: here',
+    'Live check: -->',
+    '<!--\nLive check: inside a comment\n-->',
+    'Live checks pending',
+    'Live check was skipped',
+    'Live checking: later',
+  ]) {
+    assert.ok(liveCheckProblem(mod, body), body);
+  }
+  // Other paths need nothing; a test file under the Module source still counts.
+  assert.equal(
+    liveCheckProblem([{ path: 'docs/a.md' }, { path: 'scripts/pi/local.ps1' }], ''),
+    null
+  );
+  assert.ok(liveCheckProblem([{ path: 'packages/foundry-module/src/a.test.ts' }], ''));
+  assert.equal(liveCheckLine('**Live check**: none, test-only'), 'none, test-only');
+  assert.equal(liveCheckLine('x\nLive check: ok then'), 'ok then');
 });
 
 test('parseNameStatus: NUL separated, non-ASCII paths unquoted, renames list both sides', () => {
@@ -619,11 +1236,18 @@ test('dry run: all checks pass, prints the OK line, never calls gh pr merge or w
   assert.ok(!r.merged);
   assert.ok(!fs.existsSync(r.state));
   assert.ok(!fs.existsSync(`${r.state}.lock`));
-  assert.ok(r.calls.some(c => c[0] === 'node' && c[1] === '--input-type=module'));
+  assert.ok(r.calls.some(c => isDriftCall(c[0], c.slice(1))));
   assert.ok(
     !r.calls.some(c => c.join(' ') === 'npm run drift:check'),
     'main copy, not the local script'
   );
+});
+
+test('gate: a Module PR without a Live check line is refused like a missing changelog', () => {
+  const r = gate({ argv: ['--dry-run'], files: MODULE_FILES, body: 'no line here' });
+  assert.equal(r.code, 1, r.text);
+  assert.match(r.text, /live check: the PR touches Module code/);
+  assert.ok(!r.merged);
 });
 
 test('merge: calls gh pr merge with the head commit and prints the merged line', () => {
@@ -633,6 +1257,169 @@ test('merge: calls gh pr merge with the head commit and prints the merged line',
   const merge = r.calls.find(c => c[0] === 'gh' && c[2] === 'merge');
   assert.deepEqual(merge, ['gh', 'pr', 'merge', '312', '--merge', '--match-head-commit', HEAD]);
   assert.ok(!fs.existsSync(r.state), 'a PR outside the module does not join the train');
+});
+
+const QUEUE_RULES = [
+  {
+    type: 'required_status_checks',
+    parameters: {
+      required_status_checks: [{ context: 'build-test' }, { context: 'ci-all-green' }],
+    },
+  },
+  { type: 'pull_request', parameters: {} },
+  { type: 'merge_queue', parameters: {} },
+];
+
+test('merge queue: without ci-all-green among the required checks the gate refuses to enqueue', () => {
+  const r = gate({ rules: [...RULES, { type: 'merge_queue', parameters: {} }] });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /does not require ci-all-green/);
+  assert.ok(!r.merged);
+});
+
+test('merge queue: a queue entry that shows up late is accepted (five reads, three seconds apart)', () => {
+  let reads = 0;
+  const r = gate({
+    rules: QUEUE_RULES,
+    get queueState() {
+      reads += 1;
+      return reads < 4
+        ? { state: 'OPEN', isInMergeQueue: false }
+        : { state: 'OPEN', isInMergeQueue: true };
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.deepEqual(r.sleeps, [3000, 3000, 3000]);
+});
+
+test('merge queue: auto-merge instead of a queue entry is switched off again and refused', () => {
+  const r = gate({ rules: QUEUE_RULES, queueState: { state: 'OPEN', isInMergeQueue: false } });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /did not put #312 into the merge queue/);
+  assert.ok(r.calls.some(c => c[0] === 'gh' && c[2] === 'merge' && c.includes('--disable-auto')));
+});
+
+test('merge queue: an enqueued PR is on the train once, even when the gate runs twice', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(
+    state,
+    JSON.stringify({ lastRoundtrip: null, since: [{ pr: 312, sha: 'old', at: 'x' }] })
+  );
+  const r = gate({ rules: QUEUE_RULES, files: MODULE_FILES, argv: ['--state', state] });
+  assert.equal(r.code, 0, r.text);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [312]
+  );
+});
+
+test('train reset drops merged, closed and open-but-unqueued PRs (a squash queue too), keeps an unreadable one', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(4)));
+  const code = main({
+    home,
+    run: trainRun({ states: { 300: 'MERGED', 301: 'CLOSED', 302: 'OPEN', 303: 'unreadable' } }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [303]
+  );
+});
+
+test('train reset keeps a MERGED PR whose merge commit GitHub did not return', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(2)));
+  const code = main({
+    home,
+    run: trainRun({ states: { 300: 'MERGED-NO-OID' } }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [300]
+  );
+});
+
+test('train reset keeps a PR the queue merged after the tested tip', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(2)));
+  const code = main({
+    home,
+    run: trainRun({ afterTip: ['m301'] }),
+    log: () => {},
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [301]
+  );
+});
+
+test('train reset keeps a PR that is queued but not on main yet', () => {
+  const home = tmpDir();
+  const state = path.join(home, 'merge-train.json');
+  fs.writeFileSync(state, JSON.stringify(trainOf(3)));
+  const lines = [];
+  const code = main({
+    home,
+    run: trainRun({ queued: [302] }),
+    log: l => lines.push(l),
+    now: () => new Date('2026-10-10T13:00:00Z'),
+    argv: ['--train-reset', TIP.slice(0, 10), '--state', state],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    readTrain(state).since.map(s => s.pr),
+    [302]
+  );
+  assert.match(lines[0], /merge train 1\/4 \(still queued, not on main yet\)/);
+});
+
+test('merge queue: with a merge_queue rule the gate enqueues (no strategy flag), counts the train, posts nothing', () => {
+  const rules = QUEUE_RULES;
+  let announced = 0;
+  const r = gate({
+    rules,
+    files: MODULE_FILES,
+    announce: () => {
+      announced += 1;
+      return '';
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.match(r.lines.at(-1), /^lane:merge: enqueued #312 at 3d24f70; merge train 1\/4/);
+  const merge = r.calls.find(c => c[0] === 'gh' && c[2] === 'merge');
+  assert.deepEqual(merge, ['gh', 'pr', 'merge', '312', '--match-head-commit', HEAD]);
+  assert.equal(announced, 0, 'the runner posts when the queue has merged it');
+  assert.equal(JSON.parse(fs.readFileSync(r.state, 'utf8')).since.length, 1);
+});
+
+test('merge queue: a full train still refuses before enqueueing', () => {
+  const rules = [...RULES, { type: 'merge_queue', parameters: {} }];
+  const r = gate({ rules, files: MODULE_FILES, train: trainOf(TRAIN_SIZE) });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /train: merge train full \(4\/4\)/);
+  assert.ok(!r.merged);
+});
+
+test('hasMergeQueue: only a merge_queue rule counts; junk is no queue', () => {
+  assert.equal(hasMergeQueue(JSON.stringify([...RULES, { type: 'merge_queue' }])), true);
+  assert.equal(hasMergeQueue(JSON.stringify(RULES)), false);
+  assert.equal(hasMergeQueue('not json'), false);
+  assert.equal(hasMergeQueue('{}'), false);
 });
 
 test('merge: gh pr merge failing is reported and exits 1', () => {
@@ -764,7 +1551,7 @@ test('risky files need an Opus review, and the category is printed', () => {
   );
 });
 
-test('H1: edits to the gate or what it executes need an Opus review', () => {
+test('H1: edits to the gate, CI and hooks take a Sonnet note; security hooks and contracts need Opus', () => {
   for (const file of [
     'scripts/lane-merge.mjs',
     'scripts/drift-check.mjs',
@@ -772,6 +1559,10 @@ test('H1: edits to the gate or what it executes need an Opus review', () => {
     '.claude/settings.json',
     '.github/workflows/ci.yml',
   ]) {
+    const r = gate({ files: [file, 'changelog.d/x.md'] });
+    assert.ok(!/needs an Opus review/.test(r.text), file);
+  }
+  for (const file of ['.claude/hooks/guard-shell-edits.mjs', 'shared/src/protocol.ts']) {
     const r = gate({ files: [file, 'changelog.d/x.md'] });
     assert.equal(r.code, 1, file);
     assert.match(r.text, /needs an Opus review/, file);
@@ -843,18 +1634,51 @@ test('drift-check failing is reported with the last 30 lines of its output', () 
   const r = gate({ drift: 1 });
   assert.equal(r.code, 1);
   assert.ok(!r.merged);
-  assert.match(r.text, /drift: drift-check failed \(log /);
+  assert.match(r.text, /drift: drift-check failed \(guards: bundle budget\) \(log /);
   assert.ok(r.lines.includes('guard failed'));
 });
 
-test("H1: drift-check runs from a temp copy of main's script, not the branch's npm script", () => {
+test("H1: drift-check runs from a temp copy of main's script, not the branch's npm script, under one high-priority hold of main's lock", () => {
   const r = gate({});
   const node = r.calls.find(c => c[0] === 'node');
-  assert.deepEqual(node.slice(1, 3), ['--input-type=module', '-e']);
-  assert.match(node[3], /runDriftCheck/);
-  assert.match(node[4], /^file:\/\/\/.*lane-merge-drift-.*drift-check\.mjs$/);
-  const copy = fs.readFileSync(fileURLToPath(node[4]), 'utf8');
-  assert.equal(copy, FAKE_DRIFT_SOURCE);
+  assert.match(node[1], /lane-merge-drift-.*heavy-lock\.mjs$/);
+  assert.equal(fs.readFileSync(node[1], 'utf8'), FAKE_LOCK_SOURCE, "main's copy of the lock");
+  assert.deepEqual(node.slice(2, 9), [
+    'run',
+    '--label',
+    'drift-check (merge gate)',
+    '--priority',
+    'high',
+    '--',
+    'node',
+  ]);
+  assert.equal(node.length, 10);
+  const runner = node[9].replace(/^"|"$/g, '');
+  assert.equal(node[9], `"${runner}"`, 'the runner path is quoted for the shell');
+  assert.deepEqual(r.progress, [
+    'lane:merge: drift-check runs now; it may first wait for the heavy-check lock (node scripts/heavy-lock.mjs status shows who holds it)',
+  ]);
+  assert.ok(!r.lines.some(l => l.includes('drift-check runs now')), 'not among the verdict lines');
+  const source = fs.readFileSync(runner, 'utf8');
+  assert.match(source, /runDriftCheck/);
+  const url = /import\("([^"]+)"\)/.exec(source)?.[1] ?? '';
+  assert.match(url, /^file:\/\/\/.*lane-merge-drift-.*drift-check\.mjs$/);
+  assert.equal(fs.readFileSync(fileURLToPath(url), 'utf8'), FAKE_DRIFT_SOURCE);
+});
+
+test('H1: without a usable heavy-lock on main the drift run goes bare, with a note', () => {
+  for (const lockSource of [null, `import { x } from './other.mjs';\n`]) {
+    const r = gate({ lockSource });
+    const node = r.calls.find(c => c[0] === 'node');
+    assert.deepEqual(node.slice(1, 3), ['--input-type=module', '-e']);
+    assert.match(node[3], /runDriftCheck/);
+    assert.match(node[4], /^file:\/\/\/.*lane-merge-drift-.*drift-check\.mjs$/);
+    assert.equal(fs.readFileSync(fileURLToPath(node[4]), 'utf8'), FAKE_DRIFT_SOURCE);
+    assert.match(
+      r.text,
+      /no usable scripts\/heavy-lock\.mjs on aitool\/main; each heavy guard takes the lock on its own/
+    );
+  }
 });
 
 test('H1: without a drift-check on main, or with relative imports, the local script runs and a note says so', () => {
@@ -870,6 +1694,12 @@ test('H1: without a drift-check on main, or with relative imports, the local scr
   });
   assert.ok(rel.calls.some(c => c.join(' ') === 'npm run drift:check'));
   assert.match(rel.text, /imports other repo files/);
+});
+
+test('the real scripts/drift-check.mjs has no relative imports and still exports runDriftCheck', () => {
+  const text = fs.readFileSync(path.join(REPO_ROOT, 'scripts', 'drift-check.mjs'), 'utf8');
+  assert.equal(hasRelativeImports(text), false, 'the gate runs a copy of it away from the repo');
+  assert.match(text, /export function runDriftCheck\b/);
 });
 
 test('hasRelativeImports', () => {
@@ -905,6 +1735,54 @@ test('merge train: a merged module PR is appended, and the third one asks for a 
     third.lines.at(-1),
     'lane:merge: merged #312 at 3d24f70; merge train 3/4; run live:roundtrip before the next module merge'
   );
+});
+
+test('a merge posts the number and title to #pr-log; a dry run and a refusal post nothing', () => {
+  /** @type {Array<[number, string]>} */
+  const posts = [];
+  const announce = (n, title) => (posts.push([n, title]), '');
+  const merged = gate({ announce });
+  assert.equal(merged.code, 0, merged.text);
+  assert.deepEqual(posts, [[312, 'A thing']]);
+  assert.equal(gate({ announce, argv: ['--dry-run'] }).code, 0);
+  assert.equal(gate({ announce, merge: 1 }).code, 1);
+  assert.equal(posts.length, 1);
+});
+
+test('a failing or throwing Discord post is a warning and never changes the exit code', () => {
+  const warned = gate({ announce: () => 'Discord post for #312 failed (offline)' });
+  assert.equal(warned.code, 0);
+  assert.ok(warned.lines.some(l => l.includes('merged #312')));
+  assert.equal(warned.lines.at(-1), 'lane:merge: WARNING Discord post for #312 failed (offline)');
+  const thrown = gate({
+    announce: () => {
+      throw new Error('boom');
+    },
+  });
+  assert.equal(thrown.code, 0);
+  assert.equal(thrown.lines.at(-1), 'lane:merge: WARNING Discord post failed (boom)');
+});
+
+test('the sender comes from main only; the checkout copy is never run (and a missing one posts nothing)', () => {
+  const rel = 'packages/discord-bot/announce/announce.mjs';
+  const repo = tmpDir();
+  const git = (...a) => execFileSync('git', ['-C', repo, ...a], { encoding: 'utf8' });
+  git('init', '-q');
+  assert.equal(announceSource(repo), null, 'nothing anywhere');
+  assert.equal(defaultAnnounce(1, 't', repo), '');
+  fs.mkdirSync(path.join(repo, path.dirname(rel)), { recursive: true });
+  fs.writeFileSync(path.join(repo, rel), '// checkout copy');
+  assert.equal(announceSource(repo), null, 'the checkout copy alone is not used');
+  assert.equal(defaultAnnounce(1, 't', repo), '');
+  git('add', '.');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
+  fs.writeFileSync(path.join(repo, rel), '// branch copy');
+  git('update-ref', 'refs/remotes/aitool/main', 'HEAD');
+  const main = announceSource(repo);
+  assert.ok(main && main.file !== path.join(repo, rel), 'main wins over the branch copy');
+  assert.equal(fs.readFileSync(main.file, 'utf8').trim(), '// checkout copy');
+  main.cleanup();
+  assert.ok(!fs.existsSync(main.file), 'the temp copy is removed');
 });
 
 test('a dry run does not touch the train even for a module PR', () => {
@@ -1027,6 +1905,7 @@ function gateRun() {
     headRefName: 'claude/thing',
     headRefOid: HEAD,
     mergeable: 'MERGEABLE',
+    body: 'Live check: test server A, real dnd5e data',
     files: MODULE_FILES.map(p => ({ path: p })),
     statusCheckRollup: [{ name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
   };
@@ -1034,6 +1913,9 @@ function gateRun() {
   return (cmd, args) => {
     const key = `${cmd} ${args.slice(0, 2).join(' ')}`;
     if (key === 'gh pr view') return ok(JSON.stringify(pr));
+    if (key === 'gh run list') return ok(JSON.stringify([MAIN_GREEN]));
+    if (cmd === 'gh' && args[0] === 'api' && /\/git\/ref\/heads\/main$/.test(args[1]))
+      return ok(`${MAIN_GREEN.headSha}\n`);
     if (cmd === 'gh' && args[0] === 'api') return ok(JSON.stringify(RULES));
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
     if (key === 'git diff -z') {
@@ -1077,9 +1959,31 @@ test('M2: a malformed train file refuses instead of reading as an empty train', 
 const TIP = 'ab12cd34'.repeat(5);
 
 /** A fake run for the train commands: fetch and rev-parse aitool/main. */
-function trainRun({ fetchFail = false, tip = TIP } = {}) {
+function trainRun({ fetchFail = false, tip = TIP, queued = [], states = {}, afterTip = [] } = {}) {
   return (cmd, args) => {
     const key = `${cmd} ${args.join(' ')}`;
+    // a merge commit is in the tested tip unless the test says it landed after it
+    if (cmd === 'git' && args[0] === 'merge-base' && args[1] === '--is-ancestor') {
+      return { status: afterTip.includes(args[2]) ? 1 : 0, stdout: '', stderr: '' };
+    }
+    // GitHub's answer per train PR: merged unless the test says it is queued or gives a state
+    if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+      const pr = Number(/number:(\d+)/.exec(args[3])[1]);
+      if (states[pr] === 'unreadable') return { status: 1, stdout: '', stderr: 'HTTP 502' };
+      const st = queued.includes(pr)
+        ? { state: 'OPEN', isInMergeQueue: true }
+        : {
+            state: states[pr] === 'MERGED-NO-OID' ? 'MERGED' : (states[pr] ?? 'MERGED'),
+            isInMergeQueue: false,
+            // a MERGED answer without its merge commit cannot be placed against the tip
+            mergeCommit: states[pr] === 'MERGED-NO-OID' ? null : { oid: `m${pr}` },
+          };
+      return {
+        status: 0,
+        stdout: JSON.stringify({ data: { repository: { pullRequest: st } } }),
+        stderr: '',
+      };
+    }
     if (key === 'git fetch aitool main') {
       return fetchFail
         ? { status: 1, stdout: '', stderr: 'offline' }
@@ -1153,13 +2057,41 @@ test('gh pr view failing ends the run with one line', () => {
   assert.deepEqual(lines, [
     'lane:merge: NOT merged #312',
     'pr: gh pr view 312 failed: could not resolve to a PullRequest',
+    'lane:merge: refused because pr: gh pr view 312 failed: could not resolve to a PullRequest',
   ]);
+});
+
+test('lane skill: the gate recipe takes the entry file and the module folder out of main together', () => {
+  const skill = fs.readFileSync(
+    path.join(path.dirname(SELF), '..', '.claude', 'skills', 'lane', 'SKILL.md'),
+    'utf8'
+  );
+  assert.match(skill, /git archive aitool\/main scripts\/lane-merge\.mjs scripts\/lane-merge \|/);
+  assert.doesNotMatch(skill, /git show aitool\/main:scripts\/lane-merge\.mjs/);
+});
+
+test('lane-merge split: the entry file stays small and every gate module is a file of its own', () => {
+  const entry = fs.readFileSync(SELF, 'utf8').replace(/\r\n/g, '\n').split('\n');
+  const count = entry.length - (entry.at(-1) === '' ? 1 : 0);
+  assert.ok(
+    count <= 110,
+    `scripts/lane-merge.mjs has ${count} lines (ceiling 110): new gate code goes into a file in scripts/lane-merge/`
+  );
+  const dir = path.join(path.dirname(SELF), 'lane-merge');
+  for (const name of fs.readdirSync(dir)) {
+    // nested folders are supported by the relaunch copy; the gate itself keeps flat files for now
+    assert.match(name, /\.mjs$/, `${name} in scripts/lane-merge/ is not a module`);
+    const text = fs.readFileSync(path.join(dir, name), 'utf8');
+    assert.ok(text.split('\n').length <= 700, `${name} is over 700 lines: split it by gate`);
+  }
 });
 
 /** relaunchFromMain with fakes: a "self" file with `selfText`, main's copy `mainText` (or null). */
 function relaunch({
   selfText = 'gate A\n',
   mainText = 'gate A\n',
+  selfModules = {},
+  mainModules = {},
   fetchFail = false,
   env = {},
   argv = ['312'],
@@ -1168,6 +2100,11 @@ function relaunch({
   const dir = tmpDir();
   const selfPath = path.join(dir, 'lane-merge.mjs');
   fs.writeFileSync(selfPath, selfText);
+  if (Object.keys(selfModules).length) fs.mkdirSync(path.join(dir, 'lane-merge'));
+  for (const [n, text] of Object.entries(selfModules)) {
+    fs.mkdirSync(path.dirname(path.join(dir, 'lane-merge', n)), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'lane-merge', n), text);
+  }
   const calls = [];
   const lines = [];
   const spawned = [];
@@ -1186,6 +2123,14 @@ function relaunch({
           ? { status: 1, stdout: '', stderr: 'offline' }
           : { status: 0, stdout: '', stderr: '' };
       }
+      if (args[0] === 'ls-tree') {
+        const names = Object.keys(mainModules).map(n => `scripts/lane-merge/${n}`);
+        return { status: 0, stdout: names.join('\n'), stderr: '' };
+      }
+      const prefix = 'aitool/main:scripts/lane-merge/';
+      if (args[1].startsWith(prefix)) {
+        return { status: 0, stdout: mainModules[args[1].slice(prefix.length)], stderr: '' };
+      }
       return mainText === null
         ? { status: 128, stdout: '', stderr: 'fatal' }
         : { status: 0, stdout: mainText, stderr: '' };
@@ -1198,14 +2143,54 @@ function relaunch({
   return { out, calls, lines, spawned, dir };
 }
 
+test('relaunch: a nested module folder is compared and copied', () => {
+  const mods = { 'a.mjs': 'one\n', 'sub/b.mjs': 'two\n' };
+  const same = relaunch({ selfModules: mods, mainModules: mods });
+  assert.deepEqual([same.out.relaunched, same.spawned.length], [false, 0]);
+  const changed = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\n', 'sub/b.mjs': 'X\n' },
+  });
+  assert.equal(changed.out.relaunched, true);
+  const copied = path.join(path.dirname(changed.spawned[0].args[0]), 'lane-merge', 'sub', 'b.mjs');
+  assert.equal(fs.readFileSync(copied, 'utf8'), 'X\n');
+});
+
 test('H1: a gate identical to main runs in place (line endings do not matter)', () => {
   const same = relaunch();
   assert.deepEqual([same.out.relaunched, same.out.fetched, same.spawned.length], [false, true, 0]);
   assert.deepEqual(same.calls, [
     'git fetch aitool main',
     'git show aitool/main:scripts/lane-merge.mjs',
+    'git ls-tree -r --name-only --full-tree aitool/main scripts/lane-merge/',
   ]);
   assert.equal(relaunch({ mainText: 'gate A\r\n' }).out.relaunched, false);
+  const mods = { 'a.mjs': 'one\n', 'b.mjs': 'two\n' };
+  const sameMods = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\r\n', 'b.mjs': 'two\n' },
+  });
+  assert.equal(sameMods.out.relaunched, false, 'matching modules run in place');
+  const changed = relaunch({
+    selfModules: mods,
+    mainModules: { 'a.mjs': 'one\n', 'b.mjs': 'X\n' },
+  });
+  assert.equal(changed.out.relaunched, true, 'a changed module is replaced by main');
+  const [call] = changed.spawned;
+  assert.equal(
+    fs.readFileSync(path.join(path.dirname(call.args[0]), 'lane-merge', 'b.mjs'), 'utf8'),
+    'X\n'
+  );
+  assert.equal(
+    relaunch({ selfModules: mods, mainModules: { 'a.mjs': 'one\n' } }).out.relaunched,
+    true,
+    'a module only this checkout has differs'
+  );
+  assert.equal(
+    relaunch({ selfModules: { 'a.mjs': 'one\n' }, mainModules: mods }).out.relaunched,
+    true,
+    'a module only main has differs'
+  );
 });
 
 test("H1: a gate that differs from main is replaced by main's copy, same arguments and folder", () => {
@@ -1280,6 +2265,9 @@ test('L6: started through a junction the gate still runs, and a mismatch exits n
   const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-copy-'));
   const copy = path.join(copyDir, 'lane-merge.mjs');
   fs.copyFileSync(SELF, copy);
+  fs.cpSync(path.join(path.dirname(SELF), 'lane-merge'), path.join(copyDir, 'lane-merge'), {
+    recursive: true,
+  });
   const fine = spawnSync(process.execPath, [copy, '--train', '--state', state], {
     encoding: 'utf8',
   });
@@ -1396,6 +2384,15 @@ test('waitForCi: a failing check ends the wait at once, naming it, while others 
   assert.equal(r.result.code, 3);
   assert.match(r.result.reason, /CI failed on 3d24f70: lint \(FAILURE\)/);
   assert.equal(r.polls, 2, 'no further poll after the failure');
+});
+
+test('waitForCi: an old failure with a newer queued rerun keeps waiting', () => {
+  const old = { ...cr('build-test', 'COMPLETED', 'FAILURE'), startedAt: '2026-10-31T07:56:17Z' };
+  const queued = { ...cr('build-test', 'QUEUED', ''), startedAt: '0001-01-01T00:00:00Z' };
+  const done = { ...cr('build-test', 'COMPLETED', 'SUCCESS'), startedAt: '2026-10-31T09:24:42Z' };
+  const r = waitRun([{ statusCheckRollup: [old, queued] }, { statusCheckRollup: [old, done] }]);
+  assert.equal(r.result.ok, true);
+  assert.equal(r.polls, 2, 'did not stop at the old failure');
 });
 
 test('waitForCi: a failing commit status is named too', () => {
@@ -1789,6 +2786,20 @@ test('gate --wait-ci: refuses when the gate on main changed during the wait', ()
   assert.match(r.text, /wait-ci: the gate on aitool\/main changed during the wait/);
 });
 
+test('gate --wait-ci: refuses when only a gate module on main changed during the wait', () => {
+  const mods = ownModules();
+  const first = Object.keys(mods)[0];
+  const r = gate({
+    argv: ['--wait-ci'],
+    mainModules: { ...mods, [first]: `${mods[first]}// newer\n` },
+  });
+  assert.equal(r.code, 1);
+  assert.ok(!r.merged);
+  assert.match(r.text, /wait-ci: the gate on aitool\/main changed during the wait/);
+  const extra = gate({ argv: ['--wait-ci'], mainModules: { ...mods, 'new.mjs': 'x\n' } });
+  assert.equal(extra.code, 1, 'a module only main has is a change too');
+});
+
 test('gate --wait-ci: refuses when main cannot be fetched after the wait', () => {
   const r = gate({ argv: ['--wait-ci'], fetchFail: true });
   assert.equal(r.code, 1);
@@ -2064,6 +3075,87 @@ test('merge train note: --dry-run writes nothing; a refusal writes a refusal eve
   );
   const text = fs.readFileSync(NOTE_FILE(t.vault), 'utf8');
   assert.match(text, /count: 1\n[\s\S]*last-event: refusal\nlast-event-pr: 312\n/);
+  // the reason is in the commit (subject tag and body), never in the note the board parses
+  const commit = t.git.find(a => a[0] === 'commit');
+  assert.match(commit[2], /^Merge train: refusal #312, 1\/4 \[local\]$/);
+  assert.equal(commit[3], '-m');
+  assert.match(commit[4], /^local: the working tree is not clean/);
+  assert.doesNotMatch(text, /working tree/);
+});
+
+test('refusal reasons: one cause tag per failure kind, once each, and a short body', () => {
+  assert.deepEqual(
+    refusalCauses(
+      [
+        'ci: failing: build-test (FAILURE); pending: dashboard-visual (IN_PROGRESS)',
+        'ci: required but not reported: build-test (Node 22)',
+        'ci: no checks reported for this PR yet',
+        'ci: cannot read the required checks from the branch ruleset (gh api failed: x); refusing',
+        'wait-ci: head moved from a to b',
+        'wait-ci: CI failed on abc1234: build-test (FAILURE)',
+        'wait-ci: timed out after 30 minutes; still waiting for x',
+        'wait-ci: gh pr view 5 failed 3 times in a row',
+        'review: no review note for this head',
+        'train: merge train full (4/4): run live:roundtrip',
+        'drift: drift-check failed (guards: mcp-server tests (tool counts, tool sets), lint ratchet) (log x.log); last lines below',
+        'weird line',
+      ],
+      ['mcp-server tests (tool counts, tool sets)', 'lint ratchet']
+    ),
+    [
+      'ci-failing',
+      'ci-pending',
+      'ci-missing',
+      'ci-rules',
+      'wait-ci-head-moved',
+      'wait-ci-failing',
+      'wait-ci-timeout',
+      'wait-ci-other',
+      'review',
+      'train',
+      'drift-mcp-server-tests-tool-counts-tool-sets',
+      'drift-lint-ratchet',
+      'other',
+    ]
+  );
+  assert.deepEqual(refusalCauses(['drift: drift-check failed (log y.log); last lines below']), [
+    'drift',
+  ]);
+  assert.deepEqual(refusalCauses([]), []);
+  const long = 'ci: failing: ' + 'x'.repeat(400);
+  const body = refusalBody([
+    'review: a\nsecond line\u0007',
+    long,
+    '',
+    'drift: drift-check failed (guards: x) (log C:/tmp/l.log); last lines below',
+  ]).split('\n');
+  assert.equal(body.length, 3);
+  assert.equal(body[0], 'review: a');
+  assert.ok(body[1].length <= 160 && body[1].endsWith('...'));
+  assert.equal(body[2], 'drift: drift-check failed (guards: x); last lines below'); // no temp path
+});
+
+test('refusal reasons: a real vault commit carries the tags in the subject and the lines in the body', () => {
+  const { root, g } = realVault();
+  const vault = path.join(root, 'vault');
+  const warn = publishTrainNote({
+    vault,
+    state: TRAIN_STATE,
+    event: {
+      kind: 'refusal',
+      pr: 649,
+      at: NOTE_NOW,
+      reasons: ['ci: failing: build-test (FAILURE)', 'review: no note for this head'],
+    },
+    run: defaultRun,
+    now: () => new Date(NOTE_NOW),
+  });
+  assert.equal(warn, '');
+  const shown = g(path.join(root, 'remote.git'), 'log', '-1', '--format=%s%n--%n%b', 'main');
+  assert.equal(
+    shown.trim(),
+    'Merge train: refusal #649, 1/4 [ci-failing, review]\n--\nci: failing: build-test (FAILURE)\nreview: no note for this head'
+  );
 });
 
 test('merge train note: --train-reset writes a reset event, and a vault failure only warns', () => {
@@ -2111,6 +3203,7 @@ test('wait-ci: a relaunched child killed by a signal still ends with a verdict l
   });
   assert.equal(code, 1);
   assert.deepEqual(lines, [
+    "lane:merge: refused because main's copy of the gate was killed (SIGTERM)",
     "lane:merge: wait-ci ended: exit 1, main's copy of the gate was killed (SIGTERM)",
   ]);
   const failed = relaunch({
@@ -2172,5 +3265,926 @@ test('wait-ci: every other exit of runEntry ends with one verdict line', () => {
   const noWaitThrow = entry(['312'], () => {
     throw new Error('x');
   });
-  assert.deepEqual([noWaitThrow.code, noWaitThrow.lines.length], [1, 1]);
+  assert.deepEqual([noWaitThrow.code, noWaitThrow.lines.length], [1, 2]);
+  assert.equal(noWaitThrow.lines[1], 'lane:merge: refused because unexpected error: x');
+});
+
+test('refusedBecause: one line, every reason, numbered when there are several', () => {
+  assert.equal(refusedBecause(['review: no note']), 'lane:merge: refused because review: no note');
+  assert.equal(
+    refusedBecause(['review: no note; more', 'changelog: none', 'drift: failed\nsecond line']),
+    'lane:merge: refused because (1) review: no note; more (2) changelog: none (3) drift: failed second line'
+  );
+  assert.match(refusedBecause([]), /^lane:merge: refused because /);
+});
+
+test('a refusal ends with one "refused because" line holding every reason, after the notices', () => {
+  // The #741 shape: risky files, no review note for the head, so drift-check is not run.
+  const r = gate({
+    vault: vaultWith([{ name: '312-opus-review-round2.md', text: note({ head: OTHER }) }]),
+    files: [
+      'scripts/pi/container-test/stage26-scenarios.sh',
+      '.github/workflows/ci.yml',
+      'docs/a.md',
+    ],
+  });
+  assert.equal(r.code, 1);
+  assert.equal(r.lines[0], 'lane:merge: NOT merged #312');
+  const last = r.lines.at(-1);
+  assert.ok(
+    last.startsWith('lane:merge: refused because (1) review: no review note for head 3d24f70'),
+    last
+  );
+  assert.match(last, /\(2\) changelog: no added or changed changelog\.d/);
+  assert.equal(r.lines.filter(l => l.startsWith('lane:merge: refused because')).length, 1);
+  const notices = r.lines.findIndex(l => l.includes('drift-check not run'));
+  assert.ok(notices > 0 && notices < r.lines.length - 1, 'the notices come before the summary');
+  // A single reason is not numbered, and a --wait-ci failure gets the line too.
+  const one = gate({ merge: 1 });
+  assert.equal(
+    one.lines.at(-1),
+    'lane:merge: refused because merge: gh pr merge exited 1: not allowed'
+  );
+  const failed = gate({
+    argv: ['--wait-ci'],
+    prFor: () => ({ statusCheckRollup: [cr('build-test', 'COMPLETED', 'FAILURE')] }),
+  });
+  assert.equal(failed.code, 3);
+  assert.equal(
+    failed.lines.at(-1),
+    'lane:merge: refused because wait-ci: CI failed on 3d24f70: build-test (FAILURE)'
+  );
+  // A merge prints no such line.
+  assert.ok(!gate({}).lines.some(l => l.includes('refused because')));
+});
+
+test('risky notice: says found or missing for the head Opus note, so a merge never reads as a refusal', () => {
+  const files = ['shared/src/protocol.ts', 'changelog.d/x.md'];
+  const merged = gate({ files, vault: vaultWith([{ name: '312-opus-review.md', text: note() }]) });
+  assert.equal(merged.code, 0, merged.text);
+  assert.ok(
+    merged.lines.includes(
+      'lane:merge: risky (wire contracts): shared/src/protocol.ts; an Opus review is required; Opus note for head 3d24f70: found (312-opus-review.md)'
+    ),
+    merged.text
+  );
+  assert.ok(!merged.text.includes('missing'));
+  const sonnet = gate({ files });
+  assert.equal(sonnet.code, 1);
+  assert.match(sonnet.text, /an Opus review is required; Opus note for head 3d24f70: missing/);
+  // An Opus note for another head is missing for this one.
+  const stale = gate({
+    files,
+    vault: vaultWith([{ name: '312-opus-review.md', text: note({ head: OTHER }) }]),
+  });
+  assert.match(stale.text, /Opus note for head 3d24f70: missing/);
+  assert.deepEqual(
+    opusNotesForHead(
+      [
+        parseReviewNote('312-opus-review.md', note(), 312),
+        parseReviewNote('312-review.md', note(), 312),
+        parseReviewNote('312-opus-review-2.md', note({ head: OTHER }), 312),
+      ],
+      HEAD.toUpperCase()
+    ),
+    ['312-opus-review.md']
+  );
+});
+
+test('review refusal: names the naming rule, and lists notes of the PR that were not read', () => {
+  const vault = vaultWith([
+    { name: '312-merge-delta-3d24f70a.md', text: note() },
+    { name: '313-merge-delta.md', text: note() },
+    { folder: 'Reviews 2026-10-11', name: '312-review.md', text: note({ head: OTHER }) },
+  ]);
+  const r = gate({ vault });
+  assert.equal(r.code, 1);
+  const line = r.lines.find(l => l.startsWith('review: '));
+  assert.ok(line.includes(reviewNamingRule(312)), line);
+  assert.match(line, /312-\*review\*\.md in a "Handoff\/Reviews <date>\/" folder/);
+  assert.match(line, /named 312-opus-review\.\.\. or headed "# PR #312 Opus review"/);
+  assert.match(line, /full 40-character sha above "## Verdict"/);
+  assert.match(
+    line,
+    /write it with: node scripts\/review-note\.mjs 312 --verdict <merge\|fixes\|no> --model <opus\|sonnet>/
+  );
+  assert.match(
+    line,
+    /not read \(no "review" in the name\): Reviews 2026-10-10\/312-merge-delta-3d24f70a\.md; write it with: /
+  );
+  assert.ok(line.endsWith(reviewNoteCommand(312)), 'the helper command stays last');
+  assert.deepEqual(unreadPrNotes(vault, 312), ['Reviews 2026-10-10/312-merge-delta-3d24f70a.md']);
+  assert.deepEqual(unreadPrNotes(path.join(os.tmpdir(), 'no-such-vault-xyz'), 312), []);
+  // Only a Sonnet note for a risky PR gets the rule too; a Do not merge does not (the note was read).
+  const sonnet = gate({ files: ['shared/src/protocol.ts', 'changelog.d/x.md'] });
+  assert.ok(sonnet.text.includes(`this PR needs an Opus review; ${reviewNamingRule(312)}`));
+  const veto = gate({
+    vault: vaultWith([{ name: '312-review.md', text: note({ verdict: '**Do not merge.**' }) }]),
+  });
+  assert.ok(!veto.text.includes('the gate reads files named'));
+});
+
+/** A release PR as RELEASING.md steps 1 and 2 make it: the fold and sync-version's stamps. */
+function releaseFixture() {
+  const pkg = v => `{\n  "name": "foundry-ai-tool",\n  "version": "${v}",\n  "private": true\n}\n`;
+  const lock = v =>
+    JSON.stringify(
+      {
+        name: 'foundry-ai-tool',
+        version: v,
+        lockfileVersion: 3,
+        packages: {
+          '': { name: 'foundry-ai-tool', version: v },
+          shared: { name: '@x/shared', version: v },
+          'packages/foundry-module': { version: v },
+          'packages/unversioned': { name: 'unversioned' },
+          'node_modules/foo': { version: '1.0.0', resolved: 'https://r/foo.tgz' },
+        },
+      },
+      null,
+      2
+    );
+  const manifest = v =>
+    `{\n  "id": "foundry-mcp-bridge",\n  "version": "${v}",\n  "compatibility": {}\n}\n`;
+  const ts = v => `/** generated */\nexport const TOOL_VERSION = '${v}';\n`;
+  const nsis = v =>
+    `Name "x"\n  !define VERSION "v${v}"\nSection\n  WriteRegStr HKCU "Software\\Uninstall\\FoundryMCPServer" "DisplayVersion" "${v}"\nSectionEnd\n`;
+  const at = v => ({
+    'CHANGELOG.md': `# Changelog\n\n## Unreleased\n\n## v${v}\n`,
+    'changelog.d/thing.md': v === '0.25.0' ? '### Fixes\n\n- a fix\n' : null,
+    'package.json': pkg(v),
+    'shared/package.json': pkg(v),
+    'package-lock.json': lock(v),
+    'packages/foundry-module/module.json': manifest(v),
+    'packages/obsidian-plugin/manifest.json': manifest(v),
+    'tools/player-connector/manifest.json': manifest(v),
+    'tools/player-connector/server/index.js': `'use strict';\nconst VERSION = '${v}';\nrun();\n`,
+    'shared/src/version.ts': ts(v),
+    'installer/nsis/foundry-mcp-server.nsi': nsis(v),
+  });
+  const base = at('0.25.0');
+  const head = at('0.26.0');
+  const files = Object.keys(base).map(p => ({
+    path: p,
+    changeType: head[p] === null ? 'DELETED' : 'MODIFIED',
+  }));
+  return { base, head, files, read: (rev, p) => (rev === 'base' ? base : head)[p] ?? null };
+}
+
+test('releasePr: the fold plus version bumps only; anything else is not a release', () => {
+  const f = releaseFixture();
+  assert.deepEqual(releasePr(f.files, f.read), { release: true, why: '' });
+  const why = change => {
+    const x = releaseFixture();
+    change(x);
+    const r = releasePr(x.files, x.read);
+    assert.equal(r.release, false);
+    return r.why;
+  };
+  const edit = (file, from, to) => x => {
+    x.head[file] = x.head[file].replace(from, to);
+  };
+  assert.match(
+    why(x => x.files.push({ path: 'docs/a.md', changeType: 'MODIFIED' })),
+    /docs\/a\.md is not a changelog or version file/
+  );
+  assert.match(
+    why(x => x.files.push({ path: 'shared/src/other.ts', changeType: 'MODIFIED' })),
+    /shared\/src\/other\.ts is not a changelog or version file/
+  );
+  assert.match(
+    why(x => x.files.push({ path: 'changelog.d/new.md', changeType: 'ADDED' })),
+    /changelog\.d\/new\.md is not deleted/
+  );
+  assert.match(
+    why(x => {
+      x.files = x.files.filter(y => y.path !== 'CHANGELOG.md');
+    }),
+    /CHANGELOG\.md is not changed/
+  );
+  assert.match(
+    why(x => {
+      x.files = x.files.filter(y => y.path !== 'package.json');
+    }),
+    /root package\.json is not changed/
+  );
+  assert.match(
+    why(edit('package.json', '"private": true', '"private": false')),
+    /package\.json changes more than its version/
+  );
+  assert.match(
+    why(edit('package-lock.json', '"version": "1.0.0"', '"version": "1.0.1"')),
+    /package-lock\.json changes more than its version/
+  );
+  assert.match(
+    why(edit('shared/src/version.ts', 'generated', 'edited')),
+    /shared\/src\/version\.ts changes more than its version line \(line 1\)/
+  );
+  assert.match(
+    why(x => {
+      x.head['installer/nsis/foundry-mcp-server.nsi'] += 'Exec "evil"\n';
+    }),
+    /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  // The player extension's version stamps are version files; nothing else in them may change.
+  assert.match(
+    why(edit('tools/player-connector/server/index.js', 'run();', 'evil();')),
+    /player-connector\/server\/index\.js changes more than its version line/
+  );
+  assert.match(
+    why(edit('tools/player-connector/manifest.json', '"compatibility": {}', '"compatibility": 1')),
+    /player-connector\/manifest\.json changes more than its version/
+  );
+  // A path that names an Object.prototype member is not a version file.
+  assert.match(
+    why(x => x.files.push({ path: 'constructor', changeType: 'MODIFIED' })),
+    /constructor is not a changelog or version file/
+  );
+  // The registry path on the DisplayVersion line may not change with the version.
+  assert.match(
+    why(edit('installer/nsis/foundry-mcp-server.nsi', 'Software\\Uninstall', 'Software\\Evil')),
+    /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  // A lock version that moves to another entry (same count) is not a bump: versions are keyed.
+  assert.match(
+    why(x => {
+      x.head['package-lock.json'] = x.head['package-lock.json']
+        .replace('"name": "@x/shared",\n      "version": "0.26.0"', '"name": "@x/shared"')
+        .replace('"name": "unversioned"', '"name": "unversioned",\n      "version": "0.26.0"');
+    }),
+    /package-lock\.json drops or adds a version field/
+  );
+  // A dropped version field is not a bump.
+  assert.match(
+    why(edit('packages/foundry-module/module.json', '  "version": "0.26.0",\n', '')),
+    /module\.json drops or adds a version field/
+  );
+  assert.match(
+    why(edit('packages/foundry-module/module.json', '0.26.0', 'latest')),
+    /module\.json has a version that is not x\.y\.z/
+  );
+  assert.match(
+    why(x => {
+      x.head['package.json'] = x.base['package.json'];
+    }),
+    /root package\.json version does not change/
+  );
+  assert.match(
+    why(x => {
+      x.base['shared/package.json'] = null;
+    }),
+    /shared\/package\.json is added or deleted/
+  );
+});
+
+test('changelog: a release PR passes without --no-changelog; anything more is refused and says why', () => {
+  const f = releaseFixture();
+  const paths = f.files.map(x => x.path);
+  const changeTypes = Object.fromEntries(
+    f.files.map(x => [x.path, x.changeType === 'DELETED' ? 'D' : 'M'])
+  );
+  // module.json and shared/src are risky (wire contracts), so the release needs an Opus note.
+  const vault = vaultWith([{ name: '312-opus-review.md', text: note() }]);
+  const r = gate({ vault, files: paths, changeTypes, show: f.read });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(r.merged);
+  assert.ok(
+    r.lines.includes(
+      'lane:merge: changelog: a release PR (only the fold and version bumps), so no fragment is needed'
+    ),
+    r.text
+  );
+  const more = gate({ vault, files: [...paths, 'docs/guide.md'], changeTypes, show: f.read });
+  assert.equal(more.code, 1);
+  assert.match(
+    more.lines.at(-1),
+    /refused because changelog: no added or changed changelog\.d\/\*\.md fragment \(or pass --no-changelog "reason"\); not a release PR: docs\/guide\.md is not a changelog or version file$/
+  );
+  // A PR that never touches CHANGELOG.md keeps the old line, with nothing about releases.
+  const plain = gate({ files: ['docs/guide.md'] });
+  assert.match(
+    plain.text,
+    /^changelog: no added or changed changelog\.d\/\*\.md fragment \(or pass --no-changelog "reason"\)$/m
+  );
+  assert.ok(!plain.text.includes('release'));
+  assert.ok(!plain.calls.some(c => c[0] === 'git' && c[1] === 'show' && /^basesha:/.test(c[2])));
+  // Not at the head: the local check refuses, and no file contents are read for a release pass.
+  const away = gate({ vault, files: paths, changeTypes, show: f.read, localHead: OTHER });
+  assert.equal(away.code, 1);
+  assert.ok(!away.calls.some(c => c[0] === 'git' && c[1] === 'show' && /^basesha:/.test(c[2])));
+});
+
+// --- review-carry-over: a verdict carries when the PR's own patch did not change (pick P3) ---
+
+/** Temp repos made by carryRepo, removed after each test. @type {string[]} */
+const carryDirs = [];
+afterEach(() => {
+  for (const d of carryDirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+});
+
+/**
+ * A real git repo for the carry tests: `main` at M0 with a.txt (30 lines) and main.txt, a PR branch
+ * `pr` with B (line 3 of a.txt changed), and `aitool/main` as a remote-tracking ref set by setMain.
+ */
+function carryRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-carry-'));
+  carryDirs.push(dir);
+  // A fake clock: every git call is one minute later, so commits made in order have rising
+  // committer times (the carry reads them to find the newest review).
+  let tick = 0;
+  const env = () => {
+    const at = `@${1_800_000_000 + 60 * tick++} +0000`;
+    return { ...process.env, GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at };
+  };
+  const g = (/** @type {string[]} */ ...args) =>
+    execFileSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: env(),
+    }).trim();
+  const run = (
+    /** @type {string} */ cmd,
+    /** @type {string[]} */ args,
+    /** @type {string} */ input
+  ) => {
+    const r = spawnSync(cmd, args, {
+      cwd: dir,
+      encoding: 'utf8',
+      env: env(),
+      ...(input === undefined ? {} : { input }),
+    });
+    return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  };
+  const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
+  const write = (/** @type {string} */ file, /** @type {string[]} */ content) =>
+    fs.writeFileSync(path.join(dir, file), `${content.join('\n')}\n`);
+  const commit = (/** @type {string} */ msg) => {
+    g('add', '-A');
+    g('commit', '-q', '-m', msg);
+    return g('rev-parse', 'HEAD');
+  };
+  const setMain = (/** @type {string} */ sha) => g('update-ref', 'refs/remotes/aitool/main', sha);
+  g('init', '-q', '-b', 'main');
+  for (const [k, v] of [
+    ['core.autocrlf', 'false'],
+    ['user.name', 'Lane Test'],
+    ['user.email', 'lane@example.invalid'],
+    ['commit.gpgsign', 'false'],
+  ]) {
+    g('config', k, v);
+  }
+  write('a.txt', lines);
+  write('main.txt', ['main 1']);
+  const M0 = commit('base');
+  g('checkout', '-q', '-b', 'pr');
+  write(
+    'a.txt',
+    lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : l))
+  );
+  const B = commit('the PR');
+  setMain(M0);
+  return { dir, g, run, lines, write, commit, setMain, M0, B };
+}
+
+/** A note (Sonnet unless `opus`) for one reviewed sha, parsed as the gate reads it. */
+const reviewed = (/** @type {string} */ sha, opus = false, verdict = '**Merge.** Fine.') =>
+  parseReviewNote(
+    opus ? '312-opus-review.md' : '312-review.md',
+    note({ head: sha, verdict, title: opus ? 'PR #312 Opus review' : 'PR #312 review' }),
+    312
+  );
+
+/** Move main on with a change in main.txt only (far from the PR's lines). */
+function mainMovesOn(/** @type {ReturnType<typeof carryRepo>} */ r) {
+  r.g('checkout', '-q', 'main');
+  r.write('main.txt', ['main 1', 'main 2']);
+  const M1 = r.commit('main moves on');
+  r.g('checkout', '-q', 'pr');
+  return M1;
+}
+
+test('carry (1): a clean merge of main into the branch carries the verdict', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const a = patchIdAt(r.run, r.B);
+  const b = patchIdAt(r.run, C);
+  assert.ok('id' in a && 'id' in b && a.id === b.id, JSON.stringify({ a, b }));
+  const notes = [reviewed(r.B)];
+  const carry = carriedReviews(r.run, notes, C);
+  assert.deepEqual(carry, { carried: [r.B], carryError: null });
+  const verdict = judgeReviews(notes, C, false, carry);
+  assert.equal(verdict.ok, true, verdict.detail);
+  assert.deepEqual(verdict.carriedFrom, [r.B]);
+});
+
+test('carry (2): a merge with a conflict resolution does NOT carry', () => {
+  const r = carryRepo();
+  r.g('checkout', '-q', 'main');
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed on main' : l))
+  );
+  const M1 = r.commit('main changes the same line');
+  r.g('checkout', '-q', 'pr');
+  const merged = r.run('git', ['merge', '-q', '--no-edit', 'main']);
+  assert.notEqual(merged.status, 0, 'the merge must conflict');
+  // resolved to the PR's own line: the PR's patch now replaces main's line, not the old one
+  r.g('checkout', '--ours', 'a.txt');
+  r.g('add', 'a.txt');
+  r.g('commit', '-q', '--no-edit');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const notes = [reviewed(r.B)];
+  const carry = carriedReviews(r.run, notes, C);
+  assert.deepEqual(carry, { carried: [], carryError: null });
+  const verdict = judgeReviews(notes, C, false, carry);
+  assert.equal(verdict.ok, false);
+  assert.match(
+    verdict.detail,
+    /^no review note for head .*; not carried: the patch changed since every reviewed commit/
+  );
+});
+
+test('carry (3): a new commit that changes one line does not carry', () => {
+  const r = carryRepo();
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : i === 19 ? 'line 20 too' : l))
+  );
+  const B2 = r.commit('one more line');
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], B2), { carried: [], carryError: null });
+  // whitespace counts (patch-id --verbatim): an indentation-only change does not carry either
+  r.g('reset', '-q', '--hard', r.B);
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? '  line 3 changed by the PR' : l))
+  );
+  const ws = r.commit('indent only');
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], ws), { carried: [], carryError: null });
+});
+
+test('carry (4): a rebase onto a newer main with no change carries', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('checkout', '-q', '-b', 'pr-rebased', M1);
+  r.g('cherry-pick', r.B);
+  const B1 = r.g('rev-parse', 'HEAD');
+  assert.notEqual(B1, r.B);
+  r.setMain(M1);
+  const notes = [reviewed(r.B)];
+  const carry = carriedReviews(r.run, notes, B1);
+  assert.deepEqual(carry, { carried: [r.B], carryError: null });
+  assert.equal(judgeReviews(notes, B1, false, carry).ok, true);
+});
+
+test('carry (5): an Opus-required PR with a carried Sonnet note still refuses', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const sonnet = [reviewed(r.B)];
+  const verdict = judgeReviews(sonnet, C, true, carriedReviews(r.run, sonnet, C));
+  assert.equal(verdict.ok, false);
+  assert.equal(
+    verdict.detail,
+    `only a Sonnet review (312-review.md) says Merge for ${C.slice(0, 7)} (verdict carried from ${r.B}), and this PR needs an Opus review; ${reviewNoteCommand(null)}`
+  );
+  // a carried Opus Merge clears it; a carried Do not merge on the same patch still vetoes
+  const opus = [reviewed(r.B, true)];
+  assert.equal(judgeReviews(opus, C, true, carriedReviews(r.run, opus, C)).ok, true);
+  const veto = [reviewed(r.B, true), reviewed(r.B, false, '**Do not merge.** Broken.')];
+  const v = judgeReviews(veto, C, true, carriedReviews(r.run, veto, C));
+  assert.equal(v.ok, false);
+  assert.match(v.detail, /says "Do not merge\." for head .* \(verdict carried from /);
+});
+
+test('carry: any error carries nothing (unknown commit, shallow clone, old git, no main)', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  // a reviewed commit this clone does not have and cannot fetch (no aitool remote here)
+  const gone = 'abcdef0123456789abcdef0123456789abcdef01';
+  const lost = carriedReviews(r.run, [reviewed(r.B), reviewed(gone, true)], C);
+  assert.deepEqual(lost.carried, []);
+  assert.match(lost.carryError ?? '', /^commit abcdef0 is not in this clone and cannot be fetched/);
+  const verdict = judgeReviews([reviewed(r.B)], C, false, lost);
+  assert.equal(verdict.ok, false);
+  assert.match(
+    verdict.detail,
+    /; not carried: commit abcdef0 .*; a review note for the head is needed; write it with: /
+  );
+  /** A run that answers one git subcommand itself and passes the rest to the real repo. */
+  const faking =
+    (/** @type {(args: string[]) => any} */ fake) =>
+    (/** @type {string} */ cmd, /** @type {string[]} */ args, /** @type {string} */ input) =>
+      fake(args) ?? r.run(cmd, args, input);
+  const shallow = faking(a =>
+    a[1] === '--is-shallow-repository' ? { status: 0, stdout: 'true\n', stderr: '' } : null
+  );
+  assert.match(carriedReviews(shallow, [reviewed(r.B)], C).carryError ?? '', /shallow/);
+  const oldGit = faking(a =>
+    a[0] === 'patch-id'
+      ? { status: 129, stdout: '', stderr: "error: unknown option `verbatim'" }
+      : null
+  );
+  assert.match(
+    carriedReviews(oldGit, [reviewed(r.B)], C).carryError ?? '',
+    /git patch-id for .* failed \(error: unknown option/
+  );
+  r.g('update-ref', '-d', 'refs/remotes/aitool/main');
+  assert.match(carriedReviews(r.run, [reviewed(r.B)], C).carryError ?? '', /no merge base of /);
+  // only the head reviewed: nothing to compare, no git call at all
+  const none = () => {
+    throw new Error('no call expected');
+  };
+  assert.deepEqual(carriedReviews(none, [reviewed(C)], C), { carried: [], carryError: null });
+});
+
+test('carry (review M2): a later review on another patch, then that change dropped, does not carry', () => {
+  const r = carryRepo();
+  // X = B was reviewed Merge; Y adds a line and gets Do not merge; the lane drops Y's change again
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : i === 19 ? 'line 20 too' : l))
+  );
+  const Y = r.commit('a change the review vetoed');
+  r.write(
+    'a.txt',
+    r.lines.map((l, i) => (i === 2 ? 'line 3 changed by the PR' : l))
+  );
+  const Z = r.commit('drop it again');
+  const notes = [
+    reviewed(r.B, true),
+    parseReviewNote(
+      '312-opus-review-round2.md',
+      note({ head: Y, verdict: '**Do not merge.** Broken.', title: 'PR #312 Opus review' }),
+      312
+    ),
+  ];
+  const carry = carriedReviews(r.run, notes, Z);
+  assert.deepEqual(carry.carried, []);
+  assert.equal(
+    carry.carryError,
+    `the newest reviewed commit (${Y.slice(0, 7)}) has a different patch from the head`
+  );
+  assert.equal(judgeReviews(notes, Z, true, carry).ok, false);
+  // the usual order (an older veto, then fixes reviewed Merge) still carries after a merge of main
+  const M1 = mainMovesOn(r);
+  r.g('checkout', '-q', 'pr');
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const fixed = [
+    parseReviewNote(
+      '312-opus-review.md',
+      note({ head: Y, verdict: '**Do not merge.** Broken.', title: 'PR #312 Opus review' }),
+      312
+    ),
+    parseReviewNote(
+      '312-opus-review-round2.md',
+      note({ head: Z, title: 'PR #312 Opus review' }),
+      312
+    ),
+  ];
+  const ok = carriedReviews(r.run, fixed, C);
+  assert.deepEqual(ok, { carried: [Z], carryError: null });
+  assert.equal(judgeReviews(fixed, C, true, ok).ok, true);
+});
+
+test('carry (review M1): any short sha in a note turns the carry off', () => {
+  const merge = reviewed(OTHER);
+  const veto = parseReviewNote(
+    '312-review-round2.md',
+    note({ head: 'abcdef1', verdict: '**Do not merge.** Broken.' }),
+    312
+  );
+  const verdict = judgeReviews([merge, veto], HEAD, false, { carried: [OTHER], carryError: null });
+  assert.equal(verdict.ok, false);
+  assert.match(
+    verdict.detail,
+    /^no review note for head 3d24f70 .*; not carried: 312-review-round2\.md reviewed abcdef1 by a short sha, which could hide a verdict on the same patch/
+  );
+  // without the short sha the same carry passes
+  assert.equal(judgeReviews([merge], HEAD, false, { carried: [OTHER], carryError: null }).ok, true);
+});
+
+test('carry: a mode-only change (chmod +x) and a changed binary file do not carry', () => {
+  const r = carryRepo();
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  r.setMain(M1);
+  const C = r.g('rev-parse', 'HEAD');
+  // the same text patch, plus the executable bit on a.txt
+  // update-index sets the mode in the index only; with core.fileMode on (Linux) the working file
+  // would then read as modified, so the mode is taken from the index alone
+  r.g('config', 'core.fileMode', 'false');
+  r.g('update-index', '--chmod=+x', 'a.txt');
+  r.g('commit', '-q', '-m', 'chmod +x');
+  const mode = r.g('rev-parse', 'HEAD');
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], mode), { carried: [], carryError: null });
+  assert.deepEqual(carriedReviews(r.run, [reviewed(r.B)], C), { carried: [r.B], carryError: null });
+  // a binary file the PR adds, then changes
+  r.g('checkout', '-q', '-b', 'bin', r.B);
+  fs.writeFileSync(path.join(r.dir, 'x.bin'), Buffer.from([0, 1, 2, 3, 0]));
+  const bin1 = r.commit('add binary');
+  fs.writeFileSync(path.join(r.dir, 'x.bin'), Buffer.from([0, 1, 2, 9, 0]));
+  const bin2 = r.commit('change binary');
+  r.setMain(r.M0);
+  assert.deepEqual(carriedReviews(r.run, [reviewed(bin1)], bin2), {
+    carried: [],
+    carryError: null,
+  });
+});
+
+test('carry: patchIdAt pins the submodule rendering in its diff', () => {
+  /** @type {string[][]} */
+  const seen = [];
+  const run = (/** @type {string} */ _c, /** @type {string[]} */ args) => {
+    seen.push(args);
+    if (args[0] === 'cat-file') return { status: 0, stdout: '', stderr: '' };
+    if (args[0] === 'merge-base') return { status: 0, stdout: `${'b'.repeat(40)}\n`, stderr: '' };
+    if (args[0] === 'diff') return { status: 0, stdout: 'diff', stderr: '' };
+    return { status: 0, stdout: `${'a'.repeat(40)} ${'0'.repeat(40)}\n`, stderr: '' };
+  };
+  patchIdAt(run, 'c'.repeat(40));
+  const diff = seen.find(a => a[0] === 'diff') ?? [];
+  assert.ok(diff.includes('--submodule=short') && diff.includes('--ignore-submodules=none'));
+});
+
+test('carry: an entry for another patch listed after the carried one in a note refuses the carry', () => {
+  const r = carryRepo();
+  // X = B reviewed Merge; Y (another patch) listed after it in the same note, with an older
+  // committer time than X would have (a skewed clock): the order in the note still refuses
+  r.g('checkout', '-q', '-b', 'old', r.M0);
+  r.write('main.txt', ['main 1', 'other']);
+  const Y = r.commit('another change');
+  r.g('checkout', '-q', 'pr');
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  const C = r.g('rev-parse', 'HEAD');
+  r.setMain(M1);
+  const one = parseReviewNote(
+    '312-opus-review.md',
+    `# PR #312 Opus review\n\nHead reviewed: ${r.B}\n## Verdict\n\n**Merge.**\n\nHead reviewed: ${Y}\n## Verdict\n\n**Do not merge.** No.\n`,
+    312
+  );
+  // Y's committer time reads as the oldest, so the time rule alone would let X carry
+  const skewed = (
+    /** @type {string} */ cmd,
+    /** @type {string[]} */ args,
+    /** @type {string} */ input
+  ) =>
+    args[0] === 'show' && args.includes(Y)
+      ? { status: 0, stdout: '1\n', stderr: '' }
+      : r.run(cmd, args, input);
+  const carry = carriedReviews(skewed, [one], C);
+  assert.deepEqual(carry.carried, []);
+  assert.match(carry.carryError ?? '', /312-opus-review\.md lists .* after the carried review/);
+});
+
+test('gate: a carry fetches main once per run', () => {
+  const vault = vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]);
+  const r = gate({ vault, patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A } });
+  assert.equal(r.code, 0, r.text);
+  const fetches = r.calls.filter(c => c[0] === 'git' && c[1] === 'fetch' && c.includes('main'));
+  assert.equal(fetches.length, 1);
+});
+
+const PATCH_A = 'a'.repeat(40);
+const PATCH_B = 'c'.repeat(40);
+
+test('gate: a note for an earlier commit with the same patch carries; the output says so', () => {
+  const vault = vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]);
+  const r = gate({ vault, argv: ['--dry-run'], patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A } });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(
+    r.lines.includes(
+      `lane:merge: review: verdict carried from ${OTHER} (312-review.md): the PR's patch at head 3d24f70 is the same (git patch-id)`
+    ),
+    r.text
+  );
+  assert.equal(
+    r.lines.at(-1),
+    'lane:merge: OK #312 at 3d24f70 (dry run, nothing merged); merge train 0/4; verdict carried from fffffff'
+  );
+  // each merge base is taken from aitool/main and an explicit commit, never main itself or HEAD
+  const bases = r.calls.filter(c => c[1] === 'merge-base').map(c => c.slice(2));
+  assert.deepEqual(bases, [
+    ['aitool/main', 'HEAD'],
+    ['aitool/main', HEAD],
+    ['aitool/main', OTHER],
+  ]);
+});
+
+test('gate: a changed patch, a missing commit, a shallow clone or no fetch refuses', () => {
+  const vault = vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]);
+  const same = { [HEAD]: PATCH_A, [OTHER]: PATCH_A };
+  const changed = gate({ vault, patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_B } });
+  assert.equal(changed.code, 1);
+  assert.match(
+    changed.text,
+    /^review: no review note for head 3d24f70 \(found 312-review\.md reviewed fffffff\); not carried: the patch changed since every reviewed commit; a review note for the head is needed; the gate reads files named/m
+  );
+  assert.ok(!changed.merged);
+  const missing = gate({ vault, missing: [OTHER], patchIds: same });
+  assert.equal(missing.code, 1);
+  assert.match(
+    missing.text,
+    /not carried: commit fffffff is not in this clone and cannot be fetched \(not our ref\)/
+  );
+  const shallow = gate({ vault, shallow: true, patchIds: same });
+  assert.equal(shallow.code, 1);
+  assert.match(shallow.text, /not carried: this clone is shallow/);
+  const noFetch = gate({ vault, fetchFail: true, patchIds: same });
+  assert.equal(noFetch.code, 1);
+  assert.match(noFetch.text, /not carried: git fetch aitool main failed: no network/);
+});
+
+test('gate: a note for the head itself computes no patch id; a malformed note never carries', () => {
+  const r = gate({ argv: ['--dry-run'] });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(!r.calls.some(c => c[1] === 'patch-id' || c[1] === 'cat-file'));
+  const bad = vaultWith([
+    { name: '312-review.md', text: `${note({ head: OTHER })}\nHead reviewed: ${HEAD}\n` },
+  ]);
+  const m = gate({ vault: bad, patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A } });
+  assert.equal(m.code, 1);
+  assert.ok(!m.calls.some(c => c[1] === 'patch-id'));
+  assert.match(m.text, /is malformed/);
+});
+
+test('gate: a risky PR with a carried Opus note says found; a merge writes the carry to the train note', () => {
+  const vault = vaultWith([
+    { name: '312-opus-review.md', text: note({ head: OTHER, title: 'PR #312 Opus review' }) },
+  ]);
+  fs.mkdirSync(path.join(vault, '.git'));
+  /** @type {string[][]} */
+  const vaultGit = [];
+  // the write gate is risky (Opus) and train-relevant (the note is written on a merge)
+  const r = gate({
+    vault,
+    files: ['packages/foundry-module/src/write-gate.ts', 'changelog.d/thing.md'],
+    patchIds: { [HEAD]: PATCH_A, [OTHER]: PATCH_A },
+    vaultRun: a => {
+      vaultGit.push(a);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(r.merged);
+  assert.match(r.text, /Opus note for head 3d24f70: found \(312-opus-review\.md\)/);
+  assert.match(r.text, /merged #312 at 3d24f70; merge train 1\/4; verdict carried from fffffff/);
+  const text = fs.readFileSync(NOTE_FILE(vault), 'utf8');
+  assert.match(
+    text,
+    new RegExp(`last-event-pr: 312\\nlast-event-verdict-carried-from: ${OTHER}\\nlast-event-at: `)
+  );
+  const commit = vaultGit.find(a => a[0] === 'commit');
+  assert.deepEqual(commit?.slice(1, 5), [
+    '-m',
+    'Merge train: merge #312, 1/4',
+    '-m',
+    `verdict carried from ${OTHER}`,
+  ]);
+});
+
+test('merge train note: a carried verdict is one sha line, which the board parser accepts', async () => {
+  const event = { kind: 'merge', pr: 461, at: NOTE_NOW, carriedFrom: [OTHER, 'not a sha'] };
+  const text = renderTrainNote(TRAIN_STATE, /** @type {any} */ (event), NOTE_NOW);
+  assert.match(text, new RegExp(`\\nlast-event-verdict-carried-from: ${OTHER}\\nlast-event-at: `));
+  const board = await boardParser();
+  if (board) assert.deepEqual(board.parseMergeTrain(text).problems, []);
+});
+
+test('main red: refuses while the last completed push run of main failed, unless the PR unblocks main', () => {
+  const red = {
+    ...MAIN_GREEN,
+    databaseId: 4242,
+    conclusion: 'failure',
+    url: 'https://x/runs/4242',
+  };
+  const running = { databaseId: 4300, status: 'in_progress', conclusion: '' };
+  const r = gate({ mainRuns: [running, red, MAIN_GREEN] });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /main red: .*run 4242 at aaaaaaa.*: failure\).*Unblocks main:/);
+  const ok = gate({
+    mainRuns: [red],
+    body: 'Live check: test server A, real dnd5e data\nUnblocks main: reverts the clash',
+  });
+  assert.equal(ok.code, 0, ok.text);
+  // a cancelled newest run is skipped; the green one behind it decides
+  assert.equal(gate({ mainRuns: [{ ...red, conclusion: 'cancelled' }, MAIN_GREEN] }).code, 0);
+  // the exemption is logged as a note
+  assert.match(ok.text, /main is red \(run 4242.*passed as "Unblocks main: reverts the clash"/);
+  // a red run being rerun is still red; timed_out and startup_failure are red
+  const rerun = { databaseId: 4300, status: 'in_progress', conclusion: '', attempt: 2 };
+  assert.match(gate({ mainRuns: [rerun, MAIN_GREEN] }).text, /being rerun after a failure/);
+  for (const conclusion of ['timed_out', 'startup_failure', 'action_required']) {
+    assert.equal(gate({ mainRuns: [{ ...red, conclusion }] }).code, 1, conclusion);
+  }
+  // nothing to judge refuses; "none" is no reason
+  assert.match(
+    gate({ mainRuns: [{ ...running, headSha: MAIN_GREEN.headSha }] }).text,
+    /no completed push run/
+  );
+  assert.equal(unblocksMainLine('Unblocks main: none'), null);
+  // unreadable run data refuses
+  assert.match(gate({ mainRuns: 'fail' }).text, /main red: cannot read/);
+  assert.equal(unblocksMainLine('Unblocks main: <fill in>'), null);
+  assert.equal(unblocksMainLine('<!-- Unblocks main: x -->'), null);
+  assert.ok(unblocksMainLine('- **Unblocks main:** revert of the clash'));
+});
+
+test("main red: the judged run belongs to main's tip (f619fd86, 2026-11-13: a merge with no CI run yet)", () => {
+  const TIP = 'f'.repeat(40);
+  // the tip has no run yet: the older green run says nothing; refused, and the runner retries it
+  const noRun = gate({ mainRuns: [MAIN_GREEN], mainTip: TIP });
+  assert.equal(noRun.code, 1);
+  assert.match(noRun.text, /main red: no push run of ci\.yml for main's tip fffffff yet/);
+  // the tip's own run decides
+  assert.equal(gate({ mainRuns: [{ ...MAIN_GREEN, headSha: TIP }], mainTip: TIP }).code, 0);
+  // a tip run still going: the run before it decides, as before
+  const going = { databaseId: 9, status: 'in_progress', conclusion: '', headSha: TIP };
+  assert.equal(gate({ mainRuns: [going, MAIN_GREEN], mainTip: TIP }).code, 0);
+  // an unreadable tip refuses; the PR may still say it unblocks main
+  const noTip = gate({ tipFail: true });
+  assert.equal(noTip.code, 1);
+  assert.match(noTip.text, /main red: cannot read main's tip/);
+  assert.equal(
+    gate({ tipFail: true, body: 'Live check: test server A\nUnblocks main: reverts the clash' })
+      .code,
+    0
+  );
+});
+
+test('main red: the rerun of a cancelled or green attempt is not "a rerun after a failure"', () => {
+  const rerun = {
+    databaseId: 4300,
+    status: 'in_progress',
+    conclusion: '',
+    attempt: 2,
+    headSha: MAIN_GREEN.headSha,
+  };
+  for (const prevConclusion of ['cancelled', 'success', 'skipped']) {
+    const r = gate({ mainRuns: [rerun, MAIN_GREEN], prevConclusion });
+    assert.equal(r.code, 0, `${prevConclusion}: ${r.text}`);
+  }
+  for (const prevConclusion of ['failure', 'timed_out']) {
+    const r = gate({ mainRuns: [rerun, MAIN_GREEN], prevConclusion });
+    assert.match(r.text, /being rerun after a failure/, prevConclusion);
+  }
+  // an attempt that cannot be read is a refusal the runner retries, not "main failed"
+  const unreadable = gate({ mainRuns: [rerun, MAIN_GREEN], attemptFail: true });
+  assert.equal(unreadable.code, 1);
+  assert.match(unreadable.text, /main red: cannot read the attempts before attempt 2 of run 4300/);
+  // a failure, then a cancelled rerun, then a rerun going: the failure still counts
+  const third = { ...rerun, attempt: 3 };
+  const walked = gate({
+    mainRuns: [third, MAIN_GREEN],
+    attempts: { 2: 'cancelled', 1: 'failure' },
+  });
+  assert.match(walked.text, /being rerun after a failure/);
+  // cancelled all the way back: not a rerun after a failure
+  assert.equal(
+    gate({ mainRuns: [third, MAIN_GREEN], attempts: { 2: 'cancelled', 1: 'cancelled' } }).code,
+    0
+  );
+});
+
+test('main red: a tip whose only run was cancelled is not judged by the run before it; a dispatched run counts', () => {
+  const TIP = 'f'.repeat(40);
+  const cancelled = { databaseId: 77, status: 'completed', conclusion: 'cancelled', headSha: TIP };
+  const r = gate({ mainRuns: [cancelled, MAIN_GREEN], mainTip: TIP });
+  assert.equal(r.code, 1);
+  assert.match(
+    r.text,
+    /main red: no push run of ci\.yml for main's tip fffffff that was not cancelled or skipped; rerun it \(gh run rerun 77\)/
+  );
+  // a run dispatched by hand on main for the tip stands in for the missing push run
+  const dispatched = { ...MAIN_GREEN, databaseId: 78, headSha: TIP, event: 'workflow_dispatch' };
+  assert.equal(gate({ mainRuns: [dispatched], mainTip: TIP }).code, 0);
+  // other events on main are not main's CI
+  const other = { ...dispatched, event: 'schedule' };
+  assert.match(
+    gate({ mainRuns: [other], mainTip: TIP }).text,
+    /no push run of ci\.yml for main's tip/
+  );
+  // a PR that unblocks main passes an unjudgeable main, and the output says it was not judged
+  const ok = gate({
+    mainRuns: [MAIN_GREEN],
+    mainTip: TIP,
+    body: 'Live check: test server A\nUnblocks main: reverts the clash',
+  });
+  assert.equal(ok.code, 0, ok.text);
+  assert.match(
+    ok.text,
+    /main was not judged \(main red: no push run of ci\.yml for main's tip fffffff/
+  );
 });

@@ -18,7 +18,9 @@
 
   Refuses while Plan B runs (stop.ps1 first), refuses a root that holds data but no recorded restore
   (not Plan B's copy, -Force or not), and refuses to replace data a game night was played on until it
-  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead).
+  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead). A newest backup that
+  is more than 36 hours old is refused too (the Pi's nightly backup or the PC's copy task stopped);
+  -AllowOld restores it anyway, with a warning (-Force does not waive this).
   The restic password is read by restic from -PassFile; this script never reads or prints it.
 
 .EXAMPLE
@@ -40,6 +42,9 @@ param(
   [switch]$List,
   # Move data a game night was played on aside to <Root>\previous\ instead of refusing.
   [switch]$Force,
+  # Restore the newest backup although it is more than 36 hours old (refused without it). A separate switch from -Force,
+  # so an old backup never also waves through replacing data a game night was played on.
+  [switch]$AllowOld,
   # Test hook: the restic program.
   [string]$Restic = ''
 )
@@ -54,8 +59,8 @@ $L = Get-PlanBLayout $Root
 
 function Write-Step([string]$Text) { Write-Host "==> $Text" -ForegroundColor Cyan }
 
-if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository (is drive E: connected?)" }
-if (-not (Test-Path -LiteralPath $PassFile -PathType Leaf)) { throw "no restic password file at $PassFile (Waiting item 11: it is also in your password manager)" }
+if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository (is the backup drive connected?)" }
+if (-not (Test-Path -LiteralPath $PassFile -PathType Leaf)) { throw "no restic password file at $PassFile (a copy is in your password manager)" }
 $resticExe = Find-PlanBRestic $Restic
 $resticBase = @('--repo', $Repo, '--password-file', $PassFile, '--no-lock')
 
@@ -78,8 +83,14 @@ if ($List) {
   exit 0
 }
 Write-Step "snapshot $($pick.short_id) from $($pickTime.ToString('yyyy-MM-dd HH\:mm')) ($ageHours hours old)"
-if ($ageHours -gt 36) {
-  Write-Warning "the newest backup is more than a day and a half old: the Pi's nightly backup or this PC's copy task stopped. The game continues from that point."
+if ($ageHours -gt 36 -and $Snapshot -eq 'latest') {
+  # The Pi's nightly backup or this PC's copy task stopped: everything played since is not in this backup. (A snapshot
+  # picked with -Snapshot is an explicit choice and is not second-guessed.)
+  if (-not $AllowOld) {
+    [Console]::Error.WriteLine("REFUSED: the newest backup is $ageHours hours old (more than 36): the Pi's nightly backup or this PC's copy task stopped, and the game would continue from that point. Run restore.ps1 -List to see the snapshots, or restore.ps1 -AllowOld to restore this one anyway.")
+    exit 1
+  }
+  Write-Warning "the newest backup is $ageHours hours old (more than 36): restoring it anyway because of -AllowOld. The game continues from that point."
 }
 
 # --- refusals ---------------------------------------------------------------------------------
@@ -165,17 +176,25 @@ if (-not $ver.Ok) {
   if (-not $FoundryZip -or -not (Test-Path -LiteralPath $FoundryZip)) {
     throw "Foundry $want is needed in $($L.AppDir) and no FoundryVTT-Node-$want zip was found: download the Node.js build of $want from foundryvtt.com (your account, Purchased Licenses) and run restore.ps1 -FoundryZip <file>"
   }
-  if (Test-Path -LiteralPath $L.AppDir) {
-    $old = '{0}-{1}' -f $L.AppDir, $(if ($appBuild) { $appBuild } else { 'old' })
-    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
-    Move-Item -LiteralPath $L.AppDir -Destination $old
-  }
+  # Unpack into app.new, check it, and only then put it in place: a failed or half finished unpack never leaves an app
+  # folder that the next run would accept as Foundry.
+  $newApp = "$($L.AppDir).new"
+  if (Test-Path -LiteralPath $newApp) { Remove-Item -LiteralPath $newApp -Recurse -Force }
   Write-Step "installing Foundry from $FoundryZip"
-  New-Item -ItemType Directory -Force -Path $L.AppDir | Out-Null
+  New-Item -ItemType Directory -Force -Path $newApp | Out-Null
   # Windows' own tar unpacks zips far faster than Expand-Archive (22,000 files).
   $tar = if ($IsWindows) { Join-Path $env:SystemRoot 'System32\tar.exe' } else { 'tar' }
-  & $tar -xf $FoundryZip -C $L.AppDir
-  if ($LASTEXITCODE -ne 0) { throw "could not unpack $FoundryZip (tar exit $LASTEXITCODE)" }
+  $unpack = Invoke-FoundryUnpack $tar @('-xf', $FoundryZip, '-C', $newApp)
+  if (-not $unpack.Ok) { throw "$($unpack.Message) ($FoundryZip); the unpacked part is left in $newApp, the app folder is as it was" }
+  if ($unpack.Skipped) { Write-Warning $unpack.Message }
+  if ($unpack.Warning) { Write-Warning $unpack.Warning }
+  $newVer = Test-WorldVersion (Get-PlanBAppBuild ([pscustomobject]@{ AppDir = $newApp })) $core
+  if (-not $newVer.Ok) { throw "after unpacking into ${newApp}: $($newVer.Message) (the app folder is as it was)" }
+  $old = '{0}-{1}' -f $L.AppDir, $(if ($appBuild) { $appBuild } else { 'old' })
+  if ((Test-Path -LiteralPath $L.AppDir) -and (Test-Path -LiteralPath $old)) { Remove-Item -LiteralPath $old -Recurse -Force }
+  # Both renames can fail on a lock (antivirus, an indexer) right after the big unpack: Install-AppFolder (lib.ps1) tries each
+  # three times, puts the old app folder back when the final one fails, and says where every folder is.
+  Install-AppFolder $newApp $L.AppDir $old
   $ver = Test-WorldVersion (Get-PlanBAppBuild $L) $core
   if (-not $ver.Ok) { throw "after installing: $($ver.Message)" }
 }

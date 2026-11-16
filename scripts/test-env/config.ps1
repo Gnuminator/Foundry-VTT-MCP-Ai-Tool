@@ -178,19 +178,23 @@ function Assert-SafePorts {
   if (($ports | Select-Object -Unique).Count -ne $ports.Count) { throw 'Test ports must all be different.' }
 }
 
-# The repo's Node: the newest portable Node 22 in %LOCALAPPDATA%\node22\node-v22.x.y-win-x64
-# (the version differs per PC), else the node on PATH.
+# The repo's Node: the newest portable Node 24.22+ in %LOCALAPPDATA%\node24\node-v24.x.y-win-x64
+# (the version differs per PC), else the node on PATH (with a warning when that one is older than 24.22).
 function Get-NodeExe {
-  $portableRoot = Join-Path $HOME 'AppData' 'Local' 'node22'
+  $portableRoot = [IO.Path]::Combine("$env:LOCALAPPDATA", 'node24')
   if ($IsWindows -and (Test-Path $portableRoot)) {
-    $portable = Get-ChildItem $portableRoot -Directory -Filter 'node-v22.*-win-x64' |
-      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+    $portable = Get-ChildItem $portableRoot -Directory -Filter 'node-v24.*-win-x64' |
+      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and ([version]$Matches[1] -ge [version]'24.22.0') -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
       Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
       Select-Object -First 1
     if ($portable) { return Join-Path $portable.FullName 'node.exe' }
   }
   $node = Get-Command node -ErrorAction SilentlyContinue
-  if (-not $node) { throw 'Node.js not found (need 22+; Foundry 14 needs 24).' }
+  if (-not $node) { throw 'Node.js not found (need 24+; install portable Node 24.22 or newer in %LOCALAPPDATA%\node24).' }
+  $found = Get-NodeVersion $node.Source
+  if ($found -and $found -lt [version]'24.22.0') {
+    Write-Warning "The node on PATH is $found, older than 24.22 (the repo's floor). Install portable Node 24.22 or newer in %LOCALAPPDATA%\node24."
+  }
   return $node.Source
 }
 
@@ -203,7 +207,7 @@ function Get-NodeVersion([string]$Exe) {
 }
 
 # A Node that satisfies Foundry's own `engines.node` (e.g. ">=24.13.1 <25.0.0" for 14.368),
-# which differs from the Node 22 the repo builds with. Checks PATH, then the default install.
+# which can differ from the portable Node 24 the repo builds with. Checks PATH, then the default install.
 function Get-FoundryNodeExe([string]$AppRoot) {
   $pkg = Join-Path $AppRoot 'package.json'
   $range = if (Test-Path $pkg) { (Get-Content $pkg -Raw | ConvertFrom-Json).engines.node } else { $null }
@@ -211,11 +215,20 @@ function Get-FoundryNodeExe([string]$AppRoot) {
   $max = if ($range -match '<\s*(\d+\.\d+\.\d+)') { [version]$Matches[1] } else { $null }
   $candidates = @(Get-Command node -All -ErrorAction SilentlyContinue | ForEach-Object Source)
   if ($IsWindows) { $candidates += Join-Path $env:ProgramFiles 'nodejs' 'node.exe' }
+  # The portable Node 24 folders too, newest first (Foundry 14.370 needs 24.22.1 or newer, which can be
+  # newer than the node on PATH).
+  $portableRoot = [IO.Path]::Combine("$env:LOCALAPPDATA", 'node24')
+  if ($IsWindows -and (Test-Path $portableRoot)) {
+    $candidates += @(Get-ChildItem $portableRoot -Directory -Filter 'node-v24.*-win-x64' |
+      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' } |
+      Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
+      ForEach-Object { Join-Path $_.FullName 'node.exe' })
+  }
   foreach ($exe in ($candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
     $v = Get-NodeVersion $exe
     if ($v -and $v -ge $min -and (-not $max -or $v -lt $max)) { return $exe }
   }
-  throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's Node 22 is not used for Foundry)."
+  throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's portable Node 24 is not used for Foundry)."
 }
 
 # The Foundry version in an app folder (its package.json), or $null.
@@ -226,6 +239,57 @@ function Get-FoundryAppVersion([string]$Dir) {
     }
   }
   return $null
+}
+
+# Foundry auto-launches a world (--world=<id>) only when world.json compatibility.verified is an
+# integer >= the core generation ("14") or a point build not older than the running Foundry
+# ("14.370"; World#canAutoLaunch in dist/packages/world.mjs). A world last opened on 14.369 says
+# verified "14.369" and, after a point update to 14.370, is refused with "requested World ... is not
+# available to auto-launch" (coreVersion does not matter, so it is left alone). Foundry itself bumps
+# both fields when it opens the world from the setup screen. This bumps only verified for a world
+# about to be auto-launched: text edit of that one field, a .bak-verified copy of the first
+# original, nothing when the world is already current. Call only while Foundry is not running on
+# this data folder.
+function Compare-FoundryVersion([string]$A, [string]$B) {
+  $pa = @(($A -split '\.') | ForEach-Object { [int]$_ })
+  $pb = @(($B -split '\.') | ForEach-Object { [int]$_ })
+  for ($i = 0; $i -lt [Math]::Max($pa.Count, $pb.Count); $i++) {
+    $x = if ($i -lt $pa.Count) { $pa[$i] } else { 0 }
+    $y = if ($i -lt $pb.Count) { $pb[$i] } else { 0 }
+    if ($x -ne $y) { return [Math]::Sign($x - $y) }
+  }
+  return 0
+}
+
+# Returns the new verified version ("14.370") when it changed world.json, else $null.
+function Update-WorldVerified([string]$WorldDir, [string]$AppVersion) {
+  $file = Join-Path $WorldDir 'world.json'
+  if (-not $AppVersion -or $AppVersion -notmatch '^\d+(\.\d+)*$' -or -not (Test-Path $file)) { return $null }
+  # package.json says 14.370.0; world.json (as Foundry writes it) says generation.build, 14.370.
+  $AppVersion = (($AppVersion -split '\.') | Select-Object -First 2) -join '.'
+  $text = [IO.File]::ReadAllText($file)
+  $m = [regex]::Match($text, '("compatibility"\s*:\s*\{[^}]*?"verified"\s*:\s*)"(\d+(?:\.\d+)*)"')
+  if (-not $m.Success) {
+    # [^}]*? stops at the first closing brace, so a nested object before "verified" also lands here.
+    if ($text -match '"compatibility"') { Write-Warning "world.json in $WorldDir has a compatibility block but no string verified the bump can read; left as it is." }
+    return $null
+  }
+  $verified = $m.Groups[2].Value
+  # A world from an older generation needs Foundry's own migration (Update World in setup): never
+  # marked verified here. A bare generation ("14", no point build) is left alone too: Foundry accepts
+  # it for any build of that generation.
+  if ([int]($verified -split '\.')[0] -ne [int]($AppVersion -split '\.')[0]) { return $null }
+  if ($verified -notmatch '\.') { return $null }
+  if ((Compare-FoundryVersion $verified $AppVersion) -ge 0) { return $null }
+  $bak = "$file.bak-verified"
+  if (-not (Test-Path $bak)) { Copy-Item $file $bak }
+  $new = $text.Remove($m.Groups[2].Index, $m.Groups[2].Length).Insert($m.Groups[2].Index, $AppVersion)
+  # Write beside the world, then move over it: a crash never leaves a half-written world.json.
+  $tmp = "$file.tmp-verified"
+  [IO.File]::WriteAllText($tmp, $new)
+  # File.Replace swaps in one step (Move-Item may delete first), and works in Windows PowerShell too.
+  [IO.File]::Replace($tmp, $file, [NullString]::Value)
+  return $AppVersion
 }
 
 # The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).

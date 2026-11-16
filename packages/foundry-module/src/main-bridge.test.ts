@@ -1,12 +1,14 @@
 /**
- * Tests for how `main.ts` runs the link (lane 1, PB-02 and PB-03): one bridge at
- * a time, only the configured bridge user dials, a light heartbeat, and no
- * world-setting writes for connection state.
+ * Tests for the module side of `main.ts` around the link: it hands start, stop, restart and the
+ * link status over to the bridge link lifecycle, a failed first connect does not fail `ready`,
+ * and the creature index warm-up runs in the right browser.
  *
- * The real SocketBridge is replaced by a recording fake; its own reconnect
- * behaviour is covered in socket-bridge.test.ts.
+ * How the link itself runs (one bridge at a time, the bridge user, the heartbeat, the link
+ * toasts and their `linkState` writes) is in bridge-link-lifecycle.test.ts. The real
+ * SocketBridge is replaced by a recording fake; its own reconnect behaviour is covered in
+ * socket-bridge.test.ts.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 
 const fake = vi.hoisted(() => {
@@ -21,13 +23,15 @@ const fake = vi.hoisted(() => {
     connect = vi.fn((): Promise<void> => {
       if (!state.connectOk) return Promise.reject(new Error('WebSocket connection failed'));
       this.connected = true;
+      // Like the real SocketBridge: the link-up callback fires from onopen, before connect() resolves.
+      this.config.onLinkChange?.(true);
       return Promise.resolve();
     });
     disconnect = vi.fn(() => {
       this.disconnected = true;
       this.connected = false;
     });
-    constructor(config: any) {
+    constructor(public config: any) {
       state.lastConfig = config;
       state.instances.push(this);
     }
@@ -52,10 +56,6 @@ const g = globalThis as any;
 let world: TestWorld;
 let restore: () => void;
 let bridge: any;
-let setSpy: ReturnType<typeof vi.fn>;
-
-/** Instances that were created and never disconnected: the ones still "running". */
-const live = (): any[] => fake.state.instances.filter(i => !i.disconnected);
 
 // main.ts touches `window` when it loads (global handle, unload hook, heartbeat timer).
 g.window = {
@@ -84,11 +84,10 @@ beforeEach(async () => {
   })) {
     world.setSetting(MODULE_ID, key, value);
   }
-  setSpy = vi.fn((ns: string, key: string, value: unknown) => {
+  g.game.settings.set = vi.fn((ns: string, key: string, value: unknown) => {
     world.setSetting(ns, key, value);
     return Promise.resolve(value);
   });
-  g.game.settings.set = setSpy;
   vi.resetModules();
   g.window.foundryMCPBridge = undefined;
   const main = await import('./main.js');
@@ -96,138 +95,98 @@ beforeEach(async () => {
   bridge.isInitialized = true;
 });
 
-afterEach(() => {
-  bridge['stopHeartbeat']();
+afterEach(async () => {
+  await bridge.stop();
   restore();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
-describe('main: one bridge at a time (PB-03)', () => {
-  it('a second start() after a failed one disconnects the first bridge', async () => {
-    fake.state.connectOk = false;
-    await expect(bridge.start()).rejects.toThrow();
-    await expect(bridge.start()).rejects.toThrow();
-    await expect(bridge.start()).rejects.toThrow();
-
-    expect(fake.state.instances).toHaveLength(3);
-    expect(live()).toHaveLength(1);
-  });
-
-  it('start() while connected does not create another bridge', async () => {
-    await bridge.start();
+describe('main: hands the link over to the bridge link lifecycle (R9)', () => {
+  it('start() and stop() run the link and getStatus() reports it', async () => {
+    vi.useFakeTimers();
     await bridge.start();
     expect(fake.state.instances).toHaveLength(1);
-    expect(fake.state.instances[0].connect).toHaveBeenCalledTimes(1);
-  });
+    expect(bridge.getStatus()).toMatchObject({
+      initialized: true,
+      enabled: true,
+      connected: true,
+      connectionState: 'connected',
+      connectionInfo: { type: 'websocket', state: 'connected' },
+      lastConnectionState: 'connected',
+      heartbeatActive: true,
+    });
+    expect(Array.isArray(bridge.getStatus().registeredMethods)).toBe(true);
+    expect(typeof bridge.getStatus().lastActivity).toBe('string');
 
-  it('gives the bridge live auto-reconnect and hello builders', async () => {
-    await bridge.start();
-    world.setSetting(MODULE_ID, 'autoReconnectEnabled', false);
-    expect(fake.state.lastConfig.autoReconnect()).toBe(false);
-    world.setSetting(MODULE_ID, 'autoReconnectEnabled', true);
-    expect(fake.state.lastConfig.autoReconnect()).toBe(true);
-    expect(fake.state.lastConfig.getHello()).toMatchObject({
-      userId: 'gm',
-      userName: 'Gamemaster',
-      isBridgeUser: true,
-      worldId: 'test-world',
+    await bridge.stop();
+    expect(fake.state.instances[0].disconnected).toBe(true);
+    expect(bridge.getStatus()).toMatchObject({
+      connected: false,
+      connectionState: 'disconnected',
+      lastConnectionState: 'disconnected',
+      heartbeatActive: false,
     });
   });
-});
 
-describe('main: no world writes for connection state (PB-03)', () => {
-  it('connecting, heartbeats and stopping write no settings', async () => {
-    vi.useFakeTimers();
-    await bridge.start();
-    bridge.performHeartbeat();
-    fake.state.instances[0].connected = false;
-    vi.setSystemTime(Date.now() + 5 * 60 * 1000);
-    bridge.performHeartbeat();
-    await bridge.stop();
-    expect(setSpy).not.toHaveBeenCalled();
-  });
-
-  it('a failed start writes no settings either', async () => {
-    fake.state.connectOk = false;
-    await expect(bridge.start()).rejects.toThrow();
-    expect(setSpy).not.toHaveBeenCalled();
-  });
-
-  it('the heartbeat never restarts the bridge or turns auto-reconnect off', async () => {
-    vi.useFakeTimers();
-    await bridge.start();
-    const restart = vi.spyOn(bridge, 'restart');
-    fake.state.instances[0].connected = false;
-    vi.setSystemTime(Date.now() + 5 * 60 * 1000);
-
-    bridge.performHeartbeat();
-    bridge.performHeartbeat();
-
-    expect(restart).not.toHaveBeenCalled();
-    expect(fake.state.instances).toHaveLength(1);
-    expect(fake.state.instances[0].connect).toHaveBeenCalledTimes(1);
-    expect(world.settings.get(`${MODULE_ID}.autoReconnectEnabled`)).toBe(true);
-  });
-
-  it('keeps the connection state in memory for getStatus()', async () => {
-    await bridge.start();
-    expect(bridge.getStatus().lastConnectionState).toBe('connected');
-    await bridge.stop();
-    expect(bridge.getStatus().lastConnectionState).toBe('disconnected');
-  });
-});
-
-describe('main: bridge user gating (PB-02)', () => {
-  it('dials when no bridge user is set', async () => {
-    await bridge.start();
-    expect(fake.state.instances).toHaveLength(1);
-  });
-
-  it('dials when this user is the bridge user', async () => {
-    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
-    await bridge.start();
-    expect(fake.state.instances).toHaveLength(1);
-  });
-
-  it('stays quiet when another user is the bridge user', async () => {
-    world.setSetting(MODULE_ID, 'bridgeUserId', 'someone-else');
-    await expect(bridge.start()).resolves.toBeUndefined();
+  it('start() refuses before init finished', async () => {
+    bridge.isInitialized = false;
+    await expect(bridge.start()).rejects.toThrow('Module not initialized');
     expect(fake.state.instances).toHaveLength(0);
   });
-});
 
-describe('main: "MCP server not found" notice (PB-03)', () => {
-  const warnings = (): string[] =>
-    world.notifications.filter(n => n.level === 'warn').map(n => n.message);
-
-  it('shows on the first failed start, then stays quiet for 10 minutes', async () => {
+  it('restart() stops, waits a second and starts a new bridge', async () => {
     vi.useFakeTimers();
-    fake.state.connectOk = false;
-
-    await expect(bridge.start()).rejects.toThrow();
-    expect(warnings()).toHaveLength(1);
-    expect(warnings()[0]).toContain('MCP Server not found');
-
-    vi.setSystemTime(Date.now() + 9 * 60 * 1000);
-    await expect(bridge.start()).rejects.toThrow();
-    expect(warnings()).toHaveLength(1);
-
-    vi.setSystemTime(Date.now() + 2 * 60 * 1000);
-    await expect(bridge.start()).rejects.toThrow();
-    expect(warnings()).toHaveLength(2);
+    await bridge.start();
+    const restarting = bridge.restart();
+    await vi.advanceTimersByTimeAsync(1000);
+    await restarting;
+    expect(fake.state.instances).toHaveLength(2);
+    expect(fake.state.instances[0].disconnected).toBe(true);
+    expect(bridge.getStatus().connected).toBe(true);
   });
 
-  it('does not show for a settings error that never reached the network', async () => {
-    world.setSetting(MODULE_ID, 'serverPort', 80);
-    await expect(bridge.start()).rejects.toThrow('Invalid configuration');
-    expect(warnings()).toHaveLength(0);
-    expect(fake.state.instances).toHaveLength(0);
+  it('restart() with the bridge switched off stops the link and creates no second bridge', async () => {
+    vi.useFakeTimers();
+    await bridge.start();
+    world.setSetting(MODULE_ID, 'enabled', false);
+    const restarting = bridge.restart();
+    await vi.advanceTimersByTimeAsync(1000);
+    await restarting;
+    expect(fake.state.instances).toHaveLength(1);
+    expect(fake.state.instances[0].disconnected).toBe(true);
+    expect(bridge.getStatus().connected).toBe(false);
+  });
+
+  it('the global handle the settings menu calls is the module instance', () => {
+    expect(g.window.foundryMCPBridge).toBe(bridge);
+    expect(typeof g.window.foundryMCPBridge.start).toBe('function');
+    expect(typeof g.window.foundryMCPBridge.stop).toBe('function');
+    expect(typeof g.window.foundryMCPBridge.restart).toBe('function');
+  });
+});
+
+describe('main: onReady with the backend not answering', () => {
+  it('a failed first connect is a warning, not a failed ready, and the index warm-ups still run', async () => {
+    fake.state.connectOk = false;
+    const warmCreatures = vi.fn();
+    const warmPlayers = vi.fn();
+    bridge['warmEnhancedIndex'] = warmCreatures;
+    bridge['warmPlayerIndexes'] = warmPlayers;
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(bridge.onReady()).resolves.toBeUndefined();
+
+    expect(fake.state.instances).toHaveLength(1);
+    expect(warmCreatures).toHaveBeenCalledTimes(1);
+    expect(warmPlayers).toHaveBeenCalledTimes(1);
+    const failedReady = errorSpy.mock.calls.some(c => String(c[0]).includes('Failed during ready'));
+    expect(failedReady).toBe(false);
   });
 });
 
 describe('main: creature index warm-up at ready (#283)', () => {
-  let ensure: ReturnType<typeof vi.fn>;
+  let ensure: Mock;
 
   beforeEach(() => {
     world.setSetting(MODULE_ID, 'enableEnhancedCreatureIndex', true);

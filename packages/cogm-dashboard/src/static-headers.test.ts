@@ -13,21 +13,14 @@ import { fileURLToPath } from 'url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
+import { testWebDir } from './test-web-dir.js';
 import { Logger } from './logger.js';
 import { OPEN_PAGE_CSP } from './open-route.js';
 import { staticHeaders, type BigStat, type StaticHeaderGroup } from './static-headers.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 const fakeClient = {
   isConnected: true,
@@ -42,13 +35,13 @@ let port = 0;
 beforeAll(async () => {
   const testConfig: Config = {
     ...config,
+    webDir: testWebDir(),
     auth: { ...config.auth, splitEnabled: true, gmToken: 'gm-token', playerToken: '' },
   };
   dashboard = createDashboard({
     config: testConfig,
     logger: new Logger('error', 'static-headers-test'),
     client: fakeClient,
-    coGm: fakeCoGm,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -143,8 +136,9 @@ describe('the player page CSP on every URL that serves it', () => {
   it('leaves the other pages their own headers', async () => {
     const index = await get('/');
     expect(index.status).toBe(200);
-    expect(index.headers['content-security-policy']).toBeUndefined();
-    for (const p of ['/index.html', '/app.js', '/player.js', '/styles.css']) {
+    // The dashboard page itself says only the dashboard may frame it (live-frame.ts).
+    expect(index.headers['content-security-policy']).toBe("frame-ancestors 'self'");
+    for (const p of ['/player.js', '/me.css']) {
       const answer = await get(p);
       expect([p, answer.status]).toEqual([p, 200]);
       expect([p, answer.headers['content-security-policy']]).toEqual([p, undefined]);
@@ -233,14 +227,14 @@ describe('staticHeaders', () => {
 
   it('leaves every other file alone, and survives odd stat values', () => {
     const hook = staticHeaders(PUBLIC_DIR, [player, open]);
-    for (const name of ['index.html', 'player.js', 'styles.css']) {
+    for (const name of ['player.js', 'me.css']) {
       const { res, set } = recorder();
       hook(res, path.join(PUBLIC_DIR, name), statOf(name));
       expect([name, set]).toEqual([name, {}]);
     }
     for (const stat of [undefined, null, {}, { dev: '1', ino: '2' }, 42]) {
       const { res, set } = recorder();
-      hook(res, path.join(PUBLIC_DIR, 'index.html'), stat);
+      hook(res, path.join(PUBLIC_DIR, 'me.css'), stat);
       expect(set).toEqual({});
     }
   });

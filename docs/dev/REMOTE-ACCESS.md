@@ -214,6 +214,44 @@ scripts, and the two that touch secrets are run by you.
    ask for a Cloudflare login. Only the GM emails reach the dashboard as GM; a player's email gets
    the read-only player view.
 
+4. **Portraits in the initiative ribbon.** The ribbon loads each token portrait from Foundry, so the
+   dashboard must know Foundry's address _as the GM's browser reaches it_: run stage 7 again with
+   `DASHBOARD_FOUNDRY_URL=https://play.<domain>` (a plain address, no path and no trailing slash;
+   `... | ssh foundry-pi 'DASHBOARD_FOUNDRY_URL=https://play.<domain> bash -s'`). It goes into
+   `dashboard.env`, a rerun without the value keeps it (a wrong value is replaced by running the
+   stage again with the right one), and stage 7 warns while it is missing. Like any stage it needs
+   a `dietpi-backup 1` snapshot from today first, and a changed value restarts the dashboard, which
+   the stage refuses while players are online or a recording runs.
+   Plan B sets it itself (`http://localhost:<Foundry port>`; the dashboard there is opened on the
+   PC only, so that is the address the browser uses). Players never see portraits, by design.
+
+   **Why no image proxy:** the page on `cogm.<domain>` asks `play.<domain>` for a plain `<img>`.
+   The two names share a registrable domain, so the browser counts it as same-site and sends the
+   `CF_Authorization` cookie that the GM's Access login for `play.<domain>` already set (no CORS
+   needed for an image). Foundry serves its static files without its own login (checked read-only on
+   the Pi, 2026-10-28: `curl -I http://127.0.0.1:30000/icons/svg/mystery-man.svg` answers 200).
+   If the Access session for `play.` has expired, Access answers with a redirect and the image may
+   fail (the login host is cross-site), so the ribbon shows initials. The same holds over the
+   Tailscale route, where the browser may hold no `play.` session at all. Open `https://play.<domain>` once (the GM does anyway) and reload
+   the dashboard. Not checked end to end here: after the stage runs, look at the ribbon in a real
+   fight from `https://cogm.<domain>`. If the portraits stay initials while `play.<domain>` is
+   open in another tab, build the GM-only image proxy on the dashboard instead (a route that
+   fetches the path from `FOUNDRY_AI_FOUNDRY_URL` and returns it to a GM caller only).
+
+### The player connector's Access application
+
+The player connector (`/mcp/player`) has its own Access application, separate from `Foundry players`
+and `Foundry dashboard`. Its policy allows **Service Auth only** (the players' service tokens, one
+per player), never an email login: a person's login must not reach this route. The dashboard checks
+the same thing again: a token that carries an email is refused, and the token's Client ID must be in
+`player-connector.json`. The application's AUD tag goes into that file as `audience`. If the player
+hostname ever serves anything but `/mcp/player`, narrow the tunnel's ingress path to
+`^/mcp/player$` (the Pi side of this is in the Pi stage script, not here).
+
+For the Claude custom connector there is a second application, `Player remote`, on `player-remote.spennerit.com` with
+Managed OAuth and the `Foundry players` email policy. Its AUD tag goes into `player-connector.json` as `appAudience`, with
+`emailPlayers` and `remoteEndpoint`; the Pi side is stage 30 (see `docs/dev/pi/network-and-access.md`, "The remote part").
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete
@@ -268,7 +306,7 @@ address with `MCP_NO_SPAWN=1`.
 mcp.<domain> --url 127.0.0.1:31914` asks for a browser login and gives nothing to a script; with a
 wrong token it is refused; `https://mcp.<domain>/` shows the Access page, never the bridge;
 `foundry.<domain>:31414`, `cogm.<domain>:31414` and the Pi's public address on 31414 do not answer.
-Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it.
+Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it (the Pi's own tailscale interface does not count).
 
 **Rotation and removing a GM.** Rotate: create a new token, add it to `MCP client`, run the installer
 again (or `tunnel-client.ps1 -Action Install`) and paste the new Client ID and secret: a new token
@@ -316,7 +354,7 @@ anywhere, without exposing your home IP address and without port-forwarding.
   │  ┌──────────────────────────────────────────────────────────────┐   │
   │  │  cogm-dashboard server  (npm run start:cogm)                 │   │
   │  │  - HTTP + SSE  127.0.0.1:3000  (fronted by cloudflared)      │   │
-  │  │  - owns ANTHROPIC_API_KEY (never leaves this process)        │   │
+  │  │  - makes no Anthropic API calls                              │   │
   │  └──────────────────────────────────────────────────────────────┘   │
   │                │                                                     │
   │                │  http://localhost:3000                              │
@@ -386,22 +424,24 @@ the remote-hosting topology.
 
 ### Dashboard (`packages/cogm-dashboard/src/config.ts`)
 
-| Variable                       | Default                          | What it controls                                                                      |
-| ------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------- |
-| `PORT`                         | `3000`                           | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                        |
-| `DASHBOARD_HOST`               | `127.0.0.1`                      | Listen address. Non-loopback needs a `GM_DASHBOARD_TOKEN` of 32 or more characters.   |
-| `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_                        | Extra host names it answers to, e.g. the tunnel's public name (Host check).           |
-| `MCP_CONTROL_HOST`             | `127.0.0.1`                      | Where the dashboard connects for the control channel.                                 |
-| `MCP_CONTROL_PORT`             | `31414`                          | Control channel port (must match the backend).                                        |
-| `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_ | Anthropic API key. **Server-side only. Never reaches browser.**                       |
-| `ANTHROPIC_MODEL`              | `claude-opus-5-5`                | Claude model used for AI commentary.                                                  |
-| `GM_DASHBOARD_TOKEN`           | _(unset)_                        | Shared secret that grants GM role. Setting this enables the GM/player split.          |
-| `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                        | Optional token required to view the player page.                                      |
-| `GM_EMAILS`                    | _(unset)_                        | Comma-separated email addresses that map to GM role (via Cloudflare Access).          |
-| `CF_ACCESS_TEAM_DOMAIN`        | _(unset)_                        | `<team>.cloudflareaccess.com`; with `CF_ACCESS_AUD`, turns on the Access token check. |
-| `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                           | Let player view see status conditions on enemy combatants.                            |
-| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `true`                           | Let player view see coarse HP bands (e.g. "bloodied") on enemies. `false` hides them. |
-| `LOG_LEVEL`                    | `info`                           | Dashboard server log verbosity.                                                       |
+| Variable                               | Default     | What it controls                                                                                                                                                                                                                                               |
+| -------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                 | `3000`      | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                                                                                                                                                                                                 |
+| `DASHBOARD_HOST`                       | `127.0.0.1` | Listen address. Non-loopback needs a `GM_DASHBOARD_TOKEN` of 32 or more characters.                                                                                                                                                                            |
+| `DASHBOARD_ALLOWED_HOSTS`              | _(unset)_   | Extra host names it answers to, e.g. the tunnel's public name (Host check).                                                                                                                                                                                    |
+| `DASHBOARD_FOUNDRY_URL`                | _(unset)_   | Foundry as the GM's browser reaches it; ribbon portraits; who may frame Live.                                                                                                                                                                                  |
+| `MCP_CONTROL_HOST`                     | `127.0.0.1` | Where the dashboard connects for the control channel.                                                                                                                                                                                                          |
+| `MCP_CONTROL_PORT`                     | `31414`     | Control channel port (must match the backend).                                                                                                                                                                                                                 |
+| `GM_DASHBOARD_TOKEN`                   | _(unset)_   | Shared secret that grants GM role. Setting this enables the GM/player split.                                                                                                                                                                                   |
+| `PLAYER_DASHBOARD_TOKEN`               | _(unset)_   | Optional token required to view the player page.                                                                                                                                                                                                               |
+| `GM_EMAILS`                            | _(unset)_   | Comma-separated email addresses that map to GM role (via Cloudflare Access).                                                                                                                                                                                   |
+| `CF_ACCESS_TEAM_DOMAIN`                | _(unset)_   | `<team>.cloudflareaccess.com`; with `CF_ACCESS_AUD`, turns on the Access token check.                                                                                                                                                                          |
+| `FOUNDRY_AI_PLAYER_CONNECTOR`          | _(unset)_   | `on` serves the read-only `/mcp/player` endpoint (player connector, D-136).                                                                                                                                                                                    |
+| `FOUNDRY_AI_PLAYER_CONNECTOR_CONFIG`   | _(unset)_   | Path to `player-connector.json`: `endpoint`, the player Access app's `audience`, and `players` (`clientId`, `clientSecret`, `userId`). Mode 600; the backend reads its `denyTerms` too.                                                                        |
+| `FOUNDRY_AI_PLAYER_CONNECTOR_DEV_USER` | _(unset)_   | Local testing only: serve this Foundry user id with no login. Ignored (with a warning) off loopback or when `CF_ACCESS_TEAM_DOMAIN` is set; served only to a loopback peer with no proxy or tunnel headers and no `audience` in the file. Never set on the Pi. |
+| `PLAYER_SHOW_ENEMY_CONDITIONS`         | `true`      | Let player view see status conditions on enemy combatants.                                                                                                                                                                                                     |
+| `PLAYER_SHOW_ENEMY_HP_BANDS`           | `false`     | Let player view see coarse HP bands (e.g. "bloodied") on enemies. `false` hides them.                                                                                                                                                                          |
+| `LOG_LEVEL`                            | `info`      | Dashboard server log verbosity.                                                                                                                                                                                                                                |
 
 ### Host check (DNS rebinding guard)
 
@@ -595,9 +635,8 @@ changing.
 | 3a  | `DASHBOARD_ALLOWED_HOSTS`  | `DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` in the dashboard env |
 | 4   | GM email allow-list        | `GM_EMAILS=you@example.com,cogm@example.com` in env/.env          |
 | 5   | `GM_DASHBOARD_TOKEN`       | A random secret (e.g. `openssl rand -hex 32`) in env/.env         |
-| 6   | `ANTHROPIC_API_KEY`        | Runtime secret / Docker secret / systemd EnvironmentFile          |
-| 7   | Bridge host firewall rules | Keep 31415 off the internet: tailnet IP or SSH tunnel only        |
-| 8   | `FOUNDRY_REMOTE_MODE=true` | Set in backend env when bridge and Foundry are different machines |
+| 6   | Bridge host firewall rules | Keep 31415 off the internet: tailnet IP or SSH tunnel only        |
+| 7   | `FOUNDRY_REMOTE_MODE=true` | Set in backend env when bridge and Foundry are different machines |
 
 ---
 
@@ -607,7 +646,7 @@ Work through this list top-to-bottom when you're ready to go remote.
 
 ### Host prep
 
-- [ ] Always-on host is running (Pi/VPS/spare PC). Node 22+ installed.
+- [ ] Always-on host is running (Pi/VPS/spare PC). Node 24+ installed.
 - [ ] Repo cloned or release build extracted on the host.
 - [ ] `npm run build` (or use the release build) so `dist/` artifacts exist.
 - [ ] Decide on process management: Docker Compose (see `deploy/docker-compose.yml.template`)
@@ -629,7 +668,6 @@ Work through this list top-to-bottom when you're ready to go remote.
   - [ ] `PORT=3000`
   - [ ] `MCP_CONTROL_HOST=127.0.0.1`
   - [ ] `MCP_CONTROL_PORT=31414`
-  - [ ] `ANTHROPIC_API_KEY=<your-key>`
   - [ ] `GM_EMAILS=<your-email>,<cogm-email>` (comma-separated)
   - [ ] `GM_DASHBOARD_TOKEN=<random-secret>` (optional additional auth factor)
   - [ ] `PLAYER_DASHBOARD_TOKEN=<random-secret>` (if you want a gated player view)

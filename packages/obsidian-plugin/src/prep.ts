@@ -76,6 +76,33 @@ export function isPrepType(type: unknown): boolean {
 }
 
 /**
+ * Whether a note can be imported as a quest (O6): a quest prep note whose `fvtt_uuid` is empty (a
+ * note that already points at a journal is not imported again). The backend checks it all again.
+ */
+export function isQuestImportable(frontmatter: Record<string, unknown> | undefined): boolean {
+  if (frontmatter?.type !== 'quest-prep') return false;
+  // Obsidian gives an empty or `null` property as null; the backend's `splitNote` agrees.
+  const uuid = frontmatter.fvtt_uuid;
+  return uuid === undefined || uuid === null || (typeof uuid === 'string' && uuid.trim() === '');
+}
+
+/**
+ * Whether Claude may read a prep note: false, no, off or 0 keep it out (the same words the prep
+ * reader in `packages/mcp-server/src/obsidian/prep-notes.ts` treats as off).
+ */
+export function aiContextAllowed(value: unknown): boolean {
+  if (value === false || value === 0) return false;
+  return !(typeof value === 'string' && /^(false|no|off|0)$/i.test(value.trim()));
+}
+
+/** What the toggle command tells the GM after switching a prep note. */
+export function aiContextNotice(allowed: boolean): string {
+  return allowed
+    ? 'Claude may read this prep note again (up to 12 lines, when it matches the scene, a token, a quest or the next session).'
+    : 'Claude will not read this prep note (ai_context: false).';
+}
+
+/**
  * The campaign folder a mirror note lives in (`Campaigns/<world>`), or null when the note is not
  * in its world's campaign folder (then there is no Prep folder to write to).
  */

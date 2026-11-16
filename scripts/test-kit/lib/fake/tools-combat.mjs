@@ -243,7 +243,12 @@ export const COMBAT_TOOLS = {
     if (!c) throw new ToolFailure(`No combatant "${args.combatantName}" in the combat`);
     c.initiative = Number(args.initiative);
     sortCombat(combat);
-    return { success: true, combatant: c.name, initiative: c.initiative };
+    return {
+      success: true,
+      combatant: c.name,
+      initiative: c.initiative,
+      note: 'The initiative changed, but the turn did not move: whoever was up is still up.',
+    };
   },
 
   'roll-initiative-for-npcs': (w, args) => {

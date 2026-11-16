@@ -22,8 +22,11 @@
 //                  a drop of more than 3 points is a weekly reset (the new value counts from 0),
 //                  a smaller drop is noise and ignored
 //   cost/pt        weighted cost per weekly point
-// A line after the table compares the window with the D-122 targets, the next one splits the
-// turns per model (main-thread + subagent) with each model's share of the cost.
+// A line after the table gives the window's figures (startup, tokens per merged PR, sessions a
+// day, weekly percent a day, weekly points per merged product PR, meaning a PR that changes a
+// file under packages/ or shared/): numbers only, no limits and no pass or
+// fail, because pace is information only (the user, 2026-11-11). The next line splits the turns
+// per model (main-thread + subagent) with each model's share of the cost.
 //
 // Overrides (tests and checks): USAGE_WEEK_ROOT (the projects folder), USAGE_WEEK_VAULT,
 // USAGE_WEEK_NOW (ISO time), USAGE_WEEK_GH=off (skip the merged-PR lookup).
@@ -34,18 +37,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { contextOf } from '../../.claude/hooks/context-alert.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
+import { activeHours, buildProfile, paceNow, weekStartFor } from './usage-pace.mjs';
+import {
+  connectorLogging,
+  dataDir,
+  emptyLogHint,
+  loadCatalog,
+  readCalls,
+  summarize,
+  weekLine,
+} from './usage-calls.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
 export const MIN_TURNS = 3;
 export const RESET_DROP = 3;
-export const TARGETS = {
-  startup: 75_000, // Claude Desktop floor about 74k (D-122 phase 3 log); headless starts are about 38k
-  tokensPerPrM: 18,
-  sessionsPerDay: 15,
-  weeklyPerDay: 14,
-};
+// Lane handover lines (context-alert.mjs): 200k until the change, 250k from it (the user,
+// 2026-11-04). The change went live at the merge of the lines PR (2026-11-03 22:59:54Z), not at
+// midnight. A lane session counts as having reached the line when its confirmed peak reached the
+// line that was in force when it started.
+export const LANE_LINE_CHANGE_AT = Date.parse('2026-11-03T22:59:54Z');
+export const LANE_LINE_BEFORE = 200_000;
+export const LANE_LINE_AFTER = 250_000;
 
 // --- small helpers -------------------------------------------------------------------------
 
@@ -116,7 +131,7 @@ export function isSubagentFile(file) {
 // Main-thread transcripts first, so a response found in both counts as main-thread.
 export function findTranscripts(root, sinceMs) {
   const found = [];
-  let dirs = [];
+  let dirs;
   try {
     dirs = readdirSync(root).filter(isProjectDir);
   } catch {
@@ -153,20 +168,15 @@ export function parseResponse(line) {
   const cacheRead = n(u.cache_read_input_tokens);
   const cacheCreate = n(u.cache_creation_input_tokens);
   const output = n(u.output_tokens);
-  const content = Array.isArray(j.message.content) ? j.message.content : [];
-  const advisorIds = content
-    .map((c, i) => [c, i])
-    .filter(
-      ([c]) => (c?.type === 'tool_use' || c?.type === 'server_tool_use') && c.name === 'advisor'
-    )
-    .map(([c, i]) => c.id || `${j.message.id}:${i}`);
   return {
     id: j.message.id || null,
-    advisorIds,
     t,
     model,
     sidechain: Boolean(j.isSidechain),
     ctx: input + cacheRead + cacheCreate,
+    // the context the session holds (the last pass of an advisor response), as the hooks read it:
+    // contextOf is imported from the hook file (context-alert.mjs) so both read a response alike
+    real: contextOf(u),
     cost: (priceOf(model) * (input + 0.1 * cacheRead + 2 * cacheCreate + 5 * output)) / 1e6,
   };
 }
@@ -177,8 +187,6 @@ export async function readTranscripts(files, startMs) {
   const seen = new Set();
   const responses = [];
   const sessions = [];
-  // advisor tool_use ids: one response spans several lines and a fork repeats its parent's lines
-  const advisorSeen = new Set();
   for (const file of files) {
     const sub = isSubagentFile(file);
     const mainTurns = [];
@@ -189,7 +197,6 @@ export async function readTranscripts(files, startMs) {
       const r = parseResponse(line);
       if (!r) continue;
       const main = !sub && !r.sidechain;
-      if (main && r.t >= startMs) for (const id of r.advisorIds) advisorSeen.add(id);
       // Sessions dedupe per file (a fork repeats its parent's ids but its first turn is its own, as in ctx.js); tokens and cost dedupe globally.
       if (main && !(r.id && fileSeen.has(r.id))) {
         if (r.id) fileSeen.add(r.id);
@@ -203,7 +210,7 @@ export async function readTranscripts(files, startMs) {
     }
     if (mainTurns.length) sessions.push({ file, turns: mainTurns });
   }
-  return { responses, sessions, advisorCalls: advisorSeen.size };
+  return { responses, sessions };
 }
 
 // --- weekly limit use (the vault's Usage log) -----------------------------------------------
@@ -222,6 +229,9 @@ export function usageLogFile(vaultDir) {
 
 // Readings { t, v } from every markdown table with the columns "When (local)" and
 // "Weekly % (all)" (one section per PC), in time order. Rows without a weekly value are skipped.
+// The "When (local)" times are read in the zone of the machine running this script (the log is
+// written on PCs in Europe/Copenhagen, the pace profile in usage-pace.mjs is read in that zone
+// too). Run on a machine in another zone, the profile's hours shift by the difference.
 export function parseUsageLog(text) {
   const readings = [];
   let cols = null;
@@ -282,6 +292,13 @@ export function weeklyPoints(readings) {
 
 // --- merged PRs ----------------------------------------------------------------------------
 
+// A product PR changes the tool itself: a file under packages/ or shared/. A PR with no file list
+// (an old fixture, a gh without `files`) counts as product, so the figure never silently drops it.
+export function isProductPr(pr) {
+  if (!Array.isArray(pr?.files)) return true;
+  return pr.files.some(f => /^(packages|shared)\//.test(String(f?.path ?? '').replaceAll('\\', '/')));
+}
+
 export function fetchMergedPrs() {
   return new Promise((resolve, reject) => {
     execFile(
@@ -296,7 +313,7 @@ export function fetchMergedPrs() {
         '--limit',
         '300',
         '--json',
-        'number,mergedAt',
+        'number,mergedAt,files',
       ],
       { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
       (err, stdout) => {
@@ -325,10 +342,55 @@ function newDay(day) {
     cost: 0,
     opusCost: 0,
     prs: null,
+    productPrs: null,
     tokensPerPr: null,
     weeklyPoints: null,
     costPerPoint: null,
+    pointsPerPr: null,
     coveredDays: null,
+  };
+}
+
+// A lane is a main-thread transcript under the project's worktree folders.
+export function isLaneFile(file) {
+  return file.split(/[\\/]/).some(s => s.startsWith(`${PROJECT_DIR}--claude-worktrees-`));
+}
+
+// The peak context of a session as the hooks confirm it: a reading counts only when the response
+// before it was at least as big, so one doubled response never counts. The first response has no
+// response before it, so it is never confirmed on its own (stricter than the hook, which counts a
+// single response).
+export function confirmedPeak(turns) {
+  let peak = 0;
+  for (let i = 1; i < turns.length; i++) {
+    const c = Math.min(turns[i].real, turns[i - 1].real);
+    if (c > peak) peak = c;
+  }
+  return peak;
+}
+
+// Lane sessions that started in the window: how many reached their handover line (not proof that
+// the lane then handed over), the peak they stood at afterwards, and how many reached 200k, 250k
+// and 300k whatever the line was.
+export function laneStats(qualifying, prCount) {
+  const lanes = qualifying
+    .filter(s => isLaneFile(s.file))
+    .map(s => {
+      const line = s.turns[0].t >= LANE_LINE_CHANGE_AT ? LANE_LINE_AFTER : LANE_LINE_BEFORE;
+      return { peak: confirmedPeak(s.turns), line };
+    });
+  const handed = lanes.filter(l => l.peak >= l.line);
+  const peaks = handed.map(l => l.peak);
+  return {
+    lanes: lanes.length,
+    handovers: handed.length,
+    handoversPerPr: prCount ? handed.length / prCount : null,
+    handoverMedian: median(peaks),
+    handoverMax: peaks.length ? Math.max(...peaks) : null,
+    peakMedian: median(lanes.map(l => l.peak)),
+    over200k: lanes.filter(l => l.peak >= 200_000).length,
+    over250k: lanes.filter(l => l.peak >= 250_000).length,
+    over300k: lanes.filter(l => l.peak >= 300_000).length,
   };
 }
 
@@ -338,10 +400,10 @@ function sessionStats(list) {
   return { startup: median(list.map(s => s.turns[0].ctx)), share: all ? base / all : null };
 }
 
-export async function buildReport({ root, now, days, prs = null, usageLog = null }) {
+export async function buildReport({ root, now, days, prs = null, usageLog = null, weeklyResets }) {
   const { startMs, keys } = windowDays(now, days);
   const files = findTranscripts(root, startMs);
-  const { responses, sessions, advisorCalls } = await readTranscripts(files, startMs);
+  const { responses, sessions } = await readTranscripts(files, startMs);
   const byDay = new Map(keys.map(k => [k, newDay(k)]));
   const models = {};
 
@@ -367,10 +429,13 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   for (const s of qualifying) sessionsByDay.get(dayKey(new Date(s.turns[0].t))).push(s);
 
   const prCounts = prs ? new Map(keys.map(k => [k, 0])) : null;
+  const productCounts = prs ? new Map(keys.map(k => [k, 0])) : null;
   if (prs) {
     for (const p of prs) {
       const k = p?.mergedAt ? dayKey(new Date(p.mergedAt)) : null;
-      if (k && prCounts.has(k)) prCounts.set(k, prCounts.get(k) + 1);
+      if (!k || !prCounts.has(k)) continue;
+      prCounts.set(k, prCounts.get(k) + 1);
+      if (isProductPr(p)) productCounts.set(k, productCounts.get(k) + 1);
     }
   }
   const readings = usageLog ? parseUsageLog(usageLog) : [];
@@ -385,10 +450,12 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     if (prCounts) {
       d.prs = prCounts.get(d.day);
       d.tokensPerPr = d.prs ? d.tokens / d.prs / 1e6 : null;
+      d.productPrs = productCounts.get(d.day);
     }
     if (points && d.day >= firstLogDay) {
       d.weeklyPoints = points.get(d.day) || 0;
       d.costPerPoint = d.weeklyPoints > 0 ? d.cost / d.weeklyPoints : null;
+      d.pointsPerPr = d.productPrs ? d.weeklyPoints / d.productPrs : null;
     }
   }
 
@@ -409,39 +476,63 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     total.weeklyPoints = sum(covered, d => d.weeklyPoints);
     const coveredCost = sum(covered, d => d.cost);
     total.costPerPoint = total.weeklyPoints > 0 ? coveredCost / total.weeklyPoints : null;
+    // points over the product PRs merged on the days the Usage log covers
+    const coveredProduct = prs ? sum(covered, d => d.productPrs) : 0;
+    total.pointsPerPr = coveredProduct ? total.weeklyPoints / coveredProduct : null;
   }
+  if (prs) total.productPrs = sum(rows, d => d.productPrs);
+
+  const lanes = laneStats(qualifying, prs ? total.prs : null);
+  const pace = paceFor(readings, now, 4, weeklyResets);
 
   return {
+    pace,
     window: { days, from: keys[0], to: keys[keys.length - 1] },
+    lanes,
     files: files.length,
     responses: responses.length,
     days: rows,
     total,
     models,
-    advisorCalls,
-    targets: targetsFor(total, days),
+    figures: figuresFor(total, days),
   };
 }
 
-// The window against the D-122 targets; ok is null when the number is not known.
-export function targetsFor(total, days) {
-  const check = (name, value, limit, unit) => ({
-    name,
-    value,
-    limit,
-    unit,
-    ok: value === null ? null : value <= limit,
-  });
+// The pace profile from the log and, when the newest reading is from this week, the pace as of
+// that reading (reset = Saturday 05:00Z). Null without readings.
+export function paceFor(readings, now, weeks = 4, weeklyResets) {
+  if (!readings.length) return null;
+  const nowMs = now.getTime();
+  const weekStartMs = weekStartFor(nowMs, weeklyResets);
+  const profile = buildProfile(readings, { weekStartMs, weeks });
+  const last = readings[readings.length - 1];
+  // As of the newest reading of this week (its time is `asOf`), so a stale log still gives a number.
+  const thisWeek = last.t >= weekStartMs && last.t <= nowMs;
+  return {
+    profile: { ...profile, activeHours: activeHours(profile) },
+    now: thisWeek
+      ? {
+          asOf: new Date(last.t).toISOString(),
+          actual: last.v,
+          ...paceNow({ profile, weekStartMs, nowMs: last.t, actual: last.v }),
+        }
+      : null,
+  };
+}
+
+// The window's figures, numbers only (no limits, no pass or fail: pace is information only,
+// the user 2026-11-11). value is null when the number is not known.
+export function figuresFor(total, days) {
   return [
-    check('startup', total.startup, TARGETS.startup, 'tokens'),
-    check('M tokens per PR', total.tokensPerPr, TARGETS.tokensPerPrM, 'M'),
-    check('sessions a day', total.sessions / days, TARGETS.sessionsPerDay, 'sessions'),
-    check(
-      'weekly % a day',
-      total.weeklyPoints === null ? null : total.weeklyPoints / total.coveredDays,
-      TARGETS.weeklyPerDay,
-      'points'
-    ),
+    { name: 'startup', value: total.startup, unit: 'tokens' },
+    { name: 'M tokens per PR', value: total.tokensPerPr, unit: 'M' },
+    { name: 'sessions a day', value: total.sessions / days, unit: 'sessions' },
+    {
+      name: 'weekly % a day',
+      value: total.weeklyPoints === null ? null : total.weeklyPoints / total.coveredDays,
+      unit: 'points',
+    },
+    { name: 'weekly points per PR', value: total.pointsPerPr ?? null, unit: 'points' },
   ];
 }
 
@@ -464,19 +555,29 @@ const COLUMNS = [
   ['PRs', 3, d => (d.prs === null ? 'n/a' : String(d.prs))],
   ['M/PR', 5, d => num(d.tokensPerPr, 1)],
   ['Wk pts', 6, d => num(d.weeklyPoints, 0, 'n/a')],
+  ['Pts/PR', 6, d => num(d.pointsPerPr, 1)],
   ['Cost/pt', 7, d => num(d.costPerPoint, 1)],
 ];
 
-export function formatTargets(targets) {
-  const mark = t => (t.ok === null ? 'n/a' : t.ok ? 'ok' : 'over');
+export function formatFigures(figures) {
   const text = {
-    startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=${kilo(TARGETS.startup)})`,
-    'M tokens per PR': t => `M/PR ${num(t.value, 1)} ${mark(t)} (<=${TARGETS.tokensPerPrM})`,
-    'sessions a day': t =>
-      `sessions/day ${num(t.value, 1)} ${mark(t)} (~${TARGETS.sessionsPerDay})`,
-    'weekly % a day': t => `weekly %/day ${num(t.value, 1)} ${mark(t)} (~${TARGETS.weeklyPerDay})`,
+    startup: t => `startup ${kilo(t.value)}`,
+    'M tokens per PR': t => `M/PR ${num(t.value, 1)}`,
+    'sessions a day': t => `sessions/day ${num(t.value, 1)}`,
+    'weekly % a day': t => `weekly %/day ${num(t.value, 1)}`,
+    'weekly points per PR': t => `weekly pts/PR ${num(t.value, 1)}`,
   };
-  return `Targets (D-122): ${targets.map(t => text[t.name](t)).join(' | ')}`;
+  return `Window: ${figures.map(t => text[t.name](t)).join(' | ')}`;
+}
+
+export function formatPace(pace) {
+  if (!pace) return 'Pace: no usage log readings';
+  const { profile, now } = pace;
+  const base = `Pace profile: ${profile.source} (${profile.weeks} weeks), active hours ${profile.activeHours.weekday} weekday / ${profile.activeHours.weekend} weekend`;
+  if (!now) return `${base}; no reading for this week`;
+  const sign = now.delta > 0 ? '+' : '';
+  const proj = now.projected === null ? 'too early' : `${now.projected}%`;
+  return `${base}; as of ${now.asOf.slice(0, 16)}Z weekly ${now.actual}% vs expected ${now.expected}% (${sign}${now.delta}, ${now.delta > 0 ? 'ahead' : now.delta < 0 ? 'behind' : 'level'}), projected ${proj}, ${now.activeHoursLeft} active hours left`;
 }
 
 // Turns per model family with their share of the weighted cost; "main" and "sub" split the
@@ -493,6 +594,21 @@ export function formatModels(models) {
     .join(' | ')}`;
 }
 
+// Lane line: sessions in .claude/worktrees that reached their line (200k, 250k from the
+// 2026-11-03 22:59 UTC merge of the lines PR), per merged PR, and the peak after the line. Before 2026-11-04: 9 lanes, 5 of
+// them handed over at 200k within about 35 minutes.
+export function formatLanes(lanes) {
+  if (!lanes || !lanes.lanes) return 'Lanes: none in the window';
+  const perPr = Number.isFinite(lanes.handoversPerPr)
+    ? ` (${num(lanes.handoversPerPr, 2)} per merged PR)`
+    : '';
+  return (
+    `Lanes: ${lanes.lanes} sessions, ${lanes.handovers} reached line${perPr}, ` +
+    `peak after line median ${kilo(lanes.handoverMedian)} max ${kilo(lanes.handoverMax)}, ` +
+    `peak median ${kilo(lanes.peakMedian)}; reached 200k ${lanes.over200k}, 250k ${lanes.over250k}, 300k ${lanes.over300k}`
+  );
+}
+
 export function formatReport(report, notes = []) {
   const header = COLUMNS.map(([name, w], i) => (i === 0 ? name.padEnd(w) : name.padStart(w))).join(
     ' '
@@ -505,9 +621,11 @@ export function formatReport(report, notes = []) {
     ...report.days.map(row),
     '-'.repeat(header.length),
     row({ ...report.total, day: 'Window' }),
-    formatTargets(report.targets),
+    formatFigures(report.figures),
     formatModels(report.models),
-    `Advisor calls (main sessions): ${report.advisorCalls}`,
+    formatLanes(report.lanes),
+    formatPace(report.pace),
+    ...(report.toolCalls ? [report.toolCalls.line] : []),
     ...notes.map(n => `Note: ${n}`),
   ];
   return lines.join('\n');
@@ -551,6 +669,26 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
 
   const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
   report.notes = notes;
+  // Real tool usage (I-113): the MCP tool call log on this PC (USAGE_WEEK_CALLS_DIR overrides).
+  const callsDir = env.USAGE_WEEK_CALLS_DIR || path.join(dataDir(env), '_usage');
+  let callList = [];
+  try {
+    callList = readCalls(callsDir, opts.days, now);
+  } catch (e) {
+    notes.push(`tool call log unreadable (${String(e.message).split('\n')[0]}).`);
+  }
+  const callSummary = summarize(callList, await loadCatalog());
+  if (!callSummary.total) {
+    const hint = emptyLogHint(connectorLogging(env));
+    if (hint) notes.push(hint);
+  }
+  report.toolCalls = {
+    total: callSummary.total,
+    errors: callSummary.errors,
+    used: callSummary.tools.length,
+    never: callSummary.never ? callSummary.never.length : null,
+    line: weekLine(callSummary, opts.days),
+  };
   report.runMs = Date.now() - started;
   if (argv.includes('--write-vault')) {
     const file = noteFile(vaultDirFor(env));

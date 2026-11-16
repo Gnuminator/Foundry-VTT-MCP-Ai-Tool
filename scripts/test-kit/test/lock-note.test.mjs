@@ -255,3 +255,40 @@ test('a real vault in the environment is never used when -Root is given without 
   assert.equal(r.status, 0);
   assert.equal(fs.existsSync(path.join(s.vault, NOTE)), false);
 });
+
+test('the GPU lock takes, queues and releases on its own lock, beside server A, and shows as server-gpu', { skip }, () => {
+  const s = scratch();
+  const noteFile = path.join(s.vault, NOTE);
+  const gpu = { server: 'GPU' };
+  assert.equal(lock(s, take('lane-a', 'local_a')).status, 0);
+  assert.equal(lock(s, take('lane-gpu', 'local_g'), gpu).status, 0);
+  assert.equal(lock(s, take('lane-gpu2', 'local_h'), gpu).status, 1, 'a second GPU job is refused');
+  assert.equal(lock(s, ['queue', '-Holder', 'lane-gpu2', '-Session', 'local_h', '-Purpose', 'x'], gpu).status, 0);
+  let n = readNote(noteFile);
+  assert.equal(n['server-gpu'], 'held');
+  assert.equal(n['server-gpu-holder'], 'lane-gpu');
+  assert.equal(n['server-gpu-queue'], '1');
+  assert.equal(n['server-a'], 'held', 'server A keeps its own line');
+  assert.equal(lock(s, ['release', '-Session', 'local_g'], gpu).status, 0);
+  assert.equal(lock(s, take('lane-gpu3', 'local_i'), gpu).status, 1, 'not their turn');
+  assert.equal(lock(s, take('lane-gpu2', 'local_h'), gpu).status, 0);
+  assert.equal(lock(s, take('lane-gpu3', 'local_i', ['-Force']), gpu).status, 0, 'crashed holder taken over');
+  n = readNote(noteFile);
+  assert.equal(n['server-gpu-holder'], 'lane-gpu3');
+  assert.equal(lock(s, ['release', '-Session', 'local_i'], gpu).status, 0);
+  assert.equal(readNote(noteFile)['server-gpu'], 'free');
+});
+
+test('FOUNDRY_TEST_SERVER=GPU without -Server picks the GPU lock, not server A', { skip }, () => {
+  const s = scratch();
+  const r = spawnSync(
+    'pwsh',
+    ['-NoProfile', '-NonInteractive', '-File', script, ...take('lane-env', 'local_e'), '-Root', path.join(s.dir, 'rootGPU'), '-Vault', s.vault],
+    { encoding: 'utf8', env: { ...process.env, FOUNDRY_TEST_SERVER: 'GPU' } }
+  );
+  assert.equal(r.status, 0, r.stderr);
+  const n = readNote(path.join(s.vault, NOTE));
+  assert.equal(n['server-gpu'], 'held');
+  assert.equal(n['server-gpu-holder'], 'lane-env');
+  assert.equal(n['server-a'], undefined, 'server A is untouched');
+});

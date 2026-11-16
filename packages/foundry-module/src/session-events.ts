@@ -13,6 +13,7 @@ import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import { eventVisibilityFor, playerFacingSceneName } from './player-visibility.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
 import { logInfo } from './log.js';
+import { damageTypeLabel } from './live-plan.js';
 import { dig, rec, type Rec } from './doc-read.js';
 import type { EventVisibility } from '@gnuminator/shared';
 
@@ -22,9 +23,9 @@ import type { EventVisibility } from '@gnuminator/shared';
  * This module owns two rolling in-memory buffers that live for the duration of
  * the browser session (i.e. while the world is loaded):
  *
- *   1. A chat-log buffer  — every ChatMessage as it is created, parsed into a
+ *   1. A chat-log buffer: every ChatMessage as it is created, parsed into a
  *      structured shape (rolls, damage, flavor, advantage, crit/fumble, etc.).
- *   2. A session-event log — significant world events (combat start/end, HP
+ *   2. A session-event log, significant world events (combat start/end, HP
  *      changes, deaths, conditions, resource spend, scene changes, journals).
  *
  * The MCP server requests these buffers on demand via the query handlers; the
@@ -128,6 +129,19 @@ export interface CombatTimelineEntry {
 const DEFAULT_CHAT_BUFFER = 200;
 const MAX_SESSION_BUFFER = 1000;
 
+/**
+ * The change id of the guarded apply that made this write, or '' (an undo or rollback is no apply:
+ * its "Undid: ..." row stays in the feed).
+ */
+function appliedChangeId(options: unknown): string {
+  const marker = rec(rec(options)?.[MODULE_ID]);
+  return marker?.changeMode === 'apply' &&
+    marker.hpLine === true &&
+    typeof marker.changeId === 'string'
+    ? marker.changeId
+    : '';
+}
+
 export class EventTracker {
   private chatLog: ChatLogEntry[] = [];
   private sessionLog: SessionLogEntry[] = [];
@@ -166,7 +180,7 @@ export class EventTracker {
   }
 
   /**
-   * Register all Foundry hooks. Safe to call multiple times — only registers
+   * Register all Foundry hooks. Safe to call multiple times, only registers
    * once. Called from the module init hook so every capability is live as soon
    * as the module loads.
    */
@@ -216,9 +230,9 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('updateActor', (actor: unknown, changed: unknown) => {
+      Hooks.on('updateActor', (actor: unknown, changed: unknown, options: unknown) => {
         try {
-          this.onUpdateActor(actor, changed);
+          this.onUpdateActor(actor, changed, options);
         } catch (error) {
           console.warn(`[${MODULE_ID}] EventTracker updateActor failed:`, error);
         }
@@ -522,6 +536,9 @@ export class EventTracker {
     const [only] = described.rolls;
     if (only && described.rolls.length === 1) {
       if (only.natural !== undefined) details.natural = only.natural;
+      if (only.droppedD20 !== undefined) details.droppedD20 = only.droppedD20;
+      if (only.advantage !== undefined) details.advantage = only.advantage;
+      details.label = only.label;
       if (only.dc !== undefined) details.dc = only.dc;
       if (only.outcome !== undefined) details.outcome = only.outcome;
     }
@@ -543,7 +560,7 @@ export class EventTracker {
    * The acting actor behind a message's speaker, resolved the same way
    * `resolveActor` does in `systems/dnd5e/roll-breakdown.ts`: the speaker
    * token first (`speaker.scene` + `speaker.token`), else `speaker.actor`.
-   * Returns `unknown` (not `any`) — the only use is `eventVisibilityFor`,
+   * Returns `unknown` (not `any`), the only use is `eventVisibilityFor`,
    * which narrows it itself.
    */
   private resolveSpeakerActor(message: ChatMessage): unknown {
@@ -772,20 +789,28 @@ export class EventTracker {
 
   private onCombatStart(combat: unknown): void {
     const combatantCount = dig(combat, 'combatants', 'size') ?? 0;
-    this.logSessionEvent('combat-start', `Combat started with ${text(combatantCount)} combatants`, {
-      details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
-      visibility: NO_SUBJECT_VISIBILITY,
-    });
+    this.logSessionEvent(
+      'combat-start',
+      `Combat started with ${text(combatantCount)} combatant${combatantCount === 1 ? '' : 's'}`,
+      {
+        details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
+        visibility: NO_SUBJECT_VISIBILITY,
+      }
+    );
     // Seed the timeline with round 1
     this.recordCombatTurn(combat);
   }
 
   private onCombatEnd(combat: unknown): void {
     const rounds = dig(combat, 'round') ?? 0;
-    this.logSessionEvent('combat-end', `Combat ended after ${text(rounds)} rounds`, {
-      details: { combatId: dig(combat, 'id'), rounds },
-      visibility: NO_SUBJECT_VISIBILITY,
-    });
+    this.logSessionEvent(
+      'combat-end',
+      `Combat ended after ${text(rounds)} round${rounds === 1 ? '' : 's'}`,
+      {
+        details: { combatId: dig(combat, 'id'), rounds },
+        visibility: NO_SUBJECT_VISIBILITY,
+      }
+    );
   }
 
   private onUpdateCombat(combat: unknown, changed: unknown): void {
@@ -817,7 +842,7 @@ export class EventTracker {
     }
   }
 
-  private onUpdateActor(actor: unknown, changed: unknown): void {
+  private onUpdateActor(actor: unknown, changed: unknown, options?: unknown): void {
     const actorIdValue = dig(actor, 'id');
     if (!actorIdValue) return;
     // Foundry actor ids and names are strings; they are recorded as they are.
@@ -852,20 +877,30 @@ export class EventTracker {
           const credit = this.damageCredit(pending, damage, to <= 0);
           // Temp HP that just disappears (a rest, the GM clearing it) is no damage: a drop to
           // 0 temp HP with the hit points untouched counts only when a damage roll explains it.
-          const tempCleared = delta === 0 && toTemp === 0 && !credit;
+          // A confirmed damage apply from the dashboard explains the drop too.
+          const tempCleared =
+            delta === 0 && toTemp === 0 && !credit && appliedChangeId(options) === '';
           if (!tempCleared) {
             const toTempText = tempLost > 0 ? ` (${tempLost} to temp HP)` : '';
-            // A hit that ends at 0 HP says what was left to lose: a 30-point hit on a 9 HP actor
-            // took 9 (the dashboard's change line says 30).
-            const hpText = to <= 0 && delta < 0 ? ` (HP ${prev} to ${to})` : '';
+            // The hit points before and after: a 30-point hit on a 9 HP actor took 9 (the
+            // dashboard's change line says 30).
+            const hpText = delta < 0 ? ` (HP ${prev} to ${to})` : '';
+            // A guarded damage apply (the dashboard's Damage form, plan-actor-change) names the
+            // dnd5e damage type and its change id; the change id lets the Live Feed fold the
+            // "Applied: ..." row of the same change into this line.
+            const marker = rec(rec(options)?.[MODULE_ID]);
+            const typeName = typeof marker?.damageType === 'string' ? marker.damageType : '';
+            const changeId = appliedChangeId(options);
             this.logSessionEvent(
               'damage',
-              `${actorName} took ${damage} damage${toTempText}${hpText}`,
+              `${actorName} took ${damage}${damageTypeLabel(typeName)} damage${toTempText}${hpText}`,
               {
                 actorName,
                 actorId,
                 details: {
                   amount: damage,
+                  ...(typeName ? { damageType: typeName } : {}),
+                  ...(changeId ? { changeId } : {}),
                   from: prev,
                   to,
                   ...(tempLost > 0
@@ -884,7 +919,12 @@ export class EventTracker {
           this.logSessionEvent('healing', `${actorName} healed ${delta} HP`, {
             actorName,
             actorId,
-            details: { amount: delta, from: prev, to },
+            details: {
+              amount: delta,
+              from: prev,
+              to,
+              ...(appliedChangeId(options) ? { changeId: appliedChangeId(options) } : {}),
+            },
             visibility,
           });
         }
@@ -1136,7 +1176,7 @@ export class EventTracker {
     return this.combatTimeline.slice();
   }
 
-  /** Raw chat log (unfiltered) — used by combat play-by-play synthesis. */
+  /** Raw chat log (unfiltered), used by combat play-by-play synthesis. */
   getRawChatLog(): ChatLogEntry[] {
     return this.chatLog.slice();
   }

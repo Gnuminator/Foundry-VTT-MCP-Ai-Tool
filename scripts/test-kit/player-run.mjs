@@ -179,9 +179,9 @@ async function lookUp(page, { className, speciesName, backgroundName }) {
 /** Runs the whole flow in `page`; fills `result`; returns the verdict problems. */
 async function playerRun(page, errors, options, result, outDir, libs) {
   const { studio, flow, pc, pump } = libs;
-  const { className, speciesName, backgroundName } = options;
+  const { className } = options;
   const who = await page.evaluate(
-    id => ({
+    _id => ({
       id: game.user.id,
       isGM: game.user.isGM,
       canCreate: game.user.can('ACTOR_CREATE'),

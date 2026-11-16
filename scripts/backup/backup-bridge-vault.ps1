@@ -18,8 +18,9 @@
   (a second run on the same day replaces that day's zip). Files that are being written at that
   moment are read without locking them; a file that still cannot be read is skipped and named
   in the output. After the zip, only the newest -Keep (default 8) bridge-vault-*.zip files stay.
-  The result of the last run is written to last-backup.json next to the zips (for the later
-  Discord bot's failed-backup alert).
+  The result of the last run is written to last-backup.json next to the zips. Nothing reads it
+  automatically: no bot alert exists for a failed bridge vault backup, so look at that file (or
+  the zips' dates) when in doubt.
 
   -Register creates a Windows scheduled task "Foundry AI Tool bridge vault backup" for the
   current user: weekly, and with StartWhenAvailable, so a run that was missed because the PC was

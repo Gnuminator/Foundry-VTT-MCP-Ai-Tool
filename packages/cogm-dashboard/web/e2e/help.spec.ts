@@ -2,14 +2,14 @@
 // by the build), the "?" that opens a pane's own heading, and the error path.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fromMenu } from './support';
+import { GM_TOKEN, SPACE_UNAVAILABLE, fakeCommonRoutes, fakeStream, fromMenu } from './support';
 
 const helpPane = (page: Page): Locator => page.locator('#pane-help');
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
   await fakeStream(page, []);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
   await page.goto(`/next/?token=${GM_TOKEN}`);
 });
 
@@ -71,6 +71,37 @@ test('a guide that cannot load says why, and the next open asks again', async ({
   await expect.poll(() => calls).toBe(2);
 });
 
+test('a Danish guide that is missing falls back to the English page', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('cogm.help.lang', 'da'));
+  await page.route('**/api/help/README', route =>
+    route.fulfill({ json: { page: 'README', title: 'GM guides', html: '<h1>English guide</h1>' } })
+  );
+  const danish = page.waitForRequest(req => req.url().endsWith('/api/help/da-README'));
+  await page.route('**/api/help/da-README', route =>
+    route.fulfill({ status: 404, json: { error: 'No such page.' } })
+  );
+  await fromMenu(page, 'btn-guides');
+  await danish;
+  await expect(helpPane(page).locator('.help-body h1')).toHaveText('English guide');
+});
+
+test('a Danish guide that fails with a server error shows the error, not the English page', async ({
+  page,
+}) => {
+  await page.evaluate(() => localStorage.setItem('cogm.help.lang', 'da'));
+  await page.route('**/api/help/README', route =>
+    route.fulfill({ json: { page: 'README', title: 'GM guides', html: '<h1>English guide</h1>' } })
+  );
+  await page.route('**/api/help/da-README', route =>
+    route.fulfill({ status: 500, json: { error: 'The help could not be read.' } })
+  );
+  await fromMenu(page, 'btn-guides');
+  await expect(
+    helpPane(page).getByText("Couldn't load the help: The help could not be read.")
+  ).toBeVisible();
+  await expect(helpPane(page).locator('.help-body h1')).toHaveCount(0);
+});
+
 test('a link inside a guide opens that guide in the same pane, and the wiki link follows', async ({
   page,
 }) => {
@@ -92,7 +123,7 @@ test('a link inside a guide opens that guide in the same pane, and the wiki link
     'href',
     'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/gm/getting-started/'
   );
-  // The clicked link is gone with the old page; focus stays in the pane, not on the body.
+  // The clicked link is gone from the guide; focus stays in the pane, not on the body.
   await expect(pane).toBeFocused();
 });
 

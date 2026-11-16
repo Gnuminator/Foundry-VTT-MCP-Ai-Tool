@@ -9,15 +9,13 @@ subclass, spells, choices), and you have no tool that runs it.
 1. `list-characters`, then `get-character` for the character. Note class levels, subclass, the
    current level and the total level, ability scores, feats, known and prepared spells, and
    resources.
-2. Work out what the next level grants and what is chosen. **The connector does not return the
-   class's advancement list or level table** (checked on test server A: `get-compendium-item` on a
-   class gives its description, hit die and starting equipment, no per-level features). So:
-   take the class's per-level features from your knowledge of the 2024 class table, then look
-   each feature up by name (`search-compendium` for the feature, then `get-compendium-item`) and
-   read what it does. Say plainly: "the level table is from general knowledge; the level-up
-   window in Foundry shows the real list, check it matches". If a feature's name finds no entry,
-   say so. (A read-only `get-level-up-options` tool is planned and will replace this step.)
-   Choices to look for: subclass (level 3), Ability Score Improvement or feat, expertise, fighting
+2. Work out what the next level grants and what is chosen: call `get-level-up-options` with the
+   character's name (and `className` for a multiclass character). It only reads. It says what the
+   next level grants, which choices are open (hit points, ability score improvement or feat,
+   subclass, spells, items) and any earlier advancement left unfinished. Then look each feature
+   up by name (`search-compendium` for the feature, then `get-compendium-item`) and read what it
+   does. If the tool returns nothing for a class, or a feature's name finds no entry, say so and
+   say that the level-up window in Foundry shows the real list. Choices to look for: subclass (level 3), Ability Score Improvement or feat, expertise, fighting
    style, spells. For a subclass, find it by name the same way.
 3. For each choice, `search-compendium` / `get-compendium-item` the candidates (feats, spells,
    features) and read them. Never describe an option from memory alone. Note that each name can
@@ -29,17 +27,22 @@ subclass, spells, choices), and you have no tool that runs it.
    and Constitution modifier; the average is the safe default.
 6. **Spells:** for a caster, say how many are known or prepared at the new level (from the class
    table), which spell levels they can now take, and which of their current spells they may swap.
-7. Tell them where to click: open the character sheet, use the level-up control on it, answer each
-   advancement step, and pick everything a step asks before clicking Next (a skipped choice is
-   silently lost).
+7. Tell them where to click: open the character sheet, use the gold **Level Up** button on it
+   (shown only when the GM switched on Milestone Levelling or the sheet has the XP), click the **+**
+   at the end of the class row, **Add Character Level**, tick **Take Average** (Next waits for it),
+   answer each advancement step, and pick everything a step asks before clicking Next (a skipped
+   choice is silently lost). **Level 3 (subclass):** pick it in **Choose Subclass** first, and click
+   **Complete** in the second window that lists the subclass's features, or the subclass is not
+   added. A caster's level-up does not ask which spells they learn: tell them to add those on the
+   Spells tab.
 8. When they say it is done, run `references/sheet-check.md` against the new level: level and class
    levels, hit points up by the expected amount, the new features present, any open advancement
    (a choice that was skipped), spells within limits.
 
 ## Limits to say out loud
 
-- You cannot see the advancement list; the level-up window on the sheet is the authority. If it
-  offers something your list did not, trust the window and look the entry up by name.
+- `get-level-up-options` reads only; the level-up window on the sheet is the authority. If it
+  offers something the tool did not list, trust the window and look the entry up by name.
 - Multiclassing: check the prerequisites and the multiclass proficiencies from the entries before
   recommending; say it is worth confirming with the GM.
 - Don't recommend anything outside the books the GM allows at the table.

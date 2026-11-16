@@ -9,7 +9,6 @@
  * - **Reveal / hide** make a `plan-page-reveal` plan and open the dashboard at `/?plan=<id>`, where
  *   the GM confirms it (D-067: Obsidian never applies a change itself). **Queue / unqueue** only
  *   stage the page in the GM's reveal queue; the reveal still happens in the dashboard.
- *
  * - **New prep note for this** (R2, D-094; command and file menu): a prep note in `Prep/` from the
  *   vault's template of the picked kind, with `fvtt_uuid` filled in and a link back (`prep.ts`).
  *   The only note the plugin writes, and only on the GM's click; it never needs the dashboard.
@@ -54,7 +53,9 @@ import {
 import {
   applyGraphColoursTo,
   graphColoursNotice,
+  libraryFilterNotice,
   libraryRootOf,
+  setLibraryHiddenTo,
   type GraphHost,
   type HubInfo,
 } from './graph-colours.js';
@@ -79,10 +80,13 @@ import {
   type ThemeId,
 } from './theme.js';
 import {
+  aiContextAllowed,
+  aiContextNotice,
   campaignRootOf,
   fillPrepNote,
   findPrepNote,
   isPrepType,
+  isQuestImportable,
   localDate,
   prepFileName,
   prepKindsFor,
@@ -90,6 +94,7 @@ import {
   prepUuid,
   type PrepKind,
 } from './prep.js';
+import { installUpdateNotice } from './client-update.js';
 import { pickTheme, sameThemeState, syncTheme, type ThemeState } from './theme-sync.js';
 
 /** The plugin settings, plus the theme state (I-099, theme-sync.ts). */
@@ -209,7 +214,8 @@ export default class FoundryAiToolPlugin extends Plugin {
       http,
       () => this.settings.dashboardUrl,
       () => this.token(),
-      () => this.access()
+      () => this.access(),
+      () => this.manifest.version
     );
 
     this.statusEl = this.addStatusBarItem();
@@ -252,9 +258,49 @@ export default class FoundryAiToolPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'import-quest-note',
+      name: 'Import this quest prep note into Foundry (confirm in the dashboard)',
+      checkCallback: checking => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+          | Record<string, unknown>
+          | undefined;
+        if (!isQuestImportable(frontmatter)) return false;
+        if (!checking) void this.importQuest(file);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: 'toggle-ai-context',
+      name: 'Toggle: Claude may read this prep note',
+      checkCallback: checking => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+          | Record<string, unknown>
+          | undefined;
+        if (!isPrepType(frontmatter?.type)) return false;
+        if (!checking) void this.toggleAiContext(file, aiContextAllowed(frontmatter?.ai_context));
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: 'apply-graph-colours',
       name: 'Apply AI Tool graph colours',
       callback: () => void this.applyGraphColours(),
+    });
+    this.addCommand({
+      id: 'hide-library-in-graph',
+      name: 'Hide the Library in the graph',
+      callback: () => void this.setLibraryHidden(true),
+    });
+    this.addCommand({
+      id: 'show-library-in-graph',
+      name: 'Show the Library in the graph',
+      callback: () => void this.setLibraryHidden(false),
     });
 
     this.registerEvent(
@@ -289,6 +335,7 @@ export default class FoundryAiToolPlugin extends Plugin {
     );
     this.addSettingTab(new FoundryAiToolSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => void this.refreshStatus(false));
+    installUpdateNotice(this, this.client);
 
     // The theme (I-099): classes on <body> and on each Markdown view; the CSS does the rest.
     this.applyTheme();
@@ -433,6 +480,41 @@ export default class FoundryAiToolPlugin extends Plugin {
       checkCallback: checking =>
         this.withActiveNote(checking, note => void this.reveal(note, action), true),
     });
+  }
+
+  private importing = false;
+
+  private async importQuest(file: TFile): Promise<void> {
+    if (this.importing) return;
+    this.importing = true;
+    try {
+      const { planId, summary } = await this.client.planQuestImport(file.path);
+      const link = planId ? planLink(this.settings.dashboardUrl, planId) : null;
+      if (link) window.open(link);
+      new Notice(
+        link
+          ? 'Plan made. Confirm it in the dashboard (it opened in your browser).'
+          : planId
+            ? 'Plan made. Open the dashboard and confirm it there.'
+            : summary || 'Done.'
+      );
+    } catch (error) {
+      new Notice(`Quest import: ${messageOf(error)}`);
+    } finally {
+      this.importing = false;
+    }
+  }
+
+  /** Flip `ai_context` on a prep note: Claude may read it, or may not. */
+  private async toggleAiContext(file: TFile, allowedNow: boolean): Promise<void> {
+    try {
+      await this.app.fileManager.processFrontMatter(file, fm => {
+        (fm as Record<string, unknown>).ai_context = !allowedNow;
+      });
+      new Notice(aiContextNotice(!allowedNow));
+    } catch (error) {
+      new Notice(`AI context: ${messageOf(error)}`);
+    }
   }
 
   /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
@@ -623,6 +705,18 @@ export default class FoundryAiToolPlugin extends Plugin {
     }
   }
 
+  /**
+   * Hides or shows the Library notes in the graph view (a search term in the graph options, next
+   * to the GM's own search text). Off by default: the GM starts it, nothing runs on its own.
+   */
+  async setLibraryHidden(hidden: boolean): Promise<void> {
+    try {
+      new Notice(libraryFilterNotice(await setLibraryHiddenTo(this.graphHost(), hidden)));
+    } catch (error) {
+      new Notice(`Graph filter: ${messageOf(error)}`);
+    }
+  }
+
   /** Obsidian's side of the graph colours: the graph views, the graph plugin and graph.json. */
   private graphHost(): GraphHost {
     const app = this.app;
@@ -676,6 +770,7 @@ export default class FoundryAiToolPlugin extends Plugin {
           if (!found?.options) return false;
           // Set even when it cannot save, or the live options would write the old groups back.
           found.options.colorGroups = options.colorGroups;
+          if (typeof options.search === 'string') found.options.search = options.search;
           if (typeof found.saveOptions !== 'function') return false;
           await found.saveOptions();
           return true;
@@ -884,6 +979,21 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
       .addButton(button =>
         button.setButtonText('Apply AI Tool graph colours').onClick(() => {
           void this.plugin.applyGraphColours();
+        })
+      );
+    new Setting(containerEl)
+      .setName('Library in the graph')
+      .setDesc(
+        'The Library (spells, monsters, items, books) can crowd the graph. Hide it with one search term; your own search text stays. It shows by default.'
+      )
+      .addButton(button =>
+        button.setButtonText('Hide the Library').onClick(() => {
+          void this.plugin.setLibraryHidden(true);
+        })
+      )
+      .addButton(button =>
+        button.setButtonText('Show the Library').onClick(() => {
+          void this.plugin.setLibraryHidden(false);
         })
       );
   }

@@ -127,6 +127,8 @@ export async function contentClip(
       if (r.width >= 20 && r.height >= 20) rects.push(r);
     };
     document.querySelectorAll('#storybook-root > *').forEach(add);
+    // The toasts sit in a fixed stack that has no size of its own.
+    document.querySelectorAll('.toast-stack > li').forEach(add);
     for (const el of Array.from(document.body.children)) {
       if (el.id === 'storybook-root' || el.id === 'storybook-docs') continue;
       if (/^(SCRIPT|STYLE|LINK)$/.test(el.tagName) || el.className.toString().startsWith('sb-')) {

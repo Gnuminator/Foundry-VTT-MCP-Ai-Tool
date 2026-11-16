@@ -1,35 +1,27 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { RoomSetupTools } from './room-setup.js';
 
-const logger: any = {
-  child: () => logger,
-  error: vi.fn(),
-  warn: vi.fn(),
-  info: vi.fn(),
-  debug: vi.fn(),
-};
-
 function tools(opts: { enabled: boolean; planReply?: unknown }): {
   t: RoomSetupTools;
-  query: ReturnType<typeof vi.fn>;
-  createPlan: ReturnType<typeof vi.fn>;
+  query: Mock;
+  createPlan: Mock;
 } {
-  const query = vi.fn(async (method: string) => {
-    if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
-      return [{ id: 'room-setup', enabled: opts.enabled }];
-    }
-    return opts.planReply;
-  });
   const createPlan = vi.fn(async (p: any) => ({
     id: 'plan1',
     feature: p.feature,
     summary: p.summary,
   }));
-  const t = new RoomSetupTools({
-    foundryClient: { query },
-    guardedWrites: { createPlan } as any,
-    logger,
+  const { tools: t, query } = makeTools(RoomSetupTools, {
+    queryImpl: async (method: string) => {
+      if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
+        return [{ id: 'room-setup', enabled: opts.enabled }];
+      }
+      return opts.planReply;
+    },
+    extra: { guardedWrites: { createPlan } },
   });
   return { t, query, createPlan };
 }

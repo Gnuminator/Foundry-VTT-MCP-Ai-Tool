@@ -9,7 +9,7 @@ import { LIVE_PLAN_QUERY, LIVE_PLAY_FEATURE_ID, planLiveChange } from './live-pl
 import {
   LIVE_PLAN_QUERY as SHARED_QUERY,
   LIVE_PLAY_FEATURE_ID as SHARED_FEATURE,
-} from '../../../shared/src/live-play.js';
+} from '@gnuminator/shared';
 import {
   createTestWorld,
   makeEffect,
@@ -256,6 +256,7 @@ describe('target resolution', () => {
         kind: 'update',
         uuid: 'Scene.s.Token.t.Actor.a',
         changes: { 'system.attributes.hp.value': 7 },
+        hpLine: true,
       },
     ]);
     expect(plan.targets[0]).toMatchObject({
@@ -306,6 +307,7 @@ describe('target resolution', () => {
           kind: 'update',
           uuid: 'Scene.other.Token.far.Actor.a',
           changes: { 'system.attributes.hp.value': 7 },
+          hpLine: true,
         },
       ]);
     });
@@ -439,7 +441,13 @@ describe('damage and healing (dry run)', () => {
     expect(wolf.writes).toBe(0);
     expect(wolf.system.attributes.hp.value).toBe(11);
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 5 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.value': 5 },
+        hpLine: true,
+        damageType: 'fire',
+      },
     ]);
     expect(plan.targets).toEqual([
       { target: 'Wolf', actorUuid: 'Actor.a1', line: 'Wolf: 12 fire damage, 6 taken, HP 11 to 5' },
@@ -478,7 +486,12 @@ describe('damage and healing (dry run)', () => {
       wolf.system.attributes.hp.temp = empty;
       const plan = await planLiveChange(hpRequest({ action: 'damage', amount: 3 }));
       expect(plan.ops).toEqual([
-        { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 7 } },
+        {
+          kind: 'update',
+          uuid: 'Actor.a1',
+          changes: { 'system.attributes.hp.value': 7 },
+          hpLine: true,
+        },
       ]);
     }
   });
@@ -487,7 +500,12 @@ describe('damage and healing (dry run)', () => {
     addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10, temp: 3 } });
     const plan = await planLiveChange(hpRequest({ action: 'damage', amount: 3 }));
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.temp': 0 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.temp': 0 },
+        hpLine: true,
+      },
     ]);
     expect(plan.targets[0]?.line).toBe('Wolf: 3 damage, temp HP 3 to 0');
   });
@@ -496,7 +514,12 @@ describe('damage and healing (dry run)', () => {
     addActor({ id: 'a1', name: 'Wolf', hp: { value: 4, max: 11 } });
     const plan = await planLiveChange(hpRequest({ action: 'healing', amount: 5 }));
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 9 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.value': 9 },
+        hpLine: true,
+      },
     ]);
     expect(plan.targets[0]?.line).toBe('Wolf: heals 5, HP 4 to 9');
     expect(plan.summary).toBe('Heal Wolf by 5');
@@ -568,7 +591,12 @@ describe('temp-hp', () => {
     addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10, temp: 2 } });
     const plan = await planLiveChange(hpRequest({ action: 'temp-hp', amount: 8 }));
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.temp': 8 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.temp': 8 },
+        hpLine: true,
+      },
     ]);
     expect(plan.targets[0]?.line).toBe('Wolf: 8 temp HP, temp HP 2 to 8');
     expect(plan.summary).toBe('8 temp HP for Wolf');
@@ -658,6 +686,138 @@ describe('condition on', () => {
     await expect(
       planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned' }))
     ).rejects.toThrow('Nothing to change: Wolf: is already Poisoned');
+  });
+
+  it('builds a round duration into the main effect only, not the rider', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'unconscious', rounds: 1 })
+    );
+    expect((plan.ops[0] as any).data.duration).toBeUndefined();
+    expect((plan.ops[1] as any).data.duration).toEqual({ value: 1, units: 'rounds' });
+    expect(plan.targets[0]?.line).toBe('Wolf: Unconscious (for 1 round, adds Prone (not timed))');
+  });
+
+  it('brings back an expired effect with an update (it keeps the fixed id)', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [
+        effect('dnd5epoisoned000', 'Poisoned', ['poisoned'], { duration: { remaining: 0 } }),
+      ],
+    });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', rounds: 1 })
+    );
+    expect(plan.ops).toHaveLength(1);
+    expect(plan.ops[0]).toMatchObject({
+      kind: 'update',
+      uuid: 'Actor.a1.ActiveEffect.dnd5epoisoned000',
+      changes: {
+        disabled: false,
+        'duration.value': 1,
+        'duration.units': 'rounds',
+        'duration.expiry': 'turnStart',
+        'duration.expired': false,
+      },
+    });
+    expect((plan.ops[0] as any).changes.start).toHaveProperty('time');
+    expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 1 round, brings back the expired one)');
+  });
+
+  it('brings an ended effect back untimed with no expiry left over', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [
+        effect('dnd5epoisoned000', 'Poisoned', ['poisoned'], { duration: { remaining: 0 } }),
+      ],
+    });
+    const plan = await planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned' }));
+    expect(plan.ops[0]).toMatchObject({
+      kind: 'update',
+      changes: { 'duration.value': null, 'duration.units': null, 'duration.expiry': null },
+    });
+  });
+
+  it('resets a stale rider and takes the start from the effect class when it has one', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [effect('dnd5eprone000000', 'Prone', ['prone'], { duration: { remaining: 0 } })],
+    });
+    g.CONFIG.ActiveEffect = {
+      documentClass: { getEffectStart: (): object => ({ time: 7, combat: 'c1', round: 2 }) },
+    };
+    // the static id of the rider comes from the fake status list
+    const plan = await planLiveChange(hpRequest({ action: 'condition', condition: 'unconscious' }));
+    const rider = plan.ops.find(o => (o as any).uuid === 'Actor.a1.ActiveEffect.dnd5eprone000000');
+    expect(rider).toMatchObject({
+      kind: 'update',
+      changes: {
+        disabled: false,
+        'duration.value': null,
+        'duration.expiry': null,
+        'duration.expired': false,
+        start: { time: 7, combat: 'c1', round: 2 },
+      },
+    });
+  });
+
+  it('leaves a custom multi-status effect alone and creates the condition', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [effect('custom1', 'Mixed', ['poisoned', 'blinded'])],
+    });
+    const plan = await planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned' }));
+    expect(plan.ops.map(o => o.kind)).toEqual(['create']);
+  });
+
+  it('says a timer needs the condition removed first when it is already on', async () => {
+    addActor({ id: 'a1', name: 'Wolf', statuses: ['poisoned'] });
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', rounds: 1 }))
+    ).rejects.toThrow(/remove it first/);
+  });
+
+  it('says rounds in the plural and keeps a duration the status already has', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    g.CONFIG.ActiveEffect = {
+      documentClass: {
+        fromStatusEffect: (id: string): Promise<object> =>
+          Promise.resolve({
+            toObject: (): object => ({ statuses: [id], duration: { expiry: 'turnEnd' } }),
+          }),
+      },
+    };
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', rounds: 3 })
+    );
+    expect((plan.ops[0] as any).data.duration).toEqual({
+      expiry: 'turnEnd',
+      value: 3,
+      units: 'rounds',
+    });
+    expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 3 rounds)');
+  });
+
+  it('refuses rounds on exhaustion and a bad number of rounds', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'exhaustion', rounds: 2 }))
+    ).rejects.toThrow(/leave rounds out/);
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', rounds: 0 }))
+    ).rejects.toThrow(/whole number from 1 to 100/);
+  });
+
+  it('ignores rounds when removing a condition', async () => {
+    addActor({ id: 'a1', name: 'Wolf', effects: [effect('e1', 'Poisoned', ['poisoned'])] });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', active: false, rounds: 5 })
+    );
+    expect(plan.ops.every(o => o.kind === 'delete')).toBe(true);
   });
 
   it('rejects an unknown condition and a missing one', async () => {

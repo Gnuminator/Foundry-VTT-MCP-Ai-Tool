@@ -7,13 +7,14 @@
 // - with PI_STAGE16_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a Debian 13
 //   ARM64 container (scripts/pi/container-test/stage16-scenarios.sh).
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const stagePath = path.join(repo, 'scripts', 'pi', 'remote', '16-board-status.sh');
@@ -33,7 +34,26 @@ const ID = 'header = "CF-Access-Client-Id: abc123.access"';
 const SECRET = 'header = "CF-Access-Client-Secret: s3cr3t-value-xyz"';
 
 // A fake Pi folder: the token file, a restic that prints one snapshot, a systemctl that answers `show`.
-function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', started = '123456', snapshotTime = '2026-10-23T02:31:09Z' } = {}) {
+function fakePi({
+  conf = `${ID}\n${SECRET}\n`,
+  backupResult = 'success',
+  started = '123456',
+  snapshotTime = '2026-10-23T02:31:09Z',
+  unitState = 'active',
+  ntp = 'yes',
+  offset = '-2.331ms',
+  snapshotEpoch = 1792200000,
+  icu = true,
+  containers = null,
+  dockerActive = true,
+  envFiles = {
+    'dashboard.env': 'DASHBOARD_FOUNDRY_URL=https://p.example\nOBSIDIAN_VAULT_NAME="v"\n',
+    'bridge.env': 'FOUNDRY_AI_OBSIDIAN_DIR=/x\nFOUNDRY_AI_OPEN_BASE=http://pi\n',
+    'dashboard-access.env': 'GM_EMAILS=a@b.c\n',
+    'assistant-gm.env': 'ASSISTANT_GM_PASSWORD="pw"\n',
+  },
+  ref = 'v0.25.0',
+} = {}) {
   const d = tmp();
   const bin = path.join(d, 'bin');
   mkdirSync(bin);
@@ -43,11 +63,40 @@ function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', started
     writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
     chmodSync(path.join(bin, name), 0o755);
   };
-  stub('systemctl', `case "$*" in *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`);
+  stub(
+    'systemctl',
+    // docker.service answers on its own (dockerActive); every other unit follows unitState.
+    `case "$*" in is-active*docker.service*) [ "${dockerActive}" = true ] ;; is-active*) echo "${unitState}"; [ "${unitState}" = active ] ;; *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`,
+  );
+  stub(
+    'timedatectl',
+    `case "$*" in show*) echo "${ntp}" ;; timesync-status) ${offset ? `echo "       Offset: ${offset}"` : 'exit 1'} ;; esac`,
+  );
+  for (const [f, text] of Object.entries(envFiles)) writeFileSync(path.join(d, 'etc', f), text);
+  mkdirSync(path.join(d, 'tool', 'app'), { recursive: true });
+  if (ref !== null) writeFileSync(path.join(d, 'tool', 'app', '.tool-ref'), `${ref}\n`);
+  stub('ldconfig', icu ? 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"' : 'true');
+  // docker: the compose containers as {service, state, restarts, health}; null = a docker whose `ps` fails.
+  // Every call is appended to docker-calls.log, so a test can assert that docker was never asked.
+  const callLog = path.join(d, 'docker-calls.log');
+  const logCall = `echo "$*" >> "${posix(callLog)}"`;
+  if (containers !== null) {
+    const names = containers.map(c => `p-${c.service}-1|${c.service}`).join('\\n');
+    const cases = containers.map(c => `p-${c.service}-1) echo '${c.state}|${c.restarts}|${c.health}' ;;`).join('\n');
+    stub('docker', `${logCall}\ncase "$1" in ps) printf '${names}\\n' ;; inspect) case "$4" in\n${cases}\nesac ;; esac`);
+  }
+  // A CI runner has a real docker on PATH: a docker that fails every call stands in for it; the script reports null too.
+  else stub('docker', `${logCall}\nexit 1`);
+  const stats = path.join(d, 'dietpi-backup_stats');
+  if (snapshotEpoch !== null) {
+    writeFileSync(stats, 'x');
+    const t = new Date(snapshotEpoch * 1000);
+    utimesSync(stats, t, t);
+  }
   stub('restic', `echo '[{"time":"${snapshotTime}","id":"deadbeef"}]'`);
   const scriptPath = path.join(d, 'board-status.sh');
   writeFileSync(scriptPath, script);
-  return { d, bin, scriptPath };
+  return { d, bin, scriptPath, stats, callLog };
 }
 
 function startBoard(status = 204) {
@@ -77,6 +126,8 @@ function run(pi, { args = [], env = {}, api = 'http://127.0.0.1:1/api/status', u
         FOUNDRY_STATUS_ETC: posix(path.join(pi.d, 'etc')),
         FOUNDRY_STATUS_NODE: posix(process.execPath),
         FOUNDRY_STATUS_DF_PATH: posix(pi.d),
+        FOUNDRY_STATUS_SNAPSHOT_STATS: posix(pi.stats),
+        FOUNDRY_STATUS_TOOL_DIR: posix(path.join(pi.d, 'tool')),
         FOUNDRY_STATUS_API: api,
         FOUNDRY_STATUS_URL: url,
         ...env,
@@ -115,21 +166,93 @@ describe('status script', () => {
     const p = JSON.parse(r.stdout);
     assert.equal(p.v, 1);
     assert.equal(p.host, 'foundry-pi');
-    assert.deepEqual(p.foundry, { up: true, version: '14.368', dnd5e: '6.0.5' });
-    assert.deepEqual(p.backup, { result: 'success', at: '2026-10-23T02:31:09.000Z' });
+    assert.deepEqual(p.foundry, { up: true, serviceActive: true, version: '14.368', dnd5e: '6.0.5' });
+    assert.deepEqual(p.backup, {
+      result: 'success',
+      at: '2026-10-23T02:31:09.000Z',
+      snapshotAt: new Date(1792200000 * 1000).toISOString(),
+    });
+    assert.deepEqual(p.clock, { ntpSynced: true, offsetMs: -2.331 });
     assert.ok(Number.isFinite(Date.parse(p.sentAt)));
     assert.equal(typeof p.disk.freePercent, 'number');
-    assert.deepEqual(Object.keys(p).sort(), ['backup', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
+    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'deployed', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
     // No world name, user count or anything else Foundry said.
     assert.ok(!r.stdout.includes('curse'));
   });
 
+  test('dry run: the deployed state carries names and states only', async () => {
+    const good = await run(fakePi({ containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }] }), {
+      args: ['--dry-run'],
+    });
+    assert.deepEqual(JSON.parse(good.stdout).deployed, {
+      ref: 'v0.25.0',
+      missingEnv: [],
+      libicu: true,
+      containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
+    });
+    const bad = await run(
+      fakePi({ icu: false, ref: null, envFiles: { 'dashboard.env': 'DASHBOARD_FOUNDRY_URL=""\nOBSIDIAN_VAULT_NAME="hunter2"\n' } }),
+      { args: ['--dry-run'] },
+    );
+    const d = JSON.parse(bad.stdout).deployed;
+    assert.equal(d.ref, null);
+    assert.equal(d.libicu, false);
+    assert.equal(d.containers, null, 'docker ps fails');
+    assert.deepEqual(d.missingEnv, [
+      'dashboard.env:DASHBOARD_FOUNDRY_URL',
+      'bridge.env:FOUNDRY_AI_OBSIDIAN_DIR',
+      'bridge.env:FOUNDRY_AI_OPEN_BASE',
+      'dashboard-access.env:GM_DASHBOARD_TOKEN|GM_EMAILS',
+      'assistant-gm.env:ASSISTANT_GM_PASSWORD',
+    ]);
+    assert.ok(!bad.stdout.includes('hunter2'));
+  });
+
+  test('dry run: with docker.service inactive docker is never called and containers are null', async () => {
+    const pi = fakePi({
+      dockerActive: false,
+      containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
+    });
+    const r = await run(pi, { args: ['--dry-run'] });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).deployed.containers, null);
+    // Positive control: with docker.service active the same stub is called, so the log mechanism works.
+    const control = fakePi({ containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }] });
+    await run(control, { args: ['--dry-run'] });
+    assert.match(readFileSync(control.callLog, 'utf8'), /^ps /m);
+    assert.equal(existsSync(pi.callLog), false, 'a stopped daemon must not be socket-activated by a docker call');
+  });
+
   test('dry run: Foundry down and a failed backup are reported, not errors', async () => {
-    const r = await run(fakePi({ backupResult: 'failed' }), { args: ['--dry-run'] });
+    const r = await run(fakePi({ backupResult: 'failed', unitState: 'failed' }), { args: ['--dry-run'] });
     assert.equal(r.status, 0, r.stderr);
     const p = JSON.parse(r.stdout);
-    assert.deepEqual(p.foundry, { up: false, version: null, dnd5e: null });
+    assert.deepEqual(p.foundry, { up: false, serviceActive: false, version: null, dnd5e: null });
     assert.equal(p.backup.result, 'failed');
+  });
+
+  test('no snapshot yet, an unsynchronized clock and no offset are reported as null/false, never an error', async () => {
+    const r = await run(fakePi({ snapshotEpoch: null, ntp: 'no', offset: '' }), { args: ['--dry-run'] });
+    assert.equal(r.status, 0, r.stderr);
+    const p = JSON.parse(r.stdout);
+    assert.equal(p.backup.snapshotAt, null);
+    assert.deepEqual(p.clock, { ntpSynced: false, offsetMs: null });
+  });
+
+  test('clock offsets in us, s and min are converted to milliseconds', async () => {
+    for (const [offset, ms] of [
+      ['340us', 0.34],
+      ['+954us', 0.954],
+      ['+500μs', 0.5],
+      ['+1.2s', 1200],
+      ['-2min', -120000],
+      ['+2min 5.300s', 125300],
+      ['-1h 2min 3s', -3723000],
+      ['garbage 2s', null],
+    ]) {
+      const r = await run(fakePi({ offset }), { args: ['--dry-run'] });
+      assert.equal(JSON.parse(r.stdout).clock.offsetMs, ms, offset);
+    }
   });
 
   test('odd version strings are dropped', async () => {
@@ -249,11 +372,7 @@ describe('stage text', () => {
 const CONTAINER = process.env.PI_STAGE16_CONTAINER === '1';
 describe('stage 16 in the ARM64 container', { skip: !CONTAINER }, () => {
   test('scenarios', () => {
-    const r = spawnSync(
-      'docker',
-      ['run', '--rm', '--platform', 'linux/arm64', '-v', `${repo}:/repo:ro`, 'debian:13-slim', 'bash', '/repo/scripts/pi/container-test/stage16-scenarios.sh'],
-      { encoding: 'utf8', timeout: 600000 },
-    );
+    const r = runStageContainer('stage16-scenarios.sh', { timeout: 600000 });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
   });

@@ -1,6 +1,6 @@
-// The During layouts (D-092, I-107), ported from the old page: the bar with the layout switch
+// The During layouts (D-092, I-107): the bar with the layout switch
 // (Cards, Simple/Full, Auto), the quiet hint, the Before card and the guide of the layout trial,
-// and the two "During screen" entries of the Advanced menu. The old page's moments.css lays the
+// and the two "During screen" entries of the Advanced menu. The shared moments.css lays the
 // slots out per `data-layout`, `data-context` and `data-view` on #moment-during (Moments.tsx sets
 // them); the choice is kept per world on the server (lib/prefs.ts), so either page shows it.
 import { lazy, Suspense, useEffect, useRef, useState, type JSX } from 'react';
@@ -20,6 +20,8 @@ import {
   type DuringScreen,
   type Trial,
 } from '../lib/duringTrial';
+import { useLivePlay } from '../lib/livePlay';
+import { offReason } from '../lib/liveSwitches';
 import { useSavePrefs, usePrefs } from '../lib/prefs';
 import {
   hintSessionKey,
@@ -28,21 +30,30 @@ import {
   type DuringPrefs,
 } from '../lib/prefsModel';
 import { usePlaySession } from '../lib/session';
-import { useCombatActive, useDashboardSettings } from '../lib/stream';
+import { useCombatActive } from '../lib/stream';
 import { usage } from '../lib/usage';
-import { Button, IconButton, Tooltip } from '../ui';
+import { Button, DelayedLoading, IconButton, Tooltip } from '../ui';
 
 import { AdvancedItem, AdvancedLabel } from './AdvancedMenu';
 import { useDuringFolds, type DuringFolds } from './Folds';
 import { useHelp } from './HelpButton';
 import type { Moment } from './Moments';
 import { useToast } from './Toasts';
+import { TurnOnNote } from './TurnOnNote';
 
 // The picker is a lazy chunk (bundle budget): it loads when the bar's Start combat is clicked.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// So is the Conditions panel: it loads when the bar's Conditions button is clicked.
+const ConditionsPanel = lazy(() =>
+  import('./ConditionsPanel').then(m => ({ default: m.ConditionsPanel }))
+);
+// And the Scene mood panel: it loads when the bar's Scene mood button is clicked.
+const SceneMoodPanel = lazy(() =>
+  import('./SceneMoodPanel').then(m => ({ default: m.SceneMoodPanel }))
+);
 
 /** What the layout buttons say while the world (and so the saved choice) is not known yet. */
-export const NOT_READY_TIP =
+const NOT_READY_TIP =
   'Your choice is saved for the world, which Foundry has not told the dashboard yet.';
 
 const NOT_READY_BAR_ID = 'during-not-ready';
@@ -68,7 +79,6 @@ export interface DuringActions {
   nextStep: () => void;
   useStep: () => void;
   stopTrial: () => void;
-  toggleCombatButtons: () => void;
   /** The version tracker switch (I-127); lives here because this controller owns the prefs. */
   toggleVersionTracker: () => void;
 }
@@ -88,15 +98,13 @@ export interface DuringController {
 
 /**
  * The During layouts for the page: reads the saved choices and the fight, runs the trial, counts
- * the hint. `pinDuring` puts the page on During (the trial starts there and stays, as on the old
- * page).
+ * the hint. `pinDuring` puts the page on During (the trial starts there and stays).
  */
 export function useDuringLayout(moment: Moment | null, pinDuring: () => void): DuringController {
   const toast = useToast();
   const prefs = usePrefs();
   const combatActive = useCombatActive();
   const { session } = usePlaySession();
-  const settings = useDashboardSettings();
   const save = useSavePrefs(toast);
   const [trial, setTrial] = useState<Trial | null>(null);
 
@@ -174,18 +182,6 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
       });
     },
     stopTrial: () => setTrial(null),
-    toggleCombatButtons: () => {
-      const on = prefs?.combatButtons !== true;
-      void save({ combatButtons: on }).then(saved => {
-        if (!saved || !on) return;
-        toast(
-          settings?.gmActionsEnabled
-            ? '✓ Combat buttons on: click combatants in the turn-order strip to pick them.'
-            : '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.',
-          'ok'
-        );
-      });
-    },
     toggleVersionTracker: () => {
       void save({ versionTracker: prefs?.versionTracker !== true });
     },
@@ -230,21 +226,33 @@ function LayoutButton({
 /**
  * The During bar (the first row of the During view): the layout switch and its help, the Simple/
  * Full switch, the note for Auto, and the quiet hint. The hint and the notes are in the page and
- * hidden when they do not apply, as on the old page.
+ * hidden when they do not apply.
  */
 export function DuringBar({ during }: { during: DuringController }): JSX.Element {
   const openHelp = useHelp();
   const { screen, hintVisible, prefs, trial, actions } = during;
-  const settings = useDashboardSettings();
+  const live = useLivePlay();
+  const liveOff = live.off();
   const [picking, setPicking] = useState(false);
   // The strip has its own Start combat in the Full view; everywhere else with no fight, it is here.
-  const startHere =
-    settings?.gmActionsEnabled === true &&
-    trial === null &&
-    screen.context === 'calm' &&
-    screen.view !== 'full';
+  // With live play off the button stays, disabled, with the reason and a Turn on.
+  const barHere = trial === null && screen.context === 'calm' && screen.view !== 'full';
+  const startHere = barHere && liveOff.length === 0;
   const pickerRow = useRef<HTMLDivElement>(null);
   const giveFocusBack = useRef(false);
+  // Conditions work in a fight and out of one, so the button is on the bar whenever live play is on.
+  const conditionsHere = trial === null && liveOff.length === 0;
+  const [conditionsOpen, setConditionsOpen] = useState(false);
+  useEffect(() => {
+    if (!conditionsHere) setConditionsOpen(false);
+  }, [conditionsHere]);
+  // Scene mood is on the bar whenever the trial is not running: with a switch off its buttons
+  // stay, disabled, and say which switch.
+  const moodHere = trial === null;
+  const [moodOpen, setMoodOpen] = useState(false);
+  useEffect(() => {
+    if (!moodHere) setMoodOpen(false);
+  }, [moodHere]);
   // The picker belongs to the button: when the button goes away (a fight began, Full, GM Actions
   // off), the next calm screen starts closed.
   useEffect(() => {
@@ -277,7 +285,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
     return undefined;
   }, [picking]);
   return (
-    <div className="during-bar" id="during-bar">
+    <div className="during-bar" id="during-bar" tabIndex={-1}>
       <NotReadyNote id={NOT_READY_BAR_ID} show={prefs === undefined} />
       <div className="layout-switch" role="group" aria-label="During layout">
         <span className="layout-switch-label">Layout</span>
@@ -300,14 +308,13 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         <LayoutButton
           layout="auto"
           during={during}
-          tip="Follows the game: combat brings the turn order and the party forward"
+          tip="Follows the game: combat brings the combat order and the party forward"
           data-track="dash.during.layout-auto"
         >
           Auto
         </LayoutButton>
       </div>
       <Button
-        variant="quiet"
         id="btn-layout-tour-bar"
         data-track="dash.during.layout-tour"
         hidden={trial !== null}
@@ -333,7 +340,6 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         </button>
       </Tooltip>
       <Button
-        variant="quiet"
         id="btn-during-full"
         data-track="dash.during.full-toggle"
         hidden={screen.layout !== 'toggle'}
@@ -350,9 +356,17 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       >
         {autoNote(screen.context)}
       </span>
+      {barHere && liveOff.length > 0 && (
+        <>
+          <Button id="btn-during-start-combat" aria-disabled="true" title={offReason(liveOff)}>
+            Start combat
+          </Button>
+          <TurnOnNote live={live} off={liveOff} />
+        </>
+      )}
       {startHere && !picking && (
         <Button
-          variant="quiet"
+          variant="primary"
           id="btn-during-start-combat"
           data-track="dash.during.start-combat"
           onClick={() => setPicking(true)}
@@ -362,7 +376,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       )}
       {startHere && picking && (
         <div className="during-start" ref={pickerRow}>
-          <Suspense fallback={null}>
+          <Suspense fallback={<DelayedLoading as="div" />}>
             <StartCombat
               onDismiss={() => {
                 giveFocusBack.current = true;
@@ -371,6 +385,56 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
             />
           </Suspense>
         </div>
+      )}
+      {conditionsHere && (
+        <Button
+          id="btn-during-conditions"
+          data-track="dash.during.conditions"
+          aria-expanded={conditionsOpen}
+          aria-controls="conditions-panel"
+          title="Add or remove a condition on tokens, in a fight or out of one"
+          onClick={() => setConditionsOpen(open => !open)}
+        >
+          Conditions
+        </Button>
+      )}
+      {conditionsHere && conditionsOpen && (
+        <div className="during-conditions">
+          <Suspense fallback={<DelayedLoading as="div" />}>
+            <ConditionsPanel
+              onClose={() => {
+                setConditionsOpen(false);
+                requestAnimationFrame(() =>
+                  document.getElementById('btn-during-conditions')?.focus()
+                );
+              }}
+            />
+          </Suspense>
+        </div>
+      )}
+      {moodHere && (
+        <Button
+          id="btn-during-scene-mood"
+          data-track="dash.during.scene-mood"
+          aria-expanded={moodOpen}
+          aria-controls="scene-mood-panel"
+          title="Set the scene's look and music from a saved mood preset"
+          onClick={() => setMoodOpen(open => !open)}
+        >
+          Scene mood
+        </Button>
+      )}
+      {moodHere && moodOpen && (
+        <Suspense fallback={<DelayedLoading as="div" />}>
+          <SceneMoodPanel
+            onClose={() => {
+              setMoodOpen(false);
+              requestAnimationFrame(() =>
+                document.getElementById('btn-during-scene-mood')?.focus()
+              );
+            }}
+          />
+        </Suspense>
       )}
       <p className="layout-hint" id="layout-hint" hidden={!hintVisible}>
         <span>
@@ -513,37 +577,13 @@ export function LayoutTourGuide({ during }: { during: DuringController }): JSX.E
   );
 }
 
-/** The "During screen" group of the Advanced menu: Combat buttons, and the layout trial. */
+/** The "During screen" group of the Advanced menu: the layout trial. */
 export function DuringMenuItems({ during }: { during: DuringController }): JSX.Element {
   const { prefs, actions } = during;
-  const on = prefs?.combatButtons === true;
   return (
     <>
       <AdvancedLabel>During screen</AdvancedLabel>
       <NotReadyNote id={NOT_READY_MENU_ID} show={!prefs} />
-      <AdvancedItem
-        disabled={!prefs}
-        onSelect={() => {
-          actions.toggleCombatButtons();
-          // Nothing opens, so the focus goes back to the Advanced button.
-          return false;
-        }}
-      >
-        <Button
-          id="btn-combat-buttons"
-          className={on ? 'on' : undefined}
-          data-track="dash.header.combat-buttons"
-          disabled={!prefs}
-          {...(prefs ? {} : { 'aria-describedby': NOT_READY_MENU_ID })}
-          title={
-            prefs
-              ? "Damage / Heal, Condition and Clear on selected combatants in the turn-order strip. Off by default: dnd5e's chat cards already apply damage."
-              : NOT_READY_TIP
-          }
-        >
-          {`⚔ Combat buttons: ${on ? 'on' : 'off'}`}
-        </Button>
-      </AdvancedItem>
       <AdvancedItem onSelect={() => actions.startTrial()}>
         <Button
           id="btn-layout-tour"

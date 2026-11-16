@@ -372,6 +372,7 @@ describe('get-play-session', () => {
       worldId: 'w1',
       open: false,
       startedAt: null,
+      mode: null,
       lastEventAt: null,
       endedAt: null,
       previousEndedAt: null,
@@ -386,10 +387,17 @@ describe('get-play-session', () => {
       worldId: 'w1',
       open: true,
       startedAt: new Date(nowMs).toISOString(),
+      mode: 'live',
       lastEventAt: new Date(nowMs).toISOString(),
       endedAt: null,
       previousEndedAt: null,
     });
+  });
+
+  it('says a paper night is open as mode paper (the Pi watch does not watch Foundry then)', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start', mode: 'paper' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({ open: true, mode: 'paper' });
   });
 
   it('while open, reports when the session before ended', async () => {
@@ -460,6 +468,7 @@ describe('get-play-session', () => {
       worldId: 'w1',
       open: false,
       startedAt: null,
+      mode: null,
       lastEventAt: new Date(nowMs).toISOString(),
       endedAt: new Date(nowMs).toISOString(),
       previousEndedAt: null,
@@ -615,6 +624,7 @@ describe('get-play-session with play records (O3 contract 3)', () => {
       worldId: 'w1',
       open: false,
       startedAt: null,
+      mode: null,
       lastEventAt: null,
       endedAt: null,
       previousEndedAt: null,

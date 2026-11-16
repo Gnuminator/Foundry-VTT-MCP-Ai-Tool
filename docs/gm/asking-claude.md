@@ -11,7 +11,8 @@ needed.
 
 ## Before you ask
 
-- Claude Desktop is running. Today it also starts the bridge.
+- Claude Desktop is running and connected to the bridge (on the Pi at the table, on the builder's PC
+  when testing).
 - Foundry is open in your browser and you are logged in as the GM. Without a GM in Foundry, Claude
   cannot reach the game.
 - The dashboard's **✈ Pre-flight** panel lists "Foundry connected", and no "Connection lost" mark shows.
@@ -29,7 +30,7 @@ Claude does not watch the game on its own. It reads what it needs at the moment 
 - The Tarokka reading and the list of revealed handouts (GM only).
 
 It can also act: roll for NPCs, apply damage or healing, move tokens, set conditions, add NPCs from
-compendiums, write journals, send chat messages, and more. The dashboard's tool runner shows every
+compendiums, write journals, send chat messages, and more. The dashboard's Tool Runner shows every
 tool Claude has.
 
 ## Good requests
@@ -52,7 +53,9 @@ Requests that go wrong:
 
 - "Kill the wolf." Which wolf? Several tokens can share a name. Say "Wolf 2" or pick the token.
 - "Make the next fight cooler." Too vague. Say what you want: tougher, shorter, more terrain.
-- "Fix everything from last night." Claude cannot undo direct actions; see below.
+- "Fix everything from last night." Direct actions can be undone only for changes to actors, items, tokens, scenes, combat and journals; see below.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I word a request so Claude does what I mean?" ([how to add the GM coach](gm-coach.md))
 
 ## Tool sets: which switches to turn on
 
@@ -72,6 +75,8 @@ new chats.
 
 A good default: core and prep on, the rest off. If you ask for something that needs a set that is
 off, Claude says which one to switch on.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Which tool sets should I switch on for prep, and which for game night?"
 
 ## Ready-made prompts
 
@@ -120,30 +125,42 @@ the Obsidian mirror settings):
 
 A guarded change is refused, and nothing is written, if its feature switch is off, if the plan is
 older than 15 minutes, or if the same thing changed in Foundry since the plan was made. Deletes,
-reveals and hides count as destructive and need your explicit yes for that too.
+Tarokka reveals and hides count as destructive and need your explicit yes for that too. Showing a
+handout page to players is an ordinary change with an Undo, so one yes is enough.
 
 In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, apply without
-confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,
-healing, conditions and resources that Claude plans. Each change still lands in Recent Changes with
-**Undo**. The dashboard's own buttons never need it: they apply at once with an **Undo** message
-(see [the dashboard guide](dashboard.md#the-confirm-window)).
+confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for the live-play
+plans Claude makes that delete nothing: damage, healing, temporary hit points, conditions and
+resources; scene dressing (placing templates, darkness and light, adding map notes, giving loot);
+and starting a fight. Plans that delete something (clearing a template, removing a map note, ending
+a fight) and token moves and changes still wait for your yes. Each change still lands in Recent
+Changes with **Undo**. The dashboard's party and Tarokka buttons never need it: they apply at once with an
+**Undo** message. Its Damage / Heal form applies at once the same way; its Condition chips ask in
+one line before they apply (see
+[the dashboard guide](dashboard.md#the-confirm-window)).
 
 ### Feature switches
 
 All in **Game Settings**, category **Foundry AI Tool**. They stop the dashboard's changes as well
 as Claude's.
 
-| Setting                                      | Default | Lets Claude and the dashboard                                                                                                                                            |
-| -------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                                                                                                  |
-| AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens; place templates, set darkness and light, add map notes, give loot. |
-| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources that Claude plans.                                                                                   |
-| AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                                                                                            |
-| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, place the party on the map, add it to combat, post a rest request.                                                                       |
-| AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                                                                                            |
-| AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                                                                                                  |
-| AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                                                                                    |
-| AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).                                                                        |
+| Setting                                      | Default | Lets Claude and the dashboard                                                                                                                                                    |
+| -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI Tool: Allow Write Operations              | On      | Change anything at all. Off makes the whole tool read-only (see below).                                                                                                          |
+| AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens; place templates, set darkness and light, add map notes, give loot.         |
+| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, temporary hit points, conditions, resources, scene dressing and starting a fight that Claude plans. Not for token changes or deletes. |
+| AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                                                                                                    |
+| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, place the party on the map, add it to combat, post a rest request.                                                                               |
+| AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                                                                                                    |
+| AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                                                                                                          |
+| AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                                                                                            |
+| AI Tool: Obsidian import (writes)            | Off     | Create a GM-only quest journal from a quest note in your Obsidian `Prep` folder. Started in Obsidian, confirmed in the dashboard; Claude has no tool for it.                     |
+| AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).                                                                                |
+
+Other switches in the same category: the table viewer, "Undo for everything", the GM windows and
+"AI Tool: Rules check" (read only) start on; scene mood and music, room setup, scene restore, the
+NPC turn assistant and paper sync start off, and so does "AI Tool: Who would notice" (a
+passive-score row in the party drawer, read only). [Features and when to turn them on](features.md) says what each one does.
 
 **Session notes go in without asking.** With "AI Tool: Session notes (writes)" on, the bridge puts
 the notes of a recorded session (pages Recap, GM summary and Scenes, Danish first and English
@@ -154,7 +171,10 @@ reveal it: it waits in the reveal queue. "Turn on for tonight" does not turn thi
 
 **Direct actions** (rolls, new NPCs, journals, chat messages and others) happen as
 soon as Claude uses the tool. They are not listed
-in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundry. So:
+in Recent Changes, but their changes to actors, items, tokens, scenes, combat and journals show in
+the Changes list and can be undone there while "AI Tool: Undo for everything" is on. Only those can
+be undone: music (playlists), folders, chat messages and rolls cannot, and you fix those by hand in
+Foundry. So:
 
 - Ask Claude to tell you what it will do before it does it: "Tell me the plan, then wait for my
   OK."
@@ -168,7 +188,7 @@ in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundr
 - When Claude uses an item or a spell, Foundry opens the usage dialog on your screen, and you
   finish it there.
 
-The setting "Allow Write Operations" (Game Settings, category **Foundry AI Tool**; on by default)
+The setting "AI Tool: Allow Write Operations" (Game Settings, category **Foundry AI Tool**; on by default)
 is the tool's read-only switch. Turned off, the tool changes nothing: no new actors or items, no
 token, scene, combat, damage or condition changes, no ownership changes, no journal writes, no chat
 or roll messages, no guarded changes (also those that only touch the tool's own storage, such as a
@@ -177,13 +197,16 @@ dashboard's actions too, not only Claude.
 
 The dashboard's **GM Actions** switch only guards the dashboard. It does not stop Claude Desktop.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I check and undo what Claude changes in my game?"
+
 ## What Claude cannot do
 
 - **Work without a GM in Foundry.** The module runs in a GM's Foundry browser tab, and the bridge
   reaches the game only through it.
 - **See the screen.** It reads game data, not the picture of the map.
 - **Get past a feature switch.** With a feature switched off, no plan for it can be applied.
-- **Undo direct actions.** Only guarded changes have Undo.
+- **Undo music, folders, chat messages and rolls.** Only changes to actors, items, tokens, scenes,
+  combat and journals can be undone.
 - **Read books you do not have in Foundry.** The tool contains no book or adventure text. Claude
   reads the rules and the adventure from the compendiums and journals in your world, at the moment
   you ask. If a book is not installed in Foundry, Claude cannot quote it.

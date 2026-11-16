@@ -41,7 +41,7 @@ function fakeBuild(imports = {}) {
       'handouts/strip-secrets.js',
       'prompts/register.js',
     ].map(f => `packages/mcp-server/dist/${f}`),
-    ...['app.js', 'config.js', 'ai/anthropic-co-gm.js'].map(f => `packages/cogm-dashboard/dist/${f}`),
+    ...['app.js', 'config.js'].map(f => `packages/cogm-dashboard/dist/${f}`),
     'shared/dist/index.js',
     'packages/discord-bot/dist/rec/voice.js',
   ];
@@ -83,15 +83,6 @@ describe('check_build_loads on fake builds', () => {
     assert.equal(r.status, 1, r.out);
     assert.match(r.out, /dashboard: packages\/cogm-dashboard\/dist\/app\.js: .*express/);
     assert.doesNotMatch(r.out, /bridge:/);
-  });
-
-  test('the dashboard server-only modules are loaded too (the AI client is not reachable from app.js)', () => {
-    const root = fakeBuild({
-      'packages/cogm-dashboard/dist/ai/anthropic-co-gm.js': ['@anthropic-ai/sdk'],
-    });
-    const r = check(root);
-    assert.equal(r.status, 1, r.out);
-    assert.match(r.out, /dashboard: packages\/cogm-dashboard\/dist\/ai\/anthropic-co-gm\.js: .*anthropic-ai/);
   });
 
   test('every failing package is listed, not only the first', () => {

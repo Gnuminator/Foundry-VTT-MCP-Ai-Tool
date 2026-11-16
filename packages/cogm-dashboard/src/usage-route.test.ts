@@ -9,7 +9,6 @@ import type { AddressInfo } from 'net';
 import { USAGE_LIMITS, type UsageEvent } from '@gnuminator/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig } from './config.js';
 import { ChannelError } from './feed/mcp-control-client.js';
@@ -29,13 +28,6 @@ const SPLIT_ON: Partial<AuthConfig> = {
 const ANNA = { id: 'PlayerAnnaaaaaaaaa', name: 'Anna', isGM: false };
 const BO = { id: 'PlayerBoooooooooo', name: 'Bo', isGM: false };
 const GM = { id: 'GmCyyyyyyyyyyyyy', name: 'Cy', isGM: true };
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 class FakeBridge {
   readonly batches: UsageEvent[][] = [];
@@ -92,7 +84,6 @@ async function start(
     config: { ...config, auth: { ...config.auth, ...auth } },
     logger: new Logger('error', 'usage-test'),
     client,
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

@@ -1,11 +1,25 @@
 // The combat strip on the React dashboard (D-092, I-070, I-095): the rows from a `combat` stream
-// event, picking rows and the action bar, Damage / Heal and Condition opening the Tool runner
-// filled in (and writing nothing), Boss prompts and the reaction buttons, the fight marked old
+// event, picking rows and the action bar, Damage / Heal opening its small form (one guarded write
+// when its button is pressed), Condition and End combat inline (plan, one confirm, apply with
+// Undo; no Tool Runner), Boss prompts and the reaction buttons, the fight marked old
 // while the bridge is away, and that the strip is out of the way when no fight runs. The bridge
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok, type ToolCall } from './support';
+import {
+  GM_TOKEN,
+  NO_PLAYERS,
+  PREFLIGHT_OK,
+  SPACE_UNAVAILABLE,
+  switchesBody,
+  fakeCommonRoutes,
+  fakeTools,
+  fromMenu,
+  ok,
+  toast,
+  type ToolCall,
+  settle,
+} from './support';
 
 // The dash the strip shows for no value.
 const DASH = String.fromCharCode(0x2014);
@@ -15,9 +29,9 @@ const STARTED = '2026-10-10T18:00:00.000Z';
 // lib/stream.ts AWAY_AFTER_MS: how long a failed poll keeps the strip from saying so.
 const AWAY_AFTER_MS = 5000;
 
-// The reads the page and the Tool runner make themselves (see `setup`). The strip writes nothing,
-// so a test that clicked its buttons expects no other call, whatever a future write is named, and
-// no call that carries a confirm flag.
+// The reads the page and the Tool Runner make themselves (see `setup`). The strip writes only
+// from the Damage / Heal form and the roll row; a test that clicked other buttons expects no other
+// call, whatever a future write is named, and no call that carries a confirm flag.
 const PAGE_READS = new Set([
   'get-play-session',
   'get-party',
@@ -118,7 +132,6 @@ type Layout = 'layered' | 'toggle' | 'auto';
 interface Options {
   layout?: Layout;
   full?: boolean;
-  combatButtons?: boolean;
   gmActions?: boolean;
   /** Sent after the prefs and settings. */
   initial?: Event[];
@@ -126,11 +139,15 @@ interface Options {
   bossFlag?: 'on' | 'off';
   /** What list-ref-choices answers for the token picker. */
   tokenChoices?: { id: string; name: string }[];
+  /** Answers a call before the defaults do (a failing tool); undefined leaves it to them. */
+  answer?: (call: ToolCall) => { status?: number; json: unknown } | undefined;
 }
 
 interface Fakes {
   /** Sends events on the stream after the page loaded. */
   push: (events: Event[]) => void;
+  /** Resolves once everything pushed has reached the page and the page has rendered it. */
+  drained: () => Promise<void>;
   /** The tool calls the page made. */
   calls: ToolCall[];
 }
@@ -174,27 +191,27 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
   const {
     layout = 'layered',
     full = false,
-    combatButtons = false,
     gmActions = true,
     initial = [],
     bossFlag,
     tokenChoices = [],
+    answer,
   } = options;
   if (bossFlag) {
     await page.addInitScript(flag => localStorage.setItem('cogm_boss_prompts', flag), bossFlag);
   }
   await fakeCommonRoutes(page);
-  await page.route('**/api/space', route => route.fulfill({ json: { available: false } }));
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
-  await page.route('**/api/player/names', route => route.fulfill({ json: [] }));
+  await page.route('**/api/space', route => route.fulfill({ json: SPACE_UNAVAILABLE }));
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  await page.route('**/api/player/names', route => route.fulfill({ json: NO_PLAYERS }));
   await page.route('**/api/tools', route =>
     route.fulfill({ json: { tools: TOOLS, gmActionsEnabled: gmActions } })
   );
   const calls = await fakeTools(
     page,
     call => {
+      const custom = answer?.(call);
+      if (custom) return custom;
       switch (call.name) {
         case 'get-play-session':
           return ok({ success: true, worldId: 'w', open: true, startedAt: STARTED, endedAt: null });
@@ -227,6 +244,16 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
               },
             ],
           });
+        case 'plan-actor-change':
+          return ok({
+            planId: 'plan-hit',
+            feature: 'live-play',
+            summary: 'Damage',
+            risk: 'write',
+            requires: { confirm: true, confirmDestructive: false },
+          });
+        case 'request-player-rolls':
+          return ok({ success: true, message: 'sent' });
         case 'plan-combat-change':
           return ok({
             planId: 'plan-start',
@@ -259,7 +286,6 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
       data: {
         duringLayout: layout,
         duringFull: full,
-        combatButtons,
         layoutPicked: true,
         hintDismissed: true,
         hintSessions: [],
@@ -271,6 +297,7 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
   const queue: Event[][] = [];
   let wake: () => void = () => undefined;
   let requests = 0;
+  let delivering = false;
   await page.route('**/api/stream**', async route => {
     requests += 1;
     let events = first;
@@ -278,13 +305,19 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
       while (queue.length === 0) await new Promise<void>(resolve => (wake = resolve));
       events = queue.shift() ?? [];
     }
+    delivering = true;
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse(events, 100) });
+    delivering = false;
   });
   return {
     calls,
     push: (events): void => {
       queue.push(events);
       wake();
+    },
+    drained: async (): Promise<void> => {
+      await expect.poll(() => queue.length === 0 && !delivering).toBe(true);
+      await settle(page);
     },
   };
 }
@@ -323,7 +356,8 @@ test.describe('the rows', () => {
   test('one row per combatant in the bridge order, with the old ids and classes', async ({
     page,
   }) => {
-    await setup(page, { initial: [fight(PARTY_FIGHT, { turn: 1 })] });
+    // Rows that cannot be picked (GM Actions off) keep the plain name span.
+    await setup(page, { gmActions: false, initial: [fight(PARTY_FIGHT, { turn: 1 })] });
     await load(page);
 
     await expect(strip(page)).toBeVisible();
@@ -479,6 +513,85 @@ test.describe('start combat', () => {
     expect(planned?.args).toEqual({ action: 'start', tokenIds: ['tk-wolf', 'tk-shop'] });
     // The picker closes once the change is in.
     await expect(list).toBeHidden();
+    // The default dashboard never rolls initiative: the GM does it (or asks Claude).
+    expect(calls.map(c => c.name)).not.toContain('roll-initiative-for-npcs');
+  });
+
+  test('a lost answer to the first ask stops the asking: the rest count as not asked', async ({
+    page,
+  }) => {
+    const pc = (tokenId: string, name: string): Record<string, unknown> => ({
+      tokenId,
+      name,
+      actorId: `a-${tokenId}`,
+      category: 'pc',
+      hidden: false,
+    });
+    const { calls } = await setup(page, {
+      ...FULL_CALM,
+      answer: call => {
+        if (call.name === 'get-token-positions')
+          return ok({
+            success: true,
+            sceneName: 'Field',
+            tokens: [pc('tk-a', 'Aria'), pc('tk-b', 'Brannoc')],
+          });
+        if (call.name === 'request-player-rolls')
+          return {
+            status: 502,
+            json: { ok: false, error: 'The bridge did not answer', kind: 'timeout' },
+          };
+        return undefined;
+      },
+    });
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Start combat with 2' }).click();
+    const toasts = page.locator('.toast-stack');
+    await expect(toasts.getByText('Not confirmed for Aria', { exact: false })).toBeVisible();
+    await expect(toasts.getByText('Initiative was not asked of Brannoc')).toBeVisible();
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toHaveLength(1);
+  });
+
+  test('the second initiative ask waits for the first to be answered', async ({ page }) => {
+    const pc = (tokenId: string, name: string): Record<string, unknown> => ({
+      tokenId,
+      name,
+      actorId: `a-${tokenId}`,
+      category: 'pc',
+      hidden: false,
+    });
+    const { calls } = await setup(page, {
+      ...FULL_CALM,
+      answer: call =>
+        call.name === 'get-token-positions'
+          ? ok({
+              success: true,
+              sceneName: 'Field',
+              tokens: [pc('tk-a', 'Aria'), pc('tk-b', 'Brannoc')],
+            })
+          : undefined,
+    });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    let sent = 0;
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'request-player-rolls') {
+        sent += 1;
+        await held;
+      }
+      await route.fallback();
+    });
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Start combat with 2' }).click();
+    await expect.poll(() => sent).toBe(1);
+    await settle(page);
+    // The first ask is still unanswered: the second has not been sent.
+    expect(sent).toBe(1);
+    release();
+    await expect.poll(() => calls.filter(c => c.name === 'request-player-rolls').length).toBe(2);
   });
 
   test('Cancel closes the picker and writes nothing', async ({ page }) => {
@@ -566,10 +679,18 @@ test.describe('start combat', () => {
     ).toHaveCount(0);
   });
 
-  test('GM Actions off: no Start combat on the bar', async ({ page }) => {
+  test('GM Actions off: Start combat on the bar is disabled with a reason and Turn on', async ({
+    page,
+  }) => {
     await setup(page, { layout: 'layered', gmActions: false });
     await load(page);
-    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
+    const start = page.locator('#during-bar').getByRole('button', { name: 'Start combat' });
+    await expect(start).toHaveAttribute('aria-disabled', 'true');
+    await expect(start).toHaveAttribute('title', 'GM Actions is off');
+    await expect(page.locator('#during-bar .turn-on-note')).toContainText('GM Actions is off.');
+    await expect(
+      page.locator('#during-bar').getByRole('button', { name: 'Turn on' })
+    ).toBeVisible();
   });
 
   test('a running fight: no Start combat on the bar', async ({ page }) => {
@@ -579,11 +700,15 @@ test.describe('start combat', () => {
     await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
   });
 
-  test('GM Actions off: no Start combat button', async ({ page }) => {
+  test('GM Actions off: the strip keeps a disabled Start combat with Turn on', async ({ page }) => {
     await setup(page, { ...FULL_CALM, gmActions: false });
     await load(page);
     await expect(strip(page)).toBeAttached();
-    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    await expect(strip(page).getByRole('button', { name: 'Turn on' })).toBeVisible();
   });
 
   test('a running fight has no Start combat button', async ({ page }) => {
@@ -594,36 +719,68 @@ test.describe('start combat', () => {
   });
 });
 
-test.describe('picking combatants', () => {
-  test('Combat buttons off: rows cannot be picked and there is no action bar', async ({ page }) => {
-    await setup(page, { combatButtons: false, initial: [fight(PARTY_FIGHT)] });
-    await load(page);
-    await expect(row(page, 'Brannoc')).not.toHaveClass(/selectable/);
-    await expect(page.locator('#combat-body button.combatant-pick')).toHaveCount(0);
-    await row(page, 'Brannoc').click();
-    await expect(row(page, 'Brannoc')).not.toHaveClass(/selected/);
-    await expect(page.locator('#combat-actions')).toBeHidden();
-  });
+/** The bridge's plan for End combat, as plan-combat-change answers it. */
+const endAnswer = (call: ToolCall): { status?: number; json: unknown } | undefined => {
+  if (call.name === 'plan-combat-change') {
+    return ok({
+      planId: 'plan-end',
+      feature: 'live-play',
+      summary: 'End combat on "Field" (round 2, 4 combatants)',
+      warning: 'Undo brings the fight back, but not expired effects.',
+      risk: 'destructive',
+      requires: { confirm: true, confirmDestructive: true },
+    });
+  }
+  if (call.name === 'apply-planned-change') {
+    return ok({
+      changeId: 'chg-end',
+      planId: 'plan-end',
+      feature: 'live-play',
+      summary: 'End combat on "Field"',
+      mode: 'apply',
+      risk: 'destructive',
+    });
+  }
+  return undefined;
+};
 
-  test('Combat buttons on but GM Actions off: still no rows to pick, no action bar', async ({
+/** The toast that says a change went in, with its Undo button. */
+const undoToast = (page: Page, text: string): Locator =>
+  page
+    .locator('.toast-stack .toast.toast-undo')
+    .filter({ hasText: text })
+    .getByRole('button', { name: 'Undo' });
+
+test.describe('picking combatants', () => {
+  test('GM Actions off: no rows to pick; End combat and the roll buttons are disabled with Turn on', async ({
     page,
   }) => {
-    await setup(page, { combatButtons: true, gmActions: false, initial: [fight(PARTY_FIGHT)] });
+    await setup(page, { gmActions: false, initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await expect(row(page, 'Brannoc')).not.toHaveClass(/selectable/);
     await expect(page.locator('#combat-actions')).toBeHidden();
     await expect(page.locator('#combat-body button.combatant-pick')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'End combat' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    await expect(page.locator('#strip-roll-party')).toHaveAttribute('aria-disabled', 'true');
+    await expect(strip(page).getByRole('button', { name: 'Turn on' })).toHaveCount(2);
   });
 
   test('both on: a hint, then a count and the buttons', async ({ page }) => {
-    await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     const bar = page.locator('#combat-actions');
     await expect(bar).toBeVisible();
     await expect(bar.locator('.ca-hint')).toHaveText(
       'Click combatants to deal damage or set a condition on them.'
     );
-    await expect(bar.locator('.ca-btn')).toHaveText(['End combat']);
+    await expect(bar.locator('.ca-btn')).toHaveText([
+      'Attack',
+      'Use Foundry targets',
+      'End combat',
+    ]);
     await expect(row(page, 'Ogre Brute')).toHaveClass(/selectable/);
     await expect(row(page, 'Ogre Brute')).toHaveAttribute(
       'data-track',
@@ -638,8 +795,10 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-count')).toHaveText('2 selected');
     await expect(bar.locator('.ca-btn')).toHaveText([
       'Damage / Heal',
+      'Attack',
       'Condition',
       'Clear',
+      'Use Foundry targets',
       'End combat',
     ]);
     await expect(bar.locator('[data-sel="clear"]')).toHaveText('Clear');
@@ -657,7 +816,7 @@ test.describe('picking combatants', () => {
   });
 
   test('the keyboard can pick a row: Tab to its button, Enter or Space', async ({ page }) => {
-    await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     const ogre = pick(page, 'Ogre Brute');
     await ogre.focus();
@@ -673,7 +832,7 @@ test.describe('picking combatants', () => {
   test('a picked combatant that leaves the fight is dropped; the fight ending clears the picks', async ({
     page,
   }) => {
-    const { push } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    const { push } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await row(page, 'Ogre Brute').click();
     await row(page, 'Goblin Archer').click();
@@ -686,40 +845,192 @@ test.describe('picking combatants', () => {
     await expect(page.locator('#combat-actions .ca-hint')).toBeVisible();
   });
 
-  test('Damage / Heal opens the Tool runner on plan-actor-change, filled in, and writes nothing', async ({
+  test('Damage / Heal opens the small form and writes nothing until the button is pressed', async ({
     page,
   }) => {
-    const { calls } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await row(page, 'Ogre Brute').click();
     await row(page, 'Goblin Archer').click();
     await page.locator('#combat-actions [data-sel="damage"]').click();
 
-    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
-    await expect(drawer).toBeVisible();
-    await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-actor-change');
-    await expect(drawer.locator('#tool-field-action')).toHaveValue('damage');
-    // The bridge's order, not the order they were picked in.
-    await expect(drawer.locator('#tool-field-targets')).toHaveValue('Goblin Archer\nOgre Brute');
-    // Nothing planned or applied: the GM presses Run in the Tool runner.
-    await expect(drawer.locator('#tool-run')).toBeVisible();
+    const form = page.locator('#damage-form');
+    await expect(form).toBeVisible();
+    await expect(page.locator('#damage-amount')).toBeFocused();
+    await expect(form.locator('#damage-apply')).toHaveText('Type an amount');
+    await expect(form).toContainText('Applies to the tokens in Foundry as soon as you press');
     expect(beyondReads(calls)).toEqual([]);
   });
 
-  test('End combat opens the Tool runner on plan-combat-change, filled in, and writes nothing', async ({
+  test('Clear closes the Damage / Heal form for good: the next pick does not reopen it', async ({
     page,
   }) => {
-    const { calls } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Ogre Brute').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await row(page, 'Goblin Archer').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+  });
+
+  test('Damage: an amount and a type plan and apply on both picked tokens in one click', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Ogre Brute').click();
+    await row(page, 'Goblin Archer').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await page.locator('#damage-amount').fill('8');
+    await page.locator('#damage-form').getByRole('button', { name: 'fire' }).click();
+    await expect(page.locator('#damage-apply')).toHaveText(
+      'Deal 8 fire damage to Goblin Archer and Ogre Brute in Foundry'
+    );
+    await page.locator('#damage-apply').click();
+
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    expect(
+      calls.filter(c => c.name === 'plan-actor-change' || c.name === 'apply-planned-change')
+    ).toEqual([
+      {
+        name: 'plan-actor-change',
+        args: {
+          action: 'damage',
+          targets: ['Goblin Archer', 'Ogre Brute'],
+          amount: 8,
+          damageType: 'fire',
+        },
+      },
+      { name: 'apply-planned-change', args: { planId: 'plan-hit' }, confirm: true },
+    ]);
+  });
+
+  test('Heal: the chips go and the plan is a healing', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Brannoc').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    const form = page.locator('#damage-form');
+    await expect(form.getByRole('button', { name: 'fire' })).toBeVisible();
+    await form.getByRole('button', { name: 'Heal', exact: true }).click();
+    await expect(form.getByRole('button', { name: 'fire' })).toHaveCount(0);
+    await page.locator('#damage-amount').fill('5');
+    await page.locator('#damage-amount').press('Enter');
+    await expect(form).toHaveCount(0);
+    expect(calls.find(c => c.name === 'plan-actor-change')?.args).toEqual({
+      action: 'healing',
+      targets: ['Brannoc'],
+      amount: 5,
+    });
+  });
+
+  test('Escape closes the Damage / Heal form without writing', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Brannoc').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await page.locator('#damage-amount').press('Escape');
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    expect(beyondReads(calls)).toEqual([]);
+  });
+
+  test('Ask the party sends one request-player-rolls per player character', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(BOSS_FIGHT)] });
+    await load(page);
+    await page.locator('#strip-roll-what').selectOption('save:dex');
+    await page.locator('#strip-roll-dc').fill('14');
+    await page.locator('#strip-roll-visibility').selectOption('public');
+    await page.locator('#strip-roll-party').click();
+    await expect(toast(page, '✓ Sent: Dexterity save DC 14 to 2 characters')).toBeVisible();
+    const rolls = calls.filter(c => c.name === 'request-player-rolls');
+    expect(rolls.map(c => c.args)).toEqual(
+      ['Brannoc', 'Mira'].map(name => ({
+        rollType: 'save',
+        rollTarget: 'dex',
+        targetPlayer: name,
+        isPublic: true,
+        userConfirmedVisibility: true,
+        dc: 14,
+        flavor: 'DC 14',
+      }))
+    );
+    expect(rolls.every(c => c.confirm === true)).toBe(true);
+  });
+
+  test('a picked player character gets its own Ask button; monsters have none', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await expect(page.locator('#strip-roll-picked')).toHaveCount(0);
+    await row(page, 'Ogre Brute').click();
+    await expect(page.locator('#strip-roll-picked')).toHaveCount(0);
+    await row(page, 'Brannoc').click();
+    await expect(page.locator('#strip-roll-picked')).toHaveText('Ask Brannoc');
+    await page.locator('#strip-roll-picked').click();
+    await expect(toast(page, '✓ Sent: Perception to Brannoc')).toBeVisible();
+    expect(calls.filter(c => c.name === 'request-player-rolls').map(c => c.args)).toEqual([
+      {
+        rollType: 'skill',
+        rollTarget: 'perception',
+        targetPlayer: 'Brannoc',
+        isPublic: false,
+        userConfirmedVisibility: true,
+      },
+    ]);
+  });
+
+  test('End combat plans, asks one plain question, then applies with Undo; no Tool Runner', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });
     await load(page);
     await page.locator('#combat-actions [data-sel="end"]').click();
 
-    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
-    await expect(drawer).toBeVisible();
-    await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-combat-change');
-    await expect(drawer.locator('#tool-field-action')).toHaveValue('end');
-    // Nothing planned or applied: the GM presses Run in the Tool runner.
-    await expect(drawer.locator('#tool-run')).toBeVisible();
-    expect(beyondReads(calls)).toEqual([]);
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('End combat on "Field" (round 2, 4 combatants)?');
+    await expect(dialog).toContainText('Undo stays in Recent Changes.');
+    await expect(dialog).toContainText('not expired effects');
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: '🛠 Tool Runner' })).toHaveCount(0);
+    expect(calls.find(c => c.name === 'plan-combat-change')?.args).toEqual({ action: 'end' });
+    // Nothing applied until the GM says yes.
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+
+    await dialog.getByRole('button', { name: 'End combat' }).click();
+    await expect
+      .poll(() => calls.find(c => c.name === 'apply-planned-change'))
+      .toMatchObject({ args: { planId: 'plan-end' }, confirm: true, confirmDestructive: true });
+    await expect(undoToast(page, '✓ Applied: End combat on "Field"')).toBeVisible();
+  });
+
+  test('End combat: Cancel in the question applies nothing', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('End combat on "Field"');
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+  });
+
+  test('End combat: a plan that fails says so in a toast and applies nothing', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call =>
+        call.name === 'plan-combat-change'
+          ? { status: 422, json: { ok: false, error: 'No combat to end', kind: 'tool' } }
+          : undefined,
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+    await expect(toast(page, '✗ End combat: No combat to end')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
   });
 
   test('two combatants with one name go in by token id, and the picker hint says whose', async ({
@@ -732,7 +1043,6 @@ test.describe('picking combatants', () => {
       who('c4', 'Tamsin', { category: 'npc' }),
     ];
     const { calls } = await setup(page, {
-      combatButtons: true,
       initial: [fight(wolves)],
       tokenChoices: [
         { id: 'tok-wolf-1', name: 'Wolf' },
@@ -745,24 +1055,450 @@ test.describe('picking combatants', () => {
     await page.locator('.combatant[data-id="c3"]').click();
     await page.locator('.combatant[data-id="c1"]').click();
     await page.locator('#combat-actions [data-sel="damage"]').click();
-    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
-    // The bridge's order; a token id for each wolf, the name for a row without a token.
-    await expect(drawer.locator('#tool-field-targets')).toHaveValue(
-      'tok-wolf-1\ntok-wolf-2\nTamsin'
-    );
-    await expect(drawer.locator('#tool-field-targets-hint')).toHaveText('Wolf, Wolf, Tamsin');
-    expect(beyondReads(calls)).toEqual([]);
+    await page.locator('#damage-amount').fill('4');
+    // The button names the tokens; the plan gets a token id for each wolf, the name for a row
+    // without a token, in the bridge's order.
+    await expect(page.locator('#damage-apply')).toHaveText('Deal 4 damage to 3 tokens in Foundry');
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    expect(calls.find(c => c.name === 'plan-actor-change')?.args).toEqual({
+      action: 'damage',
+      targets: ['tok-wolf-1', 'tok-wolf-2', 'Tamsin'],
+      amount: 4,
+    });
   });
 
-  test('Condition opens it with the action set to condition', async ({ page }) => {
-    const { calls } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+  test('Condition opens the chips inline; a chip plans, asks once, then applies with Undo', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Brannoc').click();
+    await row(page, 'Ogre Brute').click();
+    await page.locator('#combat-actions [data-sel="condition"]').click();
+    const picker = page.locator('#condition-form');
+    await expect(picker).toBeVisible();
+    await expect(page.getByRole('dialog', { name: '🛠 Tool Runner' })).toHaveCount(0);
+    // The first chip has the focus; opening the picker writes nothing.
+    await expect(picker.getByRole('button', { name: 'prone' })).toBeFocused();
+    expect(beyondReads(calls)).toEqual([]);
+
+    await picker.getByRole('button', { name: 'poisoned' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText(
+      'Set poisoned on Brannoc and Ogre Brute? Undo stays in Recent Changes.'
+    );
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    // Planned in the bridge's order, nothing applied until the GM says yes.
+    expect(calls.find(c => c.name === 'plan-actor-change')?.args).toEqual({
+      action: 'condition',
+      targets: ['Brannoc', 'Ogre Brute'],
+      condition: 'poisoned',
+      active: true,
+    });
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+
+    await dialog.getByRole('button', { name: 'Set poisoned' }).click();
+    await expect
+      .poll(() => calls.find(c => c.name === 'apply-planned-change'))
+      .toMatchObject({ args: { planId: 'plan-hit' }, confirm: true });
+    await expect(undoToast(page, '✓ Applied:')).toBeVisible();
+    // The picker closes once the change is in; the pick stays for the next action.
+    await expect(picker).toHaveCount(0);
+    await expect(page.locator('#combat-actions .ca-count')).toHaveText('2 selected');
+    await expect(page.locator('#combat-actions [data-sel="condition"]')).toBeFocused();
+  });
+
+  const ATTACKERS = [
+    who('c1', 'Wolf', { tokenId: 'tok-wolf-1' }),
+    who('c2', 'Brannoc', {
+      isPC: true,
+      category: 'pc',
+      tokenId: 'tok-brannoc',
+      isCurrentTurn: true,
+    }),
+    who('c3', 'Wolf', { tokenId: 'tok-wolf-2' }),
+  ];
+  const attackAnswers =
+    (targets: unknown[]) =>
+    (call: { name: string }): { json: unknown } | undefined => {
+      if (call.name === 'search-character-items') {
+        return ok({ matches: [{ id: 'w-axe', name: 'Handaxe' }], totalMatches: 1 });
+      }
+      if (call.name === 'get-targets') return ok({ targets, selected: [] });
+      if (call.name === 'use-item') {
+        return ok({
+          success: true,
+          status: 'initiated',
+          message: 'Item use initiated',
+          itemName: 'Handaxe',
+          targets: ['Wolf'],
+        });
+      }
+      return undefined;
+    };
+
+  test('Attack: the turn is the attacker, a picked token the target, and one click rolls it', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    const form = page.locator('#attack-form');
+    await expect(form).toBeVisible();
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+    await expect(page.locator('#attack-target')).toHaveValue('c3');
+    await expect(page.locator('#attack-go')).toHaveText('Brannoc attacks Wolf with Handaxe');
+    expect(calls.find(c => c.name === 'search-character-items')?.args).toEqual({
+      characterIdentifier: 'tok-brannoc',
+      type: 'weapon',
+      limit: 50,
+    });
+    await page.locator('#attack-go').click();
+    await expect(form).toHaveCount(0);
+    const used = calls.find(c => c.name === 'use-item');
+    expect(used).toEqual({
+      name: 'use-item',
+      args: {
+        actorIdentifier: 'tok-brannoc',
+        itemIdentifier: 'w-axe',
+        targets: ['tok-wolf-2'],
+        rollAttack: true,
+      },
+      confirm: true,
+      confirmDestructive: true,
+    });
+  });
+
+  test('Attack: a failed spell read still lists the weapons and says spells could not be read', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items' && type === 'spell') {
+          return failed('spell list unavailable');
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-weapon option')).toHaveText(['Handaxe']);
+    await expect(page.locator('#attack-note')).toHaveText('Spells could not be read.');
+  });
+
+  test('Attack: no weapons and a failed spell read says the spells could not be read', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items') {
+          return type === 'spell'
+            ? failed('spell list unavailable')
+            : ok({ matches: [], totalMatches: 0 });
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-note')).toHaveText('Spells could not be read.');
+  });
+
+  test('Attack: a cantrip with an attack is listed next to the weapons and rolls through use-item', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call => {
+        const type = (call.args as { type?: string } | undefined)?.type;
+        if (call.name === 'search-character-items' && type === 'spell') {
+          return ok({
+            matches: [
+              { id: 's-toll', name: 'Toll the Dead', level: 0, hasAttack: true },
+              { id: 's-bless', name: 'Bless', level: 1, prepared: true },
+              {
+                id: 's-wounds',
+                name: 'Inflict Wounds',
+                level: 1,
+                prepared: false,
+                hasAttack: true,
+              },
+            ],
+            totalMatches: 3,
+          });
+        }
+        return attackAnswers([])(call);
+      },
+    });
+    await load(page);
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    const weaponList = page.locator('#attack-weapon option');
+    await expect(weaponList).toHaveText(['Handaxe', 'Toll the Dead (cantrip)']);
+    await page.locator('#attack-weapon').selectOption('s-toll');
+    await expect(page.locator('#attack-go')).toHaveText('Brannoc attacks Wolf with Toll the Dead');
+    expect(
+      calls.find(
+        c => c.name === 'search-character-items' && (c.args as { type?: string }).type === 'spell'
+      )?.args
+    ).toEqual({ characterIdentifier: 'tok-brannoc', type: 'spell', limit: 200 });
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.find(c => c.name === 'use-item')?.args).toEqual({
+      actorIdentifier: 'tok-brannoc',
+      itemIdentifier: 's-toll',
+      targets: ['tok-wolf-2'],
+      rollAttack: true,
+    });
+  });
+
+  test('Attack: Foundry targets are read when the button is pressed', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-target')).toHaveValue('foundry');
+    expect(calls.some(c => c.name === 'get-targets')).toBe(false);
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.find(c => c.name === 'use-item')?.args['targets']).toEqual(['tok-wolf-1']);
+  });
+
+  test('Attack: nothing targeted in Foundry says so and sends nothing', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'Nothing is targeted in Foundry. Target a token there or pick one in the list.'
+    );
+    await expect(page.locator('#attack-form')).toBeVisible();
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
+  test('Attack: a token that is only selected in Foundry is not a target', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'get-targets'
+          ? ok({
+              targets: [],
+              selected: [{ tokenId: 'tok-brannoc', name: 'Brannoc', actorId: 'a1' }],
+            })
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'Nothing is targeted in Foundry. Target a token there or pick one in the list.'
+    );
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
+  test('Attack: an item with no attack to roll keeps the form open and says why', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? failed('"Handaxe" has no attack to roll')
+          : attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(toastLike(page, /has no attack to roll/)).toBeVisible();
+    await expect(page.locator('#attack-form')).toBeVisible();
+    await expect(page.locator('#attack-note')).not.toHaveText(/may have landed/i);
+  });
+
+  test('Attack: no answer from the bridge says it may have landed', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? failed('The bridge did not answer', 'timeout')
+          : attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'It may have landed. Check the feed before you attack again.'
+    );
+    await expect(page.locator('#attack-form')).toBeVisible();
+  });
+
+  test('Attack: Cancel and Escape do nothing while the attack runs', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    // Registered last, so it sees the call first: use-item waits, everything else falls through.
+    await page.route('**/api/tool', async route => {
+      if ((route.request().postDataJSON() as { name: string }).name !== 'use-item') {
+        return route.fallback();
+      }
+      await held;
+      return route.fallback();
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-go')).toHaveAttribute('aria-busy', 'true');
+    // Cancel is aria-disabled while busy, which Playwright would wait on: force the click.
+    await page.getByRole('button', { name: 'Cancel' }).click({ force: true });
+    await page.locator('#attack-attacker').press('Escape');
+    await expect(page.locator('#attack-form')).toBeVisible();
+    await page.locator('#attack-go').click({ force: true });
+    release();
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.filter(c => c.name === 'use-item')).toHaveLength(1);
+  });
+
+  test('Attack: a done attack says so in a toast', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([{ tokenId: 'tok-wolf-1', name: 'Wolf', actorId: 'a2' }]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(
+      toastLike(page, /Attack sent: Brannoc with Handaxe at Wolf\. The roll shows in the feed/)
+    ).toBeVisible();
+  });
+
+  test('Attack: a module answer without names makes the toast use the form names', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'use-item'
+          ? ok({ success: true, status: 'initiated', message: 'Item use initiated' })
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    // No itemName or targets in the answer: the form's weapon and picked target fill in.
+    await expect(
+      toastLike(page, /Attack sent: Brannoc with Handaxe at Wolf\. The roll shows in the feed/)
+    ).toBeVisible();
+  });
+
+  test('Attack: an attacker who left the fight falls back to the one whose turn it is', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-attacker').selectOption('c1');
+    push([
+      fight(
+        ATTACKERS.filter(c => c.id !== 'c1'),
+        { turn: 0 }
+      ),
+    ]);
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+    await expect(page.locator('#attack-go')).toHaveText(
+      'Brannoc attacks the Foundry targets with Handaxe'
+    );
+    // The first attacker comes back: the pick stays on the fallback and does not jump back.
+    push([fight(ATTACKERS, { turn: 1 })]);
+    await expect(page.locator('.combatant[data-id="c1"]')).toBeVisible();
+    await expect(page.locator('#attack-attacker')).toHaveValue('c2');
+  });
+
+  test('Attack: a failed weapon read shows its error', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'search-character-items'
+          ? failed('The actor is gone')
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-note')).toContainText('The actor is gone');
+  });
+
+  test('Escape closes the Attack form without writing', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: attackAnswers([]),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await expect(page.locator('#attack-attacker')).toBeFocused();
+    await page.locator('#attack-attacker').press('Escape');
+    await expect(page.locator('#attack-form')).toHaveCount(0);
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
+  test('Condition: Cancel in the question applies nothing and keeps the picker', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await row(page, 'Brannoc').click();
     await page.locator('#combat-actions [data-sel="condition"]').click();
-    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
-    await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-actor-change');
-    await expect(drawer.locator('#tool-field-action')).toHaveValue('condition');
-    await expect(drawer.locator('#tool-field-targets')).toHaveValue('Brannoc');
+    await page.locator('#condition-form').getByRole('button', { name: 'prone' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Set prone on Brannoc?');
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('#condition-form')).toBeVisible();
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+  });
+
+  test('Condition: the picker closes with its Cancel, Escape, or Damage / Heal', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Brannoc').click();
+    const open = page.locator('#combat-actions [data-sel="condition"]');
+    await open.click();
+    await page.locator('#condition-form').getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.locator('#condition-form')).toHaveCount(0);
+    await expect(open).toBeFocused();
+
+    await open.click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#condition-form')).toHaveCount(0);
+
+    // One form at a time under the bar.
+    await open.click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await expect(page.locator('#condition-form')).toHaveCount(0);
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await open.click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await expect(page.locator('#condition-form')).toBeVisible();
     expect(beyondReads(calls)).toEqual([]);
   });
 });
@@ -896,7 +1632,6 @@ test.describe('Boss prompts and reactions', () => {
   }) => {
     const { push } = await setup(page, {
       bossFlag: 'on',
-      combatButtons: true,
       initial: [fight(BOSS_FIGHT, { round: 2, turn: 1 })],
     });
     await load(page);
@@ -923,7 +1658,6 @@ test.describe('the bridge is away', () => {
   }) => {
     const { push, calls } = await setup(page, {
       bossFlag: 'on',
-      combatButtons: true,
       initial: [BRIDGE_UP, fight(BOSS_FIGHT, { turn: 1 })],
     });
     await load(page);
@@ -953,7 +1687,7 @@ test.describe('the bridge is away', () => {
     }
     // Playwright waits for a button that says it is disabled; force the click through.
     await page.locator('#combat-actions [data-sel="damage"]').click({ force: true });
-    await expect(page.getByRole('dialog', { name: '🛠 Tool Runner' })).toHaveCount(0);
+    await expect(page.locator('#damage-form')).toHaveCount(0);
     await reaction(page, 'Ancient Wyrm').click({ force: true });
     await expect(reaction(page, 'Ancient Wyrm')).toHaveAttribute('aria-pressed', 'false');
     await page.locator('#combat-actions [data-sel="clear"]').click({ force: true });
@@ -970,7 +1704,7 @@ test.describe('the bridge is away', () => {
     await reaction(page, 'Ancient Wyrm').click();
     await expect(page.getByRole('button', { name: 'Reaction used: Ancient Wyrm' })).toBeVisible();
     await page.locator('#combat-actions [data-sel="damage"]').click();
-    await expect(page.getByRole('dialog', { name: '🛠 Tool Runner' })).toBeVisible();
+    await expect(page.locator('#damage-form')).toBeVisible();
   });
 
   test('a dropped control channel counts too, and a bridge that came back with the same fight is live', async ({
@@ -1005,7 +1739,7 @@ test.describe('the bridge is away', () => {
   }) => {
     // The server answers every new stream with the fight or `{combat: null}` (app.ts), so a page
     // that missed the end, with the bridge fine all along, clears its strip.
-    const { push } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    const { push } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await row(page, 'Ogre Brute').click();
     await expect(rows(page)).toHaveCount(4);
@@ -1018,29 +1752,36 @@ test.describe('the bridge is away', () => {
   });
 
   test('a failed poll that the next one clears is never shown', async ({ page }) => {
-    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    const { push, drained } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await page.clock.install();
     await load(page);
+    await expect(strip(page)).toBeVisible();
     // One poll fails: the control channel is up and Foundry's state is unknown.
     push([status({ foundry: 'unknown' })]);
-    await page.waitForTimeout(1500);
+    await drained();
+    await page.clock.runFor(1500);
     await expect(strip(page)).not.toHaveClass(/is-stale/);
     await expect(away(page)).toHaveText('');
     // The next poll succeeds, and nothing was ever shown, even once the wait is over.
     push([BRIDGE_UP]);
-    await page.waitForTimeout(AWAY_AFTER_MS + 500);
+    await drained();
+    await page.clock.runFor(AWAY_AFTER_MS + 500);
     await expect(strip(page)).not.toHaveClass(/is-stale/);
     await expect(away(page)).toHaveText('');
   });
 
   test('doubt that lasts is shown after the wait, and back is at once', async ({ page }) => {
-    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    const { push, drained } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await page.clock.install();
     await load(page);
+    // The strip loads as its own chunk: a strip that mounts in doubt says so at once, so wait for it.
+    await expect(strip(page)).toBeVisible();
     push([status({ foundry: 'unknown' })]);
-    await page.waitForTimeout(AWAY_AFTER_MS - 1500);
+    await drained();
+    await page.clock.runFor(AWAY_AFTER_MS - 1500);
     await expect(away(page)).toHaveText('');
-    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
-      timeout: 4000,
-    });
+    await page.clock.runFor(1500);
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
     await expect(strip(page)).toHaveClass(/is-stale/);
     push([BRIDGE_UP]);
     await expect(away(page)).toHaveText('', { timeout: 1000 });
@@ -1050,7 +1791,7 @@ test.describe('the bridge is away', () => {
   test('after a dropped channel the reconnect stays marked until a poll succeeds', async ({
     page,
   }) => {
-    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    const { push, drained } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
     await load(page);
     push([status({ controlChannel: 'disconnected', foundry: 'unknown' })]);
     await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
@@ -1058,7 +1799,7 @@ test.describe('the bridge is away', () => {
     });
     // The channel is back, Foundry not yet known: on its own a blip, here still the same outage.
     push([status({ controlChannel: 'connected', foundry: 'unknown' })]);
-    await page.waitForTimeout(1000);
+    await drained();
     await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
     await expect(strip(page)).toHaveClass(/is-stale/);
     push([BRIDGE_UP]);
@@ -1091,7 +1832,7 @@ test.describe('the layout trial', () => {
   test('the Auto step shows a sample fight with no buttons, and Stop takes it away', async ({
     page,
   }) => {
-    await setup(page, { combatButtons: true, initial: [noFight] });
+    await setup(page, { initial: [noFight] });
     await load(page);
     await expect(strip(page)).toBeHidden();
     await fromMenu(page, 'btn-layout-tour');
@@ -1100,9 +1841,9 @@ test.describe('the layout trial', () => {
     await expect(strip(page)).toBeVisible();
     await expect(rows(page).locator('.combatant-text')).toHaveText([
       'Fighter',
-      'Wolf',
+      'Wolf 1',
       'Cleric',
-      'Wolf',
+      'Wolf 2',
     ]);
     await expect(page.locator('#combat-meta')).toHaveText('Round 2 · 4 combatants');
     await expect(page.locator('#combat-actions')).toBeHidden();
@@ -1125,10 +1866,360 @@ test.describe('the layout trial', () => {
   });
 });
 
+/** A tool that failed: the dashboard's error body (`kind` says where it failed). */
+const failed = (error: string, kind = 'tool'): { status: number; json: unknown } => ({
+  // As the dashboard's tool route answers: 502 for a timeout or channel error, 422 for a tool error.
+  status: kind === 'tool' ? 422 : 502,
+  json: { ok: false, error, kind },
+});
+
+const toastLike = (page: Page, text: RegExp): Locator =>
+  page.locator('.toast-stack').getByText(text);
+
+test.describe('when a write or a roll request fails', () => {
+  const openDamage = async (page: Page): Promise<void> => {
+    await row(page, 'Ogre Brute').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await page.locator('#damage-amount').fill('8');
+  };
+
+  test('a plan that fails keeps the draft, so Apply can be pressed again', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call => (call.name === 'plan-actor-change' ? failed('No such token') : undefined),
+    });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(toastLike(page, /Actor change:.*No such token/)).toBeVisible();
+    // Nothing was planned, so nothing can have landed: the amount stays and the form stays open.
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await expect(page.locator('#damage-amount')).toHaveValue('8');
+    await expect(page.locator('#damage-apply')).toBeEnabled();
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toEqual([]);
+  });
+
+  const openCondition = async (page: Page): Promise<Locator> => {
+    await row(page, 'Brannoc').click();
+    await page.locator('#combat-actions [data-sel="condition"]').click();
+    return page.locator('#condition-form');
+  };
+
+  test('Condition: a plan that fails says so, nothing is applied and the chips stay usable', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call => (call.name === 'plan-actor-change' ? failed('No such token') : undefined),
+    });
+    await load(page);
+    const picker = await openCondition(page);
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await expect(toastLike(page, /Actor change:.*No such token/)).toBeVisible();
+    await expect(picker).toBeVisible();
+    await expect(picker.getByRole('button', { name: 'prone' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toEqual([]);
+  });
+
+  test('Condition: an apply that fails keeps the picker; one with no answer says it may have landed', async ({
+    page,
+  }) => {
+    let kind = 'tool';
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call =>
+        call.name === 'apply-planned-change' ? failed('Stale plan', kind) : undefined,
+    });
+    await load(page);
+    const picker = await openCondition(page);
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Set prone' }).click();
+    await expect(toastLike(page, /Stale plan/)).toBeVisible();
+    await expect(picker).toBeVisible();
+    await expect(picker).not.toContainText('may have landed');
+    // Again, now the bridge does not answer: the picker says to check Recent Changes first.
+    kind = 'timeout';
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Set prone' }).click();
+    await expect(picker).toContainText('It may have landed. Check Recent Changes');
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(2);
+  });
+
+  test('while a change runs the action bar buttons wait; End combat says why', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'apply-planned-change') await held;
+      await route.fallback();
+    });
+    await load(page);
+    const picker = await openCondition(page);
+    await picker.getByRole('button', { name: 'prone' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Set prone' }).click();
+    const end = page.locator('#combat-actions [data-sel="end"]');
+    const damage = page.locator('#combat-actions [data-sel="damage"]');
+    await expect(end).toHaveAttribute('aria-disabled', 'true');
+    await expect(end).toHaveAttribute('title', 'Another change is running');
+    await expect(damage).toHaveAttribute('aria-disabled', 'true');
+    // A click on the waiting button asks for nothing.
+    await end.click({ force: true });
+    await damage.click({ force: true });
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    expect(calls.filter(c => c.name === 'plan-combat-change')).toEqual([]);
+    release();
+    await expect(end).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test('two picked creatures with one name read as numbered in the questions', async ({ page }) => {
+    const wolves = [
+      who('c1', 'Wolf', { tokenId: 'tok-wolf-1' }),
+      who('c2', 'Brannoc', { isPC: true, category: 'pc', tokenId: 'tok-brannoc' }),
+      who('c3', 'Wolf', { tokenId: 'tok-wolf-2' }),
+    ];
+    await setup(page, { initial: [fight(wolves)] });
+    await load(page);
+    // The rows say which is which too; data-name keeps the raw name.
+    await expect(page.locator('.combatant[data-id="c1"] .combatant-pick')).toHaveText('Wolf 1');
+    await expect(page.locator('.combatant[data-id="c3"] .combatant-pick')).toHaveText('Wolf 2');
+    await page.locator('.combatant[data-id="c1"]').click();
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('#combat-actions [data-sel="condition"]').click();
+    await page.locator('#condition-form').getByRole('button', { name: 'poisoned' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Set poisoned on Wolf 1 and Wolf 2?');
+  });
+
+  test('End combat: once the fight is over the focus is on the combat pane', async ({ page }) => {
+    const { push } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: endAnswer,
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+    // The fight leaves the page while the question is open, as it does when Foundry ends it.
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    push([noFight]);
+    await expect(rows(page)).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'End combat' }).click();
+    await expect(undoToast(page, '✓ Applied: End combat on "Field"')).toBeVisible();
+    // The layout hides the pane with no fight, so the focus lands on the During bar, not the page.
+    await expect(page.locator('#during-bar button:focus')).toHaveCount(1);
+  });
+
+  test('a double click sends one plan', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').dblclick();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    // The form closes as soon as the plan is made; the apply follows a tick later.
+    await expect.poll(() => calls.filter(c => c.name === 'apply-planned-change').length).toBe(1);
+    // Settle, so a second apply that lands a moment after the first is caught too.
+    await settle(page);
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
+    expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
+  });
+
+  test('Undo on the toast undoes the hit', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await page.locator('.toast-stack .toast-undo .toast-action').click();
+    await expect
+      .poll(() => calls.find(c => c.name === 'undo-change'))
+      .toEqual({
+        name: 'undo-change',
+        args: { changeId: 'chg-start' },
+        confirm: true,
+        confirmDestructive: true,
+      });
+  });
+
+  test('switches that could not be read leave the Ask buttons aria-disabled with the reason', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(BOSS_FIGHT)] });
+    // What the real route answers when the bridge is away: 200 with no switches and the reason.
+    await page.route('**/api/session/switches', route =>
+      route.fulfill({ json: switchesBody(true, null, 'The bridge is away') })
+    );
+    await load(page);
+    const ask = page.locator('#strip-roll-party');
+    await expect(ask).toHaveAttribute('aria-disabled', 'true');
+    await expect(ask).toHaveAttribute('title', /Can't read the GM Actions switches/);
+    await ask.click({ force: true });
+    await settle(page);
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toEqual([]);
+  });
+
+  test('the Ask buttons say Asking... while the roll requests run', async ({ page }) => {
+    await setup(page, { initial: [fight(BOSS_FIGHT)] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'request-player-rolls') await held;
+      await route.fallback();
+    });
+    await load(page);
+    await page.locator('#strip-roll-party').click();
+    await expect(page.locator('#strip-roll-party')).toHaveText('Asking...');
+    release();
+    await expect(page.locator('#strip-roll-party')).toHaveText('Ask the party');
+  });
+
+  test('the toast Undo says Working... while the undo runs', async ({ page }) => {
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route('**/api/tool', async route => {
+      const call = route.request().postDataJSON() as { name: string };
+      if (call.name === 'undo-change') await held;
+      await route.fallback();
+    });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    const action = page.locator('.toast-stack .toast-undo .toast-action');
+    await action.click();
+    await expect(action).toHaveText('Working...');
+    release();
+    await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
+  });
+
+  test('a double click on the toast Undo sends one undo', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await page.locator('.toast-stack .toast-undo .toast-action').dblclick();
+    await expect.poll(() => calls.filter(c => c.name === 'undo-change').length).toBe(1);
+    await settle(page);
+    expect(calls.filter(c => c.name === 'undo-change')).toHaveLength(1);
+  });
+
+  test('an apply with no answer may have landed: the amount is cleared, not kept for a second hit', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call =>
+        call.name === 'apply-planned-change'
+          ? failed('The bridge did not answer', 'timeout')
+          : undefined,
+    });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(toastLike(page, /timed out.*check Recent Changes/)).toBeVisible();
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await expect(page.locator('#damage-amount')).toHaveValue('');
+    await expect(page.locator('#damage-apply')).toHaveText('Type an amount');
+  });
+
+  test('one of two roll requests fails: the toast says who got it and who did not', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(BOSS_FIGHT)],
+      answer: call =>
+        call.name === 'request-player-rolls' && call.args['targetPlayer'] === 'Mira'
+          ? failed('Mira is not logged in')
+          : undefined,
+    });
+    await load(page);
+    await page.locator('#strip-roll-party').click();
+    await expect(
+      toastLike(page, /✓ Sent: Perception to Brannoc\. Not sent: Mira: .*Mira is not logged in/)
+    ).toBeVisible();
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toHaveLength(2);
+  });
+
+  test('the strip and the Party card share one saved roll choice', async ({ page }) => {
+    const member = { actorId: 'a1', uuid: 'Actor.a1', name: 'Brannoc', type: 'character' };
+    await setup(page, {
+      initial: [fight(BOSS_FIGHT)],
+      answer: call =>
+        call.name === 'get-party'
+          ? ok({
+              groups: [
+                {
+                  actorId: 'g1',
+                  uuid: 'Actor.g1',
+                  name: 'The Party',
+                  primary: true,
+                  pace: { value: 'normal', label: 'Normal', slowed: false },
+                  members: [member],
+                },
+              ],
+              paceOptions: [],
+              scene: null,
+              encounter: null,
+              warnings: [],
+            })
+          : undefined,
+    });
+    await load(page);
+    await fromMenu(page, 'btn-party');
+    const stripWhat = page.locator('#strip-roll-what');
+    const partyWhat = page.locator('#party-roll-what');
+    await expect(partyWhat).toBeAttached();
+    await stripWhat.selectOption('save:dex');
+    await expect(partyWhat).toHaveValue('save:dex');
+    // Each bar used to keep its own copy: a change on one wrote the other's old choice back.
+    await page.locator('#party-roll-dc').fill('13');
+    await expect(page.locator('#strip-roll-dc')).toHaveValue('13');
+    await expect(stripWhat).toHaveValue('save:dex');
+    await expect(partyWhat).toHaveValue('save:dex');
+  });
+
+  test('a roll request with no answer says it may have been sent', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(BOSS_FIGHT)],
+      answer: call =>
+        call.name === 'request-player-rolls'
+          ? failed('The bridge did not answer', 'timeout')
+          : undefined,
+    });
+    await load(page);
+    await page.locator('#strip-roll-party').click();
+    await expect(toastLike(page, /not confirmed.*may have been sent, check chat/)).toBeVisible();
+  });
+});
+
+test('a strip chunk that fails to load says so, with a Reload button, and the page works', async ({
+  page,
+}) => {
+  let hits = 0;
+  await page.route('**/CombatStrip-*.js', route => {
+    hits += 1;
+    return route.abort();
+  });
+  await setup(page, { initial: [fight(PARTY_FIGHT)] });
+  await load(page);
+  await expect.poll(() => hits).toBeGreaterThan(0);
+  await expect(strip(page)).toHaveCount(0);
+  await expect(page.locator('#combat-load-failed')).toContainText(
+    'The combat strip could not load'
+  );
+  await expect(page.getByRole('button', { name: 'Reload the page' })).toBeVisible();
+  await expect(page.locator('#btn-advanced')).toBeVisible();
+  await expect(during(page)).toBeVisible();
+});
+
 test.describe('a phone', () => {
   test('the strip shows a fight and keeps the page from scrolling sideways', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
-    await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await expect(rows(page)).toHaveCount(4);
     await expect(row(page, 'Ogre Brute').locator('.hp-text')).toBeVisible();

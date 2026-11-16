@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
+import { LiveViewsMenu } from './components/LiveViewsMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import { PlanLink } from './components/PlanLink';
 import {
@@ -19,11 +19,12 @@ import {
   raiseDrawer,
   showDocked,
 } from './components/Drawer';
-import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
-import { GmActionsSwitch } from './components/GmActionsSwitch';
+import { GmActionsButton } from './components/GmActionsSwitch';
+import { StripBoundary } from './components/StripBoundary';
 import { SessionMarker } from './components/SessionMarker';
 import { ThemePicker } from './components/ThemePicker';
+import { HealthLine } from './components/HealthLine';
 import { StreamState } from './components/StreamState';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
@@ -40,18 +41,14 @@ import {
 } from './components/Moments';
 import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
-import {
-  PreflightButton,
-  PreflightDrawer,
-  VersionBanner,
-  usePreflightOnReconnect,
-} from './panels/Preflight';
+import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
 import type { ToolRequest } from './panels/Tools';
-import { api } from './lib/api';
+import { appVersionLabel } from './lib/appVersion';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
-import { THEME_KEY, useDashboardStream, type WorldTheme } from './lib/stream';
-import { applyTheme } from './lib/theme';
+import { optInScreen } from './lib/liveScreen';
+import { useDashboardStream } from './lib/stream';
+import { useWorldTheme } from './lib/worldTheme';
 import { Button } from './ui';
 
 /** The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. */
@@ -93,16 +90,23 @@ const versionsChunk = panelChunk(() =>
 const partyChunk = panelChunk(() =>
   import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
 );
+const twinChunk = panelChunk(() =>
+  import('./panels/StatblockTwin').then(m => ({ default: m.StatblockTwinDrawer }))
+);
 const paperChunk = panelChunk(() =>
   import('./panels/PaperSync').then(m => ({ default: m.PaperSyncDrawer }))
+);
+const preflightChunk = panelChunk(() =>
+  import('./panels/PreflightDrawer').then(m => ({ default: m.PreflightDrawer }))
 );
 const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
 const afterChunk = panelChunk(() => import('./panels/After'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
-const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
+const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk, preflightChunk];
 const FLOATING_CHUNKS = [
   afterChunk,
   paperChunk,
+  twinChunk,
   tarokkaChunk,
   toolsChunk,
   linksChunk,
@@ -110,40 +114,64 @@ const FLOATING_CHUNKS = [
   versionsChunk,
 ];
 
-/** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
-function useWorldTheme(): void {
-  const theme = useQuery({
-    queryKey: THEME_KEY,
-    queryFn: () => api<WorldTheme>('/api/theme'),
-    retry: false,
-  });
-  useEffect(() => {
-    if (theme.data) applyTheme(theme.data.theme);
-  }, [theme.data]);
-}
-
 /**
- * The dashboard (D-109): the page at / (D-126, the default from 2026-11-01). The old page is at /legacy/ until
- * after G1 for the few panels that have not moved here.
+ * The dashboard (D-109): the page at / (D-126). The old vanilla page is gone; /legacy/ redirects here.
  */
+const appVersion = appVersionLabel();
+
 export function App(): JSX.Element {
+  // The opt-in screens (the GM page /gm, the strip alone ?strip=1, the Live view ?live=1) are
+  // chunks of their own; the entry only picks one (components/OptInScreen.tsx).
+  const screen = optInScreen(window.location.pathname, window.location.search);
   return (
     <HelpProvider>
       <ConfirmProvider>
-        <Dashboard />
+        {screen ? (
+          <Suspense fallback={null}>
+            <OptInScreen name={screen} />
+          </Suspense>
+        ) : (
+          <Dashboard />
+        )}
       </ConfirmProvider>
     </HelpProvider>
   );
 }
 
+// The combat strip is its own chunk (the first load budget); it downloads right after the first
+// render, so it is on the page almost at once.
+const loadCombatStrip = (): Promise<{
+  default: typeof import('./components/CombatStrip').CombatStrip;
+}> => import('./components/CombatStrip').then(m => ({ default: m.CombatStrip }));
+const CombatStrip = lazy(loadCombatStrip);
+
+// The outdated-client banner pulls in the shared texts, so it stays out of the first load.
+const ClientNotice = lazy(() =>
+  import('./components/ClientNotice').then(m => ({ default: m.ClientNotice }))
+);
+
+// The opt-in screens (live screen A, the strip page, the GM page) share one chunk, picked by name.
+const OptInScreen = lazy(() =>
+  import('./components/OptInScreen').then(m => ({ default: m.OptInScreen }))
+);
+
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'paper' | 'tarokka' | 'tools';
+type DrawerName =
+  | 'preflight'
+  | 'prep'
+  | 'party'
+  | 'handouts'
+  | 'paper'
+  | 'twin'
+  | 'tarokka'
+  | 'tools';
 const NO_DRAWERS: Record<DrawerName, boolean> = {
   preflight: false,
   prep: false,
   party: false,
   handouts: false,
   paper: false,
+  twin: false,
   tarokka: false,
   tools: false,
 };
@@ -155,6 +183,7 @@ const DRAWER_IDS: Record<DrawerName, string> = {
   party: 'party-drawer',
   handouts: 'handouts-drawer',
   paper: 'paper-drawer',
+  twin: 'twin-drawer',
   tarokka: 'tarokka-drawer',
   tools: 'tools-drawer',
 };
@@ -173,6 +202,9 @@ function Dashboard(): JSX.Element {
   useDashboardStream();
   usePreflightOnReconnect();
   usePreloadPanels(DOCKED_CHUNKS, FLOATING_CHUNKS);
+  useEffect(() => {
+    void loadCombatStrip().catch(() => undefined);
+  }, []);
   const { moment, pick } = useMoment();
   const during = useDuringLayout(moment, () => pick('during'));
   const { slotRefs, dockOf: slotOf } = useDocks(moment);
@@ -188,16 +220,23 @@ function Dashboard(): JSX.Element {
   }
   useFocusAfterMoment(moment);
   const docked = (name: DrawerName): boolean =>
-    name !== 'tarokka' && name !== 'tools' && name !== 'paper' && dockOf(name) !== null;
+    name !== 'tarokka' &&
+    name !== 'tools' &&
+    name !== 'paper' &&
+    name !== 'twin' &&
+    dockOf(name) !== null;
   const setDrawer = (name: DrawerName, open: boolean): void => {
     if (!open) setFloated(f => (f[name as DockName] ? { ...f, [name]: false } : f));
     setDrawers(d => ({ ...d, [name]: open }));
   };
-  // The Advanced menu opens a drawer, as on the old page; one already open comes to the top and
+  // The Advanced menu opens a drawer; one already open comes to the top and
   // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
   // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
-    const slot = name === 'tarokka' || name === 'tools' || name === 'paper' ? null : dockOf(name);
+    const slot =
+      name === 'tarokka' || name === 'tools' || name === 'paper' || name === 'twin'
+        ? null
+        : dockOf(name);
     if (slot?.getClientRects().length === 0) {
       setFloated(f => ({ ...f, [name]: true }));
       setDrawers(d => ({ ...d, [name]: true }));
@@ -236,7 +275,7 @@ function Dashboard(): JSX.Element {
   // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
   const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Turn on for tonight turns them
-  // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
+  // on (the Tool Runner points at its own gate bar).
   // Already open under another drawer, it comes to the top.
   // Docked in Before, the drawers over the page close so it shows, and it takes the focus once
   // they are gone.
@@ -262,14 +301,8 @@ function Dashboard(): JSX.Element {
     }
     setDrawers(d => ({ ...d, prep: false, preflight: true }));
   };
-  // Another panel opens the Tool runner on a tool with its form filled in.
+  // Another panel opens the Tool Runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
-  // The combat strip's Damage / Heal and Condition: the Tool runner on plan-actor-change, filled in
-  // for the picked combatants. It plans first; nothing is written until the GM confirms there.
-  const openToolFromStrip = useCallback((request: StripToolRequest): void => {
-    setToolRequest(r => ({ ...request, seq: (r?.seq ?? 0) + 1 }));
-    setDrawers(d => ({ ...d, tools: true }));
-  }, []);
 
   return (
     <GmActionsGateContext.Provider value={openGmActionsGate}>
@@ -282,15 +315,23 @@ function Dashboard(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
+            <div className="subtitle-row">
+              <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
+              {appVersion ? (
+                <span className="app-version" id="app-version" title="The running tool version">
+                  {appVersion}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <MomentTabs moment={moment} onPick={pick} />
         <div className="controls">
           <SessionMarker />
-          <GmActionsSwitch />
+          <GmActionsButton />
           <ThemePicker />
           <StreamState />
+          <HealthLine />
           <PreflightButton
             open={shown('preflight')}
             onToggle={() => {
@@ -349,15 +390,24 @@ function Dashboard(): JSX.Element {
                 📝 After a paper night
               </Button>
             </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('twin')}>
+              <Button
+                id="btn-twin"
+                data-track="dash.header.twin"
+                title="See the 2024 SRD version of a monster beside the 2014 one, and pick which to run (GM only)"
+              >
+                🧛 2024 twin of a monster
+              </Button>
+            </AdvancedItem>
             <DuringMenuItems during={during} />
             <AdvancedLabel>Tools</AdvancedLabel>
             <AdvancedItem onSelect={() => openDrawer('tools')}>
               <Button
                 id="btn-tools"
                 data-track="dash.header.tools"
-                title="Open the tool runner (run any bridge tool)"
+                title="Open the Tool Runner (run any bridge tool)"
               >
-                🛠 Tools
+                🛠 Tool Runner
               </Button>
             </AdvancedItem>
             <AdvancedItem
@@ -416,25 +466,21 @@ function Dashboard(): JSX.Element {
                 className={versionTrackerOn ? 'on' : undefined}
                 data-track="dash.header.version-tracker"
                 disabled={!during.prefs}
-                title="Show a Versions panel with what is installed against the newest releases. Off by default."
+                title="Show a Versions panel with what is installed against the newest releases. On by default."
               >
                 {`Version tracker: ${versionTrackerOn ? 'on' : 'off'}`}
               </Button>
             </AdvancedItem>
           </AdvancedMenu>
-          <a className="btn" href="/legacy/" title="The old dashboard page, kept until after G1">
-            Old dashboard
-          </a>
+          <LiveViewsMenu />
         </div>
       </header>
-      <div className="link-banner" role="note">
-        Everything for running a session is on this page. Only the Features cards, the status lights
-        and the AI commentary are missing here: they are on the <a href="/legacy/">old dashboard</a>
-        .
-      </div>
       <PlanLink />
       <RoleNotice />
       <VersionBanner />
+      <Suspense fallback={null}>
+        <ClientNotice />
+      </Suspense>
       <MomentViews
         moment={moment}
         slotRefs={slotRefs}
@@ -451,7 +497,13 @@ function Dashboard(): JSX.Element {
         }
         beforeTop={<LayoutTrialCard during={during} />}
         duringStrip={
-          <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />
+          // A chunk that fails to load (a stale tab after a redeploy) shows a Reload button in the
+          // strip's place instead of blanking the page.
+          <StripBoundary>
+            <Suspense fallback={null}>
+              <CombatStrip sample={showsSampleFight(during.trial)} />
+            </Suspense>
+          </StripBoundary>
         }
       />
       <LayoutTourGuide during={during} />
@@ -469,7 +521,10 @@ function Dashboard(): JSX.Element {
       />
       {dock(
         'preflight',
-        <PreflightDrawer
+        <LazyPanel
+          chunk={preflightChunk}
+          shell={{ id: 'preflight-drawer', title: '✈ Pre-flight' }}
+          show={shown('preflight')}
           open={shown('preflight')}
           onOpenChange={open => setDrawer('preflight', open)}
           tarokkaShown={tarokkaShown}
@@ -529,6 +584,13 @@ function Dashboard(): JSX.Element {
         show={drawers.paper}
         open={drawers.paper}
         onOpenChange={open => setDrawer('paper', open)}
+      />
+      <LazyPanel
+        chunk={twinChunk}
+        shell={{ id: 'twin-drawer', title: '🧛 2024 twin' }}
+        show={drawers.twin}
+        open={drawers.twin}
+        onOpenChange={open => setDrawer('twin', open)}
       />
       <LazyPanel
         chunk={tarokkaChunk}

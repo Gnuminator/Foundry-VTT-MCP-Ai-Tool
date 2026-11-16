@@ -38,7 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('FoundryDataAccess — listActors', () => {
+describe('FoundryDataAccess: listActors', () => {
   it('maps actors to id/name/type and omits img when absent', async () => {
     world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
     world.addActor({ id: 'a2', name: 'Goblin', type: 'npc', img: 'goblin.webp' });
@@ -56,7 +56,7 @@ describe('FoundryDataAccess — listActors', () => {
   });
 });
 
-describe('FoundryDataAccess — getWorldInfo', () => {
+describe('FoundryDataAccess: getWorldInfo', () => {
   it('reports world/system/foundry metadata and user roster', async () => {
     world.addUser({ id: 'gm', name: 'Gamemaster', active: true, isGM: true });
     world.addUser({ id: 'p1', name: 'Alice', active: false, isGM: false });
@@ -97,7 +97,7 @@ describe('FoundryDataAccess getWorldInfo, the TV user', () => {
   });
 });
 
-describe('FoundryDataAccess — getActiveScene', () => {
+describe('FoundryDataAccess: getActiveScene', () => {
   it('throws SCENE_NOT_FOUND when there is no current scene', async () => {
     await expect(da.getActiveScene()).rejects.toThrow(ERROR_MESSAGES.SCENE_NOT_FOUND);
   });
@@ -170,7 +170,7 @@ describe('FoundryDataAccess — getActiveScene', () => {
   });
 
   it('background: v13 scene reads _source.background.src', async () => {
-    // makeScene wraps `img` into `_source.background.src` — see data-access.scenes.test.ts.
+    // makeScene wraps `img` into `_source.background.src`, see data-access.scenes.test.ts.
     const scene = world.addScene({ id: 'scene2', name: 'Crypt', img: 'crypt.webp', active: true });
     world.setActiveScene(scene.id);
 
@@ -180,7 +180,7 @@ describe('FoundryDataAccess — getActiveScene', () => {
 
   it('background: v14 scene reads the current Scene Level (no _source.background)', async () => {
     // Verified `sceneBackgroundSrc` (systems/core.ts): v14 Scene has no top-level
-    // `background` — it lives on each Level (`Scene#levels`, `Scene#initialLevel`).
+    // `background`: it lives on each Level (`Scene#levels`, `Scene#initialLevel`).
     const levels = {
       get: (id: string): { id: string; background: { src: string } } | undefined =>
         id === 'lvl0' ? { id: 'lvl0', background: { src: 'ground.webp' } } : undefined,
@@ -200,7 +200,7 @@ describe('FoundryDataAccess — getActiveScene', () => {
   });
 });
 
-describe('FoundryDataAccess — getAvailablePacks', () => {
+describe('FoundryDataAccess: getAvailablePacks', () => {
   it('maps pack metadata', async () => {
     world.addPack({
       id: 'dnd5e.monsters',
@@ -224,7 +224,7 @@ describe('FoundryDataAccess — getAvailablePacks', () => {
   });
 });
 
-describe('FoundryDataAccess — getCharacterInfo', () => {
+describe('FoundryDataAccess: getCharacterInfo', () => {
   function silvera(): ReturnType<typeof makeActor> {
     return makeActor({
       id: 'aaaaaaaaaaaaaaaa', // 16 chars → exercises the ID lookup branch

@@ -1,26 +1,48 @@
 // A player who opens the GM page lands on the read-only player view (lib/role.ts for the new
-// dashboard, the same check in public/app.js for the old page at the root). The test server runs
+// dashboard). The test server runs
 // with a GM token and no player token: a visitor without a token is a player to the real server
 // (as a Cloudflare Access player is), and any other token is unknown to it (a GM's stale link).
 // Only the deployment that asks for a player token is faked, on /api/state.
 import { expect, test } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes } from './support';
+import { GM_TOKEN, fakeCommonRoutes, settle } from './support';
 
 const PLAYER_TOKEN = 'e2e-player-token';
 
-const PAGES = [
-  ['the main dashboard', '/'],
-  ['the old page', '/legacy/'],
-] as const;
+const PAGES = [['the main dashboard', '/']] as const;
 
-/** Waits for the page's /api/state answer, then long enough for a redirect to have happened. */
+// Table at a glance is GM only (item dashboard-glance-view): a player who types its address lands
+// on the player view, which shows only what a player already sees.
+test('a player without a token on Table at a glance lands on the player view', async ({ page }) => {
+  await fakeCommonRoutes(page);
+  await page.goto('/?glance=1');
+
+  await expect(page).toHaveURL(/\/player$/);
+});
+
+/** Waits for the page's /api/state answer, then until the page has acted on it (a redirect would have happened). */
 async function settled(page: import('@playwright/test').Page, path: string): Promise<unknown> {
   const state = page.waitForResponse('**/api/state');
   await page.goto(path);
   const body: unknown = await (await state).json();
-  await page.waitForTimeout(400);
+  await settle(page);
   return body;
+}
+
+// The strip page, Live window B and the GM page have no header of their own, but a GM link that
+// fell back to player still gets the one-line notice there (item dashboard-truth).
+for (const [name, path] of [
+  ['the strip alone', '/?strip=1'],
+  ['the Live view', '/?live=1'],
+  ['the GM page', '/gm'],
+] as const) {
+  test(`a stale GM token on ${name} shows the notice`, async ({ page }) => {
+    await fakeCommonRoutes(page);
+    const joiner = path.includes('?') ? '&' : '?';
+    await settled(page, `${path}${joiner}token=stale-gm-token`);
+
+    await expect(page.getByText("This browser's GM link is not accepted any more.")).toBeVisible();
+  });
 }
 
 for (const [name, path] of PAGES) {

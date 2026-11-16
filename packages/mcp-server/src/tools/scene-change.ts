@@ -100,7 +100,7 @@ export class SceneChangeTools {
       {
         name: 'plan-scene-change',
         description:
-          'Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn (removing something still needs the destructive confirm). A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).',
+          'Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -228,7 +228,7 @@ export class SceneChangeTools {
       {
         name: 'play-playlist',
         description:
-          'Play (default) or stop a playlist by name. Direct, with nothing to undo. Use to change the music as the story moves.',
+          'Direct write. Play (default) or stop a playlist by name. Nothing to undo. Use to change the music as the story moves.',
         inputSchema: {
           type: 'object',
           properties: {

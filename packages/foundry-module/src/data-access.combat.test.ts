@@ -67,7 +67,7 @@ function hpDowned(
 // No-combat cases
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: no combat', () => {
+describe('FoundryDataAccess: getCombatState: no combat', () => {
   it('returns active:false with a descriptive message when no combat exists', async () => {
     // Neither game.combat nor game.combats holds anything.
     const result = await da.getCombatState();
@@ -84,7 +84,7 @@ describe('FoundryDataAccess — getCombatState: no combat', () => {
 // Basic shape with a started combat
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: top-level shape', () => {
+describe('FoundryDataAccess: getCombatState: top-level shape', () => {
   it('returns success:true with round/turn/current/combatants/downed when combat exists', async () => {
     const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     world.setCombat({
@@ -132,7 +132,7 @@ describe('FoundryDataAccess — getCombatState: top-level shape', () => {
   });
 
   it('sets current to null when turn index exceeds combatants length', async () => {
-    // turn=1 but only one combatant (index 0) — combatants[1] is undefined → null
+    // turn=1 but only one combatant (index 0), combatants[1] is undefined → null
     const actor = makeActor({ type: 'npc', system: hp(5) });
     world.setCombat({
       turns: [
@@ -159,7 +159,7 @@ describe('FoundryDataAccess — getCombatState: top-level shape', () => {
 // Per-combatant isCurrentTurn / actedThisRound
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: turn tracking', () => {
+describe('FoundryDataAccess: getCombatState: turn tracking', () => {
   it('marks only the combatant at turn index as isCurrentTurn', async () => {
     const actorA = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     const actorB = makeActor({ type: 'npc', system: hp(8) });
@@ -267,7 +267,7 @@ describe('FoundryDataAccess — getCombatState: turn tracking', () => {
 // Category: pc / enemy / npc
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: category', () => {
+describe('FoundryDataAccess: getCombatState: category', () => {
   it('assigns category "pc" for hasPlayerOwner + type character', async () => {
     const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     world.setCombat({
@@ -350,7 +350,7 @@ describe('FoundryDataAccess — getCombatState: category', () => {
 // HP
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: HP field', () => {
+describe('FoundryDataAccess: getCombatState: HP field', () => {
   it('maps hp value/max/temp from the actor system', async () => {
     const actor = makeActor({
       type: 'character',
@@ -396,7 +396,7 @@ describe('FoundryDataAccess — getCombatState: HP field', () => {
 // Defeated / downed list
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: defeated + downed', () => {
+describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
   it('marks a combatant defeated when isDefeated is true (overrides hp)', async () => {
     const actor = makeActor({ type: 'npc', system: hp(5), hasPlayerOwner: false });
     world.setCombat({
@@ -516,7 +516,7 @@ describe('FoundryDataAccess — getCombatState: defeated + downed', () => {
 // Hidden
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: hidden', () => {
+describe('FoundryDataAccess: getCombatState: hidden', () => {
   it('picks combatant.hidden when set (truthy)', async () => {
     const actor = makeActor({ type: 'npc', system: hp(8) });
     world.setCombat({
@@ -583,7 +583,7 @@ describe('FoundryDataAccess — getCombatState: hidden', () => {
 // Conditions (actorConditionNames indirectly tested)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: conditions', () => {
+describe('FoundryDataAccess: getCombatState: conditions', () => {
   it('returns empty conditions array when the actor has no effects', async () => {
     const actor = makeActor({
       type: 'character',
@@ -624,6 +624,192 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
 
     const result = await da.getCombatState();
     expect(result.combatants[0].conditions).toEqual(['Poisoned', 'Blinded']);
+  });
+
+  it('lists the rounds left on timed conditions, 0 once the time is up, and skips untimed ones', async () => {
+    const prone = makeEffect({
+      name: 'Prone',
+      statuses: ['prone'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+    });
+    const poisoned = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 2, remaining: 0, expired: true },
+    });
+    // The round changed (remaining 0) but Foundry has not flagged it: it still applies.
+    const frightened = makeEffect({
+      name: 'Frightened',
+      statuses: ['frightened'],
+      duration: { units: 'rounds', value: 1, remaining: 0, expired: false },
+    });
+    const blinded = makeEffect({ name: 'Blinded', statuses: ['blinded'] });
+    const hours = makeEffect({
+      name: 'Charmed',
+      statuses: ['charmed'],
+      duration: { units: 'hours', value: 1 },
+    });
+    const actor = makeActor({
+      type: 'character',
+      system: hp(10),
+      hasPlayerOwner: true,
+      effects: [prone, poisoned, frightened, blinded, hours],
+    });
+    world.setCombat({
+      turns: [
+        makeCombatant({ id: 'c1', name: 'Hero', initiative: 20, actor, token: { disposition: 1 } }),
+      ],
+      turn: 0,
+      round: 1,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].conditions).toEqual([
+      'Prone',
+      'Poisoned',
+      'Frightened',
+      'Blinded',
+      'Charmed',
+    ]);
+    expect(result.combatants[0].timed).toEqual({ Prone: 1, Poisoned: 0, Frightened: 1 });
+  });
+
+  it('works the rounds left out from the effect start and the running combat, not the prepared values', async () => {
+    // No prepared remaining/expired at all (a reloaded GM client): only the stored start.
+    const fresh = makeEffect({
+      name: 'Prone',
+      statuses: ['prone'],
+      duration: { units: 'rounds', value: 3 },
+      start: { round: 2, turn: 0 },
+    });
+    const overdue = makeEffect({
+      name: 'Restrained',
+      statuses: ['restrained'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+      start: { round: 1, turn: 0 },
+    });
+    // Round changed (0 left) and the owner's turn has started: ended; before it: still 1.
+    const startedTurn = makeEffect({
+      name: 'Frightened',
+      statuses: ['frightened'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0 },
+    });
+    const notYet = makeEffect({
+      name: 'Blinded',
+      statuses: ['blinded'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0 },
+    });
+    // A stamp from another fight: the prepared values count, not that start round.
+    const foreign = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+      start: { round: 9, turn: 0, combat: 'old-fight' },
+    });
+    const early = makeActor({ type: 'character', system: hp(10), effects: [startedTurn] });
+    const late = makeActor({
+      type: 'character',
+      system: hp(10),
+      effects: [fresh, overdue, notYet, foreign],
+    });
+    // Two unlinked tokens share one actor id: each is judged by its own place in the order.
+    (early as { id?: string }).id = 'wolf';
+    (late as { id?: string }).id = 'wolf';
+    world.setCombat({
+      turns: [
+        makeCombatant({
+          id: 'c1',
+          name: 'A',
+          initiative: 20,
+          actor: early,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c2',
+          name: 'B',
+          initiative: 10,
+          actor: late,
+          token: { disposition: 1 },
+        }),
+      ],
+      turn: 0,
+      round: 4,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].timed).toEqual({ Frightened: 0 });
+    expect(result.combatants[1].timed).toEqual({
+      Prone: 1,
+      Restrained: 0,
+      Blinded: 1,
+      Poisoned: 1,
+    });
+  });
+
+  it('times an ended effect against the combatant it was stamped on, and ignores a deleted fight', async () => {
+    // Stamped on combatant c1 (index 0); its holder is c3 (index 2).
+    const stamped = makeEffect({
+      name: 'Restrained',
+      statuses: ['restrained'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0, combatant: 'c1' },
+    });
+    // The fight it was stamped in is gone: the live field is null, the source keeps the id.
+    const deleted = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 10, remaining: 7 },
+      start: { round: 6, turn: 0, combat: null },
+    });
+    (deleted as { _source?: unknown })._source = { start: { round: 6, combat: 'old-fight' } };
+    const noExpiry = makeEffect({
+      name: 'Blinded',
+      statuses: ['blinded'],
+      duration: { units: 'rounds', value: 1, expiry: null },
+      start: { round: 3, turn: 0 },
+    });
+    const holder = makeActor({
+      type: 'character',
+      system: hp(10),
+      effects: [stamped, deleted, noExpiry],
+    });
+    const other = makeActor({ type: 'character', system: hp(10) });
+    world.setCombat({
+      turns: [
+        makeCombatant({
+          id: 'c1',
+          name: 'A',
+          initiative: 20,
+          actor: other,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c2',
+          name: 'B',
+          initiative: 15,
+          actor: other,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c3',
+          name: 'C',
+          initiative: 10,
+          actor: holder,
+          token: { disposition: 1 },
+        }),
+      ],
+      turn: 0,
+      round: 4,
+      started: true,
+    });
+    const result = await da.getCombatState();
+    // Round 4, turn 0: c1's turn has started, so the effect stamped on c1 is over, although
+    // its holder (index 2) has not had its turn yet. The deleted fight's stamp is not used.
+    expect(result.combatants[2].timed).toEqual({ Restrained: 0, Poisoned: 7, Blinded: 0 });
   });
 
   it('excludes disabled effects from conditions', async () => {
@@ -690,7 +876,7 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
 // tokenId / actorId / sceneId / statuses (M2: player-visibility naming)
 // ---------------------------------------------------------------------------
 
-describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses', () => {
+describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', () => {
   it('reads tokenId from c.tokenId, falling back to c.token.id, else null', async () => {
     const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
     world.setCombat({

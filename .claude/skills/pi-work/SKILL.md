@@ -6,7 +6,7 @@ description: Rules and steps for any work on the Orange Pi (or any Linux host) t
 # Pi work
 
 Hardware: Orange Pi 5 Pro 16 GB, DietPi, Node 24, reached as `ssh foundry-pi`. Setup and stages:
-`docs/dev/PI-SETUP.md`; remote access (Tailscale, Part C tunnel): `docs/dev/REMOTE-ACCESS.md`;
+`docs/dev/PI-SETUP.md` (index to the pages in `docs/dev/pi/`); remote access (Tailscale, Part C tunnel): `docs/dev/REMOTE-ACCESS.md`;
 Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 
 ## The rule (the user, 2026-10-04)
@@ -15,7 +15,7 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 - **Every change only from a reviewed stage script** in `scripts/pi/remote/` (Opus review: Pi
   scripts are a risky category), tested in the ARM64 container first (`scripts/pi/container-test/`),
   each run after the user's explicit OK. Any other change is shown to the user first and runs only
-  after an OK.
+  after an OK. Every OK is asked through `AskUserQuestion`, never in prose or via the planner.
 - **Explicit OK every time, never bundled:** deleting outside our folders (`/opt/foundry*`,
   `/opt/node24`, `/var/lib/foundry*`, `/etc/foundry-ai-tool`, `/tmp`), users and groups, disks,
   partitions, filesystems, the bootloader, removing packages, firewall, SSH and network settings,
@@ -31,6 +31,8 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
   installed (for example `/opt/foundry-ai-tool/gm-browser/assistant-gm.mjs` from stage 5). If the
   run relies on a new feature, compare the deployed helper with the repo copy (sha256, or grep for
   the new env var) first. Container tests install the repo's stand-in and cannot catch this.
+- Look at what is deployed first with `deploy/pi/deployed-state.ps1` (read-only: units, containers, env
+  names, libicu, the deployed build against the newest release and the helper hash). It needs no snapshot.
 - After the run, read the output for the expected result (for example the `users:` line), not
   just the exit code.
 - Stage scripts: `${var:?}` in every `rm -rf`; `node --test .claude/hooks/guard-remote-commands.test.mjs`
@@ -39,9 +41,10 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 
 ## Current state and holds
 
-- Holds in CLAUDE.md "Holds now" apply (stage 14 and dnd5e 6.0.6 on the Pi are paused until after
-  G0; the Pi stays on dnd5e 6.0.5).
-- Updates (D-098, D-110): newest Foundry, dnd5e and module versions, tested first on the PC test
+- Holds in CLAUDE.md "Holds now" apply. The Pi moves to the newest Foundry, dnd5e and tool release
+  (D-128, the user, 2026-10-24), in the order written in `docs/dev/pi/worlds-and-trials.md`,
+  "System trial (stage 14)" (trial, stage 3, stage 5, test kit, switch).
+- Updates (D-098, D-110, D-128): newest Foundry, dnd5e and module versions, tested first on the PC test
   server (CI, `live:roundtrip`, `live:sweep`, full kit), then the kit on the Pi's `strahd-kit`
   world, then the real world; never on a game-night day; never a beta on the real world.
 - Stage 12 (tunnel) refuses to run while any Pi world has a GM user with no password.

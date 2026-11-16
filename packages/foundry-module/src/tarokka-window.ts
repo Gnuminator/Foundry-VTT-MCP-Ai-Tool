@@ -35,6 +35,8 @@ export interface TarokkaDeps {
   openDocument(uuid: string): Promise<unknown>;
   notifyInfo(message: string): void;
   notifyError(message: string): void;
+  /** For a form the GM has not filled in yet: Foundry logs a warning, not a console error. */
+  notifyWarn(message: string): void;
 }
 
 function errorMessage(error: unknown): string {
@@ -161,7 +163,8 @@ export class TarokkaController {
     if (this.view.busy || !form) return;
     const checked = checkRevealForm(form);
     if (!checked.ok) {
-      this.failed(checked.error);
+      this.view = { ...this.view, actionError: checked.error };
+      this.deps.notifyWarn(checked.error);
       this.changed();
       return;
     }
@@ -248,6 +251,7 @@ export function foundryTarokkaDeps(): TarokkaDeps {
     openDocument: uuid => openDocumentLocally(uuid),
     notifyInfo: message => void ui.notifications.info(message),
     notifyError: message => void ui.notifications.error(message),
+    notifyWarn: message => void ui.notifications.warn(message),
   };
 }
 

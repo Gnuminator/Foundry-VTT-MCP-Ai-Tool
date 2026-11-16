@@ -17,7 +17,7 @@ export interface PlaySession {
 export const PLAY_SESSION_KEY = ['play-session'] as const;
 
 /**
- * The play session, polled each minute as the old page does. A failed poll keeps the last answer
+ * The play session, polled each minute. A failed poll keeps the last answer
  * (a query keeps its data on error). `failed` stays true once a read failed with no answer yet,
  * also while the next poll runs. `checkedAt` is when the last poll came back, answered or failed. Another panel that
  * mounts (Turn on for tonight) shares the last answer instead of asking again.

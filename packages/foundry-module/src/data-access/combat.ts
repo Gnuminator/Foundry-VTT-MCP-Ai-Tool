@@ -1,4 +1,6 @@
 import * as shared from './shared.js';
+import { changeJournal } from '../change-journal.js';
+import { resolveCombat } from '../combat-resolve.js';
 import { eventTracker } from '../session-events.js';
 
 /** The roll-shape fields `rollSavingThrows` forwards to the dnd5e roll dispatch. */
@@ -97,6 +99,8 @@ export interface CombatantSnapshot {
   img: string | null;
   hp: { value: number | null; max: number | null; temp: number } | null;
   conditions: string[];
+  /** Rounds left on the timed conditions, by condition name (0 = the time is up). */
+  timed: Record<string, number>;
   statuses: string[];
   isPC: boolean;
   category: 'pc' | 'enemy' | 'npc';
@@ -178,7 +182,7 @@ export function bossResources(actor: unknown): BossResources | null {
   return { legendary, resistances, lair };
 }
 
-/** Combat tracker + resolution domain — extracted from FoundryDataAccess. */
+/** Combat tracker + resolution domain, extracted from FoundryDataAccess. */
 export class CombatDataAccess {
   /**
    * Build a structured, human-readable play-by-play of the current/most-recent
@@ -213,8 +217,15 @@ export class CombatDataAccess {
     const currentIndex = combat.turn ?? 0;
     const started = combat.started ?? false;
 
+    const timedCombat = started
+      ? {
+          combatId: (combat as { id?: string | null }).id ?? null,
+          round: combat.round ?? 0,
+          turnIds: turns.map(t => t.id),
+        }
+      : null;
     const combatants = turns.map((c, idx) =>
-      this.summarizeCombatant(c, idx, currentIndex, started)
+      this.summarizeCombatant(c, idx, currentIndex, started, timedCombat)
     );
 
     return {
@@ -230,15 +241,13 @@ export class CombatDataAccess {
 
   /** The live combat, else the most recently registered encounter, else null. */
   private resolveActiveOrRecentCombat(): TrackerCombat | null {
-    return (game.combat ??
-      Array.from(game.combats ?? []).slice(-1)[0] ??
-      null) as TrackerCombat | null;
+    return resolveCombat() ?? null;
   }
 
   /**
    * Build one combatant's snapshot. `defeated` honours an explicit `isDefeated`,
    * otherwise treats 0-or-less HP as down; `deathSaves` surface only while a
-   * combatant is at 0 HP. `actedThisRound` is index-based — the turn index
+   * combatant is at 0 HP. `actedThisRound` is index-based, the turn index
    * resets to 0 each round, so any combatant before the current index has
    * already acted. `hidden` mirrors the tracker's GM-hidden flag (falling back
    * to the token) so the dashboard can drop it from the player view (Phase 6).
@@ -250,7 +259,12 @@ export class CombatDataAccess {
     c: TrackerCombatant,
     idx: number,
     currentIndex: number,
-    started: boolean
+    started: boolean,
+    timedCombat: {
+      combatId: string | null;
+      round: number;
+      turnIds?: (string | null | undefined)[];
+    } | null = null
   ): CombatantSnapshot {
     const actor = c.actor;
     const hp = actor?.system?.attributes?.hp;
@@ -278,6 +292,10 @@ export class CombatDataAccess {
       img: cExtra.img || null,
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
+      timed: shared.actorTimedConditions(
+        actor,
+        timedCombat ? { ...timedCombat, turn: currentIndex, ownerIdx: idx } : null
+      ),
       statuses: Array.from(actorExtra?.statuses ?? []).filter(
         (s: unknown): s is string => typeof s === 'string'
       ),
@@ -399,7 +417,7 @@ export class CombatDataAccess {
           .map(c => c.id);
         if (ids.length > 0) await combat.rollInitiative(ids);
       } else {
-        // 'npcs' — Foundry core rolls initiative for all non-player-owned combatants
+        // 'npcs', Foundry core rolls initiative for all non-player-owned combatants
         await combat.rollNPC();
       }
     }
@@ -529,11 +547,18 @@ export class CombatDataAccess {
 
   // --- Mutation internals ----------------------------------------------------
 
-  /** The live combat (`game.combat`), or throw — mutation needs an *active* encounter. */
+  /**
+   * The fight the combat strip shows (this browser's live combat, else the latest encounter), or
+   * throw. A fight started on the dashboard can belong to a scene this GM browser does not view,
+   * where `game.combat` is null.
+   */
   private requireActiveCombat(): TrackerCombat {
-    const combat = game.combat;
+    const combat = this.resolveActiveOrRecentCombat();
     if (!combat) throw new Error('No active combat encounter.');
-    return combat as TrackerCombat;
+    // Only the turn and initiative writes come here: they are no follow-up of a guarded write
+    // that ended a moment ago (the journal's long gap would else file them under it).
+    changeJournal.breakGroup();
+    return combat;
   }
 
   /**
@@ -548,7 +573,13 @@ export class CombatDataAccess {
   ): Promise<(T | TargetError)[]> {
     const results: (T | TargetError)[] = [];
     for (const id of targets) {
-      const actor = shared.resolveTargetActor(id);
+      let actor: Actor | undefined;
+      try {
+        actor = shared.resolveTargetActor(id);
+      } catch (err) {
+        results.push({ target: id, error: err instanceof Error ? err.message : String(err) });
+        continue;
+      }
       if (!actor) {
         results.push({ target: id, error: 'actor/token not found' });
         continue;

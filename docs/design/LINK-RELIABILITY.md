@@ -25,6 +25,11 @@ down until someone reloads.
 
 ## PB-03: reconnect forever, no world writes
 
+(One exception, added later: the link holder writes the hidden world setting `linkState` once per
+confirmed "lost", "back" or "quiet" notice so the other GMs' browsers can show it; never per retry
+or per `start()`. Only when "AI Tool: Which GM connects" names one user who may change world
+settings; with Any GM every GM browser holds a link and none writes it.)
+
 - **Module `socket-bridge.ts`:** no attempt limit. Backoff 1 s, 2 s, 4 s ... capped at 30 s, plus
   up to 20 % random jitter. One reconnect timer at most (error and close both fire on a failed
   connect today). The cap and "forever" hold for the WebSocket link.
@@ -35,16 +40,16 @@ down until someone reloads.
   - The heartbeat no longer restarts the bridge (the socket bridge owns reconnecting) and never
     turns `autoReconnectEnabled` off.
   - Connection state and last activity live in memory only. Remove the `setSetting` calls for
-    `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` (keep the registrations so
-    old worlds load; mark them deprecated in a comment). The "MCP server not found" notice is
+    `lastConnectionState`, `lastActivity` and `lastMCPServerNotification` (these settings were later
+    removed altogether; an old world's stored values are ignored). The "MCP server not found" notice is
     throttled in memory (once per 10 minutes per browser).
   - `autoReconnectEnabled` still means something: when off, the socket bridge does not reconnect
     after a drop (manual reconnect from the settings panel).
 - **Cost:** a reconnect is one local TCP attempt at most every 30 s. No AI, no API, no world writes.
 - **Telling the user:** the backend tracks `linkDownSince` (ISO time, null while connected) and logs
-  one warning when the link has been down 5 minutes and one info line when it is back
+  one warning when the link has been down 30 seconds and one warning when it is back, with the outage length (`downMs`)
   (`link-down` / `link-up`, the hook the Discord bot will use later). The dashboard status carries
-  `foundryDownSince`; `public/app.js` shows a banner above the panels when Foundry has been
+  `foundryDownSince`; the dashboard shows a banner above the panels when Foundry has been
   unreachable for 2 minutes or more: "Foundry is not connected to the bridge since HH:MM. Open
   Foundry in the bridge user's browser, or reload that tab."
 
@@ -76,7 +81,11 @@ empty list as today. Documented in `docs/dev/` and in `.env.example` when lane 2
 
 ## PB-07: CI on every branch
 
-`.github/workflows/ci.yml`: `push` on all branches (`branches: ['**']`), `pull_request` to main, plus a
+**Superseded on purpose:** the all-branches push trigger below was removed, because a push to a PR
+branch started a second, identical run next to the `pull_request` one. `ci.yml` now runs on `pull_request`
+to main and on pushes to main only. Do not restore the trigger. The rest of this section still holds.
+
+`.github/workflows/ci.yml` (as first designed): `push` on all branches (`branches: ['**']`), `pull_request` to main, plus a
 job `build-test-arm` on `ubuntu-24.04-arm` with Node 24 (free for public repos). Concurrency group
 per ref so a new push cancels the old run.
 

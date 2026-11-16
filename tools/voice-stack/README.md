@@ -43,7 +43,7 @@ to exist even when you only transcribe. Edit `FVTT_SESSIONS_DIR` in `.env` if yo
 `transcribe` options: `-Model <name|path>` (default `large-v3`), `-Force` (redo finished tracks),
 `-NoPipeline`, `-NoAutoFix`, `-Hotwords` (pass `<session>/names.txt`, or `vocab.txt` when there is no
 names file, to Whisper as hotwords; off by default, see the results below; `-NoHotwords` is kept and
-does nothing). `<session>/names.txt` goes to the pipeline as the known names for automatic name
+cancels `-Hotwords` when both are given, and does nothing alone). `<session>/names.txt` goes to the pipeline as the known names for automatic name
 fixes (every fix is listed in `timeline/fixes.json`; `-NoAutoFix` turns them into suggestions).
 
 `names` options: `-Dashboard <url>` (default `http://127.0.0.1:3100`, the co-GM dashboard of the
@@ -51,8 +51,8 @@ Foundry world), `-Offline`, `-Items`, `-Journals`. Without the dashboard it uses
 `<session>/extra-names.txt` (or `extra-names.txt` in the sessions folder): one name per line, for names
 the world does not have.
 
-The script refuses to run when `.env` sets any `*_PORT` to a Foundry or bridge port (30000, 30001, 3100,
-31414 to 31416, 31514 to 31516). It only ever touches the `fvtt-voice` project; other containers on the
+The script refuses to run when `.env` sets any `*_PORT` to a Foundry or bridge port (the list in
+`shared/ports.json`: 30000 to 30003, 3000 and 3100 to 3102, 31414 to 31416, 31514 to 31516, 31524, 31525, 31534, 31535). It only ever touches the `fvtt-voice` project; other containers on the
 machine are left alone. Do not run it together with `tools/livekit/scripts/livekit-poc.ps1 up`: both
 use ports 7880 to 7882.
 

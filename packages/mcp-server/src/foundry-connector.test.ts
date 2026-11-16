@@ -268,7 +268,7 @@ describe('link state (PB-03)', () => {
     expect(connector.getConnectionInfo().linkDownSince).toBe('2026-09-30T10:00:00.000Z');
   });
 
-  it('tracks the time the last socket went away and logs link-down once after 5 minutes', async () => {
+  it('tracks the time the last socket went away and logs link-down once after 30 seconds', async () => {
     const a = connect();
     const b = connect();
     await vi.advanceTimersByTimeAsync(60_000);
@@ -288,22 +288,27 @@ describe('link state (PB-03)', () => {
   });
 
   it('logs link-up only after a link-down was logged', async () => {
-    const upLogs = (): unknown[] => logger.info.mock.calls.filter((c: any[]) => c[0] === 'link-up');
+    const upLogs = (): unknown[] => logger.warn.mock.calls.filter((c: any[]) => c[0] === 'link-up');
 
     const a = connect();
     a.drop();
-    await vi.advanceTimersByTimeAsync(30_000);
-    connect(); // back within 5 minutes: no link-down, so no link-up
+    await vi.advanceTimersByTimeAsync(20_000);
+    connect(); // back within 30 seconds: no link-down, so no link-up
     expect(upLogs()).toHaveLength(0);
     expect(connector.getConnectionInfo().linkDownSince).toBeNull();
 
     const c = connect();
-    // a fresh outage of more than 5 minutes
+    // a fresh outage of more than 30 seconds
     for (const ws of [...(connector as any).sockets.keys()]) (ws as FakeSocket).drop();
     await vi.advanceTimersByTimeAsync(LINK_DOWN_WARN_MS + 1000);
     expect(logger.warn).toHaveBeenCalledWith('link-down', expect.anything());
     connect();
     expect(upLogs()).toHaveLength(1);
+    // The link-up line carries the outage length.
+    expect(logger.warn).toHaveBeenCalledWith(
+      'link-up',
+      expect.objectContaining({ downMs: expect.any(Number) })
+    );
     expect(connector.getConnectionInfo().linkDownSince).toBeNull();
     void c;
   });

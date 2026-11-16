@@ -85,6 +85,12 @@ foreach ($p in @($FoundryZip, $PassFile)) {
 if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository" }
 if (-not $Name.StartsWith('pi-drill-')) { throw "-Name must start with pi-drill- (so no other container is ever touched)" }
 if (Test-Path -LiteralPath $Scratch) { throw "$Scratch exists already: pick another -Scratch (nothing is overwritten)" }
+if ($HostPort -gt 0) {
+  # The forbidden list lives in shared/ports.json (generated from shared/src/ports.ts). 3190 is not in it: it was in the
+  # drill's own literal list before that file existed (owner unknown), so it stays refused.
+  $forbiddenPorts = @((Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden) + 3190
+  if ($HostPort -in $forbiddenPorts) { throw "port $HostPort is not free to use" }
+}
 $existing = docker ps -a --filter "name=^$Name$" --format '{{.Names}}'
 if ($existing) { throw "a container named $Name exists already: pick another -Name" }
 Invoke-Native docker @('version', '--format', '{{.Server.Version}}')
@@ -128,7 +134,6 @@ $run = @('run', '-d', '--name', $Name, '--hostname', 'foundry-pi', '--platform',
   '-v', "${remoteDir}:/stages:ro", '-v', "${drillDir}:/drill-scripts:ro",
   '-v', "${Repo}:/drill/pc-repo:ro", '-v', "${PassFile}:/drill/restic-pc.pass:ro")
 if ($HostPort -gt 0) {
-  if ($HostPort -in 3000, 3100, 3101, 3102, 3190, 30000, 30001, 30002, 30003, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535) { throw "port $HostPort is not free to use" }
   $run += @('-p', "127.0.0.1:${HostPort}:30000")
 }
 $run += @($Image, 'sleep', 'infinity')

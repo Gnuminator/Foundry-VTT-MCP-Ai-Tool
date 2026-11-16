@@ -3,7 +3,15 @@
 // stream's `theme` event, and a refused save that puts the picker back.
 import { expect, test, type Route } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession, toast } from './support';
+import {
+  GM_TOKEN,
+  fakeCommonRoutes,
+  fakeStream,
+  holdPlaySession,
+  toast,
+  settle,
+  themeBody,
+} from './support';
 
 test.beforeEach(async ({ page }) => {
   await holdPlaySession(page);
@@ -45,7 +53,7 @@ test('a slow /api/theme answer does not undo the theme the stream already brough
   await page.route('**/api/usage', route => route.fulfill({ status: 204 }));
   await page.route('**/api/theme', async route => {
     await new Promise(done => setTimeout(done, 600));
-    await route.fulfill({ json: { theme: 'neutral' } }).catch(() => undefined);
+    await route.fulfill({ json: themeBody('neutral') }).catch(() => undefined);
   });
   await fakeStream(page, [
     { event: 'theme', data: { theme: 'veil', themes: ['neutral', 'veil'] } },
@@ -56,7 +64,7 @@ test('a slow /api/theme answer does not undo the theme the stream already brough
   await expect(page.locator('#select-theme')).toHaveValue('veil');
   await late;
   // Let the old answer land and the page settle: the stream's theme still stands.
-  await page.waitForTimeout(300);
+  await settle(page);
   await expect(page.locator('#select-theme')).toHaveValue('veil');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'veil');
 });

@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ExportFolderRef, ExportIndexRequest } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { REVEALS_FILE } from '../tarokka/service.js';
 import {
@@ -33,6 +33,7 @@ import {
 import { shortSuffix } from './mirror-paths.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
 const converter = vi.hoisted(() => ({
   html: vi.fn<(html: string, ctx: LinkContext) => string>(),
@@ -76,7 +77,7 @@ let store: VaultStore;
 let fake: FakeExportIndex;
 let clock: { t: number };
 let currentWorld: string;
-let logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> };
+let logger: { info: Mock; warn: Mock };
 
 beforeEach(async () => {
   tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'mirror-pump-'));
@@ -88,7 +89,7 @@ beforeEach(async () => {
   for (const entry of [HERO, WOLF, ARENA, LORE, SWORD, CLOCK]) fake.put(entry);
   clock = { t: T0 };
   currentWorld = WORLD;
-  logger = { info: vi.fn(), warn: vi.fn() };
+  logger = makeLogger();
   converter.html.mockReset();
   converter.markdown.mockReset();
   converter.html.mockImplementation(html => {
@@ -218,6 +219,8 @@ describe('ObsidianMirrorPump: first run and incremental cycles', () => {
         P.wolf,
         P.hero,
         P.arena,
+        // The default journal, scene and NPC sit in no adventure folder.
+        'AI Tool/Foundry/Without an adventure.md',
         'AI Tool/Bases/Journals.base',
         'AI Tool/Bases/NPCs.base',
         'AI Tool/Bases/PCs.base',
@@ -1051,6 +1054,7 @@ describe('ObsidianMirrorPump: adventure hubs (I-105)', () => {
   const INTRO = journalEntry('intro', 'Intro', [], { folder: ADV });
   const HALL = sceneEntry('hall', 'Grand Hall', { folder: ADV });
   const HUB = 'AI Tool/Foundry/Adventures/Adventure X.md';
+  const LOOSE = 'AI Tool/Foundry/Without an adventure.md';
   const INTRO_PATH = 'AI Tool/Foundry/Journals/Adventure X/Intro.md';
   const HALL_PATH = 'AI Tool/Foundry/Scenes/Adventure X/Grand Hall.md';
 
@@ -1102,6 +1106,47 @@ describe('ObsidianMirrorPump: adventure hubs (I-105)', () => {
   it('writes no hub for documents that sit in no folder', async () => {
     await started();
     expect(await exists(full('AI Tool/Foundry/Adventures'))).toBe(false);
+  });
+
+  it('links the journals that sit in no adventure from "Without an adventure"', async () => {
+    putAdventure();
+    fake.put(journalEntry('letters', 'Letters', []));
+    fake.put(journalEntry('lonely', 'Lonely', [], { folder: inFolder('lone', 'Only Journals') }));
+    const pump = await started();
+    const text = await read(LOOSE);
+    expect(text).toContain('type: "mirror-loose-notes"');
+    expect(text).toContain('- [Letters](Journals/Letters.md)');
+    expect(text).toContain('**Only Journals**');
+    expect(text).toContain('- [Lonely](Journals/Only%20Journals/Lonely.md)');
+    expect(text).toContain('[the campaign home](../../Home.md)');
+    // The adventure's own notes are not repeated, and the note is not an adventure hub.
+    expect(text).not.toContain('Intro');
+    expect(await exists(full('AI Tool/Foundry/Adventures/Without an adventure.md'))).toBe(false);
+    expect(pump.status().errors).toEqual([]);
+  });
+
+  it('trashes the "Without an adventure" note when nothing is loose any more', async () => {
+    const pump = await started();
+    expect(await read(LOOSE)).not.toBeNull();
+    // The default journal, scene and NPC move into the adventure folder: nothing is loose.
+    for (const entry of [LORE, ARENA, WOLF]) {
+      fake.edit(entry.uuid, e => (e.folder = ADV), 60_000);
+    }
+    await tickAfter(pump, 10_000);
+    await reconcileNow(pump);
+    expect(await read(HUB)).not.toBeNull();
+    expect(await exists(full(LOOSE))).toBe(false);
+    expect(await exists(trashed(LOOSE))).toBe(true);
+  });
+
+  it('keeps a "Without an adventure" note the GM edited', async () => {
+    fake.put(journalEntry('letters', 'Letters', []));
+    const pump = await started();
+    const edited = `${await read(LOOSE)}\nMy own line.\n`;
+    await fsp.writeFile(full(LOOSE), edited, 'utf8');
+    fake.put(journalEntry('notes2', 'More notes', []));
+    await reconcileNow(pump);
+    expect(await read(LOOSE)).toBe(edited);
   });
 
   it('moves the hub to the vault trash when the scene leaves the adventure', async () => {

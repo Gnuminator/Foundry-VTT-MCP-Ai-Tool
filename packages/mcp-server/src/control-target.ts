@@ -1,3 +1,4 @@
+import { DEFAULT_CONTROL_PORT } from '@gnuminator/shared';
 /**
  * Where the Claude Desktop wrapper (`index.ts`) looks for the bridge backend,
  * and whether it may start one itself (PB-01).
@@ -14,7 +15,7 @@ export interface ControlTarget {
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_PORT = 31414;
+const DEFAULT_PORT = DEFAULT_CONTROL_PORT;
 
 export function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOSTS.has(host.trim().toLowerCase());

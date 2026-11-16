@@ -6,7 +6,7 @@
  *
  * Built from the evaluated roll's own terms (order preserved) plus label
  * inference against the acting actor's current ability modifier,
- * proficiency bonus and (for weapon attacks) the item's magical bonus —
+ * proficiency bonus and (for weapon attacks) the item's magical bonus -
  * verified against the real dnd5e 6.0.5 source on disk
  * (`Activity#getAttackData`: `actor.system.abilities.<key>.mod`,
  * `actor.system.attributes.prof`, `item.system.magicalBonus` gated by
@@ -76,6 +76,10 @@ export interface RollBreakdown {
   parts: RollBreakdownPart[];
   /** The kept natural d20 result, for d20 rolls. */
   natural?: number;
+  /** The d20s that did not count (the lower one on advantage), for the roll box. */
+  droppedD20?: number[];
+  /** `advantage` or `disadvantage` when the roll was made with one. */
+  advantage?: 'advantage' | 'disadvantage';
   actorName: string;
   total: number;
   /** Target AC (attacks) or DC (saves/checks), when the roll carries one. */
@@ -146,7 +150,7 @@ function resolveActor(message: ChatMessage): { name: string; actor: ActorLike | 
 
 /**
  * The live item document a roll/usage message names, resolved synchronously
- * from the acting actor's own items (matched by uuid) — the message itself
+ * from the acting actor's own items (matched by uuid), the message itself
  * only carries a name/type/uuid descriptor (`dnd5eMessageItemRef`), not the
  * full system data a magic-bonus label needs.
  */
@@ -515,6 +519,12 @@ export function describeRoll(
       detailPlayerSafe,
     };
     if (natural !== undefined) breakdown.natural = natural;
+    const d20Part = parts.find(p => p.kind === 'dice' && /d20/.test(p.formula));
+    if (d20Part?.kind === 'dice' && d20Part.dropped && d20Part.dropped.length > 0) {
+      breakdown.droppedD20 = d20Part.dropped;
+    }
+    if (advantageMode === 1) breakdown.advantage = 'advantage';
+    else if (advantageMode === -1) breakdown.advantage = 'disadvantage';
     if (dc !== undefined) breakdown.dc = dc;
     if (outcome !== undefined) breakdown.outcome = outcome;
     return breakdown;

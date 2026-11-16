@@ -1,7 +1,7 @@
 /**
  * Candidates for the dashboard's tool-parameter pickers (`list-ref-choices`).
  *
- * The dashboard's tool runner offers, next to every parameter that names a
+ * The dashboard's Tool Runner offers, next to every parameter that names a
  * document, a searchable list of what exists right now (the tokens on the
  * current scene, the world's actors, a pack's entries, ...), so the GM picks
  * instead of typing ids. This file lists them; it changes nothing. Like every
@@ -16,6 +16,7 @@
 import { statusEffectList } from '../systems/dnd5e/status-effects.js';
 import { isToolTemplateRegion, toolTemplateFlag } from '../systems/regions.js';
 import { supportsMeasuredTemplates } from '../systems/core.js';
+import { resolveCombat } from '../combat-resolve.js';
 import { viewedScene } from '../viewed-scene.js';
 
 /** Optional fields may be undefined here; JSON drops them on the wire. */
@@ -307,7 +308,7 @@ function listActorItems({ parent, filter }: ListRequest): Listed {
 }
 
 function listCombatants(): Listed {
-  const combat = game.combat;
+  const combat = resolveCombat<NonNullable<typeof game.combat>>();
   if (!combat) return { choices: [], note: 'No active combat' };
   const choices = combat.combatants.contents.map(c => ({
     id: c.id,
@@ -424,7 +425,7 @@ function listNotes({ parent }: ListRequest): Listed {
 /**
  * MeasuredTemplate documents on v13; on v14 (MeasuredTemplate removed 14.352,
  * #13089) templates are Regions (`scene-plan.ts`,
- * `systems/regions.ts`) — list only the ones this tool created
+ * `systems/regions.ts`), list only the ones this tool created
  * (`isToolTemplateRegion`), never a hand-made GM region. The same gate as
  * scene-plan: 14.368 still has an (empty) `scene.templates`, so its presence is
  * no signal (found live in M3).

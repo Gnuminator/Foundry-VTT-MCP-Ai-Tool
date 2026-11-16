@@ -210,3 +210,77 @@ describe('rules version', () => {
     expect(diff?.reason).toContain('2024');
   });
 });
+
+describe('rules differences', () => {
+  const diffLine = (f: RulesFacts): RulesCheckLine | undefined =>
+    evaluateAction(f).checks.find(c => c.check === 'rules-differences');
+  const doc = (
+    version: string,
+    source = 'system.source.rules'
+  ): { version: string; source: string } => ({ version, source });
+
+  it('says nothing for an action whose rules did not change', () => {
+    expect(diffLine(base)).toBeUndefined();
+  });
+
+  it('describes both rule sets for Counterspell, and which one the item follows', () => {
+    const line = diffLine({
+      ...base,
+      item: 'Counterspell',
+      spellLevel: 3,
+      rules: { item: doc('2024'), actor: doc('2014') },
+    });
+    expect(line?.status).toBe('info');
+    expect(line?.reason).toContain('2014:');
+    expect(line?.reason).toContain('2024:');
+    expect(line?.reason).toContain('follows the 2024 rules');
+  });
+
+  it('falls back to the actor, then to saying it does not know', () => {
+    const f = { ...base, item: 'Hide' };
+    expect(diffLine({ ...f, rules: { item: null, actor: doc('2014') } })?.reason).toContain(
+      'Ilvara follows the 2014 rules'
+    );
+    expect(
+      diffLine({ ...f, rules: { item: doc('2024', 'world-setting'), actor: doc('2014') } })?.reason
+    ).toContain('Ilvara follows the 2014 rules');
+    expect(
+      diffLine({ ...f, rules: { item: doc('2024', 'world-setting'), actor: null } })?.reason
+    ).toContain('says which rules apply');
+  });
+
+  it('keeps a spell and a weapon apart by name and kind', () => {
+    expect(diffLine({ ...base, item: 'Counterspell' })).toBeUndefined();
+    expect(diffLine({ ...base, item: 'Grapple', spellLevel: 1 })).toBeUndefined();
+    expect(diffLine({ ...base, item: 'Grapple' })).toBeDefined();
+  });
+
+  it('matches a looser item name by whole word only', () => {
+    expect(diffLine({ ...base, item: 'Grapple Save' })).toBeDefined();
+    expect(diffLine({ ...base, item: 'Grappling Hook' })).toBeUndefined();
+    expect(diffLine({ ...base, item: 'Shove (Prone)' })).toBeDefined();
+  });
+
+  it('reads the activity name when the item name has no note', () => {
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Grapple' })).toBeDefined();
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Attack' })).toBeUndefined();
+    expect(
+      diffLine({ ...base, item: 'Fireball', spellLevel: 3, activityName: 'Grapple' })
+    ).toBeUndefined();
+  });
+
+  it('knows the real 2024 Unarmed Strike activity name, Grapple/Shove', () => {
+    const line = diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Grapple/Shove' });
+    expect(line?.reason).toContain('Grapple and Shove works differently');
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: '' })).toBeUndefined();
+  });
+
+  it('writes the Grapple and Shove DC wording with possessives', () => {
+    expect(diffLine({ ...base, item: 'Grapple' })?.reason).toContain("grappler's Strength");
+    expect(diffLine({ ...base, item: 'Shove' })?.reason).toContain("shover's Strength");
+  });
+
+  it('never changes the verdict', () => {
+    expect(evaluateAction({ ...base, item: 'Shove' }).verdict).toBe('legal');
+  });
+});

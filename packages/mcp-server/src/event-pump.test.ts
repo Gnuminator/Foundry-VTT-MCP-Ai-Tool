@@ -252,3 +252,26 @@ describe('EventPump timer', () => {
     await store.flush();
   });
 });
+
+describe('EventPump onEvents', () => {
+  it('hands the newly written events to the listener, and a throwing listener breaks nothing', async () => {
+    const seen: string[][] = [];
+    const pump = new EventPump({
+      foundryClient: foundry,
+      worldIds: { current: (): Promise<string> => Promise.resolve(foundry.worldId) },
+      store,
+      logger,
+      onEvents: (_w, events): void => {
+        seen.push(events.map(e => (e as { id: string }).id));
+        throw new Error('listener broke');
+      },
+    });
+    const a = foundry.add(T0);
+    const b = foundry.add(T0 + 10);
+    expect(await pump.pollOnce()).toBe(2);
+    expect(seen).toEqual([[a, b]]);
+    expect(await pump.pollOnce()).toBe(0);
+    expect(seen).toHaveLength(1);
+    expect(logger.warn).toHaveBeenCalledWith('onEvents listener failed', expect.anything());
+  });
+});

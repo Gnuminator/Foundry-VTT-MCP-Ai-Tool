@@ -14,10 +14,11 @@
  * checks the feature switches.
  */
 import type { BridgeHandlerTable } from './bridge-handlers.js';
-import { writeOperationsAllowed } from './guarded-features.js';
+import { changeJournal } from './change-journal.js';
+import { WRITES_OFF_MESSAGE, writeOperationsAllowed } from './guarded-features.js';
 
 /** The refusal every gated write gets (the same text as guarded writes). */
-export const WRITES_DISABLED_MESSAGE = 'Write operations are disabled in the module settings';
+export const WRITES_DISABLED_MESSAGE = WRITES_OFF_MESSAGE;
 
 /** Methods that change the world: refused while "Allow Write Operations" is off. */
 export const WRITE_METHODS: readonly string[] = [
@@ -50,12 +51,18 @@ export const WRITE_METHODS: readonly string[] = [
   'createJournalEntry',
   // "Show it now" (I-110): pops a page up on the players' screens (Show Players)
   'showJournalPage',
+  // a handout reveal's chat notice: a whisper that names the page and links to it
+  'postHandoutNotice',
   // the session notes folder (recap lane, D-087; GM-only)
   'ensureJournalFolder',
   'updateCampaignProgress',
   'updateJournalContent',
   // chat and rolls (new chat messages)
   'playerRoll',
+  // "Upload my portrait": stores a player's picture file under assets/players/<slug>-<user id>/
+  'uploadPlayerPortrait',
+  // plan-actor-image: stores an actor's picture file under assets/ai-art/<actor>/ (GM only)
+  'uploadActorImage',
   'request-player-rolls',
   'requestAbilityCheck',
   'requestAttackRoll',
@@ -68,6 +75,29 @@ export const WRITE_METHODS: readonly string[] = [
 ];
 
 /**
+ * Write methods that make no change-journal record (chat, rolls, playlists, a page popup, a
+ * notice, a folder, a portrait file). They do not break the change group: it would only end the
+ * window in which dnd5e's late follow-ups of an AI change stay with it, and some of them run as
+ * a step of a guarded apply itself. playerRoll breaks the group itself on its initiative path
+ * (rollTrackerInitiative), where it starts a tracker roll that dnd5e follows up.
+ */
+export const RECORDLESS_WRITE_METHODS: readonly string[] = [
+  'ensureJournalFolder',
+  'playPlaylist',
+  'playerRoll',
+  'postHandoutNotice',
+  'request-player-rolls',
+  'requestAbilityCheck',
+  'requestAttackRoll',
+  'rollNpcCheck',
+  'rollSavingThrows',
+  'sendChatMessage',
+  'showJournalPage',
+  'uploadActorImage',
+  'uploadPlayerPortrait',
+];
+
+/**
  * Methods that do not change the world: reads, the guarded-write plumbing
  * (`applyGuardedOps` has its own gate), the GM feed line after an allowed
  * change, the announce that tells the "AI changes" windows to refresh, opening a sheet on the GM's screen and clearing the local error list.
@@ -76,6 +106,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'aiChangesUpdated',
   'applyGuardedOps',
   'characterSheet',
+  'playerRead',
   'clearModuleErrors',
   'findActor',
   'findPlayers',
@@ -106,6 +137,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getModuleErrors',
   'getModuleManifest',
   'getModules',
+  'getSetupInfo',
   'getPagesForPlayers',
   'getPartyCharacters',
   'getPartyState',
@@ -119,7 +151,6 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getSessionLog',
   'getSpentActions',
   'getTargets',
-  'getTarokkaReading',
   'getTokenDetails',
   'getTokenPositions',
   'getUsageRecords',
@@ -139,11 +170,13 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'planCombatChange',
   'planLiveChange',
   'planPartyPlacement',
+  'planPcCreation',
   'planRoomSetup',
   'planNpcTurn',
   'planPaperSync',
   'planSceneChange',
   'planSceneMood',
+  'planTokenRings',
   'searchCharacterItems',
   'searchCompendium',
   'searchLinkCandidates',
@@ -170,8 +203,12 @@ export function gateWriteHandlers(table: BridgeHandlerTable, prefix: string): vo
     const wire = `${prefix}.${method}`;
     const handler = table.get(wire);
     if (!handler) continue;
+    const breaks = !RECORDLESS_WRITE_METHODS.includes(method);
     table.set(wire, async (data: unknown) => {
       requireWriteOperations();
+      // A direct write is its own change, never a follow-up of the guarded apply just before it
+      // (the journal's guarded gap would else file it under the AI change in Recent Changes).
+      if (breaks) changeJournal.breakGroup();
       return await handler(data);
     });
   }

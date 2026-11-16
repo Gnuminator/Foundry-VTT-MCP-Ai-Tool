@@ -242,7 +242,7 @@ function main() {
     if (busy) return;
     setBusy(true);
     showStatus('info', 'Opening...');
-    let answerStatus = 0;
+    let answerStatus;
     let body = null;
     try {
       const res = await fetch('/api/open', openRequest(uuid, readToken(), userId));

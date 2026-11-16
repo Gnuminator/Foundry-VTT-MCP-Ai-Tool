@@ -58,13 +58,6 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'ready'),
     client,
-    coGm: {
-      enabled: false,
-      isBusy: false,
-      setWorld: (): void => undefined,
-      abortActive: (): void => undefined,
-      stream: () => Promise.reject(new Error('off')),
-    } as never,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server!.once('listening', () => resolve()));
@@ -137,7 +130,10 @@ describe('/api/session/switches', () => {
     );
     const res = await post(base, { action: 'ready' });
     expect(res.status).toBe(502);
-    expect(await res.json()).toMatchObject({ ok: false, error: 'Unknown method' });
+    expect(await res.json()).toMatchObject({
+      ok: false,
+      error: 'Could not change the switches in Foundry. Check that the world is open.',
+    });
     expect(await gmActions(base)).toBe(false);
   });
 

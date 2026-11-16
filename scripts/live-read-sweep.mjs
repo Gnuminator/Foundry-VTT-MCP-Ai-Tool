@@ -114,7 +114,7 @@ const shortShape = v => {
   const counts = rows.reduce((a, r) => ((a[r.status] = (a[r.status] || 0) + 1), a), {});
   console.log('# Live read-only sweep');
   console.log(
-    `health: control=${health.controlChannel} ai=${health.aiEnabled} | tools=${tools.length} (read=${reads.length})`
+    `health: control=${health.controlChannel} | tools=${tools.length} (read=${reads.length})`
   );
   console.log(
     `discovered: tokens=${tokenIds.length} firstModuleId=${firstModuleId || '(none)'}`

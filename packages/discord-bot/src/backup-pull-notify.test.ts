@@ -293,6 +293,14 @@ describe('BackupPullNotifier', () => {
     expect(await h.notifier.check(loud)).toEqual([]);
   });
 
+  it('the DM names the cause before the remedy', () => {
+    const text = backupPullMessage('stale', STALE, ['restic', 'snapshot']);
+    const cause = text.indexOf('The cause is either');
+    expect(cause).toBeGreaterThan(-1);
+    expect(cause).toBeLessThan(text.indexOf('Turn the PC on'));
+    expect(text).toContain('or that the Pi has made no new backup');
+  });
+
   it('an unreadable or invalid record tells the owner to run that pull task once; a missing one does not', () => {
     const unreadable = reading({
       restic: HOUR,
@@ -368,6 +376,17 @@ describe('messages', () => {
     expect(text).toContain('Turn the PC on');
     expect(text).toContain('Foundry Pi restic copy');
     expect(text).toContain('Foundry Pi snapshot pull');
+  });
+
+  it('is Danish first, then English', () => {
+    const text = backupPullMessage('stale', reading({ restic: 4 * DAY, snapshot: 5 * DAY }));
+    expect(text).toContain("Pi'ens restic og snapshot-backups er ikke kopieret til din PC");
+    expect(text).toContain('restic i 4 dage og snapshot i 5 dage');
+    expect(text).toContain('grænsen er 3 dage');
+    expect(text).toContain('Seneste restic-kopi: 4 dage siden.');
+    expect(text.indexOf('grænsen er')).toBeLessThan(text.indexOf('the limit is'));
+    const back = backupPullMessage('recovered', FRESH, ['restic']);
+    expect(back).toContain("PC'en har kopieret Pi'ens restic-backups igen (5 timer siden)");
   });
 
   it('says "not recorded yet" for a kind that was never copied', () => {

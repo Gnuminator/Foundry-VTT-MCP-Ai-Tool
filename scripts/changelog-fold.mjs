@@ -11,10 +11,14 @@
  * A fragment is one or more sections, each a `### Heading` line followed by bullets (`- ...`,
  * wrapped lines indented by two spaces). A section whose heading already exists under
  * "## Unreleased" is appended to the end of that section; a new heading becomes a new section at
- * the end of "Unreleased". Fragments are folded in file-name order. `changelog.d/README.md` explains
+ * the end of "Unreleased". Headings are compared by their base: a trailing "(...)" tag is dropped,
+ * the test aliases ("Testing", "Test kit", "Test environment") count as "Tests", and every heading
+ * that starts with "Pi" or "Orange Pi" counts as "Orange Pi", so repeated
+ * "### Tooling (...)" fragments end up under one "### Tooling" (a new section is written with the
+ * base heading). Fragments are folded in file-name order. `changelog.d/README.md` explains
  * the format and is never folded.
  */
-import { readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -25,6 +29,28 @@ const check = process.argv.includes('--check');
 const dryRun = process.argv.includes('--dry-run');
 
 const UNRELEASED = '## Unreleased';
+
+const HEADING_ALIASES = new Map([
+  ['testing', 'Tests'],
+  ['test kit', 'Tests'],
+  ['test environment', 'Tests'],
+]);
+
+/** Pi headings ("Pi", "Pi stages", "Pi and Plan B scripts", "Orange Pi (D-123)", ...) all go under one. */
+const PI_HEADING = /^(orange )?pi( |$)/i;
+
+/**
+ * The heading a section is filed under: no trailing "(...)" tag, test aliases folded to "Tests",
+ * Pi and Orange Pi headings (including "Pi fixes") folded to "Orange Pi".
+ * @param {string} heading a "### ..." line
+ */
+export function baseHeading(heading) {
+  const full = heading.slice(4).trim();
+  const name = full.replace(/\s*\([^()]*\)\s*$/, '').trim() || full;
+  const alias = HEADING_ALIASES.get(name.toLowerCase());
+  if (alias) return `### ${alias}`;
+  return `### ${PI_HEADING.test(name) ? 'Orange Pi' : name}`;
+}
 
 /** @returns {string[]} fragment file names, sorted */
 function fragmentFiles() {
@@ -75,7 +101,7 @@ function parseFragment(name, text) {
  * @param {string} changelog
  * @param {Array<{ heading: string, lines: string[] }>} sections
  */
-function fold(changelog, sections) {
+export function fold(changelog, sections) {
   const eol = changelog.includes('\r\n') ? '\r\n' : '\n';
   const lines = changelog.replace(/\r\n/g, '\n').split('\n');
   const start = lines.indexOf(UNRELEASED);
@@ -84,7 +110,8 @@ function fold(changelog, sections) {
   if (end < 0) end = lines.length;
   const block = lines.slice(start + 1, end);
   for (const section of sections) {
-    const at = block.indexOf(section.heading);
+    const base = baseHeading(section.heading);
+    const at = block.findIndex(line => line.startsWith('### ') && baseHeading(line) === base);
     if (at >= 0) {
       let stop = block.findIndex((line, i) => i > at && line.startsWith('### '));
       if (stop < 0) stop = block.length;
@@ -92,7 +119,7 @@ function fold(changelog, sections) {
       block.splice(stop, 0, ...section.lines);
     } else {
       while (block.length && block.at(-1) === '') block.pop();
-      block.push('', section.heading, '', ...section.lines);
+      block.push('', base, '', ...section.lines);
     }
   }
   while (block.length && block.at(-1) === '') block.pop();
@@ -100,33 +127,76 @@ function fold(changelog, sections) {
   return { text: result.join(eol), unreleased: [UNRELEASED, ...block].join('\n') };
 }
 
-const files = fragmentFiles();
-const parsed = files.map(name =>
-  parseFragment(name, readFileSync(path.join(fragmentDir, name), 'utf8'))
-);
-const errors = parsed.flatMap(p => p.errors);
-if (errors.length) {
-  console.error(`changelog-fold: ${errors.length} problem(s) in changelog.d/:`);
-  for (const error of errors) console.error(`  ${error}`);
-  process.exit(1);
-}
-if (check) {
-  console.log(`changelog-fold: OK, ${files.length} fragment(s) in changelog.d/.`);
-  process.exit(0);
-}
-if (files.length === 0) {
-  console.log('changelog-fold: no fragments to fold.');
-  process.exit(0);
+function main() {
+  const files = fragmentFiles();
+  const parsed = files.map(name =>
+    parseFragment(name, readFileSync(path.join(fragmentDir, name), 'utf8'))
+  );
+  const errors = parsed.flatMap(p => p.errors);
+  if (errors.length) {
+    console.error(`changelog-fold: ${errors.length} problem(s) in changelog.d/:`);
+    for (const error of errors) console.error(`  ${error}`);
+    process.exit(1);
+  }
+  if (check) {
+    console.log(`changelog-fold: OK, ${files.length} fragment(s) in changelog.d/.`);
+    process.exit(0);
+  }
+  if (files.length === 0) {
+    console.log('changelog-fold: no fragments to fold.');
+    process.exit(0);
+  }
+
+  const { text, unreleased } = fold(
+    readFileSync(changelogPath, 'utf8'),
+    parsed.flatMap(p => p.sections)
+  );
+  if (dryRun) {
+    console.log(unreleased);
+    process.exit(0);
+  }
+  writeFileSync(changelogPath, text);
+  for (const name of files) unlinkSync(path.join(fragmentDir, name));
+  console.log(`changelog-fold: folded ${files.length} fragment(s) into CHANGELOG.md "Unreleased".`);
 }
 
-const { text, unreleased } = fold(
-  readFileSync(changelogPath, 'utf8'),
-  parsed.flatMap(p => p.sections)
-);
-if (dryRun) {
-  console.log(unreleased);
-  process.exit(0);
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0 (as lane-merge.mjs; not imported, each script
+ * stands alone).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
 }
-writeFileSync(changelogPath, text);
-for (const name of files) unlinkSync(path.join(fragmentDir, name));
-console.log(`changelog-fold: folded ${files.length} fragment(s) into CHANGELOG.md "Unreleased".`);
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && /^file:/i.test(argv1)) return 'import'; // a `node -e` import, as drift-check.mjs
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
+const decision = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
+if (decision === 'run') main();
+else if (decision === 'mismatch') {
+  console.error(`changelog-fold: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  process.exit(1);
+}

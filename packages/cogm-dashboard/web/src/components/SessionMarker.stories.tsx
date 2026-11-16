@@ -30,7 +30,7 @@ function Header(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">New dashboard (preview)</p>
+            <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
           </div>
         </div>
         <div className="controls">
@@ -42,6 +42,25 @@ function Header(): JSX.Element {
 }
 
 const render = (): JSX.Element => <Header />;
+
+/**
+ * Holds a two-toast stack still for the screenshot. The first toast moves up when the second comes,
+ * and its bottom edge lands on a fraction of a pixel: Chromium snapped it to either of two rows from
+ * run to run (a 325 px diff on CI, however long the story waited). One fresh paint of the stack
+ * always lands on the same row. The toasts' close timers are paused too (Radix pauses them while
+ * the window is blurred), so a slow runner cannot lose a toast before the shot.
+ */
+async function settleToasts(): Promise<void> {
+  window.dispatchEvent(new Event('blur'));
+  const stack = document.querySelector<HTMLElement>('.toast-stack');
+  if (stack) {
+    const display = stack.style.display;
+    stack.style.display = 'none';
+    void stack.offsetHeight;
+    stack.style.display = display;
+  }
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
 
 const seed = (
   session: Handler,
@@ -103,9 +122,28 @@ export const WithObsidianLink: Story = {
   },
 };
 
+let sessionStarted = false;
+
 /** Start session writes the marker and says so. */
 export const StartsTheSession: Story = {
-  parameters: seed(toolOk(PLAY_SESSION_CLOSED)),
+  // Once the marker is written, the session reads as open, as the real bridge answers.
+  parameters: {
+    dashboard: {
+      api: {
+        tools: {
+          'get-play-session': () =>
+            toolOk(sessionStarted ? PLAY_SESSION_OPEN : PLAY_SESSION_CLOSED),
+          'mark-play-session': () => {
+            sessionStarted = true;
+            return toolOk({ success: true });
+          },
+        },
+      },
+    },
+  },
+  beforeEach: () => {
+    sessionStarted = false;
+  },
   render,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -113,6 +151,13 @@ export const StartsTheSession: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText('✓ Play session started')).not.toHaveLength(0)
     );
+    // The ready step answers right after the marker; the shot waits for its toast too.
+    await waitFor(() =>
+      expect(within(document.body).getAllByText('✓ Already on')).not.toHaveLength(0)
+    );
+    // The status follows the marker: it reads open, not "No session", in the shot.
+    await expect(await canvas.findByText('Session active')).toBeVisible();
+    await settleToasts();
   },
 };
 
@@ -162,6 +207,7 @@ export const EndsTheSession: Story = {
         0
       )
     );
+    await settleToasts();
   },
 };
 
@@ -184,7 +230,7 @@ export const MarkFails: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', { name: 'Start session' }));
     await waitFor(() =>
-      expect(within(document.body).getAllByText(/^✗ mark-play-session: /)).not.toHaveLength(0)
+      expect(within(document.body).getAllByText(/^✗ Play session: /)).not.toHaveLength(0)
     );
     await expect(canvas.getByText('No session')).toBeVisible();
   },

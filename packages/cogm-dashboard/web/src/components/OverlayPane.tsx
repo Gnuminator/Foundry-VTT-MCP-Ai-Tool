@@ -12,14 +12,14 @@ interface OverlayPaneProps {
   meta?: ReactNode;
   /** The close button's accessible name, e.g. "Close player links". */
   closeLabel: string;
-  /** The old page's id, where styles.css styles the pane by it (e.g. pane-diagnostics). */
+  /** The element id, where the shared web/src/styles/styles.css styles the pane by it (e.g. pane-diagnostics). */
   id?: string;
   /** Extra classes on the pane and on its body (e.g. help-pane, help-body). */
   className?: string;
   bodyClassName?: string;
   /** Attributes on the scrolling body (a name and a tab stop for a body that scrolls). */
   bodyProps?: ComponentProps<typeof Panel>['bodyProps'];
-  /** The guide page and heading the "?" after the title opens (help-links.json on the old page). */
+  /** The guide page and heading the "?" after the title opens. */
   help?: string;
   /** A line between the head and the body (e.g. the diagnostics space note). */
   note?: ReactNode;
@@ -68,7 +68,7 @@ export function OverlayPane({
           id={id}
           className={['overlay-pane', className].filter(Boolean).join(' ')}
           title={title}
-          // The old page puts the "?" inside the h2; beside it keeps the pane's name the title.
+          // The "?" goes beside the h2, which keeps the pane's name the title.
           wrapTitle={h2 => <Dialog.Title asChild>{h2}</Dialog.Title>}
           help={help}
           status={meta}

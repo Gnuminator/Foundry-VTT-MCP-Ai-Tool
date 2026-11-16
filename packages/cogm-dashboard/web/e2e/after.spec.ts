@@ -12,6 +12,9 @@ import {
   ok,
   toast,
   type ToolCall,
+  settle,
+  PREFLIGHT_OK,
+  switchesBody,
 } from './support';
 
 const NOW = new Date(2026, 9, 10, 20, 0).getTime();
@@ -26,6 +29,9 @@ const STATS = {
     rolls: 142,
     crits: 3,
     fumbles: 1,
+    publicRolls: 131,
+    publicCrits: 2,
+    publicFumbles: 1,
     highestRoll: { total: 27, name: 'Mara', label: 'Perception' },
     combats: [{ damageDealt: { Brenna: 31, Mara: 22, 'Harbor thug': 40 }, downs: ['Brenna'] }],
     pcDownsByName: { Brenna: 2 },
@@ -74,17 +80,9 @@ async function fakeAfter(
   const posts: string[] = [];
   let items = setup.notes ?? [NOTES];
   await fakeCommonRoutes(page);
-  await page.route('**/api/preflight', route =>
-    route.fulfill({ json: { ready: true, checks: [], scan: null } })
-  );
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
   await page.route('**/api/session/switches', route =>
-    route.fulfill({
-      json: {
-        switches: { switches: [] },
-        gmActionsEnabled: setup.gmActions !== false,
-        error: null,
-      },
-    })
+    route.fulfill({ json: switchesBody(setup.gmActions !== false) })
   );
   await page.route('**/api/session-notes', route => route.fulfill({ json: { items } }));
   await page.route('**/api/session-notes/pipeline', route =>
@@ -188,11 +186,28 @@ test('Copy puts the stats on the clipboard without the highest roll', async ({ p
   await fakeAfter(page);
   await load(page);
   await stats(page).getByRole('button', { name: 'Copy the stats for Discord' }).click();
-  await expect(toast(page, '✓ Copied. The highest roll is left out')).toBeVisible();
+  await expect(toast(page, '✓ Copied. Only public rolls are counted')).toBeVisible();
   const text = await page.evaluate(() => navigator.clipboard.readText());
   expect(text).toContain('**Session 3** (3 h 5 min)');
+  expect(text).toContain('Rolls: 131 (2 natural 20s, 1 natural 1)');
   expect(text).toContain('Most damage: Brenna, 31 hp over 1 fight');
+  expect(text).not.toContain('142');
   expect(text).not.toContain('Perception');
+});
+
+test('Copy leaves out the rolls line when the bridge sends no public counts', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const { publicRolls: _r, publicCrits: _c, publicFumbles: _f, ...oldSession } = STATS.session;
+  await fakeAfter(page, { stats: { ...STATS, session: oldSession } });
+  await load(page);
+  await stats(page).getByRole('button', { name: 'Copy the stats for Discord' }).click();
+  await expect(toast(page, '✓ Copied without roll counts')).toBeVisible();
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).not.toContain('Rolls:');
+  expect(text).toContain('Most damage: Brenna, 31 hp over 1 fight');
 });
 
 test('Open the session note is an obsidian link once the vault and world are known', async ({
@@ -348,7 +363,7 @@ test('nothing loads while Before is on screen, and it loads when After is picked
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await expect(page.getByRole('tab', { name: 'Before' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#moment-before')).toBeVisible();
-  await page.waitForTimeout(300);
+  await settle(page);
   expect(calls.filter(c => c.name === 'get-play-stats')).toHaveLength(0);
   expect(notesAsked).toBe(0);
 

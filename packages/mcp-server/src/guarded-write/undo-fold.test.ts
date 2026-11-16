@@ -33,6 +33,11 @@ describe('rootOfUuid', () => {
     expect(rootOfUuid('Scene.s.Wall.w')).toBe('Scene.s.Wall.w');
     expect(rootOfUuid('Scene.s')).toBe('Scene.s');
     expect(rootOfUuid('Compendium.dnd5e.items.Item.x')).toBe('Compendium.dnd5e.items.Item.x');
+    // Setup targets are one thing each, never grouped by their first segment.
+    expect(rootOfUuid('GameSetting.core.moduleConfiguration')).toBe(
+      'GameSetting.core.moduleConfiguration'
+    );
+    expect(rootOfUuid('PackConfig.dnd5e.monsters')).toBe('PackConfig.dnd5e.monsters');
   });
 });
 

@@ -22,22 +22,12 @@ import {
   type ModuleRequester,
 } from './constants.js';
 import { coreSupportsQuerySender } from './systems/core.js';
-import {
-  parseProviderReading,
-  readTarokkaReadingLocal,
-  storeTarokkaOffer,
-  type ProviderReading,
-} from './tarokka.js';
 
 /** Prefix of the helper query names (distinct from the bridge methods). */
 export const GM_HELPER_PREFIX = `${MODULE_ID}.gm.`;
 
 export const GM_HELPER_QUERIES = {
   openDocument: `${GM_HELPER_PREFIX}openDocument`,
-  /** The tarokka-reading reading dealt in this GM's browser. */
-  tarokkaReading: `${GM_HELPER_PREFIX}tarokkaReading`,
-  /** Keep a reading offered by the dealing GM until the backend imports it. */
-  offerTarokkaReading: `${GM_HELPER_PREFIX}offerTarokkaReading`,
   /** Relay: run a module-request tool through the bridge link this client holds (I-108). */
   aiToolRequest: `${GM_HELPER_PREFIX}aiToolRequest`,
 } as const;
@@ -167,25 +157,6 @@ async function openDocumentQuery(
   return openDocumentLocally(parseUuidPayload(data), parsePanFlag(data));
 }
 
-/** `CONFIG.queries` handler: this GM client's tarokka-reading reading, for a GM sender. */
-function tarokkaReadingQuery(
-  _data: unknown,
-  context?: FoundryQueryContext
-): ProviderReading | null {
-  requireGmSender(context);
-  if (!game.user.isGM) throw new Error('Rejected: this client is not a GM');
-  const reading = readTarokkaReadingLocal();
-  return reading?.dealt ? reading : null;
-}
-
-/** `CONFIG.queries` handler: keep a reading a GM offered to the AI Tool. */
-function offerTarokkaReadingQuery(data: unknown, context?: FoundryQueryContext): { stored: true } {
-  const sender = requireGmSender(context);
-  if (!game.user.isGM) throw new Error('Rejected: this client is not a GM');
-  storeTarokkaOffer(parseProviderReading(data), sender.id);
-  return { stored: true };
-}
-
 /** What a GM sees when no browser holds the bridge link. */
 export const AI_TOOL_NOT_CONNECTED =
   'The AI Tool bridge is not connected. Is the Assistant GM browser running?';
@@ -304,28 +275,6 @@ export async function aiToolRequest(
   throw new Error(AI_TOOL_NOT_CONNECTED);
 }
 
-/** Ask another GM's client for its tarokka-reading reading. */
-export async function fetchTarokkaReadingFromUser(userId: string): Promise<ProviderReading | null> {
-  if (!coreSupportsQuerySender()) {
-    throw new Error('Reading another GM client needs Foundry 14.352 or newer');
-  }
-  const user = resolveGmTarget(userId);
-  const result = await user.query(
-    GM_HELPER_QUERIES.tarokkaReading,
-    {},
-    {
-      timeout: HELPER_TIMEOUT_MS,
-    }
-  );
-  return result ? parseProviderReading(result) : null;
-}
-
-/** Send an offered reading to another GM client. */
-export function sendTarokkaOffer(user: User, reading: ProviderReading): Promise<unknown> {
-  if (!coreSupportsQuerySender()) return Promise.resolve(null);
-  return user.query(GM_HELPER_QUERIES.offerTarokkaReading, reading, { timeout: HELPER_TIMEOUT_MS });
-}
-
 /**
  * Register the helper queries. Only on cores that pass the sender (14.352+);
  * on older cores nothing is registered, so nothing can be relayed.
@@ -333,8 +282,6 @@ export function sendTarokkaOffer(user: User, reading: ProviderReading): Promise<
 export function registerGmHelperQueries(): boolean {
   if (!coreSupportsQuerySender()) return false;
   CONFIG.queries[GM_HELPER_QUERIES.openDocument] = openDocumentQuery;
-  CONFIG.queries[GM_HELPER_QUERIES.tarokkaReading] = tarokkaReadingQuery;
-  CONFIG.queries[GM_HELPER_QUERIES.offerTarokkaReading] = offerTarokkaReadingQuery;
   CONFIG.queries[GM_HELPER_QUERIES.aiToolRequest] = aiToolRequestQuery;
   return true;
 }

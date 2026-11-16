@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { CharacterTools } from './character.js';
 
@@ -9,7 +9,7 @@ import { CharacterTools } from './character.js';
  * refactored. We mock FoundryClient so the layer is tested in isolation.
  *
  * Validation: all handlers use schema.parse(args) (Zod), so invalid args THROW
- * (ZodError) — no "return string" pattern here. Query errors are caught and
+ * (ZodError): no "return string" pattern here. Query errors are caught and
  * re-thrown as new Error('Failed to …: <message>').
  *
  * Private formatting helpers (formatCharacterResponse, formatItems,
@@ -19,7 +19,7 @@ import { CharacterTools } from './character.js';
 
 function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: CharacterTools;
-  query: ReturnType<typeof vi.fn>;
+  query: Mock;
   logger: any;
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
@@ -32,7 +32,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
     debug: vi.fn(),
   };
   logger.child = (): unknown => logger;
-  // No systemRegistry — tests run in legacy-extraction mode.
+  // No systemRegistry: tests run in legacy-extraction mode.
   return { tools: new CharacterTools({ foundryClient, logger }), query, logger };
 }
 
@@ -581,7 +581,7 @@ describe('CharacterTools.handleUseItem', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleManageWorldItems — dispatcher
+// handleManageWorldItems: dispatcher
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleManageWorldItems (dispatcher)', () => {
@@ -599,7 +599,7 @@ describe('CharacterTools.handleManageWorldItems (dispatcher)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleManageWorldItems — action: "create"  (handleCreateWorldItems)
+// handleManageWorldItems: action: "create"  (handleCreateWorldItems)
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleManageWorldItems action=create', () => {
@@ -650,7 +650,7 @@ describe('CharacterTools.handleManageWorldItems action=create', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleManageWorldItems — action: "list"  (handleListWorldItems)
+// handleManageWorldItems: action: "list"  (handleListWorldItems)
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleManageWorldItems action=list', () => {
@@ -694,7 +694,7 @@ describe('CharacterTools.handleManageWorldItems action=list', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleManageWorldItems — action: "update"  (handleUpdateWorldItems)
+// handleManageWorldItems: action: "update"  (handleUpdateWorldItems)
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleManageWorldItems action=update', () => {
@@ -736,7 +736,7 @@ describe('CharacterTools.handleManageWorldItems action=update', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleManageWorldItems — action: "add-to-actor"  (handleAddActorItems)
+// handleManageWorldItems: action: "add-to-actor"  (handleAddActorItems)
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleManageWorldItems action=add-to-actor', () => {

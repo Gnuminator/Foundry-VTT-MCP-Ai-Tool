@@ -1,5 +1,7 @@
 // Constants for Foundry MCP Bridge Module
 
+import type { ModuleHelloData } from '@gnuminator/shared';
+
 /**
  * Module constants
  */
@@ -18,22 +20,20 @@ export const DEFAULT_CONFIG = {
 } as const;
 
 /**
+ * How the "several actors match this partial name" error starts. Local mirror of
+ * `AMBIGUOUS_ACTOR_PREFIX` in `shared/src/ownership.ts`, which the bridge looks for
+ * (pinned in data-access.actor-name-ambiguity.test.ts).
+ */
+export const AMBIGUOUS_ACTOR_PREFIX = 'Multiple characters match';
+
+/**
  * Frame the module sends right after the link opens (lane 1, PB-02). Local
- * mirror of `MODULE_HELLO_TYPE` / `ModuleHelloData` in `shared/src/protocol.ts`
- * (the module does not import the shared package).
+ * mirror of `MODULE_HELLO_TYPE` in `shared/src/protocol.ts` (the value cannot be imported in the
+ * browser); `ModuleHelloData` is the shared type, imported type-only.
  */
 export const MODULE_HELLO_TYPE = 'module-hello' as const;
 
-export interface ModuleHelloData {
-  userId: string;
-  userName: string;
-  /** True when this user is the world's configured bridge user (or none is set). */
-  isBridgeUser: boolean;
-  moduleVersion: string;
-  worldId: string;
-  /** What this build can do beyond the base protocol (mirror of the shared `capabilities`). */
-  capabilities?: string[];
-}
+export type { ModuleHelloData };
 
 /** This module answers the `aiChangesUpdated` signal query (mirror of `MODULE_CAPABILITY_AI_CHANGES_SIGNAL`). */
 export const MODULE_CAPABILITY_AI_CHANGES_SIGNAL = 'ai-changes-signal' as const;
@@ -124,5 +124,5 @@ export const ERROR_MESSAGES = {
   ACCESS_DENIED: 'Access denied - feature is disabled',
   QUERY_TIMEOUT: 'Query timeout',
   UNKNOWN_METHOD: 'Unknown method',
-  BRIDGE_NOT_RUNNING: 'MCP Bridge is not running',
+  BRIDGE_NOT_RUNNING: 'The AI Tool is not running',
 } as const;

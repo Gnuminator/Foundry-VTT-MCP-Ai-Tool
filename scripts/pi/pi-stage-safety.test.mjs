@@ -4,7 +4,15 @@
 // (no systemd, no Pi needed), and the stages are checked as text for what they must and must not contain.
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -58,14 +66,21 @@ function nodeDir() {
   const d = tmp();
   mkdirSync(join(d, 'bin'));
   // A script that forwards to this node works on Windows (Git bash) and Linux alike.
-  writeFileSync(join(d, 'bin', 'node'), `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`, { mode: 0o755 });
+  writeFileSync(
+    join(d, 'bin', 'node'),
+    `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`,
+    { mode: 0o755 }
+  );
   return posix(d);
 }
 
 function run(body, opts = {}, env = {}) {
   const nd = nodeDir();
   const script = stubs(opts).replace(/NODE_DIR=.*\nmkdir.*\n/, `NODE_DIR="${nd}"\n`) + body;
-  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, ...env } });
+  const r = spawnSync('bash', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -83,13 +98,18 @@ describe('enable_unit restarts only when something changed (S1)', () => {
   });
 
   test('a changed unit file restarts it', () => {
-    const r = run(`mark_changed ${path}; enable_unit ${unit}; echo "CALLS:$CALLS"`, { active: unit });
+    const r = run(`mark_changed ${path}; enable_unit ${unit}; echo "CALLS:$CALLS"`, {
+      active: unit,
+    });
     assert.equal(r.status, 0, r.out);
     assert.equal(restarts(calls(r.out)), 1, r.out);
   });
 
   test('a changed dependency file (its EnvironmentFile) restarts it, an unchanged one does not', () => {
-    const changed = run(`mark_changed /etc/x.env; enable_unit ${unit} /etc/x.env; echo "CALLS:$CALLS"`, { active: unit });
+    const changed = run(
+      `mark_changed /etc/x.env; enable_unit ${unit} /etc/x.env; echo "CALLS:$CALLS"`,
+      { active: unit }
+    );
     assert.equal(restarts(calls(changed.out)), 1, changed.out);
     const same = run(`enable_unit ${unit} /etc/x.env; echo "CALLS:$CALLS"`, { active: unit });
     assert.equal(restarts(calls(same.out)), 0, same.out);
@@ -100,7 +120,7 @@ describe('enable_unit restarts only when something changed (S1)', () => {
     const f = posix(join(d, 'a.conf'));
     const r = run(
       `write_file ${f} 0644 hello; file_changed ${f} && echo FIRST_CHANGED
-       LIB_CHANGED=" "; write_file ${f} 0644 hello || true; file_changed ${f} && echo SECOND_CHANGED || echo SECOND_SAME`,
+       LIB_CHANGED=" "; write_file ${f} 0644 hello || true; file_changed ${f} && echo SECOND_CHANGED || echo SECOND_SAME`
     );
     assert.match(r.out, /FIRST_CHANGED/);
     assert.match(r.out, /SECOND_SAME/);
@@ -112,18 +132,30 @@ describe('enable_unit restarts only when something changed (S1)', () => {
     const env = posix(join(d, 'x.env'));
     writeFileSync(join(d, 'x.env'), 'A=1\n'); // written now, e.g. by an earlier run whose restart was refused
     const past = new Date(Date.now() - 3600_000).toISOString();
-    const newer = run(`enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`, { active: unit }, { SHOW_TS: past });
+    const newer = run(
+      `enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`,
+      { active: unit },
+      { SHOW_TS: past }
+    );
     assert.equal(restarts(calls(newer.out)), 1, newer.out);
     assert.match(newer.out, /newer than the running service/);
     const future = new Date(Date.now() + 3600_000).toISOString();
-    const older = run(`enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`, { active: unit }, { SHOW_TS: future });
+    const older = run(
+      `enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`,
+      { active: unit },
+      { SHOW_TS: future }
+    );
     assert.equal(restarts(calls(older.out)), 0, older.out);
   });
 
   test('a stopped unit is started, and RESTART_UNITS=1 restarts a running one', () => {
     const stopped = run(`enable_unit ${unit}; echo "CALLS:$CALLS"`);
     assert.match(calls(stopped.out), /\|start foo\.service/, stopped.out);
-    const forced = run(`enable_unit ${unit}; echo "CALLS:$CALLS"`, { active: unit }, { RESTART_UNITS: '1' });
+    const forced = run(
+      `enable_unit ${unit}; echo "CALLS:$CALLS"`,
+      { active: unit },
+      { RESTART_UNITS: '1' }
+    );
     assert.equal(restarts(calls(forced.out)), 1, forced.out);
   });
 
@@ -146,6 +178,82 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(r.out, /PASSED/);
   });
 
+  // The race: the Assistant GM browser is running and Foundry already counts it, but its "joined world" line is not in
+  // the journal yet. Only that shape is retried; a player beyond the GM browsers refuses on the first reading.
+  // The counter file lives in a folder the test removes; sleep is stubbed, so the retries are instant.
+  const raceActive = 'foundry.service foundry-ai-tool-gm-browser.service';
+  const counted = (body, users, env = {}) => {
+    const c = join(tmp(), 'reads');
+    writeFileSync(c, '');
+    const r = run(
+      `c="${posix(c)}"; users_online() { echo x >>"$c"; printf '%s' "${users}"; }
+daemon_known() { return 0; }
+${body}`,
+      { active: raceActive },
+      { INVOCATION: 'run-2', JOURNAL_ID: 'run-2', ...env }
+    );
+    return { ...r, reads: readFileSync(c, 'utf8').split('\n').filter(Boolean).length };
+  };
+
+  test('a GM browser whose joined line shows up late passes after a retry (the race)', () => {
+    // The journal gets the joined line on the third look; before that the browser is active but not joined.
+    const r = counted(
+      'j=$(mktemp); journalctl() { echo x >>"$j"; if [ "$(wc -l <"$j")" -ge 3 ]; then echo "$JOINED"; fi; }\n' +
+        'require_quiet "the test"; rm -f "$j"; echo PASSED',
+      1,
+      { JOINED: joinedLine }
+    );
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /PASSED/);
+    assert.match(r.out, /reading again/, 'the retry says that it waits');
+    assert.ok(r.reads > 1 && r.reads <= 6, `reads=${r.reads}`);
+  });
+
+  test('a silent Docker daemon: no retry loop, the refusal comes on the first reading (PR 1044 L1)', () => {
+    const r = counted('daemon_known() { return 1; }; require_quiet "the test"; echo PASSED', 1);
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /1 player\(s\) are online/);
+    assert.equal(r.reads, 1);
+  });
+
+  test('gm_browsers_pending counts an Assistant GM container that runs but has not joined', () => {
+    const waiting = run('live_container() { echo cid-gm; }; gm_container_joined() { return 1; }; gm_browsers_pending');
+    assert.equal(waiting.status, 0, waiting.out);
+    assert.equal(waiting.out.trim(), '1');
+    const joined = run('live_container() { echo cid-gm; }; gm_container_joined() { return 0; }; gm_browsers_pending');
+    assert.equal(joined.out.trim(), '0');
+    const none = run('live_container() { :; }; gm_container_joined() { return 1; }; gm_browsers_pending');
+    assert.equal(none.out.trim(), '0');
+  });
+
+  test('a GM browser that never joins still refuses after the retries', () => {
+    const r = counted('require_quiet "the test"; echo PASSED', 1);
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /1 player\(s\) are online/);
+    assert.equal(r.reads, 6);
+  });
+
+  test('a real player beyond the GM browsers refuses on the first reading', () => {
+    // 2 users, the GM browser is active but not joined: the excess (2) is more than the one browser that could explain it.
+    const r = counted('require_quiet "the test"; echo PASSED', 2);
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /2 player\(s\) are online/);
+    assert.equal(r.reads, 1);
+  });
+
+  test('an unreadable count refuses at once, without retries', () => {
+    const r = counted('require_quiet "the test"; echo PASSED', '?');
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /cannot read who is online/);
+    assert.equal(r.reads, 1);
+  });
+
+  test('FORCE=1 on the retry path still goes on after the retries', () => {
+    const r = counted('require_quiet "the test"; echo PASSED', 1, { FORCE: '1' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /PASSED/);
+  });
+
   test('players online refuse, and the message names the count', () => {
     const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 2 });
     assert.notEqual(r.status, 0);
@@ -160,8 +268,10 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   const gmActive = 'foundry.service foundry-ai-tool-gm-browser.service';
   const kitActive = 'foundry.service foundry-ai-tool-kit-gm-browser.service';
   const thisRun = { INVOCATION: 'run-2', JOURNAL_ID: 'run-2' };
-  const joinedLine = '[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)';
-  const quiet = (users, env, active = gmActive) => run('require_quiet "the test"; echo PASSED', { active, users }, env);
+  const joinedLine =
+    '[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)';
+  const quiet = (users, env, active = gmActive) =>
+    run('require_quiet "the test"; echo PASSED', { active, users }, env);
 
   test('the Assistant GM browser counts as one user once it has joined', () => {
     const env = { ...thisRun, JOURNAL: joinedLine };
@@ -175,7 +285,8 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   test('the Kit GM browser counts the same way, and both together are two users', () => {
     const env = { ...thisRun, JOURNAL: joinedLine };
     assert.equal(quiet(1, env, kitActive).status, 0);
-    const both = 'foundry.service foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service';
+    const both =
+      'foundry.service foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service';
     assert.equal(quiet(2, env, both).status, 0);
     const three = quiet(3, env, both);
     assert.notEqual(three.status, 0);
@@ -183,7 +294,10 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   });
 
   test('an Assistant GM that runs but has not joined (no world, login failing) is not subtracted', () => {
-    const waiting = quiet(1, { ...thisRun, JOURNAL: '[assistant-gm] no world is running at http://127.0.0.1:30000; trying again in 30 s' });
+    const waiting = quiet(1, {
+      ...thisRun,
+      JOURNAL: '[assistant-gm] no world is running at http://127.0.0.1:30000; trying again in 30 s',
+    });
     assert.notEqual(waiting.status, 0, waiting.out);
     assert.match(waiting.out, /1 player\(s\) are online/);
     const empty = quiet(1, thisRun);
@@ -204,17 +318,40 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   });
 
   test('a service that is stopped is not subtracted even if its journal once said it joined', () => {
-    const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 1 }, { ...thisRun, JOURNAL: joinedLine });
+    const r = run(
+      'require_quiet "the test"; echo PASSED',
+      { active: 'foundry.service', users: 1 },
+      { ...thisRun, JOURNAL: joinedLine }
+    );
     assert.notEqual(r.status, 0, r.out);
   });
 
   test('an unreadable /api/status refuses unless FORCE=1', () => {
-    const refused = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', readable: false });
+    const refused = run('require_quiet "the test"; echo PASSED', {
+      active: 'foundry.service',
+      readable: false,
+    });
     assert.notEqual(refused.status, 0);
     assert.match(refused.out, /cannot read who is online/);
-    const forced = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', readable: false }, { FORCE: '1' });
+    const forced = run(
+      'require_quiet "the test"; echo PASSED',
+      { active: 'foundry.service', readable: false },
+      { FORCE: '1' }
+    );
     assert.equal(forced.status, 0, forced.out);
     assert.match(forced.out, /FORCE=1: going on/);
+  });
+
+  test('a silent Docker daemon while Foundry answers on port 30000: the players are counted anyway (PR 967 L4)', () => {
+    const silent = 'daemon_known() { return 1; }\ncontainers_of() { return 1; }\n';
+    const refused = run(silent + 'require_quiet "the test"; echo PASSED', { active: '', users: 2 });
+    assert.notEqual(refused.status, 0, refused.out);
+    assert.match(refused.out, /2 player\(s\) are online/);
+    const empty = run(silent + 'require_quiet "the test"; echo PASSED', { active: '', users: 0 });
+    assert.equal(empty.status, 0, empty.out);
+    // nothing answers on port 30000 and the daemon is silent: nobody to drop
+    const none = run(silent + 'require_quiet "the test"; echo PASSED', { active: '', readable: false });
+    assert.equal(none.status, 0, none.out);
   });
 
   test('a Foundry that is not running has no players to drop', () => {
@@ -270,18 +407,34 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     };
     const bot = 'foundry-ai-tool-discord-bot.service';
     const before = new Date(Date.now() - 3600_000).toISOString(); // the bot started an hour ago, session 30 minutes ago
-    const running = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: before });
+    const running = run(
+      `recording_active ${mk()} && echo ACTIVE || echo QUIET`,
+      { active: bot },
+      { SHOW_TS: before }
+    );
     assert.match(running.out, /ACTIVE/, running.out);
     const after = new Date(Date.now() - 10 * 60_000).toISOString(); // bot restarted after the folder: a crash leftover
-    const leftover = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: after });
+    const leftover = run(
+      `recording_active ${mk()} && echo ACTIVE || echo QUIET`,
+      { active: bot },
+      { SHOW_TS: after }
+    );
     assert.match(leftover.out, /QUIET/, leftover.out);
-    const stopped = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, {}, { SHOW_TS: before });
+    const stopped = run(
+      `recording_active ${mk()} && echo ACTIVE || echo QUIET`,
+      {},
+      { SHOW_TS: before }
+    );
     assert.match(stopped.out, /QUIET/, stopped.out);
     // A session the bot converted after a crash (or failed to) is finished, whatever it changed after the start.
     for (const marker of ['convert-report.json', 'convert-failed.json']) {
       const d = mk();
       writeFileSync(join(d, 'night', 'raw', marker), '{}');
-      const done = run(`recording_active ${d} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: before });
+      const done = run(
+        `recording_active ${d} && echo ACTIVE || echo QUIET`,
+        { active: bot },
+        { SHOW_TS: before }
+      );
       assert.match(done.out, /QUIET/, `${marker}: ${done.out}`);
     }
   });
@@ -312,7 +465,11 @@ describe('require_recent_snapshot (S4)', () => {
     mkdirSync(dir);
     const stats = join(d, 'stats');
     if (lines !== null) writeFileSync(stats, lines);
-    return run('require_recent_snapshot; echo PASSED', {}, { DIETPI_DIR: posix(dir), DIETPI_BACKUP_STATS: posix(stats), ...env });
+    return run(
+      'require_recent_snapshot; echo PASSED',
+      {},
+      { DIETPI_DIR: posix(dir), DIETPI_BACKUP_STATS: posix(stats), ...env }
+    );
   };
   const day = offsetDays => {
     const t = new Date(Date.now() - offsetDays * 86400_000);
@@ -334,7 +491,9 @@ describe('require_recent_snapshot (S4)', () => {
   });
 
   test('a backup that started or was cancelled today does not count (M1)', () => {
-    const r = snap(`${day(1)}_01:25:28  Backup completed\n${day(0)}_09:00:00  Backup starting\n${day(0)}_09:00:01  Backup cancelled: Insufficient free space\n`);
+    const r = snap(
+      `${day(1)}_01:25:28  Backup completed\n${day(0)}_09:00:00  Backup starting\n${day(0)}_09:00:01  Backup cancelled: Insufficient free space\n`
+    );
     assert.notEqual(r.status, 0, r.out);
   });
 
@@ -349,7 +508,11 @@ describe('require_recent_snapshot (S4)', () => {
   });
 
   test('off DietPi (a test container) the check is skipped', () => {
-    const r = run('require_recent_snapshot; echo PASSED', {}, { DIETPI_DIR: '/nonexistent-dietpi-dir' });
+    const r = run(
+      'require_recent_snapshot; echo PASSED',
+      {},
+      { DIETPI_DIR: '/nonexistent-dietpi-dir' }
+    );
     assert.equal(r.status, 0, r.out);
     assert.match(r.out, /skipped/);
   });
@@ -381,11 +544,31 @@ describe('warn_dashboard_split (S3)', () => {
 });
 
 describe('the stages', () => {
+  // 29-gamenight-watch is left out on purpose too: DRY_RUN and CHECK need no snapshot, so it checks it after its mode check
+  // (scripts/pi/gamenight-watch-stage.test.mjs covers the order and the refusal).
+  // 27-bot-status is left out on purpose too: DRY_RUN needs no snapshot, so it checks it right after its PORT check
+  // (scripts/pi/bot-status-stage.test.mjs covers the refusal).
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
-  // (scripts/pi/time-sync.test.mjs covers the refusal).
+  // (scripts/pi/time-sync.test.mjs covers the refusal). 20-vault-sync is read-only and asks for a snapshot only with
+  // SET_TIMEZONE=1 (scripts/pi/vault-sync.test.mjs). 21-player-vault is read-only in its report mode and asks for the snapshot in
+  // every mode that changes something (scripts/pi/player-vault.test.mjs). 31-gm-vault-peers works the same way (report is
+  // read-only, ADD and REMOVE ask for the snapshot; scripts/pi/gm-vault-peers.test.mjs).
   const stages = [
-    '1-health', '2-node', '3-foundry', '4-tailscale', '5-tool', '5-check-world', '6-backup', '7-vault',
-    '8-recorder', '9-ssh-log', '10-space-check', '11-world', '12-tunnel', '13-player-creation', '15-ssh-keys-only',
+    '1-health',
+    '2-node',
+    '3-foundry',
+    '4-tailscale',
+    '5-tool',
+    '5-check-world',
+    '6-backup',
+    '7-vault',
+    '8-recorder',
+    '9-ssh-log',
+    '10-space-check',
+    '11-world',
+    '12-tunnel',
+    '13-player-creation',
+    '15-ssh-keys-only',
     '16-board-status',
   ];
 
@@ -404,8 +587,12 @@ describe('the stages', () => {
       '6-backup': 'require_quiet',
       '7-vault': 'enable_unit foundry-ai-tool-bridge.service', // enable_unit calls require_quiet before a restart
       '8-recorder': 'require_no_recording',
+      '27-bot-status': 'require_quiet',
+      '28-gm-watchdog': 'require_quiet_if_active',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
+      '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first
+      '30-player-connector': 'require_quiet_if_active', // before the first write, when a restart is coming
     };
     for (const [s, fn] of Object.entries(quiet)) {
       assert.ok(read(`scripts/pi/remote/${s}.sh`).includes(fn), `${s}.sh calls ${fn}`);
@@ -425,7 +612,20 @@ describe('the stages', () => {
     assert.doesNotMatch(text, /rm -rf "\$\{FOUNDRY_APP:\?\}"\/\*/);
     assert.match(text, /mv "\$new" "\$FOUNDRY_APP"/);
     // The stop in the install flow comes after the check (the rollback in stage3_exit stops it too, and sits above).
-    assert.ok(text.indexOf('require_quiet') < text.indexOf('systemctl stop foundry.service\n    foundry_stopped=1'));
+    assert.ok(
+      text.indexOf('require_quiet') <
+        text.indexOf('systemctl stop foundry.service\n    foundry_stopped=1')
+    );
+  });
+
+  test('stage 5 posts the deployed release to #changelog, only for a new tag build, never fatally', () => {
+    const text = read('scripts/pi/remote/5-tool.sh');
+    assert.match(text, /\[ "\$prev_ref" = "\$ref" \] \|\| built_new=1/);
+    assert.match(text, /dash_ok=1/);
+    assert.match(text, /\[ "\$\{dash_ok:-\}" = 1 \]/);
+    assert.match(text, /\[ "\$\{built_new:-\}" = 1 \]/);
+    assert.match(text, /announce\.mjs" deploy "\$ref" \|\| true/);
+    assert.ok(text.indexOf('announce.mjs" deploy') < text.indexOf('say "stage 5 done'));
   });
 
   test('stage 5 and 12 warn when the dashboard split is off', () => {
@@ -482,7 +682,9 @@ mv() {
     const setup = () => {
       const root = tmp();
       mkdirSync(join(root, 'node24', 'bin'), { recursive: true });
-      writeFileSync(join(root, 'node24', 'bin', 'node'), '#!/bin/sh\necho v24.20.0\n', { mode: 0o755 });
+      writeFileSync(join(root, 'node24', 'bin', 'node'), '#!/bin/sh\necho v24.20.0\n', {
+        mode: 0o755,
+      });
       const prelude = `
 NODE_DIR=${posix(root)}/node24
 NEW_PATH="$NODE_DIR.new"; TARGET_PATH="$NODE_DIR"
@@ -506,7 +708,10 @@ ${failMv}
     };
     const stage2 = read('scripts/pi/remote/2-node.sh');
     const go = (fail, root, prelude) =>
-      spawnSync('bash', ['-c', `source "${lib}"\n${prelude}\n${stage2}`], { encoding: 'utf8', env: { ...process.env, FAIL_MV: fail ? '1' : '0' } });
+      spawnSync('bash', ['-c', `source "${lib}"\n${prelude}\n${stage2}`], {
+        encoding: 'utf8',
+        env: { ...process.env, FAIL_MV: fail ? '1' : '0' },
+      });
     const version = file => readFileSync(file, 'utf8').match(/v24\.\d+\.\d+/)?.[0];
 
     test('control: without a failure the new Node is in place and the old one is kept as .prev', () => {
@@ -523,7 +728,10 @@ ${failMv}
       assert.notEqual(r.status, 0, r.stdout + r.stderr);
       assert.match(r.stderr, /the old one is back in place/);
       assert.equal(version(join(root, 'node24', 'bin', 'node')), 'v24.20.0', r.stdout + r.stderr);
-      assert.ok(!existsSync(join(root, 'node24.prev')), 'the .prev folder was moved back, not copied');
+      assert.ok(
+        !existsSync(join(root, 'node24.prev')),
+        'the .prev folder was moved back, not copied'
+      );
     });
   });
 
@@ -560,12 +768,28 @@ ${failMv}
     };
     const go = (root, prelude, env) => {
       const nd = nodeDir();
-      const script = stubs({ active: 'foundry.service', users: 0 }).replace(/NODE_DIR=.*\nmkdir.*\n/, `NODE_DIR="${nd}"\n`) + prelude + stage3;
+      const script =
+        stubs({ active: 'foundry.service', users: 0 }).replace(
+          /NODE_DIR=.*\nmkdir.*\n/,
+          `NODE_DIR="${nd}"\n`
+        ) +
+        prelude +
+        stage3;
       // The systemctl calls go to a file: the stage may exit (its EXIT trap rolls back) before it could print them.
       const callsLog = join(root, 'calls.log');
       writeFileSync(callsLog, '');
-      const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, CALLS_LOG: posix(callsLog), ...env } });
-      return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: readFileSync(callsLog, 'utf8') };
+      // As a file, not `bash -c`: the Windows command line ends at about 8,000 characters and cut this script off.
+      const scriptFile = join(root, 'stage3.sh');
+      writeFileSync(scriptFile, script);
+      const r = spawnSync('bash', [posix(scriptFile)], {
+        encoding: 'utf8',
+        env: { ...process.env, CALLS_LOG: posix(callsLog), ...env },
+      });
+      return {
+        status: r.status,
+        out: `${r.stdout}${r.stderr}`,
+        calls: readFileSync(callsLog, 'utf8'),
+      };
     };
 
     test('control: without a failure the new program runs, the old one is .prev and the zip is removed', () => {
@@ -574,7 +798,55 @@ ${failMv}
       assert.equal(r.status, 0, r.out);
       assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'new');
       assert.equal(readFileSync(join(root, 'foundry.prev', 'main.js'), 'utf8'), 'old');
-      assert.ok(!existsSync(join(root, 'foundryvtt.zip')), 'the zip is removed once the new program runs');
+      assert.ok(
+        !existsSync(join(root, 'foundryvtt.zip')),
+        'the zip is removed once the new program runs'
+      );
+    });
+
+    test('FOUNDRY_EXPECT_VERSION refuses a zip of another version before anything stops', () => {
+      const { root, prelude } = setup();
+      const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: '14.369' });
+      assert.notEqual(r.status, 0, r.out);
+      assert.match(
+        r.out,
+        /holds Foundry 14\.999, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/
+      );
+      assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'old');
+      assert.ok(existsSync(join(root, 'foundryvtt.zip')));
+      assert.doesNotMatch(r.calls, /stop foundry/, 'Foundry was not stopped');
+    });
+
+    test('FOUNDRY_EXPECT_VERSION matches the zip by prefix (14.999 and 14.999.0)', () => {
+      for (const want of ['14.999', '14.999.0']) {
+        const { root, prelude } = setup();
+        const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
+        if (want === '14.999') assert.equal(r.status, 0, r.out);
+        else
+          assert.notEqual(r.status, 0, 'a longer expectation than the zip version does not match');
+      }
+    });
+
+    test('FOUNDRY_EXPECT_VERSION with no zip compares the installed program: another version refuses, the same passes the check', () => {
+      for (const [want, refused] of [
+        ['14.369', true],
+        ['14.368', false],
+      ]) {
+        const { root, prelude } = setup();
+        rmSync(join(root, 'foundryvtt.zip'));
+        writeFileSync(join(root, 'foundry', 'package.json'), '{"version":"14.368.0"}');
+        const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
+        if (refused) {
+          assert.notEqual(r.status, 0, r.out);
+          assert.match(
+            r.out,
+            /installed Foundry is 14\.368\.0, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/
+          );
+          assert.doesNotMatch(r.calls, /stop foundry/);
+        } else {
+          assert.match(r.out, /Foundry already installed/, r.out);
+        }
+      }
     });
 
     test('the second rename failing puts the old program back and starts Foundry again', () => {
@@ -586,8 +858,15 @@ ${failMv}
       assert.ok(!existsSync(join(root, 'foundry.prev')), 'moved back');
       assert.ok(!existsSync(join(root, 'foundry.failed')));
       assert.ok(!existsSync(join(root, 'foundry.new')), 'the staged copy is removed');
-      assert.ok(existsSync(join(root, 'foundryvtt.zip')), 'the zip stays so the stage can be run again');
-      assert.match(r.calls, /\|stop foundry\.service.*\|stop foundry\.service\|start foundry\.service$/, 'stopped for the swap, then Foundry is started again last');
+      assert.ok(
+        existsSync(join(root, 'foundryvtt.zip')),
+        'the zip stays so the stage can be run again'
+      );
+      assert.match(
+        r.calls,
+        /\|stop foundry\.service.*\|stop foundry\.service\|start foundry\.service$/,
+        'stopped for the swap, then Foundry is started again last'
+      );
     });
 
     test('a new program that does not start is replaced by the old one, and Foundry is started again', () => {
@@ -599,7 +878,10 @@ ${failMv}
       assert.ok(existsSync(join(root, 'foundryvtt.zip')));
       // stop (the swap), start (the new one, fails), stop (the rollback), start (the old one, works)
       assert.match(r.out, /the old Foundry program is back/);
-      assert.match(r.calls, /\|stop foundry\.service.*\|start foundry\.service\|stop foundry\.service\|start foundry\.service\s*$/);
+      assert.match(
+        r.calls,
+        /\|stop foundry\.service.*\|start foundry\.service\|stop foundry\.service\|start foundry\.service\s*$/
+      );
     });
 
     test('a failing rm inside the rollback does not end it halfway (no set -e in the trap)', () => {
@@ -623,7 +905,14 @@ ${failMv}
 
     test('the zip is kept when Foundry has started but does not answer yet', () => {
       const { root, prelude } = setup();
-      const r = go(root, prelude.replace('write_file() { return 0; }', `write_file() { return 0; }; curl() { case "$*" in *api/status*) echo '{"active":true,"users":0}' ;; *) return 22 ;; esac; }`), {});
+      const r = go(
+        root,
+        prelude.replace(
+          'write_file() { return 0; }',
+          `write_file() { return 0; }; curl() { case "$*" in *api/status*) echo '{"active":true,"users":0}' ;; *) return 22 ;; esac; }`
+        ),
+        {}
+      );
       assert.equal(r.status, 0, r.out);
       assert.match(r.out, /the zip is kept until it answers/);
       assert.ok(existsSync(join(root, 'foundryvtt.zip')));
@@ -648,12 +937,23 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
 
   // The script dates its marker with `date +%F` and `date -d yesterday +%F`; the test's fake date answers with a fixed
   // calendar day (the 15th, "n days ago" counts back from it), so no test depends on the real clock.
-  const dayAgo = (n) => `2026-03-${String(15 - n).padStart(2, '0')}`;
+  const dayAgo = n => `2026-03-${String(15 - n).padStart(2, '0')}`;
+  // The full id restic's --json summary reports for the snapshot a run makes (64 hex digits).
+  const NEW_ID = 'abc12345' + 'f'.repeat(56);
 
   // users: the number curl reports per look (the list is consumed by each sleep; the last one stays).
   // marker: the text of an existing skip marker ('' is one from an earlier version of the script), or null for none.
   // midnightAfterFirstSleep: the fake clock moves on one day when the first sleep ends (a run that waits past midnight).
-  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, marker = null, midnightAfterFirstSleep = false } = {}) {
+  function nightly({
+    users = [0],
+    active = 'foundry.service',
+    env = {},
+    curlFails = false,
+    marker = null,
+    midnightAfterFirstSleep = false,
+    docker = 'none', // 'none' (installed, no container of the stack), 'live' (cut over), 'down' (the daemon is silent)
+    gmJoined = false, // the Assistant GM container has joined the world
+  } = {}) {
     const d = tmp();
     const bin = join(d, 'bin');
     mkdirSync(bin);
@@ -665,15 +965,32 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
     const seq = join(d, 'users.seq');
     writeFileSync(seq, users.join('\n') + '\n');
     writeFileSync(log, '');
-    const tool = (name, text) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${text}\n`, { mode: 0o755 });
-    tool('systemctl', `echo "systemctl $*" >>"$LOG"
+    const tool = (name, text) =>
+      writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${text}\n`, { mode: 0o755 });
+    tool(
+      'systemctl',
+      `echo "systemctl $*" >>"$LOG"
 case "$1" in
-  is-active) case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
+  stop) [ "\${RESTART_FAILS:-0}" = 1 ] && touch "$LOG.down" ;;
+  start) touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.down" ;;
+  is-active) [ "\${@: -1}" = foundry.service ] && [ -f "$LOG.down" ] && exit 1
+    case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
   show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
 esac
-exit 0`);
-    tool('curl', `if [ "\${CURL_FAILS:-0}" = 1 ]; then exit 22; fi
-echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`);
+exit 0`
+    );
+    tool(
+      'curl',
+      `# CURL_FAILS: the status is unreadable while the players are looked at (before the restart). CRASH_AFTER_START: Foundry
+# was started but never answers (the unit is "active", Node died).
+if [ "\${CURL_FAILS:-0}" = 1 ] && [ ! -f "$LOG.started" ]; then exit 22; fi
+if [ "\${CRASH_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then exit 22; fi
+# SETUP_AFTER_START: Foundry answers after the restart, but from the setup screen (no world in the status).
+if [ "\${SETUP_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then echo '{"active":false,"version":"14.368"}'; exit 0; fi
+# SWITCHED_AFTER_START: the world was switched by hand during the day, so a different one launches.
+if [ "\${SWITCHED_AFTER_START:-0}" = 1 ] && [ -f "$LOG.started" ]; then echo '{"active":true,"world":"another-world","users":0}'; exit 0; fi
+echo "{\\"active\\":true,\\"world\\":\\"curse-of-strahd\\",\\"users\\":$(head -n 1 "$SEQ")}"`
+    );
     // The fake date: today and yesterday come from two files; the first sleep may move the clock past midnight.
     const days = join(d, 'days');
     mkdirSync(days);
@@ -683,17 +1000,80 @@ echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`);
       writeFileSync(join(days, 'today.next'), `2026-03-16`);
       writeFileSync(join(days, 'yesterday.next'), dayAgo(0));
     }
-    tool('date', `case "$*" in
+    tool(
+      'date',
+      `case "$*" in
   "+%F") cat "$DAYS/today" ;;
   "-d yesterday +%F") if [ "\${FAKE_NO_YESTERDAY:-0}" = 1 ]; then exit 1; fi; cat "$DAYS/yesterday" ;;
   *) exec /usr/bin/date "$@" ;;
-esac`);
-    tool('sleep', `echo "sleep $*" >>"$LOG"
+esac`
+    );
+    tool(
+      'sleep',
+      `echo "sleep $*" >>"$LOG"
 for f in today yesterday; do if [ -f "$DAYS/$f.next" ]; then mv "$DAYS/$f.next" "$DAYS/$f"; fi; done
-tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`);
-    tool('restic', 'echo "restic $*" >>"$LOG"');
+tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`
+    );
+    // RESTIC_RESTARTS=1: Docker restarted during the copy and restart: always brought Foundry back (it runs); 2: it came back and
+    // stopped again (a new StartedAt, not running).
+    // RESTIC_DAEMON_DIES=1: the Docker daemon stops answering during the copy (docker info and inspect fail afterwards).
+    // The repository holds two snapshots of two path sets, oldest first (as restic lists them): an older one of another
+    // path set, and the one this run makes, which only the --json summary of "restic backup" names (NEW_SNAPSHOT_ID).
+    tool(
+      'restic',
+      `echo "restic $*" >>"$LOG"
+if [ "$1" = backup ]; then
+  # RESTIC_EXIT: restic fails (the repository is full, say). RESTIC_REMOVES=1: the container is gone after the copy.
+  [ "\${RESTIC_EXIT:-0}" = 0 ] || exit "$RESTIC_EXIT"
+  touch "$LOG.copied"
+  [ "\${RESTIC_REMOVES:-0}" != 1 ] || touch "$LOG.gone"
+  [ -z "\${RESTIC_RESTARTS:-}" ] || { touch "$LOG.restarted"; [ "$RESTIC_RESTARTS" = 1 ] && rm -f "$LOG.cstopped"; }
+  [ "\${RESTIC_DAEMON_DIES:-0}" != 1 ] || touch "$LOG.daemondead"
+  case "$*" in *--json*) echo '{"message_type":"status","percent_done":0.5}'
+    [ "\${NO_SUMMARY:-0}" = 1 ] || echo '{"message_type":"summary","files_new":3,"snapshot_id":"'"$NEW_SNAPSHOT_ID"'"}' ;; esac
+fi
+if [ "$1" = snapshots ]; then echo '[{"short_id":"old11111","paths":["/srv/other"],"tags":["nightly"]},{"short_id":"abc12345","paths":["/var/lib/foundry"],"tags":["nightly"]}]'; fi
+exit 0`
+    );
+    // pgrep: PGREP_RC 1 (default) = no containerd-shim, 0 = one runs (live-restore), 127 = pgrep cannot run.
+    tool('pgrep', 'exit "${PGREP_RC:-1}"');
+    // The docker stand-in (always there, so the PC's own docker never decides): DOCKER=none|live|down. In "live" the
+    // stack is cut over: containers foundry and gm-browser of project foundry-ai-tool-pi; "docker stop" stops the
+    // foundry one (STOP_FAILS=1: it keeps running) and "docker start" brings it back (RESTART_FAILS=1: it does not).
+    tool(
+      'docker',
+      `echo "docker $*" >>"$LOG"
+case "$1" in
+  info) [ "$DOCKER" != down ] || exit 1; [ ! -f "$LOG.daemondead" ] || exit 1; exit 0 ;;
+  ps)
+    svc=""; for a in "$@"; do case "$a" in label=com.docker.compose.service=*) svc="\${a#label=com.docker.compose.service=}" ;; esac; done
+    [ "$DOCKER" != pserr ] || exit 1
+    [ "$DOCKER" = live ] || exit 0
+    case "$svc" in
+      foundry) [ -f "$LOG.cstopped" ] || echo cid-foundry ;;
+      gm-browser) echo cid-gm ;;
+      "") echo cid-foundry; echo cid-gm ;;
+    esac ;;
+  stop) [ "\${STOP_EXIT:-0}" != 1 ] || exit 1; [ "\${STOP_FAILS:-0}" = 1 ] || touch "$LOG.cstopped" ;;
+  start) [ "\${START_EXIT:-0}" != 1 ] || exit 1; touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.cstopped" ;;
+  inspect)
+    [ ! -f "$LOG.daemondead" ] || exit 1
+    [ ! -f "$LOG.gone" ] || exit 1
+    case "$*" in
+      *StartedAt*) if [ "\${STARTEDAT_FAILS_BEFORE:-0}" = 1 ] && [ ! -f "$LOG.copied" ]; then exit 1; fi
+        if [ "\${STARTEDAT_AFTER:-0}" = 1 ] && [ -f "$LOG.copied" ]; then echo 2099-01-01T00:00:00Z; exit 0; fi
+        if [ -f "$LOG.restarted" ]; then echo 2026-11-11T04:30:00Z; else echo 2026-11-11T04:00:00Z; fi ;;
+      *) if [ -f "$LOG.cstopped" ]; then echo false; else echo true; fi ;;
+    esac ;;
+  logs) [ "\${GM_JOINED:-0}" != 1 ] || echo "[assistant-gm] joined world curse-of-strahd" ;;
+esac
+exit 0`
+    );
     // JOURNAL is the log of the run with invocation id JOURNAL_ID; any other run has nothing.
-    tool('journalctl', 'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac');
+    tool(
+      'journalctl',
+      'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac'
+    );
     const script = join(d, 'foundry-backup.sh');
     writeFileSync(script, body, { mode: 0o755 });
     const r = spawnSync('bash', ['-c', 'export PATH="$BIN:$PATH"; exec bash "$SCRIPT"'], {
@@ -707,6 +1087,9 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
         SEQ: posix(seq),
         DAYS: posix(days),
         ACTIVE: active,
+        DOCKER: docker,
+        GM_JOINED: gmJoined ? '1' : '0',
+        NEW_SNAPSHOT_ID: NEW_ID,
         CURL_FAILS: curlFails ? '1' : '0',
         FOUNDRY_BACKUP_SYSTEMD_DIR: posix(d),
         FOUNDRY_BACKUP_SKIP_MARKER: posix(join(d, 'marker', 'skipped-last-night')),
@@ -720,12 +1103,32 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       calls,
       sleeps: (calls.match(/^sleep /gm) || []).length,
       marker: existsSync(join(d, 'marker', 'skipped-last-night')),
-      markerText: existsSync(join(d, 'marker', 'skipped-last-night')) ? readFileSync(join(d, 'marker', 'skipped-last-night'), 'utf8').trim() : null,
+      markerText: existsSync(join(d, 'marker', 'skipped-last-night'))
+        ? readFileSync(join(d, 'marker', 'skipped-last-night'), 'utf8').trim()
+        : null,
     };
   }
 
   test('the script was found in the stage', () => {
-    assert.ok(body && body.includes('restic backup'), 'could not cut the nightly script out of 6-backup.sh');
+    assert.ok(
+      body && body.includes('restic backup'),
+      'could not cut the nightly script out of 6-backup.sh'
+    );
+  });
+
+  // The nightly script is a stand-alone file, so it keeps its own copy of lib.sh's shim_state. Its two lines that decide
+  // "no container" (pgrep missing is "cannot tell", pgrep exit 1 is the only "none") must read the same in both.
+  test('the shim check of the nightly script and of lib.sh read the same (the two copies are tied)', () => {
+    const lib = read('scripts/pi/remote/lib.sh');
+    const shimFn = lib.match(/shim_state\(\) \{\n([\s\S]*?)\n\}/)?.[1];
+    assert.ok(shimFn, 'could not cut shim_state out of lib.sh');
+    for (const line of [
+      'command -v pgrep >/dev/null 2>&1',
+      'pgrep -f containerd-shim >/dev/null 2>&1',
+    ]) {
+      assert.ok(shimFn.includes(line), `lib.sh shim_state lost: ${line}`);
+      assert.ok(body.includes(line), `the nightly script lost: ${line}`);
+    }
   });
 
   test('nobody online: Foundry stops at once and the backup runs', () => {
@@ -741,8 +1144,14 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.equal(r.status, 0, r.out);
     assert.equal(r.sleeps, 2, r.calls);
     assert.match(r.calls, /sleep 1800/);
-    assert.match(r.out, /3 player\(s\) online in Foundry: not stopping it for the backup; trying again in 30 minutes \(1 of 6\)/);
-    assert.ok(r.calls.indexOf('sleep') < r.calls.indexOf('systemctl stop foundry.service'), 'the stop comes after the waiting');
+    assert.match(
+      r.out,
+      /3 player\(s\) online in Foundry: not stopping it for the backup; trying again in 30 minutes \(1 of 6\)/
+    );
+    assert.ok(
+      r.calls.indexOf('sleep') < r.calls.indexOf('systemctl stop foundry.service'),
+      'the stop comes after the waiting'
+    );
   });
 
   test('players still there after six waits: the night is skipped with an ERROR, Foundry never stopped, no backup, a marker is left', () => {
@@ -809,6 +1218,243 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.equal(r.markerText, dayAgo(0));
   });
 
+  test('a backup that leaves Foundry down fails with an ERROR line after waiting for it', () => {
+    const r = nightly({
+      users: [0],
+      env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+    });
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /ERROR: the backup is done, but foundry\.service is not active/);
+    assert.equal(r.sleeps, 3);
+    assert.match(r.calls, /restic backup/);
+    assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  // After the cutover (stage 24) Foundry is the container "foundry" of project foundry-ai-tool-pi and foundry.service is off:
+  // the backup stops and starts the container, and copies the worlds only while it is stopped (pi-compose-cutover).
+  describe('on a cut-over Pi (the stack runs as containers)', () => {
+    const cut = (o = {}) => nightly({ docker: 'live', active: '', ...o });
+    const at = (calls, re) => calls.search(re);
+
+    test('nobody online: the container is stopped, the worlds are copied, the container is started, systemd is left alone', () => {
+      const r = cut({ users: [0] });
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.out, /stopping the foundry container for the backup/);
+      assert.ok(at(r.calls, /docker stop/) >= 0);
+      assert.ok(at(r.calls, /docker stop/) < at(r.calls, /restic backup/), 'stopped before the copy');
+      assert.ok(at(r.calls, /restic backup/) < at(r.calls, /docker start/), 'started after the copy');
+      assert.doesNotMatch(r.calls, /systemctl (stop|start) foundry\.service/);
+      assert.match(r.calls, /restic forget/);
+    });
+
+    test('players online: it waits like the unit does and does not stop the container; the Assistant GM container is not a player', () => {
+      const wait = cut({ users: [3, 0] });
+      assert.equal(wait.status, 0, wait.out);
+      assert.equal(wait.sleeps, 1, wait.calls);
+      assert.ok(at(wait.calls, /sleep 1800/) < at(wait.calls, /docker stop/));
+      const gm = cut({ users: [1], gmJoined: true });
+      assert.equal(gm.status, 0, gm.out);
+      assert.equal(gm.sleeps, 0, gm.calls);
+      assert.match(gm.calls, /docker stop/);
+    });
+
+    test('a container that is still running after docker stop: no copy, an ERROR, and the start still follows', () => {
+      const r = cut({ users: [0], env: { STOP_FAILS: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /still running after docker stop/);
+      assert.doesNotMatch(r.calls, /restic/);
+      assert.match(r.calls, /docker start/);
+    });
+
+    test('a container that does not come back fails the night, naming docker', () => {
+      const r = cut({
+        users: [0],
+        env: { RESTART_FAILS: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+      });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /the foundry container is not running, not answering/);
+      assert.match(r.out, /docker start cid-foundry/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('a docker stop that exits non-zero: no copy, status 1, and the start still follows', () => {
+      const r = cut({ users: [0], env: { STOP_EXIT: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.doesNotMatch(r.calls, /restic/);
+      assert.match(r.calls, /docker start/);
+    });
+
+    test('a docker start that exits non-zero: a warning, and the night fails because Foundry is not up', () => {
+      const r = cut({
+        users: [0],
+        env: { START_EXIT: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+      });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /WARNING: could not start the foundry container/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('Docker restarted during the copy and restart: always brought Foundry back: the torn snapshot fails the night (PR 967 round 2 L2)', () => {
+      const r = cut({ users: [0], env: { RESTIC_RESTARTS: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /started again while the worlds were being copied/);
+      assert.match(r.out, /torn snapshot abc12345 was removed/);
+      // This run's own snapshot (from the --json summary), not the oldest one the repository lists first.
+      assert.match(r.calls, new RegExp(`restic forget ${NEW_ID}\\n`));
+      assert.doesNotMatch(r.calls, /restic forget old11111/);
+      assert.doesNotMatch(r.calls, /restic snapshots/);
+      assert.doesNotMatch(r.calls, /restic forget --keep/);
+    });
+
+    test('the container came back and stopped again during the copy (new StartedAt): also a failed night', () => {
+      const r = cut({ users: [0], env: { RESTIC_RESTARTS: '2' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /started again while the worlds were being copied/);
+      assert.match(r.calls, new RegExp(`restic forget ${NEW_ID}\\n`));
+    });
+
+    test('a torn copy with no snapshot id in the summary forgets nothing and says so', () => {
+      const r = cut({ users: [0], env: { RESTIC_RESTARTS: '1', NO_SUMMARY: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /torn snapshot could not be removed/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('the Docker daemon stops answering during the copy: the night fails and the snapshot is not forgotten', () => {
+      const r = cut({ users: [0], env: { RESTIC_DAEMON_DIES: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /Docker daemon did not answer after the copy/);
+      assert.match(r.out, /snapshot abc12345 was kept/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('restic fails: the night fails, nothing is forgotten and the container is started again (PR 1013 L3)', () => {
+      const r = cut({ users: [0], env: { RESTIC_EXIT: '1' } });
+      assert.notEqual(r.status, 0, r.out);
+      assert.doesNotMatch(r.calls, /restic forget/);
+      assert.match(r.calls, /docker start/);
+    });
+
+    test('the container is gone after the copy while the daemon answers: said so, not called a silent daemon (PR 1013 L1)', () => {
+      const r = cut({ users: [0], env: { RESTIC_REMOVES: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /the foundry container is gone after the copy/);
+      assert.doesNotMatch(r.out, /Docker daemon did not answer after the copy/);
+      assert.doesNotMatch(r.calls, /restic forget/);
+    });
+
+    test('an unreadable StartedAt before the copy does not force the torn branch (PR 1013 L2)', () => {
+      const r = cut({ users: [0], env: { STARTEDAT_FAILS_BEFORE: '1' } });
+      assert.equal(r.status, 0, r.out);
+      assert.doesNotMatch(r.out, /started again while the worlds/);
+    });
+
+    test('an unreadable StartedAt before the copy and a start after the copy began: torn, the snapshot is dropped', () => {
+      const r = cut({ users: [0], env: { STARTEDAT_FAILS_BEFORE: '1', STARTEDAT_AFTER: '1' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /started again while the worlds/);
+      assert.match(r.calls, /restic forget/);
+    });
+
+    test('restic\'s summary line reaches the journal (PR 1013 L5)', () => {
+      const r = cut({ users: [0] });
+      assert.match(r.out, /"message_type":"summary"/);
+    });
+
+    test('docker_off: daemon silent, docker disabled, no foundry.service: the backup goes on (nothing can be writing)', () => {
+      const r = nightly({ docker: 'down', active: '', users: [0] });
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.calls, /restic backup/);
+      assert.doesNotMatch(r.calls, /docker stop/);
+    });
+
+    test('docker_off with a containerd-shim left (live-restore): an unknown state, nothing is copied', () => {
+      const r = nightly({ docker: 'down', active: '', users: [0], env: { PGREP_RC: '0' } });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /Docker daemon does not answer/);
+      assert.doesNotMatch(r.calls, /restic/);
+    });
+
+    test('docker_off with a pgrep that cannot run (exit 127) is not "no container": nothing is copied', () => {
+      const r = nightly({ docker: 'down', active: '', users: [0], env: { PGREP_RC: '127' } });
+      assert.equal(r.status, 1, r.out);
+      assert.doesNotMatch(r.calls, /restic/);
+    });
+
+    test('docker info answers but docker ps fails: an unknown state, nothing is stopped or copied', () => {
+      const r = nightly({ docker: 'pserr', users: [0] });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /docker ps failed/);
+      assert.doesNotMatch(r.calls, /restic|systemctl stop|docker stop/);
+    });
+
+    test('a silent Docker daemon and no running foundry.service is an unknown state: nothing is stopped or copied', () => {
+      // docker.service is active (systemd will bring the daemon back), foundry.service is not.
+      const r = nightly({ docker: 'down', active: 'docker.service', users: [0] });
+      assert.equal(r.status, 1, r.out);
+      assert.match(r.out, /ERROR: backup failed: the Docker daemon does not answer/);
+      assert.doesNotMatch(r.calls, /restic|systemctl stop|docker stop/);
+    });
+
+    test('a silent Docker daemon while foundry.service runs: the unit is backed up as before, with a warning', () => {
+      const r = nightly({ docker: 'down', users: [0] });
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.out, /Docker daemon does not answer, but foundry\.service runs/);
+      assert.match(r.calls, /systemctl stop foundry\.service/);
+    });
+
+    test('a Pi with Docker installed and no container of the stack backs up the unit exactly as before', () => {
+      const r = nightly({ docker: 'none', users: [0] });
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.calls, /systemctl stop foundry\.service/);
+      assert.doesNotMatch(r.calls, /docker stop|docker start/);
+    });
+  });
+
+  test('a Foundry that is active but never answers (crashed on boot, Type=simple) fails the night', () => {
+    const r = nightly({
+      users: [0],
+      env: { CRASH_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+    });
+    assert.equal(r.status, 1, r.out);
+    assert.match(
+      r.out,
+      /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/
+    );
+    assert.equal(r.sleeps, 3);
+    assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  test('a Foundry that answers from the setup screen (its world did not open) fails the night', () => {
+    const r = nightly({
+      users: [0],
+      env: { SETUP_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+    });
+    assert.equal(r.status, 1, r.out);
+    assert.match(
+      r.out,
+      /ERROR: the backup is done, but foundry\.service is not active, not answering, or not back on a world/
+    );
+    assert.equal(r.sleeps, 3);
+    assert.doesNotMatch(r.calls, /restic forget/);
+  });
+
+  test('a world switched by hand during the day does not fail the night', () => {
+    const r = nightly({
+      users: [0],
+      env: { SWITCHED_AFTER_START: '1', FOUNDRY_BACKUP_ACTIVE_WAIT_TRIES: '3' },
+    });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.sleeps, 0);
+  });
+
+  test('a backup after which Foundry is active again succeeds without waiting', () => {
+    const r = nightly({ users: [0] });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.sleeps, 0);
+    assert.match(r.calls, /restic forget/);
+  });
+
   test('a backup that finds nobody online also removes an old marker', () => {
     const r = nightly({ users: [0], marker: dayAgo(1) });
     assert.equal(r.status, 0, r.out);
@@ -841,25 +1487,49 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   });
 
   test('the Assistant GM and the Kit GM are not players once they have joined, and are before', () => {
-    const joinedLine = '[assistant-gm] joined world w as Assistant GM (GM: true, module active: true)';
+    const joinedLine =
+      '[assistant-gm] joined world w as Assistant GM (GM: true, module active: true)';
     const thisRun = { INVOCATION: 'run-2', JOURNAL_ID: 'run-2' };
-    for (const unit of ['foundry-ai-tool-gm-browser.service', 'foundry-ai-tool-kit-gm-browser.service']) {
+    for (const unit of [
+      'foundry-ai-tool-gm-browser.service',
+      'foundry-ai-tool-kit-gm-browser.service',
+    ]) {
       const active = `foundry.service ${unit}`;
       const joined = nightly({ users: [1], active, env: { ...thisRun, JOURNAL: joinedLine } });
       assert.equal(joined.status, 0, joined.out);
       assert.equal(joined.sleeps, 0, unit);
-      const waiting = nightly({ users: [1], active, env: { ...thisRun, JOURNAL: '[assistant-gm] no world is running', FOUNDRY_BACKUP_MAX_WAITS: '1' } });
+      const waiting = nightly({
+        users: [1],
+        active,
+        env: {
+          ...thisRun,
+          JOURNAL: '[assistant-gm] no world is running',
+          FOUNDRY_BACKUP_MAX_WAITS: '1',
+        },
+      });
       assert.notEqual(waiting.status, 0, waiting.out);
       assert.equal(waiting.sleeps, 1);
       // A join that belongs to an earlier run of the service (it left the game and was started again) does not count.
-      const earlier = nightly({ users: [1], active, env: { INVOCATION: 'run-2', JOURNAL_ID: 'run-1', JOURNAL: joinedLine, FOUNDRY_BACKUP_MAX_WAITS: '1' } });
+      const earlier = nightly({
+        users: [1],
+        active,
+        env: {
+          INVOCATION: 'run-2',
+          JOURNAL_ID: 'run-1',
+          JOURNAL: joinedLine,
+          FOUNDRY_BACKUP_MAX_WAITS: '1',
+        },
+      });
       assert.notEqual(earlier.status, 0, earlier.out);
     }
   });
 
   test('the service allows for the waiting, and the stage runs the first backup without it under FORCE=1', () => {
     assert.match(stage6, /TimeoutStartSec=5h/);
-    assert.match(stage6, /if \[ "\$FORCE" = 1 \]; then[\s\S]*?FOUNDRY_BACKUP_ANYWAY=1 "\$backup_script"/);
+    assert.match(
+      stage6,
+      /if \[ "\$FORCE" = 1 \]; then[\s\S]*?FOUNDRY_BACKUP_ANYWAY=1 "\$backup_script"/
+    );
   });
 });
 
@@ -869,7 +1539,10 @@ describe('the helper scripts the user runs check players and recordings first', 
   const scripts = {
     'set-tunnel-token.sh': { unit: 'foundry-ai-tool-cloudflared.service', reached: /is missing/ },
     'set-dashboard-access.sh': { unit: 'foundry-ai-tool-dashboard.service', reached: /is missing/ },
-    'set-discord-token.sh': { unit: 'foundry-ai-tool-discord-bot.service', reached: /is missing: run stage 8/ },
+    'set-discord-token.sh': {
+      unit: 'foundry-ai-tool-discord-bot.service',
+      reached: /is missing: run stage 8/,
+    },
   };
 
   // lib.sh is copied next to the script (as the user does with scp) with the Pi replaced at its end: no root, a fake
@@ -900,7 +1573,7 @@ systemctl() {
   return 0
 }
 curl() { echo '{"active":true,"users":'"$USERS"'}'; }
-`,
+`
     );
     let text = read(`scripts/pi/remote/${name}`);
     const args = [];
@@ -961,47 +1634,65 @@ curl() { echo '{"active":true,"users":'"$USERS"'}'; }
       writeFileSync(join(d, name), read(`scripts/pi/remote/${name}`));
       const r = spawnSync('bash', [posix(join(d, name))], { encoding: 'utf8', input: '' });
       assert.notEqual(r.status, 0);
-      assert.match(`${r.stdout}${r.stderr}`, /lib\.sh is missing: copy lib\.sh next to this script/);
+      assert.match(
+        `${r.stdout}${r.stderr}`,
+        /lib\.sh is missing: copy lib\.sh next to this script/
+      );
     }
   });
 });
 
 // set-discord-token.ps1 -Force passes FORCE=1 to the Pi in front of bash (PowerShell 7; a fake ssh records its arguments).
 const hasPwsh = (() => {
-  const p = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], { encoding: 'utf8' });
+  const p = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], {
+    encoding: 'utf8',
+  });
   return p.status === 0 && Number(String(p.stdout).trim()) >= 7;
 })();
-describe('set-discord-token.ps1 passes FORCE through', { skip: !hasPwsh && 'PowerShell 7 is not available' }, () => {
-  const ps1 = join(repo, 'scripts', 'pi', 'set-discord-token.ps1');
+describe(
+  'set-discord-token.ps1 passes FORCE through',
+  { skip: !hasPwsh && 'PowerShell 7 is not available' },
+  () => {
+    const ps1 = join(repo, 'scripts', 'pi', 'set-discord-token.ps1');
 
-  function runPs1(extra = '') {
-    const d = tmp();
-    const log = join(d, 'ssh.log');
-    const stdinFile = join(d, 'stdin.txt');
-    const fake = join(d, 'fake-ssh.ps1');
-    // The fake ssh records its arguments and what arrived on stdin (the script text), then reports success.
-    writeFileSync(fake, `Add-Content -Path $env:FAKE_SSH_LOG -Value ($args -join ' | ')\n$input | Out-String | Set-Content -Path $env:FAKE_SSH_STDIN\nexit 0\n`);
-    const token = 'A'.repeat(60);
-    // Read-Host would wait for a console: a function of the same name stands in (a command lookup finds functions first).
-    const command = `function Read-Host { param([string]$Prompt, [switch]$AsSecureString) if ($AsSecureString) { ConvertTo-SecureString '${token}' -AsPlainText -Force } else { '' } }; & '${ps1}' -Ssh '${fake}' ${extra}; exit $LASTEXITCODE`;
-    const r = spawnSync('pwsh', ['-NoProfile', '-Command', command], {
-      encoding: 'utf8',
-      env: { ...process.env, FAKE_SSH_LOG: log, FAKE_SSH_STDIN: stdinFile },
+    function runPs1(extra = '') {
+      const d = tmp();
+      const log = join(d, 'ssh.log');
+      const stdinFile = join(d, 'stdin.txt');
+      const fake = join(d, 'fake-ssh.ps1');
+      // The fake ssh records its arguments and what arrived on stdin (the script text), then reports success.
+      writeFileSync(
+        fake,
+        `Add-Content -Path $env:FAKE_SSH_LOG -Value ($args -join ' | ')\n$input | Out-String | Set-Content -Path $env:FAKE_SSH_STDIN\nexit 0\n`
+      );
+      const token = 'A'.repeat(60);
+      // Read-Host would wait for a console: a function of the same name stands in (a command lookup finds functions first).
+      const command = `function Read-Host { param([string]$Prompt, [switch]$AsSecureString) if ($AsSecureString) { ConvertTo-SecureString '${token}' -AsPlainText -Force } else { '' } }; & '${ps1}' -Ssh '${fake}' ${extra}; exit $LASTEXITCODE`;
+      const r = spawnSync('pwsh', ['-NoProfile', '-Command', command], {
+        encoding: 'utf8',
+        env: { ...process.env, FAKE_SSH_LOG: log, FAKE_SSH_STDIN: stdinFile },
+      });
+      return {
+        status: r.status,
+        out: `${r.stdout}${r.stderr}`,
+        calls: existsSync(log) ? readFileSync(log, 'utf8').trim() : '',
+        stdin: existsSync(stdinFile) ? readFileSync(stdinFile, 'utf8') : '',
+        token,
+      };
+    }
+
+    test('-Force puts FORCE=1 in front of bash on the ssh line, and the token stays off it', () => {
+      const r = runPs1('-Force');
+      assert.equal(r.status, 0, r.out);
+      assert.equal(r.calls, 'foundry-pi | FORCE=1 bash -s -- no-log');
+      assert.ok(!r.calls.includes(r.token) && !r.out.includes(r.token));
+      assert.ok(r.stdin.includes(`TOKEN_IN='${r.token}'`), 'the token travels on stdin');
     });
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: existsSync(log) ? readFileSync(log, 'utf8').trim() : '', stdin: existsSync(stdinFile) ? readFileSync(stdinFile, 'utf8') : '', token };
+
+    test('without -Force the command is the plain one', () => {
+      const r = runPs1();
+      assert.equal(r.status, 0, r.out);
+      assert.equal(r.calls, 'foundry-pi | bash -s -- no-log');
+    });
   }
-
-  test('-Force puts FORCE=1 in front of bash on the ssh line, and the token stays off it', () => {
-    const r = runPs1('-Force');
-    assert.equal(r.status, 0, r.out);
-    assert.equal(r.calls, 'foundry-pi | FORCE=1 bash -s -- no-log');
-    assert.ok(!r.calls.includes(r.token) && !r.out.includes(r.token));
-    assert.ok(r.stdin.includes(`TOKEN_IN='${r.token}'`), 'the token travels on stdin');
-  });
-
-  test('without -Force the command is the plain one', () => {
-    const r = runPs1();
-    assert.equal(r.status, 0, r.out);
-    assert.equal(r.calls, 'foundry-pi | bash -s -- no-log');
-  });
-});
+);

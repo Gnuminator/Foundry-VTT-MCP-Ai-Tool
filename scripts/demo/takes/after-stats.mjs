@@ -40,7 +40,7 @@ export async function run(t) {
 
   await t.step('after', "The After view opens with tonight's stats", async () => {
     await t.pause(1200);
-    await humanClick(page.locator('#moments [data-moment="after"]'));
+    await humanClick(page.locator('#tab-after'));
     await page
       .locator('#stat-cards .stat-card')
       .first()
@@ -60,7 +60,8 @@ export async function run(t) {
   });
 
   await t.step('help', 'The "?" opens the guide right there', async () => {
-    await humanClick(page.locator('#after-stats .help-q'));
+    // The stats block has no "?" of its own on the React page: the first panel title under it does.
+    await humanClick(page.locator('.pane-title .help-q:visible').first());
     await page.locator('#pane-help').waitFor({ state: 'visible' });
     await t.pause(3500);
     await t.shot('Dashboard', 'after-help');

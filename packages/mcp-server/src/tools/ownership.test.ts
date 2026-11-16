@@ -364,6 +364,27 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
+  it('passes an ambiguous-name bridge error through with its candidates', async () => {
+    const ambiguous =
+      'Multiple characters match "Aria": Aria Stormwind (aria-storm), Aria Brightwood (aria-bright). ' +
+      'Use the exact name or the 16-character id.';
+    const { tools, createPlan } = makeTools((method: string) => {
+      // Real bridge errors arrive wrapped like this.
+      if (method === 'foundry-mcp-bridge.findActor') {
+        throw new Error(`Query foundry-mcp-bridge.findActor failed: ${ambiguous}`);
+      }
+      return [{ id: 'p1', name: 'John' }];
+    });
+    await expect(
+      tools.handleToolCall('plan-ownership-change', {
+        action: 'remove',
+        actorIdentifier: 'Aria',
+        playerIdentifier: 'John',
+      })
+    ).rejects.toThrow(ambiguous);
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
   it('treats a failing lookup as no match and throws', async () => {
     const { tools, createPlan } = makeTools((method: string) => {
       if (method === 'foundry-mcp-bridge.findActor') throw new Error('bridge unavailable');

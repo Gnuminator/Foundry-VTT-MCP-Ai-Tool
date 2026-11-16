@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import { DEFAULT_LINK_PORT } from '@gnuminator/shared';
 
 dotenv.config();
 
@@ -10,7 +11,7 @@ const ConfigSchema = z.object({
   logFilePath: z.string().optional(),
   foundry: z.object({
     host: z.string().default('localhost'),
-    port: z.number().min(1024).max(65535).default(31415),
+    port: z.number().min(1024).max(65535).default(DEFAULT_LINK_PORT),
     namespace: z.string().default('/foundry-mcp'),
     reconnectAttempts: z.number().min(1).max(20).default(5),
     reconnectDelay: z.number().min(100).max(30000).default(1000),
@@ -35,7 +36,7 @@ const rawConfig = {
   logFilePath: process.env.LOG_FILE_PATH,
   foundry: {
     host: process.env.FOUNDRY_HOST || 'localhost',
-    port: parseInt(process.env.FOUNDRY_PORT || '31415', 10),
+    port: parseInt(process.env.FOUNDRY_PORT || String(DEFAULT_LINK_PORT), 10),
     namespace: process.env.FOUNDRY_NAMESPACE || '/foundry-mcp',
     reconnectAttempts: parseInt(process.env.FOUNDRY_RECONNECT_ATTEMPTS || '5', 10),
     reconnectDelay: parseInt(process.env.FOUNDRY_RECONNECT_DELAY || '1000', 10),

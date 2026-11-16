@@ -1,10 +1,11 @@
 # Cloudflare Access — Policy Setup Notes
 
-> **Scaffold — not deployed.** This documents how to create the Cloudflare Access
-> application and email allow-list that gate the dashboard, and exactly how those
-> settings pair with the dashboard's `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` env
-> vars.
-> Replace every `<PLACEHOLDER>` with your real values.
+> **Reference notes.** The real setup is live: the steps for the Orange Pi are in
+> [Remote access, Part C](../../docs/dev/REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare).
+> This page explains how to create the Cloudflare Access application and email allow-list that
+> gate the dashboard, and exactly how those settings pair with the dashboard's `GM_EMAILS`,
+> `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` env vars. Every `<PLACEHOLDER>` below stands for
+> your real value.
 
 ---
 
@@ -27,10 +28,13 @@ way could send:
 - Email in `GM_EMAILS` list → **GM role** (full dashboard, write actions available).
 - Any other authenticated email → **player role** (read-only `/player` view).
 
-If the header is absent (e.g. a direct localhost request, or Access misconfigured), the
-dashboard falls back to its legacy behavior: if `GM_EMAILS` is empty and no
-`GM_DASHBOARD_TOKEN` is set, every request is treated as GM (local-only mode, safe
-because nothing external can reach it without the tunnel).
+Legacy local-only mode depends only on configuration, not on the token: when neither `GM_EMAILS`
+nor `GM_DASHBOARD_TOKEN` is set, every request is treated as GM, with or without a verified
+token (safe because nothing external can reach it without the tunnel). When either is set, a
+request without a verified token (e.g. a direct localhost request, or Access misconfigured) gets
+no GM email identity and falls to the GM token check, then the player role (or is refused when
+`PLAYER_DASHBOARD_TOKEN` is set and not presented). The token is read
+from the `Cf-Access-Jwt-Assertion` header, else from the `CF_Authorization` cookie.
 
 ---
 
@@ -113,12 +117,12 @@ GM_DASHBOARD_TOKEN=<RANDOM_SECRET_HEX_32_BYTES>
 
 If set, presenting this value as:
 
-- Header: `X-GM-Token: <TOKEN>`
-- Query param: `?gm_token=<TOKEN>`
-- Cookie: `gm_token=<TOKEN>`
+- Header: `x-cogm-token: <TOKEN>`
+- Query param: `?token=<TOKEN>`
+- Cookie: `cogm_token=<TOKEN>`
 
-...also grants the GM role, regardless of the injected email. Useful for API clients or
-scripts that call the dashboard outside a browser session. Keep it secret — treat it like
+...also grants the GM role, whoever logged in through Cloudflare Access. Useful for API clients or
+scripts that call the dashboard outside a browser session. Keep it secret. Treat it like
 a password.
 
 ### `PLAYER_DASHBOARD_TOKEN` (optional)
@@ -129,7 +133,9 @@ PLAYER_DASHBOARD_TOKEN=<ANOTHER_RANDOM_SECRET>
 
 If set, the player view (`/player`) requires this token. Leave unset to let any
 Cloudflare-Access-authenticated user (email on the allow-list) reach the player view
-without a separate token.
+without a separate token. It only takes effect when `GM_DASHBOARD_TOKEN` or `GM_EMAILS`
+is set too: with neither, the dashboard runs in single-user GM mode and everyone is the GM,
+token or not.
 
 ---
 
@@ -148,14 +154,11 @@ without a separate token.
 
 ## Security notes
 
-- The Cloudflare Access JWT is verified by the tunnel before the request ever reaches
-  your host. The injected email header is trustworthy only because it comes through the
-  tunnel (not from an external caller who can forge it). Do **not** trust this header on
-  direct-to-port requests that bypass the tunnel.
+- The dashboard verifies the `Cf-Access-Jwt-Assertion` token itself (signature, audience
+  and team domain; `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`) and takes the email only
+  from a verified token. The plain `Cf-Access-Authenticated-User-Email` header is ignored,
+  so a request that bypasses the tunnel and forges it gets nothing extra.
 - The `GM_DASHBOARD_TOKEN` must be rotated if compromised — update the env var and
   restart the dashboard.
-- The Anthropic API key (`ANTHROPIC_API_KEY`) lives only in the dashboard Node process.
-  It is never sent to the browser, never echoed in API responses, and never crosses the
-  Cloudflare tunnel in the response direction. This is enforced by the dashboard's server
-  architecture (the key is read once at startup and used only for server-side Anthropic
-  API calls).
+- The dashboard makes no Anthropic API calls, so no Anthropic API key is stored on the
+  host or sent through the tunnel.

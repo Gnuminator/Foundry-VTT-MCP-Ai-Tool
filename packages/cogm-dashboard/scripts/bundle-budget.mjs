@@ -9,7 +9,11 @@
 //
 //   npm run build -w @gnuminator/cogm-dashboard && npm run bundle:budget -w @gnuminator/cogm-dashboard
 //
-// To raise a limit on purpose, change the constant below in the same PR and say why in the PR.
+// To raise a limit on purpose, change the constant below in the same PR and say why in the PR. A
+// raise must leave at least 2 KB of headroom on the first load, or the PR makes something lazy
+// instead: a limit set to measured plus 1 KB is overflowed by the next two PRs that each fit alone
+// (main was red for 11.5 hours on 2026-10-30). Under 2 KB of headroom the script prints a GitHub
+// warning annotation; it never fails the build for that.
 import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -30,7 +34,20 @@ import { gzipSync } from 'node:zlib';
 // 146 on 2026-10-28: reading the token image and uuid of each combatant (lib/combat.ts, which every
 // fight passes through, so it cannot be lazy) took the first load to 145.1 KB; the portrait and
 // pan code itself is in the lazy InitiativeRibbon chunk.
-export const FIRST_LOAD_LIMIT_KB = 146;
+// 147 on 2026-10-30: the "Turn on for tonight" button on a refusal toast (lib/guarded.ts, which
+// every guarded change passes through, so it cannot be lazy) took the first load to 146.4 KB.
+// 148 on 2026-10-30: the Use Foundry targets wiring in the combat strip and the usage catalog entry
+// for the picker button, on top of the toast button, took the first load to 147.2 KB; the button
+// itself is the lazy FoundryTargetsButton chunk.
+// 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
+// GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
+// 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
+// 150 kept on 2026-10-31 (the build had reached 150.0 KB): the Pre-flight drawer (PreflightDrawer)
+// moved to its own chunk and the first load measured 147.8 KB. Not raised.
+// 150 kept on 2026-10-31 (after the live screens): the Advanced menu's Radix dropdown (AdvancedMenuImpl,
+// behind a stand-in button) and the combat strip (CombatStrip) moved to their own chunks; the
+// first load measured 144.6 KB, 5.4 KB of headroom. Not raised.
+export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`
@@ -38,12 +55,15 @@ export const FIRST_LOAD_LIMIT_KB = 146;
  * percent, rounded up). Measured 2026-10-16.
  */
 export const LAZY_LIMITS_KB = {
-  Handouts: 3, // 2.2 KB
+  AdvancedMenuImpl: 7, // 5.7 KB, measured 2026-10-31
+  CombatStrip: 5, // 3.8 KB, measured 2026-10-31
+  Handouts: 4, // 3.1 KB with the live-switch note, measured 2026-10-30 (was 2.2 KB)
   InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
-  Party: 4, // 3.0 KB
+  Party: 5, // 4.1 KB measured 2026-11-07 (3.0 KB on 2026-10-16; Who would notice, the group picker and the skill picker since)
   PlayerLinks: 2, // 1.2 KB
+  PreflightDrawer: 4, // 3.3 KB, measured 2026-10-31
   Prep: 4, // 3.2 KB
   RecentChanges: 7, // 5.6 KB, measured 2026-10-17
   Tarokka: 4, // 2.8 KB
@@ -54,6 +74,23 @@ export const LAZY_LIMITS_KB = {
 export const DEFAULT_LAZY_LIMIT_KB = 40;
 
 const KB = 1000;
+
+/** A limit with less room than this (in KB of gzip) gets a warning annotation. */
+export const MIN_HEADROOM_KB = 2;
+
+/**
+ * Rows that fit but have little room left: the first load under MIN_HEADROOM_KB, a lazy chunk under
+ * MIN_HEADROOM_KB and under 5 percent of its limit (a small chunk's limit is a tenth above its size
+ * by the rule above, so a flat 2 KB would flag every one). Rows over the limit are not listed.
+ */
+export function lowHeadroom(rows, minKb = MIN_HEADROOM_KB) {
+  return rows.filter(r => {
+    if (!r.ok) return false;
+    const room = r.limitKb * KB - r.gzip;
+    if (!r.name.startsWith('lazy:')) return room < minKb * KB;
+    return room < minKb * KB && room < r.limitKb * KB * 0.05;
+  });
+}
 
 /** `index-CZFZNM0R.js` is `index`: Vite ends a file name with `-` and an 8 character hash. */
 export function chunkStem(file) {
@@ -167,6 +204,13 @@ function main() {
   const { rows, ok } = checkBudget({ first, lazy });
   console.log(formatTable(rows));
   console.log(ok ? '\nBundle budget: ok.' : '\nBundle budget: OVER. See the rows marked OVER.');
+
+  for (const r of lowHeadroom(rows)) {
+    const room = ((r.limitKb * KB - r.gzip) / KB).toFixed(1);
+    console.log(
+      `::warning title=Dashboard bundle headroom::${r.name} has ${room} KB left of ${r.limitKb} KB. Make something lazy before the next PR needs a raise.`
+    );
+  }
 
   const summary = process.env.GITHUB_STEP_SUMMARY;
   if (summary) {

@@ -21,6 +21,14 @@ hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 | Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                                                                                                                                                   |
 | Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                                                                                                                                            |
 
+### Campaign copy (the live Strahd world, port 30004)
+
+`pwsh scripts/test-env/campaign-copy.ps1 refresh|start|stop|status` keeps a copy of the live
+Curse of Strahd world (pulled read-only from the Pi) at `C:\FoundryCampaign`, Foundry only on
+`http://localhost:30004`, join as `Gamemaster` (no password). For campaign-specific problems
+(the real `world.player-*` packs, the live module set); no bridge or dashboard. Steps, rules and
+what it copies: `docs/dev/CAMPAIGN-COPY.md`. It is outside the A/B/C lock; stop it when idle.
+
 ### Three test servers (A, B and C)
 
 The table above is **server A**, the default: quick checks, `live:roundtrip`, manual tests in the
@@ -36,7 +44,7 @@ same system and module versions, copied from A); B also runs kit runs and soak r
 | Rest      | vault, obsidian, logs, lock under the root            | the same under `C:\FoundryTestC`                      |
 
 All use one Foundry app folder, chosen machine-wide in `C:\FoundryTest\appdir.txt` (next to A's
-`lock.json`, not in git; first line = the folder, now `C:\FoundryTest\app-14.369`). It wins over an
+`lock.json`, not in git; first line = the folder, now `C:\FoundryTest\app-14.370-official`). It wins over an
 `AppDir` in any worktree's `local.json` (status warns if they differ), so every checkout starts the
 same Foundry version; with no file the default is `<Root>\app`. `status.ps1` prints the version it
 will start (`Foundry ver:`); change the choice with
@@ -58,17 +66,18 @@ one again; it skips a world A has open, so stop A or copy from a quiet moment). 
 them at `http://localhost:30002` / `30003` (join as `Claude` or `Kit GM`, passwordless).
 **Licence:** only one instance may be reachable by users other than the licence owner at a time
 (the Pi is that one), so B and C are owner-only on localhost. RAM for three servers running:
-see `docs/dev/TEST-KIT.md`, "Three test servers".
+see `docs/dev/test-kit/what-it-runs.md`, "Three test servers".
 
 This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
 separately with the GM. World data, users and test data are not shared between machines, even
 though the scripts and skills are in git.
 
 Paths and ports come from `scripts/test-env/config.ps1` (`Get-NodeExe` there picks the newest
-portable Node 22 folder, `%LOCALAPPDATA%\node22\node-v22.*-win-x64`); `scripts/test-env/local.json`
+portable Node 24.22+ folder, `%LOCALAPPDATA%\node24\node-v24.*-win-x64`, and warns when it falls back to an older node on PATH); `scripts/test-env/local.json`
 (gitignored) overrides paths and ports. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
 Foundry runs on the Node its `app\package.json` requires (14.368 and 14.369: >=24.13.1 <25, the
-global Node 24); the bridge and dashboard use the repo's portable Node 22.
+global Node 24; 14.370: >=24.22.1 <25, found in the portable `%LOCALAPPDATA%\node24` folders by
+`Get-FoundryNodeExe`); the bridge and dashboard use the repo's portable Node 24.
 
 ## Rules
 
@@ -109,7 +118,7 @@ setup screen.
    use `read_page` (filter interactive), `form_input` the name `Claude`, leave the password
    empty, click "Join Game Session". The pane keeps the session; one session = one user per
    origin (a second user joins on `http://127.0.0.1:30001`).
-3. Expect the notification **"MCP Bridge connected successfully"** (bottom-left shows
+3. Expect the notification **"AI Tool connected"** (bottom-left shows
    `Claude [GM]`). The module dials `ws://localhost:31515` because the test copy's
    `module.json` has `flags.foundry-mcp-bridge.defaultServerPort = 31515`.
 4. Test (see Next steps). Before stopping Foundry: Settings tab, scroll down, **Return to
@@ -127,6 +136,16 @@ After changing code:
   errors). `-NoBuild` watches a build you run yourself. Stop it when your test is done.
 - Backend or dashboard: `npm run build`, then `stop.ps1 -Only bridge` / `-Only dashboard`
   and `start.ps1 -Only ...` again.
+
+### Small Obsidian vault (plugin and Library checks)
+
+`C:\FoundryTest\obsidian` is the bridge's output vault and holds thousands of test notes; do not
+open it in Obsidian for plugin checks. For the plugin's graph commands (Hide/Show the Library,
+Apply graph colours) build a small throwaway vault: `npm run build -w packages/obsidian-plugin`,
+then `node scripts/test-env/small-obsidian-vault.mjs` (default `C:\FoundryTest\obsidian-small`;
+about 55 made-up notes, the built plugin enabled, 36 Library notes in 3 books). In Obsidian:
+vault switcher, **Open folder as vault**, trust and enable community plugins, open the graph,
+Ctrl+P "Hide the Library in the graph". Safe to run again; it refuses a folder holding other files.
 
 ## Test server lock
 
@@ -156,7 +175,7 @@ lock. The board warns on Today when a lock is older than 6 hours: release when y
 
 Each server has its own lock (`<Root>\lock.json`); add `-Server B` to every `lock.ps1` call for
 server B. A whole test kit run with B's lock taken and released for you: `npm run kit:run`
-(options and exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"; `--server A` runs it on
+(options and exit codes in `docs/dev/test-kit/what-it-runs.md`, "The kit run command"; `--server A` runs it on
 A). It restarts that server's test environment on the kit world and stops it afterwards.
 
 ## Kit worlds
@@ -169,6 +188,12 @@ never in `ai-tool-test`. Start Foundry on one with `start.ps1 -World <id>`.
 | `ai-tool-kit-srd`      | srd profile (SRD content only)                                     |
 | `ai-tool-kit-licensed` | licensed profile (PHB 2024 and the other bought packs, local only) |
 | `strahd-kit`           | strahd profile: a throwaway copy of `curse-of-strahd`, made again  |
+| `ai-tool-kit-modules`  | modules-all profile: the third-party module scenarios              |
+
+After a Foundry point update (14.369 to 14.370) Foundry logs "requested World ... is not available
+to auto-launch" for a world whose `compatibility.verified` names an older build (`coreVersion`
+does not matter). `start.ps1 -World <id>` bumps both fields to the app's build first (copy:
+`world.json.bak-verified`), so every world launches on every server after an update.
 
 `kit init` gives each one three passwordless users and keeps them as test data: `Kit GM`
 (Gamemaster; the kit's builder and runs join as it, and it is the bridge user), `Claude`
@@ -193,6 +218,12 @@ there). Never touch `ai-tool-kit` (the hand-made licensed import world) or `curs
   `User [] does not have permission to upload files` and the module's `File upload failed`
   (reproduced 2026-10-28; the creature index is the first thing to hit it). Open each server on
   its own host name (`localhost`, `127.0.0.1`, `[::1]`); that is three names, so A, B and the `Player` origin together use them all.
+- One GM browser per test server (2026-10-30): a second tab or pane joined as `Claude` makes
+  `live:sweep` step 25 (the AI-ended concentration) fail on some runs. dnd5e deletes the dependent
+  effect from every browser of the active GM user, the other browser's write can land first, and
+  the change journal then files the dependent under that browser's own action, so the undo plan
+  has no "Also restored" note. Two module links on the bridge port (`Get-NetTCPConnection
+-RemotePort 31515`) give it away; close the extra tab before a sweep or roundtrip.
 - Foundry v14 gotchas seen live: `combat.endCombat()` opens a confirm dialog (click Yes in the
   pane; a script that awaits it will hang); a user's first join opens a "User Configuration"
   dialog; `game.user.updateTokenTargets` no longer exists (use

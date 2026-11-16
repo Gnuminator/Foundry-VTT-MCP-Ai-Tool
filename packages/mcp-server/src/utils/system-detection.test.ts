@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { makeLogger } from '../test-support/make-tool-harness.js';
+
 import { clearSystemCache, detectGameSystem } from './system-detection.js';
 
 afterEach(() => clearSystemCache());
@@ -37,8 +39,8 @@ describe('detectGameSystem', () => {
 
   it('logs a GM-gate refusal at warn, not error (it re-asks on every call)', async () => {
     const query = vi.fn().mockResolvedValue({ success: false, error: 'Access denied' });
-    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    expect(await detectGameSystem({ query } as any, logger as any)).toBe('other');
+    const logger = makeLogger();
+    expect(await detectGameSystem({ query } as any, logger)).toBe('other');
     expect(logger.warn).toHaveBeenCalledWith('World info refused, game system not detected yet', {
       error: 'Access denied',
     });

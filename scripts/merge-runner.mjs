@@ -87,6 +87,7 @@ import {
   makeQueueDeps,
 } from './merge-runner/queue.mjs';
 import { openLeft } from './merge-runner/open-steps.mjs';
+import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
@@ -260,6 +261,7 @@ const norm = p => {
  *   gh: (args: string[]) => Ran,
  *   prepare: (o: { pr: number, head: string }) => string | null,
  *   gate: (pr: number) => Ran,
+ *   refresh?: import('./merge-runner/refresh.mjs').Refresh,
  *   backlog: (args: string[]) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
@@ -691,7 +693,14 @@ export function round(d, tried, attempts) {
       );
     } else {
       tried.add(key);
-      refuse(r, out.reason);
+      // Refused only for being behind main: merge main in, push, a ready line for the new head.
+      const fr = refreshStep(d.refresh, r, out.reason, parseProgress(text).get(r.id));
+      if ('refusal' in fr) refuse(r, fr.refusal);
+      else {
+        d.log(fr.log);
+        write(r.id, fr.args, 'progress');
+        d.post(fr.post);
+      }
     }
   }
   return { stop: null, merged };
@@ -923,6 +932,7 @@ function realDeps(o) {
         return e instanceof Error ? e.message : String(e);
       }
     },
+    refresh: makeRefresh({ checkout: o.checkout, run: sh, repo: REPO, mainRef: MAIN }),
     gate: pr => {
       const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');
       if (!copy) return { status: 1, stdout: '', stderr: 'no scripts/lane-merge.mjs on main' };

@@ -1,0 +1,230 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { REFRESH_SUBJECT, REFRESHABLE, refreshBranch, reviewOf } from './refresh.mjs';
+
+/** Real git, a bare remote named aitool, and a detached checkout at the lane head. */
+function setup() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'refresh-test-'));
+  const run = (cwd, ...args) => {
+    const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+      cwd,
+      encoding: 'utf8',
+    });
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  const remote = path.join(dir, 'remote.git');
+  const checkout = path.join(dir, 'checkout');
+  fs.mkdirSync(remote);
+  run(remote, 'init', '-q', '--bare', '-b', 'main');
+  run(dir, 'clone', '-q', remote, 'checkout');
+  run(checkout, 'remote', 'rename', 'origin', 'aitool');
+  const write = (f, s) => fs.writeFileSync(path.join(checkout, f), s);
+  write('a.txt', 'one\n');
+  write('package-lock.json', '{"v":1}\n');
+  run(checkout, 'add', '-A');
+  run(checkout, 'commit', '-q', '-m', 'base');
+  run(checkout, 'push', '-q', 'aitool', 'HEAD:main');
+  run(checkout, 'checkout', '-q', '-b', 'lane');
+  write('lane.txt', 'lane\n');
+  run(checkout, 'add', '-A');
+  run(checkout, 'commit', '-q', '-m', 'lane work');
+  run(checkout, 'push', '-q', 'aitool', 'lane:lane');
+  const head = run(checkout, 'rev-parse', 'HEAD');
+  run(checkout, 'checkout', '-q', 'main');
+  return {
+    dir,
+    checkout,
+    remote,
+    head,
+    run,
+    write,
+    cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
+  };
+}
+
+/** Advance main by one commit (via the checkout), then detach at the lane head. */
+function moveMain(s, file, text) {
+  s.run(s.checkout, 'checkout', '-q', 'main');
+  s.write(file, text);
+  s.run(s.checkout, 'add', '-A');
+  s.run(s.checkout, 'commit', '-q', '-m', `main ${file}`);
+  s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+  s.run(s.checkout, 'fetch', '-q', 'aitool');
+  s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+}
+
+const prInfo = (o = {}) => ({
+  status: 0,
+  stdout: JSON.stringify({
+    headRefName: 'lane',
+    isCrossRepository: false,
+    isDraft: false,
+    state: 'OPEN',
+    ...o,
+  }),
+  stderr: '',
+});
+const opts = (s, extra = {}) => ({
+  checkout: s.checkout,
+  pr: 7,
+  head: s.head,
+  reason: 'pr: mergeable is UNKNOWN; merge main into the branch and resolve conflicts',
+  run: (cmd, args, o) => {
+    const r = spawnSync(cmd, args, { cwd: o?.cwd, encoding: 'utf8' });
+    return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  },
+  gh: () => prInfo(),
+  repo: 'x/y',
+  ...extra,
+});
+const patchId = (s, cwd, a, b) => {
+  const d = spawnSync('git', ['diff', `${a}...${b}`], { cwd, encoding: 'utf8' }).stdout;
+  return spawnSync('git', ['patch-id', '--verbatim'], {
+    cwd,
+    input: d,
+    encoding: 'utf8',
+  }).stdout.split(' ')[0];
+};
+
+test('clean merge: main is merged in, the merge commit is pushed, the lane patch is unchanged', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'main.txt', 'main\n');
+    const r = refreshBranch(opts(s));
+    assert.ok(r?.head, JSON.stringify(r));
+    assert.notEqual(r.head, s.head);
+    // the branch on the remote is the merge commit; the checkout is back on the old head
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), r.head);
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
+    assert.equal(s.run(s.checkout, 'log', '-1', '--format=%s', r.head), REFRESH_SUBJECT);
+    // review carries by patch id: the diff from the merge base is the same patch
+    assert.equal(
+      patchId(s, s.checkout, 'aitool/main', s.head),
+      patchId(s, s.checkout, 'aitool/main', r.head)
+    );
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('a real conflict stays a refusal, naming the file; nothing is pushed and the checkout is clean', () => {
+  const s = setup();
+  try {
+    s.run(s.checkout, 'checkout', '-q', 'lane');
+    s.write('a.txt', 'lane edit\n');
+    s.run(s.checkout, 'commit', '-qam', 'lane edits a');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'lane:lane');
+    s.head = s.run(s.checkout, 'rev-parse', 'HEAD');
+    s.run(s.checkout, 'checkout', '-q', 'main');
+    moveMain(s, 'a.txt', 'main edit\n');
+    const r = refreshBranch(opts(s));
+    assert.equal(r?.head, undefined);
+    assert.match(r?.why ?? '', /real conflict in a\.txt/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
+    assert.equal(s.run(s.checkout, 'status', '--porcelain'), '');
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('not refreshed: a reason merging main cannot cure, a head that has main, one refresh only', () => {
+  const s = setup();
+  try {
+    assert.equal(refreshBranch(opts(s, { reason: 'ci: failing: build-test (FAILURE)' })), null);
+    s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    assert.match(refreshBranch(opts(s))?.why ?? '', /already contains main/);
+    moveMain(s, 'main.txt', 'main\n');
+    const first = refreshBranch(opts(s));
+    assert.ok(first?.head);
+    // the lane head is now the merge commit; main moves again: the runner does not merge a second time
+    s.run(s.checkout, 'fetch', '-q', 'aitool');
+    s.run(s.checkout, 'checkout', '-q', '--detach', first.head);
+    moveMain({ ...s, head: first.head }, 'more.txt', 'more\n');
+    const second = refreshBranch(opts(s, { head: first.head }));
+    assert.match(second?.why ?? '', /already merged in by the runner once/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('not refreshed: fork, draft, closed or unreadable PRs', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'main.txt', 'main\n');
+    for (const gh of [
+      () => prInfo({ isCrossRepository: true }),
+      () => prInfo({ isDraft: true }),
+      () => prInfo({ state: 'CLOSED' }),
+      () => ({ status: 1, stdout: '', stderr: 'boom' }),
+    ]) {
+      const r = refreshBranch(opts(s, { gh }));
+      assert.match(r?.why ?? '', /^not refreshed/);
+      assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
+    }
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('lockfile moved on main: npm install --package-lock-only runs; an unchanged lock pushes, a changed one refuses', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'package-lock.json', '{"v":2}\n');
+    const calls = [];
+    const real = opts(s).run;
+    const npmOk = (cmd, args, o) => {
+      if (/npm/.test([cmd, ...args].join(' '))) {
+        calls.push(args.join(' '));
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return real(cmd, args, o);
+    };
+    const ok = refreshBranch(opts(s, { run: npmOk }));
+    assert.ok(ok?.head, JSON.stringify(ok));
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /package-lock-only/);
+    // a regeneration that changes the lock: refused, nothing more pushed
+    s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    s.run(s.remote, 'update-ref', 'refs/heads/lane', s.head);
+    const npmChanges = (cmd, args, o) => {
+      if (/npm/.test([cmd, ...args].join(' '))) {
+        fs.writeFileSync(path.join(s.checkout, 'package-lock.json'), '{"v":3}\n');
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return real(cmd, args, o);
+    };
+    const bad = refreshBranch(opts(s, { run: npmChanges }));
+    assert.match(bad?.why ?? '', /package-lock\.json would still change/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
+    assert.equal(s.run(s.checkout, 'status', '--porcelain'), '');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('REFRESHABLE and reviewOf', () => {
+  for (const t of [
+    'pr: mergeable is CONFLICTING; merge main into the branch and resolve conflicts',
+    'drift: drift-check failed (guards: lockfile) (log x); last lines below',
+    'wait-ci: #7 has merge conflicts, so CI will not run; merge main into the branch and resolve them',
+  ])
+    assert.match(t, REFRESHABLE);
+  for (const t of [
+    'ci: failing: build-test',
+    'review: no note names the head',
+    'changelog: missing',
+  ])
+    assert.doesNotMatch(t, REFRESHABLE);
+  assert.equal(
+    reviewOf('PR #7 ready, head ' + 'a'.repeat(40) + ', review C:\\v\\n.md'),
+    'C:\\v\\n.md'
+  );
+  assert.equal(reviewOf('PR #7 ready, head ' + 'a'.repeat(40)), '');
+  assert.equal(reviewOf(undefined), '');
+});

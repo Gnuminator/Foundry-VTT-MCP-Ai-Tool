@@ -251,6 +251,60 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   assert.equal(f.calls.gate.length, 1, 'the same head is not gated twice in one run');
 });
 
+test('a refusal for being behind main: the refreshed head gets a new ready line with the same review; a failed refresh refuses', () => {
+  const NEW = 'c'.repeat(40);
+  const gates = {
+    5: {
+      status: 1,
+      stdout:
+        'lane:merge: NOT merged #5\nlane:merge: refused because pr: mergeable is CONFLICTING; merge main into the branch and resolve conflicts',
+    },
+  };
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}, review C:\\v\\note.md`]]),
+    prs: { 5: open() },
+    gates,
+  });
+  const asked = [];
+  f.deps.refresh = (r, reason, progress) => {
+    asked.push([r.pr, r.head, reason, progress]);
+    return { head: NEW };
+  };
+  round(f.deps, new Set());
+  assert.equal(asked.length, 1);
+  assert.match(asked[0][2], /^pr: mergeable is CONFLICTING/);
+  assert.deepEqual(f.calls.backlog, [
+    [
+      'progress',
+      'one',
+      '--ready',
+      '5',
+      '--head',
+      NEW,
+      '--review',
+      'C:\\v\\note.md',
+      '--if-ready',
+      `5@${SHA}`,
+    ],
+  ]);
+  assert.match(f.calls.post[0], /merged main into #5's branch/);
+
+  const g = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates,
+  });
+  g.deps.refresh = () => ({
+    why: 'not refreshed: a real conflict in a.txt: the lane has to resolve it',
+  });
+  round(g.deps, new Set());
+  assert.match(
+    g.calls.backlog[0][2],
+    /^PR #5 refused by the merge gate: pr: mergeable is CONFLICTING.*real conflict in a\.txt/
+  );
+  assert.equal(g.calls.backlog[0][3], '--if-ready');
+});
+
 test('a failed CI check (exit 3) and a moved head under --wait-ci (exit 4) are refusals', () => {
   for (const [code, line] of [
     [3, 'lane:merge: wait-ci ended: exit 3, a CI check failed'],

@@ -45,6 +45,8 @@ The tool follows hit points, not life and death:
   means dropped to 0 HP, so a character who got back up is listed too.
 - **Nothing is deleted by the tool.** No tool deletes an actor.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What does the tool notice when a character drops to 0 HP, and what do I have to decide myself?" ([how to add the GM coach](gm-coach.md))
+
 ## At the table: the moment of death
 
 1. **Make the call.** Check the death saves on the sheet or in the Combat Tracker. The rules call
@@ -63,6 +65,8 @@ The tool follows hit points, not life and death:
 
 Do not delete the actor. The play stats, the session notes in Obsidian and the death log all point
 at it, and a later resurrection needs the sheet as it was.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "A player character just died at the table. What do I do right now?"
 
 ## After the session: tidy up
 
@@ -114,6 +118,8 @@ is built.
    party and Barovia, why they are here, one thing they want. Write it as a page in your handouts
    journal and reveal it to that player only: "Reveal the page 'Vasil' in 'Handouts' to Anna."
    (`plan-page-reveal`, prep set). Keep secrets out of it; the player reads every word.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I bring a new character into the game after a death?"
 
 ## Hooks for a new character
 

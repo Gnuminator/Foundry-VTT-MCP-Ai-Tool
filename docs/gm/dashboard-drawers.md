@@ -36,6 +36,8 @@ In the confirm window:
   action**. The exception is **End combat** on the strips: it asks in one line with no tick, and
   Undo brings the fight back.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "When does the dashboard ask me to confirm a change, and when does it just apply it?" ([how to add the GM coach](gm-coach.md))
+
 ## The Tool Runner (🛠 Tool Runner)
 
 A drawer on the side with every tool the bridge has, the same tools Claude uses. Use it when you
@@ -78,6 +80,8 @@ When Claude plans a change in Claude Desktop, you can apply it from the dashboar
 
 `get-planned-change` without a `planId` lists every plan still waiting. Plans expire after 15
 minutes, and restarting the bridge drops them. If a plan expired, ask Claude to plan it again.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I use the Tool Runner to apply a plan Claude made?"
 
 ## The Tarokka drawer (🃏 Tarokka)
 
@@ -141,6 +145,8 @@ pages show here: a new journal (one Claude just made, say) is not listed until y
 
 A handout for chosen players is readable in Foundry only by them, and the player page shows it only
 to a player who picked that name ("Playing as ...") at the top of the page.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I queue a handout during prep and reveal it at the table?"
 
 ## The prep drawer (📋 Prep)
 
@@ -209,3 +215,5 @@ Each of the other buttons applies in one click, with an **Undo** message. The ac
 the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
 with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
 card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What can I do from the party drawer, and what does Who would notice show me?"

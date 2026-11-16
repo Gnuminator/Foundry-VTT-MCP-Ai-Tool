@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-header.md
-sourceHash: 47dc64b0aa16
+sourceHash: 9ee2f4ea61b7
 title: 'Dashboardet: visninger og header'
 description: 'De tre visninger og headeren: forbindelsesmærke, Pre-flight, theme, session-knapper, GM Actions og Advanced-menuen.'
 ---
@@ -46,6 +46,8 @@ kræver ingen Claude-connector. Den læser kun: intet på den ændrer spillet.
 Den er kun til dig. Den viser præcis HP, også fjendernes, så hold den væk fra alle skærme, som
 spillerne kan se. Spillere får ikke denne side: en spiller, der skriver dens adresse, havner på
 spillersiden, som kun viser det, en spiller allerede kan se.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er visningerne Before, During og After, og hvilken skal jeg være på?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Headeren
 
@@ -186,3 +188,5 @@ GM Actions og module-kontakten "AI Tool: Paper sync (writes)".
 Ét punkt under **Advanced**, i gruppen **During screen**:
 
 - **▦ Try the During layouts** starter den korte layout-prøve igen (se During layouts nedenfor).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad gør Start session, GM Actions og Turn on for tonight, og hvad skal jeg klikke på, før spillerne kommer?"

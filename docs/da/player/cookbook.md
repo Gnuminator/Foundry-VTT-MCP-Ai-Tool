@@ -1,6 +1,6 @@
 ---
 source: player/cookbook.md
-sourceHash: 81116def5c63
+sourceHash: 37dc00aeb275
 title: Spillerens kogebog
 description: Korte how-tos til spillere om player page, at vælge dit navn, handouts til dig, og hvordan du beder GM'en om det, værktøjet ved.
 ---
@@ -56,4 +56,10 @@ styr på, så spørg GM'en. Gode spørgsmål:
 
 ## Roll, når GM'en beder om det
 
-Når GM'en beder dig om et roll, dukker der en knap op på player page, og på My character, hvis du har åbnet dit private link. Tryk på den, så går dit roll til bordet. Det bruger Foundrys eget roll, så conditions og advantage på din karakter gælder.
+Slå roll i Foundry som altid: klik på rollet på din character sheet, eller skriv det i chatten.
+Mere skal du ikke.
+
+Som en valgfri genvej vises et roll, GM'en beder om, også som en knap på player page og på My
+character, hvis du har åbnet dit private link. Den bruger Foundrys eget roll, så conditions og
+advantage på din karakter gælder, og resultatet er det samme som at slå roll i Foundry. Ignorer
+knappen, hvis du hellere vil slå roll i Foundry.

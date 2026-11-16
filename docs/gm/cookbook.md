@@ -130,6 +130,8 @@ set says so.
 - **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal to players** on one position and write what the players may read.
   Nothing reaches the players until you do that, and the other four stay hidden.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What should I prepare before a session, and in what order?" ([how to add the GM coach](gm-coach.md))
+
 ## During the session
 
 ### Answer a rules question
@@ -228,6 +230,8 @@ These need the **play** set switched on.
   before the session.
 - **Tip:** tell the players at the start that the session is recorded.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What can Claude do for me during a fight, and what should I still do myself?"
+
 ## After the session
 
 ### A recap
@@ -267,6 +271,8 @@ These need the **play** set switched on.
   Revealing it, or
   **Approve without revealing** on the dashboard, marks the session approved. The recorded audio
   stays on the PC (D-097); it is only deleted if a player asks for theirs to be.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What do I do after a session to get the recap and notes into Foundry?"
 
 ## When a recipe goes wrong
 

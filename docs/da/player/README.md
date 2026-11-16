@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: e7457197f450
+sourceHash: ebabfa8658fc
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -40,9 +40,10 @@ dagen og vejr, hvis scenen har dem. Den har disse dele:
 - **You:** hvis du har åbnet dit private link (se My character nedenfor), står der øverst på siden
   "Your turn" eller "You are up next". Den viser hver af dine karakterer med HP og conditions og
   minder dig om Constitution saving throw, når din karakter, der koncentrerer sig, tager damage.
-- **Roll buttons:** når GM'en beder dig om et roll, vises det som en knap på denne side (og på My
-  character), hvis du har åbnet dit private link. Tryk på den, så går dit roll til bordet. Du ser
-  kun anmodninger, der er til dig.
+- **Roll buttons (valgfrit ekstra):** du slår roll i Foundry som altid, fra din character sheet
+  eller i chatten. Har du åbnet dit private link, vises et roll, GM'en beder dig om, også som en
+  knap på denne side (og på My character) som en genvej. Spring den over, når du vil: at slå roll i
+  Foundry gør det samme. Du ser kun anmodninger, der er til dig.
 
 Siden er bygget alene af det, spillere må se. Skjulte skabninger, sande navne, du ikke har lært,
 fjendens HP, GM-noter og hemmeligheder når aldrig frem til den.
@@ -55,6 +56,8 @@ læse dit ark. Det viser kun de karakterer, som din Foundry-bruger ejer. Vælg e
 **Paper 2014** (det trykte arks rækkefølge, til at kopiere eller printe), eller **Paper night** (et
 ark til at printe og skrive på, når bordet spiller på papir). Ligesom player page er den live
 bag login med e-mailkode.
+
+> **Usikker? Spørg Claude.** Spørg D&D-hjælperen: "Hvad betyder tallene på min character sheet, og hvad klikker jeg på, når det er min tur?" ([sådan sætter du D&D-hjælperen op](dnd-helper.md))
 
 **Handouts i Foundry.** Når GM'en viser en handout, får du en hvisken fra "Handout" i Foundrys
 chat med dens navn; klik på navnet for at åbne siden. Du kan også åbne den i Foundrys Journal tab.

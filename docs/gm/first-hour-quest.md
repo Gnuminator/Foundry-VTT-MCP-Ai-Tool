@@ -33,6 +33,8 @@ Steps: [The screen](first-hour.md#1-the-screen-15-minutes).
 
 **You are done when** you can point at each of the four parts of the screen without looking.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Which part of the Foundry screen do I use for what while I run a game?" ([how to add the GM coach](gm-coach.md))
+
 ## Stage 2 of 4: People and worlds (10 minutes)
 
 Steps: [People and worlds](first-hour.md#2-people-and-worlds-10-minutes).
@@ -66,6 +68,8 @@ world while you read.
 Stuck on a button? Ask your [GM coach](gm-coach.md) in Claude. It answers from the same pages.
 :::
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I start a fight in Foundry, roll initiative and step through the turns?"
+
 ## Stage 4 of 4: The tool (10 minutes)
 
 Steps: [The tool](first-hour.md#4-the-tool-10-minutes).
@@ -79,6 +83,8 @@ Steps: [The tool](first-hour.md#4-the-tool-10-minutes).
 - [ ] Read [Before each session](before-session.md) once, so you know what the checklist is.
 
 **You are done when** you have asked Claude something and know where its changes would show up.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I approve or undo a change Claude plans in my game?"
 
 ## Quest complete
 

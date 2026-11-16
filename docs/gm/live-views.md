@@ -19,6 +19,8 @@ The menu has one more entry, **Table at a glance**. It is not a way to see the s
 read-only page with the party, the fight and the scene, for a phone. See
 [Table at a glance](dashboard.md#table-at-a-glance).
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Which live view fits my setup for running a fight?" ([how to add the GM coach](gm-coach.md))
+
 ## Live screen
 
 Open **Live views**, then **Live screen**. Nothing else to set up.

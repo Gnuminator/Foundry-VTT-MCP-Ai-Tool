@@ -1,6 +1,6 @@
 ---
 source: gm/gm-windows.md
-sourceHash: 9c9783498ccc
+sourceHash: a090da8baae8
 title: GM-vinduerne
 description: Fem små vinduer i Foundry (Combat, Party, Session, Scene, Loot), der holder det, du ser mest på under spillet, ved siden af kortet, hvor de bor, og hvad hvert af dem er til.
 ---
@@ -61,6 +61,8 @@ vindue påvirkes ikke.
 
 Hvornår: når bordet venter på dig, så rækkefølgen og hvem der er bloodied er et blik væk.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad viser GM windows, og hvordan kører jeg en kamp fra Combat-vinduet?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Party
 
 ![Vinduet Party](../../images/guides/gm-window-party.png)
@@ -84,6 +86,8 @@ Knapperne er grå, med årsagen, mens "AI Tool: Allow Write Operations" er slåe
 Hvornår: når du planlægger en combat eller et baghold og vil vide, hvad partiet kan tåle, og når
 nogen spørger "hvad var min passive Perception nu igen".
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan beder jeg mine spillere om et roll fra Party-vinduet?"
+
 ## Session
 
 ![Vinduet Session](../../images/guides/gm-window-session.png)
@@ -99,6 +103,8 @@ tjekker også selv hvert femtende sekund.
 
 Hvornår: start sessionen, når spillet begynder, og afslut den, når I stopper, så loggen og
 recappen dækker det rigtige stykke.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvorfor skal jeg starte og afslutte session-markøren, og hvad sker der, hvis jeg glemmer det?"
 
 ## Scene
 

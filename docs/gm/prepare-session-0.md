@@ -122,6 +122,8 @@ game open, ask them to reload (F5) before they open the builder.
 Our table keeps to the 2024 Player's Handbook. If you ever allow more (for example older species
 in our own content module), tick those packs too and tell the players.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Why does Actor Studio need these settings, and which ones do I have to change myself?" ([how to add the GM coach](gm-coach.md))
+
 ## 4. Give the join page the campaign look (optional)
 
 The join page is the first screen your players see when they open the game link. One click gives
@@ -176,6 +178,8 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
   player page (step 12 of their guide). Each picture lands in their own folder under
   `assets/players/` and shows in Changes with an Undo. For a picture sent to you on Discord, open
   the sheet, click the portrait and pick the image.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What should I do during session 0 while the players build their characters?"
 
 ## Afterwards
 

@@ -1,6 +1,6 @@
 ---
 source: gm/first-hour-quest.md
-sourceHash: 90edbfc7baf0
+sourceHash: 5c6113bd48a4
 title: 'Quest: din første time'
 description: Din første time som en liste af små opgaver, du kan sætte flueben ved. Fire trin med tider, og til sidst en test world, du selv har klikket igennem.
 ---
@@ -35,6 +35,8 @@ Se tjeklisten: [Skærmen](first-hour.md#1-skærmen-15-minutter).
 
 **Du er færdig, når** du kan pege på hver af skærmens fire dele uden at kigge.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvilken del af Foundry-skærmen bruger jeg til hvad, mens jeg kører et spil?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Trin 2 af 4: Mennesker og worlds (10 minutter)
 
 Se tjeklisten: [Mennesker og worlds](first-hour.md#2-mennesker-og-worlds-10-minutter).
@@ -68,6 +70,8 @@ worlden, mens du læser.
 Går du i stå på en knap? Spørg din [GM coach](gm-coach.md) i Claude. Den svarer ud fra de samme sider.
 :::
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan starter jeg en combat i Foundry, ruller initiative og går gennem turns?"
+
 ## Trin 4 af 4: Værktøjet (10 minutter)
 
 Se tjeklisten: [Værktøjet](first-hour.md#4-værktøjet-10-minutter).
@@ -81,6 +85,8 @@ Se tjeklisten: [Værktøjet](first-hour.md#4-værktøjet-10-minutter).
 - [ ] Læs [Før hver session](before-session.md) én gang, så du ved, hvad checklisten er.
 
 **Du er færdig, når** du har spurgt Claude om noget og ved, hvor dens ændringer ville dukke op.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan godkender eller fortryder jeg en ændring, som Claude planlægger i mit spil?"
 
 ## Questen er klaret
 

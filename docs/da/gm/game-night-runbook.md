@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: 8f9922284414
+sourceHash: f49bdad33a2d
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -59,6 +59,8 @@ Bliv ved med at spille: lav ændringen i hånden i Foundry.
 - **Hvert værktøjskald fejler:** Claude har mistet forbindelsen til spillet. I pausen lukker du Claude
   Desktop helt og starter det igen. Hjælper det ikke, så råb om hjælp efter sessionen.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Dashboardet vil ikke indlæse eller mister forbindelsen
 
 Bliv ved med at spille i Foundry. I pausen genindlæser du dashboardsiden. Hvis der stadig står
@@ -91,6 +93,8 @@ giver dig en ny adresse.
 På en plan B-aften når din egen Claude og dashboardet ikke spillet: spil i hånden i
 Foundry. Dine ændringer bliver gemt, og administratoren flytter worlden tilbage til hjemmeserveren før
 næste session. Administratorens trin står i [Plan B](../../dev/PLAN-B.md).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Serveren er nede midt i spillet. Hvad siger jeg til spillerne, og hvad tjekker jeg, når vi er tilbage?"
 
 ## Hvornår du råber om hjælp
 

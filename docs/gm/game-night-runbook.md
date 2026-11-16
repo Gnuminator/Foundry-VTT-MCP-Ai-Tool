@@ -57,6 +57,8 @@ Keep playing: do the change by hand in Foundry.
 - **Every tool call fails:** Claude has lost its link to the game. At the break, quit Claude Desktop
   fully and start it again. If that doesn't help, call for help after the session.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Claude stopped answering during play. What can I still do, and what do I do about it at the break?" ([how to add the GM coach](gm-coach.md))
+
 ## The dashboard does not load or loses its connection
 
 Keep playing in Foundry. At the break, reload the dashboard page. If it still says
@@ -89,6 +91,8 @@ gives you a new address.
 On a plan B night your own Claude and the dashboard do not reach the game: play by hand in
 Foundry. Your changes are kept, and the tool admin moves the world back to the home server before
 the next session. The tool admin's steps are in [Plan B](../dev/PLAN-B.md).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "The server is down in the middle of the game. What do I tell the players, and what do I check once we are back?"
 
 ## When to call for help
 

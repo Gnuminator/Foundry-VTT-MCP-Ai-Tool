@@ -31,6 +31,8 @@ Short rules. Each has its reason on the next line.
 - **Never run a second bridge next to the one that is already running.**
   Two bridges compete for the same ports, and the connection to Foundry can break.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Which mistakes could leak a secret to my players, and how do I avoid them?" ([how to add the GM coach](gm-coach.md))
+
 ## Only do this if
 
 - **Click Start session only when play begins, and End session when it ends.**
@@ -63,3 +65,5 @@ Short rules. Each has its reason on the next line.
   actions (rolls, new NPCs, journals, chat messages) are not. Set **Write/delete tools** to
   **Needs approval** to be asked each time.
 - **The dashboard never calls the paid API.** A key on the host does nothing there.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "When is it safe to turn on Start session and the other switches?"

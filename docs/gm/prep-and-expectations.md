@@ -36,6 +36,8 @@ when they come up ("I'll rule it this way now and check after the session" is fi
 
 On the Foundry side, [Before each session](before-session.md) is the 15-minute check before play.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What is prepping, and how do I use it best?" ([how to add the GM coach](gm-coach.md))
+
 ## Talking expectations through
 
 Most problems at a table come from people wanting different games, not from rules. A short talk
@@ -62,6 +64,8 @@ before the campaign starts saves a lot. Pick the topics that matter to your grou
 
 Write down what you agree on and post it in Discord, so nobody has to remember it.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Which topics should we talk through before the campaign starts, and how do I bring them up?"
+
 ## The ability score talk
 
 Our server is already set to offer the standard array and point buy, and each player picks one of
@@ -78,6 +82,8 @@ Ask the players what they think. If the table wants a different set (say rolling
 Actor Studio before anyone opens the builder ([Prepare session 0](prepare-session-0.md), step 2),
 and tell the admin, because running the server script again puts our two methods back. If you add
 rolling, decide too whether everyone rolls where the others can see it.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Should my group use standard array, point buy or rolling for ability scores?"
 
 ## A session 0 agenda you can change
 

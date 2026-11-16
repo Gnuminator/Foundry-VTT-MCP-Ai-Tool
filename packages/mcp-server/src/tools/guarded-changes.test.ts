@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
+
 import { GuardedChangeTools } from './guarded-changes.js';
 
-function makeTools(): {
+function setup(): {
   tools: GuardedChangeTools;
   guardedWrites: Record<string, Mock>;
   query: Mock;
@@ -15,20 +17,16 @@ function makeTools(): {
     undo: vi.fn(() => Promise.resolve({ changeId: 'c2' })),
     listRecentChanges: vi.fn(() => Promise.resolve([{ changeId: 'c1' }])),
   };
-  const query = vi.fn(() => Promise.resolve({ opened: true }) as Promise<unknown>);
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  const tools = new GuardedChangeTools({
-    guardedWrites: guardedWrites as never,
-    foundryClient: { query },
-    logger,
+  const { tools, query, logger } = makeTools(GuardedChangeTools, {
+    queryImpl: () => Promise.resolve({ opened: true }),
+    extra: { guardedWrites },
   });
   return { tools, guardedWrites, query, logger };
 }
 
 describe('GuardedChangeTools definitions', () => {
   it('exposes the five M0 tools with object schemas', () => {
-    const defs = makeTools().tools.getToolDefinitions();
+    const defs = setup().tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-planned-change',
       'apply-planned-change',
@@ -44,7 +42,7 @@ describe('GuardedChangeTools definitions', () => {
   });
 
   it('lets the same-turn go-ahead cover write plans only; a destructive plan waits for the GM', () => {
-    const apply = makeTools()
+    const apply = setup()
       .tools.getToolDefinitions()
       .find(d => d.name === 'apply-planned-change');
     expect(apply?.description).toContain('apply a "write" plan in the same turn');
@@ -54,14 +52,14 @@ describe('GuardedChangeTools definitions', () => {
 
 describe('GuardedChangeTools handlers', () => {
   it('shows one plan, or lists pending plans', async () => {
-    const { tools, guardedWrites } = makeTools();
+    const { tools, guardedWrites } = setup();
     expect(await tools.handleGetPlannedChange({ planId: 'p1' })).toEqual({ planId: 'p1' });
     expect(guardedWrites.getPlan).toHaveBeenCalledWith('p1');
     expect(await tools.handleGetPlannedChange(undefined)).toEqual({ plans: [{ planId: 'p1' }] });
   });
 
   it('passes the confirmation flags through to apply', async () => {
-    const { tools, guardedWrites } = makeTools();
+    const { tools, guardedWrites } = setup();
     await tools.handleApplyPlannedChange({ planId: 'p1', confirm: true, confirmDestructive: true });
     expect(guardedWrites.applyPlan).toHaveBeenCalledWith(
       'p1',
@@ -79,7 +77,7 @@ describe('GuardedChangeTools handlers', () => {
   });
 
   it('logs and rethrows a refused apply or undo', async () => {
-    const { tools, guardedWrites, logger } = makeTools();
+    const { tools, guardedWrites, logger } = setup();
     guardedWrites.applyPlan.mockRejectedValueOnce(new Error('needs confirm: true'));
     await expect(tools.handleApplyPlannedChange({ planId: 'p1' })).rejects.toThrow(/needs confirm/);
     guardedWrites.undo.mockRejectedValueOnce(new Error('Conflict'));
@@ -90,7 +88,7 @@ describe('GuardedChangeTools handlers', () => {
   });
 
   it('lists recent changes with a bounded limit', async () => {
-    const { tools, guardedWrites } = makeTools();
+    const { tools, guardedWrites } = setup();
     expect(await tools.handleListRecentChanges({})).toEqual({ changes: [{ changeId: 'c1' }] });
     expect(guardedWrites.listRecentChanges).toHaveBeenCalledWith(20, { noteParts: true });
     await tools.handleListRecentChanges({ limit: 5 });
@@ -99,20 +97,20 @@ describe('GuardedChangeTools handlers', () => {
   });
 
   it('undoes with the confirm flag', async () => {
-    const { tools, guardedWrites } = makeTools();
+    const { tools, guardedWrites } = setup();
     await tools.handleUndoChange({ changeId: 'c1', confirm: true });
     expect(guardedWrites.undo).toHaveBeenCalledWith('c1', { confirm: true }, undefined);
     await expect(tools.handleUndoChange({ confirm: true })).rejects.toThrow();
   });
 
   it('passes who asked on to the undo', async () => {
-    const { tools, guardedWrites } = makeTools();
+    const { tools, guardedWrites } = setup();
     await tools.handleUndoChange({ changeId: 'c1', confirm: true }, 'Danni');
     expect(guardedWrites.undo).toHaveBeenCalledWith('c1', { confirm: true }, 'Danni');
   });
 
   it('opens a document through the bridge and surfaces refusals', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = setup();
     expect(await tools.handleOpenInFoundry({ uuid: 'JournalEntry.a', userId: 'gm2' })).toEqual({
       opened: true,
     });
@@ -128,7 +126,7 @@ describe('GuardedChangeTools handlers', () => {
   });
 
   it('passes pan on to the bridge (and rejects a non-boolean)', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = setup();
     await tools.handleOpenInFoundry({ uuid: 'Scene.a.Token.b', pan: true });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.openDocumentForGm', {
       uuid: 'Scene.a.Token.b',

@@ -5,11 +5,10 @@ import { fileURLToPath } from 'url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameEventHub, KNOWN_EVENT_TYPES, NOT_WAITABLE_EVENT_TYPES } from '../game-event-hub.js';
+import { makeTools } from '../test-support/make-tool-harness.js';
 import { WaitForEventTools } from './wait-for-event.js';
 
 const T0 = 1_000_000;
-const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any;
-logger.child = (): unknown => logger;
 
 let hub: GameEventHub;
 let tools: WaitForEventTools;
@@ -18,7 +17,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   hub = new GameEventHub(() => T0);
   hub.setSources({ sessionEvents: true, playLog: true });
-  tools = new WaitForEventTools({ hub, logger });
+  tools = makeTools(WaitForEventTools, { extra: { hub } }).tools;
 });
 afterEach(() => {
   vi.useRealTimers();

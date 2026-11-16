@@ -6,13 +6,9 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SCENE_MOOD_FEATURE_ID, type GuardedOp } from '@gnuminator/shared';
 
-import { SceneMoodTools } from './scene-mood.js';
+import { makeTools } from '../test-support/make-tool-harness.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { SceneMoodTools } from './scene-mood.js';
 
 const OPS: GuardedOp[] = [{ kind: 'update', uuid: 'Scene.s1', changes: { weather: 'rain' } }];
 
@@ -23,23 +19,23 @@ let tools: SceneMoodTools;
 
 beforeEach(() => {
   enabled = true;
-  query = vi.fn((method: string) => {
-    if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
-      return Promise.resolve([{ id: SCENE_MOOD_FEATURE_ID, enabled }]);
-    }
-    if (method === 'foundry-mcp-bridge.planSceneMood') {
-      return Promise.resolve({ summary: 'Set rain', ops: OPS, sceneId: 's1' });
-    }
-    return Promise.resolve({ sceneId: 's1', presets: [], playlists: [] });
-  });
   createPlan = vi.fn((input: { feature: string; summary: string }) =>
     Promise.resolve({ planId: 'p1', feature: input.feature, summary: input.summary, risk: 'write' })
   );
-  tools = new SceneMoodTools({
-    foundryClient: { query },
-    guardedWrites: { createPlan },
-    logger: logger(),
+  const harness = makeTools(SceneMoodTools, {
+    queryImpl: (method: string) => {
+      if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
+        return Promise.resolve([{ id: SCENE_MOOD_FEATURE_ID, enabled }]);
+      }
+      if (method === 'foundry-mcp-bridge.planSceneMood') {
+        return Promise.resolve({ summary: 'Set rain', ops: OPS, sceneId: 's1' });
+      }
+      return Promise.resolve({ sceneId: 's1', presets: [], playlists: [] });
+    },
+    extra: { guardedWrites: { createPlan } },
   });
+  query = harness.query;
+  tools = harness.tools;
 });
 
 describe('plan-scene-mood', () => {

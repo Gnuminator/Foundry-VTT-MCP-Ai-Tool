@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
+
 import { TarokkaTools } from './tarokka.js';
 
-function makeTools(): { tools: TarokkaTools; tarokka: Record<string, Mock> } {
+function setup(): { tools: TarokkaTools; tarokka: Record<string, Mock> } {
   const tarokka = {
     getReading: vi.fn(() => Promise.resolve({ available: false })),
     planImport: vi.fn(() => Promise.resolve({ planId: 'p1' })),
@@ -10,14 +12,13 @@ function makeTools(): { tools: TarokkaTools; tarokka: Record<string, Mock> } {
     planReveal: vi.fn(() => Promise.resolve({ planId: 'p3' })),
     suggestLinks: vi.fn(() => Promise.resolve({ candidates: [] })),
   };
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  return { tools: new TarokkaTools({ tarokka: tarokka as never, logger }), tarokka };
+  const { tools } = makeTools(TarokkaTools, { extra: { tarokka } });
+  return { tools, tarokka };
 }
 
 describe('TarokkaTools', () => {
   it('defines five read-only (get-/plan-/suggest-) tools', () => {
-    const defs = makeTools().tools.getToolDefinitions();
+    const defs = setup().tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-tarokka-reading',
       'plan-tarokka-import',
@@ -33,7 +34,7 @@ describe('TarokkaTools', () => {
   });
 
   it('validates and forwards arguments', async () => {
-    const { tools, tarokka } = makeTools();
+    const { tools, tarokka } = setup();
     await tools.handleGetTarokkaReading({});
     expect(tarokka.getReading).toHaveBeenCalled();
 
@@ -95,7 +96,7 @@ describe('TarokkaTools', () => {
   });
 
   it('logs and rethrows a refused plan', async () => {
-    const { tools, tarokka } = makeTools();
+    const { tools, tarokka } = setup();
     tarokka.planImport.mockRejectedValueOnce(new Error('No reading'));
     await expect(tools.handlePlanTarokkaImport({})).rejects.toThrow('No reading');
   });

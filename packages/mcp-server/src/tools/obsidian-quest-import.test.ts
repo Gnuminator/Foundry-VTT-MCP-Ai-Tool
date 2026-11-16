@@ -8,9 +8,10 @@ import {
   QUEST_IMPORT_FEATURE,
   stableQuestId,
 } from './obsidian-quest-import.js';
+import { makeLogger } from '../test-support/make-tool-harness.js';
 import { rmTmp } from '../test-support/rm-tmp.js';
 
-const logger = { child: () => logger, warn: vi.fn(), info: vi.fn(), error: vi.fn() } as never;
+const logger = makeLogger();
 const NOTE = '---\ntype: quest-prep\nfvtt_uuid:\nsecret: CANARY\n---\nFind the Sunsword.\n';
 let vaultDir: string;
 

@@ -1,14 +1,8 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
-import { PcCreationTools } from './pc-creation.js';
+import { makeTools } from '../test-support/make-tool-harness.js';
 
-const logger: any = {
-  child: () => logger,
-  error: vi.fn(),
-  warn: vi.fn(),
-  info: vi.fn(),
-  debug: vi.fn(),
-};
+import { PcCreationTools } from './pc-creation.js';
 
 function tools(
   enabled: boolean,
@@ -18,20 +12,17 @@ function tools(
   query: Mock;
   createPlan: Mock;
 } {
-  const query = vi.fn(async (method: string) =>
-    method === 'foundry-mcp-bridge.listGuardedFeatures'
-      ? [{ id: 'pc-creation', enabled }]
-      : planReply
-  );
   const createPlan = vi.fn(async (p: any) => ({
     id: 'plan1',
     feature: p.feature,
     summary: p.summary,
   }));
-  const t = new PcCreationTools({
-    foundryClient: { query },
-    guardedWrites: { createPlan } as any,
-    logger,
+  const { tools: t, query } = makeTools(PcCreationTools, {
+    queryImpl: async (method: string) =>
+      method === 'foundry-mcp-bridge.listGuardedFeatures'
+        ? [{ id: 'pc-creation', enabled }]
+        : planReply,
+    extra: { guardedWrites: { createPlan } },
   });
   return { t, query, createPlan };
 }

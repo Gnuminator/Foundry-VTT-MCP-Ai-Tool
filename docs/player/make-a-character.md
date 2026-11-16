@@ -298,7 +298,8 @@ The Players list now shows your name with the character's name in brackets.
 ## 12. Your picture (optional)
 
 You can put your own art on your character from the player page. Foundry's own file browser stays
-closed to players, so this is the way in.
+closed to players, so this is the way to do it yourself. If you would rather not, send the picture
+to the GM on Discord.
 
 1. Open the player page on the device where you opened your private link (the one pinned in
    Discord). In the **You** card, press **Upload my portrait**.

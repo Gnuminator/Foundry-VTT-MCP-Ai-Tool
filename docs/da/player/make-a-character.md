@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 4c92f9b26cd4
+sourceHash: d90a7fc06a78
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -302,7 +302,8 @@ Players-listen viser nu dit navn med karakterens navn i parentes.
 ## 12. Dit billede (valgfrit)
 
 Du kan sætte din egen tegning på din karakter fra spillersiden. Foundrys egen filbrowser er lukket
-for spillere, så det er vejen ind.
+for spillere, så det er måden at gøre det selv på. Vil du hellere lade være, så send billedet til
+GM'en på Discord.
 
 1. Åbn spillersiden på den enhed, hvor du åbnede dit private link (det der er pinnet på Discord).
    Tryk på **Upload my portrait** i kortet **You**.

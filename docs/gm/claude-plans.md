@@ -64,7 +64,7 @@ on Free; the tool does not use them.
 **When Pro is worth it:** when you hit the limit during prep or on game night more than now and
 then, or when you want Claude at the table for the whole evening. Try Free first.
 
-> **Not sure? Ask Claude.** Ask the GM coach: "Is Claude Pro worth it for the way I run my game?"
+> **Not sure? Ask Claude.** Ask the GM coach: "What are the limits on the free plan, and what would make me hit them?"
 
 ## Not clear yet
 

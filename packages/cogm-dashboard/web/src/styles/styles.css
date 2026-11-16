@@ -1,5 +1,5 @@
 /* =============================================================================
-   Co-GM Dashboard — "Modern Command Center"
+   Co-GM Dashboard: "Modern Command Center"
    A 2026 dark observability dashboard in the spirit of Linear / Vercel / Datadog.
    Vanilla CSS, system fonts only, fully offline. Dark theme, high legibility.
    ============================================================================= */
@@ -519,7 +519,7 @@ body {
   gap: 0.4rem;
 }
 
-/* List rows keep their natural height — the pane scrolls instead of
+/* List rows keep their natural height: the pane scrolls instead of
    flex-shrinking each row to fit. Without this, a full feed squished every
    .event and its `overflow: hidden` clipped the footer (badge + timestamp). */
 .pane-body > * {
@@ -1027,7 +1027,7 @@ body {
 }
 
 /* =============================================================================
-   RESPONSIVE — graduated, no hard cliff; nothing overflows down to 360px
+   RESPONSIVE: graduated, no hard cliff; nothing overflows down to 360px
    ============================================================================= */
 
 /* Intermediate: two columns. Diagnostics spans full width.
@@ -1163,7 +1163,7 @@ body {
 }
 
 /* =============================================================================
-   GM ACTIONS — master toggle, combat action bar, Tool Runner drawer, modal
+   GM ACTIONS: master toggle, combat action bar, Tool Runner drawer, modal
    ============================================================================= */
 
 /* ---- Master GM Actions toggle (armed = write surface live) ---- */

@@ -35,7 +35,7 @@ import type { SessionNotesAction } from '../session-notes-route.js';
  *     so a stalled channel reconnects instead of looping 15s timeouts forever.
  *   - A liveness-aware `isConnected` so consumers never trust a stale "up".
  *
- * Read-only and never spawns a backend — it is a pure client and reconnects
+ * Read-only and never spawns a backend: it is a pure client and reconnects
  * with backoff whenever the socket drops.
  *
  * Emits: `connected`, `disconnected` (Error).
@@ -60,7 +60,7 @@ export class ChannelError extends Error {
   }
 }
 
-/** A request exceeded its timeout — strong evidence the channel is dead/half-open. */
+/** A request exceeded its timeout, strong evidence the channel is dead/half-open. */
 export class TimeoutError extends Error {
   constructor(message: string) {
     super(message);
@@ -85,7 +85,7 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
-// ControlResponse and ToolResultPayload are imported from @gnuminator/shared —
+// ControlResponse and ToolResultPayload are imported from @gnuminator/shared,
 // the single source of truth for the §3a control-channel frame shapes.
 
 export interface McpControlClientOptions {
@@ -369,7 +369,7 @@ export class McpControlClient extends EventEmitter {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new TimeoutError(`Request "${method}" timed out after ${timeoutMs}ms`));
-        // A reply never came on a socket we believe is up — the channel is
+        // A reply never came on a socket we believe is up, so the channel is
         // almost certainly dead/half-open. Tear it down so we reconnect instead
         // of looping per-request timeouts against a corpse.
         if (this.connected && timeoutMs <= this.requestTimeoutMs) {
@@ -387,7 +387,7 @@ export class McpControlClient extends EventEmitter {
         this.pending.delete(id);
         const err = error instanceof Error ? error : new Error('Write failed');
         reject(new ChannelError(err.message));
-        // A synchronous write throw means the stream is broken — recover the
+        // A synchronous write throw means the stream is broken, so recover the
         // whole channel rather than only this one request.
         if (this.connected) this.failConnection(err);
       }
@@ -467,7 +467,7 @@ export class McpControlClient extends EventEmitter {
     if (socket && !socket.destroyed) {
       socket.destroy(reason);
     } else {
-      // Nothing live to destroy — make sure a reconnect is armed anyway.
+      // Nothing live to destroy, so make sure a reconnect is armed anyway.
       this.scheduleReconnect();
     }
   }

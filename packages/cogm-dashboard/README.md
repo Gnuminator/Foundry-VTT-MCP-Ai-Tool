@@ -5,16 +5,16 @@ and shows it in the browser. It does not call the Anthropic API: AI work happens
 Claude through the MCP tools.
 
 > **Why a separate app?** MCP / Claude Desktop can only respond when _you_
-> prompt it — it cannot react to the game on its own. This dashboard **pulls**
+> prompt it, so it cannot react to the game on its own. This dashboard **pulls**
 > the game feed off the bridge's control channel and shows it live.
 
 ## What it does
 
-- **Live event feed** — polls the bridge's `get-recent-events` delta (~every 4s)
+- **Live event feed**: polls the bridge's `get-recent-events` delta (~every 4s)
   using the returned `latestTimestamp` as an incremental cursor.
-- **Combat tracker** — initiative order, HP bars, conditions, and death saves
+- **Combat tracker**: initiative order, HP bars, conditions, and death saves
   from `get-combat-state`.
-- **Live module diagnostics** — polls `get-module-errors` and streams other
+- **Live module diagnostics**: polls `get-module-errors` and streams other
   modules' errors/warnings to a diagnostics pane.
 
 Everything else is strictly read-only.
@@ -38,7 +38,7 @@ without touching the rest of the app.
 | Path                             | Role                                                        |
 | -------------------------------- | ----------------------------------------------------------- |
 | `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel      |
-| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling        |
+| `src/feed/polling-feed.ts`       | `GameFeed` impl: incremental event + combat polling         |
 | `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot) |
 | `src/sse.ts`                     | Server-Sent Events hub                                      |
 | `src/server.ts`                  | Express wiring, REST + SSE endpoints                        |
@@ -324,7 +324,7 @@ All via `.env` (see `.env.example`):
 | `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel    |
 | `PORT`                                  | `3000`                | Dashboard HTTP/SSE port   |
 
-Additional knobs (all optional — defaults shown; see `.env.example`):
+Additional knobs (all optional, defaults shown; see `.env.example`):
 
 | Variable                     | Default | Purpose                                                |
 | ---------------------------- | ------- | ------------------------------------------------------ |
@@ -342,9 +342,9 @@ GM-only data filtered **server-side** (never just hidden in the browser).
 
 - **Opt-in.** With no `GM_DASHBOARD_TOKEN` and no `GM_EMAILS` set, the dashboard stays in
   single-user GM mode (today's zero-config localhost behavior). Setting either turns the split on.
-- **GM view** (`/`) — everything, as before. When the split is on, open it once with
+- **GM view** (`/`): everything, as before. When the split is on, open it once with
   `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
-- **Player view** (`/player`) — public **combat order** + public **event feed** only. Filtered
+- **Player view** (`/player`): public **combat order** + public **event feed** only. Filtered
   server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
   (which carry HP before/after) are stripped, and module diagnostics, settings, and the entire
   write/GM-action surface are never sent. Players still see the party's HP and the public feed.
@@ -367,4 +367,4 @@ Claude Code) through the MCP tools, under that person's subscription.
 - **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo. Three act at once: the combat turn button, **Ask for a roll** (it posts the roll request in chat, which has no undo) and the strip's **Damage / Heal** form (it plans and applies in one click; the toast and Recent Changes have Undo).
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
-  and retries — it never crashes the dashboard.
+  and retries, and it never crashes the dashboard.

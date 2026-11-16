@@ -336,12 +336,17 @@ export function updateNote(text, row) {
   return `${NOTE_HEAD}${[row, ...rows].slice(0, MAX_ROWS).join('\n')}\n`;
 }
 
-/** True when last-run.json holds a run that got as far as a report and started on `day`'s local date. */
+/**
+ * True when last-run.json holds a nightly-style run (full size, nightly flag) that got as far as a
+ * report and finished on `day`'s local date. A hand-run smoke run does not count.
+ */
 export function ranToday(home, day) {
   try {
     const doc = JSON.parse(readFileSync(path.join(home, 'last-run.json'), 'utf8'));
-    const at = doc?.lastRun?.at;
-    return Boolean(at) && stamp(new Date(at)).slice(0, 8) === stamp(day).slice(0, 8);
+    const r = doc?.lastRun;
+    const at = r?.finishedAt ?? r?.at;
+    if (!at || !r.nightly || r.size !== 'full') return false;
+    return stamp(new Date(at)).slice(0, 8) === stamp(day).slice(0, 8);
   } catch {
     return false;
   }

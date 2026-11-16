@@ -235,5 +235,5 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     /latest attempt: skipped: the lock was not free \(1 h ago\)/
   );
   assert.match(kitLine(null, now), /no last-run\.json yet/);
-  assert.match(kitLine('{bad', now), /no last-run\.json yet/);
+  assert.match(kitLine('{bad', now), /unreadable/);
 });

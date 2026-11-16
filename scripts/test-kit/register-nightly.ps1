@@ -51,12 +51,16 @@ if ($At) {
   $trigger = New-ScheduledTaskTrigger -Daily -At $At
   $when = "every day at $At"
 } else {
-  $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
-  $trigger.Delay = 'PT10M'
-  $when = 'at every logon (10 minutes after it, once a day)'
+  $logon = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+  $logon.Delay = 'PT10M'
+  # A PC that stays logged on for days (or sleeps and resumes) gets a midday retry; --daily makes
+  # every extra start a no-op once a run has finished that day.
+  $trigger = @($logon, (New-ScheduledTaskTrigger -Daily -At '12:00'))
+  $when = 'at every logon (10 minutes after it) and daily at 12:00, at most one run a day'
 }
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
+if (-not $At) { $settings.StartWhenAvailable = $true }  # the 12:00 start runs on wake if it was missed
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
 if ($PSCmdlet.ShouldProcess($name, "Register: $when, $script $flag, log $log")) {
   New-Item -ItemType Directory -Force $kitHome | Out-Null

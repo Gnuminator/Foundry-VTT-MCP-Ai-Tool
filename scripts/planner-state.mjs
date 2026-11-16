@@ -267,23 +267,29 @@ export function kitLine(json, nowMs) {
   } catch {
     doc = null;
   }
-  if (!doc?.last) return 'Nightly kit: no last-run.json yet (the task has not run, or register-nightly.ps1 is not registered)';
+  if (json === null)
+    return 'Nightly kit: no last-run.json yet (the task has not run, or register-nightly.ps1 is not registered)';
+  if (!doc?.last) return 'Nightly kit: last-run.json is unreadable';
   const age = (/** @type {any} */ e) => {
     const t = Date.parse(e?.finishedAt || e?.at || '');
-    return Number.isFinite(t) ? Math.max(0, Math.round((nowMs - t) / 3600000)) : null;
+    return Number.isFinite(t) ? `${Math.max(0, Math.round((nowMs - t) / 3600000))} h ago` : 'age unknown';
+  };
+  const hours = (/** @type {any} */ e) => {
+    const t = Date.parse(e?.finishedAt || e?.at || '');
+    return Number.isFinite(t) ? (nowMs - t) / 3600000 : null;
   };
   const ran = doc.lastRun;
   const parts = [];
   if (ran) {
-    const h = age(ran);
     const fail = ran.failing?.length ? `; failing: ${ran.failing.slice(0, 5).join(', ')}` : '';
-    parts.push(`last run ${ran.text}, ${h === null ? 'age unknown' : `${h} h ago`}, on ${ran.git}${fail}`);
+    parts.push(`last run ${ran.text ?? ran.state}, ${age(ran)}, on ${ran.git}${fail}`);
+    const h = hours(ran);
     if (h !== null && h > KIT_STALE_HOURS) parts.push(`STALE (over ${KIT_STALE_HOURS} h)`);
   } else {
     parts.push('no run has finished yet');
   }
-  if (doc.last !== ran && doc.last.state !== 'passed' && doc.last.state !== 'failed')
-    parts.push(`latest attempt: ${doc.last.text} (${age(doc.last)} h ago)`);
+  if (doc.last.state !== 'passed' && doc.last.state !== 'failed')
+    parts.push(`latest attempt: ${doc.last.text ?? doc.last.state} (${age(doc.last)})`);
   return `Nightly kit: ${parts.join('; ')}`;
 }
 

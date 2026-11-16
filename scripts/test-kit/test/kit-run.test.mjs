@@ -132,6 +132,24 @@ test('--daily is a nightly run that does nothing when a run finished today', asy
   }
 });
 
+test('--daily: a hand-run smoke run today does not count as the daily run', async () => {
+  const t = setup({}, { opts: parseArgs(['--daily']) });
+  try {
+    writeFileSync(
+      path.join(t.home, 'last-run.json'),
+      JSON.stringify({
+        version: 1,
+        last: {},
+        lastRun: { at: t.deps.now().toISOString(), state: 'passed', size: 'smoke', nightly: false },
+      })
+    );
+    const r = await kitRun(t.o, t.deps);
+    assert.notEqual(r.result.state, 'already');
+  } finally {
+    t.cleanup();
+  }
+});
+
 test('--daily: a skipped night does not count as a run, so the next logon tries again', async () => {
   const t = setup({}, { opts: parseArgs(['--daily']) });
   try {

@@ -217,6 +217,7 @@ npm run kit:run -- --nightly                 # the overnight run: full, waits up
 | `--profile <id>`   | The content profile (default `srd`); it picks the kit world.                          |
 | `--wait <minutes>` | Queue for the lock and wait this long. Default 0.                                     |
 | `--nightly`        | `--size full --wait 120`, a skipped run is recorded, a stale kit run lock taken over. |
+| `--daily`          | `--nightly`, but does nothing when a full nightly run finished today (logon task).    |
 | `--session <id>`   | The lock's session id. Pass your own when you already hold the lock: it stays yours.  |
 | `--holder <name>`  | The name on the lock (default `kit run`).                                             |
 | `--no-build`       | Skip `npm run build`; the last build is still copied into Foundry.                    |
@@ -230,18 +231,19 @@ run); it tests that checkout's code.
 
 **Once a day:** `pwsh scripts/test-kit/register-nightly.ps1` registers the Windows scheduled task
 "Foundry AI Tool kit run" (`-Remove` to take it away, `-WhatIf` to see what it would register).
-This PC is not on all night, so by default the task fires 10 minutes after every logon and runs
+This PC is not on all night, so by default the task fires 10 minutes after every logon, again at
+12:00 each day (it catches up on wake when missed, for a PC that stays logged on) and runs
 `kit-run.mjs --daily`: the full nightly kit run, but it does nothing when a run already finished
 today, so it runs at most once a day. It takes test server **B**'s lock (A stays free for lanes),
 waits up to 2 hours when a lane holds it, then records a skipped run and the next logon tries
 again. It runs in the main checkout with the portable Node 24, in a hidden console, and appends
 its output to `<kit home>\nightly.log`. `-At 03:30` registers a fixed daily time instead (a PC that
-is off then skips the day; a missed run is not started later).
+is off then skips the day; a missed run is not started later). The task stops a run after 6 hours
+without warning, which leaves its lock behind: the next nightly run takes over a kit run lock
+older than 7 hours, and the start alerts hook shows it until then.
 
 **Reading the result:** `<kit home>\last-run.json` has `last` (the latest attempt, including a
 skip) and `lastRun` (the latest run that got to a report: `state`, `passed`, `failed`, `failing`
 scenario ids, `at`, `git`, `reportDir`). `node scripts/backlog.mjs status --planner` prints it as
 one "Nightly kit:" line (result, age, failing ids, `STALE` after 36 hours, a later skip), so the
 planner reads it at each sitting.
-The task stops a run after 6 hours without warning, which leaves its lock behind: the next nightly
-run takes over a kit run lock older than 7 hours, and the start alerts hook shows it until then.

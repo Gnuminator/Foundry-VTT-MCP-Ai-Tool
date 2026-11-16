@@ -383,11 +383,11 @@ for h in $rec_old $(table_hosts "$summary"); do
 done
 if [ "$(cat "$hosts_rec" 2>/dev/null || true)" != "$rec_hosts" ]; then
   tmp="$(mktemp "$TOOL_ETC/.player-connector.hosts.XXXXXX")"
-  trap 'rm -f "${tmp:?}"' EXIT
+  trap 'rm -f "${tmp:?}" "${cand:?}"' EXIT
   printf '%s\n' "$rec_hosts" >"$tmp"
   chmod 0644 "$tmp"
   mv "$tmp" "$hosts_rec"
-  trap - EXIT
+  trap 'rm -f "${cand:?}"' EXIT
   ok "$hosts_rec: the player hosts this stage has installed"
 fi
 

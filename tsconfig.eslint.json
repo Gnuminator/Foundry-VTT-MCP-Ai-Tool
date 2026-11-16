@@ -16,7 +16,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "paths": {
-      "@gnuminator/shared": ["./shared/src"]
+      "@gnuminator/shared": ["./shared/src"],
+      "@gnuminator/shared/browser": ["./shared/src/browser.ts"]
     },
     "types": ["node", "jquery"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"],

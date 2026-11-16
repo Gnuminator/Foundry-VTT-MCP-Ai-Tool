@@ -16,6 +16,7 @@
  * labelled `modifier` rather than guessed. Never throws: any failure falls
  * back to a minimal breakdown built from the roll's own total.
  */
+import { asRecord } from '@gnuminator/shared/browser';
 import { dnd5eMessageItemRef, dnd5eRollSubject } from './chat-roll-kind.js';
 
 const ABILITY_LABELS: Record<string, string> = {
@@ -36,10 +37,6 @@ const ABILITY_FULL_NAMES: Record<string, string> = {
   wis: 'Wisdom',
   cha: 'Charisma',
 };
-
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-}
 
 function shape<T>(v: unknown): T | null {
   return v !== null && typeof v === 'object' ? (v as T) : null;

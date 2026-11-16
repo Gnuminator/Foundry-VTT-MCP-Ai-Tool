@@ -2,8 +2,9 @@
 # Stage 33: the Obsidian plugin through the GM vault (backlog obsidian-plugin-via-vault). The release's plugin files
 # (main.js, manifest.json, styles.css) are written into the GM vault on the Pi, .obsidian/plugins/foundry-ai-tool, and
 # Syncthing carries exactly those three files to every PC that holds the vault, so the GM's plugin follows the Pi's version
-# with no hand step (Obsidian loads the new files after a restart). The plugin's data.json, which holds the dashboard
-# settings and the GM token, is never written, read or synced: only the three named files are let through the ignore list.
+# with no hand step (Obsidian loads the new files after a restart). The plugin's data.json (its per-PC
+# settings) is never written, read or synced: only the three named files are let through the ignore list. Every write into
+# the vault runs as the foundry user, which owns it (lib.sh: root must not follow a link left there).
 #
 # The files come from the tool build stage 5 installed ($TOOL_DIR/app/packages/obsidian-plugin/dist, the same files as the
 # release zip foundry-ai-tool-obsidian.zip), so run this after stage 5 on each new release. PLUGIN_SRC=<dir> names another source.
@@ -69,14 +70,34 @@ stignore_ok() {
       for (i = 1; i <= NR; i++) if (line[i] == ".obsidian/plugins") { stop = i; break }
       for (w = 1; w <= n; w++) {
         found = 0
-        for (i = 1; i <= NR; i++) if (line[i] == want[w] && (stop == 0 || i < stop)) { found = 1; break }
+        for (i = 1; i <= NR; i++) if (line[i] == want[w] && stop > 0 && i < stop) { found = 1; break }
         if (!found) exit 1
       }
     }' "$stignore_file"
 }
+# has_plugins_line: the exact line ".obsidian/plugins" is in the vault's .stignore (stage 7 writes it). Without it the whole
+# plugins folder would sync, data.json included, so this stage refuses to go on rather than guess.
+has_plugins_line() { [ -f "$stignore_file" ] && grep -qx '\.obsidian/plugins' "$stignore_file"; }
+
+# Writes into the vault run as the foundry user, which owns it and receives changes from Syncthing peers: root must not follow
+# a link left at a name here (lib.sh, "Writes into folders the foundry user owns"). Links are refused up front.
+refuse_links() {
+  local p
+  for p in "$gm_dir/.stignore" "$gm_dir/.obsidian" "$gm_dir/.obsidian/plugins" "$plugin_dir" "$plugin_dir/main.js" \
+    "$plugin_dir/manifest.json" "$plugin_dir/styles.css"; do
+    [ ! -L "$p" ] || die "$p is a link: refused (nothing was written)"
+  done
+}
 
 say "the vault's ignore list"
-if stignore_ok; then
+if ! has_plugins_line; then
+  if [ "$check" = 1 ]; then
+    warn "$stignore_file has no .obsidian/plugins line: the plugins folder would sync whole (data.json too); run stage 7 again"
+  else
+    die "$stignore_file has no .obsidian/plugins line: refused (the plugins folder would sync whole, data.json too). Run stage 7 again, nothing was written"
+  fi
+  need_ignore=1
+elif stignore_ok; then
   ok "$stignore_file lets the three plugin files through"
   need_ignore=0
 else
@@ -95,7 +116,7 @@ if [ "$check" = 1 ]; then
       echo "    $f: same as the build"
     fi
   done
-  [ -e "$plugin_dir/data.json" ] && warn "$plugin_dir/data.json exists on the Pi: it is not synced, but the token should not be kept in the Pi's vault; delete it by hand if no one needs it"
+  [ -e "$plugin_dir/data.json" ] && warn "$plugin_dir/data.json exists on the Pi: it is the plugin's per-PC settings, never synced, and not needed on the Pi"
   if [ -z "$need_files" ] && [ "$need_ignore" = 0 ]; then
     say "stage 33 check: the vault holds plugin $version and the ignore list is right"
     exit 0
@@ -105,11 +126,14 @@ if [ "$check" = 1 ]; then
 fi
 
 # ---- changes start here --------------------------------------------------------------------------------------------
+refuse_links
+# The folders first (as the foundry user): the ignore list's temp file lives in .obsidian/plugins, which the ignore list
+# covers, so a half-written temp file is never offered to a PC.
+runuser -u "$FOUNDRY_USER" -- sh -c 'mkdir -p "$1" && chmod 0750 "$1"' sh "$plugin_dir" || die "could not make $plugin_dir as $FOUNDRY_USER"
 if [ "$need_ignore" = 1 ]; then
   say "writing the ignore list"
-  tmp="$stignore_file.foundry-tmp"
-  # The "!" lines go right above ".obsidian/plugins" (or at the end when the line is not there); lines already in
-  # the file stay as they are, and a "!" line that is already there is not added twice.
+  # The "!" lines go right above ".obsidian/plugins"; lines already in the file stay as they are, and a "!" line that is
+  # already there is not added twice. The line itself is known to be there (has_plugins_line, above).
   awk -v inc="$include_lines" '
     BEGIN { n = split(inc, want, "\n") }
     { line[NR] = $0 }
@@ -124,10 +148,9 @@ if [ "$need_ignore" = 1 ]; then
         if (!drop) print line[i]
       }
       if (stop == 0) for (w = 1; w <= n; w++) print want[w]
-    }' "$stignore_file" >"$tmp" || die "could not build the new ignore list"
-  chmod 0640 "$tmp"
-  chown "$FOUNDRY_USER:$FOUNDRY_USER" "$tmp"
-  mv -f "$tmp" "$stignore_file"
+    }' "$stignore_file" |
+    runuser -u "$FOUNDRY_USER" -- sh -c 't="$2"; rm -f "$t" && cat >"$t" && chmod 0640 "$t" && mv -f "$t" "$1"' sh \
+      "$stignore_file" "$gm_dir/.obsidian/plugins/.stignore.foundry-tmp" || die "could not write the new ignore list (nothing else was changed)"
   stignore_ok || die "the ignore list is still not right after writing it (see $stignore_file)"
   ok "$stignore_file now lets exactly the three plugin files through"
 fi
@@ -136,15 +159,11 @@ say "the plugin files"
 if [ -z "$need_files" ]; then
   ok "nothing to write: the vault already holds plugin $version"
 else
-  install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$gm_dir/.obsidian" "$gm_dir/.obsidian/plugins" "$plugin_dir"
   for f in $need_files; do
-    # Written beside the target under a name the ignore list does not let through (so Syncthing never sees it), then moved
-    # into place in one step: Obsidian and Syncthing never read a half-written main.js.
-    tmp="$plugin_dir/.$f.foundry-tmp"
-    cp "$src/$f" "$tmp"
-    chmod 0640 "$tmp"
-    chown "$FOUNDRY_USER:$FOUNDRY_USER" "$tmp"
-    mv -f "$tmp" "$plugin_dir/$f"
+    # Written as the foundry user beside the target under a name the ignore list does not let through (so Syncthing never
+    # sees it), then moved into place in one step: Obsidian and Syncthing never read a half-written main.js.
+    runuser -u "$FOUNDRY_USER" -- sh -c 't="$2.foundry-tmp"; rm -f "$t" && cp "$1" "$t" && chmod 0640 "$t" && mv -f "$t" "$2"' sh \
+      "$src/$f" "$plugin_dir/$f" || die "could not write $plugin_dir/$f"
     ok "wrote $plugin_dir/$f"
   done
 fi

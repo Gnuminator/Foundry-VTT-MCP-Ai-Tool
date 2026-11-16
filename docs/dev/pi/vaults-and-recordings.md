@@ -151,7 +151,8 @@ bridge and dashboard settings and cannot remove a PC). It never writes, moves or
 `manifest.json` and `styles.css`, from the stage 5 build (`$TOOL_DIR/app/packages/obsidian-plugin/dist`, the same files as the
 release zip) into `/var/lib/foundry-ai-tool/obsidian/gm/.obsidian/plugins/foundry-ai-tool`. Syncthing carries exactly those three
 files to every PC holding the vault, so the GM's plugin follows the Pi's version with no hand step; Obsidian loads it after a
-restart. `data.json` (the plugin's own settings, which can hold the GM token) is never written, read or synced.
+restart. `data.json` (the plugin's per-PC settings; the secrets live in Obsidian's own storage) is never written, read or synced. Writes into the
+vault run as the foundry user, links are refused, and a `.stignore` without the `.obsidian/plugins` line is refused (run stage 7 again).
 
 - **How the three files get through:** the `.stignore` on the Pi (stage 7) and on each PC (the guide, `setup-syncthing-pc.ps1`)
   has three `!.obsidian/plugins/foundry-ai-tool/<file>` lines above `.obsidian/plugins`; Syncthing uses the first line that matches.

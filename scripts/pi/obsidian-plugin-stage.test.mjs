@@ -20,29 +20,41 @@ describe('33-obsidian-plugin.sh as text', () => {
   test('CHECK=1 needs no snapshot, every writing run does, and the snapshot comes before the first write', () => {
     assert.match(stage, /if \[ "\$check" != 1 \]; then\n {2}require_recent_snapshot/);
     const snap = stage.indexOf('require_recent_snapshot');
-    assert.ok(snap > 0 && snap < stage.indexOf('mv -f "$tmp" "$stignore_file"'));
-    assert.ok(snap < stage.indexOf('cp "$src/$f" "$tmp"'));
+    assert.ok(snap > 0 && snap < stage.indexOf('mkdir -p "$1"'));
+    assert.ok(snap < stage.indexOf('cp "$1" "$t"'));
     // CHECK exits before any write
     assert.ok(stage.indexOf('exit 1\nfi') < stage.indexOf('# ---- changes start here'));
   });
 
   test('writes only the three release files, never data.json, and deletes nothing', () => {
     assert.match(stage, /^files="main\.js manifest\.json styles\.css"$/m);
-    assert.doesNotMatch(stage, /\brm\b|-delete|>\s*"?\$plugin_dir\/data\.json/);
+    // the only rm removes the stage's own leftover temp name, as the foundry user
+    assert.deepEqual(stage.match(/\brm -\w+ \S+/g), ['rm -f "$t"', 'rm -f "$t"']);
+    assert.doesNotMatch(stage, /\brm (?!-f "\$t")/);
+    assert.doesNotMatch(stage, /-delete|rmdir|>\s*"?\$plugin_dir\/data\.json/);
     // data.json is only ever tested for existence, never copied, moved or written
     for (const m of stage.matchAll(/^.*data\.json.*$/gm)) {
-      assert.match(m[0], /#|warn|\[ -e|exists/, m[0]);
+      assert.match(m[0], /#|warn|\[ -e|exists|has no \.obsidian/, m[0]);
     }
     assert.doesNotMatch(stage, /cp -r|cp -a/);
   });
 
   test('files are staged under a name the ignore list does not let through, then moved in one step', () => {
-    assert.match(stage, /tmp="\$plugin_dir\/\.\$f\.foundry-tmp"/);
-    assert.match(stage, /mv -f "\$tmp" "\$plugin_dir\/\$f"/);
+    assert.match(stage, /t="\$2\.foundry-tmp"; rm -f "\$t" && cp "\$1" "\$t" && chmod 0640 "\$t" && mv -f "\$t" "\$2"/);
+    // the ignore list's temp file sits in .obsidian/plugins, which the ignore list covers
+    assert.match(stage, /\$gm_dir\/\.obsidian\/plugins\/\.stignore\.foundry-tmp/);
+  });
+
+  test('every write into the vault runs as the foundry user, links are refused, a .stignore without the plugins line is refused', () => {
+    const changes = stage.slice(stage.indexOf('# ---- changes start here'));
+    assert.doesNotMatch(changes, /^\s*(cp|mv|chmod|chown|install|mkdir|tee)\b/m);
+    assert.match(changes, /^refuse_links$/m);
+    assert.match(stage, /\[ ! -L "\$p" \] \|\| die/);
+    assert.match(stage, /has no \.obsidian\/plugins line: refused/);
   });
 
   test('refuses a build that is not the Foundry AI Tool plugin before writing anything', () => {
-    assert.ok(stage.indexOf('is not the Foundry AI Tool plugin') < stage.indexOf('cp "$src/$f"'));
+    assert.ok(stage.indexOf('is not the Foundry AI Tool plugin') < stage.indexOf('cp "$1" "$t"'));
     assert.match(stage, /the build has no/);
   });
 

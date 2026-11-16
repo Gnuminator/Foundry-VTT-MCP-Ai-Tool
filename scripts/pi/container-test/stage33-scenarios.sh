@@ -162,7 +162,11 @@ printf '{"token":"SECRET-PI"}\n' | runuser -u "$FOUNDRY_USER" -- tee "$plugin_di
 printf 'other\n' >"$pc_vault/.obsidian/plugins/foundry-ai-tool/extra.txt"
 printf 'note two\n' | runuser -u "$FOUNDRY_USER" -- tee "$gm_dir/two.md" >/dev/null
 wait_for 90 test -f "$pc_vault/two.md" || fail "the sync stopped (note two did not arrive)"
-sleep 5
+# A positive control for the PC to Pi direction: a normal note made at the same moment as data.json and extra.txt. Once it has
+# arrived on the Pi, the PC has scanned and sent, so an ignored file still missing means the ignore list worked.
+printf 'from the pc\n' >"$pc_vault/pc-note.md"
+wait_for 120 test -f "$gm_dir/pc-note.md" || fail "the PC's control note never reached the Pi, so scenario 4 proves nothing"
+sleep 2
 if [ ! -e "$plugin_dir/extra.txt" ] && [ "$(cat "$plugin_dir/data.json")" = '{"token":"SECRET-PI"}' ]; then
   pass "a PC-side data.json and extra file never reach the Pi, the Pi's data.json is untouched"
 else
@@ -212,5 +216,43 @@ out="$(run_stage PLUGIN_SRC=/tmp/build1)"
 rc=$?
 mv "$TOOL_DATA/obsidian/gm.away" "$TOOL_DATA/obsidian/gm"
 if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'the GM vault .* is missing'; then pass "a missing GM vault is refused"; else fail "no vault (exit $rc): $out"; fi
+
+# 8. A .stignore without the .obsidian/plugins line is refused (the plugins folder would sync whole), CHECK says not in step.
+cp "$gm_dir/.stignore" /tmp/stignore.keep
+grep -vx '\.obsidian/plugins' /tmp/stignore.keep | runuser -u "$FOUNDRY_USER" -- tee "$gm_dir/.stignore" >/dev/null
+before="$(state)"
+out="$(run_stage CHECK=1 PLUGIN_SRC=/tmp/build2)"
+rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'has no .obsidian/plugins line'; then pass "CHECK=1 flags a .stignore without the plugins line"; else fail "check no line (exit $rc): $out"; fi
+out="$(run_stage PLUGIN_SRC=/tmp/build1)"
+rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'has no .obsidian/plugins line: refused' && [ "$before" = "$(state)" ]; then
+  pass "a .stignore without the plugins line is refused and nothing is written"
+else
+  fail "no plugins line (exit $rc): $out"
+fi
+cat /tmp/stignore.keep | runuser -u "$FOUNDRY_USER" -- tee "$gm_dir/.stignore" >/dev/null
+
+# 9. A link where the stage would write is refused, and its target is not touched.
+rm -f /tmp/link-target
+printf 'untouched\n' >/tmp/link-target
+chmod 0666 /tmp/link-target
+runuser -u "$FOUNDRY_USER" -- ln -s /tmp/link-target "$plugin_dir/styles.css.foundry-tmp"
+printf '.y { color: blue; }\n' >/tmp/build2/styles.css
+out="$(run_stage PLUGIN_SRC=/tmp/build2)"
+rc=$?
+runuser -u "$FOUNDRY_USER" -- rm -f "$plugin_dir/styles.css.foundry-tmp"
+if [ "$rc" -eq 0 ] && [ "$(cat /tmp/link-target)" = untouched ] && [ "$(sum "$plugin_dir/styles.css")" = "$(sum /tmp/build2/styles.css)" ]; then
+  pass "a link at the temp name is replaced, its target untouched"
+else
+  fail "temp link (exit $rc, target: $(cat /tmp/link-target)): $out"
+fi
+mv "$plugin_dir" "$plugin_dir.real"
+runuser -u "$FOUNDRY_USER" -- ln -s /tmp "$plugin_dir"
+out="$(run_stage PLUGIN_SRC=/tmp/build1)"
+rc=$?
+runuser -u "$FOUNDRY_USER" -- rm -f "$plugin_dir"
+mv "$plugin_dir.real" "$plugin_dir"
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'is a link: refused' && [ ! -e /tmp/main.js ]; then pass "a linked plugin folder is refused"; else fail "linked folder (exit $rc): $out"; fi
 
 [ "$fails" -eq 0 ] && echo "ALL SCENARIOS OK" || exit 1

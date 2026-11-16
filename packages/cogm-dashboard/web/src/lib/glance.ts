@@ -2,6 +2,7 @@
 // and functions, so they have unit tests. components/GlanceScreen.tsx draws them. GM only: the
 // numbers are exact HP and hidden-token data from the GM's own routes, and a player is sent to
 // the player view before this page loads (lib/role.ts).
+import { isRecord } from '../../../../../shared/src/util/record.js';
 import { hpPercent, hpTone, hpText, type CombatState } from './combat';
 
 export { GLANCE_HREF } from './liveScreen';
@@ -37,9 +38,6 @@ export interface PartyRow {
   down: boolean;
   conditions: string[];
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 

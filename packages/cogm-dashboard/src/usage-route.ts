@@ -20,6 +20,7 @@ import {
 } from '@gnuminator/shared';
 
 import { resolveRole } from './auth.js';
+import { asRecord } from './routes/util.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
 
@@ -41,10 +42,6 @@ const NAME_MAX = 64;
 const NAMES_REFRESH_MS = 30_000;
 /** The name pick never waits longer than this for the bridge. */
 const NAMES_WAIT_MS = 3_000;
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
 
 /**
  * The non-GM users the dashboard has seen since it started (from `get-world-info`'s

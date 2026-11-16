@@ -95,6 +95,7 @@ const NARROWING_PARAMS = [
   'since',
   'sinceTimestamp',
   'eventType',
+  'actor',
   'actorName',
   'session',
   'filter',

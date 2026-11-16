@@ -580,6 +580,11 @@ describe('SceneTools token disposition: secret (M3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('SceneTools.listScenes', () => {
+  it('throws when the module refuses', async () => {
+    const { tools } = makeTools(() => ({ success: false, error: 'Access denied' }));
+    await expect(tools.listScenes({})).rejects.toThrow('Failed to list scenes: Access denied');
+  });
+
   it('dispatches list-scenes to foundryClient.query with filter and activeOnly', async () => {
     const payload = { success: true, scenes: [] };
     const { tools, query } = makeTools(() => payload);
@@ -643,6 +648,13 @@ describe('SceneTools.switchScene', () => {
       scene_identifier: 'Forest',
       optimize_view: true,
     });
+  });
+
+  it('throws when the module refuses', async () => {
+    const { tools } = makeTools(() => ({ success: false, error: 'Access denied' }));
+    await expect(tools.switchScene({ scene: 'Forest' })).rejects.toThrow(
+      'Failed to switch scene: Access denied'
+    );
   });
 
   it('throws when scene is missing', async () => {

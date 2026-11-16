@@ -1,4 +1,4 @@
-import { toolRef } from '@gnuminator/shared';
+import { toolRef, unwrapBridgeReply } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -124,16 +124,18 @@ export class SceneTools {
 
   async listScenes(input: unknown): Promise<unknown> {
     const safeInput = (input ?? {}) as Record<string, unknown>;
+    let reply: unknown;
     try {
       const params = {
         filter: typeof safeInput.filter === 'string' ? safeInput.filter : undefined,
         include_active_only: Boolean(safeInput.activeOnly),
       };
-      return await this.foundryClient.query('foundry-mcp-bridge.list-scenes', params);
+      reply = await this.foundryClient.query('foundry-mcp-bridge.list-scenes', params);
     } catch (error: unknown) {
       this.logger.error('List scenes failed', { error, input: safeInput });
       throw new Error(`Failed to list scenes: ${errorMessage(error)}`, { cause: error });
     }
+    return unwrapBridgeReply(reply, 'Failed to list scenes');
   }
 
   async switchScene(input: unknown): Promise<unknown> {
@@ -142,17 +144,19 @@ export class SceneTools {
     if (typeof scene !== 'string' || !scene.trim()) {
       throw new Error('scene is required: give a scene name or id');
     }
+    let reply: unknown;
     try {
       const params = {
         scene_identifier: scene,
         optimize_view: safeInput.optimize_view !== false,
       };
 
-      return await this.foundryClient.query('foundry-mcp-bridge.switch-scene', params);
+      reply = await this.foundryClient.query('foundry-mcp-bridge.switch-scene', params);
     } catch (error: unknown) {
       this.logger.error('Switch scene failed', { error, input: safeInput });
       throw new Error(`Failed to switch scene: ${errorMessage(error)}`, { cause: error });
     }
+    return unwrapBridgeReply(reply, 'Failed to switch scene');
   }
 
   async handleGetCurrentScene(args: unknown): Promise<Record<string, unknown>> {

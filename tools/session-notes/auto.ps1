@@ -145,6 +145,12 @@ try {
     else { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') | ForEach-Object { Say "  pull: $_" } }
   }
 
+  # 0b. Recap inbox (I-132, off unless FVTT_RECAP_INBOX is set): take back notes a cloud routine
+  # wrote, and send new timelines (text only, consent checked) to the private inbox repo.
+  if ($env:FVTT_RECAP_INBOX -and -not $DryRun) {
+    [void](Invoke-Notes @('inbox', 'sync'))
+  }
+
   foreach ($dir in Get-ChildItem $sessions -Directory | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
     $folder = $dir.FullName
     $timeline = Join-Path $folder 'timeline\timeline.jsonl'

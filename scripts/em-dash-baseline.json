@@ -28,7 +28,6 @@
     "packages/cogm-dashboard/src/feed/polling-feed.ts": 5,
     "packages/cogm-dashboard/src/sse.ts": 1,
     "packages/cogm-dashboard/src/state.ts": 2,
-    "packages/cogm-dashboard/web/src/styles/styles.css": 4,
     "packages/foundry-module/src/data-access.actor-builder-items.test.ts": 1,
     "packages/foundry-module/src/data-access.actor-builder-npc.test.ts": 6,
     "packages/foundry-module/src/data-access.combat-mutation.test.ts": 1,

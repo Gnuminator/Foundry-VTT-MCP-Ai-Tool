@@ -32,7 +32,7 @@ export function acceptLines(text) {
  * skipped the visual job) or zero differences need nothing. A report job that is pending, failed
  * or has no artifact refuses: nobody could have looked.
  * @param {{ run: (cmd: string, args: string[]) => { status: number, stdout: string, stderr: string },
- *   rollup: any[], head: string, reviews: { entries: { head: string | null }[], visual?: { n: number, hash: string }[] }[] }} o
+ *   rollup: any[], head: string, reviews: { entries: { head: string | null }[], visual?: { n: number, hash: string }[] }[], carried?: string[] }} o
  * @returns {string | null}
  */
 export function visualAcceptProblem({ run, rollup, head, reviews, carried = [] }) {

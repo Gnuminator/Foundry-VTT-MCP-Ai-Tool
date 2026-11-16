@@ -2,6 +2,7 @@
 // list-scene-moods, the plan-scene-mood arguments for one preset, the confirm question, what a
 // preset sets, and which switches keep the buttons off. Pure; components/SceneMoodPanel.tsx draws
 // it and sends nothing from here.
+import { isRecord } from '../../../../../shared/src/util/record.js';
 import { SCENE_MOOD_FEATURE_ID } from '../../../../../shared/src/scene-mood.js';
 import type { SceneMoodPreset } from '../../../../../shared/src/scene-mood.js';
 import { featureOffMessage } from '../../../../../shared/src/switch-off.js';
@@ -19,9 +20,6 @@ export interface MoodList {
   presets: SceneMoodPreset[];
   current: { darkness: number; globalLight: boolean; weather: string } | null;
 }
-
-const isRecord = (x: unknown): x is Record<string, unknown> =>
-  typeof x === 'object' && x !== null && !Array.isArray(x);
 
 /** One preset from the answer, or null when it has no name. Unknown fields are dropped. */
 function readPreset(raw: unknown): SceneMoodPreset | null {

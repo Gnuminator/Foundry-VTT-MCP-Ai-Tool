@@ -507,7 +507,7 @@ export function round(d, tried, attempts) {
       '-L',
       '10',
       '--json',
-      'conclusion,headSha,status,event',
+      'conclusion,headSha,status,event,attempt',
     ]);
     const tipRead = d.gh(['api', `repos/${REPO}/git/ref/heads/main`, '--jq', '.object.sha']);
     const tip = tipRead.stdout.trim();

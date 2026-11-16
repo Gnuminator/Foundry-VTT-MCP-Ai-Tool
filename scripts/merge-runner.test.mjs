@@ -1012,7 +1012,16 @@ test('mainState: a running tip run reports whether the run before it passed', ()
     [true, true]
   );
   assert.equal(mainState(RUNNING('failure'), SHA2).prevGreen, false);
-  assert.equal(mainState(RUNNING('cancelled'), SHA2).prevGreen, false);
+  const three = (mid, last, attempt = 1) =>
+    JSON.stringify([
+      { conclusion: '', status: 'in_progress', headSha: SHA2, event: 'push', attempt },
+      { conclusion: mid, status: 'completed', headSha: 'e'.repeat(40), event: 'push' },
+      { conclusion: last, status: 'completed', headSha: 'c'.repeat(40), event: 'push' },
+    ]);
+  assert.equal(mainState(three('cancelled', 'success'), SHA2).prevGreen, true);
+  assert.equal(mainState(three('cancelled', 'failure'), SHA2).prevGreen, false);
+  // a running rerun (attempt 2) is main red to the gate: never skipped
+  assert.equal(mainState(three('success', 'success', 2), SHA2).prevGreen, false);
 });
 
 test('testedOnTip: head contains the tip, or a green PR run was created after the tip commit', () => {
@@ -1025,6 +1034,9 @@ test('testedOnTip: head contains the tip, or a green PR run was created after th
   assert.equal(testedOnTip({ behindBy: 0, tipDate: '', runs: [] }), true);
   assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:05:00Z')] }), true);
   assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T17:59:00Z')] }), false);
+  // two minutes of slack after the tip commit
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:01:00Z')] }), false);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:03:00Z')] }), true);
   assert.equal(
     testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:05:00Z', 'failure')] }),
     false
@@ -1044,7 +1056,9 @@ test('testedOnTip: head contains the tip, or a green PR run was created after th
 });
 
 test('makeBaseDeps: reads compare, tip date and the head runs; a failed read is false', () => {
+  const seen = [];
   const answers = (cmp, tipDate, runs) => (cmd, args) => {
+    seen.push(args);
     if (args[1].includes('/compare/')) return cmp;
     if (args[1].includes('/commits/')) return tipDate;
     return runs;
@@ -1059,6 +1073,23 @@ test('makeBaseDeps: reads compare, tip date and the head runs; a failed read is 
   const mk = sh => makeBaseDeps({ sh, repo: 'o/r' }).baseCurrent({ head: SHA }, SHA2);
   assert.equal(mk(answers(ok('0\n'), bad, bad)), true);
   assert.equal(mk(answers(ok('3\n'), ok('2026-11-16T18:00:00Z\n'), green)), true);
+  assert.deepEqual(seen[0], ['api', `repos/o/r/compare/${SHA2}...${SHA}`, '--jq', '.behind_by']);
+  assert.equal(mk(answers(ok('3\n'), ok('2026-11-16T18:00:00Z\n'), green)), true);
+  assert.deepEqual(seen.at(-1), [
+    'run',
+    'list',
+    '-R',
+    'o/r',
+    '-w',
+    'ci.yml',
+    '--commit',
+    SHA,
+    '-L',
+    '10',
+    '--json',
+    'event,conclusion,createdAt',
+  ]);
+  assert.equal(mk(answers(ok('\n'), bad, bad)), false, 'an empty answer is not 0 behind');
   assert.equal(mk(answers(ok('3\n'), bad, green)), false);
   assert.equal(mk(answers(bad, ok('2026-11-16T18:00:00Z\n'), ok('not json'))), false);
 });

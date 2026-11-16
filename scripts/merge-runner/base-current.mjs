@@ -10,6 +10,9 @@
 
 /** @typedef {{ status: number | null, stdout: string, stderr: string }} Ran */
 
+/** GitHub refreshes a pull request's merge ref lazily and clocks differ: a run must start this long after the tip. */
+const SLACK_MS = 2 * 60_000;
+
 /**
  * @param {{ behindBy: number | null, tipDate: string, runs: { event?: string, conclusion?: string | null, createdAt?: string }[] }} i
  * @returns {boolean}
@@ -22,7 +25,7 @@ export function testedOnTip({ behindBy, tipDate, runs }) {
     r =>
       ['pull_request', 'merge_group'].includes(String(r.event)) &&
       r.conclusion === 'success' &&
-      Date.parse(r.createdAt ?? '') > tipMs
+      Date.parse(r.createdAt ?? '') > tipMs + SLACK_MS
   );
 }
 
@@ -40,7 +43,9 @@ export function runningInfo(runs, run, tip) {
         r.status === 'completed' &&
         !['cancelled', 'skipped', 'neutral'].includes(String(r.conclusion))
     );
-  return { running: !!tip, prevGreen: prev?.conclusion === 'success' };
+  // A running attempt 2 or later is a rerun, usually of a red run: the gate calls that main red.
+  const rerun = Number(/** @type {any} */ (run).attempt ?? 1) > 1;
+  return { running: !!tip, prevGreen: !rerun && prev?.conclusion === 'success' };
 }
 
 /**
@@ -77,7 +82,8 @@ export function makeBaseDeps({ sh, repo }) {
         '--jq',
         '.behind_by',
       ]);
-      const behind = cmp.status === 0 ? Number(cmp.stdout.trim()) : NaN;
+      const out = cmp.stdout.trim();
+      const behind = cmp.status === 0 && /^\d+$/.test(out) ? Number(out) : NaN;
       if (behind === 0) return true;
       const t = sh('gh', ['api', `repos/${repo}/commits/${tip}`, '--jq', '.commit.committer.date']);
       const list = sh('gh', [

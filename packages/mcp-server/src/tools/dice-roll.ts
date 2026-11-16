@@ -34,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.',
+          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -59,13 +59,9 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
-              description: 'true: everyone sees the roll. false: only the target player and GM.',
-            },
-            userConfirmedVisibility: {
-              type: 'boolean',
-              const: true,
+              default: true,
               description:
-                'Must be true. Set it only when the user said "public" or "private" or answered your question about it.',
+                'Default true: everyone sees the roll. false only when asked: just the target player and GM.',
             },
             rollModifier: {
               type: 'string',
@@ -81,13 +77,7 @@ export class DiceRollTools {
             dc: { type: 'integer' },
             advantage: advantageChoice,
           },
-          required: [
-            'rollType',
-            'rollTarget',
-            'targetPlayer',
-            'isPublic',
-            'userConfirmedVisibility',
-          ],
+          required: ['rollType', 'rollTarget', 'targetPlayer'],
         },
       },
       {
@@ -115,8 +105,9 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
+              default: true,
               description:
-                'Whether the roll is public (visible to all) or private (target player + GM only).',
+                'Default true: visible to all. false only when asked: target player + GM only.',
             },
             reason: {
               type: 'string',
@@ -124,7 +115,7 @@ export class DiceRollTools {
             },
             advantage: advantageChoice,
           },
-          required: ['targetPlayer', 'ability', 'isPublic'],
+          required: ['targetPlayer', 'ability'],
         },
       },
       {
@@ -150,12 +141,13 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
+              default: true,
               description:
-                'Whether the roll is public (visible to all) or private (target player + GM only).',
+                'Default true: visible to all. false only when asked: target player + GM only.',
             },
             advantage: advantageChoice,
           },
-          required: ['targetPlayer', 'weaponOrSpellName', 'isPublic'],
+          required: ['targetPlayer', 'weaponOrSpellName'],
         },
       },
       {
@@ -200,7 +192,7 @@ export class DiceRollTools {
       targetPlayer: z.string(),
       ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
       dc: z.number().int().optional(),
-      isPublic: z.boolean(),
+      isPublic: z.boolean().default(true),
       reason: z.string().optional(),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
@@ -227,7 +219,7 @@ export class DiceRollTools {
     const schema = z.object({
       targetPlayer: z.string(),
       weaponOrSpellName: z.string(),
-      isPublic: z.boolean(),
+      isPublic: z.boolean().default(true),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
@@ -286,8 +278,8 @@ export class DiceRollTools {
       rollType: z.enum(['ability', 'skill', 'save', 'attack', 'initiative', 'custom']),
       rollTarget: z.string(),
       targetPlayer: z.string(),
-      isPublic: z.boolean(),
-      userConfirmedVisibility: z.literal(true),
+      isPublic: z.boolean().default(true),
+      // An old client may still send userConfirmedVisibility: zod drops it (removed from the schema).
       rollModifier: z.string().default(''),
       flavor: z.string().default(''),
       dc: z.number().int().min(1).max(99).optional(),
@@ -296,15 +288,6 @@ export class DiceRollTools {
 
     try {
       const params = schema.parse(args);
-
-      // Validation should be handled by schema, but add extra safety checks
-      if (typeof params.isPublic !== 'boolean') {
-        return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
-      }
-
-      if (params.userConfirmedVisibility !== true) {
-        return 'You must determine the roll visibility before calling this function. Either: 1) The user already specified "public" or "private" in their request, or 2) You need to ask: "Do you want this to be a PUBLIC roll or PRIVATE roll?" Set userConfirmedVisibility to true only when you are confident about the visibility preference.';
-      }
 
       // The module keeps the DC off the card unless it is in the flavor (request-ability-check does
       // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
@@ -329,7 +312,7 @@ export class DiceRollTools {
       if (error instanceof z.ZodError) {
         const messages = error.errors.map(e => {
           if (e.path.includes('isPublic')) {
-            return 'You must specify whether the roll should be PUBLIC (visible to all players) or PRIVATE (visible only to target player and GM). Check if the user already specified this in their request, or ask them to clarify.';
+            return 'isPublic must be true or false (default true).';
           }
           return e.message;
         });

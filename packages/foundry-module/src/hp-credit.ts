@@ -4,9 +4,7 @@
  * a guess that must fit the roll under 5e rules.
  */
 
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-}
+import { asRecord } from '@gnuminator/shared/browser';
 
 /**
  * The chat message a dnd5e damage application came from, from the

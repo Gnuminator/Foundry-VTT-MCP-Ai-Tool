@@ -16,6 +16,7 @@
  * `pc-creation.test.ts`.
  */
 import type { GuardedOp, PcCreationPlan, PcCreationRequest } from '@gnuminator/shared';
+import { newId } from './new-id.js';
 
 /** Query name (mirror of the shared `PC_CREATION_QUERY`). */
 export const PC_CREATION_QUERY = 'planPcCreation';
@@ -62,15 +63,6 @@ function rec(value: unknown): Rec | null {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
-}
-
-function newId(): string {
-  const randomID = globals().foundry?.utils?.randomID;
-  if (typeof randomID === 'function') return randomID(16);
-  // Foundry always has randomID; this fallback is for the test harness and uses the platform CSPRNG.
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, b => chars[b % chars.length]).join('');
 }
 
 /** The owning player by user id or name (never a GM). */

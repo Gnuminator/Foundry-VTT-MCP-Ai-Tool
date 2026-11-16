@@ -51,7 +51,7 @@ function makeQueryForDnd5e(
   });
 }
 
-function makeNpcTools(
+function npcHarness(
   queryImpl?: (method: string, data: unknown) => unknown
 ): ToolHarness<DnD5eNpcTools> {
   return makeTools(DnD5eNpcTools, queryImpl ?? makeQueryForDnd5e());
@@ -74,19 +74,19 @@ afterEach(() => {
 
 describe('DnD5eNpcTools.getToolDefinitions', () => {
   it('exposes exactly one tool: dnd5e-create-npc', () => {
-    const { tools } = makeNpcTools();
+    const { tools } = npcHarness();
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['dnd5e-create-npc']);
   });
 
   it('dnd5e-create-npc has an object input schema', () => {
-    const { tools } = makeNpcTools();
+    const { tools } = npcHarness();
     const [def] = tools.getToolDefinitions();
     expect((def.inputSchema as any).type).toBe('object');
   });
 
   it('dnd5e-create-npc lists the expected required fields', () => {
-    const { tools } = makeNpcTools();
+    const { tools } = npcHarness();
     const [def] = tools.getToolDefinitions();
     expect((def.inputSchema as any).required).toEqual([
       'name',
@@ -101,14 +101,14 @@ describe('DnD5eNpcTools.getToolDefinitions', () => {
   });
 
   it('abilities sub-schema requires all six scores', () => {
-    const { tools } = makeNpcTools();
+    const { tools } = npcHarness();
     const [def] = tools.getToolDefinitions();
     const abilitiesProp = (def.inputSchema as any).properties.abilities;
     expect(abilitiesProp.required).toEqual(['str', 'dex', 'con', 'int', 'wis', 'cha']);
   });
 
   it('cr field uses oneOf (string pattern + number)', () => {
-    const { tools } = makeNpcTools();
+    const { tools } = npcHarness();
     const [def] = tools.getToolDefinitions();
     const crProp = (def.inputSchema as any).properties.cr;
     expect(crProp).toHaveProperty('oneOf');
@@ -152,7 +152,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
 
   it('returns success:true with actor info and no warnings for canonical args', async () => {
     const actorResult = { actor: { id: 'npc-1', name: 'Test Goblin', cr: '1/4' } };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({ ...VALID_ARGS });
 
@@ -183,7 +183,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
   });
 
   it('supports numeric CR (0.25)', async () => {
-    const { tools, query } = makeNpcTools(makeQueryForDnd5e());
+    const { tools, query } = npcHarness(makeQueryForDnd5e());
 
     await tools.handleCreateNpc({ ...VALID_ARGS, cr: 0.25 });
 
@@ -194,7 +194,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
   });
 
   it('supports string CR fraction "1/2"', async () => {
-    const { tools, query } = makeNpcTools(makeQueryForDnd5e());
+    const { tools, query } = npcHarness(makeQueryForDnd5e());
 
     await tools.handleCreateNpc({ ...VALID_ARGS, cr: '1/2' });
 
@@ -205,7 +205,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
   });
 
   it('passes acValue through when acMode is flat', async () => {
-    const { tools, query } = makeNpcTools(makeQueryForDnd5e());
+    const { tools, query } = npcHarness(makeQueryForDnd5e());
 
     await tools.handleCreateNpc({ ...VALID_ARGS, acMode: 'flat', acValue: 15 });
 
@@ -216,7 +216,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
   });
 
   it('includes savingThrows and skills in the dispatched payload', async () => {
-    const { tools, query } = makeNpcTools(makeQueryForDnd5e());
+    const { tools, query } = npcHarness(makeQueryForDnd5e());
 
     await tools.handleCreateNpc({
       ...VALID_ARGS,
@@ -241,7 +241,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
 describe('DnD5eNpcTools.handleCreateNpc: soft validation warnings', () => {
   it('returns warnings for non-canonical damage types but still succeeds', async () => {
     const actorResult = { actor: { id: 'npc-2', name: 'Test Goblin', cr: '1/4' } };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({
       ...VALID_ARGS,
@@ -255,7 +255,7 @@ describe('DnD5eNpcTools.handleCreateNpc: soft validation warnings', () => {
 
   it('returns warnings for non-canonical condition immunities but still succeeds', async () => {
     const actorResult = { actor: { id: 'npc-3', name: 'Test Goblin', cr: '1/4' } };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({
       ...VALID_ARGS,
@@ -268,7 +268,7 @@ describe('DnD5eNpcTools.handleCreateNpc: soft validation warnings', () => {
 
   it('no warnings when all damage/condition types are canonical', async () => {
     const actorResult = { actor: { id: 'npc-4', name: 'Test Goblin', cr: '1/4' } };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({
       ...VALID_ARGS,
@@ -287,7 +287,7 @@ describe('DnD5eNpcTools.handleCreateNpc: soft validation warnings', () => {
 
 describe('DnD5eNpcTools.handleCreateNpc: Zod validation throws', () => {
   it('throws (ZodError) when name is missing', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
     const { name: _name, ...noName } = VALID_ARGS as any;
 
     await expect(tools.handleCreateNpc(noName)).rejects.toThrow();
@@ -295,14 +295,14 @@ describe('DnD5eNpcTools.handleCreateNpc: Zod validation throws', () => {
   });
 
   it('throws (ZodError) when name is an empty string', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS, name: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws (ZodError) when creatureType is invalid', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(
       tools.handleCreateNpc({ ...VALID_ARGS, creatureType: 'dragon-turtle' })
@@ -311,14 +311,14 @@ describe('DnD5eNpcTools.handleCreateNpc: Zod validation throws', () => {
   });
 
   it('throws (ZodError) when size is invalid', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS, size: 'colossal' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws (ZodError) when cr string is an invalid fraction', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(
       tools.handleCreateNpc({ ...VALID_ARGS, cr: '3/5' }) // invalid fraction
@@ -327,28 +327,28 @@ describe('DnD5eNpcTools.handleCreateNpc: Zod validation throws', () => {
   });
 
   it('throws (ZodError) when hpAverage is zero (minimum 1)', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS, hpAverage: 0 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws (ZodError) when hpFormula is empty string', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS, hpFormula: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws (ZodError) when acMode is "flat" but acValue is not provided', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS, acMode: 'flat' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws (ZodError) when an ability score is missing', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
     const { cha: _cha, ...noChA } = VALID_ARGS.abilities as any;
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS, abilities: noChA })).rejects.toThrow();
@@ -356,7 +356,7 @@ describe('DnD5eNpcTools.handleCreateNpc: Zod validation throws', () => {
   });
 
   it('throws (ZodError) when an ability score is out of range (> 30)', async () => {
-    const { tools, query } = makeNpcTools();
+    const { tools, query } = npcHarness();
 
     await expect(
       tools.handleCreateNpc({ ...VALID_ARGS, abilities: { ...VALID_ARGS.abilities, str: 31 } })
@@ -482,7 +482,7 @@ describe('DnD5eNpcTools.handleCreateNpc: response shape', () => {
     const actorResult = {
       actor: { id: 'npc-5', name: 'Test Goblin', cr: '1/4', folder: 'Foundry MCP Creatures' },
     };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({ ...VALID_ARGS });
 
@@ -495,7 +495,7 @@ describe('DnD5eNpcTools.handleCreateNpc: response shape', () => {
 
   it('summary includes the actor name and CR', async () => {
     const actorResult = { actor: { id: 'npc-6', name: 'Test Goblin', cr: '1/4' } };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({ ...VALID_ARGS });
 
@@ -507,7 +507,7 @@ describe('DnD5eNpcTools.handleCreateNpc: response shape', () => {
     const actorResult = {
       actor: { id: 'npc-7', name: 'Test Goblin', cr: '1/4', folder: 'Foundry MCP Creatures' },
     };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({ ...VALID_ARGS });
 
@@ -516,7 +516,7 @@ describe('DnD5eNpcTools.handleCreateNpc: response shape', () => {
 
   it('message contains warning section when warnings are present', async () => {
     const actorResult = { actor: { id: 'npc-8', name: 'Test Goblin', cr: '1/4' } };
-    const { tools } = makeNpcTools(makeQueryForDnd5e(actorResult));
+    const { tools } = npcHarness(makeQueryForDnd5e(actorResult));
 
     const result = await tools.handleCreateNpc({
       ...VALID_ARGS,

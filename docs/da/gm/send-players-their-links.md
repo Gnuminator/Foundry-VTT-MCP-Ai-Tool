@@ -1,0 +1,44 @@
+---
+source: gm/send-players-their-links.md
+sourceHash: 199092eb3cb9
+title: Send spillerne deres links
+description: Sådan giver du hver spiller adressen til spillersiden, deres eget private My character-link og adressen til D&D-hjælperen.
+---
+
+# Send spillerne deres links
+
+Hver spiller skal have to ting af dig: adressen til spillersiden og deres eget private link til
+**My character**. Adressen til D&D-hjælperen skal du ikke sende: spilleren finder den selv på My
+character. Det tager cirka fem minutter for hele bordet.
+
+Spillerne har allerede deres Foundry-logins. De logger ind på spillersiden og på My character med den
+samme email-kode som i Foundry.
+
+1. **Åbn dashboardet** og klik på **Advanced**, derefter **🔗 Player links**. Hver spiller i worlden
+   står på listen.
+2. **Klik på Make link** ud for en spiller. Linket bliver kopieret til dig.
+3. **Send det i en privat besked (DM) til den spiller.** Aldrig i en kanal: den, der har linket, ser
+   spillerens karakter. Gør det samme for hver spiller.
+4. **Send alle adressen til spillersiden én gang**, i bordets kanal: dashboard-adressen med `/player`
+   til sidst, for eksempel `https://cogm.spennerit.com/player`. Den kræver intet privat link.
+5. **Bed spillerne åbne deres link én gang.** Siden husker det på den enhed, så de kan lave et
+   bogmærke eller lægge det på hjemmeskærmen.
+
+## Adressen til D&D-hjælperen
+
+Der er intet at sende. Nederst på My character viser kortet **Your Claude connector** web-adressen til
+D&D-hjælperen. Spilleren kopierer den, åbner Claude, Settings, Connectors, **Add custom connector**,
+indsætter den og trykker **Connect**, og logger så ind med sin egen email (Cloudflare mailer en kode).
+Mangler kortet, er hjælperen ikke sat op til den spiller endnu: spørg Gnuminator.
+
+## Senere
+
+- **Copy link** kopierer en spillers link igen.
+- **New link** laver et nyt og slår det gamle fra. Brug det til en mistet telefon eller et link sendt
+  til den forkerte, og send så det nye i en DM.
+- **Remove** slår et link fra uden at lave et nyt.
+- En spiller, der ser **Ask your GM** på My character, ejer endnu ingen karakter. Giv vedkommende
+  ejerskab i Foundry (se [Forbered session 0](prepare-session-0.md)).
+
+Problemer med værktøjet eller et link: spørg Gnuminator. Spørgsmål om spillet: dem bestemmer du.
+Mere om siderne: [Dashboardet: spillersider](dashboard-player-pages.md).

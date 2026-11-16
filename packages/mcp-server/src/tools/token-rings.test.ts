@@ -6,13 +6,9 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { TOKEN_RINGS_FEATURE_ID, type GuardedOp } from '@gnuminator/shared';
 
-import { TokenRingsTools } from './token-rings.js';
+import { makeTools } from '../test-support/make-tool-harness.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { TokenRingsTools } from './token-rings.js';
 
 const OPS: GuardedOp[] = [
   { kind: 'update', uuid: 'Actor.a1', changes: { 'prototypeToken.ring.enabled': true } },
@@ -25,26 +21,26 @@ let tools: TokenRingsTools;
 
 beforeEach(() => {
   enabled = true;
-  query = vi.fn((method: string) => {
-    if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
-      return Promise.resolve([{ id: TOKEN_RINGS_FEATURE_ID, enabled }]);
-    }
-    return Promise.resolve({
-      summary: 'Rings on',
-      ops: OPS,
-      count: 1,
-      remaining: 7,
-      alreadyDone: 2,
-    });
-  });
   createPlan = vi.fn((input: { feature: string; summary: string }) =>
     Promise.resolve({ planId: 'p1', feature: input.feature, summary: input.summary, risk: 'write' })
   );
-  tools = new TokenRingsTools({
-    foundryClient: { query },
-    guardedWrites: { createPlan },
-    logger: logger(),
+  const harness = makeTools(TokenRingsTools, {
+    queryImpl: (method: string) => {
+      if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
+        return Promise.resolve([{ id: TOKEN_RINGS_FEATURE_ID, enabled }]);
+      }
+      return Promise.resolve({
+        summary: 'Rings on',
+        ops: OPS,
+        count: 1,
+        remaining: 7,
+        alreadyDone: 2,
+      });
+    },
+    extra: { guardedWrites: { createPlan } },
   });
+  query = harness.query;
+  tools = harness.tools;
 });
 
 describe('plan-token-rings', () => {

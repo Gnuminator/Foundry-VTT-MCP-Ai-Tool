@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
+
 import { TableViewerTools } from './table-viewer.js';
 
 /**
@@ -8,35 +10,29 @@ import { TableViewerTools } from './table-viewer.js';
  * these tests need no bridge. Apply and undo are the generic guarded-write flow.
  */
 
-function makeTools(existing: Array<{ id: string; name: string }> = []): {
+function setup(existing: Array<{ id: string; name: string }> = []): {
   tools: TableViewerTools;
   query: Mock;
   createPlan: Mock;
 } {
-  const query = vi.fn((..._args: unknown[]) =>
-    Promise.resolve({ kind: 'user', choices: existing, truncated: false })
-  );
   const createPlan = vi.fn((input: any) =>
     Promise.resolve({ planId: 'plan-1', ...input, diff: [] })
   );
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  const tools = new TableViewerTools({
-    foundryClient: { query } as any,
-    guardedWrites: { createPlan },
-    logger,
+  const { tools, query } = makeTools(TableViewerTools, {
+    queryImpl: () => Promise.resolve({ kind: 'user', choices: existing, truncated: false }),
+    extra: { guardedWrites: { createPlan } },
   });
   return { tools, query, createPlan };
 }
 
 describe('TableViewerTools', () => {
   it('lists one tool, plan-table-viewer', () => {
-    const { tools } = makeTools();
+    const { tools } = setup();
     expect(tools.getToolDefinitions().map(t => t.name)).toEqual(['plan-table-viewer']);
   });
 
   it('plans one create op: a flagged Player-role user named Table, no password, no ownership', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = setup();
     const plan: any = await tools.handleToolCall('plan-table-viewer', {});
     expect(plan.autoApply).toBe(false);
     const input = createPlan.mock.calls[0]?.[0];
@@ -52,7 +48,7 @@ describe('TableViewerTools', () => {
   });
 
   it('lists every user of the world, GMs included, and matches the name exactly', async () => {
-    const { tools, query } = makeTools([{ id: 'u1', name: 'Table Top' }]);
+    const { tools, query } = setup([{ id: 'u1', name: 'Table Top' }]);
     await tools.handleToolCall('plan-table-viewer', { name: ' TV ' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listRefChoices', {
       kind: 'user',
@@ -63,19 +59,19 @@ describe('TableViewerTools', () => {
   });
 
   it('refuses when a user of that name exists and plans nothing', async () => {
-    const { tools, createPlan } = makeTools([{ id: 'u1', name: 'Table' }]);
+    const { tools, createPlan } = setup([{ id: 'u1', name: 'Table' }]);
     await expect(tools.handleToolCall('plan-table-viewer', {})).rejects.toThrow(/already exists/);
     expect(createPlan).not.toHaveBeenCalled();
   });
 
   it('also refuses when the user of that name is a GM, and ignores the case', async () => {
-    const { tools, createPlan } = makeTools([{ id: 'u1', name: 'table' }]);
+    const { tools, createPlan } = setup([{ id: 'u1', name: 'table' }]);
     await expect(tools.handleToolCall('plan-table-viewer', {})).rejects.toThrow(/already exists/);
     expect(createPlan).not.toHaveBeenCalled();
   });
 
   it('refuses, and plans nothing, when the users cannot be checked', async () => {
-    const { tools, query, createPlan } = makeTools();
+    const { tools, query, createPlan } = setup();
     for (const reply of [
       Promise.reject(new Error('query timeout')),
       Promise.resolve(null),
@@ -92,7 +88,7 @@ describe('TableViewerTools', () => {
   });
 
   it('rejects an empty or too long name', async () => {
-    const { tools } = makeTools();
+    const { tools } = setup();
     await expect(tools.handleToolCall('plan-table-viewer', { name: '   ' })).rejects.toThrow();
     await expect(
       tools.handleToolCall('plan-table-viewer', { name: 'x'.repeat(41) })
@@ -100,7 +96,7 @@ describe('TableViewerTools', () => {
   });
 
   it('rejects an unknown tool name', async () => {
-    const { tools } = makeTools();
+    const { tools } = setup();
     await expect(tools.handleToolCall('nope', {})).rejects.toThrow(/Unknown/);
   });
 });

@@ -13,6 +13,7 @@
  * The controller knows nothing about Foundry's windows; the classes are built on first use
  * because `ApplicationV2` does not exist when this file is loaded.
  */
+import { errorMessage } from '@gnuminator/shared/browser';
 import { onAiChangesUpdated } from './ai-changes-signal.js';
 import { MODULE_ID } from './constants.js';
 import { aiToolRequest } from './gm-helper-queries.js';
@@ -66,10 +67,6 @@ export function registerTarokkaTableSettings(): void {
     default: {},
   });
   registerCeremonySettings();
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : String(error);
 }
 
 /** How long a typed line is kept after the flip when the stored table never shows it. */

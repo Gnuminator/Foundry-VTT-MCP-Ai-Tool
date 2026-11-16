@@ -13,6 +13,7 @@
  * when this file is loaded. The ticks and the typed text live in the controller, so a
  * redraw (Refresh, the change-log signal) keeps an open reveal form as it is.
  */
+import { errorMessage } from '@gnuminator/shared/browser';
 import { onAiChangesUpdated } from './ai-changes-signal.js';
 import { aiToolRequest, openDocumentLocally } from './gm-helper-queries.js';
 import { parseRevealPlan, type RevealPlan } from './handouts-model.js';
@@ -37,10 +38,6 @@ export interface TarokkaDeps {
   notifyError(message: string): void;
   /** For a form the GM has not filled in yet: Foundry logs a warning, not a console error. */
   notifyWarn(message: string): void;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : String(error);
 }
 
 /** The window's state: the reading, the ticks and forms, and the open and reveal flows. */

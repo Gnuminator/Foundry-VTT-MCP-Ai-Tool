@@ -689,6 +689,7 @@ test('risky categories: every pattern still matches a tracked file (a rename can
 /** shared/src files that are deliberately not wire contracts. A new file must be added here or to a risky pattern. */
 const NOT_CONTRACT = [
   'actor-image',
+  'browser',
   'character-entity',
   'character-sheet',
   'client-versions',

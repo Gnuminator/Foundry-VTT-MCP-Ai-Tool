@@ -13,6 +13,7 @@
  * A bridge older than I-109 part 4 does not know `list-changes`: the window then falls back to
  * the AI-only list and the plain `undo-change` flow.
  */
+import { errorMessage } from '@gnuminator/shared/browser';
 import { BRIDGE_TOO_OLD_MESSAGE } from './constants.js';
 import { onAiChangesUpdated } from './ai-changes-signal.js';
 import {
@@ -54,10 +55,6 @@ export interface AiChangesDeps {
   ask(spec: DialogSpec): Promise<string | null>;
   notifyInfo(message: string): void;
   notifyError(message: string): void;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : String(error);
 }
 
 /** The bridge is too old to answer the request (it relays this message as it is). */

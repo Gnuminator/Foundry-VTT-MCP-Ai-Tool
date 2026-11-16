@@ -86,6 +86,7 @@ import {
   findGhosts,
   makeQueueDeps,
 } from './merge-runner/queue.mjs';
+import { openLeft } from './merge-runner/open-steps.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
@@ -323,21 +324,15 @@ export function round(d, tried, attempts) {
    * @param {string} [sha] main's commit that holds the head, when GitHub has no merge commit for the PR
    */
   const markDone = (r, fromReady = true, sha = '') => {
-    // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
-    // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
+    // An item with a Pi run, a Waiting blocker, or a done-when that names a tag, publish, ruleset
+    // change or the user's OK is not closed here: it gets a "merged" progress line instead.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
-    const piLeft = item && /^yes\b/i.test(item.fields.get('pi')?.at(-1) ?? '');
-    const waiting = item && (item.fields.get('blocked by') ?? []).some(b => /\bW\d+\b/.test(b));
-    if (piLeft || waiting) {
-      d.log(`#${r.pr} (${r.id}) merged, but a Pi run or Waiting item is left; not closing it`);
+    const left = item ? openLeft(item.fields, r.pr) : '';
+    if (left) {
+      d.log(`#${r.pr} (${r.id}) merged, but a step is left; not closing it`);
       write(
         r.id,
-        [
-          'progress',
-          r.id,
-          `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
-          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
-        ],
+        ['progress', r.id, left, ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : [])],
         'progress'
       );
       return;

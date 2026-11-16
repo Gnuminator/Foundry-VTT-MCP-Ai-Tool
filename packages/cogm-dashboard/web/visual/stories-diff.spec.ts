@@ -99,19 +99,82 @@ const compare = (page: Page, before: Buffer, after: Buffer): Promise<Compared> =
       // pixelmatch's colour distance: YIQ delta, blended onto white by alpha.
       const maxDelta = 35215 * (threshold as number) ** 2;
       const blend = (c: number, alpha: number): number => 255 + (c - 255) * alpha;
-      const delta = (i: number): number => {
-        const a1 = x.data[i + 3] / 255;
-        const a2 = y.data[i + 3] / 255;
-        const r1 = blend(x.data[i], a1);
-        const g1 = blend(x.data[i + 1], a1);
-        const b1 = blend(x.data[i + 2], a1);
-        const r2 = blend(y.data[i], a2);
-        const g2 = blend(y.data[i + 1], a2);
-        const b2 = blend(y.data[i + 2], a2);
+      const delta = (p: ImageData, q: ImageData, i: number, j: number, yOnly = false): number => {
+        const a1 = p.data[i + 3] / 255;
+        const a2 = q.data[j + 3] / 255;
+        const r1 = blend(p.data[i], a1);
+        const g1 = blend(p.data[i + 1], a1);
+        const b1 = blend(p.data[i + 2], a1);
+        const r2 = blend(q.data[j], a2);
+        const g2 = blend(q.data[j + 1], a2);
+        const b2 = blend(q.data[j + 2], a2);
         const dy = 0.29889531 * (r1 - r2) + 0.58662247 * (g1 - g2) + 0.11448223 * (b1 - b2);
+        if (yOnly) return dy;
         const di = 0.59597799 * (r1 - r2) - 0.2741761 * (g1 - g2) - 0.32180189 * (b1 - b2);
         const dq = 0.21147017 * (r1 - r2) - 0.52261711 * (g1 - g2) + 0.31114694 * (b1 - b2);
         return 0.5053 * dy * dy + 0.299 * di * di + 0.1957 * dq * dq;
+      };
+      const w = y.width;
+      const h = y.height;
+      // pixelmatch's anti-aliasing test: a differing pixel on a soft edge (rounded corner, text) is
+      // not a change, as in the default pixelmatch run.
+      const sameRgba = (p: ImageData, i: number, j: number): boolean =>
+        p.data[i] === p.data[j] &&
+        p.data[i + 1] === p.data[j + 1] &&
+        p.data[i + 2] === p.data[j + 2] &&
+        p.data[i + 3] === p.data[j + 3];
+      const manySiblings = (p: ImageData, x1: number, y1: number): boolean => {
+        const x0 = Math.max(x1 - 1, 0);
+        const y0 = Math.max(y1 - 1, 0);
+        const x2 = Math.min(x1 + 1, w - 1);
+        const y2 = Math.min(y1 + 1, h - 1);
+        const pos = (y1 * w + x1) * 4;
+        let zeroes = x1 === x0 || x1 === x2 || y1 === y0 || y1 === y2 ? 1 : 0;
+        for (let xx = x0; xx <= x2; xx++) {
+          for (let yy = y0; yy <= y2; yy++) {
+            if (xx === x1 && yy === y1) continue;
+            if (sameRgba(p, pos, (yy * w + xx) * 4)) zeroes++;
+            if (zeroes > 2) return true;
+          }
+        }
+        return false;
+      };
+      const antialiased = (p: ImageData, q: ImageData, x1: number, y1: number): boolean => {
+        const x0 = Math.max(x1 - 1, 0);
+        const y0 = Math.max(y1 - 1, 0);
+        const x2 = Math.min(x1 + 1, w - 1);
+        const y2 = Math.min(y1 + 1, h - 1);
+        const pos = (y1 * w + x1) * 4;
+        let zeroes = x1 === x0 || x1 === x2 || y1 === y0 || y1 === y2 ? 1 : 0;
+        let min = 0;
+        let max = 0;
+        let minX = 0;
+        let minY = 0;
+        let maxX = 0;
+        let maxY = 0;
+        for (let xx = x0; xx <= x2; xx++) {
+          for (let yy = y0; yy <= y2; yy++) {
+            if (xx === x1 && yy === y1) continue;
+            const d = delta(p, p, pos, (yy * w + xx) * 4, true);
+            if (d === 0) {
+              zeroes++;
+              if (zeroes > 2) return false;
+            } else if (d < min) {
+              min = d;
+              minX = xx;
+              minY = yy;
+            } else if (d > max) {
+              max = d;
+              maxX = xx;
+              maxY = yy;
+            }
+          }
+        }
+        if (min === 0 || max === 0) return false;
+        return (
+          (manySiblings(p, minX, minY) && manySiblings(q, minX, minY)) ||
+          (manySiblings(p, maxX, maxY) && manySiblings(q, maxX, maxY))
+        );
       };
       const canvas = document.createElement('canvas');
       canvas.width = y.width;
@@ -120,7 +183,13 @@ const compare = (page: Page, before: Buffer, after: Buffer): Promise<Compared> =
       const diff = ctx.createImageData(y.width, y.height);
       let pixels = 0;
       for (let i = 0; i < x.data.length; i += 4) {
-        if (delta(i) > maxDelta) {
+        const px = (i / 4) % w;
+        const py = Math.floor(i / 4 / w);
+        if (
+          delta(x, y, i, i) > maxDelta &&
+          !antialiased(x, y, px, py) &&
+          !antialiased(y, x, px, py)
+        ) {
           pixels++;
           diff.data.set([255, 0, 0, 255], i);
         } else {

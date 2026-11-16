@@ -128,7 +128,7 @@ async function playStats(deps: LocalPlayerToolDeps, userId: string): Promise<unk
   const stats = projectPlayStats(statsRaw, worldId, own);
   if (!stats)
     return failure(
-      'No play stats for you are available right now: none are recorded yet, or the GM has them switched off. Ask the GM before trying again.'
+      'Play stats for this world are not available right now (the bridge has not loaded this world yet). Try again later.'
     );
   return text(JSON.stringify(stats));
 }

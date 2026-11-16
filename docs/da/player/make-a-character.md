@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: d90a7fc06a78
+sourceHash: 57142efc0f64
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -44,7 +44,7 @@ To små ting, der sparer dig besvær:
 - **Et trin kan vise et tomt panel i omkring 5 sekunder**, efter du har klikket **Complete**. Der er
   ikke noget galt. Vent på, at næste trin dukker op, og klik ikke igen.
 
-> **Usikker? Spørg Claude.** Spørg D&D-hjælperen: "Jeg er ny i D&D. Hvilken slags karakter passer til den måde, jeg gerne vil spille på?" ([sådan sætter du D&D-hjælperen op](dnd-helper.md))
+> **Usikker? Spørg Claude.** Spørg D&D-hjælperen: "Jeg er ny i D&D. Hvilken slags karakter passer til den måde, jeg gerne vil spille på?"
 
 ## 1. Åbn Actor Studio
 

@@ -209,7 +209,7 @@ export class DiceRollTools {
     } catch (error: unknown) {
       this.logger.error('Error requesting ability check', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }
@@ -240,7 +240,7 @@ export class DiceRollTools {
     } catch (error: unknown) {
       this.logger.error('Error requesting attack roll', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }
@@ -267,7 +267,7 @@ export class DiceRollTools {
     } catch (error: unknown) {
       this.logger.error('Error rolling NPC check', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }
@@ -310,7 +310,7 @@ export class DiceRollTools {
     } catch (error: unknown) {
       this.logger.error('Error requesting player rolls', error);
       if (error instanceof z.ZodError) {
-        const messages = error.errors.map(e => {
+        const messages = error.issues.map(e => {
           if (e.path.includes('isPublic')) {
             return 'isPublic must be true or false (default true).';
           }

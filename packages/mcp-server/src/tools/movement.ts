@@ -129,7 +129,7 @@ export class MovementTools {
     } catch (error) {
       this.logger.error('Error measuring distance', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }

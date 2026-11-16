@@ -67,4 +67,4 @@ should see when it worked and what to do if it did not.
 | [Claude Free or Pro](claude-plans.md)                             | What works on the free Claude plan, its limits, and what Pro adds.                             |
 
 What players see and what the tool records about them: [player guide](../player/README.md) and
-the [player cookbook](../player/cookbook.md).
+the [player page how-tos](../player/player-page.md).

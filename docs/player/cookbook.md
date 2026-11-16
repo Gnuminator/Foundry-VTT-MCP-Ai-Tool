@@ -35,8 +35,8 @@ to click, and you click in Foundry. The how-tos for the player page are in
 
 ### Get a build card to click through
 
-- **Type:** "Make me a build card for a level 3 Cleric, using the species and background we talked
-  about."
+- **Type:** "Make me a build card for a level 3 Cleric, with the species and background I
+  chose above."
 - **What happens:** it writes a short list that follows the tabs of Foundry's character builder,
   Actor Studio, in order: the level 1 part, then the two level-ups, with the subclass at level 3.
 - **Tip:** keep the card open next to [Make your character](make-a-character.md), which shows every
@@ -83,7 +83,7 @@ to click, and you click in Foundry. The how-tos for the player page are in
 
 ### Check the sheet
 
-- **Type:** "Check my character sheet against the build card we made. Does anything look wrong?"
+- **Type:** "Check my character sheet against this build card (paste it here). Does anything look wrong?"
 - **What happens:** it reads the sheet and goes line by line: OK, or "Wrong: click here to fix it".
 - **Tip:** do this after every level-up. A skipped choice in a Foundry window is easy to miss.
 
@@ -91,16 +91,16 @@ to click, and you click in Foundry. The how-tos for the player page are in
 
 - **Type:** "List what I can do in combat with my character: attacks, spells, bonus actions and
   anything with limited uses."
-- **What happens:** it reads your items and features and sorts them into action, bonus action and
-  reaction.
-- **Tip:** it reads the sheet when it asks, not live. After a rest or a fight, say so and ask it to
-  look again.
+- **What happens:** it reads your items, features and spells and sorts them into action, bonus
+  action and reaction, going by what their text says.
+- **Tip:** if it is unsure about one, check that item in Foundry. It reads the sheet when it asks,
+  not live, so after a rest or a fight, say so and ask it to look again.
 
 ### Understand a number on the sheet
 
 - **Type:** "Why is my AC 16? And what is my spell save DC made of?"
 - **What happens:** it reads the sheet and shows the sum piece by piece: armor, Dexterity,
-  proficiency and so on.
+  and the like for AC; proficiency and your casting ability for the spell save DC.
 - **Tip:** a number that looks off may be a skipped choice. Follow up with "Check my character
   sheet".
 

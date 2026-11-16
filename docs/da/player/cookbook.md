@@ -1,6 +1,6 @@
 ---
 source: player/cookbook.md
-sourceHash: 0f3af153b25f
+sourceHash: 02a9bda43f21
 title: D&D-hjælperens kogebog
 description: Færdige forespørgsler til D&D-hjælperen, samlet efter hvornår du har brug for dem (planlæg en karakter, level op, tjek dit ark, regelspørgsmål), med hvad hjælperen gør og ét tip til hver.
 ---
@@ -37,8 +37,8 @@ Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos ti
 
 ### Få et build card at klikke efter
 
-- **Skriv:** "Lav et build card til en level 3 Cleric med den species og background, vi har talt
-  om."
+- **Skriv:** "Lav et build card til en level 3 Cleric med den species og background, jeg har
+  valgt ovenfor."
 - **Hvad der sker:** den skriver en kort liste, der følger fanerne i Foundrys karakterbygger, Actor
   Studio, i rækkefølge: level 1-delen, så de to level-ups, med subclass på level 3.
 - **Tip:** hold kortet åbent ved siden af [Lav din karakter](make-a-character.md), som viser hver
@@ -86,7 +86,7 @@ Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos ti
 
 ### Tjek arket
 
-- **Skriv:** "Tjek mit karakterark mod det build card, vi lavede. Ser noget forkert ud?"
+- **Skriv:** "Tjek mit karakterark mod dette build card (indsæt det her). Ser noget forkert ud?"
 - **Hvad der sker:** den læser arket og går det igennem linje for linje: OK, eller "Wrong: klik her
   for at rette det".
 - **Tip:** gør det efter hvert level-up. Et valg, der blev sprunget over i et Foundry-vindue, er let
@@ -96,16 +96,16 @@ Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos ti
 
 - **Skriv:** "List, hvad jeg kan gøre i combat med min karakter: attacks, spells, bonus actions og
   alt med begrænset brug."
-- **Hvad der sker:** den læser dine items og features og sorterer dem i action, bonus action og
-  reaction.
-- **Tip:** den læser arket, når du spørger, ikke live. Efter en rest eller en kamp skal du sige det
-  og bede den kigge igen.
+- **Hvad der sker:** den læser dine items, features og spells og sorterer dem i action, bonus
+  action og reaction ud fra, hvad deres tekst siger.
+- **Tip:** er den i tvivl om en, så tjek den i Foundry. Den læser arket, når du spørger, ikke live,
+  så efter en rest eller en kamp skal du sige det og bede den kigge igen.
 
 ### Forstå et tal på arket
 
 - **Skriv:** "Hvorfor er min AC 16? Og hvad består min spell save DC af?"
-- **Hvad der sker:** den læser arket og viser regnestykket stykke for stykke: armor, Dexterity,
-  proficiency og så videre.
+- **Hvad der sker:** den læser arket og viser regnestykket stykke for stykke: armor, Dexterity
+  og lignende til AC; proficiency og din casting ability til spell save DC.
 - **Tip:** et tal, der ser forkert ud, kan være et valg, der blev sprunget over. Følg op med "Tjek
   mit karakterark".
 
@@ -122,8 +122,8 @@ Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos ti
 ### Sammenlign to actions
 
 - **Skriv:** "Hvad er forskellen på Dodge og Disengage, og hvornår er hver af dem værd?"
-- **Hvad der sker:** den læser begge opslag, giver forskellen i klart sprog og så en kort tommelfinger
-  regel.
+- **Hvad der sker:** den læser begge opslag, giver forskellen i klart sprog og så en kort
+  tommelfingerregel.
 - **Tip:** tommelfingerreglen er et råd, ikke en regel. GM'en har det sidste ord ved bordet.
 
 ### Tjek en tricky situation før sessionen

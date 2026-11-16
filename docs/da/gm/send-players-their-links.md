@@ -1,6 +1,6 @@
 ---
 source: gm/send-players-their-links.md
-sourceHash: 199092eb3cb9
+sourceHash: d7dbe5d86c0f
 title: Send spillerne deres links
 description: Sådan giver du hver spiller adressen til spillersiden, deres eget private My character-link og adressen til D&D-hjælperen.
 ---
@@ -9,14 +9,14 @@ description: Sådan giver du hver spiller adressen til spillersiden, deres eget 
 
 Hver spiller skal have to ting af dig: adressen til spillersiden og deres eget private link til
 **My character**. Adressen til D&D-hjælperen skal du ikke sende: spilleren finder den selv på My
-character. Det tager cirka fem minutter for hele bordet.
+character. Det tager nogle få minutter for hele bordet.
 
 Spillerne har allerede deres Foundry-logins. De logger ind på spillersiden og på My character med den
 samme email-kode som i Foundry.
 
 1. **Åbn dashboardet** og klik på **Advanced**, derefter **🔗 Player links**. Hver spiller i worlden
    står på listen.
-2. **Klik på Make link** ud for en spiller. Linket bliver kopieret til dig.
+2. **Klik på Make link** ud for en spiller. Linket bliver kopieret til dig. Gør det ikke, så klik på **Copy link**.
 3. **Send det i en privat besked (DM) til den spiller.** Aldrig i en kanal: den, der har linket, ser
    spillerens karakter. Gør det samme for hver spiller.
 4. **Send alle adressen til spillersiden én gang**, i bordets kanal: dashboard-adressen med `/player`
@@ -26,10 +26,10 @@ samme email-kode som i Foundry.
 
 ## Adressen til D&D-hjælperen
 
-Der er intet at sende. Nederst på My character viser kortet **Your Claude connector** web-adressen til
+Der er intet at sende. Nederst på My character viser kortet **Your Claude connector** (tryk på det for at åbne det) web-adressen til
 D&D-hjælperen. Spilleren kopierer den, åbner Claude, Settings, Connectors, **Add custom connector**,
 indsætter den og trykker **Connect**, og logger så ind med sin egen email (Cloudflare mailer en kode).
-Mangler kortet, er hjælperen ikke sat op til den spiller endnu: spørg Gnuminator.
+Mangler kortet eller web-adressen, er hjælperen ikke sat op til den spiller endnu: spørg Gnuminator.
 
 ## Senere
 
@@ -38,7 +38,8 @@ Mangler kortet, er hjælperen ikke sat op til den spiller endnu: spørg Gnuminat
   til den forkerte, og send så det nye i en DM.
 - **Remove** slår et link fra uden at lave et nyt.
 - En spiller, der ser **Ask your GM** på My character, ejer endnu ingen karakter. Giv vedkommende
-  ejerskab i Foundry (se [Forbered session 0](prepare-session-0.md)).
+  ejerskab i Foundry: i Actors-fanen højreklikker du på karakteren, **Configure Ownership**, og sætter
+  spilleren til **Owner** (trinene står i [Når en karakter dør](death-and-new-characters.md)).
 
 Problemer med værktøjet eller et link: spørg Gnuminator. Spørgsmål om spillet: dem bestemmer du.
 Mere om siderne: [Dashboardet: spillersider](dashboard-player-pages.md).

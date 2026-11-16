@@ -90,7 +90,7 @@ so the token is never copied into an image or printed. Without the setting an em
 ## Other models (hviske-v6, saga-2-m)
 
 Set `TRANSCRIBER_EXTRAS=1` and `TRANSCRIBER_TAG=extras` in `.env`, run `up transcribe` (adds torch
-2.11.0 for CUDA 12.8 and transformers, several GB), and pass a model folder or Hugging Face id with
+2.14.1 for CUDA 13.0 and transformers, several GB), and pass a model folder or Hugging Face id with
 `-Model`. A model folder on the host must be mounted into the container; for now run the job by hand:
 
 ```powershell

@@ -123,10 +123,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     world: live.world,
     status: live.status,
     recordingHealth: live.recordingHealth,
-    /** Express middleware: 401/403 unless the caller resolves to the GM role (routes/auth.ts). */
     requireGm: createRequireGm(config.auth),
     stamped: live.stamped,
     currentPlayerState: live.currentPlayerState,
+    playerVaultHealth: live.playerVaultHealth,
     currentRolls: live.currentRolls,
     attachPlayerStream: live.attachPlayerStream,
     themePayload: live.themePayload,

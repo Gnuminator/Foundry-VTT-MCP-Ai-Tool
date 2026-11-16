@@ -116,6 +116,12 @@ Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that i
 
 Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night included.
 
+**Sync check** (`scripts/pi/remote/sync-check.sh`, backlog obsidian-staleness): which PC holds how much of the GM vault and of
+each player vault, when each was last seen, and the last file the Pi received from a PC. A warning means a PC holds less than
+everything (still catching up if it is connected, out of date if it is not) or has never connected; how long a PC was away is
+only printed. Read only, no snapshot, any time. Run it with
+`cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi 'bash -s'`; `STRICT=1` exits 1 on a warning.
+
 - **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/20-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
   not failures; it fails when Syncthing, its service, the foundry user or the folder is missing, or `TIMEZONE` is not a zone name).
   `STRICT=1` also fails on a conflict, a wrong zone or a folder shared with no PC. The disk warnings never fail it.

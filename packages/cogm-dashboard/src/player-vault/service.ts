@@ -84,6 +84,16 @@ export interface PlayerVaultRebuild {
   waiting?: boolean;
 }
 
+/** What the preflight needs to know about the player vaults (null fields until the first pass). */
+export interface PlayerVaultHealth {
+  /** Last pass that ran with Foundry connected and nobody failed, ms since epoch. */
+  lastCleanPassAt: number | null;
+  /** Players whose vault was not written in the last pass that ran. */
+  failed: string[];
+  /** Last time any player's folder was rewritten, ms since epoch. */
+  lastWriteAt: number | null;
+}
+
 /**
  * O7 player vaults (vault `Design/O7 player vault design 2026-10-06.md`): keeps one Obsidian vault
  * per player current under `rootDir`, one way. Inputs are only what that player may already see:
@@ -99,8 +109,14 @@ export class PlayerVaultService {
   private readonly backfilled = new Set<string>();
   private pending: SessionEvent[] = [];
   private lastStats: { worldId: string; raw: unknown; at: number } | null = null;
+  private health: PlayerVaultHealth = { lastCleanPassAt: null, failed: [], lastWriteAt: null };
 
   constructor(private readonly options: PlayerVaultServiceOptions) {}
+
+  /** A copy of how the last passes went, for `get-preflight` on the dashboard. */
+  healthSnapshot(): PlayerVaultHealth {
+    return { ...this.health, failed: [...this.health.failed] };
+  }
 
   /** Feed events (from the polling feed); only their player projection is kept. */
   onEvents(events: SessionEvent[]): void {
@@ -205,6 +221,12 @@ export class PlayerVaultService {
     if (result.written.length > 0) {
       logger.info('Player vaults updated', { written: result.written.length });
     }
+    const at = Date.now();
+    this.health = {
+      lastCleanPassAt: result.failed.length === 0 ? at : this.health.lastCleanPassAt,
+      failed: [...result.failed],
+      lastWriteAt: result.written.length > 0 ? at : this.health.lastWriteAt,
+    };
     return result;
   }
 

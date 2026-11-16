@@ -181,8 +181,9 @@ export default defineConfig(
     },
   },
   {
-    // The module runs in the browser as plain ES modules, where `@gnuminator/shared` cannot be
-    // resolved: only `import type` is allowed (values are mirrored and pinned by contract tests).
+    // The module is bundled for the browser, where the main entry of `@gnuminator/shared` cannot
+    // be bundled (it reads the disk): value imports come from `@gnuminator/shared/browser`, the
+    // main entry is for `import type` only (values there are mirrored and pinned by contract tests).
     files: ['packages/foundry-module/src/**/*.ts'],
     ignores: ['**/*.test.ts', '**/test-support/**'],
     rules: {

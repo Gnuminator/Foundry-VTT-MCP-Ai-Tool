@@ -16,9 +16,13 @@ const oneLine = (s, max) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
 /** Subject of the merge commit; its presence in the head's own subject stops a second refresh. */
 export const REFRESH_SUBJECT = 'Merge aitool/main (merge runner refresh)';
 
-/** Gate refusals that merging main can cure: not mergeable, drift (incl. a moved lockfile), stale base. */
+/**
+ * Gate refusals that merging main can cure: not mergeable or conflicting, and a drift refusal that
+ * names no guard (drift-check runs its guards on a trial merge of main, so a named guard fails the
+ * same after a real merge; the unnamed one is the moved lockfile, checked again below).
+ */
 export const REFRESHABLE =
-  /^pr: mergeable is |^drift: |merge conflicts|base branch policy|branch is behind|out[- ]of[- ]date/i;
+  /^pr: mergeable is |merge conflicts|^drift: drift-check failed(?! \(guards:)/i;
 
 const IDENT = [
   '-c',
@@ -54,7 +58,7 @@ export const makeRefresh = o => (r, reason) => {
  * head (same review note, written only while the old line stands) or the refusal text.
  * @param {Refresh | undefined} refresh
  * @param {{ id: string, pr: number, head: string }} r @param {string} reason @param {string | undefined} progress
- * @returns {{ refusal: string } | { args: string[], log: string, post: string }}
+ * @returns {{ refusal: string } | { args: string[], log: string, post: string, postFailed: string }}
  */
 export function refreshStep(refresh, r, reason, progress) {
   const fr = refresh?.(r, reason, progress);
@@ -75,6 +79,7 @@ export function refreshStep(refresh, r, reason, progress) {
     ],
     log: `#${r.pr} (${r.id}): merged main into the branch, new head ${now}`,
     post: `merge runner: merged main into #${r.pr}'s branch (${was} to ${now}); the gate runs again once CI is green`,
+    postFailed: `merge runner: merged main into #${r.pr}'s branch (${was} to ${now}) but could not write the ready line; a lane or the planner writes a ready line for ${fr.head}`,
   };
 }
 
@@ -111,9 +116,9 @@ export function refreshBranch(o) {
     '-R',
     o.repo,
     '--json',
-    'headRefName,isCrossRepository,isDraft,state',
+    'headRefName,headRefOid,baseRefName,isCrossRepository,isDraft,state',
   ]);
-  /** @type {{ headRefName?: string, isCrossRepository?: boolean, isDraft?: boolean, state?: string }} */
+  /** @type {{ headRefName?: string, headRefOid?: string, baseRefName?: string, isCrossRepository?: boolean, isDraft?: boolean, state?: string }} */
   let info;
   try {
     info = JSON.parse(pv.stdout);
@@ -123,10 +128,15 @@ export function refreshBranch(o) {
   if (pv.status !== 0 || !info?.headRefName) return no('the PR could not be read');
   if (info.state !== 'OPEN' || info.isDraft || info.isCrossRepository)
     return no('not an open, same-repo, non-draft PR');
+  if (info.baseRefName !== 'main' || info.headRefOid !== o.head)
+    return no('the PR is not based on main, or its head is not the ready head');
 
   const base = git(['merge-base', main, o.head]).stdout.trim();
   const lockMoved =
     base !== '' && git(['diff', '--quiet', base, main, '--', 'package-lock.json']).status !== 0;
+  // A drift refusal that names no guard is the moved lockfile; with the lock unmoved merging cannot help.
+  if (/^drift: /i.test(o.reason) && !lockMoved)
+    return no('drift refusal, but package-lock.json did not move');
   const merged = git([...IDENT, 'merge', '--no-edit', '-m', REFRESH_SUBJECT, main], 5 * 60_000);
   if (merged.status !== 0) {
     const files = git(['diff', '--name-only', '--diff-filter=U'])
@@ -163,15 +173,15 @@ export function refreshBranch(o) {
     }
   }
   const head = git(['rev-parse', 'HEAD']).stdout.trim();
-  // A plain push: it only succeeds as a fast-forward of the branch the lane left at the old head.
-  const pushed = o.run('git', ['push', 'aitool', `${head}:refs/heads/${info.headRefName}`], {
-    cwd: o.checkout,
-    timeout: TIMEOUT,
-  });
+  // Never a force: the lease only lets the push through while the remote branch is exactly the old head.
+  const ref = `refs/heads/${info.headRefName}`;
+  const pushed = o.run(
+    'git',
+    ['push', `--force-with-lease=${ref}:${o.head}`, 'aitool', `${head}:${ref}`],
+    { cwd: o.checkout, timeout: TIMEOUT }
+  );
   git(['reset', '-q', '--hard', o.head]);
   if (pushed.status !== 0)
-    return no(
-      `the push failed (${oneLine(pushed.stderr || pushed.stdout, 160)}); the lane may have pushed meanwhile`
-    );
+    return no(`the push failed (${oneLine(pushed.stderr || pushed.stdout, 160)})`);
   return { head };
 }

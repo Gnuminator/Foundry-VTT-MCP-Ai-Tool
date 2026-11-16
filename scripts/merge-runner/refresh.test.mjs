@@ -62,6 +62,7 @@ const prInfo = (o = {}) => ({
   status: 0,
   stdout: JSON.stringify({
     headRefName: 'lane',
+    baseRefName: 'main',
     isCrossRepository: false,
     isDraft: false,
     state: 'OPEN',
@@ -73,12 +74,12 @@ const opts = (s, extra = {}) => ({
   checkout: s.checkout,
   pr: 7,
   head: s.head,
-  reason: 'pr: mergeable is UNKNOWN; merge main into the branch and resolve conflicts',
+  reason: 'pr: mergeable is CONFLICTING; merge main into the branch and resolve conflicts',
   run: (cmd, args, o) => {
     const r = spawnSync(cmd, args, { cwd: o?.cwd, encoding: 'utf8' });
     return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
   },
-  gh: () => prInfo(),
+  gh: () => prInfo({ headRefOid: extra.head ?? s.head }),
   repo: 'x/y',
   ...extra,
 });
@@ -161,6 +162,8 @@ test('not refreshed: fork, draft, closed or unreadable PRs', () => {
       () => prInfo({ isCrossRepository: true }),
       () => prInfo({ isDraft: true }),
       () => prInfo({ state: 'CLOSED' }),
+      () => prInfo({ baseRefName: 'dev', headRefOid: s.head }),
+      () => prInfo({ headRefOid: 'f'.repeat(40) }),
       () => ({ status: 1, stdout: '', stderr: 'boom' }),
     ]) {
       const r = refreshBranch(opts(s, { gh }));
@@ -185,7 +188,9 @@ test('lockfile moved on main: npm install --package-lock-only runs; an unchanged
       }
       return real(cmd, args, o);
     };
-    const ok = refreshBranch(opts(s, { run: npmOk }));
+    const ok = refreshBranch(
+      opts(s, { run: npmOk, reason: 'drift: drift-check failed (log x); last lines below' })
+    );
     assert.ok(ok?.head, JSON.stringify(ok));
     assert.equal(calls.length, 1);
     assert.match(calls[0], /package-lock-only/);
@@ -208,14 +213,28 @@ test('lockfile moved on main: npm install --package-lock-only runs; an unchanged
   }
 });
 
+test('a drift refusal with the lockfile unmoved is not refreshed (merging cannot cure it)', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'main.txt', 'main\n');
+    const r = refreshBranch(opts(s, { reason: 'drift: drift-check failed (log x)' }));
+    assert.match(r?.why ?? '', /package-lock\.json did not move/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
+  } finally {
+    s.cleanup();
+  }
+});
+
 test('REFRESHABLE and reviewOf', () => {
   for (const t of [
     'pr: mergeable is CONFLICTING; merge main into the branch and resolve conflicts',
-    'drift: drift-check failed (guards: lockfile) (log x); last lines below',
+    'drift: drift-check failed (log x); last lines below',
     'wait-ci: #7 has merge conflicts, so CI will not run; merge main into the branch and resolve them',
   ])
     assert.match(t, REFRESHABLE);
   for (const t of [
+    'drift: drift-check failed (guards: em-dash baseline) (log x); last lines below',
+    'merge: gh pr merge exited 1: base branch policy prohibits the merge',
     'ci: failing: build-test',
     'review: no note names the head',
     'changelog: missing',

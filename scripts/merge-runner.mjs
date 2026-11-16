@@ -42,6 +42,10 @@
  *       merge train full: post "merge train full: ask a session to run live:roundtrip", exit 3; the
  *         ready line stays, so the next logon or a manual start after `--train-reset` merges it.
  *       CI still running after the gate's wait (exit 5): left for the next round.
+ *       refused only for being behind main (not mergeable, or the drift check's moved lockfile): the
+ *         runner merges aitool/main into the lane branch, pushes it (lease on the old head) and
+ *         writes a ready line for the new head with the same review (merge-runner/refresh.mjs);
+ *         a real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
  *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"
  *         --if-ready <PR>@<sha>` (that replaces the ready line, so it is not tried again until a
  *         lane writes a new one; a newer ready line is never overwritten) and one #pr-log line.
@@ -299,6 +303,7 @@ export function round(d, tried, attempts) {
     if (r.status !== 0) {
       d.log(`WARNING: ${what} for ${id} not written (${oneLine(r.stderr || r.stdout, 200)})`);
     }
+    return r.status === 0;
   };
   /**
    * The refusal replaces the ready line only while it is still that same line (`--if-ready`,
@@ -694,12 +699,11 @@ export function round(d, tried, attempts) {
     } else {
       tried.add(key);
       // Refused only for being behind main: merge main in, push, a ready line for the new head.
-      const fr = refreshStep(d.refresh, r, out.reason, parseProgress(text).get(r.id));
+      const fr = refreshStep(d.refresh, r, out.reason, parseProgress(fresh ?? '').get(r.id));
       if ('refusal' in fr) refuse(r, fr.refusal);
       else {
         d.log(fr.log);
-        write(r.id, fr.args, 'progress');
-        d.post(fr.post);
+        d.post(write(r.id, fr.args, 'progress') ? fr.post : fr.postFailed);
       }
     }
   }

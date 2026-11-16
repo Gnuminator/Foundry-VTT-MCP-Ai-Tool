@@ -117,7 +117,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   `npm run docs:tools`.
 - **Ready to merge (the merge runner merges, D-140):** once every review for the head says Merge, run
   `backlog.mjs progress <id> --ready <n> --head <40-char sha> --review <note path>`, keep the branch
-  pushed and stop; message nobody. The runner gates that head in its own checkout and writes a
+  pushed and stop; message nobody. If main moved, the runner may merge it into your branch and push
+  the merge commit with a new ready line (fetch before any new work on that branch). The runner gates that head in its own checkout and writes a
   refusal over the line. With the merge queue on, the gate enqueues; a failed queue run needs
   a fresh ready line. Never run the
   gate without `--dry-run`; don't offer Auto-fix. To check

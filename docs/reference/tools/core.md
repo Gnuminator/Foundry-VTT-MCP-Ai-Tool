@@ -16,7 +16,7 @@ Kind: read-only. Title: Get character.
 
 Parameters:
 
-- `identifier` (string, required): Character name or ID to look up
+- `actor` (string, required): Character name or ID to look up
 
 ## get-character-entity
 
@@ -26,7 +26,7 @@ Kind: read-only. Title: Get character item or effect.
 
 Parameters:
 
-- `characterIdentifier` (string, required): Character name or ID
+- `actor` (string, required): Character name or ID
 - `entityIdentifier` (string, required): Item or effect name or ID (a spell, weapon, feature or effect)
 
 ## list-characters
@@ -47,7 +47,7 @@ Kind: read-only. Title: Search character items.
 
 Parameters:
 
-- `characterIdentifier` (string, required): Character name or ID to search within
+- `actor` (string, required): Character name or ID to search within
 - `query` (string): Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.
 - `type` (string): Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.
 - `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".
@@ -136,7 +136,7 @@ Kind: read-only. Title: List scenes.
 Parameters:
 
 - `filter` (string): Optional filter to search scene names (case-insensitive). Default: `""`.
-- `include_active_only` (boolean): Only return the currently active scene. Default: `false`.
+- `activeOnly` (boolean): Only return the currently active scene. Default: `false`.
 
 ## list-journals
 
@@ -170,7 +170,7 @@ Kind: read-only. Title: Get level-up options.
 
 Parameters:
 
-- `identifier` (string, required): Character name or actor ID.
+- `actor` (string, required): Character name or actor ID.
 - `className` (string)
 
 ## get-combat-state

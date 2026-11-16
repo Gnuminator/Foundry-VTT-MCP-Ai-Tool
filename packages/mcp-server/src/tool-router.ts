@@ -7,6 +7,7 @@
  * `capToolResult`, and so loads the tool modules (not their instances) through tool-hints.ts.
  */
 import { type ToolAnnotations, withToolHints } from './tool-hints.js';
+import { actorToolNames, applyParamAliases } from './param-aliases.js';
 import { type ToolInstances, instanceOf } from './tools/tool-module.js';
 
 /** The built tool instances the router dispatches to (tools/index.ts `createTools`). */
@@ -38,13 +39,17 @@ export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<
  */
 export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandler> {
   const routes = Object.create(null) as Record<string, ToolHandler>;
+  const actorTools = actorToolNames(
+    deps.modules.flatMap(module => module.definitions(instanceOf(deps, module)))
+  );
   for (const module of deps.modules) {
     const tools = instanceOf(deps, module);
     for (const [name, route] of Object.entries(module.routes)) {
       if (Object.hasOwn(routes, name)) {
         throw new Error(`Tool route "${name}" is claimed twice (module ${module.id})`);
       }
-      routes[name] = (args, context): Promise<unknown> => route(tools, args, context);
+      routes[name] = (args, context): Promise<unknown> =>
+        route(tools, applyParamAliases(name, args, actorTools), context);
     }
   }
   return routes;

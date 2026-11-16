@@ -71,7 +71,7 @@ export class CombatResolutionTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorName: {
+            actor: {
               type: 'string',
               description:
                 'NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.',
@@ -80,7 +80,7 @@ export class CombatResolutionTools {
             itemName: {
               type: 'string',
               description: 'Name of the weapon/feature/spell to use (e.g. "Scimitar").',
-              ...toolRef('actor-item', 'id', { parent: 'actorName' }),
+              ...toolRef('actor-item', 'id', { parent: 'actor' }),
             },
             activity: {
               type: 'string',
@@ -98,7 +98,7 @@ export class CombatResolutionTools {
                 'Public roll (true or omitted, the default) or whispered to the GM only (false).',
             },
           },
-          required: ['actorName', 'itemName'],
+          required: ['actor', 'itemName'],
         },
       },
       {
@@ -167,7 +167,7 @@ export class CombatResolutionTools {
 
   async handleUseNpcActivity(args: unknown): Promise<CombatResolutionToolResult> {
     const schema = z.object({
-      actorName: z.string(),
+      actor: z.string(),
       itemName: z.string(),
       activity: z.string().optional(),
       targetAC: z.number().int().optional(),
@@ -175,7 +175,12 @@ export class CombatResolutionTools {
     });
     try {
       const params = schema.parse(args);
-      const result = await this.query('useNpcActivity', params, 'Failed to use NPC activity');
+      const { actor, ...rest } = params;
+      const result = await this.query(
+        'useNpcActivity',
+        { actorName: actor, ...rest },
+        'Failed to use NPC activity'
+      );
       // An older module ignores `activity` and answers without it: it ran the item's attack.
       if (params.activity && result && typeof result === 'object' && !('activity' in result)) {
         throw new Error(

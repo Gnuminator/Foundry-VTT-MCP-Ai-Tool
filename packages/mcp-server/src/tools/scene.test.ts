@@ -53,10 +53,10 @@ describe('SceneTools.getToolDefinitions', () => {
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
-  it('switch-scene requires scene_identifier', () => {
+  it('switch-scene requires scene', () => {
     const { tools } = makeTools();
     const def = tools.getToolDefinitions().find(d => d.name === 'switch-scene')!;
-    expect((def.inputSchema as any).required).toEqual(['scene_identifier']);
+    expect((def.inputSchema as any).required).toEqual(['scene']);
   });
 
   it('get-current-scene has no required fields', () => {
@@ -580,10 +580,10 @@ describe('SceneTools token disposition: secret (M3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('SceneTools.listScenes', () => {
-  it('dispatches list-scenes to foundryClient.query with filter and include_active_only', async () => {
+  it('dispatches list-scenes to foundryClient.query with filter and activeOnly', async () => {
     const payload = { success: true, scenes: [] };
     const { tools, query } = makeTools(() => payload);
-    const result = await tools.listScenes({ filter: 'tavern', include_active_only: true });
+    const result = await tools.listScenes({ filter: 'tavern', activeOnly: true });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.list-scenes', {
       filter: 'tavern',
       include_active_only: true,
@@ -591,7 +591,7 @@ describe('SceneTools.listScenes', () => {
     expect(result).toBe(payload);
   });
 
-  it('omits filter when not a string and defaults include_active_only to false', async () => {
+  it('omits filter when not a string and defaults activeOnly to false', async () => {
     const { tools, query } = makeTools(() => ({ success: true, scenes: [] }));
     await tools.listScenes({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.list-scenes', {
@@ -609,12 +609,11 @@ describe('SceneTools.listScenes', () => {
     });
   });
 
-  it('returns an error object (not a throw) when query throws', async () => {
+  it('throws when query throws', async () => {
     const { tools } = makeTools(() => {
       throw new Error('bridge offline');
     });
-    const result = await tools.listScenes({});
-    expect(result).toMatchObject({ success: false, error: 'bridge offline' });
+    await expect(tools.listScenes({})).rejects.toThrow('Failed to list scenes: bridge offline');
   });
 });
 
@@ -623,11 +622,11 @@ describe('SceneTools.listScenes', () => {
 // ---------------------------------------------------------------------------
 
 describe('SceneTools.switchScene', () => {
-  it('dispatches switch-scene to foundryClient.query with scene_identifier', async () => {
+  it('dispatches switch-scene to foundryClient.query with the scene', async () => {
     const payload = { success: true };
     const { tools, query } = makeTools(() => payload);
     const result = await tools.switchScene({
-      scene_identifier: 'Tavern Scene',
+      scene: 'Tavern Scene',
       optimize_view: false,
     });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.switch-scene', {
@@ -639,48 +638,37 @@ describe('SceneTools.switchScene', () => {
 
   it('defaults optimize_view to true when not provided', async () => {
     const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.switchScene({ scene_identifier: 'Forest' });
+    await tools.switchScene({ scene: 'Forest' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.switch-scene', {
       scene_identifier: 'Forest',
       optimize_view: true,
     });
   });
 
-  it('accepts sceneId as alias for scene_identifier', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.switchScene({ sceneId: 'scene-001' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.switch-scene', {
-      scene_identifier: 'scene-001',
-      optimize_view: true,
-    });
-  });
-
-  it('returns an error object (not a throw) when scene_identifier is missing', async () => {
+  it('throws when scene is missing', async () => {
     const { tools, query } = makeTools();
-    const result = await tools.switchScene({});
-    expect(result).toMatchObject({ success: false, error: 'scene_identifier is required' });
+    await expect(tools.switchScene({})).rejects.toThrow('scene is required');
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns an error object when called with null/undefined input', async () => {
+  it('throws when called with null/undefined input', async () => {
     const { tools, query } = makeTools();
-    const result = await tools.switchScene(undefined);
-    expect(result).toMatchObject({ success: false, error: 'scene_identifier is required' });
+    await expect(tools.switchScene(undefined)).rejects.toThrow('scene is required');
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns an error object when scene_identifier is only whitespace', async () => {
+  it('throws when scene is only whitespace', async () => {
     const { tools, query } = makeTools();
-    const result = await tools.switchScene({ scene_identifier: '   ' });
-    expect(result).toMatchObject({ success: false, error: 'scene_identifier is required' });
+    await expect(tools.switchScene({ scene: '   ' })).rejects.toThrow('scene is required');
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns an error object (not a throw) when query throws', async () => {
+  it('throws when query throws', async () => {
     const { tools } = makeTools(() => {
       throw new Error('scene not found');
     });
-    const result = await tools.switchScene({ scene_identifier: 'Ghost Scene' });
-    expect(result).toMatchObject({ success: false, error: 'scene not found' });
+    await expect(tools.switchScene({ scene: 'Ghost Scene' })).rejects.toThrow(
+      'Failed to switch scene: scene not found'
+    );
   });
 });

@@ -82,14 +82,10 @@ describe('OwnershipTools.getToolDefinitions', () => {
     }
   });
 
-  it('plan-ownership-change requires action, actorIdentifier and playerIdentifier', () => {
+  it('plan-ownership-change requires action, actor and playerIdentifier', () => {
     const { tools } = makeTools();
     const plan = tools.getToolDefinitions().find(d => d.name === 'plan-ownership-change')!;
-    expect((plan.inputSchema as any).required).toEqual([
-      'action',
-      'actorIdentifier',
-      'playerIdentifier',
-    ]);
+    expect((plan.inputSchema as any).required).toEqual(['action', 'actor', 'playerIdentifier']);
     expect((plan.inputSchema as any).properties.action.enum).toEqual(['assign', 'remove']);
   });
 
@@ -158,7 +154,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     const { tools, query, createPlan } = makeTools(singleQueries);
     const result = (await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
-      actorIdentifier: 'Aragorn',
+      actor: 'Aragorn',
       playerIdentifier: 'John',
       permissionLevel: 'OWNER',
     })) as any;
@@ -192,7 +188,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     const { tools, createPlan } = makeTools(singleQueries);
     await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
-      actorIdentifier: 'Aragorn',
+      actor: 'Aragorn',
       playerIdentifier: 'John',
       permissionLevel,
     });
@@ -203,7 +199,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     const { tools, createPlan } = makeTools(singleQueries);
     await tools.handleToolCall('plan-ownership-change', {
       action: 'remove',
-      actorIdentifier: 'Aragorn',
+      actor: 'Aragorn',
       playerIdentifier: 'John',
       permissionLevel: 'OWNER',
     });
@@ -219,7 +215,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
-        actorIdentifier: 'Aragorn',
+        actor: 'Aragorn',
         playerIdentifier: 'John',
       })
     ).rejects.toThrow(/needs permissionLevel/);
@@ -231,7 +227,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
-        actorIdentifier: 'Aragorn',
+        actor: 'Aragorn',
         playerIdentifier: 'John',
         permissionLevel: 'SUPERUSER',
       })
@@ -244,7 +240,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'transfer',
-        actorIdentifier: 'Aragorn',
+        actor: 'Aragorn',
         playerIdentifier: 'John',
       })
     ).rejects.toThrow();
@@ -263,7 +259,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
 
     await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
-      actorIdentifier: 'all friendly NPCs',
+      actor: 'all friendly NPCs',
       playerIdentifier: 'John',
       permissionLevel: 'OBSERVER',
     });
@@ -287,7 +283,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
 
     await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
-      actorIdentifier: 'party characters',
+      actor: 'party characters',
       playerIdentifier: 'John',
       permissionLevel: 'OWNER',
     });
@@ -309,7 +305,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
 
     await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
-      actorIdentifier: 'Aragorn',
+      actor: 'Aragorn',
       playerIdentifier: 'party',
       permissionLevel: 'OBSERVER',
     });
@@ -339,7 +335,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
-        actorIdentifier: 'Nobody',
+        actor: 'Nobody',
         playerIdentifier: 'John',
         permissionLevel: 'OWNER',
       })
@@ -356,7 +352,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
-        actorIdentifier: 'Aragorn',
+        actor: 'Aragorn',
         playerIdentifier: 'Ghost',
         permissionLevel: 'OWNER',
       })
@@ -378,7 +374,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'remove',
-        actorIdentifier: 'Aria',
+        actor: 'Aria',
         playerIdentifier: 'John',
       })
     ).rejects.toThrow(ambiguous);
@@ -393,7 +389,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'remove',
-        actorIdentifier: 'Aragorn',
+        actor: 'Aragorn',
         playerIdentifier: 'John',
       })
     ).rejects.toThrow('No actor matches "Aragorn"');
@@ -405,7 +401,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
       const { tools } = makeTools(singleQueries);
       const result = (await tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
-        actorIdentifier: 'Aragorn',
+        actor: 'Aragorn',
         playerIdentifier: 'John',
         permissionLevel: 'OBSERVER',
       })) as any;
@@ -435,7 +431,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
 
       const result = (await tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
-        actorIdentifier: 'all friendly NPCs',
+        actor: 'all friendly NPCs',
         playerIdentifier: 'John',
         permissionLevel: 'OBSERVER',
       })) as any;
@@ -463,7 +459,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
       await expect(
         tools.handleToolCall('plan-ownership-change', {
           action: 'remove',
-          actorIdentifier: 'Aragorn',
+          actor: 'Aragorn',
           playerIdentifier: 'John',
         })
       ).rejects.toThrow(/Nothing to change: Aragorn: John NONE already/);
@@ -481,7 +477,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
     const { tools, query } = makeTools(() => ownershipData);
 
     const result = (await tools.handleToolCall('list-actor-ownership', {
-      actorIdentifier: 'Aragorn',
+      actor: 'Aragorn',
       playerIdentifier: 'John',
     })) as any;
 

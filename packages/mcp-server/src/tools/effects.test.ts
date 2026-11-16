@@ -25,11 +25,11 @@ describe('EffectsTools.getToolDefinitions', () => {
     }
   });
 
-  it('get-active-effects requires identifier', () => {
+  it('get-active-effects requires actor', () => {
     const { tools } = makeTools(EffectsTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-active-effects')!;
-    expect((def.inputSchema as any).required).toEqual(['identifier']);
+    expect((def.inputSchema as any).required).toEqual(['actor']);
   });
 });
 
@@ -41,7 +41,7 @@ describe('EffectsTools.handleGetActiveEffects', () => {
   it('dispatches the correct query method with parsed params and returns the response', async () => {
     const payload = { success: true, effects: [{ name: 'Poisoned' }] };
     const { tools, query } = makeTools(EffectsTools, () => payload);
-    const result = await tools.handleGetActiveEffects({ identifier: 'Gandalf' });
+    const result = await tools.handleGetActiveEffects({ actor: 'Gandalf' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getActiveEffects', {
       identifier: 'Gandalf',
     });
@@ -50,27 +50,27 @@ describe('EffectsTools.handleGetActiveEffects', () => {
 
   it('throws when Foundry reports a failure', async () => {
     const { tools } = makeTools(EffectsTools, () => ({ success: false, error: 'actor not found' }));
-    await expect(tools.handleGetActiveEffects({ identifier: 'Unknown' })).rejects.toThrow(
+    await expect(tools.handleGetActiveEffects({ actor: 'Unknown' })).rejects.toThrow(
       'actor not found'
     );
   });
 
   it('throws the default message when Foundry failure has no error string', async () => {
     const { tools } = makeTools(EffectsTools, () => ({ success: false }));
-    await expect(tools.handleGetActiveEffects({ identifier: 'X' })).rejects.toThrow(
+    await expect(tools.handleGetActiveEffects({ actor: 'X' })).rejects.toThrow(
       'Failed to get active effects'
     );
   });
 
-  it('throws a zod validation error when identifier is missing', async () => {
+  it('throws a zod validation error when actor is missing', async () => {
     const { tools, query } = makeTools(EffectsTools);
     await expect(tools.handleGetActiveEffects({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('throws a zod validation error when identifier is not a string', async () => {
+  it('throws a zod validation error when actor is not a string', async () => {
     const { tools, query } = makeTools(EffectsTools);
-    await expect(tools.handleGetActiveEffects({ identifier: 42 })).rejects.toThrow();
+    await expect(tools.handleGetActiveEffects({ actor: 42 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 });

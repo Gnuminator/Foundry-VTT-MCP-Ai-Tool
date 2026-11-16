@@ -158,6 +158,7 @@ export const CHECKS = [
     'scripts/green.test.mjs',
     'scripts/lane-merge.test.mjs',
     'scripts/visual-baselines.test.mjs',
+    'scripts/visual-diff-report.test.mjs',
     'scripts/changelog-fold.test.mjs',
     'scripts/review-note.test.mjs',
     'scripts/heavy-lock.test.mjs',

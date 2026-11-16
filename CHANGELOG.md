@@ -2,6 +2,55 @@
 
 ## Unreleased
 
+## v0.29.2 (released 2026-11-16): skills served by the table, opt-in client updates and a Pi cutover that ignores Tailscale
+
+**Wire contracts:** additive only. Two new read-only tools, `get-skill-guide` (core set) and `get-player-skill-guide` (player set). No bridge handler, module id or socket channel changed.
+
+### Installer
+
+- **Opt-in automatic update of the GM client (layer 3):** `client-update.ps1` ships with the
+  installer and is started by the tunnel logon task. It stays off until `-Action Enable` creates
+  `autoupdate.on`. When on, it reads the table's version through the tunnel (`wrapper_status`),
+  and only if the table is newer and Claude Desktop is closed it downloads that release's
+  installer from GitHub, checks it against `SHA256SUMS.txt`, installs silently with the stored token
+  kept, and restores the old files if the installer fails. One line per run goes to `update.log`
+  (item client-autoupdate).
+
+### Skills
+
+- **Thin skills:** the GM coach and D&D helper skills you upload to claude.ai are now small stubs. Their
+  rules and reference pages are served by the table's server through the read-only tools
+  `get-skill-guide` (core set; GM coach and GM D&D helper) and `get-player-skill-guide` (player
+  set; the player edition only), so a server update changes them and nobody uploads a zip again.
+  A stub that is older than the server's gets one "Update available" line with the zip to upload.
+  The zips (`foundry-gm-coach.zip`, `foundry-dnd-helper.zip`, `foundry-dnd-helper-player.zip`) are
+  now stubs and are release files; `--full` on the build scripts still builds the old full zips.
+  The core tool set budget rises from 18,500 to 19,500 characters for the new tool.
+- **Plugin install (Pro and Max):** the GM coach and the player helper also ship as plugins in the
+  public marketplace `Gnuminator/foundry-ai-tool-plugins` (stubs only, synced from the same sources
+  as the zips with `node scripts/sync-skill-plugins.mjs <repo>`). Free accounts keep the zip.
+
+### Tests
+
+- **Undo confirm contrast:** the live strip's destructive Undo confirm is now checked for 4.5:1 contrast under The Veil with `?scheme=light` (lows sweep, Foundry module).
+- **Handouts tests use the shared logger stub:** the three test files in `handouts/` build their logger
+  with `makeLogger()` instead of their own copy, lowering the harness ratchet baseline by three
+  (server-harness-folders).
+- **Tarokka and session-notes tests use the shared logger stub:** the two service tests build their
+  logger with `makeLogger()` instead of their own copy, lowering the harness ratchet baseline by two
+  (server-harness-folders).
+- **Harness lows swept:** the shared tool stubs use the tools' own default mirror settings and a
+  well-formed wrapper status, and the harness ratchet also counts copies named `makeXTools` (three
+  more files, so the `makeTools` baseline reads 31) (tests-lows-harness).
+
+### Fixes
+
+- **Merge runner no longer skips a finished PR silently:** an open, non-draft PR with CI green on
+  its head and a Merge review note for that head, but no ready line on its Backlog item, now shows
+  in its own section of `backlog.mjs status --planner` and is posted once to #pr-log, with the
+  command that writes the ready line. The runner still never writes a ready line itself.
+- **Pi cutover (stage 24):** the port wait and the port checks ignore listeners on the Pi's own tailscale interface (Tailscale serve holds 3000 and 31414 there for good), so `MODE=cutover` no longer rolls back on them. Values wholly wrapped in double quotes with a safe inside (as stages 5 and 7 write them) pass the env check. Stage 5's tailnet check reads the `%tailscale0` scope, and the README says how to make the rehearsal data folders.
+
 ## v0.29.1 (released 2026-11-15): patch for the Pi image build, security alerts and the Actor Studio session 0 guards
 
 **Wire contracts:** unchanged. No tool, bridge handler, module id or socket channel changed.

@@ -548,8 +548,8 @@ test('a merged item whose done-when names a tag, publish, ruleset step or the us
       ['progress', 'que', 'PR #6 merged', '--if-ready', `6@${SHA2}`],
     ]
   );
-  assert.match(f.calls.backlog[0][2], /tag step/);
-  assert.match(f.calls.backlog[1][2], /ruleset change step/);
+  assert.match(f.calls.backlog[0][2], /names a tag/);
+  assert.match(f.calls.backlog[1][2], /names a ruleset change/);
 });
 
 test('a line rewritten while an earlier gate ran is read again: no gate and no refusal on the old head', () => {

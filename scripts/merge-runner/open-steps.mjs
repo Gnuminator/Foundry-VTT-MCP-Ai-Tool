@@ -11,7 +11,7 @@ export function openLeft(fields, pr) {
     return `PR #${pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`;
   }
   return step
-    ? `PR #${pr} merged; the item stays open, its done-when names a ${step} step: close it with done once that is finished (merge runner)`
+    ? `PR #${pr} merged; the item stays open, its done-when still names ${step}: close it with done once that is finished (merge runner)`
     : '';
 }
 
@@ -24,14 +24,21 @@ export function openLeft(fields, pr) {
  */
 export function openStep(doneWhen) {
   const text = String(doneWhen ?? '');
+  // An item about the done-when rule itself talks about these words without needing the steps.
+  if (/\bdone[- ]when\b/i.test(text)) return '';
   /** @type {[RegExp, string][]} */
   const patterns = [
-    // a git tag, not a "tag" in a data or UI sense
-    [/\b(?:git tag|a tag|tag(?:ged)? (?:v?\d|and|the release|it))\b/i, 'tag'],
-    [/\b(?:the )?release (?:tag|is published)\b/i, 'tag'],
-    [/\bpublish(?:ed|es|ing)?\b/i, 'publish'],
-    [/\b(?:ruleset|merge_queue|branch protection)\b/i, 'ruleset change'],
-    [/\b(?:the user(?:'s)? (?:OK|go|approval)|user's OK|user OK)\b/i, "the user's OK"],
+    // anchored to release and repo-setting shapes: loose words ("published", "tag field") close normally
+    [
+      /\b(?:git tag|tag(?:ged)? v?\d+\.\d+|tagged and publish|tag the release|release tag)/i,
+      'a tag',
+    ],
+    [/\bpublish(?:ed)? (?:on|to) (?:GitHub|npm|the release)|\bpublish the release\b/i, 'a publish'],
+    [
+      /\b(?:main )?ruleset (?:has|gets|needs)\b|\bmerge_queue rule\b|\bbranch protection (?:change|rule|setting)/i,
+      'a ruleset change',
+    ],
+    [/\bthe user(?:'s)? (?:OK|go|approval)\b|\buser OK\b|\bthe user says go\b/i, "the user's OK"],
   ];
   for (const [re, name] of patterns) if (re.test(text)) return name;
   return '';

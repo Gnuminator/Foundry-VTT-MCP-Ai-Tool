@@ -154,13 +154,16 @@ unit_active() { have_systemd && systemctl is-active --quiet "$1"; }
 unit_enabled() { have_systemd && [ "$(systemctl is-enabled "$1" 2>/dev/null || true)" = enabled ]; }
 unit_installed() { have_systemd && systemctl cat "$1" >/dev/null 2>&1; }
 # A listener bound to the Pi's own tailscale interface (ss prints 100.x.y.z%tailscale0:PORT and [fd7a:...]%tailscale0:PORT)
-# does not count: tailscaled serves the dashboard and control ports there permanently (Tailscale serve) and never lets go. Same rule as
-# control_port_check in lib.sh (interface scope, not the address range): only a specific address counts as exempt. A wildcard
-# (0.0.0.0%tailscale0, [::]%tailscale0, *%tailscale0) is bound to the device but still clashes with the stack's own binds,
-# so it stays busy. Any other listener counts.
+# does not count: tailscaled serves the dashboard and control ports there permanently (Tailscale serve) and never lets go. Same interface-scope
+# rule as control_port_check in lib.sh (not the address range): only a specific address counts as exempt, but unlike
+# control_port_check a wildcard (0.0.0.0%tailscale0, [::]%tailscale0, *%tailscale0) is bound to the device and still clashes
+# with the stack's own binds, so it stays busy. Any other listener counts. An ss that fails (missing, not allowed) reads as
+# busy: a refusal is the safe side, a "free" port the stack then cannot bind is not.
 port_busy() {
-  ss -ltnH "sport = :$1" 2>/dev/null |
-    awk '!($4 ~ /^([0-9.]+|\[[0-9a-fA-F:]+\])%tailscale[0-9]*:[0-9]+$/ && $4 !~ /^(0\.0\.0\.0|\[::\])%/) { f = 1 } END { exit !f }'
+  local listeners
+  listeners="$(ss -ltnH "sport = :$1" 2>/dev/null)" || return 0
+  printf '%s\n' "$listeners" |
+    awk 'NF && !($4 ~ /^([0-9.]+|\[[0-9a-fA-F:]+\])%tailscale[0-9]*:[0-9]+$/ && $4 !~ /^(0\.0\.0\.0|\[::\])%/) { f = 1 } END { exit !f }'
 }
 live_ports() { # prints the live ports this setup would use
   local p
@@ -247,7 +250,7 @@ preflight_stack() {
   done
   [ -z "$missing" ] || die "image(s)$missing not built: run stage 23. Nothing was changed"
   [ -d "$foundry_app" ] && [ -d "$foundry_data" ] && [ -d "$tool_data" ] ||
-    die "a folder the containers mount is missing ($foundry_app, $foundry_data, $tool_data): docker would create it as root. Nothing was changed"
+    die "a folder the containers mount is missing ($foundry_app, $foundry_data, $tool_data): docker would create it as root. A rehearsal's folders are made once by hand: install -d -m 0750 -o $FOUNDRY_USER /var/lib/foundry-rehearsal /var/lib/foundry-ai-tool-rehearsal (deploy/pi/README.md). Nothing was changed"
   [ -f "$TOOL_ETC/bridge.env" ] || warn "$TOOL_ETC/bridge.env is missing: the bridge starts without its settings"
   check_env_values
 }
@@ -267,10 +270,12 @@ check_env_values() {
 }
 # Keys of a file whose value compose and systemd would read differently. A value wholly wrapped in double quotes with a
 # safe inside (stages 5-check-world and 7 write them so the file can be sourced) reads the same in both: they strip the
-# quotes. Prints keys only, never values.
+# quotes. Compose also reads a line with leading whitespace or an `export ` prefix, so those are checked too. Prints keys
+# only, never values.
 env_unsafe_keys() {
-  grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*[$#\\"'"'"'`]' "$1" 2>/dev/null |
-    grep -vE '^[A-Za-z_][A-Za-z0-9_]*="[^$#\\"'"'"'`]*"$' | sed 's/=.*//' || true
+  local pre='^[[:space:]]*(export[[:space:]]+)?'
+  grep -E "${pre}[A-Za-z_][A-Za-z0-9_]*=.*[\$#\\\\\"'\`]" "$1" 2>/dev/null |
+    grep -vE "${pre}[A-Za-z_][A-Za-z0-9_]*=\"[^\$#\\\\\"'\`]*\"\$" | sed -E 's/^[[:space:]]*(export[[:space:]]+)?//; s/=.*//' || true
 }
 
 # up: no systemd unit may run on the live ports or data folders.

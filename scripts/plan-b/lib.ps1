@@ -60,28 +60,33 @@ function Get-PlanBPorts([switch]$GameNight) {
 }
 
 # Ports other parts of this PC own. The live bridge ports belong to Plan B only on game night.
-# A plain hashtable: an ordered one reads an int index as a position.
-$PlanBPortTable = Get-Content (Join-Path $PlanBRepoRoot 'shared/ports.json') -Raw | ConvertFrom-Json  # generated from shared/src/ports.ts
-$PlanBReservedPorts = @{}
-foreach ($server in 'A', 'B', 'C') {
-  $row = $PlanBPortTable.ports."test$server"
-  if ($server -eq 'A') {
-    $PlanBReservedPorts[[int]$row.foundry] = "the test server's Foundry"
-    $PlanBReservedPorts[[int]$row.control] = 'the test bridge'
-    $PlanBReservedPorts[[int]$row.link] = "the test bridge's Foundry link"
-    $PlanBReservedPorts[[int]$row.dashboard] = 'the test dashboard'
-  } else {
-    $PlanBReservedPorts[[int]$row.foundry] = "test server $server's Foundry"
-    $PlanBReservedPorts[[int]$row.control] = "test server $server's bridge"
-    $PlanBReservedPorts[[int]$row.link] = "test server $server's Foundry link"
-    $PlanBReservedPorts[[int]$row.dashboard] = "test server $server's dashboard"
+# A plain hashtable: an ordered one reads an int index as a position. Built in a function so its
+# loop variables do not leak into the scripts that dot-source this file.
+function New-PlanBReservedPorts {
+  $table = Get-Content (Join-Path $PlanBRepoRoot 'shared/ports.json') -Raw | ConvertFrom-Json  # generated from shared/src/ports.ts
+  $reserved = @{}
+  foreach ($server in 'A', 'B', 'C') {
+    $row = $table.ports."test$server"
+    if ($server -eq 'A') {
+      $reserved[[int]$row.foundry] = "the test server's Foundry"
+      $reserved[[int]$row.control] = 'the test bridge'
+      $reserved[[int]$row.link] = "the test bridge's Foundry link"
+      $reserved[[int]$row.dashboard] = 'the test dashboard'
+    } else {
+      $reserved[[int]$row.foundry] = "test server $server's Foundry"
+      $reserved[[int]$row.control] = "test server $server's bridge"
+      $reserved[[int]$row.link] = "test server $server's Foundry link"
+      $reserved[[int]$row.dashboard] = "test server $server's dashboard"
+    }
   }
+  $reserved[[int]$table.extra.testReserved] = 'the test bridge'
+  $reserved[[int]$table.extra.controlCenter] = 'the Control Center'
+  foreach ($livePort in $table.ports.live.control, $table.ports.live.link, $table.extra.liveReserved) {
+    $reserved[[int]$livePort] = 'the live bridge (Plan B uses it only with -GameNight)'
+  }
+  return $reserved
 }
-$PlanBReservedPorts[[int]$PlanBPortTable.extra.testReserved] = 'the test bridge'
-$PlanBReservedPorts[[int]$PlanBPortTable.extra.controlCenter] = 'the Control Center'
-foreach ($livePort in $PlanBPortTable.ports.live.control, $PlanBPortTable.ports.live.link, $PlanBPortTable.extra.liveReserved) {
-  $PlanBReservedPorts[[int]$livePort] = 'the live bridge (Plan B uses it only with -GameNight)'
-}
+$PlanBReservedPorts = New-PlanBReservedPorts
 
 # Why these ports cannot be used, as one line each; empty when they can. IsOpen is a scriptblock
 # that takes a port and says whether something listens there already.

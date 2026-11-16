@@ -71,6 +71,7 @@ F="$FAKE"
 EOF
   cat >>"$BIN/ss" <<'EOF'
 p="${@: -1}"; p="${p##*:}"
+[ ! -f "$F/ss-fail" ] || exit 1 # ss-fail: ss itself fails (port_busy must read that as busy)
 if grep -qx "$p" "$F/busy" 2>/dev/null; then echo "LISTEN 0 511 127.0.0.1:$p 0.0.0.0:*"; fi
 # busy-tailscale: tailscaled's Tailscale serve listeners, which never go away (ss prints the interface scope)
 if grep -qx "$p" "$F/busy-tailscale" 2>/dev/null; then
@@ -369,6 +370,10 @@ echo "$DASH" >"$FAKE/busy-tailscale-wild"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "a wildcard listener on the tailscale device still counts as busy"; else fail "wild busy (rc $RC): $OUT"; fi
 new_pi
+touch "$FAKE/ss-fail"
+run_stage MODE=cutover
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still in use' && all_on $all_units; then pass "an ss that fails reads as busy, not free"; else fail "ss fail (rc $RC): $OUT"; fi
+new_pi
 touch "$FAKE/stuck-foundry.service"
 run_stage MODE=cutover
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still enabled or active' && all_on $all_units && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "a unit that will not stop rolls back; the stack never starts"; else fail "stuck (rc $RC): $OUT"; fi
@@ -527,6 +532,12 @@ for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 printf 'A_ONE="pa$$sw0rd"\nB_TWO="abc"def\nC_THREE=abc"\nD_FOUR="a b"\n' >"$SB/etc/assistant-gm.env"
 run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'assistant-gm.env:A_ONE' && echo "$OUT" | grep -q 'assistant-gm.env:B_TWO' && echo "$OUT" | grep -q 'assistant-gm.env:C_THREE' && ! echo "$OUT" | grep -q 'D_FOUR' && ! echo "$OUT" | grep -q 'sw0rd'; then pass "a quoted value with a dollar, a partial wrap or a stray quote is still refused, by key"; else fail "bad quoted env (rc $RC): $OUT"; fi
+
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+printf 'GOOD=abc\n  INDENT_KEY=pa$$sw0rd\nexport EXPORT_KEY=pa$$sw0rd\n' >"$SB/etc/assistant-gm.env"
+run_stage MODE=up
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'assistant-gm.env:INDENT_KEY' && echo "$OUT" | grep -q 'assistant-gm.env:EXPORT_KEY' && ! echo "$OUT" | grep -q 'GOOD' && ! echo "$OUT" | grep -q 'sw0rd'; then pass "an indented or exported env line is checked too, by key"; else fail "indent env (rc $RC): $OUT"; fi
 
 # 19. an SSH drop (stdout closed) mid-run does not stop the switch half way, and the run is logged on the Pi
 new_pi

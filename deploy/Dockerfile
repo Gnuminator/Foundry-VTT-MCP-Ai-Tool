@@ -74,7 +74,9 @@ COPY scripts/skill-guides.mjs ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.
 # The cogm-dashboard build also puts the React dashboard (web/, Vite) in its dist/web.
-RUN npm run build
+# The shared build must really emit: tsc exits 0 without writing dist when a stale tsbuildinfo says it is up to date
+# (deploy/Dockerfile.dockerignore keeps the host's tsbuildinfo files out of the build context).
+RUN npm run build && test -f shared/dist/index.js && test -f shared/dist/index.d.ts
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
 #

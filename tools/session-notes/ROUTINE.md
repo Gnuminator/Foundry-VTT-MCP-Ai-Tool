@@ -18,7 +18,8 @@ player speech as text, so it never goes into the public repo.
 
 1. Create a private repo, for example `Gnuminator/foundry-recap-inbox`, and clone it. Give it no
    GitHub Actions workflows: the inbox runs nothing on GitHub, so it uses none of the private-repo
-   Actions minutes. The routine runs on Anthropic's side and counts against the Claude subscription.
+   Actions minutes (do not switch on CodeQL or other default Actions setups there). Revoking a
+   player's yes means deleting that session's folder from the inbox repo by hand. The routine runs on Anthropic's side and counts against the Claude subscription.
 2. Set the user environment variable `FVTT_RECAP_INBOX` to the clone's path.
 3. Create the routine at claude.ai/code/routines: repository = the inbox repo, with this tool's
    source added as a second repository (the public repo, `tools/session-notes`), schedule = Monday

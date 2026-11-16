@@ -18,6 +18,7 @@ The whole feature is off unless ``FVTT_RECAP_INBOX`` points at the clone.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -84,10 +85,13 @@ def import_notes(inbox: Path, sessions_root: Path) -> list[str]:
         local = sessions_root / remote.name
         if not local.is_dir() or not notes_done(remote) or notes_done(local):
             continue
+        if any(p.name != ".work" for p in (local / "notes").glob("*")):
+            continue  # local notes already started: never overwrite them
         shutil.copytree(
             remote / "notes",
             local / "notes",
             dirs_exist_ok=True,
+            symlinks=True,
             ignore=shutil.ignore_patterns(".work"),
         )
         done.append(remote.name)
@@ -95,9 +99,17 @@ def import_notes(inbox: Path, sessions_root: Path) -> list[str]:
 
 
 def _git(inbox: Path, *args: str) -> str:
-    proc = subprocess.run(
-        ["git", "-C", str(inbox), *args], capture_output=True, text=True, encoding="utf-8"
-    )
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(inbox), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"git {' '.join(args)} could not run: {exc}") from exc
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {(proc.stderr or proc.stdout).strip()}")
     return proc.stdout
@@ -118,8 +130,11 @@ def sync(sessions_root: Path, inbox: Path, *, use_git: bool = True) -> SyncRepor
                 report.exported.append(session.name)
             elif not reason.startswith(("already", "notes already")):
                 report.skipped.append(f"{session.name} ({reason})")
-    if use_git and report.exported:
+    if use_git:
+        # Decide on git state, not on this pass: a failed commit or push is retried next pass.
         _git(inbox, "add", "-A", SESSIONS_DIR)
-        _git(inbox, "commit", "-m", "inbox: " + ", ".join(report.exported))
-        _git(inbox, "push")
+        if _git(inbox, "status", "--porcelain", SESSIONS_DIR).strip():
+            _git(inbox, "commit", "-m", "inbox: " + (", ".join(report.exported) or "update"))
+        if _git(inbox, "rev-list", "@{u}..HEAD").strip():
+            _git(inbox, "push")
     return report

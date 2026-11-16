@@ -126,7 +126,10 @@ async function playStats(deps: LocalPlayerToolDeps, userId: string): Promise<unk
     .filter(s => typeof s.id === 'string' && typeof s.name === 'string')
     .map(s => ({ id: s.id as string, name: s.name as string }));
   const stats = projectPlayStats(statsRaw, worldId, own);
-  if (!stats) return failure('No play stats yet.');
+  if (!stats)
+    return failure(
+      'No play stats for you are available right now: none are recorded yet, or the GM has them switched off. Ask the GM before trying again.'
+    );
   return text(JSON.stringify(stats));
 }
 

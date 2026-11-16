@@ -90,7 +90,7 @@ describe('the player set is never served on stdio and has no call_tool route', (
       expect(filterToolsBySets(all, resolveToolSets(raw))).toEqual([]);
   });
 
-  it('list_tools leaves them out; list_player_tools carries exactly the five', () => {
+  it('list_tools leaves them out; list_player_tools carries exactly the player tools', () => {
     const { listed, player } = splitPlayerTools(collectToolDefinitions(deps));
     expect(listed.map(t => t.name)).not.toEqual(expect.arrayContaining([names[0]]));
     for (const name of names) expect(listed.map(t => t.name)).not.toContain(name);
@@ -164,6 +164,17 @@ describe('the user id comes from the message only', () => {
     expect(data).not.toHaveProperty('includeWorld');
     expect(data).not.toHaveProperty('includeOtherBooks');
     expect(JSON.stringify(data)).not.toContain('EVIL');
+  });
+
+  it('get-player-skill-guide ignores an injected skill argument and serves the player guide', async () => {
+    const { tools } = make({});
+    const plain = await tools.run('get-player-skill-guide', {}, 'u1');
+    const injected = await tools.run(
+      'get-player-skill-guide',
+      { skill: 'gm-coach', userId: 'X' },
+      'u1'
+    );
+    expect(injected).toEqual(plain);
   });
 
   it('does not pass a client identifier through for the character tools', async () => {

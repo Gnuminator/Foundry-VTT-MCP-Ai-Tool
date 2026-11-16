@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: 977f6fceeec3
+sourceHash: c152ca8046e1
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -51,7 +51,7 @@ Siden er bygget alene af det, spillere må se. Skjulte skabninger, sande navne, 
 fjendens HP, GM-noter og hemmeligheder når aldrig frem til den.
 
 **My character.** Dit eget karakterark på din telefon eller laptop, skrivebeskyttet og opdateret under
-spillet. Din GM sender dig et privat link. Åbn det én gang, så husker siden det på den enhed
+spillet. Gnuminator sender dig et privat link. Åbn det én gang, så husker siden det på den enhed
 (lav et bogmærke eller læg det på din startskærm). Hold linket for dig selv: alle, der har det, kan
 læse dit ark. Det viser kun de karakterer, som din Foundry-bruger ejer. Vælg en visning øverst:
 **At the table** (HP, AC, slots, conditions og ressourcer med et blik), **Paper 2024** eller

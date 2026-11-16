@@ -3,7 +3,7 @@
 // leading each, an always-present pick bar (Damage / Heal inline, condition chips), the roll bar,
 // Show next handout, and Next turn / End combat / Undo in the header. Every write goes through the
 // guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool Runner.
-// The words and small rules are in lib/liveStrip.ts.
+// The words and small rules are in lib/live-strip.ts.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   lazy,

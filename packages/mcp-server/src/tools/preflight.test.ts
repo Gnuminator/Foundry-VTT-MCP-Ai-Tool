@@ -43,7 +43,10 @@ interface Setup {
   paperNightsError?: string;
   wrappers?: Array<{ version: string | null; build?: string; sets: string }>;
   pumps?: PumpHealthSnapshot[];
+  mirror?: { enabled: boolean; lastCycleAt: string | null; lastError: string | null };
 }
+
+const MIRROR_NOW = Date.parse('2026-11-16T20:00:00.000Z');
 
 function tools(setup: Setup = {}): { tools: PreflightTools; query: Mock } {
   const query = vi.fn((method: string): Promise<unknown> => {
@@ -90,6 +93,7 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: Mock } {
       },
     },
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
+    ...(setup.mirror ? { mirrorStatus: () => setup.mirror ?? null, now: () => MIRROR_NOW } : {}),
     ...(setup.pumps ? { pumpHealth: () => setup.pumps ?? [] } : {}),
     logger: logger(),
     bridgeVersion: '1.2.3',
@@ -118,6 +122,61 @@ const PUMP_OK: PumpHealthSnapshot = {
   lastGap: null,
   notRecordingSince: null,
 };
+
+describe('get-preflight Obsidian mirror staleness', () => {
+  const obsidian = async (
+    mirror: NonNullable<Setup['mirror']>,
+    connected = true
+  ): Promise<{ status: string; detail: string } | undefined> =>
+    byId((await tools({ mirror, connected }).tools.handleGetPreflight({})) as PreflightChecksResult)
+      .obsidian;
+
+  it('is ok for a mirror that cycled a minute ago', async () => {
+    const check = await obsidian({
+      enabled: true,
+      lastCycleAt: '2026-11-16T19:59:00.000Z',
+      lastError: null,
+    });
+    expect(check?.status).toBe('ok');
+  });
+
+  it('warns when the last cycle is older than ten minutes', async () => {
+    const check = await obsidian({
+      enabled: true,
+      lastCycleAt: '2026-11-16T19:30:00.000Z',
+      lastError: null,
+    });
+    expect(check?.status).toBe('warn');
+    expect(check?.detail).toContain('may be out of date');
+  });
+
+  it('warns when no cycle finished yet, or the last one failed', async () => {
+    expect((await obsidian({ enabled: true, lastCycleAt: null, lastError: null }))?.status).toBe(
+      'warn'
+    );
+    const failed = await obsidian({
+      enabled: true,
+      lastCycleAt: '2026-11-16T19:59:00.000Z',
+      lastError: 'disk full',
+    });
+    expect(failed).toMatchObject({ status: 'warn' });
+    expect(failed?.detail).toContain('disk full');
+  });
+
+  it('does not call it stale while Foundry is not connected, and ignores a mirror that is off', async () => {
+    expect(
+      (
+        await obsidian(
+          { enabled: true, lastCycleAt: '2026-11-16T10:00:00.000Z', lastError: null },
+          false
+        )
+      )?.status
+    ).toBe('ok');
+    expect((await obsidian({ enabled: false, lastCycleAt: null, lastError: null }))?.status).toBe(
+      'ok'
+    );
+  });
+});
 
 describe('get-preflight recording check', () => {
   it('is info with no pumps, unknown before the first read, ok when clean', async () => {

@@ -13,6 +13,7 @@ export const preflightModule = defineToolModule({
       playSession: use(playSessionModule),
       obsidianVaultDirSet: Boolean(services.obsidianVaultDir),
       pumpHealth: services.pumpHealth,
+      mirrorStatus: services.mirrorStatus,
       logger: services.logger,
     }),
   definitions: tools => tools.getToolDefinitions(),

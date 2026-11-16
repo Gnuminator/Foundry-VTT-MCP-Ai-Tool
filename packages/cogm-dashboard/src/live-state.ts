@@ -23,7 +23,7 @@ import type { PlayerDirectory } from './usage-route.js';
 import type { DashboardPrefsStore } from './dashboard-prefs.js';
 import { THEMES, type ThemeId, type ThemeStore } from './theme.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
-import { PlayerVaultService } from './player-vault/service.js';
+import { PlayerVaultService, type PlayerVaultHealth } from './player-vault/service.js';
 import type { VaultPlayer } from './player-vault/types.js';
 import * as path from 'path';
 
@@ -86,6 +86,8 @@ interface LiveState {
   recordingHealth: () => RecordingHealth;
   stamped: <S extends object>(s: S) => S & { now: string };
   currentPlayerState: () => ReturnType<typeof buildPlayerState>;
+  /** How the player vault passes went; null when the player vaults are off. */
+  playerVaultHealth: () => PlayerVaultHealth | null;
   currentRolls: () => {
     rows: ReturnType<typeof buildRollRows>;
     open: ReturnType<typeof openRolls>;
@@ -385,6 +387,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     recordingHealth: () => recordingHealth,
     stamped,
     currentPlayerState,
+    playerVaultHealth: () => playerVaults?.healthSnapshot() ?? null,
     currentRolls,
     attachPlayerStream,
     themePayload,

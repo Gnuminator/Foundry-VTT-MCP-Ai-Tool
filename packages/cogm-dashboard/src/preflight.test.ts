@@ -57,6 +57,52 @@ describe('playerTextChunks', () => {
   });
 });
 
+describe('runDashboardPreflight player vault staleness', () => {
+  const NOW = Date.parse('2026-11-16T20:00:00.000Z');
+  const vault = async (
+    health: Parameters<typeof runDashboardPreflight>[0]['playerVaultHealth']
+  ): Promise<{ status: string; detail: string } | undefined> => {
+    const result = await runDashboardPreflight({
+      callTool: tools().callTool,
+      gmActionsEnabled: false,
+      sessionSwitches: null,
+      playerState: {},
+      playerVaultHealth: health,
+      now: () => NOW,
+    });
+    return result.checks.find(c => c.id === 'player-vault');
+  };
+
+  it('adds no row when the player vaults are off', async () => {
+    expect(await vault(null)).toBeUndefined();
+  });
+
+  it('is ok after a recent clean pass', async () => {
+    const check = await vault({
+      lastCleanPassAt: NOW - 60_000,
+      failed: [],
+      lastWriteAt: NOW - 3_600_000,
+    });
+    expect(check?.status).toBe('ok');
+  });
+
+  it('warns on an old pass, a failed player, and is unknown before the first pass', async () => {
+    expect(
+      (await vault({ lastCleanPassAt: NOW - 3_600_000, failed: [], lastWriteAt: null }))?.status
+    ).toBe('warn');
+    const failed = await vault({
+      lastCleanPassAt: NOW - 60_000,
+      failed: ['Mira'],
+      lastWriteAt: null,
+    });
+    expect(failed?.status).toBe('warn');
+    expect(failed?.detail).toContain('Mira');
+    expect((await vault({ lastCleanPassAt: null, failed: [], lastWriteAt: null }))?.status).toBe(
+      'unknown'
+    );
+  });
+});
+
 describe('runDashboardPreflight', () => {
   it('adds Turn on for tonight and the player page to the bridge checks', async () => {
     const { callTool, texts } = tools();

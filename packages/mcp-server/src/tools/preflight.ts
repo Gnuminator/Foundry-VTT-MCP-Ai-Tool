@@ -13,10 +13,14 @@ import { SESSION_GAP_MS } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import { clockWithDay, type PumpHealthSnapshot } from '../pump-health.js';
+import type { MirrorStatus } from '../obsidian/mirror-common.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 import { isOlderVersion, isOtherBuild, type WrapperStatus } from '../wrapper-version.js';
 import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
+
+/** A mirror that has not finished a cycle for this long, while Foundry is connected, is stale. */
+export const MIRROR_STALE_MS = 10 * 60_000;
 
 interface ToolDefinition {
   name: string;
@@ -38,6 +42,10 @@ export interface PreflightToolsOptions {
   logger: Logger;
   /** Health of the vault pumps (session events, play log); absent when none runs. */
   pumpHealth?: () => PumpHealthSnapshot[];
+  /** The Foundry mirror's live status (age of its last cycle, last error); null when no pump runs. */
+  mirrorStatus?: () => Pick<MirrorStatus, 'enabled' | 'lastCycleAt' | 'lastError'> | null;
+  /** Tests only: the clock (default Date.now). */
+  now?: () => number;
   /** The stdio wrappers connected to this backend and their versions. */
   wrapperStatus?: () => WrapperStatus;
   /** Tests only: the bridge's version (default: the shared TOOL_VERSION). */
@@ -213,22 +221,7 @@ export class PreflightTools {
       );
     }
 
-    checks.push(
-      this.options.obsidianVaultDirSet
-        ? {
-            id: 'obsidian',
-            label: 'Obsidian notes',
-            status: 'ok',
-            detail: 'The Obsidian folder is set; notes render after changes.',
-          }
-        : {
-            id: 'obsidian',
-            label: 'Obsidian notes',
-            status: 'info',
-            detail:
-              'No Obsidian folder is set, so no notes are written. Fine if you do not use Obsidian.',
-          }
-    );
+    checks.push(this.obsidianCheck(connected));
     checks.push(await this.playSessionCheck());
     checks.push(this.recordingCheck());
 
@@ -238,6 +231,62 @@ export class PreflightTools {
       scan,
       bridgeVersion: this.bridgeVersion,
       moduleVersion,
+    };
+  }
+
+  /**
+   * The Obsidian folder is set and, when the Foundry mirror runs, whether it is current: nobody
+   * opens `_status.md`, so a mirror that stopped cycling or keeps failing would look current.
+   */
+  private obsidianCheck(connected: boolean): PreflightCheck {
+    const label = 'Obsidian notes';
+    if (!this.options.obsidianVaultDirSet) {
+      return {
+        id: 'obsidian',
+        label,
+        status: 'info',
+        detail:
+          'No Obsidian folder is set, so no notes are written. Fine if you do not use Obsidian.',
+      };
+    }
+    const mirror = this.options.mirrorStatus?.() ?? null;
+    if (!mirror?.enabled) {
+      return {
+        id: 'obsidian',
+        label,
+        status: 'ok',
+        detail: 'The Obsidian folder is set; notes render after changes.',
+      };
+    }
+    const now = (this.options.now ?? Date.now)();
+    const last = mirror.lastCycleAt ? Date.parse(mirror.lastCycleAt) : NaN;
+    const problems: string[] = [];
+    if (mirror.lastError) problems.push(`the last mirror cycle failed: ${mirror.lastError}`);
+    if (connected) {
+      if (Number.isNaN(last)) {
+        problems.push('the Foundry mirror has not finished a cycle since the backend started');
+      } else if (now - last > MIRROR_STALE_MS) {
+        problems.push(
+          `the Foundry mirror last updated the notes at ${clockWithDay(last, now)}, so they may be out of date`
+        );
+      }
+    }
+    if (problems.length > 0) {
+      const text = problems.join('; ');
+      return {
+        id: 'obsidian',
+        label,
+        status: 'warn',
+        detail: `${text.charAt(0).toUpperCase()}${text.slice(1)}. AI Tool/Foundry/_status.md in the vault shows what it did last.`,
+      };
+    }
+    return {
+      id: 'obsidian',
+      label,
+      status: 'ok',
+      detail: Number.isNaN(last)
+        ? 'The Obsidian folder is set; notes render after changes.'
+        : `The Foundry mirror last updated the notes at ${clockWithDay(last, now)}.`,
     };
   }
 

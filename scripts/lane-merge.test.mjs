@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { unblocksMainLine } from './lane-merge/main-red.mjs';
 import { REPO } from './lane-merge/constants.mjs';
-import { acceptLines } from './lane-merge/visual-accept.mjs';
+import { acceptLines, visualAcceptProblem } from './lane-merge/visual-accept.mjs';
 import {
   RISKY_CATEGORIES,
   TRAIN_PATTERNS,
@@ -4269,6 +4269,34 @@ test('visual gate: a missing artifact, a failed report job or a report for anoth
   });
   assert.equal(other.code, 1);
   assert.match(other.text, /report is for ffffffff, not the head/);
+});
+
+test('visual gate: a report that compared nothing or could not render stories refuses', () => {
+  const empty = gate({
+    ...withVisual(VIS_CHECK()),
+    visualReport: { ...REPORT, count: 0, compared: 0, errors: [] },
+  });
+  assert.equal(empty.code, 1);
+  assert.match(empty.text, /visual: no story was compared/);
+  const errs = gate({
+    ...withVisual(VIS_CHECK()),
+    visualReport: { ...REPORT, count: 0, compared: 9, errors: [{ id: 'a', error: 'x' }] },
+  });
+  assert.match(errs.text, /visual: 1 story could not render/);
+});
+
+test('visual gate: an accept line in a note whose verdict is carried to the head counts', () => {
+  const rollup = withVisual(VIS_CHECK()).rollup;
+  const run = (cmd, args) => {
+    fs.writeFileSync(
+      path.join(args[args.indexOf('-D') + 1], 'visual-diff.json'),
+      JSON.stringify(REPORT)
+    );
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const reviews = [{ entries: [{ head: OTHER }], visual: [{ n: 3, hash: 'abcd1234' }] }];
+  assert.match(visualAcceptProblem({ run, rollup, head: HEAD, reviews }) ?? '', /differ from main/);
+  assert.equal(visualAcceptProblem({ run, rollup, head: HEAD, reviews, carried: [OTHER] }), null);
 });
 
 test('acceptLines: bullet and bold forms, case, and prose mentions that do not count', () => {

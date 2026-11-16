@@ -35,7 +35,7 @@ export function acceptLines(text) {
  *   rollup: any[], head: string, reviews: { entries: { head: string | null }[], visual?: { n: number, hash: string }[] }[] }} o
  * @returns {string | null}
  */
-export function visualAcceptProblem({ run, rollup, head, reviews }) {
+export function visualAcceptProblem({ run, rollup, head, reviews, carried = [] }) {
   const name = checkNamer(rollup);
   const reports = rollup
     .filter(c => name(c) === REPORT_CHECK)
@@ -86,9 +86,16 @@ export function visualAcceptProblem({ run, rollup, head, reviews }) {
     if (!Number.isInteger(count) || !/^[0-9a-f]{8}$/.test(hash)) {
       return `visual: ${ARTIFACT} visual-diff.json of run ${runId} has no count or hash; rerun the report job (${link})`;
     }
+    // Nothing compared (the base did not build, no shard rendered) or stories that could not
+    // render: nobody can have looked, so this is no "no differences".
+    const unseen = Number(report.compared) === 0 ? 'no story was compared' : null;
+    const errors = Array.isArray(report.errors) ? report.errors.length : 0;
+    if (unseen || errors > 0) {
+      return `visual: ${unseen ?? `${errors} stor${errors === 1 ? 'y' : 'ies'} could not render`} in the ${ARTIFACT} report of run ${runId}; fix the render or rerun the report job (${link})`;
+    }
     if (count === 0) return null;
     const accepted = reviews
-      .filter(r => r.entries.some(e => e.head === head))
+      .filter(r => r.entries.some(e => e.head === head || (!!e.head && carried.includes(e.head))))
       .flatMap(r => r.visual ?? []);
     if (accepted.some(a => a.n === count && a.hash === hash)) return null;
     const stale =

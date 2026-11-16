@@ -498,7 +498,13 @@ export function main(options = {}) {
 
   // d2b. Dashboard story shots that differ from main need an accepting line in the review note.
   if (!failures.some(f => f.startsWith('ci:'))) {
-    const visual = visualAcceptProblem({ run, rollup, head, reviews: reviews ?? [] });
+    const visual = visualAcceptProblem({
+      run,
+      rollup,
+      head,
+      reviews: reviews ?? [],
+      carried: carry.carried ?? [],
+    });
     if (visual) failures.push(visual);
   }
 

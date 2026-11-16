@@ -48,6 +48,8 @@ signed in to this Windows account could use it, so use a TV PC that only the tab
 The email code from Cloudflare is only asked for again after the Access session ends (weeks).
 When the TV shows Cloudflare's sign-in page, do the sign-in step on the [setup page](setup-tv-table.md) once more.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I get the TV to open on the map by itself when its PC starts?" ([how to add the GM coach](gm-coach.md))
+
 ## During the session
 
 - Show the players the scene you want on the TV with **Activate** on that scene. The TV follows
@@ -64,3 +66,5 @@ When the TV shows Cloudflare's sign-in page, do the sign-in step on the [setup p
 To take the TV out of the game, delete the Table player in Foundry (**Esc**, **User Management**)
 or ask Claude to undo the plan in Recent Changes, and delete the TV's profile folder
 (`%LOCALAPPDATA%\FoundryAiTool\table-viewer-profile`).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make sure the players at the table cannot see something on the TV?"

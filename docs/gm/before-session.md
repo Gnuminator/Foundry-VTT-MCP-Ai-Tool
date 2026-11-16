@@ -30,6 +30,8 @@ four stages with times.
       already on the page). Fix everything marked ✗ and look at each **!**. Most of the rest of
       this page is also in the Pre-flight panel's "Check by hand" list (not the GM windows check).
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What does the Pre-flight check look at, and what should I do about a ! or a ✗?" ([how to add the GM coach](gm-coach.md))
+
 ## Turn on what tonight needs
 
 - [ ] In the Pre-flight panel, click **Turn on for tonight**. One click turns on "Allow Write
@@ -49,6 +51,8 @@ four stages with times.
       **Appearance**, **Theme**, **Save**. Every player picks their own the same way; there is no
       table-wide default. See [Themed dice](features.md#themed-dice).
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What does Turn on for tonight switch on, and is it safe to leave on during play?"
+
 ## Check what players will see
 
 - [ ] Scenes tab (map icon), click the scene you start on, **Basics** tab: give it a **Navigation
@@ -67,6 +71,8 @@ four stages with times.
       revealed it (open the journal, right-click a page, **Configure Ownership**). The steps are in
       [Revealing a handout](dashboard.md#revealing-a-handout).
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), make sure **Show cards** is not ticked.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make sure my players only see what they should before the game starts?"
 
 ## Prepare
 

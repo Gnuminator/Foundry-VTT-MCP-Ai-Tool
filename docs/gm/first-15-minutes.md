@@ -13,6 +13,8 @@ be learned in advance. You can stop after any step and come back.
 Foundry is the game on your screen: the map, the characters, the dice. Claude is an AI you can
 chat with, and this tool lets it look at your Foundry game and help you run it. You stay in charge. For most game changes Claude shows you a plan first and you say yes, and once you say yes, the change is listed in the dashboard's Recent Changes with an Undo button. A few things, like rolls, chat and new NPCs, happen straight away; [Asking Claude](asking-claude.md) lists them.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What can Claude do in my Foundry game, and what will it never change without asking me?" ([how to add the GM coach](gm-coach.md))
+
 ## Four steps
 
 1. **Get Claude talking to the game (5 minutes).** Follow
@@ -30,6 +32,8 @@ chat with, and this tool lets it look at your Foundry game and help you run it. 
 
 **If you get stuck on game night, [the runbook](game-night-runbook.md) lists what to do when
 something fails. If you are stuck at any other time, ask your [GM coach](gm-coach.md) in Claude.**
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What is a good first question to ask Claude about my game, one that only reads?"
 
 ## What you can ignore for now
 

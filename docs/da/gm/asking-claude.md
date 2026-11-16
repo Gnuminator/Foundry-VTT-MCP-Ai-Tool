@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: a18acc05b1fa
+sourceHash: c13678802601
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -55,6 +55,8 @@ Forespørgsler der går galt:
 - "Gør den næste combat federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
 - "Ret alt fra i går aftes." Direkte handlinger kan kun fortrydes for ændringer af actors, items, tokens, scenes, combat og journals; se nedenfor.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan formulerer jeg en forespørgsel, så Claude gør det, jeg mener?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Tool sets: hvilke kontakter du skal tænde
 
 Claude Desktop viser værktøjet som fem punkter, ét pr. tool set, hver med sin egen kontakt i
@@ -73,6 +75,8 @@ chats.
 
 En god standard: core og prep tændt, resten slukket. Hvis du beder om noget, der kræver et set, som er
 slukket, siger Claude, hvilket du skal tænde.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvilke tool sets skal jeg tænde til forberedelse, og hvilke til spilaftenen?"
 
 ## Færdige prompts
 
@@ -193,6 +197,8 @@ for Obsidian mirror) og ingen Undo. Læsning virker stadig. Den stopper også da
 ikke kun Claudes.
 
 Dashboardets **GM Actions**-kontakt beskytter kun dashboardet. Den stopper ikke Claude Desktop.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan tjekker og fortryder jeg det, Claude ændrer i mit spil?"
 
 ## Hvad Claude ikke kan
 

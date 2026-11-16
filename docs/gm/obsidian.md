@@ -26,6 +26,8 @@ text, so it stays on your PC. The players get vaults of their own without the se
   the [cookbook](cookbook.md), "Tip for Obsidian"). Prep/Templates has a template for an NPC, a
   location, a quest and a session plan.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What is Obsidian for in my game, and which notes should I write myself?" ([how to add the GM coach](gm-coach.md))
+
 ## Seen in
 
 An NPC note and a scene note have a **Seen in** list: the play sessions where that NPC or scene
@@ -89,6 +91,8 @@ ignored). Claude reads up to 3 blocks per note, 12 creatures per block and 5 not
 `ai_context` set to false is skipped, and only the block's name and creatures are passed on, never
 the rest of the note.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make a prep note for an NPC and keep Claude from reading it?"
+
 ## Can I rename things?
 
 - **In Foundry, yes, freely.** Rename scenes, journals, actors and the rest as you like, for
@@ -101,6 +105,8 @@ the rest of the note.
 - **In the AI Tool folder, don't rename, move or edit anything.** That folder is the tool's. A note
   you edit stops updating and is listed in `_status.md`.
 - **Prep and Home are yours.** Rename, move and edit them as you like.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Can I rename or move things without breaking my vault?"
 
 ## The graph
 

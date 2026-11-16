@@ -35,9 +35,10 @@ day and weather when the scene has them. It has these parts:
 - **You:** if you opened your private link (see My character below), the top of the page says
   "Your turn" or "You are up next", shows each of your characters with HP and conditions, and
   reminds you of the Constitution save when your concentrating character takes damage.
-- **Roll buttons:** when the GM asks you for a roll, it shows as a button on this page (and on My
-  character) if you opened your private link. Press it and your roll goes to the table. You only
-  see requests meant for you.
+- **Roll buttons (optional extra):** you roll in Foundry as usual, from your character sheet or
+  the chat. If you opened your private link, a roll the GM asks you for also shows as a button on
+  this page (and on My character) as a shortcut. Skip it whenever you like: rolling in Foundry
+  does the same. You only see requests meant for you.
 
 The page is built only from what players are allowed to see. Hidden creatures, true names you have
 not learned, enemy HP, GM notes and secrets never reach it.
@@ -50,6 +51,8 @@ read your sheet. It shows only the characters your Foundry user owns. Pick a vie
 **Paper 2014** (the printed sheet's order, to copy or print), or **Paper night** (a sheet to print
 and write on when the table plays on paper). Like the player page, it is live
 behind the email-code login.
+
+> **Not sure? Ask Claude.** Ask the D&D helper: "What do the numbers on my character sheet mean, and what do I click when it is my turn?" ([how to set up the D&D helper](dnd-helper.md))
 
 **Handouts in Foundry.** When the GM reveals a handout, you get a whisper from "Handout" in
 Foundry's chat with its name; click the name to open the page. You can also open it in Foundry's

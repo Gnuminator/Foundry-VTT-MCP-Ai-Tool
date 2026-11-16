@@ -1,6 +1,6 @@
 ---
 source: gm/first-15-minutes.md
-sourceHash: 29fb0a81ebd1
+sourceHash: da1ca175810a
 title: De første 15 minutter
 description: Den ene side, du skal læse først. Hvad værktøjet er, fire små trin med tider, og hvad du kan se bort fra for nu.
 ---
@@ -13,6 +13,8 @@ det skal læres på forhånd. Du kan stoppe efter hvert trin og vende tilbage se
 ## Hvad det er
 
 Foundry er spillet på din skærm: kortet, karaktererne, terningerne. Claude er en AI, du kan chatte med, og dette værktøj lader den kigge ind i dit Foundry-spil og hjælpe dig med at køre det. Du bestemmer stadig. Ved de fleste ændringer i spillet viser Claude dig først en plan, og du siger ja. Når du har sagt ja, står ændringen i dashboardets Recent Changes med en Undo-knap. Nogle få ting, som terningslag, chat og nye NPC'er, sker med det samme. [Spørg Claude](asking-claude.md) har listen.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad kan Claude gøre i mit Foundry-spil, og hvad ændrer den aldrig uden at spørge mig først?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Fire trin
 
@@ -31,6 +33,8 @@ Foundry er spillet på din skærm: kortet, karaktererne, terningerne. Claude er 
 
 **Hvis du går i stå på spilaftenen, står der i [runbooken](game-night-runbook.md), hvad du gør,
 når noget fejler. Hvis du går i stå på andre tidspunkter, så spørg din [GM coach](gm-coach.md) i Claude.**
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er et godt første spørgsmål at stille Claude om mit spil, et der kun læser?"
 
 ## Hvad du kan se bort fra for nu
 

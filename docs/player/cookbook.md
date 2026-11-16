@@ -55,4 +55,10 @@ keeps track of, ask the GM. Good questions:
 
 ## Roll when the GM asks
 
-When the GM asks you for a roll, a button shows up on the player page, and on My character if you opened your private link. Press it and your roll goes to the table. It uses Foundry's own roll, so conditions and advantage on your character apply.
+Roll in Foundry as usual: click the roll on your character sheet, or type it in the chat. That is
+all you need.
+
+As an optional shortcut, if you opened your private link, a roll the GM asks for also shows as a
+button on the player page and on My character. It uses Foundry's own roll, so conditions and
+advantage on your character apply, and the result is the same as rolling in Foundry. Ignore the
+button if you prefer to roll in Foundry.

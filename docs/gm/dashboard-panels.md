@@ -38,6 +38,8 @@ Foundry). Skip it and Cards stays. For the first sessions a quiet line next to *
 you that the other layouts exist; **✕** hides it. The layout is kept for this world, on any
 browser.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Which During layout should I pick, and what does Auto do when a fight starts?" ([how to add the GM coach](gm-coach.md))
+
 ### Combat Tracker
 
 A slim strip at the top of the **During** view. It shows the active combat: initiative, whose turn
@@ -120,6 +122,8 @@ first boss fight. It shows:
 
 The player page never shows any of this.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I run a fight from the dashboard, with damage, conditions and initiative?"
+
 ### Help: the "?" on each panel
 
 Most panels have a small **?** next to their title. It opens this guide at that panel's section, in a
@@ -166,6 +170,8 @@ Undo. The card says where they are:
 
 **Read** shows all the pages in the side panel. The card, the GM summary and the scenes never
 reach the players' page; only the Recap does, when you reveal it.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What happens to the session notes after a recorded session, and how do I get the Recap to my players?"
 
 ### Live Feed
 
@@ -231,6 +237,8 @@ together with other changes (Everything since or a rewind), Redo says so and bri
 back. Undo needs GM Actions on, like everything that changes the game. The same list is in Foundry
 too, as the **Changes** window (below), and, when Obsidian is set up, in your vault as one note per
 day under `AI Tool/Everyone/` (to read, not to undo from).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I undo a change in Recent Changes, including when something changed again afterwards?"
 
 ### The same list inside Foundry
 

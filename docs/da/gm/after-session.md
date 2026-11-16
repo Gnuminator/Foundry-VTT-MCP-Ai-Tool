@@ -1,6 +1,6 @@
 ---
 source: gm/after-session.md
-sourceHash: f88e35957b96
+sourceHash: 709b03d4eb28
 title: Efter hver session
 description: En kort tjekliste til GM'en, når en spilsession er slut.
 ---
@@ -20,6 +20,8 @@ er én handling.
 - [ ] Hvis dashboardets header stadig siger **GM Actions on**, så klik på **End session** (det slår GM Actions fra).
 - [ ] I Tarokka-skuffen (🃏 **Tarokka**, under **Advanced ▾**): fjern fluebenet ved **Show cards**, hvis det er sat.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad gør End session, og hvordan fortryder jeg en ændring fra i aften, som jeg ikke vil beholde?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Slå funktioner fra
 
 - [ ] I Foundry: fanen Settings (tandhjulet), **Game Settings**, kategorien **Foundry AI Tool**. Slå
@@ -36,6 +38,8 @@ er én handling.
 - [ ] Skriv dine egne noter i dine egne filer (for eksempel i `Campaigns/<world id>/Prep/`), ikke i
       de noter, værktøjet har lavet. En genereret note, du redigerer, holder op med at opdatere sig.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan får jeg en recap af aftenens session til mig selv og en, jeg kan dele med spillerne?"
+
 ## Spillernes egne vaults (valgfrit)
 
 Hver spiller kan have sin egen Obsidian-vault, som kun rummer det, vedkommende må se: de handouts, du
@@ -50,6 +54,8 @@ der laves inde i en spillers mappe, går tabt ved næste opdatering.
   session notes kommer aldrig ind i en spillers vault.
 - At dele mapperne med spillerne følger med opsætningen på Orange Pi (en delt mappe, der kun kan
   sende, til hver spiller). Indtil da bliver mapperne på den computer, der kører dashboardet.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er en spillervault, og hvad kan mine spillere se i den?"
 
 ## Før du lukker ned
 

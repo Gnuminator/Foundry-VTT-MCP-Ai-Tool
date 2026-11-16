@@ -1,6 +1,6 @@
 ---
 source: gm/death-and-new-characters.md
-sourceHash: af2b4f08ed9e
+sourceHash: 3ad5915dd020
 title: Når en karakter dør
 description: Hvad du gør, når en spillerkarakter dør, hvordan du fører optegnelser over de faldne, og hvordan du får en ny karakter ind, med hvad værktøjet kan og ikke kan hjælpe med i hvert trin.
 ---
@@ -47,6 +47,8 @@ Værktøjet følger hit points, ikke liv og død:
   sig. Det betyder, at de faldt til 0 HP, så en karakter, der kom op igen, står der også.
 - **Værktøjet sletter ingenting.** Intet værktøj sletter en actor.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad lægger værktøjet mærke til, når en karakter falder til 0 HP, og hvad skal jeg selv afgøre?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Ved bordet: dødsøjeblikket
 
 1. **Tag afgørelsen.** Tjek death saves på arket eller i Combat Tracker. Regelafgørelsen er din.
@@ -66,6 +68,8 @@ Værktøjet følger hit points, ikke liv og død:
 
 Slet ikke actoren. Play stats, session notes i Obsidian og dødsloggen peger alle på den, og en
 senere genoplivning kræver arket, som det var.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "En spillerkarakter døde lige ved bordet. Hvad gør jeg nu?"
 
 ## Efter sessionen: ryd op
 
@@ -119,6 +123,8 @@ er bygget.
    Barovia, hvorfor de er her, én ting de vil have. Skriv den som en side i din handouts-journal, og
    afslør den kun for den spiller: "Reveal the page 'Vasil' in 'Handouts' to Anna."
    (`plan-page-reveal`, prep-sættet). Hold hemmeligheder ude af den. Spilleren læser hvert ord.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan får jeg en ny karakter ind i spillet efter en død?"
 
 ## Kroge til en ny karakter
 

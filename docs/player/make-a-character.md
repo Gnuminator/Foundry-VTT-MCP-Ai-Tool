@@ -41,6 +41,8 @@ Two small things that save trouble:
 - **A step can show a blank panel for about 5 seconds** after you click **Complete**. Nothing is
   wrong. Wait for the next step to appear and don't click again.
 
+> **Not sure? Ask Claude.** Ask the D&D helper: "I am new to D&D. What kind of character fits how I like to play?" ([how to set up the D&D helper](dnd-helper.md))
+
 ## 1. Open Actor Studio
 
 1. In the sidebar on the right, click the **Actors** tab (the person icon).
@@ -170,6 +172,8 @@ The steps you will see, roughly in this order:
   with it. The steps are headed "Level 1 -> 2" even though
   you are building a level-1 character first; that is a labelling quirk. Do the steps as they come.
 
+> **Not sure? Ask Claude.** Ask the D&D helper: "What does each of these choices change for my character, and which one would you pick for a beginner?"
+
 ## 8. Equipment
 
 Next comes the **Equipment** tab.
@@ -272,6 +276,8 @@ A few cosmetic oddities are normal. For example, the Spells tab may show a raw l
 
 **Know your character.** Before the first session, read through your features and spells once.
 Knowing what your character can do is your job, so the game doesn't stop to look things up.
+
+> **Not sure? Ask Claude.** Ask the D&D helper: "Check my sheet: is anything missing or set up wrong for my class and level?"
 
 ## 11. Make it your character
 

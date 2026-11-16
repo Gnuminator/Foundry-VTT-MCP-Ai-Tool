@@ -44,6 +44,8 @@ So on Free, plan to prep with Claude between sessions and use it lightly at the 
 night runs out, play on without it: everything can be done by hand in Foundry
 ([Game night runbook](game-night-runbook.md)).
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make my Claude usage last through a game night on the free plan?" ([how to add the GM coach](gm-coach.md))
+
 ## What Pro adds
 
 | What                  | Pro                                                                   |
@@ -61,6 +63,8 @@ on Free; the tool does not use them.
 
 **When Pro is worth it:** when you hit the limit during prep or on game night more than now and
 then, or when you want Claude at the table for the whole evening. Try Free first.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Is Claude Pro worth it for the way I run my game?"
 
 ## Not clear yet
 

@@ -1,6 +1,6 @@
 ---
 source: gm/tv-table-viewer.md
-sourceHash: 0bf9215cbdf3
+sourceHash: ab613b020da8
 title: TV'et ved bordet
 description: Vis kortet på et tv ved en session, hvor I sidder i samme rum. Tv'et logger ind én gang som en spiller ved navn Table og bliver logget ind.
 ---
@@ -50,6 +50,8 @@ der er logget ind på denne Windows-konto, kan bruge den, så brug en tv-pc, som
 E-mailkoden fra Cloudflare bliver først bedt om igen, når Access-sessionen slutter (uger).
 Når tv'et viser Cloudflares loginside, gør du login-trinnet på [opsætningssiden](setup-tv-table.md) en gang til.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan får jeg tv'et til at åbne på kortet af sig selv, når dets PC starter?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Under sessionen
 
 - Vis spillerne den scene, du vil have på tv'et, med **Activate** på den scene. Tv'et følger
@@ -66,3 +68,5 @@ Når tv'et viser Cloudflares loginside, gør du login-trinnet på [opsætningssi
 For at tage tv'et ud af spillet sletter du Table-spilleren i Foundry (**Esc**, **User Management**)
 eller beder Claude fortryde planen i Recent Changes, og sletter tv'ets profilmappe
 (`%LOCALAPPDATA%\FoundryAiTool\table-viewer-profile`).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan sikrer jeg, at spillerne ved bordet ikke kan se noget på tv'et, de ikke må?"

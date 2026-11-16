@@ -59,6 +59,8 @@ window is not affected.
 
 When to use it: when the table is waiting on you, so the order and who is bloodied are one glance away.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What do the GM windows show, and how do I run a fight from the Combat window?" ([how to add the GM coach](gm-coach.md))
+
 ## Party
 
 ![The Party window](../images/guides/gm-window-party.png)
@@ -82,6 +84,8 @@ The buttons are grey, with the reason, while "AI Tool: Allow Write Operations" i
 When to use it: when you plan a fight or an ambush and want to know what the party can take, and when
 somebody asks "what is my passive Perception again".
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I ask my players for a roll from the Party window?"
+
 ## Session
 
 ![The Session window](../images/guides/gm-window-session.png)
@@ -97,6 +101,8 @@ checks for itself every fifteen seconds.
 
 When to use it: start the session when play begins and end it when you stop, so the log and the
 recap cover the right stretch.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Why should I start and end the session marker, and what happens if I forget?"
 
 ## Scene
 

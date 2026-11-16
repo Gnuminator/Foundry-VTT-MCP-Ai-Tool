@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 4d14f4fd65c0
+sourceHash: 4c92f9b26cd4
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -43,6 +43,8 @@ To små ting, der sparer dig besvær:
   Builderen læser dem kun, når siden indlæses.
 - **Et trin kan vise et tomt panel i omkring 5 sekunder**, efter du har klikket **Complete**. Der er
   ikke noget galt. Vent på, at næste trin dukker op, og klik ikke igen.
+
+> **Usikker? Spørg Claude.** Spørg D&D-hjælperen: "Jeg er ny i D&D. Hvilken slags karakter passer til den måde, jeg gerne vil spille på?" ([sådan sætter du D&D-hjælperen op](dnd-helper.md))
 
 ## 1. Åbn Actor Studio
 
@@ -174,6 +176,8 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
   du bygger en level-1 karakter først. Det er bare en mærkelig overskrift. Tag trinnene, som de
   kommer.
 
+> **Usikker? Spørg Claude.** Spørg D&D-hjælperen: "Hvad ændrer hvert af de her valg for min karakter, og hvilket ville du vælge til en nybegynder?"
+
 ## 8. Equipment
 
 Så kommer fanen **Equipment**.
@@ -276,6 +280,8 @@ Nogle få kosmetiske finurligheder er normale. Fanen Spells kan for eksempel vis
 
 **Kend din karakter.** Før den første session skal du læse dine features og spells igennem én gang.
 Det er dit job at vide, hvad din karakter kan, så spillet ikke går i stå, mens I slår op.
+
+> **Usikker? Spørg Claude.** Spørg D&D-hjælperen: "Tjek mit sheet: mangler der noget, eller er noget sat forkert op til min class og mit level?"
 
 ## 11. Gør den til din karakter
 

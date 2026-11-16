@@ -67,6 +67,8 @@ The page shows on the player page within a few seconds, and players can open it 
 `plan-page-reveal` with `action` hide takes it back. Before a session, open the player page and
 check that the Handouts list shows only what you revealed.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What do my players see on the player page, and how do I reveal a handout without spoiling it early?" ([how to add the GM coach](gm-coach.md))
+
 ## Player links and My character (/me)
 
 Each player can have their own character page: their sheet on a phone or laptop, read-only, and
@@ -102,6 +104,8 @@ What the page leaves out: the GM's secret sections in descriptions, the true nam
 unidentified items (it shows what the player sees in Foundry), and any actor the player does not
 own. Like the player page, it is live on the Pi behind the email-code login, so players reach it from
 their own devices.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I give each player a private link to their character page?"
 
 ## Open in Obsidian (📓)
 
@@ -150,3 +154,5 @@ and turns a session's stats into small cards.
 
 The plugin only talks to the dashboard. When the dashboard is not running, the status bar says
 "dashboard offline" and nothing else changes.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What does the Obsidian plugin add, and how do I set it up?"

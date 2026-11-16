@@ -55,6 +55,8 @@ Requests that go wrong:
 - "Make the next fight cooler." Too vague. Say what you want: tougher, shorter, more terrain.
 - "Fix everything from last night." Direct actions can be undone only for changes to actors, items, tokens, scenes, combat and journals; see below.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I word a request so Claude does what I mean?" ([how to add the GM coach](gm-coach.md))
+
 ## Tool sets: which switches to turn on
 
 Claude Desktop shows the tool as five entries, one per tool set, each with its own switch in the
@@ -73,6 +75,8 @@ new chats.
 
 A good default: core and prep on, the rest off. If you ask for something that needs a set that is
 off, Claude says which one to switch on.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Which tool sets should I switch on for prep, and which for game night?"
 
 ## Ready-made prompts
 
@@ -192,6 +196,8 @@ Tarokka reading or the Obsidian mirror settings) and no Undo. Reading still work
 dashboard's actions too, not only Claude.
 
 The dashboard's **GM Actions** switch only guards the dashboard. It does not stop Claude Desktop.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I check and undo what Claude changes in my game?"
 
 ## What Claude cannot do
 

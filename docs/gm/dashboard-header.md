@@ -44,6 +44,8 @@ It is for you only. It shows exact hit points, including the enemies', so keep i
 the players can see. Players do not get this page: a player who types its address ends up on the
 player page, which shows only what a player already sees.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What are the Before, During and After views, and which one should I be on?" ([how to add the GM coach](gm-coach.md))
+
 ## The header
 
 ### The connection mark and Pre-flight
@@ -179,3 +181,5 @@ Undo. It needs GM Actions and the module switch "AI Tool: Paper sync (writes)".
 One entry under **Advanced**, in the **During screen** group:
 
 - **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What do Start session, GM Actions and Turn on for tonight do, and what should I click before the players join?"

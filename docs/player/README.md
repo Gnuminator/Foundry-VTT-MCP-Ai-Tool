@@ -7,11 +7,13 @@ description: What players see, what the tool records during play, which parts re
 
 Hi! Your GM uses Foundry AI Tool next to Foundry. For you, Foundry works exactly as usual. This
 page explains the extra bits: what you can see, what gets recorded, and what an AI reads. Short
-how-tos are in the [player cookbook](cookbook.md).
+how-tos are in [Using the player page](player-page.md). The player page and My character are
+optional extras next to Foundry, never a replacement.
 
 New to the table? Start with [Join the game](join.md) (the address, logging in, Discord), then
 [Make your character](make-a-character.md). Want an AI helper for your own character and the
-rules? See [The D&D helper for players](dnd-helper.md).
+rules? See [The D&D helper for players](dnd-helper.md), and its ready-made requests in the
+[D&D helper cookbook](cookbook.md).
 
 ## What you see
 

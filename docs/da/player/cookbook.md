@@ -1,59 +1,142 @@
 ---
 source: player/cookbook.md
-sourceHash: 81116def5c63
-title: Spillerens kogebog
-description: Korte how-tos til spillere om player page, at vælge dit navn, handouts til dig, og hvordan du beder GM'en om det, værktøjet ved.
+sourceHash: 0f3af153b25f
+title: D&D-hjælperens kogebog
+description: Færdige forespørgsler til D&D-hjælperen, samlet efter hvornår du har brug for dem (planlæg en karakter, level op, tjek dit ark, regelspørgsmål), med hvad hjælperen gør og ét tip til hver.
 ---
 
-# Spillerens kogebog
+# D&D-hjælperens kogebog
 
-Korte how-tos til de ekstra ting omkring Foundry. Alt i selve Foundry virker som altid. Hvad
-værktøjet optager, og hvilke dele der når en AI, står i [spillerguiden](README.md).
+Færdige forespørgsler til [D&D-hjælperen](dnd-helper.md), den Claude-chat der kan læse din egen
+karakter i Foundry og slå op i de bøger, vores bord bruger. Kopiér ordene i citationstegn og ret
+detaljerne til dine egne. Hjælperen er valgfri: alt her kan også gøres i hånden i Foundry.
 
-Player page er live bag login med e-mailkode. GM'en sender dig adressen.
+**Hjælperen læser kun.** Den ændrer aldrig dit ark, ruller ikke terninger og flytter ikke et token.
+Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos til player page står i
+[Brug player page](player-page.md).
 
-## Vælg dit navn på player page
+## Fire vaner, der gør hver forespørgsel bedre
 
-- **Gør:** første gang du åbner player page, så klik på dit navn øverst. Så står der
-  "Playing as ...". Klikkede du på det forkerte? Klik på **Not you? Change** og vælg igen.
-- **Hvorfor:** handouts, der kun er til dig, vises først, når du har valgt dit navn. Valget fortæller
-  også GM'en, hvilke handouts du har åbnet.
-- **Tip:** dit valg huskes i den browser. På en ny computer eller i en ny browser skal du vælge igen.
+1. **Sig, hvem du er ved bordet.** "Ny i D&D", "jeg har spillet 5e i årevis", "min første caster".
+   Det ændrer, hvor meget hjælperen forklarer.
+2. **Nævn den præcise ting.** Karakterens navn, som det står på arket, den præcise spell eller feat.
+3. **Sig, hvad du vil have tilbage.** "Tre muligheder og et valg", "en liste over, hvad jeg skal
+   klikke på", "to linjer".
+4. **Bed den nævne opslaget.** "Sig, hvilken bog og hvilket opslag det er fra." Finder den ikke et,
+   siger den det og mærker resten som ikke fra bøgerne.
 
-## Følg combaten
+## Før session 0: planlæg en karakter
 
-- **Se på:** **Combat order** på player page: hvem der handler hvornår, hvis turn det er, og rounden.
-- **Godt at vide:** dit party har HP-bars. Monsters viser ingen tal og intet helbredsord (spørg GM'en,
-  hvem der er såret; den, der kører værktøjet, kan slå et groft ord til), og en skabning, hvis navn
-  du ikke har lært, hedder "Unknown creature". Skjulte skabninger er slet ikke på listen.
+### Planlæg en karakter ud fra en stemning
 
-## Læs en handout
+- **Skriv:** "Jeg vil spille en snigende problemløser, der er god med mennesker. Stil mig to eller
+  tre spørgsmål, og giv mig så tre muligheder."
+- **Hvad der sker:** hjælperen spørger, hvordan du vil spille, slår classes, species og backgrounds
+  op i bordets bøger og foreslår to eller tre kombinationer med en anbefaling.
+- **Tip:** sig det, hvis du er ny i D&D. Så forklarer den ordene undervejs.
 
-- **Gør:** åbn **Handouts** på player page og klik på en titel. Du kan også finde den samme side i
-  Foundrys Journal tab.
-- **"just for you":** GM'en har kun vist den for dig (eller nogle få af jer). Andre spillere ser den
-  ikke på deres side, og i Foundry kan kun du åbne den. Del den ved bordet, hvis din karakter ville.
-- **Tip:** er der ikke noget nyt? Handouts dukker op inden for få sekunder efter, at GM'en har vist
-  dem. Genindlæs siden, hvis en ser ud til at mangle.
+### Få et build card at klikke efter
 
-## Vid, hvornår sessionen bliver optaget
+- **Skriv:** "Lav et build card til en level 3 Cleric med den species og background, vi har talt
+  om."
+- **Hvad der sker:** den skriver en kort liste, der følger fanerne i Foundrys karakterbygger, Actor
+  Studio, i rækkefølge: level 1-delen, så de to level-ups, med subclass på level 3.
+- **Tip:** hold kortet åbent ved siden af [Lav din karakter](make-a-character.md), som viser hver
+  fane med billeder.
 
-- **Godt at vide:** når den, der kører værktøjet, skriver `/record start` i Discord, bliver
-  voice-chatten optaget til `/record stop`, og botten skriver en besked, når den starter. Hvis du
-  sagde nej, bliver dit spor slettet efter hver session, og noterne skrives uden dig.
-- **Tip:** vil du have noget slettet eller holdt uden for optagelsen? Spørg GM'en, se
-  [få dine data slettet](README.md#få-dine-data-slettet).
+### Sammenlign to muligheder
 
-## Spørg GM'en, ikke AI'en
+- **Skriv:** "Jeg er i tvivl mellem Rogue og Ranger til en spejder. Hvad får jeg fra hver på level 1
+  til 3, og hvad ville jeg gå glip af?"
+- **Hvad der sker:** den læser class-opslagene, stiller de to op ved siden af hinanden og siger,
+  hvilken der passer til det, du har fortalt, at du vil.
+- **Tip:** "hvad er bedst" er en mening, og hjælperen siger det. Bøgerne lister muligheder, de
+  rangerer dem ikke.
 
-Kun GM'en taler med Claude i dag, i sin egen Claude-app. Hvis du vil vide noget, som værktøjet holder
-styr på, så spørg GM'en. Gode spørgsmål:
+## Level op
 
-- "Hvor meget damage gav jeg sidste session?" (play-statistikken pr. karakter)
-- "Hvilke handouts har vi indtil videre?"
-- "Kan du sende os et recap af sidste session?" (et recap uden spoilers, lavet til spillere)
-- "Hvad stod der i brevet fra i sidste uge igen?"
+### Level op
 
-## Roll, når GM'en beder om det
+- **Skriv:** "Jeg har nok XP til næste level. Hvad får jeg automatisk, hvad vælger jeg, og hvad
+  klikker jeg på i Foundry?"
+- **Hvad der sker:** den læser dit ark og det næste level og svarer i to dele: hvad du får, og hvad
+  du vælger, med et valg til din build. Den slutter med klikkene.
+- **Tip:** på level 3 skal du klikke **Complete** i det andet vindue, ellers bliver subclass ikke
+  tilføjet. Hjælperen minder dig om det.
 
-Når GM'en beder dig om et roll, dukker der en knap op på player page, og på My character, hvis du har åbnet dit private link. Tryk på den, så går dit roll til bordet. Det bruger Foundrys eget roll, så conditions og advantage på din karakter gælder.
+### Vælg en feat
+
+- **Skriv:** "Hvilken feat skal jeg tage på level 4? Jeg kæmper mest fra baglinjen."
+- **Hvad der sker:** den lister nogle feats, du opfylder kravene til, hvad hver gør, og en
+  anbefaling til din build, med opslaget nævnt.
+- **Tip:** fortæl, hvordan jeres kampe plejer at se ud. En feat, der er god i ét party, er ikke
+  nødvendigvis god i dit.
+
+### Byt en spell og planlæg frem
+
+- **Skriv:** "Kan jeg bytte en spell, når jeg levler op? Og skriv en plan ned for mine næste tre
+  levels."
+- **Hvad der sker:** den forklarer bytte-reglen for din class og skriver en plan, du kan indsætte et
+  sikkert sted. En casters level-up spørger ikke, hvilke spells du lærer, så hjælperen siger, at du
+  skal tilføje dem på Spells-fanen.
+- **Tip:** indsæt planen i starten af din næste chat, så hjælperen kan samle op. Den husker ikke
+  gamle chats.
+
+## Tjek dit ark
+
+### Tjek arket
+
+- **Skriv:** "Tjek mit karakterark mod det build card, vi lavede. Ser noget forkert ud?"
+- **Hvad der sker:** den læser arket og går det igennem linje for linje: OK, eller "Wrong: klik her
+  for at rette det".
+- **Tip:** gør det efter hvert level-up. Et valg, der blev sprunget over i et Foundry-vindue, er let
+  at overse.
+
+### Se, hvad du kan gøre i din turn
+
+- **Skriv:** "List, hvad jeg kan gøre i combat med min karakter: attacks, spells, bonus actions og
+  alt med begrænset brug."
+- **Hvad der sker:** den læser dine items og features og sorterer dem i action, bonus action og
+  reaction.
+- **Tip:** den læser arket, når du spørger, ikke live. Efter en rest eller en kamp skal du sige det
+  og bede den kigge igen.
+
+### Forstå et tal på arket
+
+- **Skriv:** "Hvorfor er min AC 16? Og hvad består min spell save DC af?"
+- **Hvad der sker:** den læser arket og viser regnestykket stykke for stykke: armor, Dexterity,
+  proficiency og så videre.
+- **Tip:** et tal, der ser forkert ud, kan være et valg, der blev sprunget over. Følg op med "Tjek
+  mit karakterark".
+
+## Regelspørgsmål ved eller mellem sessioner
+
+### Slå en regel op
+
+- **Skriv:** "Hvordan virker grappling? Sig, hvilken bog og hvilket opslag det er fra."
+- **Hvad der sker:** den søger i bøgerne og svarer i denne form: svaret først, et par punkter om,
+  hvordan det virker, og så kilden. Den omskriver og indsætter ikke sider.
+- **Tip:** finder den det ikke, så prøv et andet ord ("grapple" og "grappled"), eller bed om en
+  søgning efter, hvad tingen gør.
+
+### Sammenlign to actions
+
+- **Skriv:** "Hvad er forskellen på Dodge og Disengage, og hvornår er hver af dem værd?"
+- **Hvad der sker:** den læser begge opslag, giver forskellen i klart sprog og så en kort tommelfinger
+  regel.
+- **Tip:** tommelfingerreglen er et råd, ikke en regel. GM'en har det sidste ord ved bordet.
+
+### Tjek en tricky situation før sessionen
+
+- **Skriv:** "Hvis jeg caster Hold Person på en skabning, og den så går ud af min line of sight,
+  stopper spellen eller min concentration så?"
+- **Hvad der sker:** afgør bøgerne det, får du svaret og opslaget. Gør de ikke, får du to måder at
+  afgøre det på og en anbefaling.
+- **Tip:** tag spørgsmålet med til GM'en før sessionen, hvis bøgerne ikke afgør det. "Jeg ville
+  afgøre det sådan her, er det OK?" er let at spørge om.
+
+### Historien? Spørg GM'en
+
+Hjælperen kan ikke se eventyret, monsters, andre spilleres karakterer eller GM'ens noter. Til
+historien, et sted, en NPC eller det, der er planlagt, spørger du GM'en. Mere under
+[hvad hjælperen ikke kan se](dnd-helper.md#hvad-hjælperen-ikke-kan-se).

@@ -70,7 +70,7 @@ for names.
 `--model` takes a faster-whisper name, a Hugging Face id of a CTranslate2 model, or a folder.
 hviske-v6 and saga-2-m are not Whisper: they need the image built with the extras
 (`docker build --build-arg WITH_TRANSFORMERS=1 -t fvtt-transcriber:extras tools/transcriber`, adds
-torch 2.11.0 cu128 and transformers) and a model folder (mounted into the container) or a Hugging
+torch 2.14.1 cu130 and transformers) and a model folder (mounted into the container) or a Hugging
 Face id. They run in chunk mode: Silero chunks, batched, with evenly spread pseudo word times
 (`"pseudo_words": true` in the JSON). The hviske path follows the benchmark script. The saga-2-m path
 is written from its model card and has not been run (gated model).

@@ -1,6 +1,8 @@
 # Frozen from the working voice venv (Python 3.12) by pip freeze, minus dev tooling (pre-commit and its chain).
-# Install: pip install --no-deps -r requirements-voice.lock.txt --extra-index-url https://download.pytorch.org/whl/cu128
-# setuptools stays below 82: 82 and later drop pkg_resources, and then perth (the chatterbox watermarker) fails to load.
+# Install: pip install --no-deps -r requirements-voice.lock.txt --extra-index-url https://download.pytorch.org/whl/cu130
+# setuptools stays at 81.0.0: 82 and later drop pkg_resources, and then perth (the chatterbox watermarker) fails to load
+# (tested again with 84.2.1 on 2026-11-16: PerthImplicitWatermarker is None). Alerts 88 and 129 need 83 and 84.1, so they are dismissed.
+# torchaudio has no build after 2.11; it is pinned to the last one and runs with torch 2.14 (checked by the narrator test run).
 # (--no-deps: chatterbox-tts pins torch 2.6, which has no Blackwell support; everything it needs is listed here.)
 annotated-doc==0.0.5
 antlr4-python3-runtime==4.9.3
@@ -72,11 +74,11 @@ spacy_pkuseg==1.0.1
 srsly==2.5.4
 sympy==1.14.0
 threadpoolctl==3.7.0
-tokenizers==0.22.2
-torch==2.11.0+cu128
-torchaudio==2.11.0+cu128
+tokenizers==0.23.3
+torch==2.14.1+cu130
+torchaudio==2.11.0+cu130
 tqdm==4.70.1
-transformers==5.10.0
+transformers==5.23.0
 typer==0.27.2
 typer-slim==0.24.0
 typing_extensions==4.16.0

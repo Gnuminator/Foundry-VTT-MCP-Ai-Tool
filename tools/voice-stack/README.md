@@ -152,7 +152,7 @@ and warns when more than 6 GB is already in use. The LiveKit services do not use
 | ---------------------------- | -------------------------------------------------------------------------------- |
 | Transcriber base image       | `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04` (CUDA 12.8, cuDNN 9, Python 3.12) |
 | faster-whisper / CTranslate2 | 1.2.1 / 4.8.2 (Blackwell, sm_120, runs on the RTX 5080)                          |
-| Extras (optional)            | torch 2.11.0 (cu128), transformers 4.57.6                                        |
+| Extras (optional)            | torch 2.14.1 (cu130), transformers 5.23.0                                        |
 | Pipeline base image          | `python:3.12-slim`                                                               |
 
 ## What stays on the host

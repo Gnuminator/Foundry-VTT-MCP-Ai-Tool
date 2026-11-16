@@ -22,6 +22,7 @@ import {
   OPEN_REQUEST_HEADER,
   OPEN_REQUEST_VALUE,
   asRecord,
+  errorMessage as errorText,
   isFoundryUuid,
   type OpenLinkError,
   type OpenLinkErrorCode,
@@ -174,10 +175,6 @@ function toResult(raw: unknown): OpenLinkResult {
     name: typeof r.name === 'string' ? r.name : null,
     userId: typeof r.userId === 'string' ? r.userId : '',
   };
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** The tool's "Several GMs are logged in (...); pass userId" error. */

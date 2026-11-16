@@ -42,6 +42,10 @@
  *       merge train full: post "merge train full: ask a session to run live:roundtrip", exit 3; the
  *         ready line stays, so the next logon or a manual start after `--train-reset` merges it.
  *       CI still running after the gate's wait (exit 5): left for the next round.
+ *       refused only for being behind main (not mergeable, or the drift check's moved lockfile): the
+ *         runner merges aitool/main into the lane branch, pushes it (lease on the old head) and
+ *         writes a ready line for the new head with the same review (merge-runner/refresh.mjs);
+ *         a real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
  *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"
  *         --if-ready <PR>@<sha>` (that replaces the ready line, so it is not tried again until a
  *         lane writes a new one; a newer ready line is never overwritten) and one #pr-log line.
@@ -86,6 +90,9 @@ import {
   findGhosts,
   makeQueueDeps,
 } from './merge-runner/queue.mjs';
+import { makeBaseDeps, runningInfo, skipMainWait } from './merge-runner/base-current.mjs';
+import { openLeft } from './merge-runner/open-steps.mjs';
+import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
@@ -152,7 +159,7 @@ const TIP_WAIT_KEY = 'main-tip-wait';
  * on main is never cancelled by a newer push, so a cancelled tip run means the tip was not tested.
  * @param {string} json
  * @param {string} [tip]
- * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean }}
+ * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean, running?: boolean, prevGreen?: boolean }}
  */
 export function mainState(json, tip = '') {
   /** @type {{ conclusion?: string | null, status?: string, headSha?: string, event?: string }[]} */
@@ -190,7 +197,8 @@ export function mainState(json, tip = '') {
   if (!run) return { red: false, wait: true, sha: '', why: 'no CI run on main to judge' };
   const sha = String(run.headSha ?? '').slice(0, 7);
   if (!run.conclusion || (run.status && run.status !== 'completed')) {
-    return { red: false, wait: true, sha, why: `main's CI is still running at ${sha}` };
+    const why = `main's CI is still running at ${sha}`;
+    return { red: false, wait: true, sha, why, ...runningInfo(runs, run, tip) };
   }
   if (run.conclusion === 'success') return { red: false, wait: false, sha, why: '' };
   return { red: true, wait: false, sha, why: `main is red at ${sha} (CI ${run.conclusion})` };
@@ -259,6 +267,7 @@ const norm = p => {
  *   gh: (args: string[]) => Ran,
  *   prepare: (o: { pr: number, head: string }) => string | null,
  *   gate: (pr: number) => Ran,
+ *   refresh?: import('./merge-runner/refresh.mjs').Refresh,
  *   backlog: (args: string[]) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
@@ -267,6 +276,7 @@ const norm = p => {
  *   trainRemove?: (pr: number) => void,
  *   trainAdd?: (pr: number, head: string) => void,
  *   selfCheck?: () => import('./merge-runner/self-check.mjs').SelfCheckResult | null,
+ *   baseCurrent?: (r: { pr: number, head: string }, tip: string) => boolean,
  *   unready?: (backlogText: string) => import('./merge-runner/unready.mjs').Unready[],
  *   noticeSeen?: (key: string) => boolean,
  *   noticeMark?: (key: string) => void,
@@ -296,6 +306,7 @@ export function round(d, tried, attempts) {
     if (r.status !== 0) {
       d.log(`WARNING: ${what} for ${id} not written (${oneLine(r.stderr || r.stdout, 200)})`);
     }
+    return r.status === 0;
   };
   /**
    * The refusal replaces the ready line only while it is still that same line (`--if-ready`,
@@ -323,21 +334,15 @@ export function round(d, tried, attempts) {
    * @param {string} [sha] main's commit that holds the head, when GitHub has no merge commit for the PR
    */
   const markDone = (r, fromReady = true, sha = '') => {
-    // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
-    // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
+    // An item with a Pi run, a Waiting blocker, or a done-when that names a tag, publish, ruleset
+    // change or the user's OK is not closed here: it gets a "merged" progress line instead.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
-    const piLeft = item && /^yes\b/i.test(item.fields.get('pi')?.at(-1) ?? '');
-    const waiting = item && (item.fields.get('blocked by') ?? []).some(b => /\bW\d+\b/.test(b));
-    if (piLeft || waiting) {
-      d.log(`#${r.pr} (${r.id}) merged, but a Pi run or Waiting item is left; not closing it`);
+    const left = item ? openLeft(item.fields, r.pr) : '';
+    if (left) {
+      d.log(`#${r.pr} (${r.id}) merged, but a step is left; not closing it`);
       write(
         r.id,
-        [
-          'progress',
-          r.id,
-          `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
-          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
-        ],
+        ['progress', r.id, left, ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : [])],
         'progress'
       );
       return;
@@ -502,7 +507,7 @@ export function round(d, tried, attempts) {
       '-L',
       '10',
       '--json',
-      'conclusion,headSha,status,event',
+      'conclusion,headSha,status,event,attempt',
     ]);
     const tipRead = d.gh(['api', `repos/${REPO}/git/ref/heads/main`, '--jq', '.object.sha']);
     const tip = tipRead.stdout.trim();
@@ -536,7 +541,8 @@ export function round(d, tried, attempts) {
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
     // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
     queueOn ??= d.queueOn?.() ?? false;
-    if (main.wait && !(queueOn && main.sha !== '')) {
+    const onTip = skipMainWait(d, main, queueOn, r, tip);
+    if (main.wait && !onTip && !(queueOn && main.sha !== '')) {
       d.log(`${main.why}; next round`);
       // A tip with no usable run does not clear itself when GitHub never started its CI: say so once.
       if ('tipWait' in main && main.tipWait) {
@@ -696,7 +702,13 @@ export function round(d, tried, attempts) {
       );
     } else {
       tried.add(key);
-      refuse(r, out.reason);
+      // Refused only for being behind main: merge main in, push, a ready line for the new head.
+      const fr = refreshStep(d.refresh, r, out.reason, parseProgress(fresh ?? '').get(r.id));
+      if ('refusal' in fr) refuse(r, fr.refusal);
+      else {
+        d.log(fr.log);
+        d.post(write(r.id, fr.args, 'progress') ? fr.post : fr.postFailed);
+      }
     }
   }
   return { stop: null, merged };
@@ -928,6 +940,7 @@ function realDeps(o) {
         return e instanceof Error ? e.message : String(e);
       }
     },
+    refresh: makeRefresh({ checkout: o.checkout, run: sh, repo: REPO, mainRef: MAIN }),
     gate: pr => {
       const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');
       if (!copy) return { status: 1, stdout: '', stderr: 'no scripts/lane-merge.mjs on main' };
@@ -966,6 +979,7 @@ function realDeps(o) {
     log: stamp,
     ...makeUnreadyDeps({ sh, repo: REPO, vault: o.vault }),
     ...makeQueueDeps({ sh, stamp, repo: REPO }),
+    ...makeBaseDeps({ sh, repo: REPO }),
     selfCheck:
       makeSelfCheck({
         // backlog.mjs is started as its own process for every Backlog write: its code counts too.

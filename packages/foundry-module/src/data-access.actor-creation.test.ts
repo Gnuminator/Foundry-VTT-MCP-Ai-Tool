@@ -1,6 +1,5 @@
 /**
  * Characterization tests for the `actor-creation` domain of `FoundryDataAccess`:
- *   - createActorFromCompendium       (creature-type search → clone → create)
  *   - createActorFromCompendiumEntry  (explicit pack/item id → toObject → create)
  *   - addActorItems                   (author embedded Items onto an existing actor)
  *   - addActorsToScene                (place actor prototype tokens onto the scene)
@@ -13,25 +12,20 @@
  * wires the live compendium domain into `ActorCreationDataAccess`.
  *
  * Harness gaps worked around locally (never editing shared harness files):
- *   - Writes are gated by `permissionManager.checkWritePermission`, which reads
- *     `allowWriteOperations` + `maxActorsPerRequest`. `world.enableWrites(max)`
- *     sets both; tests that pin ACCESS_DENIED simply omit it.
+ *   - Writes are gated by `requireWriteOperations` (`allowWriteOperations`) and the
+ *     actor quantity limit (`maxActorsPerRequest`). `world.enableWrites(max)`
+ *     sets both; tests that pin a refusal simply omit it.
  *   - `addActorsToScene` reads `actor.prototypeToken.toObject()`. `makeActor`
  *     doesn't attach a prototypeToken, so world actors used for token placement
  *     get one assembled locally with a `toObject()` that returns a plain token
  *     template (mirrors the `withUpdate` stub pattern in other write nets).
- *   - The cloned-actor path in `createActorFromCompendium` goes through
- *     `Actor.createDocuments`; to pin the rollback branch it is overridden locally
- *     to throw, then restored.
- *   - `transactionManager` is a module-level singleton shared across tests; each
- *     transaction id is unique per install (foundry.utils.randomID resets), so the
- *     ledger does not leak observable state into these assertions.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES } from './constants.js';
 import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { WRITES_DISABLED_MESSAGE } from './write-gate.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -85,244 +79,62 @@ function addActorWithProtoToken(
 }
 
 // ===========================================================================
-// createActorFromCompendium: permission + lookup guards
+// Write gate and quantity limit (the checks that replaced the old permission layer)
 // ===========================================================================
 
-describe('FoundryDataAccess: createActorFromCompendium: guards', () => {
-  it('throws ACCESS_DENIED when write operations are disabled', async () => {
-    // no enableWrites() → allowWriteOperations is undefined → permission denied
-    await expect(da.createActorFromCompendium({ creatureType: 'Goblin' })).rejects.toThrow(
-      `${ERROR_MESSAGES.ACCESS_DENIED}: Create Actor is disabled in module settings`
-    );
+describe('FoundryDataAccess: createActorFromCompendiumEntry: write gate and quantity limit', () => {
+  it('refuses with the write gate message when writes are off', async () => {
+    // no enableWrites() → allowWriteOperations is undefined → refused
+    await expect(
+      da.createActorFromCompendiumEntry({ packId: 'p', itemId: 'i', customNames: ['A'] })
+    ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
   });
 
   it('throws ACCESS_DENIED when quantity exceeds maxActorsPerRequest', async () => {
-    // The permission gate rejects quantity > max BEFORE the request-level clamp.
     world.enableWrites(2);
     await expect(
-      da.createActorFromCompendium({ creatureType: 'Goblin', quantity: 5 })
+      da.createActorFromCompendiumEntry({
+        packId: 'p',
+        itemId: 'i',
+        customNames: ['A', 'B', 'C', 'D', 'E'],
+        quantity: 5,
+      })
     ).rejects.toThrow(`${ERROR_MESSAGES.ACCESS_DENIED}: Quantity 5 exceeds maximum allowed 2`);
   });
 
-  it('throws "No compendium entry found" when the creature type matches nothing', async () => {
-    world.enableWrites();
-    addActorPack('world.monsters', 'Monsters', [{ id: 'o1', name: 'Orc', type: 'npc' }]);
-
-    await expect(da.createActorFromCompendium({ creatureType: 'Dragon' })).rejects.toThrow(
-      'No compendium entry found for "Dragon"'
-    );
-  });
-});
-
-// ===========================================================================
-// createActorFromCompendium: success paths
-// ===========================================================================
-
-describe('FoundryDataAccess: createActorFromCompendium: success', () => {
-  it('creates a single actor and returns the full result shape', async () => {
-    world.enableWrites();
-    addActorPack('world.monsters', 'SRD Monsters', [
-      {
-        id: 'gob1',
-        name: 'Goblin',
-        type: 'npc',
-        img: 'goblin.webp',
-        system: { details: { cr: 0.25 } },
-      },
-    ]);
-
-    const before = world.actors.size;
-    const result = await da.createActorFromCompendium({ creatureType: 'Goblin' });
-
-    expect(result.success).toBe(true);
-    expect(result.totalRequested).toBe(1);
-    expect(result.totalCreated).toBe(1);
-    expect(result.tokensPlaced).toBe(0);
-    expect(result.errors).toBeUndefined();
-    expect(result.actors).toHaveLength(1);
-    expect(result.actors[0]).toMatchObject({
-      name: 'Goblin',
-      originalName: 'Goblin',
-      type: 'npc',
-      sourcePackId: 'world.monsters',
-      sourcePackLabel: 'SRD Monsters',
-    });
-    // The actor was actually created into the world.
-    expect(world.actors.size).toBe(before + 1);
-    expect(world.actors.get(result.actors[0].id)).toBeTruthy();
+  it('refuses 11 names at the default limit of 10 and allows exactly 10', async () => {
+    world.enableWrites(10);
+    const names = Array.from({ length: 11 }, (_, i) => `N${i}`);
+    await expect(
+      da.createActorFromCompendiumEntry({
+        packId: 'p',
+        itemId: 'i',
+        customNames: names,
+        quantity: 11,
+      })
+    ).rejects.toThrow('Quantity 11 exceeds maximum allowed 10');
+    // 10 passes the limit and fails later, on the missing pack
+    await expect(
+      da.createActorFromCompendiumEntry({
+        packId: 'p',
+        itemId: 'i',
+        customNames: names.slice(0, 10),
+        quantity: 10,
+      })
+    ).rejects.toThrow('Compendium pack "p" not found');
   });
 
-  it('creates the "Foundry MCP Creatures" Actor folder and assigns it', async () => {
-    world.enableWrites();
-    addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
-
-    await da.createActorFromCompendium({ creatureType: 'Goblin' });
-
-    const folder = world.folders.find(
-      (f: any) => f.name === 'Foundry MCP Creatures' && f.type === 'Actor'
-    );
-    expect(folder).toBeTruthy();
-    const created = world.actors.find((a: any) => a.name === 'Goblin');
-    expect(created!.folder).toBe(folder!.id);
-  });
-
-  it('reuses an existing "Foundry MCP Creatures" folder rather than creating a second', async () => {
-    world.enableWrites();
-    world.addFolder({ id: 'existing', name: 'Foundry MCP Creatures', type: 'Actor' });
-    addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
-
-    await da.createActorFromCompendium({ creatureType: 'Goblin' });
-
-    const matching = world.folders.filter(
-      (f: any) => f.name === 'Foundry MCP Creatures' && f.type === 'Actor'
-    );
-    expect(matching).toHaveLength(1);
-    const created = world.actors.find((a: any) => a.name === 'Goblin');
-    expect(created!.folder).toBe('existing');
-  });
-
-  it('auto-numbers names when quantity > 1 (and clamps to maxActorsPerRequest)', async () => {
-    world.enableWrites(3);
-    addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
-
-    // request 3 (== max) so the permission gate passes; names auto-number 1..3
-    const result = await da.createActorFromCompendium({ creatureType: 'Goblin', quantity: 3 });
-
-    expect(result.totalRequested).toBe(3);
-    expect(result.totalCreated).toBe(3);
-    expect(result.actors.map(a => a.name)).toEqual(['Goblin 1', 'Goblin 2', 'Goblin 3']);
-    expect(result.actors.every(a => a.originalName === 'Goblin')).toBe(true);
-  });
-
-  it('honours customNames, falling back to auto-numbering past the array end', async () => {
-    world.enableWrites(3);
-    addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
-
-    const result = await da.createActorFromCompendium({
-      creatureType: 'Goblin',
-      quantity: 3,
-      customNames: ['Snik', 'Grub'],
-    });
-
-    // index 0,1 use custom names; index 2 has no custom name → `${name} 3`
-    expect(result.actors.map(a => a.name)).toEqual(['Snik', 'Grub', 'Goblin 3']);
-  });
-
-  it('prefers an exact (case-insensitive) name match over a partial one', async () => {
-    world.enableWrites();
-    addActorPack('world.monsters', 'Monsters', [
-      { id: 'gob-scout', name: 'Goblin Scout', type: 'npc' },
-      { id: 'gob', name: 'Goblin', type: 'npc' },
-    ]);
-
-    const result = await da.createActorFromCompendium({ creatureType: 'goblin' });
-
-    expect(result.actors[0].originalName).toBe('Goblin');
-  });
-
-  it('uses packPreference to disambiguate when there is no exact match', async () => {
-    world.enableWrites();
-    addActorPack('world.a', 'Pack A', [{ id: 'd1', name: 'Dragon Wyrmling', type: 'npc' }]);
-    addActorPack('world.b', 'Pack B', [{ id: 'd2', name: 'Dragon Whelp', type: 'npc' }]);
-
-    const result = await da.createActorFromCompendium({
-      creatureType: 'dragon',
-      packPreference: 'world.b',
-    });
-
-    expect(result.actors[0].sourcePackId).toBe('world.b');
-  });
-
-  it('clears a remote (http) prototype-token texture on the cloned actor', async () => {
-    world.enableWrites();
-    addActorPack('world.monsters', 'Monsters', [
-      {
-        id: 'gob1',
-        name: 'Goblin',
-        type: 'npc',
-        prototypeToken: { texture: { src: 'https://example.com/remote.png' } },
-      },
-    ]);
-
-    await da.createActorFromCompendium({ creatureType: 'Goblin' });
-
-    const created = world.actors.find((a: any) => a.name === 'Goblin');
-    expect(created!.prototypeToken.texture.src).toBeNull();
-  });
-});
-
-// ===========================================================================
-// createActorFromCompendium: addToScene branch
-// ===========================================================================
-
-describe('FoundryDataAccess: createActorFromCompendium: addToScene', () => {
-  it('runs the scene placement when addToScene=true and reports tokensPlaced', async () => {
-    // `createActor` and `modifyScene` share the `allowWriteOperations` toggle, so
-    // enableWrites() satisfies both gates and the scene path actually executes.
-    world.enableWrites();
-    addActorPack('world.monsters', 'Monsters', [
-      { id: 'gob1', name: 'Goblin', type: 'npc', prototypeToken: { texture: { src: '' } } },
-    ]);
-    const scene = world.addScene({ id: 'scene1', name: 'Field', active: true });
-    world.setActiveScene(scene.id);
-
-    const result = await da.createActorFromCompendium({
-      creatureType: 'Goblin',
-      addToScene: true,
-    });
-
-    // The actor is created; the placement runs but the cloned actor's
-    // prototypeToken (a plain cloned object) has no `toObject()`, so per-actor
-    // token prep is swallowed inside addActorsToScene and 0 tokens are placed.
-    // That inner failure is NOT propagated to the outer result's errors.
-    expect(result.success).toBe(true);
-    expect(result.totalCreated).toBe(1);
-    expect(result.tokensPlaced).toBe(0);
-    expect(result.errors).toBeUndefined();
-  });
-
-  it('records a non-fatal error when scene placement throws (no active scene)', async () => {
-    // addToScene=true with no active scene: addActorsToScene throws "No active
-    // scene found"; the outer try/catch records it as an error but the created
-    // actor still counts as a success (totalCreated stays 1).
-    world.enableWrites();
-    addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
-    // deliberately no active scene
-
-    const result = await da.createActorFromCompendium({
-      creatureType: 'Goblin',
-      addToScene: true,
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.totalCreated).toBe(1);
-    expect(result.tokensPlaced).toBe(0);
-    expect(result.errors).toEqual(['Failed to add actors to scene: No active scene found']);
-  });
-});
-
-// ===========================================================================
-// createActorFromCompendium: rollback on significant failure
-// ===========================================================================
-
-describe('FoundryDataAccess: createActorFromCompendium: rollback', () => {
-  it('rolls back and throws when fewer than half the requested actors are created', async () => {
-    world.enableWrites(3);
-    addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
-
-    // Force every per-actor creation to fail so createdActors.length (0) < quantity/2.
-    const realCreateDocuments = (globalThis as any).Actor.createDocuments;
-    (globalThis as any).Actor.createDocuments = vi.fn(() => {
-      throw new Error('boom');
-    });
-
-    try {
-      await expect(
-        da.createActorFromCompendium({ creatureType: 'Goblin', quantity: 3 })
-      ).rejects.toThrow(/Actor creation failed:/);
-    } finally {
-      (globalThis as any).Actor.createDocuments = realCreateDocuments;
-    }
+  it('counts the requested quantity as the smaller of quantity and the names given', async () => {
+    world.enableWrites(2);
+    // 5 requested but one name: one actor, so under the limit (fails later on the pack)
+    await expect(
+      da.createActorFromCompendiumEntry({
+        packId: 'p',
+        itemId: 'i',
+        customNames: ['A'],
+        quantity: 5,
+      })
+    ).rejects.toThrow('Compendium pack "p" not found');
   });
 });
 
@@ -606,9 +418,7 @@ describe('FoundryDataAccess: addActorsToScene: guards', () => {
   it('throws ACCESS_DENIED when modifyScene is disabled', async () => {
     await expect(
       da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
-    ).rejects.toThrow(
-      `${ERROR_MESSAGES.ACCESS_DENIED}: Modify Scene is disabled in module settings`
-    );
+    ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
   });
 
   it('throws "No active scene found" when there is no current scene', async () => {

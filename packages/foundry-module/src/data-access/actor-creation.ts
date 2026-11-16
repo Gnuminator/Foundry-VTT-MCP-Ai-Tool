@@ -1,15 +1,10 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
-import { permissionManager } from '../permissions.js';
-import { transactionManager } from '../transaction-manager.js';
+import { requireWriteOperations } from '../write-gate.js';
 import * as shared from './shared.js';
 import { currentLevelId } from '../systems/core.js';
-import { CompendiumDataAccess } from './compendium.js';
 import type {
-  ActorCreationRequest,
   ActorCreationResult,
   CreatedActorInfo,
-  CompendiumEntryFull,
-  CompendiumSearchResult,
   SceneTokenPlacement,
   TokenPlacementResult,
 } from './types.js';
@@ -19,147 +14,34 @@ import { viewedScene } from '../viewed-scene.js';
 const CREATURES_FOLDER = 'Foundry MCP Creatures';
 
 /**
- * Actor-creation domain, spawning actors from compendium content (by
- * creature-type search or by explicit pack/item id), authoring embedded items
- * onto an existing actor, and dropping actor prototype tokens onto the scene.
- *
- * The compendium domain is injected (creature-type search + full-document
- * fetch), so this domain never reaches into compendium internals directly.
+ * Refuse a request for more actors than the hidden `maxActorsPerRequest` world
+ * setting allows (default 10). Same text the old permission layer gave.
  */
-export class ActorCreationDataAccess {
-  constructor(private compendium: CompendiumDataAccess) {}
-
-  // ---- public API ----------------------------------------------------------
-
-  /**
-   * Create one or more actors by searching the compendium for a creature type,
-   * cloning the best match, and (optionally) dropping them onto the scene.
-   *
-   * Wrapped in a rollback transaction: if more than half the requested actors
-   * fail to create, the whole batch is rolled back and the call throws;
-   * otherwise it commits and reports per-actor errors non-fatally.
-   */
-  async createActorFromCompendium(request: ActorCreationRequest): Promise<ActorCreationResult> {
-    shared.validateFoundryState();
-
-    const permissionCheck = permissionManager.checkWritePermission('createActor', {
-      quantity: request.quantity || 1,
-    });
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
-
+export function assertActorQuantity(quantity: number): void {
+  if (quantity > 1) {
     const maxActors = game.settings.get(MODULE_ID, 'maxActorsPerRequest') as number;
-    const quantity = Math.min(request.quantity || 1, maxActors);
-
-    const transactionId = transactionManager.startTransaction(
-      `Create ${quantity} actor(s) from compendium: ${request.creatureType}`
-    );
-
-    try {
-      const compendiumEntry = await this.findBestCompendiumMatch(
-        request.creatureType,
-        request.packPreference
+    if (quantity > maxActors) {
+      throw new Error(
+        `${ERROR_MESSAGES.ACCESS_DENIED}: Quantity ${quantity} exceeds maximum allowed ${maxActors}`
       );
-      if (!compendiumEntry) {
-        throw new Error(`No compendium entry found for "${request.creatureType}"`);
-      }
-
-      const sourceDoc = await this.compendium.getCompendiumDocumentFull(
-        compendiumEntry.pack,
-        compendiumEntry.id
-      );
-
-      const createdActors: CreatedActorInfo[] = [];
-      const errors: string[] = [];
-
-      for (let i = 0; i < quantity; i++) {
-        try {
-          const customName =
-            request.customNames?.[i] ||
-            (quantity > 1 ? `${sourceDoc.name} ${i + 1}` : sourceDoc.name);
-
-          const newActor = await this.createActorFromSource(sourceDoc, customName);
-
-          transactionManager.addAction(
-            transactionId,
-            transactionManager.createActorCreationAction(newActor.id)
-          );
-
-          createdActors.push({
-            id: newActor.id,
-            name: newActor.name,
-            originalName: sourceDoc.name,
-            type: newActor.type,
-            sourcePackId: compendiumEntry.pack,
-            sourcePackLabel: compendiumEntry.packLabel,
-            img: newActor.img,
-          });
-        } catch (error) {
-          errors.push(`Failed to create actor ${i + 1}: ${this.errorMessage(error)}`);
-        }
-      }
-
-      let tokensPlaced = 0;
-      if (request.addToScene && createdActors.length > 0) {
-        try {
-          const scenePermissionCheck = permissionManager.checkWritePermission('modifyScene', {
-            targetIds: createdActors.map(a => a.id),
-          });
-          if (!scenePermissionCheck.allowed) {
-            errors.push(`Cannot add to scene: ${scenePermissionCheck.reason}`);
-          } else {
-            const tokenResult = await this.addActorsToScene(
-              { actorIds: createdActors.map(a => a.id), placement: 'random', hidden: false },
-              transactionId
-            );
-            tokensPlaced = tokenResult.tokensCreated;
-          }
-        } catch (error) {
-          errors.push(`Failed to add actors to scene: ${this.errorMessage(error)}`);
-        }
-      }
-
-      // Roll back the whole batch only when most of the request failed.
-      if (
-        errors.length > 0 &&
-        createdActors.length < quantity &&
-        createdActors.length < quantity / 2
-      ) {
-        console.warn(
-          `[${MODULE_ID}] Rolling back due to significant failures (${createdActors.length}/${quantity} created)`
-        );
-        await transactionManager.rollbackTransaction(transactionId);
-        throw new Error(`Actor creation failed: ${errors.join(', ')}`);
-      }
-
-      transactionManager.commitTransaction(transactionId);
-
-      const result: ActorCreationResult = {
-        success: createdActors.length > 0,
-        actors: createdActors,
-        ...(errors.length > 0 ? { errors } : {}),
-        tokensPlaced,
-        totalRequested: quantity,
-        totalCreated: createdActors.length,
-      };
-
-      return result;
-    } catch (error) {
-      try {
-        await transactionManager.rollbackTransaction(transactionId);
-      } catch (rollbackError) {
-        console.error(`[${MODULE_ID}] Failed to rollback transaction:`, rollbackError);
-      }
-      throw error;
     }
   }
+}
+
+/**
+ * Actor-creation domain, spawning actors from a compendium document (explicit
+ * pack/item id), authoring embedded items onto an existing actor, and dropping
+ * actor prototype tokens onto the scene.
+ */
+export class ActorCreationDataAccess {
+  // ---- public API ----------------------------------------------------------
 
   /**
    * Create actors from a specific compendium document (explicit pack + item id),
    * copying its system/items/effects/prototype-token. No compendium search -
    * the caller already knows exactly which document to clone. No rollback
-   * transaction; per-actor failures are reported non-fatally.
+   * ledger; per-actor failures are reported non-fatally and each created actor
+   * is a change-journal record the GM can undo.
    */
   async createActorFromCompendiumEntry(request: {
     packId: string;
@@ -174,17 +56,11 @@ export class ActorCreationDataAccess {
   }): Promise<ActorCreationResult> {
     shared.validateFoundryState();
 
-    // P-036: the same gate as createActorFromCompendium (it creates at most one actor per name).
-    const requested = Math.min(
-      request.quantity ?? 1,
-      Math.max(request.customNames?.length ?? 0, 1)
+    // P-036: it creates at most one actor per name.
+    requireWriteOperations();
+    assertActorQuantity(
+      Math.min(request.quantity ?? 1, Math.max(request.customNames?.length ?? 0, 1))
     );
-    const permissionCheck = permissionManager.checkWritePermission('createActor', {
-      quantity: requested,
-    });
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
 
     try {
       const { packId, itemId, customNames, quantity = 1, addToScene = false, placement } = request;
@@ -327,10 +203,7 @@ export class ActorCreationDataAccess {
     shared.validateFoundryState();
 
     // P-036: adding items changes the actor, like creating one.
-    const permissionCheck = permissionManager.checkWritePermission('createActor');
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
+    requireWriteOperations();
 
     const { actorIdentifier, items } = params;
 
@@ -371,21 +244,12 @@ export class ActorCreationDataAccess {
   /**
    * Add actors to the current scene as tokens. Each actor's prototype token is
    * cloned, positioned per the placement strategy, and created on the scene.
-   * Per-actor failures (unknown id, bad prototype) are recorded and skipped; a
-   * `transactionId` (when supplied) ties the created tokens to a rollback ledger.
+   * Per-actor failures (unknown id, bad prototype) are recorded and skipped.
    */
-  async addActorsToScene(
-    placement: SceneTokenPlacement,
-    transactionId?: string
-  ): Promise<TokenPlacementResult> {
+  async addActorsToScene(placement: SceneTokenPlacement): Promise<TokenPlacementResult> {
     shared.validateFoundryState();
 
-    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
-      targetIds: placement.actorIds,
-    });
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
+    requireWriteOperations();
 
     const scene = viewedScene(game.scenes);
     if (!scene) {
@@ -437,15 +301,6 @@ export class ActorCreationDataAccess {
     }
 
     const createdTokens = await scene.createEmbeddedDocuments('Token', tokenData);
-
-    if (transactionId && createdTokens.length > 0) {
-      for (const token of createdTokens) {
-        transactionManager.addAction(
-          transactionId,
-          transactionManager.createTokenCreationAction(token.id)
-        );
-      }
-    }
 
     const result: TokenPlacementResult = {
       success: createdTokens.length > 0,
@@ -507,67 +362,6 @@ export class ActorCreationDataAccess {
     if (it.img) doc.img = it.img;
     if (it.system && typeof it.system === 'object') doc.system = it.system;
     return doc;
-  }
-
-  /**
-   * Resolve the best compendium match for a creature type: an exact
-   * (case-insensitive) name match wins; otherwise a result from the preferred
-   * pack; otherwise the first (fuzzy) result, or null when nothing matches.
-   */
-  private async findBestCompendiumMatch(
-    creatureType: string,
-    packPreference?: string
-  ): Promise<CompendiumSearchResult | null> {
-    const results = await this.compendium.searchCompendium(creatureType, 'Actor');
-
-    const exactMatch = results.find(r => r.name.toLowerCase() === creatureType.toLowerCase());
-    if (exactMatch) return exactMatch;
-
-    if (packPreference) {
-      const packMatch = results.find(r => r.pack === packPreference);
-      if (packMatch) return packMatch;
-    }
-
-    return results.length > 0 ? results[0] : null;
-  }
-
-  /**
-   * Clone a full compendium document into a new world Actor with a custom name,
-   * stripping source identifiers, clearing remote token textures, and filing it
-   * under the creatures folder.
-   */
-  private async createActorFromSource(
-    sourceDoc: CompendiumEntryFull,
-    customName: string
-  ): Promise<Actor> {
-    try {
-      const actorData = foundry.utils.deepClone(sourceDoc.fullData);
-
-      actorData.name = customName;
-      this.prepareTokenCopy(actorData.prototypeToken, customName);
-
-      // Drop source-specific identifiers so Foundry assigns fresh ones.
-      delete actorData._id;
-      delete actorData.folder;
-      delete actorData.sort;
-
-      if (!actorData.name) actorData.name = customName;
-      if (!actorData.type) actorData.type = sourceDoc.type || 'npc';
-
-      const folderId = await this.creaturesFolderId();
-      if (folderId) {
-        actorData.folder = folderId;
-      }
-
-      const createdDocs = await Actor.createDocuments([actorData]);
-      if (!createdDocs || createdDocs.length === 0) {
-        throw new Error('Failed to create actor document');
-      }
-      return createdDocs[0];
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Actor creation failed:`, error);
-      throw error;
-    }
   }
 
   /**

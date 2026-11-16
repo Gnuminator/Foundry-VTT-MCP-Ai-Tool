@@ -44,7 +44,7 @@ export const CharacterItemSchema = z.object({
   name: z.string(),
   type: z.string(),
   img: z.string().optional(),
-  system: z.record(z.unknown()),
+  system: z.record(z.string(), z.unknown()),
 });
 
 export const CharacterEffectSchema = z.object({
@@ -66,7 +66,7 @@ export const CharacterInfoSchema = z.object({
   name: z.string(),
   type: z.string(),
   img: z.string().optional(),
-  system: z.record(z.unknown()),
+  system: z.record(z.string(), z.unknown()),
   items: z.array(CharacterItemSchema),
   effects: z.array(CharacterEffectSchema),
 });
@@ -82,7 +82,7 @@ export const CompendiumSearchResultSchema = z.object({
   img: z.string().optional(),
   pack: z.string(),
   packLabel: z.string(),
-  system: z.record(z.unknown()).optional(),
+  system: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const CompendiumPackSchema = z.object({
@@ -343,7 +343,7 @@ export const CampaignPartSchema = z.object({
   levelRecommendation: LevelRecommendationSchema,
   gmNotes: z.string().default(''),
   playerContent: z.string().default(''),
-  scaling: ScalingOptionsSchema.default({}),
+  scaling: ScalingOptionsSchema.prefault({}),
   journalId: z.string().optional(),
   createdAt: z.number().optional(),
   completedAt: z.number().optional(),
@@ -405,5 +405,6 @@ export const CampaignTemplateSchema = z.object({
       levelRecommendation: LevelRecommendationSchema,
     })
   ),
-  metadata: CampaignMetadataSchema.partial(),
+  // zod 4 applies a default inside .partial(); the template keeps tags absent when not given.
+  metadata: CampaignMetadataSchema.extend({ tags: z.array(z.string()).optional() }).partial(),
 });

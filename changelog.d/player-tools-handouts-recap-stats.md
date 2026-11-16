@@ -1,0 +1,3 @@
+### Player connector
+
+- **Handouts, recap, quests and play stats for a player's own Claude:** the player set gains `get-my-handouts` (the handouts the GM revealed to that player, newest first, with text; `kind` picks the recap, quests or other handouts) and `get-my-play-stats` (the play stats of the player's own characters and the campaign totals). The dashboard answers both with the filters the player page and My character already use: only revealed pages, nothing meant for another player, public rolls only, no hidden creatures, true names, enemy HP or GM notes. The player set budget is raised from 2,500 to 3,100 characters for them. The player cookbook and the D&D helper guide (English and Danish) have requests for them (Backlog player-tools-handouts-recap-stats).

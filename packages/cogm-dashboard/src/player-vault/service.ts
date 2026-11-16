@@ -3,7 +3,12 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import type { CharacterSheet, PlayerHandout } from '@gnuminator/shared';
+import {
+  asRecord,
+  errorMessage as errorText,
+  type CharacterSheet,
+  type PlayerHandout,
+} from '@gnuminator/shared';
 
 import type { SessionEvent } from '../feed/types.js';
 import type { Logger } from '../logger.js';
@@ -87,14 +92,6 @@ export interface PlayerVaultHealth {
   failed: string[];
   /** Last time any player's folder was rewritten, ms since epoch. */
   lastWriteAt: number | null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**

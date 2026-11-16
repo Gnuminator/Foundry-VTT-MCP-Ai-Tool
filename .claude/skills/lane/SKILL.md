@@ -117,7 +117,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   `npm run docs:tools`.
 - **Ready to merge (the merge runner merges, D-140):** once every review for the head says Merge, run
   `backlog.mjs progress <id> --ready <n> --head <40-char sha> --review <note path>`, keep the branch
-  pushed and stop; message nobody. The runner gates that head in its own checkout and writes a
+  pushed and stop; message nobody. The runner may push a main merge to it: fetch first. The runner gates that head in its own checkout and writes a
   refusal over the line. With the merge queue on, the gate enqueues; a failed queue run needs
   a fresh ready line. Never run the
   gate without `--dry-run`; don't offer Auto-fix. To check
@@ -127,7 +127,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   d=$(cygpath -m "$(mktemp -d)") && git fetch -q aitool main && git archive aitool/main scripts/lane-merge.mjs scripts/lane-merge | tar -x -C "$d" && test -s "$d/scripts/lane-merge.mjs" && node "$d/scripts/lane-merge.mjs" <PR> --dry-run
   ```
 
-  (The gate is the entry file plus the folder `scripts/lane-merge/`, so both come out of main together.)
+  (The gate is `lane-merge.mjs` plus `scripts/lane-merge/`.)
 
   Only a `lane:merge: OK #<PR>` line passes; anything else (or nothing) is a refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
   `drift:check` and the merge train. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check

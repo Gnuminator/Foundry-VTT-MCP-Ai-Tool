@@ -29,6 +29,8 @@ export const PLAYER_TOOLS = [
   'search-books',
   'find-book-entries',
   'get-book-entry',
+  'get-my-handouts',
+  'get-my-play-stats',
   'get-player-skill-guide',
 ];
 

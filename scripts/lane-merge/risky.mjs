@@ -14,7 +14,6 @@ export const RISKY_CATEGORIES = [
     patterns: [
       'packages/foundry-module/src/data-access/guarded-write*',
       'packages/foundry-module/src/live-plan*',
-      'packages/foundry-module/src/transaction-manager*',
       'packages/foundry-module/src/guarded-features*',
       'packages/foundry-module/src/change-journal*',
       'packages/foundry-module/src/queries.ts',
@@ -44,10 +43,7 @@ export const RISKY_CATEGORIES = [
   {
     // The write gate: what may change the world, and who may.
     name: 'the write gate',
-    patterns: [
-      'packages/foundry-module/src/write-gate*',
-      'packages/foundry-module/src/permissions*',
-    ],
+    patterns: ['packages/foundry-module/src/write-gate*'],
   },
   {
     // Security: dashboard auth (server and React side) and redaction, secret stripping, the

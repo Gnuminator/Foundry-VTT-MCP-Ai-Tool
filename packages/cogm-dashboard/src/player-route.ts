@@ -36,6 +36,11 @@ import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
 import type { PlayerConnectorOptions } from './player-connector.js';
+import {
+  PLAYER_LOCAL_TOOLS,
+  runLocalPlayerTool,
+  type LocalPlayerToolDeps,
+} from './player-local-tools.js';
 import type { PlayerDirectory } from './usage-route.js';
 
 /** The only tools this endpoint runs; the backend checks the same list again. */
@@ -46,6 +51,7 @@ const PLAYER_ENDPOINT_TOOLS: readonly string[] = [
   'find-book-entries',
   'get-book-entry',
   'get-player-skill-guide',
+  ...PLAYER_LOCAL_TOOLS,
 ];
 
 export interface PlayerRouteClient {
@@ -60,6 +66,8 @@ export interface PlayerRouteOptions {
   client: PlayerRouteClient;
   directory: PlayerDirectory;
   logger: Logger;
+  /** What the dashboard answers itself (handouts, play stats); without it those tools are not listed. */
+  local?: LocalPlayerToolDeps;
   /** Client versions seen (item client-updates); absent on fakes. */
   clients?: ClientRegistry;
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
@@ -346,9 +354,12 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       }
       try {
         const raw = (await client.listPlayerTools()) as { tools?: unknown } | undefined;
-        const tools = (
-          Array.isArray(raw?.tools) ? (raw.tools as Array<{ name?: unknown }>) : []
-        ).filter(t => typeof t?.name === 'string' && PLAYER_ENDPOINT_TOOLS.includes(t.name));
+        const tools = (Array.isArray(raw?.tools) ? (raw.tools as Array<{ name?: unknown }>) : [])
+          .filter(t => typeof t?.name === 'string' && PLAYER_ENDPOINT_TOOLS.includes(t.name))
+          // A dashboard with no local source cannot answer these two, so it does not list them.
+          .filter(
+            t => options.local !== undefined || !PLAYER_LOCAL_TOOLS.includes(t.name as string)
+          );
         res.json({ jsonrpc: '2.0', id, result: { tools } });
       } catch {
         res.json(rpcError(id, -32000, 'The table is not reachable right now.'));
@@ -361,7 +372,8 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
         res.json(rpcError(id, -32602, 'Unknown tool'));
         return;
       }
-      if (typeof client.playerTool !== 'function') {
+      const isLocal = PLAYER_LOCAL_TOOLS.includes(p.name);
+      if (isLocal ? !options.local : typeof client.playerTool !== 'function') {
         res.status(503).end();
         return;
       }
@@ -370,7 +382,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           ? p.arguments
           : {};
       try {
-        const result = await client.playerTool(who.userId, p.name, args);
+        const result =
+          isLocal && options.local
+            ? await runLocalPlayerTool(options.local, p.name, args, who.userId)
+            : await client.playerTool!(who.userId, p.name, args);
         // Only a result that can carry the line spends this player's six-hour slot.
         const notice =
           extVersion &&

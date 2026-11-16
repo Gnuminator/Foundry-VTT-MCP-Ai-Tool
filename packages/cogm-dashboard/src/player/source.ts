@@ -1,4 +1,4 @@
-import type { PlayerHandout, PlayerVisibility } from '@gnuminator/shared';
+import { asRecord, type PlayerHandout, type PlayerVisibility } from '@gnuminator/shared';
 
 import type { Logger } from '../logger.js';
 
@@ -23,10 +23,6 @@ interface RawRow {
   html: string;
   revealedAt: string | null;
   players: string[] | null;
-}
-
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
 }
 
 /** How often the session marker is re-read (ms); each read scans vault files. */

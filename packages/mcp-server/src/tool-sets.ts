@@ -77,7 +77,7 @@ const SET_TEXT: Readonly<Record<ToolSetName, Omit<ToolSetSpec, 'tools'>>> = {
   player: {
     title: 'Player',
     purpose:
-      "A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio.",
+      "A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio.",
   },
 };
 

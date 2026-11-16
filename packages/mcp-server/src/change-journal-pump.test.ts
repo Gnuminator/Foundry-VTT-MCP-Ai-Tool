@@ -17,7 +17,6 @@ import {
   dateKeyStart,
 } from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
-import { makeLogger } from './test-support/make-tool-harness.js';
 import { VaultStore } from './vault/store.js';
 
 const T0 = new Date(2026, 9, 6, 20, 0, 0).getTime();
@@ -121,7 +120,7 @@ beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'change-journal-pump-'));
   store = new VaultStore({ dataDir });
   foundry = new FakeModule();
-  logger = makeLogger();
+  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;
 });
 

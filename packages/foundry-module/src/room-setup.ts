@@ -28,6 +28,7 @@ import type {
 } from '@gnuminator/shared';
 
 import { MODULE_ID } from './constants.js';
+import { newId } from './new-id.js';
 import { findSpots, type GridLike, type Rect } from './party-place.js';
 import { currentLevelId, sceneHasLevels } from './systems/core.js';
 import { viewedScene } from './viewed-scene.js';
@@ -95,15 +96,6 @@ function contentsOf(collection: unknown): Rec[] {
 
 function quoted(name: unknown): string {
   return `"${typeof name === 'string' ? name : ''}"`;
-}
-
-function newId(): string {
-  const randomID = globals().foundry?.utils?.randomID;
-  if (typeof randomID === 'function') return randomID(16);
-  // Foundry always has randomID; this fallback is for the test harness and uses the platform CSPRNG.
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, b => chars[b % chars.length]).join('');
 }
 
 function requireGm(): void {

@@ -1,3 +1,4 @@
+import { asRecord } from '@gnuminator/shared/browser';
 import { startedOnCreate } from './combat-plan.js';
 import { MODULE_ID } from './constants.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
@@ -58,11 +59,6 @@ import { viewedScene } from './viewed-scene.js';
 // ---------------------------------------------------------------------------
 // Narrow helpers
 // ---------------------------------------------------------------------------
-
-/** `v` as a plain object, or null. Also accepts an ambient `any`-typed value. */
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-}
 
 /** Cast an unknown (or ambient `any`) value onto one of the local structural interfaces below. */
 function shape<T>(v: unknown): T | null {

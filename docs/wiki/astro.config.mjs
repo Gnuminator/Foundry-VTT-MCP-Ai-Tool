@@ -56,7 +56,8 @@ export default defineConfig({
     starlight({
       title: 'Foundry AI Tool',
       // English at the root; the Danish GM and player guides under /da/ (docs/da/README.md).
-      // A page with no Danish version (the Foundry basics) shows its English page under /da/.
+      // A page with no Danish version (the GM side's Foundry basics) shows its English page under
+      // /da/; the Foundry basics for players have Danish twins (docs/da/foundry/).
       defaultLocale: 'root',
       locales: {
         root: { label: 'English', lang: 'en' },
@@ -89,13 +90,10 @@ export default defineConfig({
       // to it would need the exclude below (the home page uses an absolute URL, which is skipped).
       plugins: [
         starlightLinksValidator({
-          // The /da/ pages of the Foundry basics are Starlight's fallback pages (the English page
-          // under /da/); the validator does not know them, but the build writes them.
-          exclude: [
-            '/Foundry-VTT-MCP-Ai-Tool/storybook/**',
-            '/Foundry-VTT-MCP-Ai-Tool/da/foundry/**',
-            '/Foundry-VTT-MCP-Ai-Tool/da/player/foundry/**',
-          ],
+          // /da/foundry/ (the GM side's Foundry basics) holds Starlight's fallback pages (the
+          // English page under /da/); the validator does not know them, but the build writes them.
+          // The player side's /da/player/foundry/ pages are real Danish twins.
+          exclude: ['/Foundry-VTT-MCP-Ai-Tool/storybook/**', '/Foundry-VTT-MCP-Ai-Tool/da/foundry/**'],
         }),
       ],
     }),

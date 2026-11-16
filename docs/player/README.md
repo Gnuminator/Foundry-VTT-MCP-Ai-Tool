@@ -44,7 +44,7 @@ The page is built only from what players are allowed to see. Hidden creatures, t
 not learned, enemy HP, GM notes and secrets never reach it.
 
 **My character.** Your own character sheet on your phone or laptop, read-only, and up to date
-during play. Your GM sends you a private link; open it once and the page remembers it on that
+during play. Gnuminator sends you a private link; open it once and the page remembers it on that
 device (bookmark it or add it to your home screen). Keep the link to yourself: anyone with it can
 read your sheet. It shows only the characters your Foundry user owns. Pick a view at the top:
 **At the table** (HP, AC, slots, conditions and resources at a glance), **Paper 2024** or

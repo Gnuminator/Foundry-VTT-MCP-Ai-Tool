@@ -12,7 +12,7 @@
     "packages/foundry-module/src/queries.ts": 1824,
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/change-history.ts": 1443,
-    "packages/mcp-server/src/guarded-write/service.ts": 1546,
+    "packages/mcp-server/src/guarded-write/service.ts": 1543,
     "packages/mcp-server/src/handouts/service.ts": 1210,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2146,

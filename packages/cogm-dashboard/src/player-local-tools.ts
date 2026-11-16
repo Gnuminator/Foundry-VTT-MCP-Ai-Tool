@@ -23,7 +23,7 @@ const QUEST_TITLE = /\bquests?\b/i;
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 10;
 /** Longest text of one handout handed to a player's Claude. */
-export const HANDOUT_TEXT_CHARS = 6000;
+const HANDOUT_TEXT_CHARS = 6000;
 
 export interface LocalPlayerToolDeps {
   /** The handouts this player may see (`PlayerViewSource.handoutsFor`). */

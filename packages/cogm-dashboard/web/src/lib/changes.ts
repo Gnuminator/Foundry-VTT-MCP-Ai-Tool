@@ -4,6 +4,8 @@
 // everything since, rewind the table) as the dialogs it walks through. No React here, so the rules
 // have unit tests; panels/RecentChanges.tsx draws them and makes the calls.
 
+import { isRecord } from '../../../../../shared/src/util/record.js';
+
 /** How many changes the AI tab asks for. */
 export const AI_LIMIT = 20;
 
@@ -15,9 +17,6 @@ export const EVERYONE_REFRESH_MS = 4000;
 
 /** The bridge tool that lists everyone's changes; an older bridge has none and the tab is hidden. */
 export const EVERYONE_TOOL = 'list-changes';
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const strings = (v: unknown): string[] =>

@@ -3,7 +3,12 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import type { CharacterSheet, PlayerHandout } from '@gnuminator/shared';
+import {
+  asRecord,
+  errorMessage as errorText,
+  type CharacterSheet,
+  type PlayerHandout,
+} from '@gnuminator/shared';
 
 import type { SessionEvent } from '../feed/types.js';
 import type { Logger } from '../logger.js';
@@ -77,14 +82,6 @@ export interface PlayerVaultRebuild {
   failed: string[];
   /** True when the pass wrote nothing because the handouts were not loaded yet. */
   waiting?: boolean;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**

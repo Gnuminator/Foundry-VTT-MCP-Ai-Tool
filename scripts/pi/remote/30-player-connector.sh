@@ -45,6 +45,9 @@ remote_src="${REMOTE_SRC_FILE:-/root/player-connector.remote.json.new}"
 cfg="$TOOL_ETC/player-connector.json"
 envf="$TOOL_ETC/player-connector.env"
 access="$TOOL_ETC/dashboard-access.env"
+# The hosts this stage ever put into DASHBOARD_ALLOWED_HOSTS (names only, one per line), so UNDO also takes out a host an earlier
+# table had (a --remote-host that changed since).
+hosts_rec="$TOOL_ETC/player-connector.hosts"
 dash_base=http://127.0.0.1:3000
 dash_unit=foundry-ai-tool-dashboard.service
 bridge_unit=foundry-ai-tool-bridge.service
@@ -232,6 +235,7 @@ if [ "$undo" = 1 ]; then
   say "undo: the player connector off"
   tohosts=""
   [ ! -f "$cfg" ] || tohosts="$(player_hosts 2>/dev/null || true)"
+  [ ! -f "$hosts_rec" ] || tohosts="$tohosts $(cat "$hosts_rec" 2>/dev/null || true)"
   hosts=""
   [ ! -f "$access" ] || hosts="$(sed -n 's/^DASHBOARD_ALLOWED_HOSTS=//p' "$access" | tail -n 1)"
   # Only what is really there is undone, and only a service whose own input changes is restarted (a restart drops the GM link).
@@ -256,6 +260,7 @@ if [ "$undo" = 1 ]; then
   [ "$restart_bridge" = 0 ] || mark_changed "$unit_dir/$bridge_unit"
   rm -f "${envf:?}"
   if [ "$undo_host" = 1 ]; then
+    # a recorded host that is not in the list now is simply not found below
     # Plain string work (no sed pattern), so the dots of the host are not wildcards.
     new=",$hosts,"
     for h in $tohosts; do
@@ -273,6 +278,7 @@ if [ "$undo" = 1 ]; then
     mark_changed "$access"
     ok "the player hosts taken out of DASHBOARD_ALLOWED_HOSTS"
   fi
+  rm -f "${hosts_rec:?}"
   warn "$cfg is kept (it holds the players' secrets); delete it by hand when the connector is retired"
   enable_unit "$bridge_unit"
   enable_unit "$dash_unit" "$access"
@@ -364,6 +370,26 @@ if [ "$will_change" = 1 ]; then
 fi
 
 ports_before="$(ports_line)"
+
+# Remember every host this stage puts into DASHBOARD_ALLOWED_HOSTS: the record before, the hosts of the table installed now
+# (an earlier install made before the record existed), and the hosts of the table coming in. It is written first, so it always
+# covers at least what the files below hold, and through a temp file so a cut-off run leaves the old record whole.
+rec_hosts="$(cat "$hosts_rec" 2>/dev/null || true)"
+rec_old=""
+if [ -f "$cfg" ]; then rec_old="$(table_hosts "$(table_summary "$cfg" 2>/dev/null || true)" 2>/dev/null || true)"; fi
+for h in $rec_old $(table_hosts "$summary"); do
+  case " $(printf '%s' "$rec_hosts" | tr '\n' ' ') " in *" $h "*) ;; *) rec_hosts="${rec_hosts:+$rec_hosts
+}$h" ;; esac
+done
+if [ "$(cat "$hosts_rec" 2>/dev/null || true)" != "$rec_hosts" ]; then
+  tmp="$(mktemp "$TOOL_ETC/.player-connector.hosts.XXXXXX")"
+  trap 'rm -f "${tmp:?}" "${cand:?}"' EXIT
+  printf '%s\n' "$rec_hosts" >"$tmp"
+  chmod 0644 "$tmp"
+  mv "$tmp" "$hosts_rec"
+  trap 'rm -f "${cand:?}"' EXIT
+  ok "$hosts_rec: the player hosts this stage has installed"
+fi
 
 if [ "$use_src" = 1 ]; then
   tmp="$(mktemp "$TOOL_ETC/.player-connector.json.XXXXXX")"

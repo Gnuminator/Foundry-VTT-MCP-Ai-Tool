@@ -95,7 +95,8 @@ as containers on the same loopback ports; the systemd units stay installed until
 the images, settings, rehearsal and the checks is in [`deploy/pi/README.md`](../../../deploy/pi/README.md). Two stages do the Pi
 side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here is retired yet.
 
-- **Stage 23** (`scripts/pi/remote/23-docker.sh`): Debian 13's own `docker.io`, the compose plugin (`docker-compose`, or
+- **Stage 23** (`scripts/pi/remote/23-docker.sh`): Debian 13's own `docker.io`, `docker-cli` (the `docker` command; docker.io
+  only Recommends it and the stage installs without recommends), the compose plugin (`docker-compose`, or
   `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
   `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
   vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the

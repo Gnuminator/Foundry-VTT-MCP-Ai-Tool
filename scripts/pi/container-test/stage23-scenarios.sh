@@ -230,6 +230,18 @@ run_stage
 if [ "$RC" -eq 0 ] && grep -qx 'FOUNDRY_HTTP_PORT=30100' "$(envf)" && grep -qx 'FOUNDRY_UID=996' "$(envf)" && ! grep -q 'old.example' "$(envf)" &&
   [ "$(grep -c '^FOUNDRY_UID=' "$(envf)")" = 1 ]; then pass "other .env lines are kept, the managed names rewritten once"; else fail "keep (rc $RC): $(cat "$(envf)")"; fi
 
+# 5b. the recovery state of the 2026-11-15 Pi: docker.io installed without the command, docker-cli has a candidate
+new_pi
+touch "$FAKE/pkgs/docker.io"
+run_stage
+if [ "$RC" -eq 0 ] && [ -f "$FAKE/pkgs/docker-cli" ] && [ -f "$FAKE/pkgs/docker-compose" ]; then pass "docker.io without the docker command: the rerun installs docker-cli"; else fail "recovery (rc $RC): $OUT"; fi
+
+# 5c. the dry run names only the packages that have a candidate
+new_pi
+printf '%s\n' docker.io docker-compose >"$FAKE/candidates"
+run_stage DRY_RUN=1
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'installs when missing.*: docker.io docker-compose$'; then pass "dry run leaves out docker-cli and docker-buildx without a candidate"; else fail "dry candidates (rc $RC): $OUT"; fi
+
 # 6. compose-v2 name preferred; apt-get update only without candidates
 new_pi v2
 run_stage

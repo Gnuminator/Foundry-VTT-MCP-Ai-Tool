@@ -424,6 +424,24 @@ sd_run UNDO=1
 rc=$?
 if [ "$rc" -eq 0 ] && grep -qx 'DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,cogm.example.org' "$access"; then pass "UNDO takes out both player hosts"; else fail "remote undo: rc=$rc $(grep ALLOWED "$access") $OUT"; fi
 
+# 10. A changed remote host leaves the old one in the list; UNDO takes both out (the stage records every host it installed).
+table
+sd_state 0 401 421
+remote_file "$appaud"
+sd_run
+rhost_old="$rhost"
+rm -f "$TOOL_ETC/player-connector.hosts" # an install from before the record existed
+rhost=player-remote2.example.org
+remote_file "$appaud"
+sd_state 0 401 421
+sd_run
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q "$rhost_old" "$access" && grep -q "$rhost" "$access" && [ -f "$TOOL_ETC/player-connector.hosts" ]; then pass "a changed remote host is recorded next to the old one"; else fail "remote host change: rc=$rc $(grep ALLOWED "$access") $OUT"; fi
+sd_state 0 401 421
+sd_run UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && grep -qx 'DASHBOARD_ALLOWED_HOSTS=pi.tail1234.ts.net,cogm.example.org' "$access" && [ ! -e "$TOOL_ETC/player-connector.hosts" ]; then pass "UNDO takes out the old remote host too and drops the record"; else fail "undo old remote host: rc=$rc $(grep ALLOWED "$access") $OUT"; fi
+
 kill "$fake_bridge" 2>/dev/null
 rm -rf /run/systemd/system "$sdunits/$dash" "$sdunits/$bridge" "$sdunits/$dash.d" "$sdunits/$bridge.d"
 

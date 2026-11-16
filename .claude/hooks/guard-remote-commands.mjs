@@ -919,7 +919,7 @@ const hit = (rule, text) => (typeof rule === 'function' ? rule(text) : rule.test
  * itself, so its command line has no `ssh` word for the rules below to see. `--apply` creates
  * Cloudflare objects and sends the login table to the Pi: always the user's OK.
  */
-const CLOUDFLARE_APPLY = /player-connector-cloudflare\.mjs[\s\S]*--apply\b/;
+const CLOUDFLARE_APPLY = /player-connector-cloudflare\.mjs(?:[^\n]|[\\`]\r?\n)*?[\s'"]--apply\b/;
 const CLOUDFLARE_REASON =
   'player-connector-cloudflare.mjs --apply creates Cloudflare tokens, an Access application, a tunnel route and DNS, and sends the player login table to the Pi';
 

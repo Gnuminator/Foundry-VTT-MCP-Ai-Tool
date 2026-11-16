@@ -528,6 +528,25 @@ test('the player connector Cloudflare script asks with --apply (it runs ssh itse
   }
 });
 
+test('Cloudflare --apply on another line of the command is not this script (only a line continuation joins them)', () => {
+  const crlf = 'node scripts/pi/player-connector-cloudflare.mjs \\\r\n  --apply --send-to foundry-pi';
+  assert.equal(kind(crlf), 'ask', JSON.stringify(decide(crlf, repo)));
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs --users u.json `\n  --apply --send-to foundry-pi',
+    'node scripts/pi/player-connector-cloudflare.mjs "--apply" --send-to foundry-pi',
+    "node scripts/pi/player-connector-cloudflare.mjs '--apply'",
+  ]) {
+    assert.equal(kind(c), 'ask', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  for (const c of [
+    'node scripts/pi/player-connector-cloudflare.mjs --host player-ai.spennerit.com\nnode other.mjs --apply',
+    'node scripts/pi/player-connector-cloudflare.mjs\n\nnpm run foo -- --apply',
+    '# node scripts/pi/player-connector-cloudflare.mjs is the script\nnode scripts/x.mjs --apply',
+  ]) {
+    assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+});
+
 test('a Cloudflare --apply chained with a denied remote command still denies; a continued line still asks', () => {
   const chained =
     'node scripts/pi/player-connector-cloudflare.mjs --apply --send-to foundry-pi && ssh foundry-pi wipefs -a /dev/sda';

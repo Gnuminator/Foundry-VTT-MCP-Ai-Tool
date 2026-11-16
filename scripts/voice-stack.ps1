@@ -19,7 +19,7 @@
 
   Refuses to run if .env points any port at a Foundry or bridge port (Foundry 30000-30001, dashboard
   3100, live bridge 31414-31416, test bridge 31514-31516; test servers B and C: 30002-30003,
-  3101-3102, 31524-31525, 31534-31535). Never touches containers outside the
+  3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200). Never touches containers outside the
   fvtt-voice project. One GPU job at a time: transcribe warns when the GPU is already busy.
 
   names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,

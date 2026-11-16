@@ -8,9 +8,10 @@
 #
 # Packages, from Debian 13 (trixie) itself, not Docker's own apt repository, so nothing is added to /etc/apt:
 #   docker.io        the engine (trixie: 26.1.x), pulls in containerd, runc and iptables
-#   docker-cli       the `docker` command. On Debian 13 docker.io only Recommends it, so without it there is no `docker` on PATH
-#                    (found on the Pi 2026-11-15); installed when the archive has the package (Debian 12 has no such package:
-#                    docker.io carries the command there)
+#   docker-cli       the `docker` command. On Debian 13 docker.io only Recommends it, and this stage installs
+#                    with --no-install-recommends, so without this package there is no `docker` on PATH (found on the Pi
+#                    2026-11-15); installed when the archive has the package (Debian 12 has no such package: docker.io
+#                    carries the command there)
 #   docker-compose-v2 or docker-compose
 #                    the compose plugin ("docker compose"). Debian 13 ships the Go rewrite as `docker-compose` (2.26.x, with the
 #                    CLI plugin under /usr/libexec/docker/cli-plugins); Ubuntu calls the same thing `docker-compose-v2`. The stage
@@ -151,7 +152,11 @@ if [ "$dry" = 1 ]; then
   else
     echo "    docker: not installed"
   fi
-  echo "    packages a real run installs when missing: docker.io, docker-cli, $(pick_package docker-compose-v2 docker-compose || echo '(no compose package has a candidate: apt-get update first)'), docker-buildx"
+  plan_pkgs=(docker.io)
+  if pick_package docker-cli >/dev/null; then plan_pkgs+=(docker-cli); fi
+  plan_pkgs+=("$(pick_package docker-compose-v2 docker-compose || echo '(no compose package has a candidate: apt-get update first)')")
+  if pick_package docker-buildx >/dev/null; then plan_pkgs+=(docker-buildx); fi
+  echo "    packages a real run installs when missing (those with an install candidate): ${plan_pkgs[*]}"
   if [ ! -e "$daemon_json" ]; then echo "    would write $daemon_json: live-restore true"; else echo "    $daemon_json exists: checked, not rewritten"; fi
   echo "    would write $env_file:"
   printf '%s\n' "$env_content" | sed 's/^/      /'

@@ -17,7 +17,13 @@ const KNOWN = new Set<number>([
 
 /** Production source: not tests, e2e specs, type stubs, docs or vendored code. */
 function isGuarded(file: string): boolean {
-  if (!/\.(ts|tsx|mjs|cjs|js|ps1|sh|py|yml|bat|cmd)$|\.env\.example$/.test(file)) return false;
+  if (
+    !/\.(ts|tsx|mjs|cjs|js|ps1|sh|py|yml|yaml|bat|cmd)$|\.env\.example$|(^|\/)Dockerfile(\.[\w-]+)?$/.test(
+      file
+    )
+  ) {
+    return false;
+  }
   if (/(^|\/)(node_modules|dist|docs|\.claude)\//.test(file)) return false;
   if (/\.(test|spec)\.[a-z]+$/.test(file) || /\.d\.ts$/.test(file)) return false;
   if (/(^|\/)(e2e|__tests__|fixtures)\//.test(file)) return false;
@@ -37,14 +43,15 @@ function isTimerDelay(text: string, index: number): boolean {
   const last = calls.at(-1);
   if (last?.index === undefined) return false;
   let depth = 1;
-  let sawComma = false;
+  let commas = 0;
   for (const ch of before.slice(last.index + last[0].length)) {
     if ('([{'.includes(ch)) depth += 1;
     else if (')]}'.includes(ch)) depth -= 1;
-    else if (ch === ',' && depth === 1) sawComma = true;
+    else if (ch === ',' && depth === 1) commas += 1;
     if (depth === 0) return false; // the timer call closed before this number
   }
-  return depth === 1 && sawComma;
+  // Only the second argument is the delay: a third one (setTimeout(fn, 10, 31414)) is passed to the callback.
+  return depth === 1 && commas === 1;
 }
 
 /** A millisecond value named by an option, a parameter or a sleep command is not a port. */
@@ -101,6 +108,9 @@ describe('ports', () => {
     // a port in the callback, or after the timer call closed, still counts
     expect(countInText("setTimeout(()=>fetch('http://localhost:31414'),10)")).toBe(1);
     expect(countInText('setTimeout(f, 10); const port = 31515;')).toBe(1);
+    // only the second argument is the delay; a third one goes to the callback
+    expect(countInText('setTimeout(fn, 10, 31414)')).toBe(1);
+    expect(countInText('setTimeout(fn, 3000, 3000)')).toBe(1);
     // named durations
     expect(countInText('{ timeout: 30000 }')).toBe(0);
     expect(countInText('{ timeout: 30000, port: 31514 }')).toBe(1);
@@ -121,7 +131,17 @@ describe('ports', () => {
   });
 
   it('scans python, yaml, env example, bat and cmd files', () => {
-    for (const f of ['a.py', 'ci.yml', 'x/.env.example', 'run.bat', 'run.cmd', 'a.ts']) {
+    for (const f of [
+      'a.py',
+      'ci.yml',
+      'c.yaml',
+      'deploy/Dockerfile',
+      'deploy/pi/Dockerfile',
+      'x/.env.example',
+      'run.bat',
+      'run.cmd',
+      'a.ts',
+    ]) {
       expect(isGuarded(f), f).toBe(true);
     }
     expect(isGuarded('notes.md')).toBe(false);

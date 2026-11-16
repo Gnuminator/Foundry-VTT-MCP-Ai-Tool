@@ -217,6 +217,19 @@ if want join-fails; then
   [ -n "$last_back" ] && [ "$last_restart" -gt "$last_back" ] && echo "PASS join-fails: the last restart is after the folders went back" || { echo "FAIL join-fails: restart order ($last_restart, $last_back)"; fail=1; }
 fi
 
+if want stop-fails; then
+  # Foundry will not stop: the run dies before any folder moved, so the trap has nothing to put back (restored=1, folders_back=0)
+  base_setup
+  before="$(tree_hash)"
+  touch /tmp/stopfail
+  out="$(run_stage 'APPLY=1')"
+  rm -f /tmp/stopfail
+  check stop-fails 'the run did not finish: Foundry and the Assistant GM browser are as they were' "$out"
+  absent stop-fails 'the old folders are back' "$out"
+  check stop-fails 'exit 1' "$out"
+  same stop-fails 'the module folders' "$before" "$(tree_hash)"
+fi
+
 if want gm-browser-never-joins; then
   base_setup
   before="$(tree_hash)"

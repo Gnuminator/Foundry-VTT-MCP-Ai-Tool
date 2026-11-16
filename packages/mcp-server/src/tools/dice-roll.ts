@@ -34,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.',
+          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -312,7 +312,7 @@ export class DiceRollTools {
       if (error instanceof z.ZodError) {
         const messages = error.errors.map(e => {
           if (e.path.includes('isPublic')) {
-            return 'You must specify whether the roll should be PUBLIC (visible to all players) or PRIVATE (visible only to target player and GM). Check if the user already specified this in their request, or ask them to clarify.';
+            return 'isPublic must be true or false (default true).';
           }
           return e.message;
         });

@@ -23,9 +23,9 @@ RUN apt-get update \
 WORKDIR /opt/transcriber
 COPY requirements.txt requirements-extras.txt ./
 RUN pip install -r requirements.txt
-# Optional extras for non-Whisper models (hviske-v6, saga-2-m): torch from the cu128 index.
+# Optional extras for non-Whisper models (hviske-v6, saga-2-m): torch from the cu130 index.
 RUN if [ "$WITH_TRANSFORMERS" = "1" ]; then \
-      pip install --extra-index-url https://download.pytorch.org/whl/cu128 -r requirements-extras.txt; \
+      pip install --extra-index-url https://download.pytorch.org/whl/cu130 -r requirements-extras.txt; \
     fi
 
 COPY pyproject.toml README.md ./

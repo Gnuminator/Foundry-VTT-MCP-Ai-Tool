@@ -54,7 +54,7 @@ describe('CombatResolutionTools.getToolDefinitions', () => {
     const required = (name: string): unknown =>
       (defs.find(d => d.name === name)!.inputSchema as any).required;
     expect(required('roll-saving-throws')).toEqual(['targets', 'rollType']);
-    expect(required('use-npc-activity')).toEqual(['actorName', 'itemName']);
+    expect(required('use-npc-activity')).toEqual(['actor', 'itemName']);
     expect(required('manage-rest')).toEqual(['targets', 'restType']);
   });
 });
@@ -143,7 +143,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
     const payload = { success: true, attackTotal: 18, hit: true, damage: 7 };
     const { tools, query } = makeTools(() => payload);
     const result = await tools.handleUseNpcActivity({
-      actorName: 'Goblin',
+      actor: 'Goblin',
       itemName: 'Scimitar',
       targetAC: 15,
     });
@@ -157,7 +157,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
 
   it('dispatches without optional fields when only required ones are given', async () => {
     const { tools, query } = makeTools();
-    await tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Scimitar' });
+    await tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Scimitar' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.useNpcActivity', {
       actorName: 'Goblin',
       itemName: 'Scimitar',
@@ -167,7 +167,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
   it('says so when an older module ignores the activity it was asked for', async () => {
     const { tools } = makeTools(() => ({ success: true, attackTotal: 18 }));
     await expect(
-      tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
+      tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
     ).rejects.toThrow(/module is older than this server and ignored the activity "Cloud"/);
   });
 
@@ -175,25 +175,25 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
     const payload = { success: true, activity: 'Cloud' };
     const { tools } = makeTools(() => payload);
     await expect(
-      tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
+      tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
     ).resolves.toBe(payload);
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
     const { tools } = makeTools(() => ({ success: false, error: 'item not found' }));
-    await expect(
-      tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Bow' })
-    ).rejects.toThrow('item not found');
+    await expect(tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Bow' })).rejects.toThrow(
+      'item not found'
+    );
   });
 
   it('throws the fallback message when Foundry fails with no error field', async () => {
     const { tools } = makeTools(() => ({ success: false }));
     await expect(
-      tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Scimitar' })
+      tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Scimitar' })
     ).rejects.toThrow('Failed to use NPC activity');
   });
 
-  it('returns a parameter-error string when actorName is missing', async () => {
+  it('returns a parameter-error string when actor is missing', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleUseNpcActivity({ itemName: 'Scimitar' });
     expect(result as string).toMatch(/Parameter error/i);
@@ -202,7 +202,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
 
   it('returns a parameter-error string when itemName is missing', async () => {
     const { tools, query } = makeTools();
-    const result = await tools.handleUseNpcActivity({ actorName: 'Goblin' });
+    const result = await tools.handleUseNpcActivity({ actor: 'Goblin' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });

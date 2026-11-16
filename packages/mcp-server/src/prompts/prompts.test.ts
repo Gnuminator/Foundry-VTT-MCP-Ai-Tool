@@ -370,7 +370,7 @@ describe('encounter check reads the challenge rating from the actor', () => {
 
   it('uses get-character with the actor id, not get-token-details', () => {
     expect(text).toContain('take its actor ID from the `get-token-positions` result');
-    expect(text).toMatch(/`get-character` with `identifier` set to that actor ID/);
+    expect(text).toMatch(/`get-character` with `actor` set to that actor ID/);
     expect(text).toContain('Do not use `get-token-details` for this');
     expect(text.indexOf('`get-character`')).toBeLessThan(text.indexOf('`search-compendium`'));
   });

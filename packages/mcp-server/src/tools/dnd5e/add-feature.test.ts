@@ -93,10 +93,10 @@ describe('DnD5eAddFeatureTool.getToolDefinitions', () => {
     expect((def.inputSchema as any).type).toBe('object');
   });
 
-  it('required fields are featureType and actorIdentifier', () => {
+  it('required fields are featureType and actor', () => {
     const { tools } = makeAddFeatureTools();
     const [def] = tools.getToolDefinitions();
-    expect((def.inputSchema as any).required).toEqual(['featureType', 'actorIdentifier']);
+    expect((def.inputSchema as any).required).toEqual(['featureType', 'actor']);
   });
 
   it('featureType enum contains all seven modes', () => {
@@ -159,13 +159,13 @@ describe('DnD5eAddFeatureTool.handleAddFeature: dispatcher', () => {
   it('throws ZodError for an unknown featureType', async () => {
     const { tools } = makeAddFeatureTools();
     await expect(
-      tools.handleAddFeature({ featureType: 'unknown', actorIdentifier: 'Goblin' })
+      tools.handleAddFeature({ featureType: 'unknown', actor: 'Goblin' })
     ).rejects.toThrow();
   });
 
   it('throws ZodError when featureType is missing', async () => {
     const { tools } = makeAddFeatureTools();
-    await expect(tools.handleAddFeature({ actorIdentifier: 'Goblin' })).rejects.toThrow();
+    await expect(tools.handleAddFeature({ actor: 'Goblin' })).rejects.toThrow();
   });
 });
 
@@ -176,7 +176,7 @@ describe('DnD5eAddFeatureTool.handleAddFeature: dispatcher', () => {
 describe('DnD5eAddFeatureTool: passive', () => {
   const BASE_ARGS = {
     featureType: 'passive' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Magic Resistance',
   };
 
@@ -271,10 +271,10 @@ describe('DnD5eAddFeatureTool: passive', () => {
     expect(result.message).toContain("MM'14");
   });
 
-  it('throws ZodError when actorIdentifier is empty string', async () => {
+  it('throws ZodError when actor is empty string', async () => {
     const { tools, query } = makeAddFeatureTools();
 
-    await expect(tools.handleAddFeature({ ...BASE_ARGS, actorIdentifier: '' })).rejects.toThrow();
+    await expect(tools.handleAddFeature({ ...BASE_ARGS, actor: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -329,7 +329,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
 describe('DnD5eAddFeatureTool: save', () => {
   const BASE_ARGS = {
     featureType: 'save' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Fire Breath',
     saveAbility: 'dex' as const,
     saveDC: 15,
@@ -510,7 +510,7 @@ describe('DnD5eAddFeatureTool: save', () => {
 describe('DnD5eAddFeatureTool: attack', () => {
   const BASE_ARGS = {
     featureType: 'attack' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Claw',
     attackType: 'melee' as const,
     damageParts: [PIERCE_DAMAGE],
@@ -518,7 +518,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
 
   const BASE_ARGS_RANGED = {
     featureType: 'attack' as const,
-    actorIdentifier: 'Archer',
+    actor: 'Archer',
     featureName: 'Longbow',
     attackType: 'ranged' as const,
     damageParts: [{ number: 1, denomination: 8, type: 'piercing' }],
@@ -685,7 +685,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
     await expect(
       tools.handleAddFeature({
         featureType: 'attack',
-        actorIdentifier: 'Archer',
+        actor: 'Archer',
         featureName: 'Arrow',
         attackType: 'ranged',
         damageParts: [PIERCE_DAMAGE],
@@ -758,7 +758,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
 describe('DnD5eAddFeatureTool: attack-with-save', () => {
   const BASE_ARGS = {
     featureType: 'attack-with-save' as const,
-    actorIdentifier: 'Stinger Scorpion',
+    actor: 'Stinger Scorpion',
     featureName: 'Stinger',
     attackType: 'melee' as const,
     damageParts: [PIERCE_DAMAGE],
@@ -923,7 +923,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
 describe('DnD5eAddFeatureTool: aura', () => {
   const BASE_ARGS = {
     featureType: 'aura' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Fire Aura',
     damageParts: [FIRE_DAMAGE],
     areaType: 'emanation' as const,
@@ -1079,7 +1079,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
 describe('DnD5eAddFeatureTool: spellcasting', () => {
   const BASE_ARGS = {
     featureType: 'spellcasting' as const,
-    actorIdentifier: 'Wizard NPC',
+    actor: 'Wizard NPC',
     spellcastingClass: 'wizard' as const,
     spellcastingLevel: 5,
   };
@@ -1285,7 +1285,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
 describe('DnD5eAddFeatureTool: spells', () => {
   const BASE_ARGS = {
     featureType: 'spells' as const,
-    actorIdentifier: 'Wizard NPC',
+    actor: 'Wizard NPC',
     spellNames: ['Fireball', 'Counterspell', 'Shield'],
   };
 

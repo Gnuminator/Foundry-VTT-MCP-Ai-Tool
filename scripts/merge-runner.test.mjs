@@ -1,6 +1,7 @@
 // Tests for scripts/merge-runner.mjs: fake gh, gate, backlog and Discord; real lock files and a
 // real git checkout for prepareCheckout. No network, no vault, no merge.
 import { isMerged } from './backlog-items.mjs';
+import { makeBaseDeps, testedOnTip } from './merge-runner/base-current.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -944,6 +945,153 @@ test('main CI still running at the newest push: no gate, no stop, next round', (
   assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
   assert.deepEqual(f.calls.gate, []);
   assert.deepEqual(f.calls.post, []);
+});
+
+/** Main's tip CI is running; the run before it is `prev`. */
+const RUNNING = prev =>
+  JSON.stringify([
+    { conclusion: '', status: 'in_progress', headSha: SHA2, event: 'push' },
+    { conclusion: prev, status: 'completed', headSha: 'c'.repeat(40), event: 'push' },
+  ]);
+
+test('main CI running, last completed run green, the PR CI ran on main tip: no wait, the gate runs', () => {
+  const asked = [];
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+    main: RUNNING('success'),
+  });
+  f.deps.baseCurrent = (r, tip) => (asked.push([r.pr, tip]), true);
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [5] });
+  assert.deepEqual(f.calls.gate, [5]);
+  assert.deepEqual(asked, [[5, SHA2]]);
+});
+
+test('main CI running and the PR CI ran on an older main (stale base): waits as before', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RUNNING('success'),
+  });
+  f.deps.baseCurrent = () => false;
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+  // no dependency at all (older callers): waits too
+  delete f.deps.baseCurrent;
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('main CI running after a red run: no skip, the base is not even asked', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RUNNING('failure'),
+  });
+  f.deps.baseCurrent = () => assert.fail('must not be asked');
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('a finished red main still stops the runner, whatever the PR base is', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RED,
+  });
+  f.deps.baseCurrent = () => true;
+  const r = round(f.deps, new Set());
+  assert.match(r.stop, /main is red/);
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('mainState: a running tip run reports whether the run before it passed', () => {
+  assert.deepEqual(
+    [mainState(RUNNING('success'), SHA2).running, mainState(RUNNING('success'), SHA2).prevGreen],
+    [true, true]
+  );
+  assert.equal(mainState(RUNNING('failure'), SHA2).prevGreen, false);
+  const three = (mid, last, attempt = 1) =>
+    JSON.stringify([
+      { conclusion: '', status: 'in_progress', headSha: SHA2, event: 'push', attempt },
+      { conclusion: mid, status: 'completed', headSha: 'e'.repeat(40), event: 'push' },
+      { conclusion: last, status: 'completed', headSha: 'c'.repeat(40), event: 'push' },
+    ]);
+  assert.equal(mainState(three('cancelled', 'success'), SHA2).prevGreen, true);
+  assert.equal(mainState(three('cancelled', 'failure'), SHA2).prevGreen, false);
+  // a running rerun (attempt 2) is main red to the gate: never skipped
+  assert.equal(mainState(three('success', 'success', 2), SHA2).prevGreen, false);
+});
+
+test('testedOnTip: head contains the tip, or a green PR run was created after the tip commit', () => {
+  const tipDate = '2026-11-16T18:00:00Z';
+  const run = (createdAt, conclusion = 'success', event = 'pull_request') => ({
+    createdAt,
+    conclusion,
+    event,
+  });
+  assert.equal(testedOnTip({ behindBy: 0, tipDate: '', runs: [] }), true);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:05:00Z')] }), true);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T17:59:00Z')] }), false);
+  // two minutes of slack after the tip commit
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:01:00Z')] }), false);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:03:00Z')] }), true);
+  assert.equal(
+    testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:05:00Z', 'failure')] }),
+    false
+  );
+  assert.equal(
+    testedOnTip({
+      behindBy: null,
+      tipDate,
+      runs: [run('2026-11-16T18:05:00Z', 'success', 'push')],
+    }),
+    false
+  );
+  assert.equal(
+    testedOnTip({ behindBy: 1, tipDate: 'nope', runs: [run('2026-11-16T18:05:00Z')] }),
+    false
+  );
+});
+
+test('makeBaseDeps: reads compare, tip date and the head runs; a failed read is false', () => {
+  const seen = [];
+  const answers = (cmp, tipDate, runs) => (cmd, args) => {
+    seen.push(args);
+    if (args[1].includes('/compare/')) return cmp;
+    if (args[1].includes('/commits/')) return tipDate;
+    return runs;
+  };
+  const ok = s => ({ status: 0, stdout: s, stderr: '' });
+  const bad = { status: 1, stdout: '', stderr: 'x' };
+  const green = ok(
+    JSON.stringify([
+      { event: 'pull_request', conclusion: 'success', createdAt: '2026-11-16T19:00:00Z' },
+    ])
+  );
+  const mk = sh => makeBaseDeps({ sh, repo: 'o/r' }).baseCurrent({ head: SHA }, SHA2);
+  assert.equal(mk(answers(ok('0\n'), bad, bad)), true);
+  assert.equal(mk(answers(ok('3\n'), ok('2026-11-16T18:00:00Z\n'), green)), true);
+  assert.deepEqual(seen[0], ['api', `repos/o/r/compare/${SHA2}...${SHA}`, '--jq', '.behind_by']);
+  assert.equal(mk(answers(ok('3\n'), ok('2026-11-16T18:00:00Z\n'), green)), true);
+  assert.deepEqual(seen.at(-1), [
+    'run',
+    'list',
+    '-R',
+    'o/r',
+    '-w',
+    'ci.yml',
+    '--commit',
+    SHA,
+    '-L',
+    '10',
+    '--json',
+    'event,conclusion,createdAt',
+  ]);
+  assert.equal(mk(answers(ok('\n'), bad, bad)), false, 'an empty answer is not 0 behind');
+  assert.equal(mk(answers(ok('3\n'), bad, green)), false);
+  assert.equal(mk(answers(bad, ok('2026-11-16T18:00:00Z\n'), ok('not json'))), false);
 });
 
 test('main CI unreadable (gh fails): wait, do not stop', () => {

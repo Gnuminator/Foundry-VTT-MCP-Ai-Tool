@@ -655,7 +655,7 @@ export function round(d, tried, attempts) {
       d.post(
         `merge runner: #${r.pr} landed on main although GitHub answered: ${oneLine(out.reason, 200)}; the PR may still read open and main's tip may get no CI run`
       );
-      markDone(r, true, mainTip() || tip);
+      markDone(r, true, mainTip());
     } else if (out.kind === 'merged') {
       tried.add(key);
       merged.push(r.pr);

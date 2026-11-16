@@ -250,6 +250,15 @@ export class PreflightTools {
       };
     }
     const mirror = this.options.mirrorStatus?.() ?? null;
+    if (mirror && !mirror.enabled && mirror.lastError) {
+      // Off because it failed (unreadable settings, a refused folder): not the same as switched off.
+      return {
+        id: 'obsidian',
+        label,
+        status: 'warn',
+        detail: `The Foundry mirror is not running: ${mirror.lastError}. AI Tool/Foundry/_status.md in the vault may show more.`,
+      };
+    }
     if (!mirror?.enabled) {
       return {
         id: 'obsidian',

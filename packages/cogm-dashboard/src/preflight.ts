@@ -49,14 +49,23 @@ export const PLAYER_VAULT_STALE_MS = 10 * 60_000;
 /**
  * Whether the Pi-side player vault folders are being kept current (D-134). Nobody opens the vault
  * to see its age, so a service that stopped or fails for one player would look current. The
- * Syncthing hop to each player's PC is a separate read-only check (Pi stage 33).
+ * Syncthing hop to each player's PC is a separate read-only check (`scripts/pi/remote/sync-check.sh`).
  */
-function playerVaultCheck(input: DashboardPreflightInput): DashboardPreflightCheck | null {
+function playerVaultCheck(
+  input: DashboardPreflightInput,
+  foundryConnected: boolean
+): DashboardPreflightCheck | null {
   const health = input.playerVaultHealth;
   if (!health) return null;
   const label = 'Player vaults up to date';
   const now = (input.now ?? Date.now)();
-  const at = (ms: number): string => `${new Date(ms).toISOString().slice(11, 16)} UTC`;
+  const at = (ms: number): string => {
+    const d = new Date(ms);
+    const p = (n: number): string => String(n).padStart(2, '0');
+    const clock = `${p(d.getHours())}:${p(d.getMinutes())}`;
+    if (d.toDateString() === new Date(now).toDateString()) return clock;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${clock}`;
+  };
   if (health.failed.length > 0) {
     return {
       id: 'player-vault',
@@ -73,7 +82,8 @@ function playerVaultCheck(input: DashboardPreflightInput): DashboardPreflightChe
       detail: 'No player vault pass has finished since the dashboard started.',
     };
   }
-  if (now - health.lastCleanPassAt > PLAYER_VAULT_STALE_MS) {
+  // Nothing is rebuilt while Foundry is closed, and nothing in it changes: an old pass is not stale then.
+  if (foundryConnected && now - health.lastCleanPassAt > PLAYER_VAULT_STALE_MS) {
     return {
       id: 'player-vault',
       label,
@@ -214,7 +224,10 @@ export async function runDashboardPreflight(
     foundryAddressCheck(input.foundryUrl),
     await playerPageCheck(input)
   );
-  const vault = playerVaultCheck(input);
+  const vault = playerVaultCheck(
+    input,
+    bridge?.checks.some(c => c.id === 'foundry-link' && c.status === 'ok') ?? false
+  );
   if (vault) checks.push(vault);
   return {
     ready: bridge !== null && !checks.some(c => c.status === 'fail'),

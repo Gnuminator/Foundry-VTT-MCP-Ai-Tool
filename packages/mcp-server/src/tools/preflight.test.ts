@@ -163,6 +163,16 @@ describe('get-preflight Obsidian mirror staleness', () => {
     expect(failed?.detail).toContain('disk full');
   });
 
+  it('warns for a mirror that is off because it failed', async () => {
+    const check = await obsidian({
+      enabled: false,
+      lastCycleAt: null,
+      lastError: 'Mirror settings unreadable, mirror off',
+    });
+    expect(check).toMatchObject({ status: 'warn' });
+    expect(check?.detail).toContain('unreadable');
+  });
+
   it('does not call it stale while Foundry is not connected, and ignores a mirror that is off', async () => {
     expect(
       (

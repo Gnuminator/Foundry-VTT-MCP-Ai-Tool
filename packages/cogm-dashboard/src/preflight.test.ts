@@ -86,6 +86,25 @@ describe('runDashboardPreflight player vault staleness', () => {
     expect(check?.status).toBe('ok');
   });
 
+  it('does not call an old pass stale while Foundry is not connected', async () => {
+    const result = await runDashboardPreflight({
+      callTool: tools({
+        bridge: {
+          ...BRIDGE,
+          checks: [
+            { id: 'foundry-link', label: 'Foundry connected', status: 'fail', detail: 'No.' },
+          ],
+        },
+      }).callTool,
+      gmActionsEnabled: false,
+      sessionSwitches: null,
+      playerState: {},
+      playerVaultHealth: { lastCleanPassAt: NOW - 3_600_000, failed: [], lastWriteAt: null },
+      now: () => NOW,
+    });
+    expect(result.checks.find(c => c.id === 'player-vault')?.status).toBe('ok');
+  });
+
   it('warns on an old pass, a failed player, and is unknown before the first pass', async () => {
     expect(
       (await vault({ lastCleanPassAt: NOW - 3_600_000, failed: [], lastWriteAt: null }))?.status

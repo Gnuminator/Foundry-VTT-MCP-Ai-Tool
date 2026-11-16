@@ -6,14 +6,14 @@
 #
 # Read only, always: it changes nothing, needs no snapshot, may run any time (game night included). It reads Syncthing's
 # REST API on this Pi (loopback) with the GUI's API key, which is passed on stdin and never printed.
-#   per folder:  the time of the last file that synced (stats/folder lastFile.at), the last scan, and each device it is
-#                shared with: connected now, or last seen at ..., and how much of the folder it holds (db/completion)
-#   a WARNING when a PC is not connected and was last seen more than STALE_HOURS ago (default 48), has never been seen,
-#   or holds less than 100 percent while connected; the report is in the Pi's local time
+#   per folder:  the last file this Pi received from a PC (stats/folder lastFile.at; a send-only player folder never
+#                receives, so it shows none), the last scan, and each device it is shared with: connected now, or last
+#                seen at ..., and how much of the folder it holds (db/completion)
+#   a WARNING when a PC holds less than 100 percent of a folder (still catching up if connected, out of date if not) or
+#   has never connected. How long a PC was away is only printed: a PC off for a week while nothing changed is current.
 # Modes (environment, before bash):
 #   (none)           report; exit 0 even with warnings, exit 1 when Syncthing is missing or does not answer
 #   STRICT=1         exit 1 when there is any warning (a check that must be clean)
-#   STALE_HOURS=<n>  how old a not-connected PC's last-seen may be before it is a warning (default 48)
 # Run from the PC (bash, not PowerShell):
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi 'bash -s'
 
@@ -23,12 +23,7 @@ PATH="$PATH:/usr/sbin:/sbin"
 st_home="$TOOL_DATA/syncthing"
 st_gui="127.0.0.1:8384"
 strict="${STRICT:-0}"
-stale_hours="${STALE_HOURS:-48}"
 problems=0
-
-case "$stale_hours" in
-"" | *[!0-9]*) die "STALE_HOURS must be a whole number of hours" ;;
-esac
 
 command -v syncthing >/dev/null 2>&1 || die "Syncthing is not installed: run stage 7 first"
 command -v curl >/dev/null 2>&1 || die "curl is missing"
@@ -48,6 +43,7 @@ stats_dev="$(rest stats/device | flat)"
 stats_folder="$(rest stats/folder | flat)"
 [ -n "$stats_dev" ] && [ -n "$stats_folder" ] || die "Syncthing's statistics did not answer"
 connections="$(rest system/connections | flat)"
+[ -n "$connections" ] || die "Syncthing's connection list did not answer"
 my_id="$(st show system | sed -n 's/.*"myID": "\([A-Z0-9-]*\)".*/\1/p')"
 now="$(date +%s)"
 
@@ -80,7 +76,8 @@ json_field() {
 }
 
 shared_any=0
-for folder_id in $(st config folders list); do
+folders="$(st config folders list)" || die "could not list Syncthing's folders"
+for folder_id in $folders; do
   case "$folder_id" in
   foundry-gm-vault | foundry-player-*) ;;
   *) continue ;;
@@ -90,12 +87,13 @@ for folder_id in $(st config folders list); do
   last_at="$(printf '%s' "$stats_folder" | sed -n "s/.*\"$folder_id\":{\"lastFile\":{\"at\":\"\\([^\"]*\\)\".*/\\1/p")"
   scan_at="$(printf '%s' "$stats_folder" | sed -n "s/.*\"$folder_id\":{[^}]*}[^}]*\"lastScan\":\"\\([^\"]*\\)\".*/\\1/p")"
   if [ -n "$last_at" ]; then
-    echo "    last file synced: $(ago "$last_at") ($last_at)"
+    echo "    last file received from a PC: $(ago "$last_at") ($last_at)"
   else
-    echo "    last file synced: none recorded"
+    echo "    last file received from a PC: none recorded (a send-only folder never receives)"
   fi
   [ -z "$scan_at" ] || echo "    last scan on this Pi: $(ago "$scan_at")"
-  peers="$(st config folders "$folder_id" devices list | grep -vx "${my_id:-none}" || true)"
+  dev_list="$(st config folders "$folder_id" devices list)" || die "could not list the devices of $folder_id"
+  peers="$(printf '%s\n' "$dev_list" | grep -vx "${my_id:-none}" || true)"
   if [ -z "$peers" ]; then
     echo "    not shared with any PC"
     continue
@@ -106,23 +104,24 @@ for folder_id in $(st config folders list); do
     seen="$(json_field "$stats_dev" "$dev_id" lastSeen)"
     pct="$(rest "db/completion?folder=$folder_id&device=$dev_id" | flat | sed -n 's/.*"completion":\([0-9.]*\).*/\1/p')"
     pct="${pct:-?}"
+    # The copy is behind when it holds less than everything; how long a PC was away says nothing about that (a PC that
+    # was off for a week while nothing changed is current). "?" (no answer) counts as unknown, not as current.
+    full=0
+    case "$pct" in 100 | 100.*) full=1 ;; esac
     if printf '%s' "$connections" | grep -q "\"$dev_id\":{[^}]*\"connected\":true"; then
       state="connected now"
-      case "$pct" in
-      100 | 100.*) ;;
-      *)
+      if [ "$full" != 1 ]; then
         warn "$name is connected but holds $pct percent of $folder_id: it is still catching up, or stuck"
         problems=$((problems + 1))
-        ;;
-      esac
+      fi
     else
       state="not connected, last seen $(ago "${seen:-1970-01-01T00:00:00Z}")"
       se="$(epoch "${seen:-1970-01-01T00:00:00Z}")"
       if [ "$se" -le 86400 ]; then
         warn "$name has never connected to this Pi: its copy of $folder_id was never filled"
         problems=$((problems + 1))
-      elif [ $((now - se)) -gt $((stale_hours * 3600)) ]; then
-        warn "$name was last seen $(ago "$seen"), more than $stale_hours hours ago: its copy of $folder_id is out of date until its PC is on and Syncthing runs"
+      elif [ "$full" != 1 ]; then
+        warn "$name is not connected and holds $pct percent of $folder_id: it missed changes and is out of date until its PC is on and Syncthing runs"
         problems=$((problems + 1))
       fi
     fi

@@ -6,6 +6,7 @@ import { USAGE_LIMITS, usageLogFileName } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { localDateKey } from './event-pump.js';
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { usageEvent } from './test-support/usage-events.js';
 import { UsageLog, handleRecordUsage, usageLogEnabled } from './usage-log.js';
 import { VaultStore } from './vault/store.js';
@@ -41,7 +42,7 @@ const DAY2 = new Date(2026, 8, 29, 1, 0, 0).getTime();
 beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'usage-log-'));
   store = new VaultStore({ dataDir });
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+  logger = makeLogger();
   logger.child = (): unknown => logger;
   world = 'w1';
 });

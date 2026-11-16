@@ -76,10 +76,11 @@ function nodeDir() {
 
 function run(body, opts = {}, env = {}) {
   const nd = nodeDir();
-  const script = stubs(opts).replace(/NODE_DIR=.*\nmkdir.*\n/, `NODE_DIR="${nd}"\n`) + body;
+  // The node folder goes in through the environment, never into the shell text (CodeQL: shell command built from environment values).
+  const script = stubs(opts).replace(/NODE_DIR=.*\nmkdir.*\n/, 'NODE_DIR="$PI_TEST_NODE_DIR"\n') + body;
   const r = spawnSync('bash', ['-c', script], {
     encoding: 'utf8',
-    env: { ...process.env, ...env },
+    env: { ...process.env, ...env, PI_TEST_NODE_DIR: nd },
   });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }

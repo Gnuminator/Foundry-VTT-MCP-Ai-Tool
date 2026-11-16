@@ -169,7 +169,7 @@ export class ChatLogTools {
     } catch (error) {
       this.logger.error('Error sending chat message', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }

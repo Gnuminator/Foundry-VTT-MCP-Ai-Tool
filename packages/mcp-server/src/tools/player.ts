@@ -42,6 +42,13 @@ export const PLAYER_TOOL_NAMES = [
 
 export type PlayerToolName = (typeof PLAYER_TOOL_NAMES)[number];
 
+/**
+ * Player tools the dashboard answers itself: handouts and play stats are filtered there (the
+ * player page's and My character's filters), so `run` here never serves them. They are listed
+ * with the rest so Claude sees one set.
+ */
+export const PLAYER_DASHBOARD_TOOL_NAMES = ['get-my-handouts', 'get-my-play-stats'] as const;
+
 interface PlayerToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
@@ -257,6 +264,24 @@ export class PlayerTools {
           },
           required: ['packId', 'entryId'],
         },
+      },
+      {
+        name: 'get-my-handouts',
+        description:
+          'Handouts the GM revealed to you, newest first, with text. kind: recap (last session), quest or handout.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: ['recap', 'quest', 'handout'] },
+            limit: { type: 'integer', description: '1 to 10 (default 5).' },
+          },
+        },
+      },
+      {
+        name: 'get-my-play-stats',
+        description:
+          'Play stats of your own characters (damage, healing, rolls, spells, XP) and campaign totals.',
+        inputSchema: { type: 'object', properties: {} },
       },
       {
         name: 'get-player-skill-guide',

@@ -82,12 +82,33 @@ export function mountRawBodyRoutes(
   const playerConnector =
     deps.playerConnector ??
     playerConnectorFromEnv(process.env, message => logger.child('player-connector').warn(message));
+  // Handouts and play stats for a player's Claude come from the player page's own filters.
+  let statsCache: { worldId: string; raw: unknown; at: number } | null = null;
   mountPlayerRoute(app, {
     config,
     connector: playerConnector,
     client,
     directory,
     logger,
+    local: {
+      handoutsFor: userId => ctx.playerView.handoutsFor(userId),
+      handoutsReady: () => ctx.playerView.handoutsReady,
+      worldId: () => ctx.world()?.id ?? null,
+      characterSheet: userId =>
+        typeof client.characterSheet === 'function'
+          ? client.characterSheet(userId)
+          : Promise.reject(new Error('No character sheets')),
+      // The stats rebuild from the logs: reuse one answer for a minute.
+      playStats: async () => {
+        const worldId = ctx.world()?.id ?? '';
+        if (statsCache?.worldId === worldId && Date.now() - statsCache.at < 60_000) {
+          return statsCache.raw;
+        }
+        const raw = await client.callTool('get-play-stats', {});
+        statsCache = { worldId, raw, at: Date.now() };
+        return raw;
+      },
+    },
     clients: clientsOf(f),
     ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
   });

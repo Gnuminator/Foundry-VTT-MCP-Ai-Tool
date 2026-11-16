@@ -47,35 +47,34 @@ describe('DiceRollTools.getToolDefinitions', () => {
     }
   });
 
-  it('request-player-rolls requires rollType, rollTarget, targetPlayer, isPublic, userConfirmedVisibility', () => {
+  it('request-player-rolls requires rollType, rollTarget, targetPlayer and has no visibility gate', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'request-player-rolls')!;
-    expect((def.inputSchema as any).required).toEqual([
-      'rollType',
-      'rollTarget',
-      'targetPlayer',
-      'isPublic',
-      'userConfirmedVisibility',
-    ]);
+    expect((def.inputSchema as any).required).toEqual(['rollType', 'rollTarget', 'targetPlayer']);
+    expect((def.inputSchema as any).properties.userConfirmedVisibility).toBeUndefined();
   });
 
-  it('request-ability-check requires targetPlayer, ability, isPublic', () => {
+  it('request-ability-check requires targetPlayer, ability', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'request-ability-check')!;
-    expect((def.inputSchema as any).required).toEqual(['targetPlayer', 'ability', 'isPublic']);
+    expect((def.inputSchema as any).required).toEqual(['targetPlayer', 'ability']);
   });
 
-  it('request-attack-roll requires targetPlayer, weaponOrSpellName, isPublic', () => {
+  it('request-attack-roll requires targetPlayer, weaponOrSpellName', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'request-attack-roll')!;
-    expect((def.inputSchema as any).required).toEqual([
-      'targetPlayer',
-      'weaponOrSpellName',
-      'isPublic',
-    ]);
+    expect((def.inputSchema as any).required).toEqual(['targetPlayer', 'weaponOrSpellName']);
+  });
+
+  it('the three request tools default isPublic to true', () => {
+    const { tools } = makeTools();
+    for (const name of ['request-player-rolls', 'request-ability-check', 'request-attack-roll']) {
+      const def = tools.getToolDefinitions().find(d => d.name === name)!;
+      expect((def.inputSchema as any).properties.isPublic.default).toBe(true);
+    }
   });
 
   it('roll-npc-check requires actorName, rollType, rollTarget, isPublic', () => {
@@ -459,7 +458,6 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       rollTarget: 'perception',
       targetPlayer: 'Dave',
       isPublic: true,
-      userConfirmedVisibility: true,
       rollModifier: '',
       flavor: '',
     });
@@ -473,7 +471,6 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       rollTarget: 'str',
       targetPlayer: 'Eve',
       isPublic: false,
-      userConfirmedVisibility: true,
       rollModifier: '+2',
       flavor: 'Strength check',
     });
@@ -482,7 +479,6 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       rollTarget: 'str',
       targetPlayer: 'Eve',
       isPublic: false,
-      userConfirmedVisibility: true,
       rollModifier: '+2',
       flavor: 'Strength check',
     });
@@ -501,18 +497,27 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when userConfirmedVisibility is not literally true', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.handleRequestPlayerRolls({
+  it('defaults isPublic to true and ignores the old userConfirmedVisibility argument', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestPlayerRolls({
       rollType: 'save',
       rollTarget: 'dex',
       targetPlayer: 'Frank',
-      isPublic: true,
       userConfirmedVisibility: false,
     });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
-    expect(query).not.toHaveBeenCalled();
+    const sent = query.mock.calls[0][1] as Record<string, unknown>;
+    expect(sent.isPublic).toBe(true);
+    expect(sent).not.toHaveProperty('userConfirmedVisibility');
+  });
+
+  it('defaults isPublic to true for ability checks and attack rolls', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestAbilityCheck({ targetPlayer: 'Alice', ability: 'str' });
+    await tools.handleRequestAttackRoll({ targetPlayer: 'Carol', weaponOrSpellName: 'Longsword' });
+    expect(query.mock.calls.map(c => (c[1] as { isPublic: boolean }).isPublic)).toEqual([
+      true,
+      true,
+    ]);
   });
 
   it('returns a parameter-error string when rollType is not a valid enum value', async () => {

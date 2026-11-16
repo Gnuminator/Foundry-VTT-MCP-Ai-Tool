@@ -17,6 +17,8 @@
  */
 
 /** Numbers keyed by a spell slot key or a coin denomination. */
+import { asRecord as record } from '@gnuminator/shared';
+
 export type StatTally = Record<string, number>;
 
 /** A player's best public d20 roll: the numbers and what was rolled, nothing else. */
@@ -69,12 +71,6 @@ export interface PlayerStats {
 export interface OwnCharacter {
   id: string;
   name: string;
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 function count(value: unknown): number {

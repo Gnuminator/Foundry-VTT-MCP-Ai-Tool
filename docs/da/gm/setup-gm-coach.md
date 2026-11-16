@@ -1,6 +1,6 @@
 ---
 source: gm/setup-gm-coach.md
-sourceHash: 7350ca9fd7f7
+sourceHash: 626b3b9f7652
 title: 'Engangsopsætning: GM-coachen'
 description: Læg Foundry GM coach-skillen ind på din egen Claude-konto, med et Claude Project som nødplan. Cirka 5 minutter, én gang.
 ---
@@ -45,6 +45,18 @@ den bruger GM coach-siderne.
   spørgsmålet med "GM coach:".
 - **Den beskriver en knap, du ikke kan finde:** zip-filen er ældre end funktionen. Bed den, der byggede
   værktøjet, om en ny zip, fjern den gamle skill og upload den nye.
+
+## Valgfrit: D&D-hjælperen som skill
+
+D&D-hjælperen bygger karakterer, rådgiver om level-up og svarer på regelspørgsmål ud fra bøgerne i
+Foundry. Den læser kun; du ændrer spillet ved at klikke i Foundry. Den bruger samme Foundry-connector
+som coachen.
+
+- **Pro og Max (plugin):** installer **foundry-dnd-helper** fra den samme marketplace,
+  `Gnuminator/foundry-ai-tool-plugins`, ved siden af coachen. Start en ny chat. Senere ændringer når
+  nye chats af sig selv.
+- **Gratis plan (zip):** tilføj en skill under **Customize** og **Skills**, og upload
+  `foundry-dnd-helper.zip` fra den, der byggede værktøjet. Pak den ikke ud først.
 
 ## Nødplan: et Claude Project
 

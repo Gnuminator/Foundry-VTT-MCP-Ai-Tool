@@ -13,7 +13,7 @@ Foundry, mostly in the character builder Actor Studio.
 
 ## The tools you have
 
-These five tools are all of them. Do not look for others, and do not ask the player to switch
+These seven tools are all of them. Do not look for others, and do not ask the player to switch
 anything on.
 
 | Tool                      | Use it to                                                                         |
@@ -23,8 +23,10 @@ anything on.
 | `search-books`            | search the text of the books; returns short excerpts and where they are           |
 | `find-book-entries`       | find an entry by name or type (class, subclass, species, background, feat, spell) |
 | `get-book-entry`          | read one entry in full (capped in length)                                         |
+| `get-my-handouts`         | the handouts, newest recap and quests the GM revealed to this player, with text   |
+| `get-my-play-stats`       | the play stats of the player's own characters and the campaign totals             |
 
-A sixth tool, `get-player-skill-guide`, only hands out this guide and its pages (with `page` set to a
+An eighth tool, `get-player-skill-guide`, only hands out this guide and its pages (with `page` set to a
 page path); it reads nothing of the game.
 
 If a tool answers "not found", or a result says some results were hidden, accept it. Never try to

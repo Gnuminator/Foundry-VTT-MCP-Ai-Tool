@@ -63,6 +63,25 @@ Parameters:
 - `packId` (string, required)
 - `entryId` (string, required)
 
+## get-my-handouts
+
+Handouts the GM revealed to you, newest first, with text. kind: recap (last session), quest or handout.
+
+Kind: read-only. Title: Get my handouts.
+
+Parameters:
+
+- `kind` (string): One of: `recap`, `quest`, `handout`.
+- `limit` (integer): 1 to 10 (default 5).
+
+## get-my-play-stats
+
+Play stats of your own characters (damage, healing, rolls, spells, XP) and campaign totals.
+
+Kind: read-only. Title: Get my play stats.
+
+No parameters.
+
 ## get-player-skill-guide
 
 The current guide of the uploaded D&D helper skill: its rules and pages, always up to date. Called by the skill itself with stubRevision; again with page for one page. Read-only.

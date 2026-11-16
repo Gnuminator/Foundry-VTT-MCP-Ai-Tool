@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set; one page per set holds t
 
 # Tool reference
 
-The bridge serves 109 tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; each set has its own page listing every tool with the description and parameters Claude reads.
+The bridge serves 111 tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; each set has its own page listing every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -15,4 +15,4 @@ The bridge serves 109 tools in six sets (five for Claude Desktop, the sixth for 
 | [Prep](tools/prep.md) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](tools/build.md) | `foundry-mcp-build` | 10 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](tools/admin.md) | `foundry-mcp-admin` | 11 | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
-| [Player](tools/player.md) | none (served on /mcp/player only) | 6 | A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio. |
+| [Player](tools/player.md) | none (served on /mcp/player only) | 8 | A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio. |

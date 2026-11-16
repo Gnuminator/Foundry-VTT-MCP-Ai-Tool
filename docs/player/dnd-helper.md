@@ -28,6 +28,7 @@ box Claude knows nothing about our game. Two small pieces change that:
   download from your page they are already inside.
 
 What it **does**: reads your own characters, reads the books our table allows players to read,
+reads the handouts, recap and quests the GM has revealed to you and your characters' play stats,
 and talks you through the choices.
 
 What it **never does**: change anything. It cannot edit your sheet, roll dice, move a token or
@@ -111,7 +112,7 @@ install it the same way, and when a form asks, paste your **Client ID** into the
 your **Client Secret** into the second (the **My character** page has both with copy buttons).
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
-You should see **Foundry** (or **foundry-player**) listed with six tools (the five table tools and
+You should see **Foundry** (or **foundry-player**) listed with eight tools (the seven table tools and
 **get-helper-guide**). If you do, the plug is in. The helper's instructions come with the extension,
 so you should not need to add a skill or switch on Code execution. If Claude does not follow the
 helper's steps, see Troubleshooting.
@@ -217,6 +218,8 @@ search is on in your chat); it does not copy the site.
 This is by design, and it also protects the story.
 
 - **Only your characters.** Not other players' characters, not monsters, not the GM's notes.
+- **Only what the GM has revealed to you.** Handouts, the recap and quests are the same as on your
+  player page; a handout meant for another player stays hidden.
 - **Only the books the table allows players.** Not the adventure, not the GM's books. If you ask
   about the story, a location, an NPC or what the GM has planned, it will say it cannot see that.
   Ask the GM.

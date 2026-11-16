@@ -1,6 +1,6 @@
 ---
 source: gm/prep-and-expectations.md
-sourceHash: 6c3224ee69c2
+sourceHash: dd5b531086d6
 title: Forberedelse og forventninger
 description: Hvad du skal forberede til en session, hvordan du taler forventninger igennem med bordet, og en dagsorden til session 0, du kan ændre som du vil, med din GM coach som hjælp til planlægningen.
 ---
@@ -38,6 +38,8 @@ når de dukker op ("jeg afgør det sådan her nu og tjekker efter sessionen" er 
 
 På Foundry-siden er [Før hver session](before-session.md) tjekket på 15 minutter, du tager før spillet.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er forberedelse, og hvordan bruger jeg det bedst?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Tal forventninger igennem
 
 De fleste problemer ved et bord kommer af, at folk vil have forskellige spil, ikke af regler. En kort snak
@@ -64,6 +66,8 @@ før kampagnen starter sparer meget. Vælg de emner, der betyder noget for jeres
 
 Skriv ned, hvad I bliver enige om, og læg det op i Discord, så ingen skal huske det.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvilke emner skal vi tale igennem, før kampagnen starter, og hvordan tager jeg dem op?"
+
 ## Snakken om ability scores
 
 Vores server er allerede sat til at tilbyde standard array og point buy, og hver spiller vælger en af de to;
@@ -80,6 +84,8 @@ Spørg spillerne, hvad de synes. Vil bordet have et andet sæt (fx også rolling
 før nogen åbner builderen ([Forbered session 0](prepare-session-0.md), trin 2), og sig det til admin, for
 kører serverscriptet igen, kommer vores to metoder tilbage. Tilføjer du rolling, så beslut også,
 om alle slår, hvor de andre kan se det.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Skal min gruppe bruge standard array, point buy eller rolling til ability scores?"
 
 ## En dagsorden til session 0, du kan ændre
 

@@ -1,6 +1,6 @@
 ---
 source: gm/before-session.md
-sourceHash: 812361362401
+sourceHash: 98d010d7783c
 title: Før hver session
 description: En kort tjekliste til GM'en, før en spilsession starter.
 ---
@@ -32,6 +32,8 @@ som fire trin med tider.
       på siden). Ret alt, der er markeret med ✗, og se på hver **!**. Det meste af resten af denne
       side står også i Pre-flight-panelets liste "Check by hand" (ikke tjekket af GM-vinduerne).
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad kigger Pre-flight-tjekket på, og hvad gør jeg ved en ! eller en ✗?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Slå til, hvad aftenen kræver
 
 - [ ] Klik på **Turn on for tonight** i Pre-flight-panelet. Ét klik slår "AI Tool: Allow Write Operations",
@@ -52,6 +54,8 @@ som fire trin med tider.
       **Appearance**, **Theme**, **Save**. Hver spiller vælger sine egne på samme måde; der er
       ingen standard for hele bordet. Se [Themed dice](features.md#themed-dice).
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad slår Turn on for tonight til, og er det trygt at lade stå under spillet?"
+
 ## Tjek, hvad spillerne kommer til at se
 
 - [ ] Fanen Scenes (kortikonet): klik på scenen, du starter på, fanen **Basics**: giv den et
@@ -70,6 +74,8 @@ som fire trin med tider.
       vist den (åbn journalen, højreklik på en side, **Configure Ownership**). Trinene står i
       [Afslør et handout](dashboard.md#afslør-et-handout).
 - [ ] I Tarokka-skuffen (🃏 **Tarokka**, under **Advanced ▾**): sørg for, at **Show cards** ikke er sat flueben ved.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan sørger jeg for, at spillerne kun ser det, de skal, før spillet starter?"
 
 ## Forbered
 

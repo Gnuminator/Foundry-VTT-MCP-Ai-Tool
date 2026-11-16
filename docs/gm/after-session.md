@@ -18,6 +18,8 @@ is one action.
 - [ ] If the dashboard header still says **GM Actions on**, click **End session** (it turns GM Actions off).
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), untick **Show cards** if it is ticked.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What does End session do, and how do I undo a change from tonight that I do not want to keep?" ([how to add the GM coach](gm-coach.md))
+
 ## Switch features off
 
 - [ ] In Foundry: Settings tab (gear icon), **Game Settings**, category **Foundry AI Tool**. Switch
@@ -34,6 +36,8 @@ is one action.
 - [ ] Write your own notes in your own files (for example in `Campaigns/<world id>/Prep/`), not in
       the notes the tool generated. A generated note you edit stops updating.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I get a recap of tonight's session for myself and one I can share with the players?"
+
 ## The players' own vaults (optional)
 
 Each player can have their own Obsidian vault that holds only what they may see: the handouts you
@@ -48,6 +52,8 @@ changed. Edits made inside a player's folder are lost on the next update.
   journal itself never goes into a player vault.
 - Sharing the folders with the players comes with the Orange Pi setup (a send-only share per
   player). Until then the folders stay on the computer that runs the dashboard.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What is a player vault, and what can my players see in it?"
 
 ## Before you shut down
 

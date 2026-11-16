@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-panels.md
-sourceHash: 01fc8de19e3a
+sourceHash: b2cda98d6ae0
 title: 'Dashboardet: panelerne'
 description: "During layouts, Combat Tracker, Tonight's stats, Session notes, Live Feed, Module Diagnostics og Recent Changes."
 ---
@@ -37,6 +37,8 @@ one** beholder et layout, **Stop** beholder det, du havde. I Auto viser den en e
 intet sendes til Foundry). Spring den over, og Cards bliver stående. De første sessioner minder en
 stille linje ved siden af **Layout** dig om, at de andre layouts findes; **✕** skjuler den. Layoutet
 gemmes for denne world, i enhver browser.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvilket During layout skal jeg vælge, og hvad gør Auto, når en kamp starter?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ### Combat Tracker
 
@@ -122,6 +124,8 @@ første bosskamp. Det viser:
 
 Spillersiden viser aldrig noget af dette.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan kører jeg en kamp fra dashboardet, med damage, conditions og initiative?"
+
 ### Hjælp: "?" på hvert panel
 
 De fleste paneler har et lille **?** ved siden af titlen. Det åbner denne guide ved panelets afsnit,
@@ -168,6 +172,8 @@ siger, hvor de er:
 
 **Read** viser alle siderne i sidepanelet. Kortet, GM summary og scenerne når aldrig spillernes side;
 kun Recap gør, når du afslører den.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad sker der med session notes efter en optaget session, og hvordan får jeg Recap til mine spillere?"
 
 ### Live Feed
 
@@ -236,6 +242,8 @@ eller et rewind), siger Redo det og bringer alle tilbage. Undo kræver, at GM Ac
 som alt andet, der ændrer spillet. Den samme liste findes også i Foundry, som vinduet **Changes**
 (nedenfor), og, når Obsidian er sat op, i din vault som én note pr. dag under `AI Tool/Everyone/` (til
 at læse, ikke til at fortryde fra).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan fortryder jeg en ændring i Recent Changes, også når noget er blevet ændret igen bagefter?"
 
 ### Den samme liste inde i Foundry
 

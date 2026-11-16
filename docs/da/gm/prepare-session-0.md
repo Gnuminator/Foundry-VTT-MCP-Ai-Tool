@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: e6e9be007953
+sourceHash: 202487bbea05
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -123,6 +123,8 @@ spillet åbent, så bed dem genindlæse (F5), før de åbner builderen.
 Vores bord holder sig til 2024 Player's Handbook. Hvis du nogensinde tillader mere (for eksempel ældre species
 i vores eget indholdsmodul), så sæt flueben ved de packs også og sig det til spillerne.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvorfor skal Actor Studio have de her indstillinger, og hvilke skal jeg selv ændre?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## 4. Giv tilmeldingssiden kampagnens udseende (valgfrit)
 
 Tilmeldingssiden er det første, dine spillere ser, når de åbner linket til spillet. Ét klik giver den
@@ -175,6 +177,8 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   spillersiden (trin 12 i deres guide). Hvert billede lander i deres egen mappe under
   `assets/players/` og vises i Changes med en Undo. Får du et billede på Discord, åbner du arket,
   klikker på portrættet og vælger billedet.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad skal jeg gøre under session 0, mens spillerne bygger deres karakterer?"
 
 ## Bagefter
 

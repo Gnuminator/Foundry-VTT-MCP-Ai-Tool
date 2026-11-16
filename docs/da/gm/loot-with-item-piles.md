@@ -1,6 +1,6 @@
 ---
 source: gm/loot-with-item-piles.md
-sourceHash: 3d002258f7ef
+sourceHash: 101c845a39ad
 title: Del loot ud med Item Piles
 description: Sådan laver du en bunke loot på kortet, lægger items og mønter i den, lader spillerne tage det, de vil have, deler mønterne og hvad du gør, når en spiller ikke kan åbne den.
 ---
@@ -72,6 +72,8 @@ skrev i det rigtige felt (Gold, ikke Platinum), og klik **Submit**.
 Tallene ved siden af items er, hvor mange der ligger i bunken, og du kan rette dem lige dér. Bunken er
 din at redigere. Spillerne ser en udgave med **Take**-knapper.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan laver jeg en loot-bunke med items og mønter i Item Piles?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## 4. Sig det til spillerne (valgfrit)
 
 En spiller åbner en bunke ved at dobbeltklikke på den på kortet. For at spare dem for at lede kan du
@@ -116,6 +118,8 @@ Items bliver liggende i bunken, så spillerne kan tage dem.
 **Hvis det fejler:** knappen siger **Split currency 0 ways**. Ingen er online med en karakter, så der
 er ingen at dele med. Spillerne skal være logget ind, hver med en karakter tildelt.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan tager mine spillere loot fra en bunke, og hvordan deler vi mønterne retfærdigt?"
+
 ## 7. Når bunken er tom
 
 En bunke sletter sig selv, når sidste item og sidste mønt er taget. Vil du beholde den (en kiste,
@@ -156,6 +160,8 @@ en almindelig guarded ændring: Claude viser en **plan**, du **bekræfter** den,
 i Recent Changes (se [Hvordan Claudes ændringer godkendes](asking-claude.md#hvordan-claudes-ændringer-godkendes)).
 Det kræver, at kontakten **AI Tool: Live play (writes)** er slået til ([funktioner](features.md)).
 Claude åbner eller fylder ikke bunker; til en bunke bruger du trinnene ovenfor.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Skal jeg bruge en loot-bunke, eller bare bede Claude give skat til en karakter?"
 
 ## Godt at vide
 

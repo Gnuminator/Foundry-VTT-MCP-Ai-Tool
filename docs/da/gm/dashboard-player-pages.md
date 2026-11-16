@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: 28f541d13e5f
+sourceHash: 800ae825e936
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -72,6 +72,8 @@ Siden vises på spillersiden inden for få sekunder, og spillerne kan åbne den 
 `plan-page-reveal` med `action` hide tager den tilbage. Før en session, åbn spillersiden og tjek, at
 listen Handouts kun viser det, du afslørede.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad ser mine spillere på spillersiden, og hvordan afslører jeg et handout uden at spoile det for tidligt?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Spillerlinks og My character (/me)
 
 Hver spiller kan have sin egen karakterside: deres sheet på en telefon eller laptop, skrivebeskyttet,
@@ -107,6 +109,8 @@ Det, siden udelader: GM'ens hemmelige sektioner i beskrivelser, de sande navne p
 items (den viser, hvad spilleren ser i Foundry) og enhver actor, spilleren ikke ejer. Som
 spillersiden er den live på Pi bag login med e-mailkode, så spillerne når den fra deres egne
 enheder.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan giver jeg hver spiller et privat link til deres karakterside?"
 
 ## Open in Obsidian (📓)
 
@@ -154,3 +158,5 @@ gør en sessions stats til små kort.
 
 Pluginet taler kun med dashboardet. Når dashboardet ikke kører, siger statuslinjen "dashboard
 offline", og intet andet ændres.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad tilføjer Obsidian-pluginet, og hvordan sætter jeg det op?"

@@ -1,6 +1,6 @@
 ---
 source: gm/never-and-only-if.md
-sourceHash: 13f7fc47237e
+sourceHash: dc27691c9be2
 title: Gør aldrig det her, gør kun det her hvis
 description: Korte regler til GM'en, hver med sin begrundelse på én linje.
 ---
@@ -32,6 +32,8 @@ Korte regler. Hver har sin begrundelse på linjen under.
   Alle, der når GM-siden, kan ændre dit spil.
 - **Kør aldrig en anden bridge ved siden af den, der allerede kører.**
   To bridges konkurrerer om de samme porte, og forbindelsen til Foundry kan gå i stykker.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvilke fejl kan afsløre en hemmelighed for mine spillere, og hvordan undgår jeg dem?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Gør kun det her hvis
 
@@ -66,3 +68,5 @@ Korte regler. Hver har sin begrundelse på linjen under.
   handlinger (roll, nye NPC'er, journals, chatbeskeder) bliver ikke. Sæt **Write/delete tools** til
   **Needs approval** for at blive spurgt hver gang.
 - **Dashboardet kalder aldrig den betalte API.** En nøgle på maskinen gør ingenting der.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvornår er det trygt at slå Start session og de andre kontakter til?"

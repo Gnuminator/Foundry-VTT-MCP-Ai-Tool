@@ -24,6 +24,8 @@ You stay in charge, but know the two kinds of change:
 
 Players get their own page. It is built to leave out what only the GM should see.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What can Claude change in my game, and which changes can I undo?" ([how to add the GM coach](gm-coach.md))
+
 ## The parts
 
 | Part                | What it is                                                                         | What you use it for                                                   |
@@ -70,6 +72,8 @@ Two things to know from the start:
 - Players never use the bridge. They see Foundry as usual. They can also open the player page; it
   is behind the same email-code login as the game.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do Foundry, the bridge, the dashboard and Claude Desktop fit together?"
+
 ## What is special for Curse of Strahd
 
 - **Tarokka reading.** Deal a reading with the tool's built-in roll, or choose the
@@ -82,6 +86,8 @@ Two things to know from the start:
 
 The Tarokka and handout features are off until you switch them on in Game Settings (see
 [the dashboard tour](dashboard.md)).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "How do the Tarokka reading and handouts work, and how do I keep them hidden from the players?"
 
 ## Glossary
 

@@ -1,6 +1,6 @@
 ---
 source: gm/getting-started.md
-sourceHash: b45bf2fa60b8
+sourceHash: 4e91926df7bf
 title: Kom i gang
 description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen og hvordan det sættes op.
 ---
@@ -25,6 +25,8 @@ Du bestemmer stadig selv, men kend de to slags ændringer:
   viser hvilke, og hvordan du får Claude Desktop til at spørge først, hvis du vil have det.
 
 Spillerne får deres egen side. Den er bygget til at udelade det, kun GM'en skal se.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad kan Claude ændre i mit spil, og hvilke ændringer kan jeg fortryde?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Delene
 
@@ -71,6 +73,8 @@ To ting, du skal vide fra start:
 - Spillere bruger aldrig bridgen. De ser Foundry som sædvanligt. De kan også åbne spillersiden. Den
   ligger bag den samme login med e-mailkode som spillet.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan hænger Foundry, bridgen, dashboardet og Claude Desktop sammen?"
+
 ## Hvad der er særligt ved Curse of Strahd
 
 - **Tarokka-læsning.** Træk en læsning med værktøjets indbyggede roll, eller vælg de
@@ -83,6 +87,8 @@ To ting, du skal vide fra start:
 
 Tarokka- og handout-funktionerne er slået fra, indtil du slår dem til i Game Settings (se
 [turen rundt i dashboardet](dashboard.md)).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan virker Tarokka-læsningen og handouts, og hvordan holder jeg dem skjult for spillerne?"
 
 Ordlisten med Foundry-ordene og værktøjsordene i guiderne ligger på siden [Ordliste](glossary.md).
 

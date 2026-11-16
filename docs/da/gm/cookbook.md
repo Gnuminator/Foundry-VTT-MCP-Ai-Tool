@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: 1f30256373f5
+sourceHash: f45f66610d84
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---
@@ -134,6 +134,8 @@ andet set, siger det.
 - **Afslør så ét kort ad gangen:** i **🃏 Tarokka** trykker du på **Reveal to players** ved én position og skriver, hvad spillerne må læse.
   Intet når spillerne, før du gør det, og de andre fire forbliver skjulte.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad skal jeg forberede før en session, og i hvilken rækkefølge?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Under sessionen
 
 ### Besvar et regelspørgsmål
@@ -232,6 +234,8 @@ Det kræver, at **play**-settet er tændt.
   sessionen.
 - **Tip:** fortæl spillerne i starten, at sessionen bliver optaget.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad kan Claude gøre for mig under en kamp, og hvad skal jeg stadig selv?"
+
 ## Efter sessionen
 
 ### Et recap
@@ -270,6 +274,8 @@ Det kræver, at **play**-settet er tændt.
   er i orden, og spillerne ser den som "Last recap" på spillersiden. Når du afslører den, eller
   trykker **Approve without revealing** i dashboardet, bliver sessionen markeret som godkendt. Den
   optagede lyd bliver på PC'en (D-097); den slettes kun, hvis en spiller beder om at få sin slettet.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad gør jeg efter en session for at få recap og session notes ind i Foundry?"
 
 ## Når en opskrift går galt
 

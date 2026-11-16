@@ -1,6 +1,6 @@
 ---
 source: player/player-page.md
-sourceHash: 41774023ca41
+sourceHash: fd180d40997d
 title: Brug player page
 description: Korte how-tos om den valgfri player page ved siden af Foundry, med at vælge dit navn, følge combaten, handouts til dig, roll-knapper og hvordan du spørger GM'en om det, værktøjet ved.
 ---
@@ -59,4 +59,10 @@ noget, værktøjet holder styr på ved bordet, spørger du GM'en, som kan slå d
 
 ## Roll, når GM'en beder om det
 
-Når GM'en beder dig om et roll, dukker der en knap op på player page, og på My character, hvis du har åbnet dit private link. Tryk på den, så går dit roll til bordet. Det bruger Foundrys eget roll, så conditions og advantage på din karakter gælder.
+Slå roll i Foundry som altid: klik på rollet på din character sheet, eller skriv det i chatten.
+Mere skal du ikke.
+
+Som en valgfri genvej vises et roll, GM'en beder om, også som en knap på player page og på My
+character, hvis du har åbnet dit private link. Den bruger Foundrys eget roll, så conditions og
+advantage på din karakter gælder, og resultatet er det samme som at slå roll i Foundry. Ignorer
+knappen, hvis du hellere vil slå roll i Foundry.

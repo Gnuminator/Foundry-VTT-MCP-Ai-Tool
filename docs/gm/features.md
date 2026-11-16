@@ -56,6 +56,8 @@ GM Actions. **End session** turns off again what it turned on. See
   tiring. Leave it off while you are still getting to know what Claude does.
 - **More:** [Asking Claude](asking-claude.md#feature-switches).
 
+> **Not sure? Ask Claude.** Ask the GM coach: "Should I let Claude apply damage without asking me first?" ([how to add the GM coach](gm-coach.md))
+
 ## Handouts
 
 - **What it does:** reveals or hides journal pages for the players, queues pages to reveal one
@@ -112,6 +114,8 @@ GM Actions. **End session** turns off again what it turned on. See
   read your line out loud and say "turn over the card", the way you would with a physical deck.
 - **More:** [The Tarokka drawer](dashboard.md#the-tarokka-drawer--tarokka).
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I run the Tarokka reading so the players see each card when I want?"
+
 ## Ownership
 
 - **What it does:** changes which players own or can see an actor.
@@ -154,6 +158,8 @@ GM Actions. **End session** turns off again what it turned on. See
 - **Turn it on when:** you record your sessions and want the notes in Foundry without doing
   anything. While it is off, the notes wait and go in by themselves once you turn it on.
 - **More:** [Session notes (After)](dashboard.md#session-notes-after).
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Should I turn on automatic session notes, and how do I undo them?"
 
 ## Boss prompts
 

@@ -1,6 +1,6 @@
 ---
 source: gm/obsidian.md
-sourceHash: bc2bcb33866d
+sourceHash: 08f1e7a10d11
 title: Din Obsidian-vault
 description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, og hvordan du forbinder AI Tool-pluginet til dashboardet på serveren.
 ---
@@ -27,6 +27,8 @@ og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden 
   NPC'er, steder og quests hører hjemme her, og Claude læser dem, når du forbereder en session (se
   [cookbook](cookbook.md), "Tip for Obsidian"). Prep/Templates har en skabelon til en NPC, et
   sted, en quest og en sessionsplan.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad bruger jeg Obsidian til i mit spil, og hvilke noter skal jeg selv skrive?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Seen in
 
@@ -91,6 +93,8 @@ ignoreret). Claude læser op til 3 blokke pr. note, 12 skabninger pr. blok og 5 
 `ai_context` sat til false bliver sprunget over, og kun blokkens navn og skabninger bliver givet
 videre, aldrig resten af noten.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan laver jeg en prep-note til en NPC og holder Claude fra at læse den?"
+
 ## Må jeg omdøbe ting?
 
 - **I Foundry, ja, frit.** Omdøb scenes, journals, actors og resten, som du vil, for
@@ -103,6 +107,8 @@ videre, aldrig resten af noten.
 - **I AI Tool-mappen skal du ikke omdøbe, flytte eller redigere noget.** Den mappe er værktøjets. En
   note, du redigerer, holder op med at blive opdateret og står i `_status.md`.
 - **Prep og Home er dine.** Omdøb, flyt og redigér dem, som du vil.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Kan jeg omdøbe eller flytte ting uden at ødelægge min vault?"
 
 ## Grafen
 

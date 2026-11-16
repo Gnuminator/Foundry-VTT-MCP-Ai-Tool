@@ -1,6 +1,6 @@
 ---
 source: gm/first-hour.md
-sourceHash: 32f9c3fab31d
+sourceHash: a01a0d834255
 title: Din første time som GM
 description: En fast læserækkefølge til din første time, med vores Foundry-grundsider til spillet og vores sider til værktøjet.
 ---
@@ -26,6 +26,8 @@ er den her side som fire trin med tider.
 3. [Kom i gang](getting-started.md). Hvad værktøjet tilføjer til Foundry, dets dele og de ord,
    vi bruger om dem.
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er de vigtigste dele af Foundry-skærmen, og hvad bruges hver af dem til?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## 2. Mennesker og worlds (10 minutter)
 
 1. [Users and permissions](../../foundry/users-and-permissions.md). Rollerne (Player, Trusted,
@@ -46,6 +48,8 @@ Prøv hver af dem i test worlden, mens du læser.
    spillerne.
 5. [Chat and dice](../../foundry/chat-and-dice.md): chatloggen, at slå med terninger og private terningslag, kun for GM'en.
 6. [Combat](../../foundry/combat.md): combat tracker, initiative, turns og rounds.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er forskellen på at se en scene og at aktivere den, og hvordan starter jeg en combat?"
 
 ## 4. Værktøjet (10 minutter)
 

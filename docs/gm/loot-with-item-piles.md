@@ -70,6 +70,8 @@ the right box (Gold, not Platinum) and click **Submit**.
 The numbers next to the items are how many are in the pile, and you can change them right there.
 The pile is yours to edit. The players see a version with **Take** buttons.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do I make a loot pile with items and coins in Item Piles?" ([how to add the GM coach](gm-coach.md))
+
 ## 4. Tell the players (optional)
 
 A player opens a pile by double-clicking it on the map. To save them the hunt, click **Show To
@@ -114,6 +116,8 @@ its share. Items stay in the pile for the players to take.
 **If it fails:** the button says **Split currency 0 ways**. Nobody is online with a character, so
 there is nobody to split with. Players have to be logged in, each with a character assigned.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "How do my players take loot from a pile, and how do we split the coins fairly?"
+
 ## 7. When the pile is empty
 
 A pile deletes itself when the last item and coin are taken. If you want to keep it (a chest the
@@ -154,6 +158,8 @@ That is a normal guarded change: Claude shows a **plan**, you **confirm** it, an
 **undone** in Recent Changes (see [How Claude's changes are approved](asking-claude.md#how-claudes-changes-are-approved)).
 It needs the switch **AI Tool: Live play (writes)** on ([features](features.md)). Claude does not
 open or fill piles; for a pile, use the steps above.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "Should I use a loot pile or just ask Claude to give treasure to a character?"
 
 ## Good to know
 

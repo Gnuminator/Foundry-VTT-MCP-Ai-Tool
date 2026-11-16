@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: ab14fe9c3764
+sourceHash: 25592e85d393
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -57,6 +57,8 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Slå den til, når:** du lader Claude klare damage i lange combats, og det bliver trættende at
   bekræfte hvert roll. Lad den stå fra, mens du stadig lærer, hvad Claude gør.
 - **Mere:** [Asking Claude](asking-claude.md#funktionskontakter).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Skal jeg lade Claude give damage uden at spørge mig først?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Handouts
 
@@ -117,6 +119,8 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   spillersiden. Læs bare din linje højt og sig "vend kortet", som med et rigtigt sæt kort.
 - **Mere:** [The Tarokka drawer](dashboard.md#tarokka-skuffen--tarokka).
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan kører jeg Tarokka-læsningen, så spillerne ser hvert kort, når jeg vil?"
+
 ## Ownership
 
 - **Hvad den gør:** ændrer, hvilke spillere der ejer en actor eller kan se den.
@@ -161,6 +165,8 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Slå den til, når:** du optager dine sessioner og vil have noterne i Foundry uden at gøre
   noget. Mens den er slået fra, venter noterne og kommer ind af sig selv, når du slår den til.
 - **Mere:** [Session notes (After)](dashboard.md#session-notes-after).
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Skal jeg slå automatiske session notes til, og hvordan fortryder jeg dem?"
 
 ## Boss prompts
 

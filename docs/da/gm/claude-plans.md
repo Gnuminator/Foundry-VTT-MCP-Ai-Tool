@@ -1,6 +1,6 @@
 ---
 source: gm/claude-plans.md
-sourceHash: bd3e8407e01e
+sourceHash: c6ebcd752bd3
 title: Claude Free eller Pro
 description: Hvad der virker med den gratis Claude-plan, og hvad Claude Pro giver dig, når du kører et spil med Foundry AI Tool, med kilder og datoer.
 ---
@@ -47,6 +47,8 @@ Så på Free skal du forberede dig med Claude mellem sessionerne og bruge den le
 en spilaften løber tør, så spil videre uden den: alt kan gøres i hånden i Foundry
 ([Runbook til spilaftenen](game-night-runbook.md)).
 
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan får jeg mit Claude-forbrug til at holde gennem en spilaften på gratisplanen?" ([sådan tilføjer du GM coach](gm-coach.md))
+
 ## Hvad Pro giver
 
 | Hvad                  | Pro                                                                         |
@@ -64,6 +66,8 @@ på Free; værktøjet bruger dem ikke.
 
 **Hvornår Pro er det værd:** når du rammer grænsen under forberedelse eller på spilaftenen oftere end
 nu og da, eller når du vil have Claude ved bordet hele aftenen. Prøv Free først.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er grænserne på den gratis plan, og hvad ville få mig til at ramme dem?"
 
 ## Ikke afklaret endnu
 

@@ -24,6 +24,8 @@ is this page as four stages with times.
 3. [Getting started](getting-started.md). What the tool adds to Foundry, its parts and the words
    we use for them.
 
+> **Not sure? Ask Claude.** Ask the GM coach: "What are the main parts of the Foundry screen, and what is each one for?" ([how to add the GM coach](gm-coach.md))
+
 ## 2. People and worlds (10 minutes)
 
 1. [Users and permissions](../foundry/users-and-permissions.md). The roles (Player, Trusted,
@@ -44,6 +46,8 @@ Try each one in the test world as you read it.
    players.
 5. [Chat and dice](../foundry/chat-and-dice.md): the chat log, rolling and private GM rolls.
 6. [Combat](../foundry/combat.md): the combat tracker, initiative, turns and rounds.
+
+> **Not sure? Ask Claude.** Ask the GM coach: "What is the difference between viewing a scene and activating it, and how do I start a combat?"
 
 ## 4. The tool (10 minutes)
 

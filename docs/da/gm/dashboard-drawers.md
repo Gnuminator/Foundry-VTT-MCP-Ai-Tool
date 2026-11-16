@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: 0e4692bac75b
+sourceHash: a761580976e5
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -38,6 +38,8 @@ I confirm-vinduet:
   kryds ved "I understand this changes the live game and may be hard to undo.", og klik derefter på
   **Run destructive action**. Undtagelsen er **End combat** på strips: den spørger i én linje uden
   kryds, og Undo bringer kampen tilbage.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvornår beder dashboardet mig om at bekræfte en ændring, og hvornår bliver den bare udført?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Tool Runner (🛠 Tool Runner)
 
@@ -83,6 +85,8 @@ Når Claude planlægger en ændring i Claude Desktop, kan du anvende den fra das
 `get-planned-change` uden `planId` viser hver plan, der stadig venter. Planer udløber efter 15
 minutter, og en genstart af bridgen fjerner dem. Hvis en plan er udløbet, så bed Claude planlægge den
 igen.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan bruger jeg Tool Runner til at udføre en plan, Claude har lavet?"
 
 ## Tarokka-skuffen (🃏 Tarokka)
 
@@ -146,6 +150,8 @@ listen, før du trykker på **+ Queue a page** for den. Skuffen viser:
 
 Et handout til udvalgte spillere kan kun læses i Foundry af dem, og spillersiden viser det kun til en
 spiller, der valgte det navn ("Playing as ...") øverst på siden.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan sætter jeg et handout i kø under forberedelsen og afslører det ved bordet?"
 
 ## Prep-skuffen (📋 Prep)
 
@@ -215,3 +221,5 @@ Actions er slået til, og at module-indstillingen **AI Tool: Party (writes)** er
 ændring havner i Recent Changes med Undo; et rest-kort kan kun fortrydes, mens ingen har hvilet fra
 det (derefter skal du slette kortet i Foundrys chat). Claude bruger de samme handlinger med
 `get-party` og `plan-party-change`.
+
+> **Usikker? Spørg Claude.** Spørg GM coach: "Hvad kan jeg gøre fra Party-skuffen, og hvad viser Who would notice mig?"

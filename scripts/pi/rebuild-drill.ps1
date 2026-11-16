@@ -88,7 +88,7 @@ if (Test-Path -LiteralPath $Scratch) { throw "$Scratch exists already: pick anot
 if ($HostPort -gt 0) {
   # The forbidden list lives in shared/ports.json (generated from shared/src/ports.ts). 3190 is not in it: it was in the
   # drill's own literal list before that file existed (owner unknown), so it stays refused.
-  $forbiddenPorts = @((Get-Content (Join-Path $repoRoot 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden) + 3190
+  $forbiddenPorts = @((Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'shared/ports.json') -Raw | ConvertFrom-Json).forbidden) + 3190
   if ($HostPort -in $forbiddenPorts) { throw "port $HostPort is not free to use" }
 }
 $existing = docker ps -a --filter "name=^$Name$" --format '{{.Names}}'

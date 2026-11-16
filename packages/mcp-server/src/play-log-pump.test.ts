@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localDateKey } from './event-pump.js';
 import { PLAY_PUMP_STATE_FILE, PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { buildStats } from './stats/build.js';
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { VaultStore } from './vault/store.js';
 
 /** The module's ring buffer: `seq > sinceSeq` filter, up to `limit` records, one `clientId`. */
@@ -96,7 +97,7 @@ beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'play-log-pump-'));
   store = new VaultStore({ dataDir });
   foundry = new FakeModule();
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+  logger = makeLogger();
   logger.child = (): unknown => logger;
 });
 

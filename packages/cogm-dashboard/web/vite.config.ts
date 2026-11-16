@@ -35,7 +35,7 @@ export default defineConfig({
   // public/ holds the shared assets and the server serves it; nothing to copy.
   publicDir: false,
   plugins: [react()],
-  // The tool version for the header (lib/appVersion.ts).
+  // The tool version for the header (lib/app-version.ts).
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   build: {
     outDir: fileURLToPath(new URL('../dist/web', import.meta.url)),

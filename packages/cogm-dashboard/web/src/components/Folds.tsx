@@ -1,6 +1,6 @@
 // The folds of the During cards (D-092, I-107): Live Feed, Recent
 // Changes, Handouts and Party each have a fold button first in their head, and a folded card
-// shows only its head. The rules are in lib/duringFolds.ts; moments.css draws the button and hides
+// shows only its head. The rules are in lib/during-folds.ts; moments.css draws the button and hides
 // what is inside a card with `.is-folded`.
 //
 // A card the GM folded or opened keeps that choice for the same layout, fight and
@@ -29,8 +29,8 @@ import {
   type FoldCard,
   type FoldChoices,
   type FoldSituation,
-} from '../lib/duringFolds';
-import type { DuringScreen } from '../lib/duringTrial';
+} from '../lib/during-folds';
+import type { DuringScreen } from '../lib/during-trial';
 import { REMEMBER, readJson, writeJson } from '../lib/remember';
 
 /** moments.css switches to one column under 900 px, and the feed folds on a phone under 600 px. */

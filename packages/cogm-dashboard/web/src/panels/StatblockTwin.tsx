@@ -18,8 +18,8 @@ import {
   twinSearchName,
   type StatBlock,
   type TwinVerdict,
-} from '../lib/statblockTwin';
-import type { ToolRef } from '../lib/toolForm';
+} from '../lib/statblock-twin';
+import type { ToolRef } from '../lib/tool-form';
 import { Button, Card } from '../ui';
 
 import styles from './StatblockTwin.module.css';

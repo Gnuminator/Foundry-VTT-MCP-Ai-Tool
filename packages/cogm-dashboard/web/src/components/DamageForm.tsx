@@ -14,7 +14,7 @@ import {
   type DamageDraft,
   type DamageMode,
   type DamageType,
-} from '../lib/damageForm';
+} from '../lib/damage-form';
 import { useGuardedTools } from '../lib/guarded';
 import { Button } from '../ui';
 import styles from './DamageForm.module.css';

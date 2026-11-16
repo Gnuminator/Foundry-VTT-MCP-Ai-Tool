@@ -5,7 +5,7 @@
 import { isRecord } from '../../../../../shared/src/util/record.js';
 import { hpPercent, hpTone, hpText, type CombatState } from './combat';
 
-export { GLANCE_HREF } from './liveScreen';
+export { GLANCE_HREF } from './live-screen';
 
 /** How often the party and the scene are read again; the fight comes over the live stream. */
 export const GLANCE_REFRESH_MS = 15_000;

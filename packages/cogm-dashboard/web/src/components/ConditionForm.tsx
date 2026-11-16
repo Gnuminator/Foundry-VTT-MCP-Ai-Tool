@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 
 import { useGuardedTools } from '../lib/guarded';
-import { CONDITIONS, conditionArgs, conditionQuestion } from '../lib/liveStrip';
+import { CONDITIONS, conditionArgs, conditionQuestion } from '../lib/live-strip';
 import { Button } from '../ui';
 import styles from './DamageForm.module.css';
 

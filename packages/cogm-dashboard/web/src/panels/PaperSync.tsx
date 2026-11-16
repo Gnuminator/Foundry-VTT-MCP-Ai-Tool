@@ -28,9 +28,9 @@ import {
   type PaperDraft,
   type PaperPlan,
   type SheetLike,
-} from '../lib/paperSync';
+} from '../lib/paper-sync';
 import { useDashboardSettings } from '../lib/stream';
-import type { ToolRef } from '../lib/toolForm';
+import type { ToolRef } from '../lib/tool-form';
 import { usage } from '../lib/usage';
 import { Button, Card, QueryState } from '../ui';
 

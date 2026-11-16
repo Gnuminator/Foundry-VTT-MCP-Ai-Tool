@@ -20,11 +20,11 @@ import { callTool, errorText } from '../lib/api';
 import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone } from '../lib/combat';
 import type { Combatant } from '../lib/combat';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
-import { useEndCombat } from '../lib/endCombat';
+import { useEndCombat } from '../lib/end-combat';
 import { useGuardedTools } from '../lib/guarded';
-import { useLivePlay } from '../lib/livePlay';
-import { useMapPick } from '../lib/mapPick';
-import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import { useLivePlay } from '../lib/live-play';
+import { useMapPick } from '../lib/map-pick';
+import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/live-switches';
 import {
   CONDITIONS,
   StripUndoContext,
@@ -38,7 +38,7 @@ import {
   removeConditionArgs,
   turnText,
   undoLabel,
-} from '../lib/liveStrip';
+} from '../lib/live-strip';
 import { initialsOf } from '../lib/ribbon';
 import { sideOf } from '../lib/combat';
 import {

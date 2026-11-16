@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
 import { expect, within } from 'storybook/test';
 
-import { useLivePlay } from '../lib/livePlay';
-import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
-import { SWITCHES_KEY } from '../lib/sessionSwitches';
+import { useLivePlay } from '../lib/live-play';
+import { ROLL_NEEDS, offReason } from '../lib/live-switches';
+import { SWITCHES_KEY } from '../lib/session-switches';
 import { SETTINGS_KEY } from '../lib/stream';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 import { SWITCHES_READY } from '../storybook/fixtures/preflight';

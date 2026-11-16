@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 
-import { useLivePlay } from '../lib/livePlay';
-import { GM_ACTIONS, offReason, offSwitches } from '../lib/liveSwitches';
+import { useLivePlay } from '../lib/live-play';
+import { GM_ACTIONS, offReason, offSwitches } from '../lib/live-switches';
 import { useDashboardSettings } from '../lib/stream';
 import { Button, Popover } from '../ui';
 

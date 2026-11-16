@@ -47,7 +47,7 @@ import * as path from 'path';
 
 /** The public types moved to dashboard-types.ts; server.ts and the tests import them from here. */
 export type { Dashboard, DashboardClient, DashboardDeps } from './dashboard-types.js';
-/** The player page header and its policy moved to routes/pages-static.ts; tests import them from here. */
+/** The player page header moved to routes/pages-static.ts; tests import the policy (PLAYER_CSP) from here. */
 export { PLAYER_CSP } from './routes/pages-static.js';
 
 export function createDashboard(deps: DashboardDeps): Dashboard {

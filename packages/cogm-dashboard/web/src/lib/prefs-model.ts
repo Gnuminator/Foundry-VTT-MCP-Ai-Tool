@@ -1,6 +1,6 @@
 // The GM's screen choices for a world (dashboard-prefs.ts on the server), as plain data and
 // rules: the types, the defaults, how an answer is read, how a change shows at once, and when the
-// layout hint shows. No React and no fetch here, so the rules have unit tests (duringTrial.test.ts);
+// layout hint shows. No React and no fetch here, so the rules have unit tests (during-trial.test.ts);
 // prefs.ts has the hooks.
 
 export const DURING_LAYOUTS = ['layered', 'toggle', 'auto'] as const;

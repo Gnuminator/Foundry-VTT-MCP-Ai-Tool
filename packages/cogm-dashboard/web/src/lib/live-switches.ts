@@ -1,5 +1,5 @@
 // Which switches a live control needs and which of them are off: plain data and rules, no React and
-// no fetch, so they have unit tests (liveSwitches.test.ts). livePlay.ts has the hook.
+// no fetch, so they have unit tests (live-switches.test.ts). live-play.ts has the hook.
 import type { SessionSwitch } from './session-switches';
 
 /** The pseudo id of the dashboard's own GM Actions switch in a needs list. */

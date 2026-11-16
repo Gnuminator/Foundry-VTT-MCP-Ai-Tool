@@ -23,6 +23,7 @@
  *
  * Planning is pure (tested); {@link applyJoinLook} takes its Foundry pieces as deps.
  */
+import { escapeHtml } from '@gnuminator/shared/browser';
 import { MODULE_ID } from './constants.js';
 import { trackUsage } from './usage-recorder.js';
 
@@ -232,14 +233,6 @@ export async function applyJoinLook(
       : "The join page is back to Foundry's own look."
   );
   return true;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function unescapeHtml(text: string): string {

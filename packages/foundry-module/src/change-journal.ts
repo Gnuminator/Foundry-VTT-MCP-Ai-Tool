@@ -1,3 +1,4 @@
+import { asRecord } from '@gnuminator/shared/browser';
 import { MODULE_ID } from './constants.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
@@ -43,10 +44,6 @@ import type { PathValue } from './data-access/guarded-write.js';
 // ---------------------------------------------------------------------------
 // Narrow helpers (hook arguments are `any` at Foundry's boundary)
 // ---------------------------------------------------------------------------
-
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-}
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined;

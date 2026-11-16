@@ -95,6 +95,7 @@ import {
   utf8Bytes,
   type Rec,
 } from './doc-read.js';
+import { escapeHtml } from '@gnuminator/shared/browser';
 import { MODULE_ID } from './constants.js';
 import { buildStatBlock } from './stat-block.js';
 import { detectRulesVersion, readRulesTag } from './systems/dnd5e/rules-version.js';
@@ -181,15 +182,6 @@ export function imagePath(value: unknown): string | null {
   if (/^\/?icons\/svg\//i.test(path)) return null;
   if (/^(data|blob|javascript):/i.test(path)) return null;
   return path;
-}
-
-/** `&`, `<`, `>` and `"` as entities, for the small HTML an image page sends. */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // ---------------------------------------------------------------------------
